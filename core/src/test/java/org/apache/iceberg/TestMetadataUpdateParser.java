@@ -887,7 +887,7 @@ public class TestMetadataUpdateParser {
   @Test
   public void testSetPartitionStatistics() {
     String json =
-        "{\"action\":\"set-partition-statistics\",\"snapshot-id\":1940541653261589030,"
+        "{\"action\":\"set-partition-statistics\","
             + "\"partition-statistics\":{\"snapshot-id\":1940541653261589030,"
             + "\"statistics-path\":\"s3://bucket/warehouse/stats1.parquet\","
             + "\"file-size-in-bytes\":43}}";
@@ -895,7 +895,6 @@ public class TestMetadataUpdateParser {
     long snapshotId = 1940541653261589030L;
     MetadataUpdate expected =
         new MetadataUpdate.SetPartitionStatistics(
-            snapshotId,
             ImmutableGenericPartitionStatisticsFile.builder()
                 .snapshotId(snapshotId)
                 .path("s3://bucket/warehouse/stats1" + ".parquet")

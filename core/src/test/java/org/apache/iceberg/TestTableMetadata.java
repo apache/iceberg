@@ -1370,7 +1370,6 @@ public class TestTableMetadata {
     TableMetadata withPartitionStatistics =
         TableMetadata.buildFrom(meta)
             .setPartitionStatistics(
-                43,
                 ImmutableGenericPartitionStatisticsFile.builder()
                     .snapshotId(43)
                     .path("/some/path/to/partition/stats/file" + ".parquet")
@@ -1394,7 +1393,6 @@ public class TestTableMetadata {
     TableMetadata withStatisticsReplaced =
         TableMetadata.buildFrom(withPartitionStatistics)
             .setPartitionStatistics(
-                43,
                 ImmutableGenericPartitionStatisticsFile.builder()
                     .snapshotId(43)
                     .path("/some/path/to/partition/stats/file2" + ".parquet")
@@ -1425,14 +1423,12 @@ public class TestTableMetadata {
                 TableMetadata.newTableMetadata(
                     schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of()))
             .setPartitionStatistics(
-                43,
                 ImmutableGenericPartitionStatisticsFile.builder()
                     .snapshotId(43)
                     .path("/some/path/to/partition/stats/file1" + ".parquet")
                     .fileSizeInBytes(48L)
                     .build())
             .setPartitionStatistics(
-                44,
                 ImmutableGenericPartitionStatisticsFile.builder()
                     .snapshotId(44)
                     .path("/some/path/to/partition/stats/file2" + ".parquet")

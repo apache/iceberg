@@ -955,16 +955,23 @@ public class TableMetadata implements Serializable {
       this.previousFileLocation = base.metadataFileLocation;
       this.previousFiles = base.previousFiles;
       this.refs = Maps.newHashMap(base.refs);
-      this.statisticsFiles =
-          base.statisticsFiles.stream().collect(Collectors.groupingBy(StatisticsFile::snapshotId));
-      this.partitionStatisticsFiles =
-          base.partitionStatisticsFiles.stream()
-              .collect(Collectors.groupingBy(PartitionStatisticsFile::snapshotId));
-
+      this.statisticsFiles = statsFileBySnapshotID(base);
+      this.partitionStatisticsFiles = partitionStatsFileBySnapshotID(base);
       this.snapshotsById = Maps.newHashMap(base.snapshotsById);
       this.schemasById = Maps.newHashMap(base.schemasById);
       this.specsById = Maps.newHashMap(base.specsById);
       this.sortOrdersById = Maps.newHashMap(base.sortOrdersById);
+    }
+
+    private static Map<Long, List<StatisticsFile>> statsFileBySnapshotID(TableMetadata base) {
+      return base.statisticsFiles.stream()
+          .collect(Collectors.groupingBy(StatisticsFile::snapshotId));
+    }
+
+    private static Map<Long, List<PartitionStatisticsFile>> partitionStatsFileBySnapshotID(
+        TableMetadata base) {
+      return base.partitionStatisticsFiles.stream()
+          .collect(Collectors.groupingBy(PartitionStatisticsFile::snapshotId));
     }
 
     public Builder withMetadataLocation(String newMetadataLocation) {
@@ -1300,16 +1307,11 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
-    public Builder setPartitionStatistics(
-        long snapshotId, PartitionStatisticsFile partitionStatisticsFile) {
+    public Builder setPartitionStatistics(PartitionStatisticsFile partitionStatisticsFile) {
       Preconditions.checkNotNull(partitionStatisticsFile, "partition statistics file is null");
-      Preconditions.checkArgument(
-          snapshotId == partitionStatisticsFile.snapshotId(),
-          "snapshotId does not match: %s vs %s",
-          snapshotId,
-          partitionStatisticsFile.snapshotId());
-      partitionStatisticsFiles.put(snapshotId, ImmutableList.of(partitionStatisticsFile));
-      changes.add(new MetadataUpdate.SetPartitionStatistics(snapshotId, partitionStatisticsFile));
+      partitionStatisticsFiles.put(
+          partitionStatisticsFile.snapshotId(), ImmutableList.of(partitionStatisticsFile));
+      changes.add(new MetadataUpdate.SetPartitionStatistics(partitionStatisticsFile));
       return this;
     }
 

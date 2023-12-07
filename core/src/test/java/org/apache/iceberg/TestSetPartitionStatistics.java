@@ -76,10 +76,7 @@ public class TestSetPartitionStatistics extends TableTestBase {
             .fileSizeInBytes(42L)
             .build();
 
-    table
-        .updatePartitionStatistics()
-        .setPartitionStatistics(snapshotId, partitionStatisticsFile)
-        .commit();
+    table.updatePartitionStatistics().setPartitionStatistics(partitionStatisticsFile).commit();
 
     TableMetadata metadata = readMetadata();
     assertTableMetadataVersion(2);
@@ -108,10 +105,7 @@ public class TestSetPartitionStatistics extends TableTestBase {
             .fileSizeInBytes(42L)
             .build();
 
-    table
-        .updatePartitionStatistics()
-        .setPartitionStatistics(snapshotId, partitionStatisticsFile)
-        .commit();
+    table.updatePartitionStatistics().setPartitionStatistics(partitionStatisticsFile).commit();
 
     TableMetadata metadata = readMetadata();
     assertTableMetadataVersion(2);

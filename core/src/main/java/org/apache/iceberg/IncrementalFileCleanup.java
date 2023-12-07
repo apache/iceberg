@@ -262,8 +262,7 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
     deleteFiles(manifestsToDelete, "manifest");
     deleteFiles(manifestListsToDelete, "manifest list");
 
-    if (!beforeExpiration.statisticsFiles().isEmpty()
-        || !beforeExpiration.partitionStatisticsFiles().isEmpty()) {
+    if (hasAnyStatisticsFiles(beforeExpiration)) {
       Set<String> expiredStatisticsFilesLocations =
           expiredStatisticsFilesLocations(beforeExpiration, afterExpiration);
       deleteFiles(expiredStatisticsFilesLocations, "statistics files");

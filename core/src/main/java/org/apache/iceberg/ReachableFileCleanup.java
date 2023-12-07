@@ -82,8 +82,7 @@ class ReachableFileCleanup extends FileCleanupStrategy {
 
     deleteFiles(manifestListsToDelete, "manifest list");
 
-    if (!beforeExpiration.statisticsFiles().isEmpty()
-        || !beforeExpiration.partitionStatisticsFiles().isEmpty()) {
+    if (hasAnyStatisticsFiles(beforeExpiration)) {
       deleteFiles(
           expiredStatisticsFilesLocations(beforeExpiration, afterExpiration), "statistics files");
     }

@@ -85,6 +85,11 @@ abstract class FileCleanupStrategy {
         .run(deleteFunc::accept);
   }
 
+  protected boolean hasAnyStatisticsFiles(TableMetadata tableMetadata) {
+    return !tableMetadata.statisticsFiles().isEmpty()
+        || !tableMetadata.partitionStatisticsFiles().isEmpty();
+  }
+
   protected Set<String> expiredStatisticsFilesLocations(
       TableMetadata beforeExpiration, TableMetadata afterExpiration) {
     Set<String> statsFileLocationsBeforeExpiration = statsFileLocations(beforeExpiration);

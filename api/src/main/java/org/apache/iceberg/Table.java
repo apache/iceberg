@@ -24,6 +24,7 @@ import java.util.UUID;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 /** Represents a table. */
 public interface Table {
@@ -339,7 +340,9 @@ public interface Table {
   List<StatisticsFile> statisticsFiles();
 
   /** Returns the current partition statistics files for the table. */
-  List<PartitionStatisticsFile> partitionStatisticsFiles();
+  default List<PartitionStatisticsFile> partitionStatisticsFiles() {
+    return ImmutableList.of();
+  }
 
   /**
    * Returns the current refs for the table

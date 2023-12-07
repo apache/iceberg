@@ -21,8 +21,7 @@ package org.apache.iceberg;
 import java.io.Serializable;
 
 /**
- * Represents a partition statistics file in the table default format, that can be used to read
- * table data more efficiently.
+ * Represents a partition statistics file that can be used to read table data more efficiently.
  *
  * <p>Statistics are informational. A reader can choose to ignore statistics information. Statistics
  * support is not required to read the table correctly.
@@ -31,9 +30,7 @@ public interface PartitionStatisticsFile extends Serializable {
   /** ID of the Iceberg table's snapshot the partition statistics file is associated with. */
   long snapshotId();
 
-  /**
-   * Returns fully qualified path to the file, suitable for constructing a Hadoop Path. Never null.
-   */
+  /** Returns fully qualified path to the file. Never null. */
   String path();
 
   /** Returns the size of the partition statistics file in bytes. */

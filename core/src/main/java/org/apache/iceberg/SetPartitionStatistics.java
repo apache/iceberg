@@ -19,15 +19,14 @@
 package org.apache.iceberg;
 
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 public class SetPartitionStatistics implements UpdatePartitionStatistics {
   private final TableOperations ops;
-  private final Map<Long, Optional<PartitionStatisticsFile>> partitionStatisticsToSet =
-      Maps.newHashMap();
+  private final Set<PartitionStatisticsFile> partitionStatisticsToSet = Sets.newHashSet();
+  private final Set<Long> partitionStatisticsToRemove = Sets.newHashSet();
 
   public SetPartitionStatistics(TableOperations ops) {
     this.ops = ops;
@@ -35,15 +34,16 @@ public class SetPartitionStatistics implements UpdatePartitionStatistics {
 
   @Override
   public UpdatePartitionStatistics setPartitionStatistics(
-      long snapshotId, PartitionStatisticsFile partitionStatisticsFile) {
-    Preconditions.checkArgument(snapshotId == partitionStatisticsFile.snapshotId());
-    partitionStatisticsToSet.put(snapshotId, Optional.of(partitionStatisticsFile));
+      PartitionStatisticsFile partitionStatisticsFile) {
+    Preconditions.checkArgument(
+        null != partitionStatisticsFile, "partition statistics file must not be null");
+    partitionStatisticsToSet.add(partitionStatisticsFile);
     return this;
   }
 
   @Override
   public UpdatePartitionStatistics removePartitionStatistics(long snapshotId) {
-    partitionStatisticsToSet.put(snapshotId, Optional.empty());
+    partitionStatisticsToRemove.add(snapshotId);
     return this;
   }
 
@@ -61,14 +61,8 @@ public class SetPartitionStatistics implements UpdatePartitionStatistics {
 
   private TableMetadata internalApply(TableMetadata base) {
     TableMetadata.Builder builder = TableMetadata.buildFrom(base);
-    partitionStatisticsToSet.forEach(
-        (snapshotId, statistics) -> {
-          if (statistics.isPresent()) {
-            builder.setPartitionStatistics(snapshotId, statistics.get());
-          } else {
-            builder.removePartitionStatistics(snapshotId);
-          }
-        });
+    partitionStatisticsToSet.forEach(builder::setPartitionStatistics);
+    partitionStatisticsToRemove.forEach(builder::removePartitionStatistics);
     return builder.build();
   }
 }

@@ -376,7 +376,6 @@ public class MetadataUpdateParser {
 
   private static void writeSetPartitionStatistics(
       MetadataUpdate.SetPartitionStatistics update, JsonGenerator gen) throws IOException {
-    gen.writeNumberField(SNAPSHOT_ID, update.snapshotId());
     gen.writeFieldName(PARTITION_STATISTICS);
     PartitionStatisticsFileParser.toJson(update.partitionStatisticsFile(), gen);
   }
@@ -510,11 +509,10 @@ public class MetadataUpdateParser {
   }
 
   private static MetadataUpdate readSetPartitionStatistics(JsonNode node) {
-    long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, node);
     JsonNode partitionStatisticsFileNode = JsonUtil.get(PARTITION_STATISTICS, node);
     PartitionStatisticsFile partitionStatisticsFile =
         PartitionStatisticsFileParser.fromJson(partitionStatisticsFileNode);
-    return new MetadataUpdate.SetPartitionStatistics(snapshotId, partitionStatisticsFile);
+    return new MetadataUpdate.SetPartitionStatistics(partitionStatisticsFile);
   }
 
   private static MetadataUpdate readRemovePartitionStatistics(JsonNode node) {

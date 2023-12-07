@@ -244,17 +244,14 @@ public interface MetadataUpdate extends Serializable {
   }
 
   class SetPartitionStatistics implements MetadataUpdate {
-    private final long snapshotId;
     private final PartitionStatisticsFile partitionStatisticsFile;
 
-    public SetPartitionStatistics(
-        long snapshotId, PartitionStatisticsFile partitionStatisticsFile) {
-      this.snapshotId = snapshotId;
+    public SetPartitionStatistics(PartitionStatisticsFile partitionStatisticsFile) {
       this.partitionStatisticsFile = partitionStatisticsFile;
     }
 
     public long snapshotId() {
-      return snapshotId;
+      return partitionStatisticsFile.snapshotId();
     }
 
     public PartitionStatisticsFile partitionStatisticsFile() {
@@ -263,7 +260,7 @@ public interface MetadataUpdate extends Serializable {
 
     @Override
     public void applyTo(TableMetadata.Builder metadataBuilder) {
-      metadataBuilder.setPartitionStatistics(snapshotId, partitionStatisticsFile);
+      metadataBuilder.setPartitionStatistics(partitionStatisticsFile);
     }
   }
 

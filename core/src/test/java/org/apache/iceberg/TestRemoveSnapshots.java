@@ -1326,20 +1326,14 @@ public class TestRemoveSnapshots extends TableTestBase {
     String statsFileLocation1 = statsFileLocation(table.location());
     PartitionStatisticsFile statisticsFile1 =
         writePartitionStatsFile(
-            table.currentSnapshot().snapshotId(),
-            table.currentSnapshot().sequenceNumber(),
-            statsFileLocation1,
-            table.io());
+            table.currentSnapshot().snapshotId(), statsFileLocation1, table.io());
     commitPartitionStats(table, statisticsFile1);
 
     table.newAppend().appendFile(FILE_B).commit();
     String statsFileLocation2 = statsFileLocation(table.location());
     PartitionStatisticsFile statisticsFile2 =
         writePartitionStatsFile(
-            table.currentSnapshot().snapshotId(),
-            table.currentSnapshot().sequenceNumber(),
-            statsFileLocation2,
-            table.io());
+            table.currentSnapshot().snapshotId(), statsFileLocation2, table.io());
     commitPartitionStats(table, statisticsFile2);
     Assert.assertEquals(
         "Should have 2 partition statistics file", 2, table.partitionStatisticsFiles().size());
@@ -1365,10 +1359,7 @@ public class TestRemoveSnapshots extends TableTestBase {
     String statsFileLocation1 = statsFileLocation(table.location());
     PartitionStatisticsFile statisticsFile1 =
         writePartitionStatsFile(
-            table.currentSnapshot().snapshotId(),
-            table.currentSnapshot().sequenceNumber(),
-            statsFileLocation1,
-            table.io());
+            table.currentSnapshot().snapshotId(), statsFileLocation1, table.io());
     commitPartitionStats(table, statisticsFile1);
 
     table.newAppend().appendFile(FILE_B).commit();
@@ -1720,7 +1711,7 @@ public class TestRemoveSnapshots extends TableTestBase {
   }
 
   private static PartitionStatisticsFile writePartitionStatsFile(
-      long snapshotId, long snapshotSequenceNumber, String statsLocation, FileIO fileIO) {
+      long snapshotId, String statsLocation, FileIO fileIO) {
     PositionOutputStream positionOutputStream;
     try {
       positionOutputStream = fileIO.newOutputFile(statsLocation).create();
@@ -1731,7 +1722,7 @@ public class TestRemoveSnapshots extends TableTestBase {
 
     return ImmutableGenericPartitionStatisticsFile.builder()
         .snapshotId(snapshotId)
-        .fileSizeInBytes(snapshotSequenceNumber)
+        .fileSizeInBytes(42L)
         .path(statsLocation)
         .build();
   }
@@ -1746,9 +1737,6 @@ public class TestRemoveSnapshots extends TableTestBase {
   }
 
   private static void commitPartitionStats(Table table, PartitionStatisticsFile statisticsFile) {
-    table
-        .updatePartitionStatistics()
-        .setPartitionStatistics(statisticsFile.snapshotId(), statisticsFile)
-        .commit();
+    table.updatePartitionStatistics().setPartitionStatistics(statisticsFile).commit();
   }
 }

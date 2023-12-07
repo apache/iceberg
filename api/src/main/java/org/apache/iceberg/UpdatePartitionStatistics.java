@@ -28,8 +28,7 @@ public interface UpdatePartitionStatistics extends PendingUpdate<List<PartitionS
    *
    * @return this for method chaining
    */
-  UpdatePartitionStatistics setPartitionStatistics(
-      long snapshotId, PartitionStatisticsFile partitionStatisticsFile);
+  UpdatePartitionStatistics setPartitionStatistics(PartitionStatisticsFile partitionStatisticsFile);
 
   /**
    * Remove the table's partition statistics file for given snapshot.

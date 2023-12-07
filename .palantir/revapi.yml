@@ -873,10 +873,6 @@ acceptedBreaks:
       new: "method void org.apache.iceberg.encryption.Ciphers::<init>()"
       justification: "Static utility class - should not have public constructor"
   "1.4.0":
-    org.apache.iceberg:iceberg-api:
-    - code: "java.method.addedToInterface"
-      new: "method java.util.List<org.apache.iceberg.PartitionStatisticsFile> org.apache.iceberg.Table::partitionStatisticsFiles()"
-      justification: "Track partition stats from TableMetadata"
     org.apache.iceberg:iceberg-core:
     - code: "java.field.serialVersionUIDChanged"
       new: "field org.apache.iceberg.util.SerializableMap<K, V>.serialVersionUID"
