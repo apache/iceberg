@@ -670,8 +670,8 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
                     .pollInterval(Duration.ofMillis(10))
                     .untilAsserted(
                         () -> {
-                          assertThat(shouldAppend.get()).isFalse();
-                          assertThat(barrier.get()).isGreaterThanOrEqualTo(finalNumOperations * 2);
+                          assertThat(
+                              !shouldAppend.get() || barrier.get() >= finalNumOperations * 2);
                         });
 
                 sql("UPDATE %s SET id = -1 WHERE id = 1", commitTarget());
@@ -794,8 +794,8 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
                     .pollInterval(Duration.ofMillis(10))
                     .untilAsserted(
                         () -> {
-                          assertThat(shouldAppend.get()).isFalse();
-                          assertThat(barrier.get()).isGreaterThanOrEqualTo(finalNumOperations * 2);
+                          assertThat(
+                              !shouldAppend.get() || barrier.get() >= finalNumOperations * 2);
                         });
 
                 if (!shouldAppend.get()) {

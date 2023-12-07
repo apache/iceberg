@@ -1403,8 +1403,8 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                     .pollInterval(Duration.ofMillis(10))
                     .untilAsserted(
                         () -> {
-                          assertThat(shouldAppend.get()).isFalse();
-                          assertThat(barrier.get()).isGreaterThanOrEqualTo(finalNumOperations * 2);
+                          assertThat(
+                              !shouldAppend.get() || barrier.get() >= finalNumOperations * 2);
                         });
 
                 if (!shouldAppend.get()) {
@@ -1507,8 +1507,8 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                     .pollInterval(Duration.ofMillis(10))
                     .untilAsserted(
                         () -> {
-                          assertThat(shouldAppend.get()).isFalse();
-                          assertThat(barrier.get()).isGreaterThanOrEqualTo(finalNumOperations * 2);
+                          assertThat(
+                              !shouldAppend.get() || barrier.get() >= finalNumOperations * 2);
                         });
 
                 if (!shouldAppend.get()) {

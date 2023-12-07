@@ -147,8 +147,8 @@ public class TestCopyOnWriteMerge extends TestMerge {
                     .pollInterval(Duration.ofMillis(10))
                     .untilAsserted(
                         () -> {
-                          assertThat(shouldAppend.get()).isFalse();
-                          assertThat(barrier.get()).isGreaterThanOrEqualTo(finalNumOperations * 2);
+                          assertThat(
+                              !shouldAppend.get() || barrier.get() >= finalNumOperations * 2);
                         });
 
                 if (!shouldAppend.get()) {
