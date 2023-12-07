@@ -335,25 +335,29 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
   @Test
   public void testWriteManifestWithSpecId() {
     sql(
-            "CREATE TABLE %s (id int, dt string, hr string) USING iceberg PARTITIONED BY (dt)", tableName);
+        "CREATE TABLE %s (id int, dt string, hr string) USING iceberg PARTITIONED BY (dt)",
+        tableName);
 
     sql("INSERT INTO %s VALUES (1, '2024-01-01', '00')", tableName);
     sql("INSERT INTO %s VALUES (2, '2024-01-01', '00')", tableName);
     assertEquals(
-            "Should have 2 manifests",
-            ImmutableList.of(row(2L)),
-            sql("SELECT count(*) FROM %s.manifests", tableName));
+        "Should have 2 manifests",
+        ImmutableList.of(row(2L)),
+        sql("SELECT count(*) FROM %s.manifests", tableName));
 
     sql("ALTER TABLE %s ADD PARTITION FIELD hr", tableName);
     assertEquals(
-            "Should still have 2 manifests",
-            ImmutableList.of(row(2L)),
-            sql("SELECT count(*) FROM %s.manifests", tableName));
+        "Should still have 2 manifests",
+        ImmutableList.of(row(2L)),
+        sql("SELECT count(*) FROM %s.manifests", tableName));
 
     List<Object[]> output = sql("CALL %s.system.rewrite_manifests('%s')", catalogName, tableIdent);
     assertEquals("Procedure output must match", ImmutableList.of(row(0, 0)), output);
 
-    output = sql("CALL %s.system.rewrite_manifests(table => '%s', spec_id => 0)", catalogName, tableIdent);
+    output =
+        sql(
+            "CALL %s.system.rewrite_manifests(table => '%s', spec_id => 0)",
+            catalogName, tableIdent);
     assertEquals("Procedure output must match", ImmutableList.of(row(2, 1)), output);
   }
 }
