@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -29,8 +30,6 @@ import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 
 public class FileGenerationUtil {
-
-  private static final Random RANDOM = new Random();
 
   private FileGenerationUtil() {}
 
@@ -83,11 +82,12 @@ public class FileGenerationUtil {
         .build();
   }
 
+  // mimics the behavior of OutputFileFactory
   public static String generateFileName() {
-    int partitionId = RANDOM.nextInt(100_000);
-    int taskId = RANDOM.nextInt(100);
+    int partitionId = random().nextInt(100_000);
+    int taskId = random().nextInt(100);
     UUID operationId = UUID.randomUUID();
-    int fileCount = RANDOM.nextInt(1_000);
+    int fileCount = random().nextInt(1_000);
     return String.format("%d-%d-%s-%d.parquet", partitionId, taskId, operationId, fileCount);
   }
 
@@ -104,13 +104,13 @@ public class FileGenerationUtil {
       int fieldId = column.fieldId();
       columnSizes.put(fieldId, generateColumnSize());
       valueCounts.put(fieldId, generateValueCount());
-      nullValueCounts.put(fieldId, (long) RANDOM.nextInt(5));
-      nanValueCounts.put(fieldId, (long) RANDOM.nextInt(5));
+      nullValueCounts.put(fieldId, (long) random().nextInt(5));
+      nanValueCounts.put(fieldId, (long) random().nextInt(5));
       byte[] lower = new byte[16];
-      RANDOM.nextBytes(lower);
+      random().nextBytes(lower);
       lowerBounds.put(fieldId, ByteBuffer.wrap(lower));
       byte[] upper = new byte[16];
-      RANDOM.nextBytes(upper);
+      random().nextBytes(upper);
       upperBounds.put(fieldId, ByteBuffer.wrap(upper));
     }
 
@@ -170,18 +170,22 @@ public class FileGenerationUtil {
   }
 
   private static long generateRowCount() {
-    return 100_000L + RANDOM.nextInt(1000);
+    return 100_000L + random().nextInt(1000);
   }
 
   private static long generateColumnSize() {
-    return 1_000_000L + RANDOM.nextInt(100_000);
+    return 1_000_000L + random().nextInt(100_000);
   }
 
   private static long generateValueCount() {
-    return 100_000L + RANDOM.nextInt(100);
+    return 100_000L + random().nextInt(100);
   }
 
   private static long generateFileSize() {
-    return RANDOM.nextInt(50_000);
+    return random().nextInt(50_000);
+  }
+
+  private static Random random() {
+    return ThreadLocalRandom.current();
   }
 }
