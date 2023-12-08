@@ -74,8 +74,6 @@ public class TestDataStatisticsOperator {
   private final SortKey sortKey = new SortKey(schema, sortOrder);
   private final RowType rowType = RowType.of(new VarCharType(), new IntType());
   private final TypeSerializer<RowData> rowSerializer = new RowDataSerializer(rowType);
-  private final GenericRowData genericRowDataA = GenericRowData.of(StringData.fromString("a"), 2);
-  private final GenericRowData genericRowDataB = GenericRowData.of(StringData.fromString("b"), 1);
   private final TypeSerializer<DataStatistics<MapDataStatistics, Map<SortKey, Long>>>
       statisticsSerializer =
           MapDataStatisticsSerializer.fromSortKeySerializer(
@@ -122,16 +120,16 @@ public class TestDataStatisticsOperator {
         testHarness = createHarness(this.operator)) {
       StateInitializationContext stateContext = getStateContext();
       operator.initializeState(stateContext);
-      operator.processElement(new StreamRecord<>(genericRowDataA));
-      operator.processElement(new StreamRecord<>(genericRowDataA));
-      operator.processElement(new StreamRecord<>(genericRowDataB));
+      operator.processElement(new StreamRecord<>(GenericRowData.of(StringData.fromString("a"), 5)));
+      operator.processElement(new StreamRecord<>(GenericRowData.of(StringData.fromString("a"), 3)));
+      operator.processElement(new StreamRecord<>(GenericRowData.of(StringData.fromString("b"), 1)));
       assertThat(operator.localDataStatistics()).isInstanceOf(MapDataStatistics.class);
 
-      SortKey key1 = sortKey.copy();
-      key1.set(0, "a");
-      SortKey key2 = sortKey.copy();
-      key2.set(0, "b");
-      Map<SortKey, Long> expectedMap = ImmutableMap.of(key1, 2L, key2, 1L);
+      SortKey keyA = sortKey.copy();
+      keyA.set(0, "a");
+      SortKey keyB = sortKey.copy();
+      keyB.set(0, "b");
+      Map<SortKey, Long> expectedMap = ImmutableMap.of(keyA, 2L, keyB, 1L);
 
       MapDataStatistics mapDataStatistics = (MapDataStatistics) operator.localDataStatistics();
       Map<SortKey, Long> statsMap = mapDataStatistics.statistics();
@@ -147,9 +145,12 @@ public class TestDataStatisticsOperator {
     try (OneInputStreamOperatorTestHarness<
             RowData, DataStatisticsOrRecord<MapDataStatistics, Map<SortKey, Long>>>
         testHarness = createHarness(this.operator)) {
-      testHarness.processElement(new StreamRecord<>(genericRowDataA));
-      testHarness.processElement(new StreamRecord<>(genericRowDataB));
-      testHarness.processElement(new StreamRecord<>(genericRowDataB));
+      testHarness.processElement(
+          new StreamRecord<>(GenericRowData.of(StringData.fromString("a"), 2)));
+      testHarness.processElement(
+          new StreamRecord<>(GenericRowData.of(StringData.fromString("b"), 3)));
+      testHarness.processElement(
+          new StreamRecord<>(GenericRowData.of(StringData.fromString("b"), 1)));
 
       List<RowData> recordsOutput =
           testHarness.extractOutputValues().stream()
@@ -158,7 +159,10 @@ public class TestDataStatisticsOperator {
               .collect(Collectors.toList());
       assertThat(recordsOutput)
           .containsExactlyInAnyOrderElementsOf(
-              ImmutableList.of(genericRowDataA, genericRowDataB, genericRowDataB));
+              ImmutableList.of(
+                  GenericRowData.of(StringData.fromString("a"), 2),
+                  GenericRowData.of(StringData.fromString("b"), 3),
+                  GenericRowData.of(StringData.fromString("b"), 1)));
     }
   }
 
@@ -180,13 +184,13 @@ public class TestDataStatisticsOperator {
       key.set(0, "c");
       mapDataStatistics.add(key);
 
-      SortKey key1 = sortKey.copy();
-      key1.set(0, "a");
-      SortKey key2 = sortKey.copy();
-      key2.set(0, "b");
-      SortKey key3 = sortKey.copy();
-      key3.set(0, "c");
-      Map<SortKey, Long> expectedMap = ImmutableMap.of(key1, 2L, key2, 1L, key3, 1L);
+      SortKey keyA = sortKey.copy();
+      keyA.set(0, "a");
+      SortKey keyB = sortKey.copy();
+      keyB.set(0, "b");
+      SortKey keyC = sortKey.copy();
+      keyC.set(0, "c");
+      Map<SortKey, Long> expectedMap = ImmutableMap.of(keyA, 2L, keyB, 1L, keyC, 1L);
 
       DataStatisticsEvent<MapDataStatistics, Map<SortKey, Long>> event =
           DataStatisticsEvent.create(0, mapDataStatistics, statisticsSerializer);
@@ -212,13 +216,13 @@ public class TestDataStatisticsOperator {
       Map<SortKey, Long> restoredStatistics = Maps.newHashMap();
       restoredStatistics.putAll(restoredOperator.globalDataStatistics().statistics());
 
-      SortKey key1 = sortKey.copy();
-      key1.set(0, "a");
-      SortKey key2 = sortKey.copy();
-      key2.set(0, "b");
-      SortKey key3 = sortKey.copy();
-      key3.set(0, "c");
-      Map<SortKey, Long> expectedMap = ImmutableMap.of(key1, 2L, key2, 1L, key3, 1L);
+      SortKey keyA = sortKey.copy();
+      keyA.set(0, "a");
+      SortKey keyB = sortKey.copy();
+      keyB.set(0, "b");
+      SortKey keyC = sortKey.copy();
+      keyC.set(0, "c");
+      Map<SortKey, Long> expectedMap = ImmutableMap.of(keyA, 2L, keyB, 1L, keyC, 1L);
 
       assertThat(restoredStatistics).containsExactlyInAnyOrderEntriesOf(expectedMap);
     }
