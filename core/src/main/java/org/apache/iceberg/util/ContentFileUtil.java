@@ -18,8 +18,15 @@
  */
 package org.apache.iceberg.util;
 
+import java.nio.ByteBuffer;
+import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.ContentFile;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileContent;
+import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Type;
 
 public class ContentFileUtil {
   private ContentFileUtil() {}
@@ -39,6 +46,33 @@ public class ContentFileUtil {
       return requestedColumnIds != null ? file.copyWithStats(requestedColumnIds) : file.copy();
     } else {
       return file.copyWithoutStats();
+    }
+  }
+
+  public static CharSequence referencedDataFile(DeleteFile deleteFile) {
+    if (deleteFile.content() == FileContent.EQUALITY_DELETES) {
+      return null;
+    }
+
+    int pathId = MetadataColumns.DELETE_FILE_PATH.fieldId();
+    Type pathType = MetadataColumns.DELETE_FILE_PATH.type();
+
+    Map<Integer, ByteBuffer> lowerBounds = deleteFile.lowerBounds();
+    ByteBuffer lowerPathBound = lowerBounds != null ? lowerBounds.get(pathId) : null;
+    if (lowerPathBound == null) {
+      return null;
+    }
+
+    Map<Integer, ByteBuffer> upperBounds = deleteFile.upperBounds();
+    ByteBuffer upperPathBound = upperBounds != null ? upperBounds.get(pathId) : null;
+    if (upperPathBound == null) {
+      return null;
+    }
+
+    if (lowerPathBound.equals(upperPathBound)) {
+      return Conversions.fromByteBuffer(pathType, lowerPathBound);
+    } else {
+      return null;
     }
   }
 }

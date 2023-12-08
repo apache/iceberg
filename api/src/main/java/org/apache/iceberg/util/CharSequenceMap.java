@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -148,6 +149,10 @@ public class CharSequenceMap<V> implements Map<CharSequence, V>, Serializable {
     }
 
     return entrySet;
+  }
+
+  public V computeIfAbsent(CharSequence key, Supplier<V> valueSupplier) {
+    return computeIfAbsent(key, ignored -> valueSupplier.get());
   }
 
   @Override
