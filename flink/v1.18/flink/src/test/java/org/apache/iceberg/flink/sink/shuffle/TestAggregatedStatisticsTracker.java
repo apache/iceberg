@@ -21,31 +21,32 @@ package org.apache.iceberg.flink.sink.shuffle;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
-import org.apache.flink.api.common.typeutils.TypeSerializer;
-import org.apache.flink.table.data.GenericRowData;
-import org.apache.flink.table.data.RowData;
-import org.apache.flink.table.data.StringData;
-import org.apache.flink.table.data.binary.BinaryRowData;
-import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
-import org.apache.flink.table.types.logical.RowType;
-import org.apache.flink.table.types.logical.VarCharType;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortKey;
+import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.types.Types;
 import org.junit.Before;
 import org.junit.Test;
 
 public class TestAggregatedStatisticsTracker {
   private static final int NUM_SUBTASKS = 2;
-  private final RowType rowType = RowType.of(new VarCharType());
-  // When coordinator handles events from operator, DataStatisticsUtil#deserializeDataStatistics
-  // deserializes bytes into BinaryRowData
-  private final BinaryRowData binaryRowDataA =
-      new RowDataSerializer(rowType).toBinaryRow(GenericRowData.of(StringData.fromString("a")));
-  private final BinaryRowData binaryRowDataB =
-      new RowDataSerializer(rowType).toBinaryRow(GenericRowData.of(StringData.fromString("b")));
-  private final TypeSerializer<RowData> rowSerializer = new RowDataSerializer(rowType);
-  private final TypeSerializer<DataStatistics<MapDataStatistics, Map<RowData, Long>>>
-      statisticsSerializer = MapDataStatisticsSerializer.fromKeySerializer(rowSerializer);
-  private AggregatedStatisticsTracker<MapDataStatistics, Map<RowData, Long>>
+
+  private final Schema schema =
+      new Schema(Types.NestedField.optional(1, "str", Types.StringType.get()));
+  private final SortOrder sortOrder = SortOrder.builderFor(schema).asc("str").build();
+  private final SortKey sortKey = new SortKey(schema, sortOrder);
+  private final MapDataStatisticsSerializer statisticsSerializer =
+      MapDataStatisticsSerializer.fromSortKeySerializer(new SortKeySerializer(schema, sortOrder));
+  private final SortKey keyA = sortKey.copy();
+  private final SortKey keyB = sortKey.copy();
+
+  private AggregatedStatisticsTracker<MapDataStatistics, Map<SortKey, Long>>
       aggregatedStatisticsTracker;
+
+  public TestAggregatedStatisticsTracker() {
+    keyA.set(0, "a");
+    keyB.set(0, "b");
+  }
 
   @Before
   public void before() throws Exception {
@@ -56,8 +57,8 @@ public class TestAggregatedStatisticsTracker {
   @Test
   public void receiveNewerDataStatisticEvent() {
     MapDataStatistics checkpoint1Subtask0DataStatistic = new MapDataStatistics();
-    checkpoint1Subtask0DataStatistic.add(binaryRowDataA);
-    DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
+    checkpoint1Subtask0DataStatistic.add(keyA);
+    DataStatisticsEvent<MapDataStatistics, Map<SortKey, Long>>
         checkpoint1Subtask0DataStatisticEvent =
             DataStatisticsEvent.create(1, checkpoint1Subtask0DataStatistic, statisticsSerializer);
     assertThat(
@@ -67,8 +68,8 @@ public class TestAggregatedStatisticsTracker {
     assertThat(aggregatedStatisticsTracker.inProgressStatistics().checkpointId()).isEqualTo(1);
 
     MapDataStatistics checkpoint2Subtask0DataStatistic = new MapDataStatistics();
-    checkpoint2Subtask0DataStatistic.add(binaryRowDataA);
-    DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
+    checkpoint2Subtask0DataStatistic.add(keyA);
+    DataStatisticsEvent<MapDataStatistics, Map<SortKey, Long>>
         checkpoint2Subtask0DataStatisticEvent =
             DataStatisticsEvent.create(2, checkpoint2Subtask0DataStatistic, statisticsSerializer);
     assertThat(
@@ -82,10 +83,10 @@ public class TestAggregatedStatisticsTracker {
   @Test
   public void receiveOlderDataStatisticEventTest() {
     MapDataStatistics checkpoint2Subtask0DataStatistic = new MapDataStatistics();
-    checkpoint2Subtask0DataStatistic.add(binaryRowDataA);
-    checkpoint2Subtask0DataStatistic.add(binaryRowDataB);
-    checkpoint2Subtask0DataStatistic.add(binaryRowDataB);
-    DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
+    checkpoint2Subtask0DataStatistic.add(keyA);
+    checkpoint2Subtask0DataStatistic.add(keyB);
+    checkpoint2Subtask0DataStatistic.add(keyB);
+    DataStatisticsEvent<MapDataStatistics, Map<SortKey, Long>>
         checkpoint3Subtask0DataStatisticEvent =
             DataStatisticsEvent.create(2, checkpoint2Subtask0DataStatistic, statisticsSerializer);
     assertThat(
@@ -94,8 +95,8 @@ public class TestAggregatedStatisticsTracker {
         .isNull();
 
     MapDataStatistics checkpoint1Subtask1DataStatistic = new MapDataStatistics();
-    checkpoint1Subtask1DataStatistic.add(binaryRowDataB);
-    DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
+    checkpoint1Subtask1DataStatistic.add(keyB);
+    DataStatisticsEvent<MapDataStatistics, Map<SortKey, Long>>
         checkpoint1Subtask1DataStatisticEvent =
             DataStatisticsEvent.create(1, checkpoint1Subtask1DataStatistic, statisticsSerializer);
     // Receive event from old checkpoint, aggregatedStatisticsAggregatorTracker won't return
@@ -110,10 +111,10 @@ public class TestAggregatedStatisticsTracker {
   @Test
   public void receiveCompletedDataStatisticEvent() {
     MapDataStatistics checkpoint1Subtask0DataStatistic = new MapDataStatistics();
-    checkpoint1Subtask0DataStatistic.add(binaryRowDataA);
-    checkpoint1Subtask0DataStatistic.add(binaryRowDataB);
-    checkpoint1Subtask0DataStatistic.add(binaryRowDataB);
-    DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
+    checkpoint1Subtask0DataStatistic.add(keyA);
+    checkpoint1Subtask0DataStatistic.add(keyB);
+    checkpoint1Subtask0DataStatistic.add(keyB);
+    DataStatisticsEvent<MapDataStatistics, Map<SortKey, Long>>
         checkpoint1Subtask0DataStatisticEvent =
             DataStatisticsEvent.create(1, checkpoint1Subtask0DataStatistic, statisticsSerializer);
     assertThat(
@@ -122,14 +123,14 @@ public class TestAggregatedStatisticsTracker {
         .isNull();
 
     MapDataStatistics checkpoint1Subtask1DataStatistic = new MapDataStatistics();
-    checkpoint1Subtask1DataStatistic.add(binaryRowDataA);
-    checkpoint1Subtask1DataStatistic.add(binaryRowDataA);
-    checkpoint1Subtask1DataStatistic.add(binaryRowDataB);
-    DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
+    checkpoint1Subtask1DataStatistic.add(keyA);
+    checkpoint1Subtask1DataStatistic.add(keyA);
+    checkpoint1Subtask1DataStatistic.add(keyB);
+    DataStatisticsEvent<MapDataStatistics, Map<SortKey, Long>>
         checkpoint1Subtask1DataStatisticEvent =
             DataStatisticsEvent.create(1, checkpoint1Subtask1DataStatistic, statisticsSerializer);
     // Receive data statistics from all subtasks at checkpoint 1
-    AggregatedStatistics<MapDataStatistics, Map<RowData, Long>> completedStatistics =
+    AggregatedStatistics<MapDataStatistics, Map<SortKey, Long>> completedStatistics =
         aggregatedStatisticsTracker.updateAndCheckCompletion(
             1, checkpoint1Subtask1DataStatisticEvent);
 
@@ -137,20 +138,20 @@ public class TestAggregatedStatisticsTracker {
     assertThat(completedStatistics.checkpointId()).isEqualTo(1);
     MapDataStatistics globalDataStatistics =
         (MapDataStatistics) completedStatistics.dataStatistics();
-    assertThat((long) globalDataStatistics.statistics().get(binaryRowDataA))
+    assertThat((long) globalDataStatistics.statistics().get(keyA))
         .isEqualTo(
-            checkpoint1Subtask0DataStatistic.statistics().get(binaryRowDataA)
-                + checkpoint1Subtask1DataStatistic.statistics().get(binaryRowDataA));
-    assertThat((long) globalDataStatistics.statistics().get(binaryRowDataB))
+            checkpoint1Subtask0DataStatistic.statistics().get(keyA)
+                + checkpoint1Subtask1DataStatistic.statistics().get(keyA));
+    assertThat((long) globalDataStatistics.statistics().get(keyB))
         .isEqualTo(
-            checkpoint1Subtask0DataStatistic.statistics().get(binaryRowDataB)
-                + checkpoint1Subtask1DataStatistic.statistics().get(binaryRowDataB));
+            checkpoint1Subtask0DataStatistic.statistics().get(keyB)
+                + checkpoint1Subtask1DataStatistic.statistics().get(keyB));
     assertThat(aggregatedStatisticsTracker.inProgressStatistics().checkpointId())
         .isEqualTo(completedStatistics.checkpointId() + 1);
 
     MapDataStatistics checkpoint2Subtask0DataStatistic = new MapDataStatistics();
-    checkpoint2Subtask0DataStatistic.add(binaryRowDataA);
-    DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
+    checkpoint2Subtask0DataStatistic.add(keyA);
+    DataStatisticsEvent<MapDataStatistics, Map<SortKey, Long>>
         checkpoint2Subtask0DataStatisticEvent =
             DataStatisticsEvent.create(2, checkpoint2Subtask0DataStatistic, statisticsSerializer);
     assertThat(
@@ -160,8 +161,8 @@ public class TestAggregatedStatisticsTracker {
     assertThat(completedStatistics.checkpointId()).isEqualTo(1);
 
     MapDataStatistics checkpoint2Subtask1DataStatistic = new MapDataStatistics();
-    checkpoint2Subtask1DataStatistic.add(binaryRowDataB);
-    DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
+    checkpoint2Subtask1DataStatistic.add(keyB);
+    DataStatisticsEvent<MapDataStatistics, Map<SortKey, Long>>
         checkpoint2Subtask1DataStatisticEvent =
             DataStatisticsEvent.create(2, checkpoint2Subtask1DataStatistic, statisticsSerializer);
     // Receive data statistics from all subtasks at checkpoint 2
