@@ -106,7 +106,7 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
 
   @Override
   public Batch toBatch() {
-    Broadcast<Table> tableBroadcast = this.initTableMetadataBroadcast();
+    Broadcast<Table> tableBroadcastLocal = this.initTableMetadataBroadcast();
 
     return new SparkBatch(
         sparkContext,
@@ -116,23 +116,23 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
         taskGroups(),
         expectedSchema,
         hashCode(),
-        tableBroadcast);
+        tableBroadcastLocal);
   }
 
   private Broadcast<Table> initTableMetadataBroadcast() {
-    Broadcast<Table> tableBroadcast = this.tableBroadcast;
-    if (tableBroadcast == null) {
+    Broadcast<Table> tableBroadcastLocal = this.tableBroadcast;
+    if (tableBroadcastLocal == null) {
       synchronized (this) {
         if (this.tableBroadcast == null) {
           // broadcast the table metadata as input partitions will be sent to executors
-          tableBroadcast = sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
-          this.tableBroadcast = tableBroadcast;
+          tableBroadcastLocal = sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
+          this.tableBroadcast = tableBroadcastLocal;
         } else {
-          tableBroadcast = this.tableBroadcast;
+          tableBroadcastLocal = this.tableBroadcast;
         }
       }
     }
-    return tableBroadcast;
+    return tableBroadcastLocal;
   }
 
   private List<ScanTaskGroup<ChangelogScanTask>> taskGroups() {

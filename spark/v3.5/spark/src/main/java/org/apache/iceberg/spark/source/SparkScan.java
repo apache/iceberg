@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -119,7 +120,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     this.readConf = readConf;
     this.caseSensitive = readConf.caseSensitive();
     this.expectedSchema = expectedSchema;
-    this.filterExpressions = filters != null ? filters : Collections.emptyList();
+    this.filterExpressions = filters != null ? filters : new LinkedList<>();
     this.branch = readConf.branch();
     this.scanReportSupplier = scanReportSupplier;
   }
@@ -152,26 +153,26 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
   @Override
   public Batch toBatch() {
-    Broadcast<Table> tableBroadcast = this.initTableMetadataBroadcast();
+    Broadcast<Table> tableBroadcastLocal = this.initTableMetadataBroadcast();
     return new SparkBatch(
         sparkContext, table, readConf, groupingKeyType(), taskGroups(), expectedSchema,
-        hashCode(), tableBroadcast);
+        hashCode(), tableBroadcastLocal);
   }
 
   private Broadcast<Table> initTableMetadataBroadcast() {
-    Broadcast<Table> tableBroadcast = this.tableBroadcast;
-    if (tableBroadcast == null) {
+    Broadcast<Table> tableBroadcastLocal = this.tableBroadcast;
+    if (tableBroadcastLocal == null) {
       synchronized (this) {
         if (this.tableBroadcast == null) {
           // broadcast the table metadata as input partitions will be sent to executors
-          tableBroadcast = sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
-          this.tableBroadcast = tableBroadcast;
+          tableBroadcastLocal = sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
+          this.tableBroadcast = tableBroadcastLocal;
         } else {
-          tableBroadcast = this.tableBroadcast;
+          tableBroadcastLocal = this.tableBroadcast;
         }
       }
     }
-    return tableBroadcast;
+    return tableBroadcastLocal;
   }
 
   @Override
