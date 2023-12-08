@@ -63,7 +63,7 @@ public class PartitionSet extends AbstractSet<Pair<Integer, StructLike>> {
     if (o instanceof Pair) {
       Object first = ((Pair<?, ?>) o).first();
       Object second = ((Pair<?, ?>) o).second();
-      if (first instanceof Integer && second instanceof StructLike) {
+      if (first instanceof Integer && (second == null || second instanceof StructLike)) {
         return contains((Integer) first, (StructLike) second);
       }
     }
@@ -98,7 +98,7 @@ public class PartitionSet extends AbstractSet<Pair<Integer, StructLike>> {
     if (o instanceof Pair) {
       Object first = ((Pair<?, ?>) o).first();
       Object second = ((Pair<?, ?>) o).second();
-      if (first instanceof Integer && second instanceof StructLike) {
+      if (first instanceof Integer && (second == null || second instanceof StructLike)) {
         return remove((Integer) first, (StructLike) second);
       }
     }

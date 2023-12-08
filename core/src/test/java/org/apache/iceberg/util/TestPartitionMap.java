@@ -274,9 +274,11 @@ public class TestPartitionMap {
 
     map1.put(BY_DATA_SPEC.specId(), Row.of("aaa"), "v1");
     map1.put(BY_DATA_SPEC.specId(), Row.of("bbb"), "v2");
+    map1.put(UNPARTITIONED_SPEC.specId(), null, "v3");
 
     map2.put(BY_DATA_SPEC.specId(), CustomRow.of("aaa"), "v1");
     map2.put(BY_DATA_SPEC.specId(), CustomRow.of("bbb"), "v2");
+    map2.put(UNPARTITIONED_SPEC.specId(), null, "v3");
 
     assertThat(map1.keySet()).isEqualTo(map2.keySet());
     assertThat(map1.entrySet()).isEqualTo(map2.entrySet());
