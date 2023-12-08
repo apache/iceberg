@@ -29,22 +29,22 @@ import org.apache.flink.api.common.typeutils.base.LongSerializer;
 import org.apache.flink.api.common.typeutils.base.MapSerializer;
 import org.apache.flink.core.memory.DataInputView;
 import org.apache.flink.core.memory.DataOutputView;
-import org.apache.flink.table.data.RowData;
 import org.apache.flink.util.Preconditions;
+import org.apache.iceberg.SortKey;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 @Internal
 class MapDataStatisticsSerializer
-    extends TypeSerializer<DataStatistics<MapDataStatistics, Map<RowData, Long>>> {
-  private final MapSerializer<RowData, Long> mapSerializer;
+    extends TypeSerializer<DataStatistics<MapDataStatistics, Map<SortKey, Long>>> {
+  private final MapSerializer<SortKey, Long> mapSerializer;
 
-  static TypeSerializer<DataStatistics<MapDataStatistics, Map<RowData, Long>>> fromKeySerializer(
-      TypeSerializer<RowData> keySerializer) {
+  static MapDataStatisticsSerializer fromSortKeySerializer(
+      TypeSerializer<SortKey> sortKeySerializer) {
     return new MapDataStatisticsSerializer(
-        new MapSerializer<>(keySerializer, LongSerializer.INSTANCE));
+        new MapSerializer<>(sortKeySerializer, LongSerializer.INSTANCE));
   }
 
-  MapDataStatisticsSerializer(MapSerializer<RowData, Long> mapSerializer) {
+  MapDataStatisticsSerializer(MapSerializer<SortKey, Long> mapSerializer) {
     this.mapSerializer = mapSerializer;
   }
 
@@ -55,28 +55,28 @@ class MapDataStatisticsSerializer
 
   @SuppressWarnings("ReferenceEquality")
   @Override
-  public TypeSerializer<DataStatistics<MapDataStatistics, Map<RowData, Long>>> duplicate() {
-    MapSerializer<RowData, Long> duplicateMapSerializer =
-        (MapSerializer<RowData, Long>) mapSerializer.duplicate();
+  public TypeSerializer<DataStatistics<MapDataStatistics, Map<SortKey, Long>>> duplicate() {
+    MapSerializer<SortKey, Long> duplicateMapSerializer =
+        (MapSerializer<SortKey, Long>) mapSerializer.duplicate();
     return (duplicateMapSerializer == mapSerializer)
         ? this
         : new MapDataStatisticsSerializer(duplicateMapSerializer);
   }
 
   @Override
-  public DataStatistics<MapDataStatistics, Map<RowData, Long>> createInstance() {
+  public MapDataStatistics createInstance() {
     return new MapDataStatistics();
   }
 
   @Override
-  public DataStatistics<MapDataStatistics, Map<RowData, Long>> copy(DataStatistics obj) {
+  public MapDataStatistics copy(DataStatistics<MapDataStatistics, Map<SortKey, Long>> obj) {
     Preconditions.checkArgument(
         obj instanceof MapDataStatistics, "Invalid data statistics type: " + obj.getClass());
     MapDataStatistics from = (MapDataStatistics) obj;
-    TypeSerializer<RowData> keySerializer = mapSerializer.getKeySerializer();
-    Map<RowData, Long> newMap = Maps.newHashMapWithExpectedSize(from.statistics().size());
-    for (Map.Entry<RowData, Long> entry : from.statistics().entrySet()) {
-      RowData newKey = keySerializer.copy(entry.getKey());
+    TypeSerializer<SortKey> keySerializer = mapSerializer.getKeySerializer();
+    Map<SortKey, Long> newMap = Maps.newHashMapWithExpectedSize(from.statistics().size());
+    for (Map.Entry<SortKey, Long> entry : from.statistics().entrySet()) {
+      SortKey newKey = keySerializer.copy(entry.getKey());
       // no need to copy value since it is just a Long
       newMap.put(newKey, entry.getValue());
     }
@@ -85,8 +85,9 @@ class MapDataStatisticsSerializer
   }
 
   @Override
-  public DataStatistics<MapDataStatistics, Map<RowData, Long>> copy(
-      DataStatistics from, DataStatistics reuse) {
+  public DataStatistics<MapDataStatistics, Map<SortKey, Long>> copy(
+      DataStatistics<MapDataStatistics, Map<SortKey, Long>> from,
+      DataStatistics<MapDataStatistics, Map<SortKey, Long>> reuse) {
     // not much benefit to reuse
     return copy(from);
   }
@@ -97,7 +98,9 @@ class MapDataStatisticsSerializer
   }
 
   @Override
-  public void serialize(DataStatistics obj, DataOutputView target) throws IOException {
+  public void serialize(
+      DataStatistics<MapDataStatistics, Map<SortKey, Long>> obj, DataOutputView target)
+      throws IOException {
     Preconditions.checkArgument(
         obj instanceof MapDataStatistics, "Invalid data statistics type: " + obj.getClass());
     MapDataStatistics mapStatistics = (MapDataStatistics) obj;
@@ -105,14 +108,15 @@ class MapDataStatisticsSerializer
   }
 
   @Override
-  public DataStatistics<MapDataStatistics, Map<RowData, Long>> deserialize(DataInputView source)
+  public DataStatistics<MapDataStatistics, Map<SortKey, Long>> deserialize(DataInputView source)
       throws IOException {
     return new MapDataStatistics(mapSerializer.deserialize(source));
   }
 
   @Override
-  public DataStatistics<MapDataStatistics, Map<RowData, Long>> deserialize(
-      DataStatistics reuse, DataInputView source) throws IOException {
+  public DataStatistics<MapDataStatistics, Map<SortKey, Long>> deserialize(
+      DataStatistics<MapDataStatistics, Map<SortKey, Long>> reuse, DataInputView source)
+      throws IOException {
     // not much benefit to reuse
     return deserialize(source);
   }
@@ -138,14 +142,14 @@ class MapDataStatisticsSerializer
   }
 
   @Override
-  public TypeSerializerSnapshot<DataStatistics<MapDataStatistics, Map<RowData, Long>>>
+  public TypeSerializerSnapshot<DataStatistics<MapDataStatistics, Map<SortKey, Long>>>
       snapshotConfiguration() {
     return new MapDataStatisticsSerializerSnapshot(this);
   }
 
   public static class MapDataStatisticsSerializerSnapshot
       extends CompositeTypeSerializerSnapshot<
-          DataStatistics<MapDataStatistics, Map<RowData, Long>>, MapDataStatisticsSerializer> {
+          DataStatistics<MapDataStatistics, Map<SortKey, Long>>, MapDataStatisticsSerializer> {
     private static final int CURRENT_VERSION = 1;
 
     // constructors need to public. Otherwise, Flink state restore would complain
@@ -175,8 +179,8 @@ class MapDataStatisticsSerializer
     protected MapDataStatisticsSerializer createOuterSerializerWithNestedSerializers(
         TypeSerializer<?>[] nestedSerializers) {
       @SuppressWarnings("unchecked")
-      MapSerializer<RowData, Long> mapSerializer =
-          (MapSerializer<RowData, Long>) nestedSerializers[0];
+      MapSerializer<SortKey, Long> mapSerializer =
+          (MapSerializer<SortKey, Long>) nestedSerializers[0];
       return new MapDataStatisticsSerializer(mapSerializer);
     }
   }
