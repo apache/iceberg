@@ -18,11 +18,12 @@
  */
 package org.apache.iceberg.mr.hive.serde.objectinspector;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.hadoop.io.BytesWritable;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestIcebergFixedObjectInspector {
@@ -31,33 +32,33 @@ public class TestIcebergFixedObjectInspector {
   public void testIcebergFixedObjectInspector() {
     IcebergFixedObjectInspector oi = IcebergFixedObjectInspector.get();
 
-    Assertions.assertThat(oi.getCategory()).isEqualTo(ObjectInspector.Category.PRIMITIVE);
-    Assertions.assertThat(oi.getPrimitiveCategory())
+    assertThat(oi.getCategory()).isEqualTo(ObjectInspector.Category.PRIMITIVE);
+    assertThat(oi.getPrimitiveCategory())
         .isEqualTo(PrimitiveObjectInspector.PrimitiveCategory.BINARY);
 
-    Assertions.assertThat(oi.getTypeInfo()).isEqualTo(TypeInfoFactory.binaryTypeInfo);
-    Assertions.assertThat(oi.getTypeName()).isEqualTo(TypeInfoFactory.binaryTypeInfo.getTypeName());
+    assertThat(oi.getTypeInfo()).isEqualTo(TypeInfoFactory.binaryTypeInfo);
+    assertThat(oi.getTypeName()).isEqualTo(TypeInfoFactory.binaryTypeInfo.getTypeName());
 
-    Assertions.assertThat(oi.getJavaPrimitiveClass()).isEqualTo(byte[].class);
-    Assertions.assertThat(oi.getPrimitiveWritableClass()).isEqualTo(BytesWritable.class);
+    assertThat(oi.getJavaPrimitiveClass()).isEqualTo(byte[].class);
+    assertThat(oi.getPrimitiveWritableClass()).isEqualTo(BytesWritable.class);
 
-    Assertions.assertThat(oi.copyObject(null)).isNull();
-    Assertions.assertThat(oi.getPrimitiveJavaObject(null)).isNull();
-    Assertions.assertThat(oi.getPrimitiveWritableObject(null)).isNull();
-    Assertions.assertThat(oi.convert(null)).isNull();
+    assertThat(oi.copyObject(null)).isNull();
+    assertThat(oi.getPrimitiveJavaObject(null)).isNull();
+    assertThat(oi.getPrimitiveWritableObject(null)).isNull();
+    assertThat(oi.convert(null)).isNull();
 
     byte[] bytes = new byte[] {0, 1};
     BytesWritable bytesWritable = new BytesWritable(bytes);
 
-    Assertions.assertThat(oi.getPrimitiveJavaObject(bytes)).isEqualTo(bytes);
-    Assertions.assertThat(oi.getPrimitiveWritableObject(bytes)).isEqualTo(bytesWritable);
-    Assertions.assertThat(oi.convert(bytes)).isEqualTo(bytes);
+    assertThat(oi.getPrimitiveJavaObject(bytes)).isEqualTo(bytes);
+    assertThat(oi.getPrimitiveWritableObject(bytes)).isEqualTo(bytesWritable);
+    assertThat(oi.convert(bytes)).isEqualTo(bytes);
 
     byte[] copy = (byte[]) oi.copyObject(bytes);
 
-    Assertions.assertThat(copy).isEqualTo(bytes);
-    Assertions.assertThat(copy).isNotSameAs(bytes);
+    assertThat(copy).isEqualTo(bytes);
+    assertThat(copy).isNotSameAs(bytes);
 
-    Assertions.assertThat(oi.preferWritable()).isFalse();
+    assertThat(oi.preferWritable()).isFalse();
   }
 }

@@ -19,6 +19,7 @@
 package org.apache.iceberg.mr.hive;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -35,7 +36,6 @@ import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergObjectInspector;
 import org.apache.iceberg.mr.mapred.Container;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -44,12 +44,12 @@ public class TestHiveIcebergSerDe {
   private static final Schema schema =
       new Schema(required(1, "string_field", Types.StringType.get()));
 
-  @TempDir public Path tmp;
+  @TempDir private Path tmp;
 
   @Test
   public void testInitialize() throws IOException, SerDeException {
     File location = tmp.toFile();
-    Assertions.assertThat(location.delete()).isTrue();
+    assertThat(location.delete()).isTrue();
 
     Configuration conf = new Configuration();
 
@@ -63,8 +63,7 @@ public class TestHiveIcebergSerDe {
     HiveIcebergSerDe serDe = new HiveIcebergSerDe();
     serDe.initialize(conf, properties);
 
-    Assertions.assertThat(serDe.getObjectInspector())
-        .isEqualTo(IcebergObjectInspector.create(schema));
+    assertThat(serDe.getObjectInspector()).isEqualTo(IcebergObjectInspector.create(schema));
   }
 
   @Test
@@ -75,6 +74,6 @@ public class TestHiveIcebergSerDe {
     Container<Record> container = new Container<>();
     container.set(record);
 
-    Assertions.assertThat(serDe.deserialize(container)).isEqualTo(record);
+    assertThat(serDe.deserialize(container)).isEqualTo(record);
   }
 }

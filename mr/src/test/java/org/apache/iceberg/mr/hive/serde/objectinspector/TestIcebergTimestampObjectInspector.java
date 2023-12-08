@@ -18,13 +18,14 @@
  */
 package org.apache.iceberg.mr.hive.serde.objectinspector;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import org.apache.hadoop.hive.serde2.io.TimestampWritable;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestIcebergTimestampObjectInspector {
@@ -33,36 +34,34 @@ public class TestIcebergTimestampObjectInspector {
   public void testIcebergTimestampObjectInspector() {
     IcebergTimestampObjectInspector oi = IcebergTimestampObjectInspector.get();
 
-    Assertions.assertThat(oi.getCategory()).isEqualTo(ObjectInspector.Category.PRIMITIVE);
-    Assertions.assertThat(oi.getPrimitiveCategory())
+    assertThat(oi.getCategory()).isEqualTo(ObjectInspector.Category.PRIMITIVE);
+    assertThat(oi.getPrimitiveCategory())
         .isEqualTo(PrimitiveObjectInspector.PrimitiveCategory.TIMESTAMP);
 
-    Assertions.assertThat(oi.getTypeInfo()).isEqualTo(TypeInfoFactory.timestampTypeInfo);
-    Assertions.assertThat(oi.getTypeName())
-        .isEqualTo(TypeInfoFactory.timestampTypeInfo.getTypeName());
+    assertThat(oi.getTypeInfo()).isEqualTo(TypeInfoFactory.timestampTypeInfo);
+    assertThat(oi.getTypeName()).isEqualTo(TypeInfoFactory.timestampTypeInfo.getTypeName());
 
-    Assertions.assertThat(oi.getJavaPrimitiveClass()).isEqualTo(Timestamp.class);
-    Assertions.assertThat(oi.getPrimitiveWritableClass()).isEqualTo(TimestampWritable.class);
+    assertThat(oi.getJavaPrimitiveClass()).isEqualTo(Timestamp.class);
+    assertThat(oi.getPrimitiveWritableClass()).isEqualTo(TimestampWritable.class);
 
-    Assertions.assertThat(oi.copyObject(null)).isNull();
-    Assertions.assertThat(oi.getPrimitiveJavaObject(null)).isNull();
-    Assertions.assertThat(oi.getPrimitiveWritableObject(null)).isNull();
-    Assertions.assertThat(oi.convert(null)).isNull();
+    assertThat(oi.copyObject(null)).isNull();
+    assertThat(oi.getPrimitiveJavaObject(null)).isNull();
+    assertThat(oi.getPrimitiveWritableObject(null)).isNull();
+    assertThat(oi.convert(null)).isNull();
 
     LocalDateTime local = LocalDateTime.of(2020, 1, 1, 12, 55, 30, 5560000);
     Timestamp ts = Timestamp.valueOf(local);
 
-    Assertions.assertThat(oi.getPrimitiveJavaObject(local)).isEqualTo(ts);
-    Assertions.assertThat(oi.getPrimitiveWritableObject(local))
-        .isEqualTo(new TimestampWritable(ts));
+    assertThat(oi.getPrimitiveJavaObject(local)).isEqualTo(ts);
+    assertThat(oi.getPrimitiveWritableObject(local)).isEqualTo(new TimestampWritable(ts));
 
     Timestamp copy = (Timestamp) oi.copyObject(ts);
 
-    Assertions.assertThat(copy).isEqualTo(ts);
-    Assertions.assertThat(copy).isNotSameAs(ts);
+    assertThat(copy).isEqualTo(ts);
+    assertThat(copy).isNotSameAs(ts);
 
-    Assertions.assertThat(oi.preferWritable()).isFalse();
+    assertThat(oi.preferWritable()).isFalse();
 
-    Assertions.assertThat(oi.convert(ts)).isEqualTo(local);
+    assertThat(oi.convert(ts)).isEqualTo(local);
   }
 }

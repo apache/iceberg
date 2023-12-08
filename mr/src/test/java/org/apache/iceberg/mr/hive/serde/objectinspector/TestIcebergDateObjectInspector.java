@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.mr.hive.serde.objectinspector;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.sql.Date;
 import java.time.LocalDate;
 import org.apache.hadoop.hive.serde2.io.DateWritable;
@@ -25,7 +27,6 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.DateObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestIcebergDateObjectInspector {
@@ -34,31 +35,31 @@ public class TestIcebergDateObjectInspector {
   public void testIcebergDateObjectInspector() {
     DateObjectInspector oi = IcebergDateObjectInspector.get();
 
-    Assertions.assertThat(oi.getCategory()).isEqualTo(ObjectInspector.Category.PRIMITIVE);
-    Assertions.assertThat(oi.getPrimitiveCategory())
+    assertThat(oi.getCategory()).isEqualTo(ObjectInspector.Category.PRIMITIVE);
+    assertThat(oi.getPrimitiveCategory())
         .isEqualTo(PrimitiveObjectInspector.PrimitiveCategory.DATE);
 
-    Assertions.assertThat(oi.getTypeInfo()).isEqualTo(TypeInfoFactory.dateTypeInfo);
-    Assertions.assertThat(oi.getTypeName()).isEqualTo(TypeInfoFactory.dateTypeInfo.getTypeName());
+    assertThat(oi.getTypeInfo()).isEqualTo(TypeInfoFactory.dateTypeInfo);
+    assertThat(oi.getTypeName()).isEqualTo(TypeInfoFactory.dateTypeInfo.getTypeName());
 
-    Assertions.assertThat(oi.getJavaPrimitiveClass()).isEqualTo(Date.class);
-    Assertions.assertThat(oi.getPrimitiveWritableClass()).isEqualTo(DateWritable.class);
+    assertThat(oi.getJavaPrimitiveClass()).isEqualTo(Date.class);
+    assertThat(oi.getPrimitiveWritableClass()).isEqualTo(DateWritable.class);
 
-    Assertions.assertThat(oi.copyObject(null)).isNull();
-    Assertions.assertThat(oi.getPrimitiveJavaObject(null)).isNull();
-    Assertions.assertThat(oi.getPrimitiveWritableObject(null)).isNull();
+    assertThat(oi.copyObject(null)).isNull();
+    assertThat(oi.getPrimitiveJavaObject(null)).isNull();
+    assertThat(oi.getPrimitiveWritableObject(null)).isNull();
 
     LocalDate local = LocalDate.of(2020, 1, 1);
     Date date = Date.valueOf("2020-01-01");
 
-    Assertions.assertThat(oi.getPrimitiveJavaObject(local)).isEqualTo(date);
-    Assertions.assertThat(oi.getPrimitiveWritableObject(local)).isEqualTo(new DateWritable(date));
+    assertThat(oi.getPrimitiveJavaObject(local)).isEqualTo(date);
+    assertThat(oi.getPrimitiveWritableObject(local)).isEqualTo(new DateWritable(date));
 
     Date copy = (Date) oi.copyObject(date);
 
-    Assertions.assertThat(copy).isEqualTo(date);
-    Assertions.assertThat(copy).isNotSameAs(date);
+    assertThat(copy).isEqualTo(date);
+    assertThat(copy).isNotSameAs(date);
 
-    Assertions.assertThat(oi.preferWritable()).isFalse();
+    assertThat(oi.preferWritable()).isFalse();
   }
 }

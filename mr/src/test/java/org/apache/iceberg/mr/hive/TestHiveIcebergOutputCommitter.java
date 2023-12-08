@@ -20,6 +20,7 @@ package org.apache.iceberg.mr.hive;
 
 import static org.apache.iceberg.mr.hive.HiveIcebergRecordWriter.getWriters;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -79,7 +80,7 @@ public class TestHiveIcebergOutputCommitter {
   private static final PartitionSpec PARTITIONED_SPEC =
       PartitionSpec.builderFor(CUSTOMER_SCHEMA).bucket("customer_id", 3).build();
 
-  @TempDir public Path temp;
+  @TempDir private Path temp;
 
   @Test
   public void testNeedsTaskCommit() {
@@ -90,8 +91,7 @@ public class TestHiveIcebergOutputCommitter {
     mapOnlyJobConf.setNumReduceTasks(0);
 
     // Map only job should commit map tasks
-    Assertions.assertThat(
-            committer.needsTaskCommit(new TaskAttemptContextImpl(mapOnlyJobConf, MAP_TASK_ID)))
+    assertThat(committer.needsTaskCommit(new TaskAttemptContextImpl(mapOnlyJobConf, MAP_TASK_ID)))
         .isTrue();
 
     JobConf mapReduceJobConf = new JobConf();
@@ -99,10 +99,9 @@ public class TestHiveIcebergOutputCommitter {
     mapReduceJobConf.setNumReduceTasks(10);
 
     // MapReduce job should not commit map tasks, but should commit reduce tasks
-    Assertions.assertThat(
-            committer.needsTaskCommit(new TaskAttemptContextImpl(mapReduceJobConf, MAP_TASK_ID)))
+    assertThat(committer.needsTaskCommit(new TaskAttemptContextImpl(mapReduceJobConf, MAP_TASK_ID)))
         .isFalse();
-    Assertions.assertThat(
+    assertThat(
             committer.needsTaskCommit(new TaskAttemptContextImpl(mapReduceJobConf, REDUCE_TASK_ID)))
         .isTrue();
   }
@@ -211,14 +210,14 @@ public class TestHiveIcebergOutputCommitter {
         .isInstanceOf(RuntimeException.class)
         .hasMessage(exceptionMessage);
 
-    Assertions.assertThat(argumentCaptor.getAllValues().size()).isEqualTo(1);
+    assertThat(argumentCaptor.getAllValues()).hasSize(1);
     TaskAttemptID capturedId =
         TezUtil.taskAttemptWrapper(argumentCaptor.getValue().getTaskAttemptID());
     // writer is still in the map after commitTask failure
-    Assertions.assertThat(getWriters(capturedId)).isNotNull();
+    assertThat(getWriters(capturedId)).isNotNull();
     failingCommitter.abortTask(new TaskAttemptContextImpl(conf, capturedId));
     // abortTask succeeds and removes writer
-    Assertions.assertThat(getWriters(capturedId)).isNull();
+    assertThat(getWriters(capturedId)).isNull();
   }
 
   private Table table(String location, boolean partitioned) {

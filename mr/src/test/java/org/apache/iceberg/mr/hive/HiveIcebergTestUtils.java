@@ -19,6 +19,7 @@
 package org.apache.iceberg.mr.hive;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -63,7 +64,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
-import org.assertj.core.api.Assertions;
 
 public class HiveIcebergTestUtils {
   // TODO: Can this be a constant all around the Iceberg tests?
@@ -218,12 +218,10 @@ public class HiveIcebergTestUtils {
     for (int i = 0; i < expected.size(); ++i) {
       if (expected.get(i) instanceof OffsetDateTime) {
         // For OffsetDateTime we just compare the actual instant
-        Assertions.assertThat(((OffsetDateTime) actual.get(i)).toInstant())
+        assertThat(((OffsetDateTime) actual.get(i)).toInstant())
             .isEqualTo(((OffsetDateTime) expected.get(i)).toInstant());
-      } else if (expected.get(i) instanceof byte[]) {
-        Assertions.assertThat((byte[]) actual.get(i)).isEqualTo((byte[]) expected.get(i));
       } else {
-        Assertions.assertThat(actual.get(i)).isEqualTo(expected.get(i));
+        assertThat(actual.get(i)).isEqualTo(expected.get(i));
       }
     }
   }
@@ -264,7 +262,7 @@ public class HiveIcebergTestUtils {
     sortedExpected.sort(Comparator.comparingLong(record -> (Long) record.get(sortBy)));
     sortedActual.sort(Comparator.comparingLong(record -> (Long) record.get(sortBy)));
 
-    Assertions.assertThat(sortedActual.size()).isEqualTo(sortedExpected.size());
+    assertThat(sortedActual).hasSize(sortedExpected.size());
     for (int i = 0; i < sortedExpected.size(); ++i) {
       assertEquals(sortedExpected.get(i), sortedActual.get(i));
     }
@@ -287,10 +285,8 @@ public class HiveIcebergTestUtils {
             .filter(path -> !path.getFileName().toString().startsWith("."))
             .collect(Collectors.toList());
 
-    Assertions.assertThat(dataFiles.size()).isEqualTo(dataFileNum);
-    Assertions.assertThat(
-            new File(HiveIcebergOutputCommitter.generateJobLocation(table.location(), conf, jobId))
-                .exists())
-        .isFalse();
+    assertThat(dataFiles).hasSize(dataFileNum);
+    assertThat(new File(HiveIcebergOutputCommitter.generateJobLocation(table.location(), conf, jobId)))
+        .doesNotExist();
   }
 }

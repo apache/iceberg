@@ -19,6 +19,8 @@
 package org.apache.iceberg.mr.hive;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -35,8 +37,6 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hive.HiveVersion;
 import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergObjectInspector;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 public class TestDeserializer {
@@ -74,7 +74,7 @@ public class TestDeserializer {
 
     Record actual = deserializer.deserialize(new Object[] {new LongWritable(1L), new Text("Bob")});
 
-    Assertions.assertThat(actual).isEqualTo(expected);
+    assertThat(actual).isEqualTo(expected);
   }
 
   @Test
@@ -92,7 +92,7 @@ public class TestDeserializer {
 
     Record actual = deserializer.deserialize(new Object[] {new LongWritable(1L), new Text("Bob")});
 
-    Assertions.assertThat(actual).isEqualTo(expected);
+    assertThat(actual).isEqualTo(expected);
   }
 
   @Test
@@ -127,7 +127,7 @@ public class TestDeserializer {
     Object[] data = new Object[] {map};
     Record actual = deserializer.deserialize(data);
 
-    Assertions.assertThat(actual).isEqualTo(expected);
+    assertThat(actual).isEqualTo(expected);
   }
 
   @Test
@@ -155,13 +155,13 @@ public class TestDeserializer {
     Object[] data = new Object[] {new Object[] {new LongWritable(1L)}};
     Record actual = deserializer.deserialize(data);
 
-    Assertions.assertThat(actual).isEqualTo(expected);
+    assertThat(actual).isEqualTo(expected);
   }
 
   @Test
   public void testDeserializeEverySupportedType() {
-    Assumptions.assumeFalse(
-        HiveVersion.min(HiveVersion.HIVE_3), "No test yet for Hive3 (Date/Timestamp creation)");
+    assumeThat(HiveVersion.min(HiveVersion.HIVE_3))
+        .as("No test yet for Hive3 (Date/Timestamp creation)");
 
     Deserializer deserializer =
         new Deserializer.Builder()
@@ -196,9 +196,9 @@ public class TestDeserializer {
 
     Record actual = deserializer.deserialize(nulls);
 
-    Assertions.assertThat(actual).isEqualTo(expected);
+    assertThat(actual).isEqualTo(expected);
 
     // Check null record as well
-    Assertions.assertThat(deserializer.deserialize(null)).isNull();
+    assertThat(deserializer.deserialize(null)).isNull();
   }
 }
