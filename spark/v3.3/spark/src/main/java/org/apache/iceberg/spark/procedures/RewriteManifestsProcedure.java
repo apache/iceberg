@@ -46,7 +46,8 @@ class RewriteManifestsProcedure extends BaseProcedure {
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
         ProcedureParameter.required("table", DataTypes.StringType),
-        ProcedureParameter.optional("use_caching", DataTypes.BooleanType)
+        ProcedureParameter.optional("use_caching", DataTypes.BooleanType),
+        ProcedureParameter.optional("spec_id", DataTypes.IntegerType)
       };
 
   // counts are not nullable since the action result is never null
@@ -85,6 +86,7 @@ class RewriteManifestsProcedure extends BaseProcedure {
   public InternalRow[] call(InternalRow args) {
     Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
     Boolean useCaching = args.isNullAt(1) ? null : args.getBoolean(1);
+    Integer specId = args.isNullAt(2) ? null : args.getInt(2);
 
     return modifyIcebergTable(
         tableIdent,
@@ -93,6 +95,10 @@ class RewriteManifestsProcedure extends BaseProcedure {
 
           if (useCaching != null) {
             action.option(RewriteManifestsSparkAction.USE_CACHING, useCaching.toString());
+          }
+
+          if (specId != null) {
+            action.specId(specId);
           }
 
           RewriteManifests.Result result = action.execute();
