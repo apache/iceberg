@@ -34,6 +34,7 @@ import org.apache.iceberg.view.ViewCatalogTests;
 import org.apache.iceberg.view.ViewMetadata;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
@@ -64,7 +65,7 @@ public class TestNessieViewCatalog extends ViewCatalogTests<NessieCatalog> {
   @RegisterExtension
   static NessieJaxRsExtension server = NessieJaxRsExtension.jaxRsExtension(() -> persist);
 
-  @TempDir public Path temp;
+  @TempDir private Path temp;
 
   private NessieCatalog catalog;
   private NessieApiV1 api;
@@ -151,6 +152,7 @@ public class TestNessieViewCatalog extends ViewCatalogTests<NessieCatalog> {
   // Nessie adds extra properties (like commit id) on every operation. Hence, view metadata will not
   // be same after rename.
   @Override
+  @Test
   public void renameView() {
     TableIdentifier from = TableIdentifier.of("ns", "view");
     TableIdentifier to = TableIdentifier.of("ns", "renamedView");
@@ -185,6 +187,7 @@ public class TestNessieViewCatalog extends ViewCatalogTests<NessieCatalog> {
   }
 
   @Override
+  @Test
   public void renameViewUsingDifferentNamespace() {
     TableIdentifier from = TableIdentifier.of("ns", "view");
     TableIdentifier to = TableIdentifier.of("other_ns", "renamedView");

@@ -51,7 +51,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.LongType;
-import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.view.BaseView;
 import org.apache.iceberg.view.View;
 import org.junit.jupiter.api.AfterEach;
@@ -179,7 +178,7 @@ public abstract class BaseTestIceberg {
 
   protected void createTable(TableIdentifier tableIdentifier) {
     createMissingNamespaces(tableIdentifier);
-    Schema schema = new Schema(StructType.of(required(1, "id", LongType.get())).fields());
+    Schema schema = new Schema(required(1, "id", LongType.get()));
     catalog.createTable(tableIdentifier, schema).location();
   }
 
@@ -189,7 +188,7 @@ public abstract class BaseTestIceberg {
   }
 
   protected View createView(NessieCatalog nessieCatalog, TableIdentifier tableIdentifier) {
-    Schema schema = new Schema(StructType.of(required(1, "id", LongType.get())).fields());
+    Schema schema = new Schema(required(1, "id", LongType.get()));
     return createView(nessieCatalog, tableIdentifier, schema);
   }
 
@@ -205,7 +204,7 @@ public abstract class BaseTestIceberg {
   }
 
   protected View replaceView(NessieCatalog nessieCatalog, TableIdentifier identifier) {
-    Schema schema = new Schema(StructType.of(required(2, "age", Types.IntegerType.get())).fields());
+    Schema schema = new Schema(required(2, "age", Types.IntegerType.get()));
     return nessieCatalog
         .buildView(identifier)
         .withSchema(schema)

@@ -147,14 +147,16 @@ public class NessieIcebergClient implements AutoCloseable {
     }
   }
 
-  /** @deprecated will be removed after 1.5.0; use listContents() instead */
-  @Deprecated
   public List<TableIdentifier> listTables(Namespace namespace) {
     return listContents(namespace, Content.Type.ICEBERG_TABLE);
   }
 
+  public List<TableIdentifier> listViews(Namespace namespace) {
+    return listContents(namespace, Content.Type.ICEBERG_VIEW);
+  }
+
   /** Lists Iceberg table or view from the given namespace */
-  public List<TableIdentifier> listContents(Namespace namespace, Content.Type type) {
+  protected List<TableIdentifier> listContents(Namespace namespace, Content.Type type) {
     try {
       return withReference(api.getEntries()).get().getEntries().stream()
           .filter(namespacePredicate(namespace))
@@ -414,13 +416,15 @@ public class NessieIcebergClient implements AutoCloseable {
     }
   }
 
-  /** @deprecated will be removed after 1.5.0; use renameContent() instead */
-  @Deprecated
   public void renameTable(TableIdentifier from, TableIdentifier to) {
     renameContent(from, to, Content.Type.ICEBERG_TABLE);
   }
 
-  public void renameContent(TableIdentifier from, TableIdentifier to, Content.Type type) {
+  public void renameView(TableIdentifier from, TableIdentifier to) {
+    renameContent(from, to, Content.Type.ICEBERG_VIEW);
+  }
+
+  protected void renameContent(TableIdentifier from, TableIdentifier to, Content.Type type) {
     getRef().checkMutable();
 
     IcebergContent existingFromContent = fetchContent(from);
@@ -482,7 +486,8 @@ public class NessieIcebergClient implements AutoCloseable {
         throw new AlreadyExistsException("Cannot rename %s to %s. Table already exists", from, to);
       } else {
         throw new AlreadyExistsException(
-            "Cannot rename %s to %s. Another content with same name already exists", from, to);
+            "Cannot rename %s to %s. Another content of type %s with same name already exists",
+            from, to, existingToContent.getType());
       }
     }
   }
@@ -503,13 +508,15 @@ public class NessieIcebergClient implements AutoCloseable {
     }
   }
 
-  /** @deprecated will be removed after 1.5.0; use dropContent() instead */
-  @Deprecated
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
     return dropContent(identifier, purge, Content.Type.ICEBERG_TABLE);
   }
 
-  public boolean dropContent(TableIdentifier identifier, boolean purge, Content.Type type) {
+  public boolean dropView(TableIdentifier identifier, boolean purge) {
+    return dropContent(identifier, purge, Content.Type.ICEBERG_VIEW);
+  }
+
+  protected boolean dropContent(TableIdentifier identifier, boolean purge, Content.Type type) {
     getRef().checkMutable();
 
     IcebergContent existingContent = fetchContent(identifier);

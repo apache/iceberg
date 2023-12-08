@@ -69,6 +69,7 @@ import org.projectnessie.model.IcebergTable;
 import org.projectnessie.model.ImmutableTableReference;
 import org.projectnessie.model.LogResponse.LogEntry;
 import org.projectnessie.model.Operation;
+import org.projectnessie.model.TableReference;
 import org.projectnessie.model.Tag;
 
 public class TestNessieTable extends BaseTestIceberg {
@@ -249,12 +250,12 @@ public class TestNessieTable extends BaseTestIceberg {
     TableIdentifier renameTableIdentifier =
         TableIdentifier.of(TABLE_IDENTIFIER.namespace(), renamedTableName);
 
-    ImmutableTableReference fromTableReference =
+    TableReference fromTableReference =
         ImmutableTableReference.builder()
             .reference(catalog.currentRefName())
             .name(TABLE_IDENTIFIER.name())
             .build();
-    ImmutableTableReference toTableReference =
+    TableReference toTableReference =
         ImmutableTableReference.builder()
             .reference(catalog.currentRefName())
             .name(renameTableIdentifier.name())
@@ -288,12 +289,12 @@ public class TestNessieTable extends BaseTestIceberg {
     TableIdentifier renameTableIdentifier =
         TableIdentifier.of(TABLE_IDENTIFIER.namespace(), renamedTableName);
 
-    ImmutableTableReference fromTableReference =
+    TableReference fromTableReference =
         ImmutableTableReference.builder()
             .reference("Something")
             .name(TABLE_IDENTIFIER.name())
             .build();
-    ImmutableTableReference toTableReference =
+    TableReference toTableReference =
         ImmutableTableReference.builder()
             .reference(catalog.currentRefName())
             .name(renameTableIdentifier.name())

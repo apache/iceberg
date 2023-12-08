@@ -243,7 +243,7 @@ public final class NessieUtil {
     }
   }
 
-  static void handleBadRequestForCommit(
+  static Optional<RuntimeException> handleBadRequestForCommit(
       NessieIcebergClient client, ContentKey key, Content.Type type) {
     Content.Type anotherType =
         type == Content.Type.ICEBERG_TABLE ? Content.Type.ICEBERG_VIEW : Content.Type.ICEBERG_TABLE;
@@ -252,18 +252,21 @@ public final class NessieUtil {
           client.getApi().getContent().key(key).reference(client.getReference()).get().get(key);
       if (content != null) {
         if (content.getType().equals(anotherType)) {
-          throw new AlreadyExistsException(
-              "%s with same name already exists: %s in %s",
-              NessieUtil.contentTypeString(anotherType), key, client.getReference());
+          return Optional.of(
+              new AlreadyExistsException(
+                  "%s with same name already exists: %s in %s",
+                  NessieUtil.contentTypeString(anotherType), key, client.getReference()));
         } else if (!content.getType().equals(type)) {
-          throw new AlreadyExistsException(
-              "Another content with same name already exists: %s in %s",
-              key, client.getReference());
+          return Optional.of(
+              new AlreadyExistsException(
+                  "Another content with same name already exists: %s in %s",
+                  key, client.getReference()));
         }
       }
     } catch (NessieNotFoundException e) {
-      throw new RuntimeException(e);
+      return Optional.of(new RuntimeException(e));
     }
+    return Optional.empty();
   }
 
   private static void maybeThrowSpecializedException(

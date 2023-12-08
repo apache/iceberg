@@ -29,7 +29,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -49,6 +48,7 @@ import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.IcebergView;
 import org.projectnessie.model.ImmutableTableReference;
 import org.projectnessie.model.LogResponse.LogEntry;
+import org.projectnessie.model.TableReference;
 
 public class TestNessieView extends BaseTestIceberg {
 
@@ -130,10 +130,9 @@ public class TestNessieView extends BaseTestIceberg {
     Assertions.assertThat(contentInitialMain)
         .as("global-contents + snapshot-id equal on both branches in Nessie")
         .isEqualTo(contentInitialBranch);
-    Assertions.assertThat(viewInitialMain.currentVersion()).isNotNull();
+    Assertions.assertThat(viewInitialMain.currentVersion().versionId()).isEqualTo(2);
 
     //  3. modify view in "main" branch
-
     icebergView
         .replaceVersion()
         .withQuery("trino", "some other query")
@@ -158,6 +157,7 @@ public class TestNessieView extends BaseTestIceberg {
         .describedAs("schema ID must be same across branches")
         .isEqualTo(contentsAfter1Branch.getSchemaId());
     // verify updates
+    Assertions.assertThat(viewAfter1Main.currentVersion().versionId()).isEqualTo(3);
     Assertions.assertThat(
             ((SQLViewRepresentation) viewAfter1Main.currentVersion().representations().get(0))
                 .dialect())
@@ -178,12 +178,15 @@ public class TestNessieView extends BaseTestIceberg {
 
     //  --> assert getValue() against both branches returns the updated metadata-location
     // verify view-metadata-location
+    Assertions.assertThat(contentsAfter2Main.getVersionId()).isEqualTo(4);
     Assertions.assertThat(contentsAfter2Main.getMetadataLocation())
         .describedAs("metadata-location must change on %s", BRANCH)
         .isNotEqualTo(contentsAfter1Main.getMetadataLocation());
+    Assertions.assertThat(contentsAfter1Main.getVersionId()).isEqualTo(3);
     Assertions.assertThat(contentsAfter2Branch.getMetadataLocation())
         .describedAs("on-reference-state must not change on %s", testCaseBranch)
         .isEqualTo(contentsAfter1Branch.getMetadataLocation());
+    Assertions.assertThat(viewAfter2Main.currentVersion().versionId()).isEqualTo(4);
     Assertions.assertThat(
             ((SQLViewRepresentation) viewAfter2Main.currentVersion().representations().get(0))
                 .dialect())
@@ -218,12 +221,12 @@ public class TestNessieView extends BaseTestIceberg {
     TableIdentifier renameViewIdentifier =
         TableIdentifier.of(VIEW_IDENTIFIER.namespace(), renamedViewName);
 
-    ImmutableTableReference fromTableReference =
+    TableReference fromTableReference =
         ImmutableTableReference.builder()
             .reference(catalog.currentRefName())
             .name(VIEW_IDENTIFIER.name())
             .build();
-    ImmutableTableReference toTableReference =
+    TableReference toTableReference =
         ImmutableTableReference.builder()
             .reference(catalog.currentRefName())
             .name(renameViewIdentifier.name())
@@ -233,9 +236,13 @@ public class TestNessieView extends BaseTestIceberg {
     TableIdentifier toIdentifier =
         TableIdentifier.of(VIEW_IDENTIFIER.namespace(), toTableReference.toString());
 
+    View viewBeforeRename = catalog.loadView(fromIdentifier);
     catalog.renameView(fromIdentifier, toIdentifier);
     Assertions.assertThat(catalog.viewExists(fromIdentifier)).isFalse();
     Assertions.assertThat(catalog.viewExists(toIdentifier)).isTrue();
+    View viewAfterRename = catalog.loadView(toIdentifier);
+    Assertions.assertThat(viewBeforeRename.currentVersion().versionId())
+        .isEqualTo(viewAfterRename.currentVersion().versionId());
 
     Assertions.assertThat(catalog.dropView(toIdentifier)).isTrue();
 
@@ -248,12 +255,12 @@ public class TestNessieView extends BaseTestIceberg {
     TableIdentifier renameViewIdentifier =
         TableIdentifier.of(VIEW_IDENTIFIER.namespace(), renamedViewName);
 
-    ImmutableTableReference fromTableReference =
+    TableReference fromTableReference =
         ImmutableTableReference.builder()
             .reference("Something")
             .name(VIEW_IDENTIFIER.name())
             .build();
-    ImmutableTableReference toTableReference =
+    TableReference toTableReference =
         ImmutableTableReference.builder()
             .reference(catalog.currentRefName())
             .name(renameViewIdentifier.name())
@@ -299,10 +306,12 @@ public class TestNessieView extends BaseTestIceberg {
         .allSatisfy(
             logEntry -> {
               CommitMeta commit = logEntry.getCommitMeta();
-              Assertions.assertThat(commit.getAuthor()).isNotNull().isNotEmpty();
-              Assertions.assertThat(commit.getAuthor()).isEqualTo(System.getProperty("user.name"));
-              Assertions.assertThat(commit.getProperties().get(NessieUtil.APPLICATION_TYPE))
-                  .isEqualTo("iceberg");
+              Assertions.assertThat(commit.getAuthor())
+                  .isNotNull()
+                  .isNotEmpty()
+                  .isEqualTo(System.getProperty("user.name"));
+              Assertions.assertThat(commit.getProperties())
+                  .containsEntry(NessieUtil.APPLICATION_TYPE, "iceberg");
               Assertions.assertThat(commit.getMessage()).startsWith("Iceberg");
             });
   }
@@ -317,16 +326,12 @@ public class TestNessieView extends BaseTestIceberg {
   }
 
   @Test
-  public void testListviews() {
+  public void testListViews() {
     TableIdentifier newIdentifier = TableIdentifier.of(DB_NAME, "newView");
     createView(catalog, newIdentifier, SCHEMA);
 
-    List<TableIdentifier> tableIdents = catalog.listViews(VIEW_IDENTIFIER.namespace());
-    List<TableIdentifier> expectedIdents =
-        tableIdents.stream()
-            .filter(t -> t.equals(newIdentifier) || t.equals(VIEW_IDENTIFIER))
-            .collect(Collectors.toList());
-    Assertions.assertThat(expectedIdents).hasSize(2);
+    List<TableIdentifier> viewIdents = catalog.listViews(VIEW_IDENTIFIER.namespace());
+    Assertions.assertThat(viewIdents).contains(VIEW_IDENTIFIER, newIdentifier);
     Assertions.assertThat(catalog.viewExists(VIEW_IDENTIFIER)).isTrue();
     Assertions.assertThat(catalog.viewExists(newIdentifier)).isTrue();
   }

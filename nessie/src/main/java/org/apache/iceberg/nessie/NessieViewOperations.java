@@ -116,8 +116,7 @@ public class NessieViewOperations extends BaseViewOperations {
       NessieUtil.handleExceptionsForCommits(ex, client.refName(), Content.Type.ICEBERG_VIEW);
     } catch (NessieBadRequestException ex) {
       failure = true;
-      NessieUtil.handleBadRequestForCommit(client, key, Content.Type.ICEBERG_VIEW);
-      throw ex;
+      throw NessieUtil.handleBadRequestForCommit(client, key, Content.Type.ICEBERG_VIEW).orElse(ex);
     } finally {
       if (failure) {
         io().deleteFile(newMetadataLocation);

@@ -137,8 +137,8 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
       NessieUtil.handleExceptionsForCommits(ex, client.refName(), Content.Type.ICEBERG_TABLE);
     } catch (NessieBadRequestException ex) {
       failure = true;
-      NessieUtil.handleBadRequestForCommit(client, key, Content.Type.ICEBERG_TABLE);
-      throw ex;
+      throw NessieUtil.handleBadRequestForCommit(client, key, Content.Type.ICEBERG_TABLE)
+          .orElse(ex);
     } finally {
       if (failure) {
         io().deleteFile(newMetadataLocation);
