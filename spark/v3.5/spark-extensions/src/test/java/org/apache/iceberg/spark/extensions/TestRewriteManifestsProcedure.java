@@ -316,20 +316,27 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
     sql(
         "INSERT INTO %s VALUES (1, CAST('2022-01-01 10:00:00' AS TIMESTAMP), CAST('2022-01-01' AS DATE))",
         tableName);
+    sql(
+        "INSERT INTO %s VALUES (2, CAST('2022-01-01 11:00:00' AS TIMESTAMP), CAST('2022-01-01' AS DATE))",
+        tableName);
 
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(
-            row(1, Timestamp.valueOf("2022-01-01 10:00:00"), Date.valueOf("2022-01-01"))),
-        sql("SELECT * FROM %s WHERE ts < current_timestamp()", tableName));
+            row(1, Timestamp.valueOf("2022-01-01 10:00:00"), Date.valueOf("2022-01-01")),
+            row(2, Timestamp.valueOf("2022-01-01 11:00:00"), Date.valueOf("2022-01-01"))),
+        sql("SELECT * FROM %s WHERE ts < current_timestamp() order by 1 asc", tableName));
 
-    sql("CALL %s.system.rewrite_manifests(table => '%s')", catalogName, tableName);
+    List<Object[]> output =
+        sql("CALL %s.system.rewrite_manifests(table => '%s')", catalogName, tableName);
+    assertEquals("Procedure output must match", ImmutableList.of(row(2, 1)), output);
 
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(
-            row(1, Timestamp.valueOf("2022-01-01 10:00:00"), Date.valueOf("2022-01-01"))),
-        sql("SELECT * FROM %s WHERE ts < current_timestamp()", tableName));
+            row(1, Timestamp.valueOf("2022-01-01 10:00:00"), Date.valueOf("2022-01-01")),
+            row(2, Timestamp.valueOf("2022-01-01 11:00:00"), Date.valueOf("2022-01-01"))),
+        sql("SELECT * FROM %s WHERE ts < current_timestamp() order by 1 asc", tableName));
   }
 
   @Test
