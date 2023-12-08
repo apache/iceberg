@@ -262,7 +262,7 @@ public class HiveIcebergTestUtils {
     sortedExpected.sort(Comparator.comparingLong(record -> (Long) record.get(sortBy)));
     sortedActual.sort(Comparator.comparingLong(record -> (Long) record.get(sortBy)));
 
-    assertThat(sortedActual).hasSize(sortedExpected.size());
+    assertThat(sortedActual).hasSameSizeAs(sortedExpected);
     for (int i = 0; i < sortedExpected.size(); ++i) {
       assertEquals(sortedExpected.get(i), sortedActual.get(i));
     }
