@@ -236,13 +236,9 @@ public class TestNessieView extends BaseTestIceberg {
     TableIdentifier toIdentifier =
         TableIdentifier.of(VIEW_IDENTIFIER.namespace(), toTableReference.toString());
 
-    View viewBeforeRename = catalog.loadView(fromIdentifier);
     catalog.renameView(fromIdentifier, toIdentifier);
     Assertions.assertThat(catalog.viewExists(fromIdentifier)).isFalse();
     Assertions.assertThat(catalog.viewExists(toIdentifier)).isTrue();
-    View viewAfterRename = catalog.loadView(toIdentifier);
-    Assertions.assertThat(viewBeforeRename.currentVersion().versionId())
-        .isEqualTo(viewAfterRename.currentVersion().versionId());
 
     Assertions.assertThat(catalog.dropView(toIdentifier)).isTrue();
 

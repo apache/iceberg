@@ -156,7 +156,7 @@ public class NessieIcebergClient implements AutoCloseable {
   }
 
   /** Lists Iceberg table or view from the given namespace */
-  protected List<TableIdentifier> listContents(Namespace namespace, Content.Type type) {
+  private List<TableIdentifier> listContents(Namespace namespace, Content.Type type) {
     try {
       return withReference(api.getEntries()).get().getEntries().stream()
           .filter(namespacePredicate(namespace))
@@ -424,7 +424,7 @@ public class NessieIcebergClient implements AutoCloseable {
     renameContent(from, to, Content.Type.ICEBERG_VIEW);
   }
 
-  protected void renameContent(TableIdentifier from, TableIdentifier to, Content.Type type) {
+  private void renameContent(TableIdentifier from, TableIdentifier to, Content.Type type) {
     getRef().checkMutable();
 
     IcebergContent existingFromContent = fetchContent(from);
@@ -453,16 +453,18 @@ public class NessieIcebergClient implements AutoCloseable {
               contentType, from, to, getRef().getName()),
           e);
     } catch (BaseNessieClientServerException e) {
+      CommitFailedException commitFailedException =
+          new CommitFailedException(
+              e,
+              "Cannot rename %s '%s' to '%s': the current reference is not up to date.",
+              contentType,
+              from,
+              to);
+      Optional<RuntimeException> exception = Optional.empty();
       if (e instanceof NessieConflictException) {
-        NessieUtil.handleExceptionsForCommits(e, getRef().getName(), type);
+        exception = NessieUtil.handleExceptionsForCommits(e, getRef().getName(), type);
       }
-
-      throw new CommitFailedException(
-          e,
-          "Cannot rename %s '%s' to '%s': the current reference is not up to date.",
-          contentType,
-          from,
-          to);
+      throw exception.orElse(commitFailedException);
     } catch (HttpClientException ex) {
       // Intentionally catch all nessie-client-exceptions here and not just the "timeout" variant
       // to catch all kinds of network errors (e.g. connection reset). Network code implementation
@@ -516,7 +518,7 @@ public class NessieIcebergClient implements AutoCloseable {
     return dropContent(identifier, purge, Content.Type.ICEBERG_VIEW);
   }
 
-  protected boolean dropContent(TableIdentifier identifier, boolean purge, Content.Type type) {
+  private boolean dropContent(TableIdentifier identifier, boolean purge, Content.Type type) {
     getRef().checkMutable();
 
     IcebergContent existingContent = fetchContent(identifier);

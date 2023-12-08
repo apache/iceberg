@@ -215,23 +215,30 @@ public final class NessieUtil {
         .build();
   }
 
-  static void handleExceptionsForCommits(Exception exception, String refName, Content.Type type) {
+  static Optional<RuntimeException> handleExceptionsForCommits(
+      Exception exception, String refName, Content.Type type) {
     if (exception instanceof NessieConflictException) {
       if (exception instanceof NessieReferenceConflictException) {
         // Throws a specialized exception, if possible
-        NessieUtil.maybeThrowSpecializedException(
-            (NessieReferenceConflictException) exception, type);
+        Optional<RuntimeException> specializedException =
+            NessieUtil.maybeUseSpecializedException(
+                (NessieReferenceConflictException) exception, type);
+        if (specializedException.isPresent()) {
+          return specializedException;
+        }
       }
 
-      throw new CommitFailedException(
-          exception,
-          "Cannot commit: Reference hash is out of date. Update the reference '%s' and try again",
-          refName);
+      return Optional.of(
+          new CommitFailedException(
+              exception,
+              "Cannot commit: Reference hash is out of date. Update the reference '%s' and try again",
+              refName));
     }
 
     if (exception instanceof NessieNotFoundException) {
-      throw new RuntimeException(
-          String.format("Cannot commit: Reference '%s' no longer exists", refName), exception);
+      return Optional.of(
+          new RuntimeException(
+              String.format("Cannot commit: Reference '%s' no longer exists", refName), exception));
     }
 
     if (exception instanceof HttpClientException) {
@@ -239,8 +246,9 @@ public final class NessieUtil {
       // to catch all kinds of network errors (e.g. connection reset). Network code implementation
       // details and all kinds of network devices can induce unexpected behavior. So better be
       // safe than sorry.
-      throw new CommitStateUnknownException(exception);
+      return Optional.of(new CommitStateUnknownException(exception));
     }
+    return Optional.empty();
   }
 
   static Optional<RuntimeException> handleBadRequestForCommit(
@@ -269,42 +277,44 @@ public final class NessieUtil {
     return Optional.empty();
   }
 
-  private static void maybeThrowSpecializedException(
+  private static Optional<RuntimeException> maybeUseSpecializedException(
       NessieReferenceConflictException ex, Content.Type type) {
     String contentType = contentTypeString(type);
 
-    NessieUtil.extractSingleConflict(
+    Optional<Conflict> singleConflict =
+        NessieUtil.extractSingleConflict(
             ex,
             EnumSet.of(
                 Conflict.ConflictType.NAMESPACE_ABSENT,
                 Conflict.ConflictType.NAMESPACE_NOT_EMPTY,
                 Conflict.ConflictType.KEY_DOES_NOT_EXIST,
-                Conflict.ConflictType.KEY_EXISTS))
-        .ifPresent(
-            conflict -> {
-              switch (conflict.conflictType()) {
-                case NAMESPACE_ABSENT:
-                  throw new NoSuchNamespaceException(
-                      ex, "Namespace does not exist: %s", conflict.key());
-                case NAMESPACE_NOT_EMPTY:
-                  throw new NamespaceNotEmptyException(
-                      ex, "Namespace not empty: %s", conflict.key());
-                case KEY_DOES_NOT_EXIST:
-                  if (type == Content.Type.ICEBERG_VIEW) {
-                    throw new NoSuchViewException(
-                        ex, "%s does not exist: %s", contentType, conflict.key());
-                  } else {
-                    throw new NoSuchTableException(
-                        ex, "%s does not exist: %s", contentType, conflict.key());
-                  }
-                case KEY_EXISTS:
-                  throw new AlreadyExistsException(
-                      ex, "%s already exists: %s", contentType, conflict.key());
-                default:
-                  // Explicit fall-through
-                  break;
-              }
-            });
+                Conflict.ConflictType.KEY_EXISTS));
+    if (!singleConflict.isPresent()) {
+      return Optional.empty();
+    }
+
+    Conflict conflict = singleConflict.get();
+    switch (conflict.conflictType()) {
+      case NAMESPACE_ABSENT:
+        return Optional.of(
+            new NoSuchNamespaceException(ex, "Namespace does not exist: %s", conflict.key()));
+      case NAMESPACE_NOT_EMPTY:
+        return Optional.of(
+            new NamespaceNotEmptyException(ex, "Namespace not empty: %s", conflict.key()));
+      case KEY_DOES_NOT_EXIST:
+        if (type == Content.Type.ICEBERG_VIEW) {
+          return Optional.of(
+              new NoSuchViewException(ex, "%s does not exist: %s", contentType, conflict.key()));
+        } else {
+          return Optional.of(
+              new NoSuchTableException(ex, "%s does not exist: %s", contentType, conflict.key()));
+        }
+      case KEY_EXISTS:
+        return Optional.of(
+            new AlreadyExistsException(ex, "%s already exists: %s", contentType, conflict.key()));
+      default:
+        return Optional.empty();
+    }
   }
 
   static String contentTypeString(Content.Type type) {

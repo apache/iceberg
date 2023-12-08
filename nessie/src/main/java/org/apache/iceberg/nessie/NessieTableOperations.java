@@ -134,7 +134,13 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
       if (ex instanceof NessieConflictException || ex instanceof NessieNotFoundException) {
         failure = true;
       }
-      NessieUtil.handleExceptionsForCommits(ex, client.refName(), Content.Type.ICEBERG_TABLE);
+
+      NessieUtil.handleExceptionsForCommits(ex, client.refName(), Content.Type.ICEBERG_TABLE)
+          .ifPresent(
+              exception -> {
+                throw exception;
+              });
+
     } catch (NessieBadRequestException ex) {
       failure = true;
       throw NessieUtil.handleBadRequestForCommit(client, key, Content.Type.ICEBERG_TABLE)
