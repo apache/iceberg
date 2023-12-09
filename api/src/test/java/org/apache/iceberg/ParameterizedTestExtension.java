@@ -228,7 +228,7 @@ public class ParameterizedTestExtension implements TestTemplateInvocationContext
 
     // Use field injection style
     for (Field parameterField : parameterFields) {
-      final int index = parameterField.getAnnotation(Parameter.class).value();
+      final int index = parameterField.getAnnotation(Parameter.class).index();
       context.getStore(NAMESPACE).put(getParameterFieldStoreKey(index), parameterField);
     }
     return parameterValueStream.map(
