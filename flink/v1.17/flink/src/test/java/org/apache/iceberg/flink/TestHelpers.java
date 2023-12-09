@@ -305,8 +305,8 @@ public class TestHelpers {
 
   public static void assertEquals(Schema schema, GenericData.Record record, Row row) {
     List<Types.NestedField> fields = schema.asStruct().fields();
-    assertThat(fields).hasSameSizeAs(record.getSchema().getFields().size());
-    assertThat(fields).hasSameSizeAs(row.getArity());
+    assertThat(fields).hasSameSizeAs(record.getSchema().getFields());
+    assertThat(fields).hasSize(row.getArity());
 
     RowType rowType = FlinkSchemaUtil.convert(schema);
     for (int i = 0; i < fields.size(); ++i) {
@@ -557,7 +557,7 @@ public class TestHelpers {
     List<ManifestFile.PartitionFieldSummary> actualSummaries = actual.partitions();
     assertThat(actualSummaries)
         .as("PartitionFieldSummary size does not match")
-        .hasSameSizeAs(expectedSummaries.size());
+        .hasSameSizeAs(expectedSummaries);
     for (int i = 0; i < expectedSummaries.size(); i++) {
       assertThat(actualSummaries.get(i).containsNull())
           .as("Null flag in partition must match")
