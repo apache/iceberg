@@ -334,7 +334,7 @@ abstract class TestTables {
             schema,
             PartitionSpec.unpartitioned(),
             fileFormat,
-            temp);
+            temp.getRoot().toPath());
     Table table = helper.createTable();
 
     if (records != null && !records.isEmpty()) {
@@ -361,7 +361,7 @@ abstract class TestTables {
       StructLike partition,
       List<Record> records)
       throws IOException {
-    TestHelper helper = new TestHelper(configuration, null, null, null, null, format, temp);
+    TestHelper helper = new TestHelper(configuration, null, null, null, null, format, temp.getRoot().toPath());
 
     helper.setTable(table);
     if (!records.isEmpty()) {

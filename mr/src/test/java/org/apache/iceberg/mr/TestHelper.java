@@ -19,6 +19,7 @@
 package org.apache.iceberg.mr;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -48,7 +49,7 @@ public class TestHelper {
   private final Schema schema;
   private final PartitionSpec spec;
   private final FileFormat fileFormat;
-  private final TemporaryFolder tmp;
+  private final Path tmp;
 
   private Table table;
 
@@ -59,7 +60,7 @@ public class TestHelper {
       Schema schema,
       PartitionSpec spec,
       FileFormat fileFormat,
-      TemporaryFolder tmp) {
+      Path tmp) {
     this.conf = conf;
     this.tables = tables;
     this.tableIdentifier = tableIdentifier;
