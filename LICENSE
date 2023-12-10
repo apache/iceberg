@@ -323,3 +323,15 @@ This product includes code from Apache HttpComponents Client.
 Copyright: 1999-2022 The Apache Software Foundation.
 Home page: https://hc.apache.org/
 License: https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product includes code from Apache Flink.
+
+* Parameterized test at class level logic in ParameterizedTestExtension.java
+* Parameter provider annotation for parameterized tests in Parameters.java
+* Parameter field annotation for parameterized tests in Parameter.java
+
+Copyright: 1999-2022 The Apache Software Foundation.
+Home page: https://hc.apache.org/
+License: https://www.apache.org/licenses/LICENSE-2.0
