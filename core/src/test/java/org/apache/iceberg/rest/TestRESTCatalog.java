@@ -1162,7 +1162,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // if the table returned a bearer token, there will be no token request
     if (!tableConfig.containsKey("token")) {
       // client credentials or token exchange to get a table token
-      Mockito.verify(adapter, times(2))
+      Mockito.verify(adapter, times(1))
           .execute(
               eq(HTTPMethod.POST),
               eq("v1/oauth/tokens"),
