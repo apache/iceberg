@@ -57,9 +57,5 @@ public class EncryptedFiles {
         encryptedOutputFile, BaseEncryptionKeyMetadata.fromByteArray(keyMetadata));
   }
 
-  public static EncryptedOutputFile plainAsEncryptedOutput(OutputFile encryptingOutputFile) {
-    return new BaseEncryptedOutputFile(encryptingOutputFile, EncryptionKeyMetadata.empty());
-  }
-
   private EncryptedFiles() {}
 }

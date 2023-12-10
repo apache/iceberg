@@ -18,72 +18,40 @@
  */
 package org.apache.iceberg.encryption;
 
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
-import static org.apache.iceberg.TableProperties.ENCRYPTION_DEK_LENGTH;
-import static org.apache.iceberg.TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT;
-import static org.apache.iceberg.TableProperties.ENCRYPTION_TABLE_KEY;
-
-import java.nio.ByteBuffer;
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.common.DynConstructors;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.PropertyUtil;
 
 public class EncryptionUtil {
 
   private EncryptionUtil() {}
 
-  public static KeyMetadata parseKeyMetadata(ByteBuffer metadataBuffer) {
-    return KeyMetadata.parse(metadataBuffer);
-  }
-
-  public static EncryptionKeyMetadata createKeyMetadata(ByteBuffer key, ByteBuffer aadPrefix) {
-    return new KeyMetadata(key, aadPrefix);
-  }
-
-  public static long gcmEncryptionLength(long plainFileLength) {
-    int numberOfFullBlocks = Math.toIntExact(plainFileLength / Ciphers.PLAIN_BLOCK_SIZE);
-    int plainBytesInLastBlock =
-        Math.toIntExact(plainFileLength - numberOfFullBlocks * Ciphers.PLAIN_BLOCK_SIZE);
-    boolean fullBlocksOnly = (0 == plainBytesInLastBlock);
-    int cipherBytesInLastBlock =
-        fullBlocksOnly ? 0 : plainBytesInLastBlock + Ciphers.NONCE_LENGTH + Ciphers.GCM_TAG_LENGTH;
-    int cipherBlockSize = Ciphers.PLAIN_BLOCK_SIZE + Ciphers.NONCE_LENGTH + Ciphers.GCM_TAG_LENGTH;
-    return (long) Ciphers.GCM_STREAM_HEADER_LENGTH
-        + numberOfFullBlocks * cipherBlockSize
-        + cipherBytesInLastBlock;
-  }
-
   public static KeyManagementClient createKmsClient(Map<String, String> catalogProperties) {
     String kmsType = catalogProperties.get(CatalogProperties.ENCRYPTION_KMS_TYPE);
+    String kmsImpl = catalogProperties.get(CatalogProperties.ENCRYPTION_KMS_IMPL);
 
-    if (kmsType == null) {
-      throw new IllegalStateException(
-          "Cannot create StandardEncryptionManagerFactory without KMS type");
-    }
+    Preconditions.checkArgument(
+        kmsType == null || kmsImpl == null,
+        "Cannot set both KMS type (%s) and KMS impl (%s)",
+        kmsType,
+        kmsImpl);
 
-    if (!kmsType.equals(CatalogProperties.ENCRYPTION_KMS_CUSTOM_TYPE)) {
-      // Currently support only custom types
-      throw new UnsupportedOperationException("Undefined KMS type " + kmsType);
-    }
-
-    String kmsClientImpl = catalogProperties.get(CatalogProperties.ENCRYPTION_KMS_CLIENT_IMPL);
-
-    if (kmsClientImpl == null) {
-      throw new IllegalStateException("Custom KMS client class is not defined");
-    }
+    // TODO: Add KMS implementations
+    Preconditions.checkArgument(kmsType == null, "Unsupported KMS type: %s", kmsType);
 
     KeyManagementClient kmsClient;
     DynConstructors.Ctor<KeyManagementClient> ctor;
     try {
-      ctor = DynConstructors.builder(KeyManagementClient.class).impl(kmsClientImpl).buildChecked();
+      ctor = DynConstructors.builder(KeyManagementClient.class).impl(kmsImpl).buildChecked();
     } catch (NoSuchMethodException e) {
       throw new IllegalArgumentException(
           String.format(
               "Cannot initialize KeyManagementClient, missing no-arg constructor for class %s",
-              kmsClientImpl),
+              kmsImpl),
           e);
     }
 
@@ -93,7 +61,7 @@ public class EncryptionUtil {
       throw new IllegalArgumentException(
           String.format(
               "Cannot initialize kms client, %s does not implement KeyManagementClient interface",
-              kmsClientImpl),
+              kmsImpl),
           e);
     }
 
@@ -104,20 +72,19 @@ public class EncryptionUtil {
 
   public static EncryptionManager createEncryptionManager(
       Map<String, String> tableProperties, KeyManagementClient kmsClient) {
-    String tableKeyId = tableProperties.get(ENCRYPTION_TABLE_KEY);
+    Preconditions.checkArgument(kmsClient != null, "Invalid KMS client: null");
+    String tableKeyId = tableProperties.get(TableProperties.ENCRYPTION_TABLE_KEY);
 
     if (null == tableKeyId) {
       // Unencrypted table
       return PlaintextEncryptionManager.instance();
     }
 
-    if (kmsClient == null) {
-      throw new IllegalStateException("Encrypted table. No KMS client is configured in catalog");
-    }
-
     String fileFormat =
         PropertyUtil.propertyAsString(
-            tableProperties, DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
+            tableProperties,
+            TableProperties.DEFAULT_FILE_FORMAT,
+            TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
 
     if (FileFormat.fromString(fileFormat) != FileFormat.PARQUET) {
       throw new UnsupportedOperationException(
@@ -126,12 +93,15 @@ public class EncryptionUtil {
 
     int dataKeyLength =
         PropertyUtil.propertyAsInt(
-            tableProperties, ENCRYPTION_DEK_LENGTH, ENCRYPTION_DEK_LENGTH_DEFAULT);
+            tableProperties,
+            TableProperties.ENCRYPTION_DEK_LENGTH,
+            TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT);
+
+    Preconditions.checkState(
+        dataKeyLength == 16 || dataKeyLength == 24 || dataKeyLength == 32,
+        "Invalid data key length: %s (must be 16, 24, or 32)",
+        dataKeyLength);
 
     return new StandardEncryptionManager(tableKeyId, dataKeyLength, kmsClient);
-  }
-
-  public static boolean useNativeEncryption(EncryptionKeyMetadata keyMetadata) {
-    return keyMetadata != null && keyMetadata instanceof KeyMetadata;
   }
 }
