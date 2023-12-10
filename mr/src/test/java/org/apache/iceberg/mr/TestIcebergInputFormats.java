@@ -70,7 +70,6 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.Assumptions;
-import org.junit.Assert;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -97,7 +96,7 @@ public class TestIcebergInputFormats {
   private static final PartitionSpec SPEC =
       PartitionSpec.builderFor(SCHEMA).identity("date").bucket("id", 1).build();
 
-  @TempDir public Path temp;
+  @TempDir private Path temp;
 
   // before variables
   private Configuration conf;
@@ -115,7 +114,7 @@ public class TestIcebergInputFormats {
     HadoopTables tables = new HadoopTables(conf);
     
     File location = Files.createTempDirectory(testInputFormat.name() + "-" + fileFormat.name()).toFile();
-    Assert.assertTrue(location.delete());
+    Assumptions.assumeThat(location.delete()).isTrue();
 
     helper = new TestHelper(conf, tables, location.toString(), SCHEMA, SPEC, fileFormat, temp);
     builder = new InputFormatConfig.ConfigBuilder(conf).readFrom(location.toString());
@@ -238,8 +237,8 @@ public class TestIcebergInputFormats {
 
     List<Record> outputRecords = testInputFormat.create(builder.conf()).getRecords();
 
-    Assert.assertEquals(inputRecords.size(), outputRecords.size());
-    Assert.assertEquals(projection.asStruct(), outputRecords.get(0).struct());
+    Assertions.assertThat(inputRecords).hasSameSizeAs(outputRecords);
+    Assertions.assertThat(projection.asStruct()).isEqualTo(outputRecords.get(0).struct());
   }
 
   private static final Schema LOG_SCHEMA =
@@ -311,14 +310,11 @@ public class TestIcebergInputFormats {
     for (int pos = 0; pos < inputRecords.size(); pos++) {
       Record inputRecord = inputRecords.get(pos);
       Record actualRecord = actualRecords.get(pos);
-      Assert.assertEquals(
-          "Projected schema should match", projectedSchema.asStruct(), actualRecord.struct());
+      Assertions.assertThat(projectedSchema.asStruct()).withFailMessage("Projected schema should match").isEqualTo(actualRecord.struct());
 
       for (String name : fieldNames) {
-        Assert.assertEquals(
-            "Projected field " + name + " should match",
-            inputRecord.getField(name),
-            actualRecord.getField(name));
+        Assertions.assertThat(inputRecord.getField(name))
+                .withFailMessage("Projected field " + name + " should match").isEqualTo(actualRecord.getField(name));
       }
     }
   }
@@ -344,13 +340,13 @@ public class TestIcebergInputFormats {
     helper.appendToTable(null, expectedRecords);
 
     for (InputSplit split : testInputFormat.create(builder.conf()).getSplits()) {
-      Assert.assertArrayEquals(new String[] {"*"}, split.getLocations());
+      Assertions.assertThat(split.getLocations()).isEqualTo(new String[]{"*"});
     }
 
     builder.preferLocality();
 
     for (InputSplit split : testInputFormat.create(builder.conf()).getSplits()) {
-      Assert.assertArrayEquals(new String[] {"localhost"}, split.getLocations());
+      Assertions.assertThat(split.getLocations()).isEqualTo(new String[]{"localhost"});
     }
   }
 
@@ -403,7 +399,7 @@ public class TestIcebergInputFormats {
     }
 
     public void validate(List<T> expected) {
-      Assert.assertEquals(expected, records);
+      Assertions.assertThat(expected).hasSameElementsAs(records);
     }
 
     public interface Factory<T> {
