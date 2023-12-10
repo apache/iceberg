@@ -55,6 +55,7 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
@@ -702,6 +703,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     @Override
     public Transaction replaceTransaction() {
+      if (viewExists(context, ident)) {
+        throw new AlreadyExistsException("View with same name already exists: %s", ident);
+      }
+
       LoadTableResponse response = loadInternal(context, ident, snapshotMode);
       String fullName = fullTableName(ident);
 
@@ -1170,6 +1175,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     @Override
     public View replace() {
+      if (tableExists(context, identifier)) {
+        throw new AlreadyExistsException("Table with same name already exists: %s", identifier);
+      }
+
       return replace(loadView());
     }
 
