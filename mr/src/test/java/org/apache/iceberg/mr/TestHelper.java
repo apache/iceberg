@@ -40,7 +40,6 @@ import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.junit.rules.TemporaryFolder;
 
 public class TestHelper {
   private final Configuration conf;

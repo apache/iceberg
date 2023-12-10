@@ -50,22 +50,23 @@ public class GenericAppenderHelper {
 
   @Deprecated()
   public GenericAppenderHelper(
-      Table table, FileFormat fileFormat, TemporaryFolder tmp, Configuration conf) throws IOException {
+      Table table, FileFormat fileFormat, TemporaryFolder tmp, Configuration conf)
+      throws IOException {
     this.table = table;
     this.fileFormat = fileFormat;
     this.tmp = tmp.newFolder().toPath();
     this.conf = conf;
   }
 
-  public GenericAppenderHelper(
-          Table table, FileFormat fileFormat, Path tmp, Configuration conf) {
+  public GenericAppenderHelper(Table table, FileFormat fileFormat, Path tmp, Configuration conf) {
     this.table = table;
     this.fileFormat = fileFormat;
     this.tmp = tmp;
     this.conf = conf;
   }
 
-  public GenericAppenderHelper(Table table, FileFormat fileFormat, TemporaryFolder tmp) throws IOException {
+  public GenericAppenderHelper(Table table, FileFormat fileFormat, TemporaryFolder tmp)
+      throws IOException {
     this(table, fileFormat, tmp, null);
   }
 

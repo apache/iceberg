@@ -101,16 +101,20 @@ public class TestIcebergInputFormats {
   private InputFormatConfig.ConfigBuilder builder;
 
   // parametrized variables
-  @Parameter(index=0) private TestInputFormat.Factory<Record> testInputFormat;
-  @Parameter(index=1) private FileFormat fileFormat;
+  @Parameter(index = 0)
+  private TestInputFormat.Factory<Record> testInputFormat;
+
+  @Parameter(index = 1)
+  private FileFormat fileFormat;
 
   @BeforeEach
   public void before() throws IOException {
     conf = new Configuration();
     conf.set(CatalogUtil.ICEBERG_CATALOG_TYPE, Catalogs.LOCATION);
     HadoopTables tables = new HadoopTables(conf);
-    
-    File location = Files.createTempDirectory(testInputFormat.name() + "-" + fileFormat.name()).toFile();
+
+    File location =
+        Files.createTempDirectory(testInputFormat.name() + "-" + fileFormat.name()).toFile();
     Assumptions.assumeThat(location.delete()).isTrue();
 
     helper = new TestHelper(conf, tables, location.toString(), SCHEMA, SPEC, fileFormat, temp);
@@ -307,11 +311,14 @@ public class TestIcebergInputFormats {
     for (int pos = 0; pos < inputRecords.size(); pos++) {
       Record inputRecord = inputRecords.get(pos);
       Record actualRecord = actualRecords.get(pos);
-      Assertions.assertThat(projectedSchema.asStruct()).withFailMessage("Projected schema should match").isEqualTo(actualRecord.struct());
+      Assertions.assertThat(projectedSchema.asStruct())
+          .withFailMessage("Projected schema should match")
+          .isEqualTo(actualRecord.struct());
 
       for (String name : fieldNames) {
         Assertions.assertThat(inputRecord.getField(name))
-                .withFailMessage("Projected field " + name + " should match").isEqualTo(actualRecord.getField(name));
+            .withFailMessage("Projected field " + name + " should match")
+            .isEqualTo(actualRecord.getField(name));
       }
     }
   }
@@ -337,13 +344,13 @@ public class TestIcebergInputFormats {
     helper.appendToTable(null, expectedRecords);
 
     for (InputSplit split : testInputFormat.create(builder.conf()).getSplits()) {
-      Assertions.assertThat(split.getLocations()).isEqualTo(new String[]{"*"});
+      Assertions.assertThat(split.getLocations()).isEqualTo(new String[] {"*"});
     }
 
     builder.preferLocality();
 
     for (InputSplit split : testInputFormat.create(builder.conf()).getSplits()) {
-      Assertions.assertThat(split.getLocations()).isEqualTo(new String[]{"localhost"});
+      Assertions.assertThat(split.getLocations()).isEqualTo(new String[] {"localhost"});
     }
   }
 

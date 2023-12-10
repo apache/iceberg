@@ -32,8 +32,9 @@ import org.junit.runners.Parameterized;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Parameter {
   /**
-   * Position for the parameter in each parameters Collection item.
-   * Assuming that parameterized test has only one Parameter this index is set to 0 by default
+   * Position for the parameter in each parameters Collection item. Assuming that parameterized test
+   * has only one Parameter this index is set to 0 by default
+   *
    * @return
    */
   int index() default 0;
