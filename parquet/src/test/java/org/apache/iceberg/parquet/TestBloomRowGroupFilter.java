@@ -414,11 +414,11 @@ public class TestBloomRowGroupFilter {
   @Test
   public void testMissingColumn() {
     Assertions.assertThatThrownBy(
-                    () ->
-                            new ParquetBloomRowGroupFilter(SCHEMA, lessThan("missing", 5))
-                                    .shouldRead(parquetSchema, rowGroupMetadata, bloomStore))
-            .isInstanceOf(ValidationException.class)
-            .hasMessageContaining("Cannot find field 'missing'");
+            () ->
+                new ParquetBloomRowGroupFilter(SCHEMA, lessThan("missing", 5))
+                    .shouldRead(parquetSchema, rowGroupMetadata, bloomStore))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot find field 'missing'");
   }
 
   @Test
@@ -974,13 +974,13 @@ public class TestBloomRowGroupFilter {
   public void testMissingBloomFilterForColumn() {
     Assertions.assertThatThrownBy(
             () ->
-                    new ParquetBloomRowGroupFilter(SCHEMA, equal("some_nulls", "some"))
-                            .shouldRead(
-                                    parquetSchema,
-                                    rowGroupMetadata,
-                                    new DummyBloomFilterReader(null, rowGroupMetadata)))
-            .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("Should complain about missing bloom filter");
+                new ParquetBloomRowGroupFilter(SCHEMA, equal("some_nulls", "some"))
+                    .shouldRead(
+                        parquetSchema,
+                        rowGroupMetadata,
+                        new DummyBloomFilterReader(null, rowGroupMetadata)))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Should complain about missing bloom filter");
   }
 
   private static class DummyBloomFilterReader extends BloomFilterReader {

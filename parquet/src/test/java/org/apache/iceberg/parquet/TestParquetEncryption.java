@@ -87,25 +87,23 @@ public class TestParquetEncryption {
   public void testReadEncryptedFileWithoutKeys() throws IOException {
     Assertions.assertThatThrownBy(
             () -> Parquet.read(localInput(file)).project(schema).callInit().build().iterator())
-            .isInstanceOf(ParquetCryptoRuntimeException.class)
-            .hasMessageContaining("Trying to read file with encrypted footer. No keys available");
+        .isInstanceOf(ParquetCryptoRuntimeException.class)
+        .hasMessageContaining("Trying to read file with encrypted footer. No keys available");
   }
 
   @Test
   public void testReadEncryptedFileWithoutAADPrefix() throws IOException {
     Assertions.assertThatThrownBy(
             () ->
-                    Parquet.read(localInput(file))
-                            .project(schema)
-                            .withFileEncryptionKey(fileDek)
-                            .callInit()
-                            .build()
-                            .iterator())
-            .isInstanceOf(ParquetCryptoRuntimeException.class)
-            .hasMessageContaining("AAD prefix used for file encryption, ")
-            .hasMessageContaining("but not stored in file and not supplied in decryption properties");
-    
-
+                Parquet.read(localInput(file))
+                    .project(schema)
+                    .withFileEncryptionKey(fileDek)
+                    .callInit()
+                    .build()
+                    .iterator())
+        .isInstanceOf(ParquetCryptoRuntimeException.class)
+        .hasMessageContaining("AAD prefix used for file encryption, ")
+        .hasMessageContaining("but not stored in file and not supplied in decryption properties");
   }
 
   @Test

@@ -222,34 +222,27 @@ public class TestDictionaryRowGroupFilter {
   @TestTemplate
   public void testAssumptions() {
     // this case validates that other cases don't need to test expressions with null literals.
-    Assertions.assertThatThrownBy(
-            () -> equal("col", null))
-            .isInstanceOf(NullPointerException.class)
-            .hasMessageContaining("Cannot create expression literal from null");
-    Assertions.assertThatThrownBy(
-            () -> notEqual("col", null))
-            .isInstanceOf(NullPointerException.class)
-            .hasMessageContaining("Cannot create expression literal from null");
-    Assertions.assertThatThrownBy(
-            () -> lessThan("col", null))
-            .isInstanceOf(NullPointerException.class)
-            .hasMessageContaining("Cannot create expression literal from null");
-    Assertions.assertThatThrownBy(
-            () -> lessThanOrEqual("col", null))
-            .isInstanceOf(NullPointerException.class)
-            .hasMessageContaining("Cannot create expression literal from null");
-    Assertions.assertThatThrownBy(
-            () -> greaterThan("col", null))
-            .isInstanceOf(NullPointerException.class)
-            .hasMessageContaining("Cannot create expression literal from null");
-    Assertions.assertThatThrownBy(
-            () -> startsWith("col", null))
-            .isInstanceOf(NullPointerException.class)
-            .hasMessageContaining("Cannot create expression literal from null");
-    Assertions.assertThatThrownBy(
-            () -> notStartsWith("col", null))
-            .isInstanceOf(NullPointerException.class)
-            .hasMessageContaining("Cannot create expression literal from null");
+    Assertions.assertThatThrownBy(() -> equal("col", null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("Cannot create expression literal from null");
+    Assertions.assertThatThrownBy(() -> notEqual("col", null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("Cannot create expression literal from null");
+    Assertions.assertThatThrownBy(() -> lessThan("col", null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("Cannot create expression literal from null");
+    Assertions.assertThatThrownBy(() -> lessThanOrEqual("col", null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("Cannot create expression literal from null");
+    Assertions.assertThatThrownBy(() -> greaterThan("col", null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("Cannot create expression literal from null");
+    Assertions.assertThatThrownBy(() -> startsWith("col", null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("Cannot create expression literal from null");
+    Assertions.assertThatThrownBy(() -> notStartsWith("col", null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("Cannot create expression literal from null");
   }
 
   @TestTemplate
@@ -475,10 +468,10 @@ public class TestDictionaryRowGroupFilter {
   public void testMissingColumn() {
     Assertions.assertThatThrownBy(
             () ->
-                    new ParquetDictionaryRowGroupFilter(SCHEMA, lessThan("missing", 5))
-                            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore))
-            .hasMessageContaining("Cannot find field 'missing'")
-            .isInstanceOf(ValidationException.class);
+                new ParquetDictionaryRowGroupFilter(SCHEMA, lessThan("missing", 5))
+                    .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore))
+        .hasMessageContaining("Cannot find field 'missing'")
+        .isInstanceOf(ValidationException.class);
   }
 
   @TestTemplate
@@ -1023,10 +1016,10 @@ public class TestDictionaryRowGroupFilter {
   public void testMissingDictionaryPageForColumn() {
     Assertions.assertThatThrownBy(
             () ->
-                    new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("some_nulls", "some"))
-                            .shouldRead(parquetSchema, rowGroupMetadata, descriptor -> null))
-            .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("Failed to read required dictionary page for id: 5");
+                new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("some_nulls", "some"))
+                    .shouldRead(parquetSchema, rowGroupMetadata, descriptor -> null))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Failed to read required dictionary page for id: 5");
   }
 
   @TestTemplate
