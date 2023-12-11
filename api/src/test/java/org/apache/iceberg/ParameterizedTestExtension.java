@@ -87,6 +87,7 @@ public class ParameterizedTestExtension implements TestTemplateInvocationContext
     } catch (Exception e) {
       throw new IllegalStateException("Failed to invoke parameter provider", e);
     }
+    
     Preconditions.checkState(parameterValues != null, "Parameter values cannot be null");
 
     // Parameter values could be Object[][]
@@ -231,6 +232,7 @@ public class ParameterizedTestExtension implements TestTemplateInvocationContext
       final int index = parameterField.getAnnotation(Parameter.class).index();
       context.getStore(NAMESPACE).put(getParameterFieldStoreKey(index), parameterField);
     }
+    
     return parameterValueStream.map(
         parameterValue -> new FieldInjectingInvocationContext(testNameTemplate, parameterValue));
   }
