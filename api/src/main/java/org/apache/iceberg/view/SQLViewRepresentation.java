@@ -18,9 +18,7 @@
  */
 package org.apache.iceberg.view;
 
-import org.immutables.value.Value;
-
-@Value.Immutable
+/** SQLViewRepresentation represents views in SQL with a given dialect */
 public interface SQLViewRepresentation extends ViewRepresentation {
 
   @Override
