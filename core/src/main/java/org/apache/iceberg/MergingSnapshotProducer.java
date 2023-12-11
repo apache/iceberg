@@ -31,6 +31,7 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -80,7 +81,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final ManifestFilterManager<DeleteFile> deleteFilterManager;
 
   // update data
-  private final List<DataFile> newDataFiles = Lists.newArrayList();
+  private final List<FileHolder<DataFile>> newDataFiles = Lists.newArrayList();
   private Long newDataFilesDataSequenceNumber;
   private final Map<Integer, List<FileHolder<DeleteFile>>> newDeleteFilesBySpec = Maps.newHashMap();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
@@ -151,7 +152,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   protected List<DataFile> addedDataFiles() {
-    return ImmutableList.copyOf(newDataFiles);
+    return ImmutableList.copyOf(
+        newDataFiles.stream().map(FileHolder::file).collect(Collectors.toList()));
   }
 
   protected void failAnyDelete() {
@@ -221,10 +223,20 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   /** Add a data file to the new snapshot. */
   protected void add(DataFile file) {
     Preconditions.checkNotNull(file, "Invalid data file: null");
-    setDataSpec(file);
-    addedFilesSummary.addedFile(dataSpec(), file);
+    addDataFile(new FileHolder<>(file));
+  }
+
+  /** Add a data file to the new snapshot. */
+  protected void add(DataFile file, long dataSequenceNumber) {
+    Preconditions.checkNotNull(file, "Invalid data file: null");
+    addDataFile(new FileHolder<>(file, dataSequenceNumber));
+  }
+
+  private void addDataFile(FileHolder<DataFile> dataFile) {
+    setDataSpec(dataFile.file());
+    addedFilesSummary.addedFile(dataSpec(), dataFile.file());
     hasNewDataFiles = true;
-    newDataFiles.add(file);
+    newDataFiles.add(dataFile);
   }
 
   /** Add a delete file to the new snapshot. */
@@ -954,9 +966,23 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         RollingManifestWriter<DataFile> writer = newRollingManifestWriter(dataSpec());
         try {
           if (newDataFilesDataSequenceNumber == null) {
-            newDataFiles.forEach(writer::add);
+            newDataFiles.forEach(
+                f -> {
+                  if (f.dataSequenceNumber() == null) {
+                    writer.add(f.file());
+                  } else {
+                    writer.add(f.file(), f.dataSequenceNumber);
+                  }
+                });
           } else {
-            newDataFiles.forEach(f -> writer.add(f, newDataFilesDataSequenceNumber));
+            newDataFiles.forEach(
+                f -> {
+                  if (f.dataSequenceNumber() == null) {
+                    writer.add(f.file(), newDataFilesDataSequenceNumber);
+                  } else {
+                    writer.add(f.file(), f.dataSequenceNumber);
+                  }
+                });
           }
         } finally {
           writer.close();
@@ -1126,7 +1152,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     }
   }
 
-  private static class FileHolder<T extends ContentFile<?>>{
+  private static class FileHolder<T extends ContentFile<?>> {
     private final T file;
     private final Long dataSequenceNumber;
 
