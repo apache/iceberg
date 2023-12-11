@@ -78,7 +78,7 @@ class AvroFileAppender<D> implements FileAppender<D> {
 
   @Override
   public long length() {
-    Preconditions.checkNotNull(stream, "Failed to get stream length: no open stream");
+    Preconditions.checkState(null != stream, "Failed to get stream length: no open stream");
 
     try {
       return stream.getPos();
