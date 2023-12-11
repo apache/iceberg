@@ -20,8 +20,10 @@ package org.apache.iceberg.mr.hive;
 
 import static org.apache.iceberg.mr.hive.HiveIcebergRecordWriter.getWriters;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -55,10 +57,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SerializationUtil;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
@@ -80,7 +80,7 @@ public class TestHiveIcebergOutputCommitter {
   private static final PartitionSpec PARTITIONED_SPEC =
       PartitionSpec.builderFor(CUSTOMER_SCHEMA).bucket("customer_id", 3).build();
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
   @Test
   public void testNeedsTaskCommit() {
@@ -91,24 +91,25 @@ public class TestHiveIcebergOutputCommitter {
     mapOnlyJobConf.setNumReduceTasks(0);
 
     // Map only job should commit map tasks
-    Assert.assertTrue(
-        committer.needsTaskCommit(new TaskAttemptContextImpl(mapOnlyJobConf, MAP_TASK_ID)));
+    assertThat(committer.needsTaskCommit(new TaskAttemptContextImpl(mapOnlyJobConf, MAP_TASK_ID)))
+        .isTrue();
 
     JobConf mapReduceJobConf = new JobConf();
     mapReduceJobConf.setNumMapTasks(10);
     mapReduceJobConf.setNumReduceTasks(10);
 
     // MapReduce job should not commit map tasks, but should commit reduce tasks
-    Assert.assertFalse(
-        committer.needsTaskCommit(new TaskAttemptContextImpl(mapReduceJobConf, MAP_TASK_ID)));
-    Assert.assertTrue(
-        committer.needsTaskCommit(new TaskAttemptContextImpl(mapReduceJobConf, REDUCE_TASK_ID)));
+    assertThat(committer.needsTaskCommit(new TaskAttemptContextImpl(mapReduceJobConf, MAP_TASK_ID)))
+        .isFalse();
+    assertThat(
+            committer.needsTaskCommit(new TaskAttemptContextImpl(mapReduceJobConf, REDUCE_TASK_ID)))
+        .isTrue();
   }
 
   @Test
   public void testSuccessfulUnpartitionedWrite() throws IOException {
     HiveIcebergOutputCommitter committer = new HiveIcebergOutputCommitter();
-    Table table = table(temp.getRoot().getPath(), false);
+    Table table = table(temp.toFile().getPath(), false);
 
     JobConf conf = jobConf(table, 1);
     List<Record> expected = writeRecords(table.name(), 1, 0, true, false, conf);
@@ -121,7 +122,7 @@ public class TestHiveIcebergOutputCommitter {
   @Test
   public void testSuccessfulPartitionedWrite() throws IOException {
     HiveIcebergOutputCommitter committer = new HiveIcebergOutputCommitter();
-    Table table = table(temp.getRoot().getPath(), true);
+    Table table = table(temp.toFile().getPath(), true);
     JobConf conf = jobConf(table, 1);
     List<Record> expected = writeRecords(table.name(), 1, 0, true, false, conf);
     committer.commitJob(new JobContextImpl(conf, JOB_ID));
@@ -133,7 +134,7 @@ public class TestHiveIcebergOutputCommitter {
   @Test
   public void testSuccessfulMultipleTasksUnpartitionedWrite() throws IOException {
     HiveIcebergOutputCommitter committer = new HiveIcebergOutputCommitter();
-    Table table = table(temp.getRoot().getPath(), false);
+    Table table = table(temp.toFile().getPath(), false);
     JobConf conf = jobConf(table, 2);
     List<Record> expected = writeRecords(table.name(), 2, 0, true, false, conf);
     committer.commitJob(new JobContextImpl(conf, JOB_ID));
@@ -145,7 +146,7 @@ public class TestHiveIcebergOutputCommitter {
   @Test
   public void testSuccessfulMultipleTasksPartitionedWrite() throws IOException {
     HiveIcebergOutputCommitter committer = new HiveIcebergOutputCommitter();
-    Table table = table(temp.getRoot().getPath(), true);
+    Table table = table(temp.toFile().getPath(), true);
     JobConf conf = jobConf(table, 2);
     List<Record> expected = writeRecords(table.name(), 2, 0, true, false, conf);
     committer.commitJob(new JobContextImpl(conf, JOB_ID));
@@ -157,7 +158,7 @@ public class TestHiveIcebergOutputCommitter {
   @Test
   public void testRetryTask() throws IOException {
     HiveIcebergOutputCommitter committer = new HiveIcebergOutputCommitter();
-    Table table = table(temp.getRoot().getPath(), false);
+    Table table = table(temp.toFile().getPath(), false);
     JobConf conf = jobConf(table, 2);
 
     // Write records and abort the tasks
@@ -181,7 +182,7 @@ public class TestHiveIcebergOutputCommitter {
   @Test
   public void testAbortJob() throws IOException {
     HiveIcebergOutputCommitter committer = new HiveIcebergOutputCommitter();
-    Table table = table(temp.getRoot().getPath(), false);
+    Table table = table(temp.toFile().getPath(), false);
     JobConf conf = jobConf(table, 1);
     writeRecords(table.name(), 1, 0, true, false, conf);
     committer.abortJob(new JobContextImpl(conf, JOB_ID), JobStatus.State.FAILED);
@@ -201,7 +202,7 @@ public class TestHiveIcebergOutputCommitter {
         .when(failingCommitter)
         .commitTask(argumentCaptor.capture());
 
-    Table table = table(temp.getRoot().getPath(), false);
+    Table table = table(temp.toFile().getPath(), false);
     JobConf conf = jobConf(table, 1);
 
     Assertions.assertThatThrownBy(
@@ -209,14 +210,14 @@ public class TestHiveIcebergOutputCommitter {
         .isInstanceOf(RuntimeException.class)
         .hasMessage(exceptionMessage);
 
-    Assert.assertEquals(1, argumentCaptor.getAllValues().size());
+    assertThat(argumentCaptor.getAllValues()).hasSize(1);
     TaskAttemptID capturedId =
         TezUtil.taskAttemptWrapper(argumentCaptor.getValue().getTaskAttemptID());
     // writer is still in the map after commitTask failure
-    Assert.assertNotNull(getWriters(capturedId));
+    assertThat(getWriters(capturedId)).isNotNull();
     failingCommitter.abortTask(new TaskAttemptContextImpl(conf, capturedId));
     // abortTask succeeds and removes writer
-    Assert.assertNull(getWriters(capturedId));
+    assertThat(getWriters(capturedId)).isNull();
   }
 
   private Table table(String location, boolean partitioned) {

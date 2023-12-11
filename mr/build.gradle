@@ -23,6 +23,9 @@ project(':iceberg-mr') {
       exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'
     }
   }
+  test {
+    useJUnitPlatform()
+  }
 
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
