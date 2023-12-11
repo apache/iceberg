@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.nessie;
 
-import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.view.BaseViewOperations;
@@ -27,10 +26,10 @@ import org.apache.iceberg.view.ViewMetadataParser;
 import org.projectnessie.client.http.HttpClientException;
 import org.projectnessie.error.NessieBadRequestException;
 import org.projectnessie.error.NessieConflictException;
+import org.projectnessie.error.NessieContentNotFoundException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.model.Content;
 import org.projectnessie.model.ContentKey;
-import org.projectnessie.model.IcebergTable;
 import org.projectnessie.model.IcebergView;
 import org.projectnessie.model.Reference;
 import org.slf4j.Logger;
@@ -74,17 +73,7 @@ public class NessieViewOperations extends BaseViewOperations {
         this.icebergView =
             content
                 .unwrap(IcebergView.class)
-                .orElseThrow(
-                    () -> {
-                      if (content instanceof IcebergTable) {
-                        return new AlreadyExistsException(
-                            "Table with same name already exists: %s in %s", key, reference);
-                      } else {
-                        return new AlreadyExistsException(
-                            "Cannot refresh Iceberg view: Nessie points to a non-Iceberg object for path: %s in %s",
-                            key, reference);
-                      }
-                    });
+                .orElseThrow(() -> new NessieContentNotFoundException(key, reference.getName()));
         metadataLocation = icebergView.getMetadataLocation();
       }
     } catch (NessieNotFoundException ex) {

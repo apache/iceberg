@@ -21,17 +21,16 @@ package org.apache.iceberg.nessie;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
-import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
 import org.projectnessie.client.http.HttpClientException;
 import org.projectnessie.error.NessieBadRequestException;
 import org.projectnessie.error.NessieConflictException;
+import org.projectnessie.error.NessieContentNotFoundException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.model.Content;
 import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.IcebergTable;
-import org.projectnessie.model.IcebergView;
 import org.projectnessie.model.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -89,18 +88,7 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
         this.table =
             content
                 .unwrap(IcebergTable.class)
-                .orElseThrow(
-                    () -> {
-                      if (content instanceof IcebergView) {
-                        return new AlreadyExistsException(
-                            "View with same name already exists: %s", key);
-                      } else {
-                        return new AlreadyExistsException(
-                            "Cannot refresh Iceberg table: "
-                                + "Nessie points to a non-Iceberg object for path: %s.",
-                            key);
-                      }
-                    });
+                .orElseThrow(() -> new NessieContentNotFoundException(key, reference.getName()));
         metadataLocation = table.getMetadataLocation();
       }
     } catch (NessieNotFoundException ex) {
@@ -134,13 +122,11 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
       if (ex instanceof NessieConflictException || ex instanceof NessieNotFoundException) {
         failure = true;
       }
-
       NessieUtil.handleExceptionsForCommits(ex, client.refName(), Content.Type.ICEBERG_TABLE)
           .ifPresent(
               exception -> {
                 throw exception;
               });
-
     } catch (NessieBadRequestException ex) {
       failure = true;
       throw NessieUtil.handleBadRequestForCommit(client, key, Content.Type.ICEBERG_TABLE)
