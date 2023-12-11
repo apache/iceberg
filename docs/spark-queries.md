@@ -120,6 +120,17 @@ SELECT * FROM prod.db.table TIMESTAMP AS OF 499162860;
 SELECT * FROM prod.db.table FOR SYSTEM_TIME AS OF 499162860;
 ```
 
+The branch or tag may also be specified using a similar syntax to metadata tables, with `branch_<branchname>` or `tag_<tagname>`:
+
+```sql
+SELECT * FROM prod.db.table.`branch_audit-branch`;
+SELECT * FROM prod.db.table.`tag_historical-snapshot`;
+```
+
+(Identifiers with "-" are not valid, and so must be escaped using back quotes.)
+
+Note that the identifier with branch or tag may not be used in combination with `VERSION AS OF`.
+
 #### DataFrame
 
 To select a specific table snapshot or the snapshot at some time in the DataFrame API, Iceberg supports four Spark read options:

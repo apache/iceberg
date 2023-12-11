@@ -19,12 +19,17 @@
 package org.apache.iceberg.nessie;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.catalog.Namespace;
@@ -36,24 +41,25 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.base.Suppliers;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Tasks;
 import org.projectnessie.client.NessieConfigConstants;
 import org.projectnessie.client.api.CommitMultipleOperationsBuilder;
+import org.projectnessie.client.api.GetContentBuilder;
 import org.projectnessie.client.api.NessieApiV1;
 import org.projectnessie.client.api.OnReferenceBuilder;
 import org.projectnessie.client.http.HttpClientException;
 import org.projectnessie.error.BaseNessieClientServerException;
 import org.projectnessie.error.NessieConflictException;
-import org.projectnessie.error.NessieNamespaceAlreadyExistsException;
-import org.projectnessie.error.NessieNamespaceNotEmptyException;
-import org.projectnessie.error.NessieNamespaceNotFoundException;
+import org.projectnessie.error.NessieContentNotFoundException;
 import org.projectnessie.error.NessieNotFoundException;
+import org.projectnessie.error.NessieReferenceConflictException;
 import org.projectnessie.error.NessieReferenceNotFoundException;
 import org.projectnessie.model.Branch;
+import org.projectnessie.model.Conflict;
 import org.projectnessie.model.Content;
 import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.EntriesResponse;
-import org.projectnessie.model.GetNamespacesResponse;
 import org.projectnessie.model.IcebergTable;
 import org.projectnessie.model.ImmutableCommitMeta;
 import org.projectnessie.model.ImmutableIcebergTable;
@@ -181,133 +187,214 @@ public class NessieIcebergClient implements AutoCloseable {
   }
 
   public void createNamespace(Namespace namespace, Map<String, String> metadata) {
+    getRef().checkMutable();
+    if (namespace.isEmpty()) {
+      throw new IllegalArgumentException("Creating empty namespaces is not supported");
+    }
+    ContentKey key = ContentKey.of(namespace.levels());
+    org.projectnessie.model.Namespace content =
+        org.projectnessie.model.Namespace.of(key.getElements(), metadata);
     try {
-      getRef().checkMutable();
-      withReference(
-              getApi()
-                  .createNamespace()
-                  .namespace(org.projectnessie.model.Namespace.of(namespace.levels()))
-                  .properties(metadata))
-          .create();
-      refresh();
-    } catch (NessieNamespaceAlreadyExistsException e) {
-      throw new AlreadyExistsException(e, "Namespace already exists: %s", namespace);
+      Content existing = api.getContent().reference(getReference()).key(key).get().get(key);
+      if (existing != null) {
+        throw namespaceAlreadyExists(key, existing, null);
+      }
+      try {
+        commitRetry("create namespace " + key, Operation.Put.of(key, content));
+      } catch (NessieReferenceConflictException e) {
+        Optional<Conflict> conflict =
+            NessieUtil.extractSingleConflict(
+                e,
+                EnumSet.of(
+                    Conflict.ConflictType.KEY_EXISTS, Conflict.ConflictType.NAMESPACE_ABSENT));
+        if (conflict.isPresent()) {
+          switch (conflict.get().conflictType()) {
+            case KEY_EXISTS:
+              Content conflicting = withReference(api.getContent()).key(key).get().get(key);
+              throw namespaceAlreadyExists(key, conflicting, e);
+            case NAMESPACE_ABSENT:
+              throw new NoSuchNamespaceException(
+                  e,
+                  "Cannot create namespace '%s': parent namespace '%s' does not exist",
+                  namespace,
+                  conflict.get().key());
+          }
+        }
+        throw new RuntimeException(
+            String.format("Cannot create namespace '%s': %s", namespace, e.getMessage()));
+      }
     } catch (NessieNotFoundException e) {
       throw new RuntimeException(
           String.format(
-              "Cannot create Namespace '%s': " + "ref '%s' is no longer valid.",
+              "Cannot create namespace '%s': ref '%s' is no longer valid.",
               namespace, getRef().getName()),
           e);
+    } catch (BaseNessieClientServerException e) {
+      throw new RuntimeException(
+          String.format("Cannot create namespace '%s': %s", namespace, e.getMessage()), e);
     }
   }
 
   public List<Namespace> listNamespaces(Namespace namespace) throws NoSuchNamespaceException {
     try {
-      GetNamespacesResponse response =
-          withReference(
-                  getApi()
-                      .getMultipleNamespaces()
-                      .namespace(org.projectnessie.model.Namespace.of(namespace.levels())))
-              .get();
-      return response.getNamespaces().stream()
-          .map(ns -> Namespace.of(ns.getElements().toArray(new String[0])))
-          .filter(ns -> ns.length() == namespace.length() + 1)
+      String filter = "entry.contentType == 'NAMESPACE' && ";
+      if (namespace.isEmpty()) {
+        filter += "size(entry.keyElements) == 1";
+      } else {
+        org.projectnessie.model.Namespace root =
+            org.projectnessie.model.Namespace.of(namespace.levels());
+        filter +=
+            String.format(
+                "size(entry.keyElements) == %d && entry.encodedKey.startsWith('%s.')",
+                root.getElementCount() + 1, root.name());
+      }
+      List<ContentKey> entries =
+          withReference(api.getEntries()).filter(filter).stream()
+              .map(EntriesResponse.Entry::getName)
+              .collect(Collectors.toList());
+      if (entries.isEmpty()) {
+        return Collections.emptyList();
+      }
+      GetContentBuilder getContent = withReference(api.getContent());
+      entries.forEach(getContent::key);
+      return getContent.get().values().stream()
+          .map(v -> v.unwrap(org.projectnessie.model.Namespace.class))
+          .filter(Optional::isPresent)
+          .map(Optional::get)
+          .map(v -> Namespace.of(v.getElements().toArray(new String[0])))
           .collect(Collectors.toList());
-    } catch (NessieReferenceNotFoundException e) {
-      throw new RuntimeException(
-          String.format(
-              "Cannot list Namespaces starting from '%s': " + "ref '%s' is no longer valid.",
-              namespace, getRef().getName()),
-          e);
+    } catch (NessieNotFoundException e) {
+      if (namespace.isEmpty()) {
+        throw new NoSuchNamespaceException(
+            e,
+            "Cannot list top-level namespaces: ref '%s' is no longer valid.",
+            getRef().getName());
+      }
+      throw new NoSuchNamespaceException(
+          e,
+          "Cannot list child namespaces from '%s': ref '%s' is no longer valid.",
+          namespace,
+          getRef().getName());
     }
   }
 
   public boolean dropNamespace(Namespace namespace) throws NamespaceNotEmptyException {
+    getRef().checkMutable();
+    ContentKey key = ContentKey.of(namespace.levels());
     try {
-      getRef().checkMutable();
-      withReference(
-              getApi()
-                  .deleteNamespace()
-                  .namespace(org.projectnessie.model.Namespace.of(namespace.levels())))
-          .delete();
-      refresh();
-      return true;
-    } catch (NessieNamespaceNotFoundException e) {
-      return false;
+      Map<ContentKey, Content> contentMap =
+          api.getContent().reference(getReference()).key(key).get();
+      Content existing = contentMap.get(key);
+      if (existing != null && !existing.getType().equals(Content.Type.NAMESPACE)) {
+        throw new NoSuchNamespaceException(
+            "Content object with name '%s' is not a namespace.", namespace);
+      }
+      try {
+        commitRetry("drop namespace " + key, Operation.Delete.of(key));
+        return true;
+      } catch (NessieReferenceConflictException e) {
+        Optional<Conflict> conflict =
+            NessieUtil.extractSingleConflict(
+                e,
+                EnumSet.of(
+                    Conflict.ConflictType.KEY_DOES_NOT_EXIST,
+                    Conflict.ConflictType.NAMESPACE_NOT_EMPTY));
+        if (conflict.isPresent()) {
+          Conflict.ConflictType conflictType = conflict.get().conflictType();
+          switch (conflictType) {
+            case KEY_DOES_NOT_EXIST:
+              return false;
+            case NAMESPACE_NOT_EMPTY:
+              throw new NamespaceNotEmptyException(e, "Namespace '%s' is not empty.", namespace);
+          }
+        }
+        throw new RuntimeException(
+            String.format("Cannot drop namespace '%s': %s", namespace, e.getMessage()));
+      }
     } catch (NessieNotFoundException e) {
       LOG.error(
-          "Cannot drop Namespace '{}': ref '{}' is no longer valid.",
+          "Cannot drop namespace '{}': ref '{}' is no longer valid.",
           namespace,
           getRef().getName(),
           e);
-      return false;
-    } catch (NessieNamespaceNotEmptyException e) {
-      throw new NamespaceNotEmptyException(
-          e, "Namespace '%s' is not empty. One or more tables exist.", namespace);
+    } catch (BaseNessieClientServerException e) {
+      throw new RuntimeException(
+          String.format("Cannot drop namespace '%s': %s", namespace, e.getMessage()), e);
     }
+    return false;
   }
 
   public Map<String, String> loadNamespaceMetadata(Namespace namespace)
       throws NoSuchNamespaceException {
+    ContentKey key = ContentKey.of(namespace.levels());
     try {
-      return withReference(
-              getApi()
-                  .getNamespace()
-                  .namespace(org.projectnessie.model.Namespace.of(namespace.levels())))
-          .get()
+      Map<ContentKey, Content> contentMap = withReference(api.getContent()).key(key).get();
+      return unwrapNamespace(contentMap.get(key))
+          .orElseThrow(
+              () -> new NoSuchNamespaceException("Namespace does not exist: %s", namespace))
           .getProperties();
-    } catch (NessieNamespaceNotFoundException e) {
-      throw new NoSuchNamespaceException(e, "Namespace does not exist: %s", namespace);
-    } catch (NessieReferenceNotFoundException e) {
+    } catch (NessieNotFoundException e) {
       throw new RuntimeException(
           String.format(
-              "Cannot load Namespace '%s': " + "ref '%s' is no longer valid.",
+              "Cannot load namespace '%s': ref '%s' is no longer valid.",
               namespace, getRef().getName()),
           e);
     }
   }
 
   public boolean setProperties(Namespace namespace, Map<String, String> properties) {
-    try {
-      withReference(
-              getApi()
-                  .updateProperties()
-                  .namespace(org.projectnessie.model.Namespace.of(namespace.levels()))
-                  .updateProperties(properties))
-          .update();
-      refresh();
-      // always successful, otherwise an exception is thrown
-      return true;
-    } catch (NessieNamespaceNotFoundException e) {
-      throw new NoSuchNamespaceException(e, "Namespace does not exist: %s", namespace);
-    } catch (NessieNotFoundException e) {
-      throw new RuntimeException(
-          String.format(
-              "Cannot update properties on Namespace '%s': ref '%s' is no longer valid.",
-              namespace, getRef().getName()),
-          e);
-    }
+    return updateProperties(namespace, props -> props.putAll(properties));
   }
 
   public boolean removeProperties(Namespace namespace, Set<String> properties) {
+    return updateProperties(namespace, props -> props.keySet().removeAll(properties));
+  }
+
+  private boolean updateProperties(Namespace namespace, Consumer<Map<String, String>> action) {
+    getRef().checkMutable();
+    ContentKey key = ContentKey.of(namespace.levels());
     try {
-      withReference(
-              getApi()
-                  .updateProperties()
-                  .namespace(org.projectnessie.model.Namespace.of(namespace.levels()))
-                  .removeProperties(properties))
-          .update();
-      refresh();
+      commitRetry(
+          "update namespace " + key,
+          true,
+          commitBuilder -> {
+            org.projectnessie.model.Namespace oldNamespace =
+                unwrapNamespace(api.getContent().reference(getReference()).key(key).get().get(key))
+                    .orElseThrow(
+                        () -> new NessieContentNotFoundException(key, getReference().getName()));
+            Map<String, String> newProperties = Maps.newHashMap(oldNamespace.getProperties());
+            action.accept(newProperties);
+            org.projectnessie.model.Namespace updatedNamespace =
+                org.projectnessie.model.Namespace.builder()
+                    .from(oldNamespace)
+                    .properties(newProperties)
+                    .build();
+            commitBuilder.operation(Operation.Put.of(key, updatedNamespace));
+            return commitBuilder;
+          });
       // always successful, otherwise an exception is thrown
       return true;
-    } catch (NessieNamespaceNotFoundException e) {
-      throw new NoSuchNamespaceException(e, "Namespace does not exist: %s", namespace);
-    } catch (NessieNotFoundException e) {
+    } catch (NessieReferenceConflictException e) {
+      Optional<Conflict> conflict =
+          NessieUtil.extractSingleConflict(e, EnumSet.of(Conflict.ConflictType.KEY_DOES_NOT_EXIST));
+      if (conflict.isPresent()
+          && conflict.get().conflictType() == Conflict.ConflictType.KEY_DOES_NOT_EXIST) {
+        throw new NoSuchNamespaceException(e, "Namespace does not exist: %s", namespace);
+      }
       throw new RuntimeException(
           String.format(
-              "Cannot remove properties from Namespace '%s': ref '%s' is no longer valid.",
+              "Cannot update properties on namespace '%s': %s", namespace, e.getMessage()));
+    } catch (NessieContentNotFoundException e) {
+      throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
+    } catch (NessieReferenceNotFoundException e) {
+      throw new RuntimeException(
+          String.format(
+              "Cannot update properties on namespace '%s': ref '%s' is no longer valid.",
               namespace, getRef().getName()),
           e);
+    } catch (BaseNessieClientServerException e) {
+      throw new RuntimeException(
+          String.format("Cannot update namespace '%s': %s", namespace, e.getMessage()), e);
     }
   }
 
@@ -323,28 +410,11 @@ public class NessieIcebergClient implements AutoCloseable {
       throw new AlreadyExistsException("Table already exists: %s", to.name());
     }
 
-    CommitMultipleOperationsBuilder operations =
-        getApi()
-            .commitMultipleOperations()
-            .commitMeta(
-                NessieUtil.buildCommitMetadata(
-                    String.format("Iceberg rename table from '%s' to '%s'", from, to),
-                    catalogOptions))
-            .operation(Operation.Delete.of(NessieUtil.toKey(from)))
-            .operation(Operation.Put.of(NessieUtil.toKey(to), existingFromTable));
-
     try {
-      Tasks.foreach(operations)
-          .retry(5)
-          .stopRetryOn(NessieNotFoundException.class)
-          .throwFailureWhenFinished()
-          .onFailure((o, exception) -> refresh())
-          .run(
-              ops -> {
-                Branch branch = ops.branch((Branch) getRef().getReference()).commit();
-                getRef().updateReference(branch);
-              },
-              BaseNessieClientServerException.class);
+      commitRetry(
+          String.format("Iceberg rename table from '%s' to '%s'", from, to),
+          Operation.Delete.of(NessieUtil.toKey(from)),
+          Operation.Put.of(NessieUtil.toKey(to), existingFromTable));
     } catch (NessieNotFoundException e) {
       // important note: the NotFoundException refers to the ref only. If a table was not found it
       // would imply that the
@@ -355,13 +425,13 @@ public class NessieIcebergClient implements AutoCloseable {
       // and removed by another.
       throw new RuntimeException(
           String.format(
-              "Cannot rename table '%s' to '%s': " + "ref '%s' no longer exists.",
+              "Cannot rename table '%s' to '%s': ref '%s' no longer exists.",
               from.name(), to.name(), getRef().getName()),
           e);
     } catch (BaseNessieClientServerException e) {
       throw new CommitFailedException(
           e,
-          "Cannot rename table '%s' to '%s': " + "the current reference is not up to date.",
+          "Cannot rename table '%s' to '%s': the current reference is not up to date.",
           from.name(),
           to.name());
     } catch (HttpClientException ex) {
@@ -390,29 +460,12 @@ public class NessieIcebergClient implements AutoCloseable {
       LOG.info("Purging data for table {} was set to true but is ignored", identifier.toString());
     }
 
-    CommitMultipleOperationsBuilder commitBuilderBase =
-        getApi()
-            .commitMultipleOperations()
-            .commitMeta(
-                NessieUtil.buildCommitMetadata(
-                    String.format("Iceberg delete table %s", identifier), catalogOptions))
-            .operation(Operation.Delete.of(NessieUtil.toKey(identifier)));
-
     // We try to drop the table. Simple retry after ref update.
-    boolean threw = true;
     try {
-      Tasks.foreach(commitBuilderBase)
-          .retry(5)
-          .stopRetryOn(NessieNotFoundException.class)
-          .throwFailureWhenFinished()
-          .onFailure((o, exception) -> refresh())
-          .run(
-              commitBuilder -> {
-                Branch branch = commitBuilder.branch((Branch) getRef().getReference()).commit();
-                getRef().updateReference(branch);
-              },
-              BaseNessieClientServerException.class);
-      threw = false;
+      commitRetry(
+          String.format("Iceberg delete table %s", identifier),
+          Operation.Delete.of(NessieUtil.toKey(identifier)));
+      return true;
     } catch (NessieConflictException e) {
       LOG.error(
           "Cannot drop table: failed after retry (update ref '{}' and retry)",
@@ -423,7 +476,7 @@ public class NessieIcebergClient implements AutoCloseable {
     } catch (BaseNessieClientServerException e) {
       LOG.error("Cannot drop table: unknown error", e);
     }
-    return !threw;
+    return false;
   }
 
   /** @deprecated will be removed after 1.5.0 */
@@ -539,5 +592,65 @@ public class NessieIcebergClient implements AutoCloseable {
     if (null != api) {
       api.close();
     }
+  }
+
+  private void commitRetry(String message, Operation... ops)
+      throws BaseNessieClientServerException {
+    commitRetry(message, false, builder -> builder.operations(Arrays.asList(ops)));
+  }
+
+  private void commitRetry(String message, boolean retryConflicts, CommitEnhancer commitEnhancer)
+      throws BaseNessieClientServerException {
+    // Retry all errors except for NessieNotFoundException and also NessieConflictException, unless
+    // retryConflicts is set to true.
+    Predicate<Exception> shouldRetry =
+        e ->
+            !(e instanceof NessieNotFoundException)
+                && (!(e instanceof NessieConflictException) || retryConflicts);
+    Tasks.range(1)
+        .retry(5)
+        .shouldRetryTest(shouldRetry)
+        .throwFailureWhenFinished()
+        .onFailure((o, exception) -> refresh())
+        .run(
+            i -> {
+              try {
+                Branch branch =
+                    commitEnhancer
+                        .enhance(api.commitMultipleOperations())
+                        .commitMeta(NessieUtil.buildCommitMetadata(message, catalogOptions))
+                        .branch((Branch) getReference())
+                        .commit();
+                getRef().updateReference(branch);
+              } catch (NessieConflictException e) {
+                if (retryConflicts) {
+                  refresh(); // otherwise retrying a conflict doesn't make sense
+                }
+                throw e;
+              }
+            },
+            BaseNessieClientServerException.class);
+  }
+
+  private static AlreadyExistsException namespaceAlreadyExists(
+      ContentKey key, @Nullable Content existing, @Nullable Exception ex) {
+    if (existing instanceof org.projectnessie.model.Namespace) {
+      return new AlreadyExistsException(ex, "Namespace already exists: %s", key);
+    } else {
+      return new AlreadyExistsException(
+          ex, "Another content object with name '%s' already exists", key);
+    }
+  }
+
+  private static Optional<org.projectnessie.model.Namespace> unwrapNamespace(Content content) {
+    return content == null
+        ? Optional.empty()
+        : content.unwrap(org.projectnessie.model.Namespace.class);
+  }
+
+  private interface CommitEnhancer {
+
+    CommitMultipleOperationsBuilder enhance(CommitMultipleOperationsBuilder builder)
+        throws BaseNessieClientServerException;
   }
 }

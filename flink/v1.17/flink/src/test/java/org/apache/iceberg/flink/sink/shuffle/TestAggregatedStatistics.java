@@ -21,41 +21,43 @@ package org.apache.iceberg.flink.sink.shuffle;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
-import org.apache.flink.table.data.GenericRowData;
-import org.apache.flink.table.data.RowData;
-import org.apache.flink.table.data.StringData;
-import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
-import org.apache.flink.table.types.logical.RowType;
-import org.apache.flink.table.types.logical.VarCharType;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortKey;
+import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.types.Types;
 import org.junit.Test;
 
 public class TestAggregatedStatistics {
+  private final Schema schema =
+      new Schema(Types.NestedField.optional(1, "str", Types.StringType.get()));
+  private final SortOrder sortOrder = SortOrder.builderFor(schema).asc("str").build();
+  private final SortKey sortKey = new SortKey(schema, sortOrder);
+  private final MapDataStatisticsSerializer statisticsSerializer =
+      MapDataStatisticsSerializer.fromSortKeySerializer(new SortKeySerializer(schema, sortOrder));
 
   @Test
   public void mergeDataStatisticTest() {
-    GenericRowData rowDataA = GenericRowData.of(StringData.fromString("a"));
-    GenericRowData rowDataB = GenericRowData.of(StringData.fromString("b"));
+    SortKey keyA = sortKey.copy();
+    keyA.set(0, "a");
+    SortKey keyB = sortKey.copy();
+    keyB.set(0, "b");
 
-    AggregatedStatistics<MapDataStatistics, Map<RowData, Long>> aggregatedStatistics =
-        new AggregatedStatistics<>(
-            1,
-            MapDataStatisticsSerializer.fromKeySerializer(
-                new RowDataSerializer(RowType.of(new VarCharType()))));
+    AggregatedStatistics<MapDataStatistics, Map<SortKey, Long>> aggregatedStatistics =
+        new AggregatedStatistics<>(1, statisticsSerializer);
     MapDataStatistics mapDataStatistics1 = new MapDataStatistics();
-    mapDataStatistics1.add(rowDataA);
-    mapDataStatistics1.add(rowDataA);
-    mapDataStatistics1.add(rowDataB);
+    mapDataStatistics1.add(keyA);
+    mapDataStatistics1.add(keyA);
+    mapDataStatistics1.add(keyB);
     aggregatedStatistics.mergeDataStatistic("testOperator", 1, mapDataStatistics1);
     MapDataStatistics mapDataStatistics2 = new MapDataStatistics();
-    mapDataStatistics2.add(rowDataA);
+    mapDataStatistics2.add(keyA);
     aggregatedStatistics.mergeDataStatistic("testOperator", 1, mapDataStatistics2);
-    assertThat(aggregatedStatistics.dataStatistics().statistics().get(rowDataA))
+    assertThat(aggregatedStatistics.dataStatistics().statistics().get(keyA))
         .isEqualTo(
-            mapDataStatistics1.statistics().get(rowDataA)
-                + mapDataStatistics2.statistics().get(rowDataA));
-    assertThat(aggregatedStatistics.dataStatistics().statistics().get(rowDataB))
+            mapDataStatistics1.statistics().get(keyA) + mapDataStatistics2.statistics().get(keyA));
+    assertThat(aggregatedStatistics.dataStatistics().statistics().get(keyB))
         .isEqualTo(
-            mapDataStatistics1.statistics().get(rowDataB)
-                + mapDataStatistics2.statistics().getOrDefault(rowDataB, 0L));
+            mapDataStatistics1.statistics().get(keyB)
+                + mapDataStatistics2.statistics().getOrDefault(keyB, 0L));
   }
 }

@@ -2563,6 +2563,32 @@ components:
         default-sort-order-id:
           type: integer
 
+    ViewRequirement:
+      discriminator:
+        propertyName: type
+        mapping:
+          assert-view-uuid: '#/components/schemas/AssertViewUUID'
+        type: object
+        required:
+          - type
+        properties:
+          type:
+            type: "string"
+
+        AssertViewUUID:
+          allOf:
+            - $ref: "#/components/schemas/ViewRequirement"
+          description: The view UUID must match the requirement's `uuid`
+          required:
+            - type
+            - uuid
+          properties:
+            type:
+              type: string
+              enum: [ "assert-view-uuid" ]
+            uuid:
+              type: string
+
     LoadTableResult:
       description: |
         Result used when a table is successfully loaded.
@@ -2629,6 +2655,10 @@ components:
         identifier:
           description: View identifier to update
           $ref: '#/components/schemas/TableIdentifier'
+        requirements:
+          type: array
+          items:
+            $ref: '#/components/schemas/ViewRequirement'
         updates:
           type: array
           items:

@@ -46,7 +46,7 @@ jobs:
           #
           # See https://github.com/actions/checkout/issues/124
           fetch-depth: 0
-      - uses: actions/setup-java@v3
+      - uses: actions/setup-java@v4
         with:
           distribution: zulu
           java-version: 11

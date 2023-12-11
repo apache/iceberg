@@ -21,9 +21,8 @@ package org.apache.iceberg.rest;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
-import org.apache.iceberg.UpdateRequirement;
+import org.apache.iceberg.UpdateRequirements;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.view.ViewMetadata;
@@ -62,9 +61,7 @@ class RESTViewOperations implements ViewOperations {
 
     UpdateTableRequest request =
         UpdateTableRequest.create(
-            null,
-            ImmutableList.of(new UpdateRequirement.AssertTableUUID(base.uuid())),
-            metadata.changes());
+            null, UpdateRequirements.forReplaceView(base, metadata.changes()), metadata.changes());
 
     LoadViewResponse response =
         client.post(

@@ -19,9 +19,11 @@
 package org.apache.iceberg.nessie;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.SnapshotRef;
@@ -32,7 +34,10 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.projectnessie.error.NessieReferenceConflictException;
+import org.projectnessie.error.ReferenceConflicts;
 import org.projectnessie.model.CommitMeta;
+import org.projectnessie.model.Conflict;
 import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.IcebergTable;
 import org.projectnessie.model.ImmutableCommitMeta;
@@ -164,5 +169,25 @@ public final class NessieUtil {
         reference);
 
     return builder.discardChanges().build();
+  }
+
+  public static Optional<Conflict> extractSingleConflict(
+      NessieReferenceConflictException ex, Collection<Conflict.ConflictType> handledConflictTypes) {
+    // Check if the server returned 'ReferenceConflicts' information
+    ReferenceConflicts referenceConflicts = ex.getErrorDetails();
+    if (referenceConflicts == null) {
+      return Optional.empty();
+    }
+
+    List<Conflict> conflicts =
+        referenceConflicts.conflicts().stream()
+            .filter(c -> handledConflictTypes.contains(c.conflictType()))
+            .collect(Collectors.toList());
+    if (conflicts.size() != 1) {
+      return Optional.empty();
+    }
+
+    Conflict conflict = conflicts.get(0);
+    return Optional.of(conflict);
   }
 }

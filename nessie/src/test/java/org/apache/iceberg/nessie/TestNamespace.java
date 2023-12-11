@@ -106,7 +106,7 @@ public class TestNamespace extends BaseTestIceberg {
 
     Assertions.assertThatThrownBy(() -> catalog.dropNamespace(namespace))
         .isInstanceOf(NamespaceNotEmptyException.class)
-        .hasMessage("Namespace 'test' is not empty. One or more tables exist.");
+        .hasMessageContaining("Namespace 'test' is not empty");
 
     catalog.dropTable(identifier, true);
     catalog.dropNamespace(namespace);

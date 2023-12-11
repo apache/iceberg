@@ -25,6 +25,7 @@ public class ViewProperties {
 
   public static final String METADATA_COMPRESSION = "write.metadata.compression-codec";
   public static final String METADATA_COMPRESSION_DEFAULT = "gzip";
+  public static final String COMMENT = "comment";
 
   private ViewProperties() {}
 }
