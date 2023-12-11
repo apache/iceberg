@@ -219,27 +219,27 @@ public class TestMetadataTableReadableMetrics extends FlinkCatalogTestBase {
 
     Row binaryCol =
         Row.of(
-            59L,
+            52L,
             4L,
             2L,
             null,
             Base64.getDecoder().decode("1111"),
             Base64.getDecoder().decode("2222"));
-    Row booleanCol = Row.of(44L, 4L, 0L, null, false, true);
-    Row decimalCol = Row.of(97L, 4L, 1L, null, new BigDecimal("1.00"), new BigDecimal("2.00"));
-    Row doubleCol = Row.of(99L, 4L, 0L, 1L, 1.0D, 2.0D);
+    Row booleanCol = Row.of(32L, 4L, 0L, null, false, true);
+    Row decimalCol = Row.of(85L, 4L, 1L, null, new BigDecimal("1.00"), new BigDecimal("2.00"));
+    Row doubleCol = Row.of(85L, 4L, 0L, 1L, 1.0D, 2.0D);
     Row fixedCol =
         Row.of(
-            55L,
+            44L,
             4L,
             2L,
             null,
             Base64.getDecoder().decode("1111"),
             Base64.getDecoder().decode("2222"));
-    Row floatCol = Row.of(90L, 4L, 0L, 2L, 0f, 0f);
-    Row intCol = Row.of(91L, 4L, 0L, null, 1, 2);
-    Row longCol = Row.of(91L, 4L, 0L, null, 1L, 2L);
-    Row stringCol = Row.of(99L, 4L, 0L, null, "1", "2");
+    Row floatCol = Row.of(71L, 4L, 0L, 2L, 0f, 0f);
+    Row intCol = Row.of(71L, 4L, 0L, null, 1, 2);
+    Row longCol = Row.of(79L, 4L, 0L, null, 1L, 2L);
+    Row stringCol = Row.of(79L, 4L, 0L, null, "1", "2");
 
     List<Row> expected =
         Lists.newArrayList(
@@ -291,7 +291,7 @@ public class TestMetadataTableReadableMetrics extends FlinkCatalogTestBase {
   public void testNestedValues() throws Exception {
     createNestedTable();
 
-    Row leafDoubleCol = Row.of(53L, 3L, 1L, 1L, 0.0D, 0.0D);
+    Row leafDoubleCol = Row.of(46L, 3L, 1L, 1L, 0.0D, 0.0D);
     Row leafLongCol = Row.of(54L, 3L, 1L, null, 0L, 1L);
     Row metrics = Row.of(Row.of(leafDoubleCol, leafLongCol));
 
