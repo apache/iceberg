@@ -670,14 +670,29 @@ public class TableTestBase {
       Iterator<Long> ids,
       Iterator<DataFile> expectedFiles,
       Iterator<ManifestEntry.Status> expectedStatuses) {
+    validateManifestEntries(manifest, ids, expectedFiles, expectedStatuses, null);
+  }
+
+  static void validateManifestEntries(
+      ManifestFile manifest,
+      Iterator<Long> ids,
+      Iterator<DataFile> expectedFiles,
+      Iterator<ManifestEntry.Status> expectedStatuses,
+      Iterator<Long> expectedSequenceNumbers) {
     for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
       DataFile file = entry.file();
-      DataFile expected = expectedFiles.next();
+      ContentFile<?> expected = expectedFiles.next();
       final ManifestEntry.Status expectedStatus = expectedStatuses.next();
       Assert.assertEquals(
           "Path should match expected", expected.path().toString(), file.path().toString());
       Assert.assertEquals("Snapshot ID should match expected ID", ids.next(), entry.snapshotId());
       Assert.assertEquals("Entry status should match expected ID", expectedStatus, entry.status());
+      if (expectedSequenceNumbers != null) {
+        Assert.assertEquals(
+            "Entry status should match expected ID",
+            expectedSequenceNumbers.next(),
+            entry.dataSequenceNumber());
+      }
     }
 
     Assert.assertFalse("Should find all files in the manifest", expectedFiles.hasNext());

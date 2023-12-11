@@ -337,6 +337,11 @@ public class SerializableTable implements Table, Serializable {
   }
 
   @Override
+  public StreamingUpdate newStreamingUpdate() {
+    throw new UnsupportedOperationException("newStreamingWrite");
+  }
+
+  @Override
   public RewriteManifests rewriteManifests() {
     throw new UnsupportedOperationException(errorMsg("rewriteManifests"));
   }

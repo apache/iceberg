@@ -128,6 +128,7 @@ Available operations to update a table are:
 * `newOverwrite` -- used to append data files and remove files that are overwritten
 * `newDelete` -- used to delete data files
 * `newRewrite` -- used to rewrite data files; will replace existing files with new versions
+* `newStreamingUpdate` -- used to add sequential batches of updates; deletes in each batch will not affect rows in later batches
 * `newTransaction` -- create a new table-level transaction
 * `rewriteManifests` -- rewrite manifest data by clustering files, for faster scan planning
 * `rollback` -- rollback the table state to a specific snapshot
