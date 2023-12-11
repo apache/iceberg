@@ -60,7 +60,6 @@ import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
@@ -82,6 +81,7 @@ import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.schema.MessageType;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -222,46 +222,34 @@ public class TestDictionaryRowGroupFilter {
   @TestTemplate
   public void testAssumptions() {
     // this case validates that other cases don't need to test expressions with null literals.
-    TestHelpers.assertThrows(
-        "Should reject null literal in equal expression",
-        NullPointerException.class,
-        "Cannot create expression literal from null",
-        () -> equal("col", null));
-    TestHelpers.assertThrows(
-        "Should reject null literal in notEqual expression",
-        NullPointerException.class,
-        "Cannot create expression literal from null",
-        () -> notEqual("col", null));
-    TestHelpers.assertThrows(
-        "Should reject null literal in lessThan expression",
-        NullPointerException.class,
-        "Cannot create expression literal from null",
-        () -> lessThan("col", null));
-    TestHelpers.assertThrows(
-        "Should reject null literal in lessThanOrEqual expression",
-        NullPointerException.class,
-        "Cannot create expression literal from null",
-        () -> lessThanOrEqual("col", null));
-    TestHelpers.assertThrows(
-        "Should reject null literal in greaterThan expression",
-        NullPointerException.class,
-        "Cannot create expression literal from null",
-        () -> greaterThan("col", null));
-    TestHelpers.assertThrows(
-        "Should reject null literal in greaterThanOrEqual expression",
-        NullPointerException.class,
-        "Cannot create expression literal from null",
-        () -> greaterThanOrEqual("col", null));
-    TestHelpers.assertThrows(
-        "Should reject null literal in startsWith expression",
-        NullPointerException.class,
-        "Cannot create expression literal from null",
-        () -> startsWith("col", null));
-    TestHelpers.assertThrows(
-        "Should reject null literal in notStartsWith expression",
-        NullPointerException.class,
-        "Cannot create expression literal from null",
-        () -> notStartsWith("col", null));
+    Assertions.assertThatThrownBy(
+            () -> equal("col", null))
+            .isInstanceOf(NullPointerException.class)
+            .hasMessageContaining("Cannot create expression literal from null");
+    Assertions.assertThatThrownBy(
+            () -> notEqual("col", null))
+            .isInstanceOf(NullPointerException.class)
+            .hasMessageContaining("Cannot create expression literal from null");
+    Assertions.assertThatThrownBy(
+            () -> lessThan("col", null))
+            .isInstanceOf(NullPointerException.class)
+            .hasMessageContaining("Cannot create expression literal from null");
+    Assertions.assertThatThrownBy(
+            () -> lessThanOrEqual("col", null))
+            .isInstanceOf(NullPointerException.class)
+            .hasMessageContaining("Cannot create expression literal from null");
+    Assertions.assertThatThrownBy(
+            () -> greaterThan("col", null))
+            .isInstanceOf(NullPointerException.class)
+            .hasMessageContaining("Cannot create expression literal from null");
+    Assertions.assertThatThrownBy(
+            () -> startsWith("col", null))
+            .isInstanceOf(NullPointerException.class)
+            .hasMessageContaining("Cannot create expression literal from null");
+    Assertions.assertThatThrownBy(
+            () -> notStartsWith("col", null))
+            .isInstanceOf(NullPointerException.class)
+            .hasMessageContaining("Cannot create expression literal from null");
   }
 
   @TestTemplate
@@ -485,13 +473,12 @@ public class TestDictionaryRowGroupFilter {
 
   @TestTemplate
   public void testMissingColumn() {
-    TestHelpers.assertThrows(
-        "Should complain about missing column in expression",
-        ValidationException.class,
-        "Cannot find field 'missing'",
-        () ->
-            new ParquetDictionaryRowGroupFilter(SCHEMA, lessThan("missing", 5))
-                .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore));
+    Assertions.assertThatThrownBy(
+            () ->
+                    new ParquetDictionaryRowGroupFilter(SCHEMA, lessThan("missing", 5))
+                            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore))
+            .hasMessageContaining("Cannot find field 'missing'")
+            .isInstanceOf(ValidationException.class);
   }
 
   @TestTemplate
@@ -1034,13 +1021,12 @@ public class TestDictionaryRowGroupFilter {
 
   @TestTemplate
   public void testMissingDictionaryPageForColumn() {
-    TestHelpers.assertThrows(
-        "Should complain about missing dictionary",
-        IllegalStateException.class,
-        "Failed to read required dictionary page for id: 5",
-        () ->
-            new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("some_nulls", "some"))
-                .shouldRead(parquetSchema, rowGroupMetadata, descriptor -> null));
+    Assertions.assertThatThrownBy(
+            () ->
+                    new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("some_nulls", "some"))
+                            .shouldRead(parquetSchema, rowGroupMetadata, descriptor -> null))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("Failed to read required dictionary page for id: 5");
   }
 
   @TestTemplate

@@ -40,10 +40,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Callable;
 import java.util.stream.IntStream;
-import org.apache.avro.AvroRuntimeException;
-import org.apache.avro.generic.GenericRecord;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundSetPredicate;
 import org.apache.iceberg.expressions.Expression;
@@ -51,7 +48,6 @@ import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.ByteBuffers;
-import org.assertj.core.api.AbstractThrowableAssert;
 import org.assertj.core.api.Assertions;
 import org.objenesis.strategy.StdInstantiatorStrategy;
 
@@ -176,60 +172,6 @@ public class TestHelpers {
                       "Should be the same schema. Schema 1: %s, schema 2: %s", schema1, schema2))
               .isTrue();
         });
-  }
-
-  /**
-   * A convenience method to avoid a large number of @Test(expected=...) tests
-   *
-   * @param message A String message to describe this assertion
-   * @param expected An Exception class that the Runnable should throw
-   * @param containedInMessage A String that should be contained by the thrown exception's message
-   * @param callable A Callable that is expected to throw the exception
-   */
-  public static void assertThrows(
-      String message,
-      Class<? extends Exception> expected,
-      String containedInMessage,
-      Callable callable) {
-    AbstractThrowableAssert<?, ? extends Throwable> check =
-        assertThatThrownBy(callable::call).as(message).isInstanceOf(expected);
-    if (null != containedInMessage) {
-      check.hasMessageContaining(containedInMessage);
-    }
-  }
-
-  /**
-   * A convenience method to avoid a large number of @Test(expected=...) tests
-   *
-   * @param message A String message to describe this assertion
-   * @param expected An Exception class that the Runnable should throw
-   * @param containedInMessage A String that should be contained by the thrown exception's message
-   * @param runnable A Runnable that is expected to throw the runtime exception
-   */
-  public static void assertThrows(
-      String message,
-      Class<? extends Exception> expected,
-      String containedInMessage,
-      Runnable runnable) {
-    AbstractThrowableAssert<?, ? extends Throwable> check =
-        assertThatThrownBy(runnable::run).as(message).isInstanceOf(expected);
-    if (null != containedInMessage) {
-      check.hasMessageContaining(containedInMessage);
-    }
-  }
-
-  /**
-   * A convenience method to assert if an Avro field is empty
-   *
-   * @param record The record to read from
-   * @param field The name of the field
-   */
-  public static void assertEmptyAvroField(GenericRecord record, String field) {
-    TestHelpers.assertThrows(
-        "Not a valid schema field: " + field,
-        AvroRuntimeException.class,
-        "Not a valid schema field: " + field,
-        () -> record.get(field));
   }
 
   /**
