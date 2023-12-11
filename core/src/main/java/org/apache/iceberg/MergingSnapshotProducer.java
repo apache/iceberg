@@ -43,7 +43,6 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Predicate;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
@@ -81,7 +80,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final ManifestFilterManager<DeleteFile> deleteFilterManager;
 
   // update data
-  private final Map<PartitionSpec, List<DataFile>> newDataFilesBySpec = Maps.newHashMap();
+  private final Map<PartitionSpec, List<FileHolder<DataFile>>> newDataFilesBySpec =
+      Maps.newHashMap();
   private final CharSequenceSet newDataFilePaths = CharSequenceSet.empty();
   private final CharSequenceSet newDeleteFilePaths = CharSequenceSet.empty();
   private Long newDataFilesDataSequenceNumber;
@@ -161,11 +161,10 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   protected List<DataFile> addedDataFiles() {
     return ImmutableList.copyOf(
-        newDataFilesBySpec.values().stream().flatMap(List::stream).collect(Collectors.toList()));
-  }
-
-  protected Map<PartitionSpec, List<DataFile>> addedDataFilesBySpec() {
-    return ImmutableMap.copyOf(newDataFilesBySpec);
+        newDataFilesBySpec.values().stream()
+            .flatMap(List::stream)
+            .map(x -> x.file)
+            .collect(Collectors.toList()));
   }
 
   protected void failAnyDelete() {
@@ -235,6 +234,16 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   /** Add a data file to the new snapshot. */
   protected void add(DataFile file) {
     Preconditions.checkNotNull(file, "Invalid data file: null");
+    addDataFile(new FileHolder<>(file));
+  }
+
+  protected void add(DataFile file, long dataSequenceNumber) {
+    Preconditions.checkNotNull(file, "Invalid delete file: null");
+    addDataFile(new FileHolder<>(file, dataSequenceNumber));
+  }
+
+  private void addDataFile(FileHolder<DataFile> fileHolder) {
+    DataFile file = fileHolder.file;
     if (newDataFilePaths.add(file.path())) {
       PartitionSpec fileSpec = ops.current().spec(file.specId());
       Preconditions.checkArgument(
@@ -245,9 +254,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
       addedFilesSummary.addedFile(fileSpec, file);
       hasNewDataFiles = true;
-      List<DataFile> newDataFiles =
+      List<FileHolder<DataFile>> newDataFiles =
           newDataFilesBySpec.computeIfAbsent(fileSpec, ignored -> Lists.newArrayList());
-      newDataFiles.add(file);
+      newDataFiles.add(fileHolder);
     }
   }
 
@@ -976,9 +985,23 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
               RollingManifestWriter<DataFile> writer = newRollingManifestWriter(dataSpec);
               try {
                 if (newDataFilesDataSequenceNumber == null) {
-                  newDataFiles.forEach(writer::add);
+                  newDataFiles.forEach(
+                      f -> {
+                        if (f.dataSequenceNumber() == null) {
+                          writer.add(f.file());
+                        } else {
+                          writer.add(f.file(), f.dataSequenceNumber);
+                        }
+                      });
                 } else {
-                  newDataFiles.forEach(f -> writer.add(f, newDataFilesDataSequenceNumber));
+                  newDataFiles.forEach(
+                      f -> {
+                        if (f.dataSequenceNumber() == null) {
+                          writer.add(f.file(), newDataFilesDataSequenceNumber);
+                        } else {
+                          writer.add(f.file(), f.dataSequenceNumber);
+                        }
+                      });
                 }
               } finally {
                 writer.close();
