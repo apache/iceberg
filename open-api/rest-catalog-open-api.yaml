@@ -2161,247 +2161,238 @@ components:
       description: Assigning a UUID to a table/view should only be done when creating the table/view. It is not safe to re-assign the UUID if a table/view already has a UUID assigned
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
-        - type: object
-          required:
-            - action
-            - uuid
-          properties:
-            action:
-              type: string
-              enum: ["assign-uuid"]
-            uuid:
-              type: string
+      required:
+        - action
+        - uuid
+      properties:
+        action:
+          type: string
+          enum: ["assign-uuid"]
+        uuid:
+          type: string
 
     UpgradeFormatVersionUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
-        - type: object
-          required:
-            - action
-            - format-version
-          properties:
-            action:
-              type: string
-              enum: ["upgrade-format-version"]
-            format-version:
-              type: integer
+      required:
+        - action
+        - format-version
+      properties:
+        action:
+          type: string
+          enum: ["upgrade-format-version"]
+        format-version:
+          type: integer
 
     AddSchemaUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
-        - type: object
-          required:
-            - action
-            - schema
-          properties:
-            action:
-              type: string
-              enum: ["add-schema"]
-            schema:
-              $ref: '#/components/schemas/Schema'
-            last-column-id:
-              type: integer
-              description: The highest assigned column ID for the table. This is used to ensure columns are always assigned an unused ID when evolving schemas. When omitted, it will be computed on the server side.
+      required:
+        - action
+        - schema
+      properties:
+        action:
+          type: string
+          enum: ["add-schema"]
+        schema:
+          $ref: '#/components/schemas/Schema'
+        last-column-id:
+          type: integer
+          description: The highest assigned column ID for the table. This is used to ensure columns are always assigned an unused ID when evolving schemas. When omitted, it will be computed on the server side.
 
     SetCurrentSchemaUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
-        - type: object
-          required:
-            - action
-            - schema-id
-          properties:
-            action:
-              type: string
-              enum: ["set-current-schema"]
-            schema-id:
-              type: integer
-              description: Schema ID to set as current, or -1 to set last added schema
+      required:
+        - action
+        - schema-id
+      properties:
+        action:
+          type: string
+          enum: ["set-current-schema"]
+        schema-id:
+          type: integer
+          description: Schema ID to set as current, or -1 to set last added schema
 
     AddPartitionSpecUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
-        - type: object
-          required:
-            - action
-            - spec
-          properties:
-            action:
-              type: string
-              enum: ["add-spec"]
-            spec:
-              $ref: '#/components/schemas/PartitionSpec'
+      required:
+        - action
+        - spec
+      properties:
+        action:
+          type: string
+          enum: ["add-spec"]
+        spec:
+          $ref: '#/components/schemas/PartitionSpec'
 
     SetDefaultSpecUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
-        - type: object
-          required:
-            - action
-            - spec-id
-          properties:
-            action:
-              type: string
-              enum: [ "set-default-spec" ]
-            spec-id:
-              type: integer
-              description: Partition spec ID to set as the default, or -1 to set last added spec
+      required:
+        - action
+        - spec-id
+      properties:
+        action:
+          type: string
+          enum: [ "set-default-spec" ]
+        spec-id:
+          type: integer
+          description: Partition spec ID to set as the default, or -1 to set last added spec
 
     AddSortOrderUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
-        - type: object
-          required:
-            - action
-            - sort-order
-          properties:
-            action:
-              type: string
-              enum: [ "add-sort-order" ]
-            sort-order:
-              $ref: '#/components/schemas/SortOrder'
+      required:
+        - action
+        - sort-order
+      properties:
+        action:
+          type: string
+          enum: [ "add-sort-order" ]
+        sort-order:
+          $ref: '#/components/schemas/SortOrder'
 
     SetDefaultSortOrderUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
-        - type: object
-          required:
-            - action
-            - sort-order-id
-          properties:
-            action:
-              type: string
-              enum: [ "set-default-sort-order" ]
-            sort-order-id:
-              type: integer
-              description: Sort order ID to set as the default, or -1 to set last added sort order
+      required:
+        - action
+        - sort-order-id
+      properties:
+        action:
+          type: string
+          enum: [ "set-default-sort-order" ]
+        sort-order-id:
+          type: integer
+          description: Sort order ID to set as the default, or -1 to set last added sort order
 
     AddSnapshotUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
-        - type: object
-          required:
-            - action
-            - snapshot
-          properties:
-            action:
-              type: string
-              enum: [ "add-snapshot" ]
-            snapshot:
-              $ref: '#/components/schemas/Snapshot'
+      required:
+        - action
+        - snapshot
+      properties:
+        action:
+          type: string
+          enum: [ "add-snapshot" ]
+        snapshot:
+          $ref: '#/components/schemas/Snapshot'
 
     SetSnapshotRefUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
         - $ref: '#/components/schemas/SnapshotReference'
-        - type: object
-          required:
-            - action
-            - ref-name
-          properties:
-            action:
-              type: string
-              enum: [ "set-snapshot-ref" ]
-            ref-name:
-              type: string
+      required:
+        - action
+        - ref-name
+      properties:
+        action:
+          type: string
+          enum: [ "set-snapshot-ref" ]
+        ref-name:
+          type: string
 
     RemoveSnapshotsUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
-        - type: object
-          required:
-            - action
-            - snapshot-ids
-          properties:
-            action:
-              type: string
-              enum: [ "remove-snapshots" ]
-            snapshot-ids:
-              type: array
-              items:
-                type: integer
-                format: int64
+      required:
+        - action
+        - snapshot-ids
+      properties:
+        action:
+          type: string
+          enum: [ "remove-snapshots" ]
+        snapshot-ids:
+          type: array
+          items:
+            type: integer
+            format: int64
 
     RemoveSnapshotRefUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
-        - type: object
-          required:
-            - action
-            - ref-name
-          properties:
-            action:
-              type: string
-              enum: [ "remove-snapshot-ref" ]
-            ref-name:
-              type: string
+      required:
+        - action
+        - ref-name
+      properties:
+        action:
+          type: string
+          enum: [ "remove-snapshot-ref" ]
+        ref-name:
+          type: string
 
     SetLocationUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
-        - type: object
-          required:
-            - action
-            - location
-          properties:
-            action:
-              type: string
-              enum: [ "set-location" ]
-            location:
-              type: string
+      required:
+        - action
+        - location
+      properties:
+        action:
+          type: string
+          enum: [ "set-location" ]
+        location:
+          type: string
 
     SetPropertiesUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
-        - type: object
-          required:
-            - action
-            - updates
-          properties:
-            action:
-              type: string
-              enum: [ "set-properties" ]
-            updates:
-              type: object
-              additionalProperties:
-                type: string
+      required:
+        - action
+        - updates
+      properties:
+        action:
+          type: string
+          enum: [ "set-properties" ]
+        updates:
+          type: object
+          additionalProperties:
+            type: string
 
     RemovePropertiesUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
-        - type: object
-          required:
-            - action
-            - removals
-          properties:
-            action:
-              type: string
-              enum: [ "remove-properties" ]
-            removals:
-              type: array
-              items:
-                type: string
+      required:
+        - action
+        - removals
+      properties:
+        action:
+          type: string
+          enum: [ "remove-properties" ]
+        removals:
+          type: array
+          items:
+            type: string
 
     AddViewVersionUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
-        - type: object
-          required:
-            - view-version
-          properties:
-            view-version:
-              $ref: '#/components/schemas/ViewVersion'
+      required:
+        - action
+        - view-version
+      properties:
+        action:
+          type: string
+          enum: [ "add-view-version" ]
+        view-version:
+          $ref: '#/components/schemas/ViewVersion'
 
     SetCurrentViewVersionUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
-        - type: object
-          required:
-            - view-version-id
-          properties:
-            view-version-id:
-              type: integer
-              description: The view version id to set as current, or -1 to set last added view version id
+      required:
+        - action
+        - view-version-id
+      properties:
+        action:
+          type: string
+          enum: [ "set-current-view-version" ]
+        view-version-id:
+          type: integer
+          description: The view version id to set as current, or -1 to set last added view version id
 
     TableUpdate:
       anyOf:

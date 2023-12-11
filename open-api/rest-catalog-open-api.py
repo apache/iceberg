@@ -329,10 +329,12 @@ class RemovePropertiesUpdate(BaseUpdate):
 
 
 class AddViewVersionUpdate(BaseUpdate):
+    action: Literal['add-view-version']
     view_version: ViewVersion = Field(..., alias='view-version')
 
 
 class SetCurrentViewVersionUpdate(BaseUpdate):
+    action: Literal['set-current-view-version']
     view_version_id: int = Field(
         ...,
         alias='view-version-id',
