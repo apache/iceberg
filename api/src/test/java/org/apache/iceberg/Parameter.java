@@ -27,6 +27,10 @@ import org.junit.runners.Parameterized;
 /**
  * The annotation is used to replace {@link Parameterized.Parameter} for Junit 5 parameterized
  * tests.
+ *
+ * <p>This implementation has been taken from Flink repository. The only difference is the "index" field, renamed to be more intuitive</p>
+ * @see <a href="https://github.com/apache/flink/blob/master/flink-test-utils-parent/flink-test-utils-junit/src/main/java/org/apache/flink/testutils/junit/extensions/parameterized/Parameter.java">
+ *     Parameters</a>
  */
 @Target(ElementType.FIELD)
 @Retention(RetentionPolicy.RUNTIME)

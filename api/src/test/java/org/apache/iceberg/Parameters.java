@@ -26,6 +26,10 @@ import java.lang.annotation.Target;
 /**
  * The annotation is used to replace Parameterized.Parameters(Junit4) for Junit 5 parameterized
  * tests.
+ *
+ * <p>This implementation has been taken from Flink repository</p>
+ * @see <a href="https://github.com/apache/flink/blob/master/flink-test-utils-parent/flink-test-utils-junit/src/main/java/org/apache/flink/testutils/junit/extensions/parameterized/Parameters.java">
+ *     Parameters</a>
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)

@@ -44,7 +44,10 @@ import org.junit.platform.commons.support.HierarchyTraversalMode;
  * This extension is used to implement parameterized tests for Junit 5 to replace Parameterized in
  * Junit4.
  *
- * <p>When use this extension, all tests must be annotated by {@link TestTemplate}.
+ * <p>When use this extension, all tests must be annotated by {@link TestTemplate}.</p>
+ * <p>This implementation has been taken from Flink repository, to provide test parameterization at class-level in Junit5. The only difference consists in using Assertj preconditions.</p>
+ * @see <a href="https://github.com/apache/flink/blob/master/flink-test-utils-parent/flink-test-utils-junit/src/main/java/org/apache/flink/testutils/junit/extensions/parameterized/ParameterizedTestExtension.java">
+ *     ParameterizedTestExtension</a>
  */
 public class ParameterizedTestExtension implements TestTemplateInvocationContextProvider {
 
