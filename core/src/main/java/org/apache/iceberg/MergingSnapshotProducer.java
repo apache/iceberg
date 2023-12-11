@@ -85,7 +85,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final CharSequenceSet newDataFilePaths = CharSequenceSet.empty();
   private final CharSequenceSet newDeleteFilePaths = CharSequenceSet.empty();
   private Long newDataFilesDataSequenceNumber;
-  private final Map<Integer, List<DeleteFileHolder>> newDeleteFilesBySpec = Maps.newHashMap();
+  private final Map<Integer, List<FileHolder<DeleteFile>>> newDeleteFilesBySpec = Maps.newHashMap();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
   private final List<ManifestFile> rewrittenAppendManifests = Lists.newArrayList();
   private final SnapshotSummary.Builder addedFilesSummary = SnapshotSummary.builder();
@@ -254,24 +254,24 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   /** Add a delete file to the new snapshot. */
   protected void add(DeleteFile file) {
     Preconditions.checkNotNull(file, "Invalid delete file: null");
-    add(new DeleteFileHolder(file));
+    addDelete(new FileHolder<>(file));
   }
 
   /** Add a delete file to the new snapshot. */
   protected void add(DeleteFile file, long dataSequenceNumber) {
     Preconditions.checkNotNull(file, "Invalid delete file: null");
-    add(new DeleteFileHolder(file, dataSequenceNumber));
+    addDelete(new FileHolder<>(file, dataSequenceNumber));
   }
 
-  private void add(DeleteFileHolder fileHolder) {
-    int specId = fileHolder.deleteFile().specId();
+  private void addDelete(FileHolder<DeleteFile> fileHolder) {
+    int specId = fileHolder.file().specId();
     PartitionSpec fileSpec = ops.current().spec(specId);
-    List<DeleteFileHolder> deleteFiles =
+    List<FileHolder<DeleteFile>> deleteFiles =
         newDeleteFilesBySpec.computeIfAbsent(specId, s -> Lists.newArrayList());
 
-    if (newDeleteFilePaths.add(fileHolder.deleteFile().path())) {
+    if (newDeleteFilePaths.add(fileHolder.file().path())) {
       deleteFiles.add(fileHolder);
-      addedFilesSummary.addedFile(fileSpec, fileHolder.deleteFile());
+      addedFilesSummary.addedFile(fileSpec, fileHolder.file());
       hasNewDeleteFiles = true;
     }
   }
@@ -1022,9 +1022,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
                 deleteFiles.forEach(
                     df -> {
                       if (df.dataSequenceNumber() != null) {
-                        writer.add(df.deleteFile(), df.dataSequenceNumber());
+                        writer.add(df.file(), df.dataSequenceNumber());
                       } else {
-                        writer.add(df.deleteFile());
+                        writer.add(df.file());
                       }
                     });
               } finally {
@@ -1148,33 +1148,33 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     }
   }
 
-  private static class DeleteFileHolder {
-    private final DeleteFile deleteFile;
+  private static class FileHolder<T extends ContentFile<?>> {
+    private final T file;
     private final Long dataSequenceNumber;
 
     /**
      * Wrap a delete file for commit with a given data sequence number
      *
-     * @param deleteFile delete file
+     * @param file content file
      * @param dataSequenceNumber data sequence number to apply
      */
-    DeleteFileHolder(DeleteFile deleteFile, long dataSequenceNumber) {
-      this.deleteFile = deleteFile;
+    FileHolder(T file, long dataSequenceNumber) {
+      this.file = file;
       this.dataSequenceNumber = dataSequenceNumber;
     }
 
     /**
      * Wrap a delete file for commit with the latest sequence number
      *
-     * @param deleteFile delete file
+     * @param file the content fle
      */
-    DeleteFileHolder(DeleteFile deleteFile) {
-      this.deleteFile = deleteFile;
+    FileHolder(T file) {
+      this.file = file;
       this.dataSequenceNumber = null;
     }
 
-    public DeleteFile deleteFile() {
-      return deleteFile;
+    public T file() {
+      return file;
     }
 
     public Long dataSequenceNumber() {
