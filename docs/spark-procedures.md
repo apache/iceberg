@@ -442,11 +442,11 @@ This procedure invalidates all cached Spark plans that reference the affected ta
 
 #### Usage
 
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
-| `table`       | ✔️  | string | Name of the table to update |
-| `use_caching` | ️   | boolean | Use Spark caching during operation (defaults to true) |
-| `spec_id`     | | int | Spec id of the manifests to rewrite (defaults to latest spec id) |
+| Argument Name | Required? | Type | Description                                                   |
+|---------------|-----------|------|---------------------------------------------------------------|
+| `table`       | ✔️  | string | Name of the table to update                                   |
+| `use_caching` | ️   | boolean | Use Spark caching during operation (defaults to true)         |
+| `spec_id`     | | int | Spec id of the manifests to rewrite (defaults to current spec id) |
 
 #### Output
 
