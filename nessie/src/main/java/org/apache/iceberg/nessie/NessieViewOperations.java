@@ -102,6 +102,7 @@ public class NessieViewOperations extends BaseViewOperations {
       if (ex instanceof NessieConflictException || ex instanceof NessieNotFoundException) {
         failure = true;
       }
+
       NessieUtil.handleExceptionsForCommits(ex, client.refName(), Content.Type.ICEBERG_VIEW)
           .ifPresent(
               exception -> {

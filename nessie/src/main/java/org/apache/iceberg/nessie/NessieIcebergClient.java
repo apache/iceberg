@@ -546,7 +546,7 @@ public class NessieIcebergClient implements AutoCloseable {
     // We try to drop the content. Simple retry after ref update.
     try {
       commitRetry(
-          String.format("Iceberg delete table %s", identifier),
+          String.format("Iceberg delete %s %s", contentType, identifier),
           Operation.Delete.of(NessieUtil.toKey(identifier)));
       return true;
     } catch (NessieConflictException e) {

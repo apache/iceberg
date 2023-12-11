@@ -248,6 +248,7 @@ public final class NessieUtil {
       // safe than sorry.
       return Optional.of(new CommitStateUnknownException(exception));
     }
+
     return Optional.empty();
   }
 
@@ -274,6 +275,7 @@ public final class NessieUtil {
     } catch (NessieNotFoundException e) {
       return Optional.of(new RuntimeException(e));
     }
+
     return Optional.empty();
   }
 
@@ -325,6 +327,7 @@ public final class NessieUtil {
     } else if (type.equals(Content.Type.NAMESPACE)) {
       return "Namespace";
     }
+
     throw new IllegalArgumentException("Unsupported Nessie content type " + type.name());
   }
 }

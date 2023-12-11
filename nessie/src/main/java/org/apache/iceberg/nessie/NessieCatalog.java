@@ -241,7 +241,7 @@ public class NessieCatalog extends BaseMetastoreViewCatalog
     TableReference tableReference = parseTableReference(identifier);
     return client
         .withReference(tableReference.getReference(), tableReference.getHash())
-        .dropTable(identifierWithoutTableReference(identifier, tableReference), false);
+        .dropTable(identifierWithoutTableReference(identifier, tableReference), purge);
   }
 
   @Override
