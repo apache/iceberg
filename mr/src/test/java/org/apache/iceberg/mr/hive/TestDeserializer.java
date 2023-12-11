@@ -161,7 +161,8 @@ public class TestDeserializer {
   @Test
   public void testDeserializeEverySupportedType() {
     assumeThat(HiveVersion.min(HiveVersion.HIVE_3))
-        .as("No test yet for Hive3 (Date/Timestamp creation)");
+        .as("No test yet for Hive3 (Date/Timestamp creation)")
+        .isFalse();
 
     Deserializer deserializer =
         new Deserializer.Builder()
