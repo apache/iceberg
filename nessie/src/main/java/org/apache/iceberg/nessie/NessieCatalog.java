@@ -20,6 +20,7 @@ package org.apache.iceberg.nessie;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -394,7 +395,7 @@ public class NessieCatalog extends BaseMetastoreViewCatalog
         fromReference.equalsIgnoreCase(toReference),
         "Cannot rename %s '%s' on reference '%s' to '%s' on reference '%s':"
             + " source and target references must be the same.",
-        NessieUtil.contentTypeString(type).toLowerCase(),
+        NessieUtil.contentTypeString(type).toLowerCase(Locale.ENGLISH),
         fromTableReference.getName(),
         fromReference,
         toTableReference.getName(),

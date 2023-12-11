@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -167,7 +168,7 @@ public class NessieIcebergClient implements AutoCloseable {
       throw new NoSuchNamespaceException(
           ex,
           "Unable to list %ss due to missing ref '%s'",
-          NessieUtil.contentTypeString(type).toLowerCase(),
+          NessieUtil.contentTypeString(type).toLowerCase(Locale.ENGLISH),
           getRef().getName());
     }
   }
@@ -433,7 +434,7 @@ public class NessieIcebergClient implements AutoCloseable {
     IcebergContent existingToContent = fetchContent(to);
     validateToContentForRename(from, to, existingToContent);
 
-    String contentType = NessieUtil.contentTypeString(type).toLowerCase();
+    String contentType = NessieUtil.contentTypeString(type).toLowerCase(Locale.ENGLISH);
     try {
       commitRetry(
           String.format("Iceberg rename %s from '%s' to '%s'", contentType, from, to),
@@ -533,7 +534,7 @@ public class NessieIcebergClient implements AutoCloseable {
               identifier, NessieUtil.contentTypeString(type)));
     }
 
-    String contentType = NessieUtil.contentTypeString(type).toLowerCase();
+    String contentType = NessieUtil.contentTypeString(type).toLowerCase(Locale.ENGLISH);
 
     if (purge) {
       LOG.info(
