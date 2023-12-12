@@ -20,9 +20,7 @@ package org.apache.iceberg.data;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.List;
-import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
@@ -45,28 +43,18 @@ public class GenericAppenderHelper {
 
   private final Table table;
   private final FileFormat fileFormat;
-  private final Path tmp;
+  private final TemporaryFolder tmp;
   private final Configuration conf;
 
-  @Deprecated()
   public GenericAppenderHelper(
-      Table table, FileFormat fileFormat, TemporaryFolder tmp, Configuration conf)
-      throws IOException {
-    this.table = table;
-    this.fileFormat = fileFormat;
-    this.tmp = tmp.newFolder().toPath();
-    this.conf = conf;
-  }
-
-  public GenericAppenderHelper(Table table, FileFormat fileFormat, Path tmp, Configuration conf) {
+      Table table, FileFormat fileFormat, TemporaryFolder tmp, Configuration conf) {
     this.table = table;
     this.fileFormat = fileFormat;
     this.tmp = tmp;
     this.conf = conf;
   }
 
-  public GenericAppenderHelper(Table table, FileFormat fileFormat, TemporaryFolder tmp)
-      throws IOException {
+  public GenericAppenderHelper(Table table, FileFormat fileFormat, TemporaryFolder tmp) {
     this(table, fileFormat, tmp, null);
   }
 
@@ -106,18 +94,16 @@ public class GenericAppenderHelper {
 
   public DataFile writeFile(List<Record> records) throws IOException {
     Preconditions.checkNotNull(table, "table not set");
-    File parent = java.nio.file.Files.createTempDirectory(tmp, null).toFile();
-    File tempFile = File.createTempFile(UUID.randomUUID().toString(), ".tmp", parent);
-    Assert.assertTrue(tempFile.delete());
-    return appendToLocalFile(table, tempFile, fileFormat, null, records, conf);
+    File file = tmp.newFile();
+    Assert.assertTrue(file.delete());
+    return appendToLocalFile(table, file, fileFormat, null, records, conf);
   }
 
   public DataFile writeFile(StructLike partition, List<Record> records) throws IOException {
     Preconditions.checkNotNull(table, "table not set");
-    File parent = java.nio.file.Files.createTempDirectory(tmp, null).toFile();
-    File tempFile = File.createTempFile(UUID.randomUUID().toString(), ".tmp", parent);
-    Assert.assertTrue(tempFile.delete());
-    return appendToLocalFile(table, tempFile, fileFormat, partition, records, conf);
+    File file = tmp.newFile();
+    Assert.assertTrue(file.delete());
+    return appendToLocalFile(table, file, fileFormat, partition, records, conf);
   }
 
   private static DataFile appendToLocalFile(

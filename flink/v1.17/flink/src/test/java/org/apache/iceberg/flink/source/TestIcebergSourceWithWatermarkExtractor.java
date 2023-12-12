@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.source;
 import static org.apache.flink.connector.testframe.utils.ConnectorTestConstants.DEFAULT_COLLECT_DATA_TIMEOUT;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
-import java.io.IOException;
 import java.io.Serializable;
 import java.time.Duration;
 import java.time.Instant;
@@ -427,7 +426,7 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
         .findFirst();
   }
 
-  private GenericAppenderHelper appender() throws IOException {
+  private GenericAppenderHelper appender() {
     // We need to create multiple splits, so we need to generate parquet files with multiple offsets
     org.apache.hadoop.conf.Configuration hadoopConf = new org.apache.hadoop.conf.Configuration();
     hadoopConf.set("write.parquet.page-size-bytes", "64");

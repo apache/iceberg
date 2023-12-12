@@ -75,7 +75,6 @@ project(':iceberg-mr') {
 
   test {
     // testJoinTables / testScanTable
-    useJUnitPlatform()
     maxHeapSize '2500m'
   }
 }

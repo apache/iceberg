@@ -19,7 +19,6 @@
 package org.apache.iceberg.mr;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -40,6 +39,7 @@ import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.junit.rules.TemporaryFolder;
 
 public class TestHelper {
   private final Configuration conf;
@@ -48,7 +48,7 @@ public class TestHelper {
   private final Schema schema;
   private final PartitionSpec spec;
   private final FileFormat fileFormat;
-  private final Path tmp;
+  private final TemporaryFolder tmp;
 
   private Table table;
 
@@ -59,7 +59,7 @@ public class TestHelper {
       Schema schema,
       PartitionSpec spec,
       FileFormat fileFormat,
-      Path tmp) {
+      TemporaryFolder tmp) {
     this.conf = conf;
     this.tables = tables;
     this.tableIdentifier = tableIdentifier;
