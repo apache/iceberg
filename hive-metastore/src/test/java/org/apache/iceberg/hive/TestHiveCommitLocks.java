@@ -46,6 +46,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
@@ -70,6 +71,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -107,10 +110,12 @@ public class TestHiveCommitLocks {
       new HiveMetastoreExtension(
           DB_NAME, ImmutableMap.of(HiveConf.ConfVars.HIVE_TXN_TIMEOUT.varname, "1s"));
 
-  private HiveCatalog catalog;
+  private static HiveCatalog catalog;
+  private Path tableLocation;
 
-  private void initCatalog() throws Exception {
-    this.catalog =
+  @BeforeAll
+  public static void initCatalog() throws Exception {
+    catalog =
         (HiveCatalog)
             CatalogUtil.loadCatalog(
                 HiveCatalog.class.getName(),
@@ -119,7 +124,7 @@ public class TestHiveCommitLocks {
                     CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS,
                     String.valueOf(TimeUnit.SECONDS.toMillis(10))),
                 HIVE_METASTORE_EXTENSION.hiveConf());
-    catalog.createTable(TABLE_IDENTIFIER, schema, partitionSpec);
+
     // start spies
     overriddenHiveConf = new Configuration(HIVE_METASTORE_EXTENSION.hiveConf());
     overriddenHiveConf.setLong("iceberg.hive.lock-timeout-ms", 6 * 1000);
@@ -153,7 +158,8 @@ public class TestHiveCommitLocks {
 
   @BeforeEach
   public void before() throws Exception {
-    initCatalog();
+    this.tableLocation =
+        new Path(catalog.createTable(TABLE_IDENTIFIER, schema, partitionSpec).location());
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
     ops = (HiveTableOperations) ((HasTableOperations) table).operations();
     String dbName = TABLE_IDENTIFIER.namespace().level(0);
@@ -179,6 +185,13 @@ public class TestHiveCommitLocks {
                 dbName,
                 tableName));
     reset(spyClient);
+  }
+
+  @AfterEach
+  public void dropTestTable() throws Exception {
+    // drop the table data
+    tableLocation.getFileSystem(HIVE_METASTORE_EXTENSION.hiveConf()).delete(tableLocation, true);
+    catalog.dropTable(TABLE_IDENTIFIER, false /* metadata only, location was already deleted */);
   }
 
   @AfterAll

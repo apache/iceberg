@@ -39,6 +39,8 @@ import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
@@ -52,7 +54,7 @@ public class HiveTableBaseTest {
   protected static final HiveMetastoreExtension HIVE_METASTORE_EXTENSION =
       new HiveMetastoreExtension(DB_NAME, Collections.emptyMap());
 
-  protected HiveCatalog catalog;
+  protected static HiveCatalog catalog;
 
   static final Schema schema =
       new Schema(Types.StructType.of(required(1, "id", Types.LongType.get())).fields());
@@ -66,8 +68,10 @@ public class HiveTableBaseTest {
 
   private static final PartitionSpec partitionSpec = builderFor(schema).identity("id").build();
 
-  @BeforeEach
-  public void createTestTable() {
+  private Path tableLocation;
+
+  @BeforeAll
+  public static void initCatalog() {
     catalog =
         (HiveCatalog)
             CatalogUtil.loadCatalog(
@@ -77,7 +81,19 @@ public class HiveTableBaseTest {
                     CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS,
                     String.valueOf(TimeUnit.SECONDS.toMillis(10))),
                 HIVE_METASTORE_EXTENSION.hiveConf());
-    catalog.createTable(TABLE_IDENTIFIER, schema, partitionSpec);
+  }
+
+  @BeforeEach
+  public void createTestTable() {
+    this.tableLocation =
+        new Path(catalog.createTable(TABLE_IDENTIFIER, schema, partitionSpec).location());
+  }
+
+  @AfterEach
+  public void dropTestTable() throws Exception {
+    // drop the table data
+    tableLocation.getFileSystem(HIVE_METASTORE_EXTENSION.hiveConf()).delete(tableLocation, true);
+    catalog.dropTable(TABLE_IDENTIFIER, false /* metadata only, location was already deleted */);
   }
 
   private static String getTableBasePath(String tableName) {

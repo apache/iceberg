@@ -23,11 +23,11 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.junit.jupiter.api.extension.AfterEachCallback;
-import org.junit.jupiter.api.extension.BeforeEachCallback;
+import org.junit.jupiter.api.extension.AfterAllCallback;
+import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
-public class HiveMetastoreExtension implements BeforeEachCallback, AfterEachCallback {
+public class HiveMetastoreExtension implements BeforeAllCallback, AfterAllCallback {
   private HiveMetaStoreClient metastoreClient;
   private TestHiveMetastore metastore;
   private final Map<String, String> hiveConfOverride;
@@ -39,7 +39,7 @@ public class HiveMetastoreExtension implements BeforeEachCallback, AfterEachCall
   }
 
   @Override
-  public void beforeEach(ExtensionContext extensionContext) throws Exception {
+  public void beforeAll(ExtensionContext extensionContext) throws Exception {
     metastore = new TestHiveMetastore();
     HiveConf hiveConfWithOverrides = new HiveConf(TestHiveMetastore.class);
     if (hiveConfOverride != null) {
@@ -56,7 +56,7 @@ public class HiveMetastoreExtension implements BeforeEachCallback, AfterEachCall
   }
 
   @Override
-  public void afterEach(ExtensionContext extensionContext) throws Exception {
+  public void afterAll(ExtensionContext extensionContext) throws Exception {
     if (null != metastoreClient) {
       metastoreClient.close();
     }

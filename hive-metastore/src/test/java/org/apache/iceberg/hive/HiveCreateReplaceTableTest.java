@@ -23,7 +23,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
@@ -45,6 +44,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -70,10 +70,10 @@ public class HiveCreateReplaceTableTest {
   private static final HiveMetastoreExtension HIVE_METASTORE_EXTENSION =
       new HiveMetastoreExtension(DB_NAME, Collections.emptyMap());
 
-  private HiveCatalog catalog;
+  private static HiveCatalog catalog;
 
-  @BeforeEach
-  public void createTableLocation() throws IOException {
+  @BeforeAll
+  public static void initCatalog() {
     catalog =
         (HiveCatalog)
             CatalogUtil.loadCatalog(
@@ -83,6 +83,10 @@ public class HiveCreateReplaceTableTest {
                     CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS,
                     String.valueOf(TimeUnit.SECONDS.toMillis(10))),
                 HIVE_METASTORE_EXTENSION.hiveConf());
+  }
+
+  @BeforeEach
+  public void createTableLocation() {
     tableLocation = temp.resolve("hive-").toString();
   }
 
