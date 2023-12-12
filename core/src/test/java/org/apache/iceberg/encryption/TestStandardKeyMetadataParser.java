@@ -24,16 +24,17 @@ import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class TestKeyMetadataParser {
+public class TestStandardKeyMetadataParser {
 
   @Test
   public void testParser() {
     ByteBuffer encryptionKey = ByteBuffer.wrap("0123456789012345".getBytes(StandardCharsets.UTF_8));
     ByteBuffer aadPrefix = ByteBuffer.wrap("1234567890123456".getBytes(StandardCharsets.UTF_8));
-    KeyMetadata metadata = new KeyMetadata(encryptionKey, aadPrefix);
+    StandardKeyMetadata metadata =
+        new StandardKeyMetadata(encryptionKey.array(), aadPrefix.array());
     ByteBuffer serialized = metadata.buffer();
 
-    KeyMetadata parsedMetadata = KeyMetadata.parse(serialized);
+    StandardKeyMetadata parsedMetadata = StandardKeyMetadata.parse(serialized);
     Assert.assertEquals(parsedMetadata.encryptionKey(), encryptionKey);
     Assert.assertEquals(parsedMetadata.aadPrefix(), aadPrefix);
   }
@@ -41,7 +42,7 @@ public class TestKeyMetadataParser {
   @Test
   public void testUnsupportedVersion() {
     ByteBuffer badBuffer = ByteBuffer.wrap(new byte[] {0x02});
-    Assertions.assertThatThrownBy(() -> KeyMetadata.parse(badBuffer))
+    Assertions.assertThatThrownBy(() -> StandardKeyMetadata.parse(badBuffer))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot resolve schema for version: 2");
   }

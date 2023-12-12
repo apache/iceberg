@@ -31,14 +31,14 @@ import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 
-class KeyMetadata implements EncryptionKeyMetadata, IndexedRecord {
+class StandardKeyMetadata implements EncryptionKeyMetadata, IndexedRecord {
   private static final byte V1 = 1;
   private static final Schema SCHEMA_V1 =
       new Schema(
           required(0, "encryption_key", Types.BinaryType.get()),
           optional(1, "aad_prefix", Types.BinaryType.get()));
   private static final org.apache.avro.Schema AVRO_SCHEMA_V1 =
-      AvroSchemaUtil.convert(SCHEMA_V1, KeyMetadata.class.getCanonicalName());
+      AvroSchemaUtil.convert(SCHEMA_V1, StandardKeyMetadata.class.getCanonicalName());
 
   private static final Map<Byte, Schema> schemaVersions = ImmutableMap.of(V1, SCHEMA_V1);
   private static final Map<Byte, org.apache.avro.Schema> avroSchemaVersions =
@@ -52,9 +52,14 @@ class KeyMetadata implements EncryptionKeyMetadata, IndexedRecord {
   private org.apache.avro.Schema avroSchema;
 
   /** Used by Avro reflection to instantiate this class * */
-  KeyMetadata() {}
+  StandardKeyMetadata() {}
 
-  KeyMetadata(ByteBuffer encryptionKey, ByteBuffer aadPrefix) {
+  StandardKeyMetadata(byte[] key, byte[] aad) {
+    this.encryptionKey = ByteBuffer.wrap(key);
+    this.aadPrefix = ByteBuffer.wrap(aad);
+  }
+
+  private StandardKeyMetadata(ByteBuffer encryptionKey, ByteBuffer aadPrefix) {
     this.encryptionKey = encryptionKey;
     this.aadPrefix = aadPrefix;
     this.avroSchema = AVRO_SCHEMA_V1;
@@ -76,7 +81,21 @@ class KeyMetadata implements EncryptionKeyMetadata, IndexedRecord {
     return aadPrefix;
   }
 
-  static KeyMetadata parse(ByteBuffer buffer) {
+  static StandardKeyMetadata castOrParse(EncryptionKeyMetadata keyMetadata) {
+    if (keyMetadata instanceof StandardKeyMetadata) {
+      return (StandardKeyMetadata) keyMetadata;
+    }
+
+    ByteBuffer kmBuffer = keyMetadata.buffer();
+
+    if (kmBuffer == null) {
+      throw new IllegalStateException("Null key metadata buffer");
+    }
+
+    return parse(kmBuffer);
+  }
+
+  static StandardKeyMetadata parse(ByteBuffer buffer) {
     try {
       return KEY_METADATA_DECODER.decode(buffer);
     } catch (IOException e) {
@@ -95,8 +114,7 @@ class KeyMetadata implements EncryptionKeyMetadata, IndexedRecord {
 
   @Override
   public EncryptionKeyMetadata copy() {
-    KeyMetadata metadata = new KeyMetadata(encryptionKey(), aadPrefix());
-    return metadata;
+    return new StandardKeyMetadata(encryptionKey(), aadPrefix());
   }
 
   @Override
