@@ -19,10 +19,19 @@
 
 package org.apache.spark.sql.catalyst.plans.logical
 
+import io.openlineage.spark.builtin.scala.v1.ColumnLevelLineageNode
+import io.openlineage.spark.builtin.scala.v1.DatasetFieldLineage
+import io.openlineage.spark.builtin.scala.v1.ExpressionDependency
+import io.openlineage.spark.builtin.scala.v1.ExpressionDependencyWithDelegate
+import io.openlineage.spark.builtin.scala.v1.InputDatasetFieldFromDelegate
+import io.openlineage.spark.builtin.scala.v1.OlExprId
+import io.openlineage.spark.builtin.scala.v1.OpenLineageContext
+import io.openlineage.spark.builtin.scala.v1.OutputDatasetField
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.expressions.AttributeSet
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.util.truncatedString
+import scala.collection.mutable.ListBuffer
 
 case class MergeRows(
     isSourceRowPresent: Expression,
@@ -35,7 +44,7 @@ case class MergeRows(
     performCardinalityCheck: Boolean,
     emitNotMatchedTargetRows: Boolean,
     output: Seq[Attribute],
-    child: LogicalPlan) extends UnaryNode {
+    child: LogicalPlan) extends UnaryNode with ColumnLevelLineageNode {
 
   require(targetOutput.nonEmpty || !emitNotMatchedTargetRows)
 
@@ -51,5 +60,37 @@ case class MergeRows(
 
   override protected def withNewChildInternal(newChild: LogicalPlan): LogicalPlan = {
     copy(child = newChild)
+  }
+
+  override def columnLevelLineageDependencies(context: OpenLineageContext): List[ExpressionDependency] = {
+    val deps: ListBuffer[ExpressionDependency] = ListBuffer()
+
+    output.zipWithIndex.foreach {
+      case (attr: Attribute, index: Int) =>
+        notMatchedOutputs
+          .toStream
+          .filter(exprs => exprs.size > index)
+          .map(exprs => exprs(index))
+          .foreach(expr => deps += ExpressionDependencyWithDelegate(OlExprId(attr.exprId.id), expr))
+        matchedOutputs
+          .foreach {
+            matched =>
+              matched
+                .toStream
+                .filter(exprs => exprs.size > index)
+                .map(exprs => exprs(index))
+                .foreach(expr => deps += ExpressionDependencyWithDelegate(OlExprId(attr.exprId.id), expr))
+          }
+    }
+
+    deps.toList
+  }
+
+  override def columnLevelLineageInputs(context: OpenLineageContext): List[DatasetFieldLineage] = {
+    List(InputDatasetFieldFromDelegate(child))
+  }
+
+  override def columnLevelLineageOutputs(context: OpenLineageContext): List[DatasetFieldLineage] = {
+    output.map(a => OutputDatasetField(a.name, OlExprId(a.exprId.id))).toList
   }
 }

@@ -59,6 +59,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-arrow')
     implementation("org.scala-lang.modules:scala-collection-compat_${scalaVersion}:${libs.versions.scala.collection.compat.get()}")
+    implementation("io.openlineage:spark-interfaces-scala:1.8.0-SNAPSHOT")
 
     compileOnly libs.errorprone.annotations
     compileOnly libs.avro.avro
@@ -135,6 +136,7 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
 
   dependencies {
     implementation("org.scala-lang.modules:scala-collection-compat_${scalaVersion}:${libs.versions.scala.collection.compat.get()}")
+    implementation("io.openlineage:spark-interfaces-scala:1.8.0-SNAPSHOT")
     implementation libs.roaringbitmap
 
     compileOnly "org.scala-lang:scala-library"
