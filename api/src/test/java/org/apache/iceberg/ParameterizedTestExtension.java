@@ -27,7 +27,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
-import org.assertj.core.util.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.Extension;
