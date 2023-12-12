@@ -132,7 +132,7 @@ public class ParameterizedTestExtension implements TestTemplateInvocationContext
     private final String testNameTemplate;
     private final Object[] parameterValues;
 
-    public FieldInjectingInvocationContext(String testNameTemplate, Object[] parameterValues) {
+    private FieldInjectingInvocationContext(String testNameTemplate, Object[] parameterValues) {
       this.testNameTemplate = testNameTemplate;
       this.parameterValues = parameterValues;
     }
@@ -155,7 +155,7 @@ public class ParameterizedTestExtension implements TestTemplateInvocationContext
 
       private final Object[] parameterValues;
 
-      public FieldInjectingHook(Object[] parameterValues) {
+      private FieldInjectingHook(Object[] parameterValues) {
         this.parameterValues = parameterValues;
       }
 
@@ -175,7 +175,7 @@ public class ParameterizedTestExtension implements TestTemplateInvocationContext
     private final String testNameTemplate;
     private final Object[] parameterValues;
 
-    public ConstructorParameterResolverInvocationContext(
+    private ConstructorParameterResolverInvocationContext(
         String testNameTemplate, Object[] parameterValues) {
       this.testNameTemplate = testNameTemplate;
       this.parameterValues = parameterValues;
@@ -199,7 +199,7 @@ public class ParameterizedTestExtension implements TestTemplateInvocationContext
 
       private final Object[] parameterValues;
 
-      public ConstructorParameterResolver(Object[] parameterValues) {
+      private ConstructorParameterResolver(Object[] parameterValues) {
         this.parameterValues = parameterValues;
       }
 
