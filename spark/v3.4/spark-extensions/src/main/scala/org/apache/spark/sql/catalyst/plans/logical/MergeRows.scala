@@ -19,9 +19,9 @@
 
 package org.apache.spark.sql.catalyst.plans.logical
 
-import org.apache.spark.sql.catalyst.expressions.Attribute
-import org.apache.spark.sql.catalyst.expressions.AttributeSet
-import org.apache.spark.sql.catalyst.expressions.Expression
+import io.openlineage.spark.builtin.column.{ColumnLevelLineageFromNode, ColumnLevelLineageNode, OlExprId}
+import io.openlineage.spark.builtin.common.OpenLineageContext
+import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeSet, Expression, NamedExpression}
 import org.apache.spark.sql.catalyst.util.truncatedString
 
 case class MergeRows(
@@ -35,7 +35,7 @@ case class MergeRows(
     performCardinalityCheck: Boolean,
     emitNotMatchedTargetRows: Boolean,
     output: Seq[Attribute],
-    child: LogicalPlan) extends UnaryNode {
+    child: LogicalPlan) extends UnaryNode with ColumnLevelLineageNode {
 
   require(targetOutput.nonEmpty || !emitNotMatchedTargetRows)
 
@@ -51,5 +51,25 @@ case class MergeRows(
 
   override protected def withNewChildInternal(newChild: LogicalPlan): LogicalPlan = {
     copy(child = newChild)
+  }
+
+  override def columnLevelLineage(context: OpenLineageContext): ColumnLevelLineageFromNode = {
+    val deps: Map[OlExprId, List[OlExprId]] = (notMatchedConditions zip output).map {
+      case (expr: NamedExpression, output: Attribute) => {
+        (OlExprId(expr.exprId.id), List(OlExprId(output.exprId.id)))
+      }
+    }.toMap.withDefaultValue(List())
+
+    (matchedConditions zip output).foreach {
+      case (expr: NamedExpression, output: Attribute) => {
+        val key: OlExprId = OlExprId(expr.exprId.id);
+        if (!deps.contains(key)) {
+          deps.put(key, List())
+        }
+        deps(key).add(OlExprId(output.exprId.id))
+      }
+    }
+
+    ColumnLevelLineageFromNode(deps, List(), List())
   }
 }
