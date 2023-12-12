@@ -47,12 +47,11 @@ public interface AppendFiles extends SnapshotUpdate<AppendFiles> {
    * Otherwise, the manifest will be rewritten to assign all entries this update's snapshot ID.
    *
    * <p>If the manifest is rewritten, it is always the responsibility of the caller to manage the
-   * lifecycle of the original manifest. If manifest entries are allowed to inherit the snapshot ID
-   * assigned on commit, the manifest should never be deleted manually if the commit succeeds as it
-   * will become part of the table metadata and will be cleaned upon expiry. If the manifest gets
-   * merged with others while preparing a new snapshot, it will be deleted automatically if this
-   * operation is successful. If the commit fails, the manifest will never be deleted, and it is up
-   * to the caller whether to delete or reuse it.
+   * lifecycle of the original manifest. If the manifest is used directly, it should never be
+   * deleted manually if the commit succeeds as it will become part of the table metadata and will
+   * be cleaned upon expiry. If the manifest gets merged with others while preparing a new snapshot,
+   * it will be deleted automatically if this operation is successful. If the commit fails, the
+   * manifest will never be deleted, and it is up to the caller whether to delete or reuse it.
    *
    * @param file a manifest file
    * @return this for method chaining
