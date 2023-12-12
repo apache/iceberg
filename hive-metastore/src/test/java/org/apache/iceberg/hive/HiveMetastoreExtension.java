@@ -50,7 +50,6 @@ public class HiveMetastoreExtension implements BeforeEachCallback, AfterEachCall
 
     metastore.start(hiveConfWithOverrides);
     metastoreClient = new HiveMetaStoreClient(hiveConfWithOverrides);
-
     String dbPath = metastore.getDatabasePath(databaseName);
     Database db = new Database(databaseName, "description", dbPath, Maps.newHashMap());
     metastoreClient.createDatabase(db);
@@ -76,5 +75,9 @@ public class HiveMetastoreExtension implements BeforeEachCallback, AfterEachCall
 
   public HiveConf hiveConf() {
     return metastore.hiveConf();
+  }
+
+  public TestHiveMetastore metastore() {
+    return metastore;
   }
 }

@@ -26,21 +26,33 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import java.io.File;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
-public class HiveTableBaseTest extends HiveMetastoreTest {
+public class HiveTableBaseTest {
 
   static final String TABLE_NAME = "tbl";
+  static final String DB_NAME = "hivedb";
   static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of(DB_NAME, TABLE_NAME);
+
+  @RegisterExtension
+  protected static final HiveMetastoreExtension HIVE_METASTORE_EXTENSION =
+      new HiveMetastoreExtension(DB_NAME, Collections.emptyMap());
+
+  protected HiveCatalog catalog;
 
   static final Schema schema =
       new Schema(Types.StructType.of(required(1, "id", Types.LongType.get())).fields());
@@ -54,23 +66,22 @@ public class HiveTableBaseTest extends HiveMetastoreTest {
 
   private static final PartitionSpec partitionSpec = builderFor(schema).identity("id").build();
 
-  private Path tableLocation;
-
   @BeforeEach
   public void createTestTable() {
-    this.tableLocation =
-        new Path(catalog.createTable(TABLE_IDENTIFIER, schema, partitionSpec).location());
-  }
-
-  @AfterEach
-  public void dropTestTable() throws Exception {
-    // drop the table data
-    tableLocation.getFileSystem(hiveConf).delete(tableLocation, true);
-    catalog.dropTable(TABLE_IDENTIFIER, false /* metadata only, location was already deleted */);
+    catalog =
+        (HiveCatalog)
+            CatalogUtil.loadCatalog(
+                HiveCatalog.class.getName(),
+                CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE,
+                ImmutableMap.of(
+                    CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS,
+                    String.valueOf(TimeUnit.SECONDS.toMillis(10))),
+                HIVE_METASTORE_EXTENSION.hiveConf());
+    catalog.createTable(TABLE_IDENTIFIER, schema, partitionSpec);
   }
 
   private static String getTableBasePath(String tableName) {
-    String databasePath = metastore.getDatabasePath(DB_NAME);
+    String databasePath = HIVE_METASTORE_EXTENSION.metastore().getDatabasePath(DB_NAME);
     return Paths.get(databasePath, tableName).toAbsolutePath().toString();
   }
 

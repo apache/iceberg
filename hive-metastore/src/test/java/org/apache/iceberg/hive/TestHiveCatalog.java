@@ -108,7 +108,7 @@ public class TestHiveCatalog {
       new HiveMetastoreExtension(DB_NAME, Collections.emptyMap());
 
   @BeforeEach
-  public void setup() {
+  public void before() {
     catalog =
         (HiveCatalog)
             CatalogUtil.loadCatalog(
@@ -190,8 +190,8 @@ public class TestHiveCatalog {
     assertThatNoException()
         .isThrownBy(
             () -> {
-              HiveCatalog catalog = new HiveCatalog();
-              catalog.initialize("hive", Maps.newHashMap());
+              HiveCatalog hiveCatalog = new HiveCatalog();
+              hiveCatalog.initialize("hive", Maps.newHashMap());
             });
   }
 
@@ -200,8 +200,8 @@ public class TestHiveCatalog {
     assertThatNoException()
         .isThrownBy(
             () -> {
-              HiveCatalog catalog = new HiveCatalog();
-              catalog.toString();
+              HiveCatalog hiveCatalog = new HiveCatalog();
+              hiveCatalog.toString();
             });
   }
 
@@ -210,11 +210,12 @@ public class TestHiveCatalog {
     Map<String, String> properties = Maps.newHashMap();
     properties.put("uri", "thrift://examplehost:9083");
     properties.put("warehouse", "/user/hive/testwarehouse");
-    HiveCatalog catalog = new HiveCatalog();
-    catalog.initialize("hive", properties);
+    HiveCatalog hiveCatalog = new HiveCatalog();
+    hiveCatalog.initialize("hive", properties);
 
-    assertThat(catalog.getConf().get("hive.metastore.uris")).isEqualTo("thrift://examplehost:9083");
-    assertThat(catalog.getConf().get("hive.metastore.warehouse.dir"))
+    assertThat(hiveCatalog.getConf().get("hive.metastore.uris"))
+        .isEqualTo("thrift://examplehost:9083");
+    assertThat(hiveCatalog.getConf().get("hive.metastore.warehouse.dir"))
         .isEqualTo("/user/hive/testwarehouse");
   }
 
@@ -394,7 +395,7 @@ public class TestHiveCatalog {
 
     assertThatThrownBy(() -> catalog.createNamespace(namespace1))
         .isInstanceOf(AlreadyExistsException.class)
-        .hasMessage(String.format("Namespace already exists: %s", namespace1));
+        .hasMessage("Namespace '" + namespace1 + "' already exists!");
     String hiveLocalDir = temp.toFile().toURI().toString();
     // remove the trailing slash of the URI
     hiveLocalDir = hiveLocalDir.substring(0, hiveLocalDir.length() - 1);
@@ -1202,10 +1203,10 @@ public class TestHiveCatalog {
     // With a trailing slash
     conf.set("hive.metastore.warehouse.dir", "s3://bucket/");
 
-    HiveCatalog catalog = new HiveCatalog();
-    catalog.setConf(conf);
+    HiveCatalog hiveCatalog = new HiveCatalog();
+    hiveCatalog.setConf(conf);
 
-    Database database = catalog.convertToDatabase(Namespace.of("database"), ImmutableMap.of());
+    Database database = hiveCatalog.convertToDatabase(Namespace.of("database"), ImmutableMap.of());
 
     assertThat(database.getLocationUri()).isEqualTo("s3://bucket/database.db");
   }
