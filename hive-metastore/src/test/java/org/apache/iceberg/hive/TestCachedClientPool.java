@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.security.PrivilegedAction;
-import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
@@ -44,7 +43,7 @@ public class TestCachedClientPool {
 
   @RegisterExtension
   private static final HiveMetastoreExtension HIVE_METASTORE_EXTENSION =
-      new HiveMetastoreExtension(DB_NAME, Collections.emptyMap());
+      HiveMetastoreExtension.builder().withDatabase(DB_NAME).build();
 
   @Test
   public void testClientPoolCleaner() throws InterruptedException {

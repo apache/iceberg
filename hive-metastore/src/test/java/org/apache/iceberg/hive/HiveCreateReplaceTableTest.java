@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.CatalogProperties;
@@ -68,7 +67,7 @@ public class HiveCreateReplaceTableTest {
 
   @RegisterExtension
   private static final HiveMetastoreExtension HIVE_METASTORE_EXTENSION =
-      new HiveMetastoreExtension(DB_NAME, Collections.emptyMap());
+      HiveMetastoreExtension.builder().withDatabase(DB_NAME).build();
 
   private static HiveCatalog catalog;
 

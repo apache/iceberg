@@ -26,7 +26,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import java.io.File;
 import java.nio.file.Paths;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -52,7 +51,7 @@ public class HiveTableBaseTest {
 
   @RegisterExtension
   protected static final HiveMetastoreExtension HIVE_METASTORE_EXTENSION =
-      new HiveMetastoreExtension(DB_NAME, Collections.emptyMap());
+      HiveMetastoreExtension.builder().withDatabase(DB_NAME).build();
 
   protected static HiveCatalog catalog;
 

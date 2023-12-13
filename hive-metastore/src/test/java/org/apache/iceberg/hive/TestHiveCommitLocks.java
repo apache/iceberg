@@ -107,8 +107,10 @@ public class TestHiveCommitLocks {
 
   @RegisterExtension
   private static final HiveMetastoreExtension HIVE_METASTORE_EXTENSION =
-      new HiveMetastoreExtension(
-          DB_NAME, ImmutableMap.of(HiveConf.ConfVars.HIVE_TXN_TIMEOUT.varname, "1s"));
+      HiveMetastoreExtension.builder()
+          .withDatabase(DB_NAME)
+          .withConfig(ImmutableMap.of(HiveConf.ConfVars.HIVE_TXN_TIMEOUT.varname, "1s"))
+          .build();
 
   private static HiveCatalog catalog;
   private Path tableLocation;
