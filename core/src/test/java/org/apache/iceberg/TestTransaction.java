@@ -31,6 +31,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
+import org.assertj.core.api.Assumptions;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -504,7 +505,11 @@ public class TestTransaction extends TableTestBase {
   }
 
   @Test
-  public void testTransactionRetryAndAppendManifests() throws Exception {
+  public void testTransactionRetryAndAppendManifestsWithoutSnapshotIdInheritance()
+      throws Exception {
+    // this test assumes append manifests are rewritten, which only happens in V1 tables
+    Assumptions.assumeThat(formatVersion).isEqualTo(1);
+
     // use only one retry and aggressively merge manifests
     table
         .updateProperties()

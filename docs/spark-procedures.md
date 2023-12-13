@@ -649,10 +649,10 @@ Warning : Files added by this method can be physically deleted by Iceberg operat
 | Output Name               | Type | Description                                       |
 |---------------------------|------|---------------------------------------------------|
 | `added_files_count`       | long | The number of files added by this command         |
-| `changed_partition_count` | long | The number of partitioned changed by this command |
+| `changed_partition_count` | long | The number of partitioned changed by this command (if known) |
 
 {{< hint warning >}}
-changed_partition_count will be 0 when table property `compatibility.snapshot-id-inheritance.enabled` is set to true or if the table format version is > 1.
+changed_partition_count will be NULL when table property `compatibility.snapshot-id-inheritance.enabled` is set to true or if the table format version is > 1.
 {{< /hint >}}
 #### Examples
 
