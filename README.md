@@ -33,7 +33,7 @@ Iceberg is under active development at the Apache Software Foundation.
 
 The [Iceberg format specification][iceberg-spec] is stable.
 
-The core Java library can be found in this repository and is considered the reference implementation for other libraries.
+The core Java library is located in this repository and is the reference implementation for other libraries.
 
 [Documentation][iceberg-docs] is available for all libraries and integrations.
 
