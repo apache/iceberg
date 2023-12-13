@@ -37,7 +37,6 @@ import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -105,7 +104,7 @@ public class TestHiveCatalog {
 
   @RegisterExtension
   private static final HiveMetastoreExtension HIVE_METASTORE_EXTENSION =
-      new HiveMetastoreExtension(DB_NAME, Collections.emptyMap());
+      HiveMetastoreExtension.builder().withDatabase(DB_NAME).build();
 
   @BeforeEach
   public void before() {

@@ -33,7 +33,7 @@ public class HiveMetastoreExtension implements BeforeAllCallback, AfterAllCallba
   private final Map<String, String> hiveConfOverride;
   private final String databaseName;
 
-  public HiveMetastoreExtension(String databaseName, Map<String, String> hiveConfOverride) {
+  private HiveMetastoreExtension(String databaseName, Map<String, String> hiveConfOverride) {
     this.databaseName = databaseName;
     this.hiveConfOverride = hiveConfOverride;
   }
@@ -50,9 +50,11 @@ public class HiveMetastoreExtension implements BeforeAllCallback, AfterAllCallba
 
     metastore.start(hiveConfWithOverrides);
     metastoreClient = new HiveMetaStoreClient(hiveConfWithOverrides);
-    String dbPath = metastore.getDatabasePath(databaseName);
-    Database db = new Database(databaseName, "description", dbPath, Maps.newHashMap());
-    metastoreClient.createDatabase(db);
+    if (null != databaseName) {
+      String dbPath = metastore.getDatabasePath(databaseName);
+      Database db = new Database(databaseName, "description", dbPath, Maps.newHashMap());
+      metastoreClient.createDatabase(db);
+    }
   }
 
   @Override
@@ -79,5 +81,30 @@ public class HiveMetastoreExtension implements BeforeAllCallback, AfterAllCallba
 
   public TestHiveMetastore metastore() {
     return metastore;
+  }
+
+  public static Builder builder() {
+    return new Builder();
+  }
+
+  public static class Builder {
+    private String databaseName;
+    private Map<String, String> config;
+
+    public Builder() {}
+
+    public Builder withDatabase(String databaseToCreate) {
+      this.databaseName = databaseToCreate;
+      return this;
+    }
+
+    public Builder withConfig(Map<String, String> configToSet) {
+      this.config = configToSet;
+      return this;
+    }
+
+    public HiveMetastoreExtension build() {
+      return new HiveMetastoreExtension(databaseName, config);
+    }
   }
 }
