@@ -19,7 +19,9 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.TableProperties.UPDATE_ISOLATION_LEVEL;
+import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -39,6 +41,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.spark.Spark3Util;
 import org.assertj.core.api.Assertions;
+import org.awaitility.Awaitility;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
@@ -89,9 +92,13 @@ public class TestCopyOnWriteUpdate extends TestUpdate {
         executorService.submit(
             () -> {
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
-                while (barrier.get() < numOperations * 2) {
-                  sleep(10);
-                }
+                final int finalNumOperations = numOperations;
+                Awaitility.await()
+                    .pollInterval(Duration.ofMillis(10))
+                    .untilAsserted(
+                        () ->
+                            assertThat(barrier.get())
+                                .isGreaterThanOrEqualTo(finalNumOperations * 2));
 
                 sql("UPDATE %s SET id = -1 WHERE id = 1", tableName);
 
@@ -108,9 +115,14 @@ public class TestCopyOnWriteUpdate extends TestUpdate {
               record.set(1, "hr"); // dep
 
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
-                while (shouldAppend.get() && barrier.get() < numOperations * 2) {
-                  sleep(10);
-                }
+                final int finalNumOperations = numOperations;
+                Awaitility.await()
+                    .pollInterval(Duration.ofMillis(10))
+                    .untilAsserted(
+                        () -> {
+                          assertThat(
+                              !shouldAppend.get() || barrier.get() >= finalNumOperations * 2);
+                        });
 
                 if (!shouldAppend.get()) {
                   return;

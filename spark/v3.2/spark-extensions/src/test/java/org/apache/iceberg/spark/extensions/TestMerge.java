@@ -23,7 +23,9 @@ import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 import static org.apache.spark.sql.functions.lit;
+import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -56,6 +58,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.internal.SQLConf;
 import org.assertj.core.api.Assertions;
+import org.awaitility.Awaitility;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -1006,9 +1009,13 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         executorService.submit(
             () -> {
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
-                while (barrier.get() < numOperations * 2) {
-                  sleep(10);
-                }
+                final int finalNumOperations = numOperations;
+                Awaitility.await()
+                    .pollInterval(Duration.ofMillis(10))
+                    .untilAsserted(
+                        () ->
+                            assertThat(barrier.get())
+                                .isGreaterThanOrEqualTo(finalNumOperations * 2));
 
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -1033,9 +1040,14 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
               record.set(1, "hr"); // dep
 
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
-                while (shouldAppend.get() && barrier.get() < numOperations * 2) {
-                  sleep(10);
-                }
+                final int finalNumOperations = numOperations;
+                Awaitility.await()
+                    .pollInterval(Duration.ofMillis(10))
+                    .untilAsserted(
+                        () -> {
+                          assertThat(
+                              !shouldAppend.get() || barrier.get() >= finalNumOperations * 2);
+                        });
 
                 if (!shouldAppend.get()) {
                   return;
@@ -1095,9 +1107,13 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         executorService.submit(
             () -> {
               for (int numOperations = 0; numOperations < 20; numOperations++) {
-                while (barrier.get() < numOperations * 2) {
-                  sleep(10);
-                }
+                final int finalNumOperations = numOperations;
+                Awaitility.await()
+                    .pollInterval(Duration.ofMillis(10))
+                    .untilAsserted(
+                        () ->
+                            assertThat(barrier.get())
+                                .isGreaterThanOrEqualTo(finalNumOperations * 2));
 
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -1122,9 +1138,14 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
               record.set(1, "hr"); // dep
 
               for (int numOperations = 0; numOperations < 20; numOperations++) {
-                while (shouldAppend.get() && barrier.get() < numOperations * 2) {
-                  sleep(10);
-                }
+                final int finalNumOperations = numOperations;
+                Awaitility.await()
+                    .pollInterval(Duration.ofMillis(10))
+                    .untilAsserted(
+                        () -> {
+                          assertThat(
+                              !shouldAppend.get() || barrier.get() >= finalNumOperations * 2);
+                        });
 
                 if (!shouldAppend.get()) {
                   return;
