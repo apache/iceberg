@@ -1779,5 +1779,10 @@ public class TableMetadata implements Serializable {
     private <U extends MetadataUpdate> Stream<U> changes(Class<U> updateClass) {
       return changes.stream().filter(updateClass::isInstance).map(updateClass::cast);
     }
+
+    public Builder appendFiles(List<String> files) {
+      changes.add(new MetadataUpdate.AppendFilesUpdate(files));
+      return this;
+    }
   }
 }

@@ -328,6 +328,15 @@ class RemovePropertiesUpdate(BaseUpdate):
     removals: List[str]
 
 
+class AppendFilesUpdate(BaseUpdate):
+    action: Optional[Literal['append-files']] = None
+    appended_manifests: List[str] = Field(
+        ...,
+        alias='appended-manifests',
+        description='Manifest files of DataFiles appended to a table',
+    )
+
+
 class AddViewVersionUpdate(BaseUpdate):
     action: Literal['add-view-version']
     view_version: ViewVersion = Field(..., alias='view-version')
@@ -758,6 +767,7 @@ class TableUpdate(BaseModel):
         SetLocationUpdate,
         SetPropertiesUpdate,
         RemovePropertiesUpdate,
+        AppendFilesUpdate,
     ]
 
 

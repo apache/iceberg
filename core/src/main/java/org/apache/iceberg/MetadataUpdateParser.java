@@ -21,9 +21,12 @@ package org.apache.iceberg;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ExpressionParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -59,6 +62,7 @@ public class MetadataUpdateParser {
   static final String SET_CURRENT_VIEW_VERSION = "set-current-view-version";
   static final String SET_PARTITION_STATISTICS = "set-partition-statistics";
   static final String REMOVE_PARTITION_STATISTICS = "remove-partition-statistics";
+  static final String APPEND_FILES = "append-files";
 
   // AssignUUID
   private static final String UUID = "uuid";
@@ -126,6 +130,9 @@ public class MetadataUpdateParser {
   // SetCurrentViewVersion
   private static final String VIEW_VERSION_ID = "view-version-id";
 
+  // Data operations
+  private static final String APPENDED_MANIFESTS = "appended-manifests";
+
   private static final Map<Class<? extends MetadataUpdate>, String> ACTIONS =
       ImmutableMap.<Class<? extends MetadataUpdate>, String>builder()
           .put(MetadataUpdate.AssignUUID.class, ASSIGN_UUID)
@@ -149,6 +156,7 @@ public class MetadataUpdateParser {
           .put(MetadataUpdate.SetLocation.class, SET_LOCATION)
           .put(MetadataUpdate.AddViewVersion.class, ADD_VIEW_VERSION)
           .put(MetadataUpdate.SetCurrentViewVersion.class, SET_CURRENT_VIEW_VERSION)
+          .put(MetadataUpdate.AppendFilesUpdate.class, APPEND_FILES)
           .buildOrThrow();
 
   public static String toJson(MetadataUpdate metadataUpdate) {
@@ -241,6 +249,9 @@ public class MetadataUpdateParser {
         writeSetCurrentViewVersionId(
             (MetadataUpdate.SetCurrentViewVersion) metadataUpdate, generator);
         break;
+      case APPEND_FILES:
+        writeAppendFiles((MetadataUpdate.AppendFilesUpdate) metadataUpdate, generator);
+        break;
       default:
         throw new IllegalArgumentException(
             String.format(
@@ -312,6 +323,8 @@ public class MetadataUpdateParser {
         return readAddViewVersion(jsonNode);
       case SET_CURRENT_VIEW_VERSION:
         return readCurrentViewVersionId(jsonNode);
+      case APPEND_FILES:
+        return readAppendFiles(jsonNode);
       default:
         throw new UnsupportedOperationException(
             String.format("Cannot convert metadata update action to json: %s", action));
@@ -344,6 +357,13 @@ public class MetadataUpdateParser {
       MetadataUpdate.AddPartitionSpec update, JsonGenerator gen) throws IOException {
     gen.writeFieldName(SPEC);
     PartitionSpecParser.toJson(update.spec(), gen);
+  }
+
+  private static void writeAppendFiles(MetadataUpdate.AppendFilesUpdate update, JsonGenerator gen)
+      throws IOException {
+    if (update.getAddedManifests() != null) {
+      JsonUtil.writeStringArray(APPENDED_MANIFESTS, update.getAddedManifests(), gen);
+    }
   }
 
   private static void writeSetDefaultPartitionSpec(
@@ -450,6 +470,11 @@ public class MetadataUpdateParser {
   private static MetadataUpdate readAssignUUID(JsonNode node) {
     String uuid = JsonUtil.getString(UUID, node);
     return new MetadataUpdate.AssignUUID(uuid);
+  }
+
+  private static MetadataUpdate readAppendFiles(JsonNode node) {
+    List<String> metadataLocations = JsonUtil.getStringList(APPENDED_MANIFESTS, node);
+    return new MetadataUpdate.AppendFilesUpdate(metadataLocations);
   }
 
   private static MetadataUpdate readUpgradeFormatVersion(JsonNode node) {

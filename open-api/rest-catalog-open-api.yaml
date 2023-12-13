@@ -2150,6 +2150,7 @@ components:
           remove-properties: '#/components/schemas/RemovePropertiesUpdate'
           add-view-version: '#/components/schemas/AddViewVersionUpdate'
           set-current-view-version: '#/components/schemas/SetCurrentViewVersionUpdate'
+          append-files: '#/components/schemas/AppendFilesUpdate'
       type: object
       required:
         - action
@@ -2367,6 +2368,21 @@ components:
           items:
             type: string
 
+    AppendFilesUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+      required:
+        - appended-manifests
+      properties:
+        action:
+          type: string
+          enum: [ "append-files" ]
+        appended-manifests:
+          type: array
+          items:
+            type: string
+          description: Manifest files of DataFiles appended to a table
+
     AddViewVersionUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
@@ -2411,6 +2427,7 @@ components:
         - $ref: '#/components/schemas/SetLocationUpdate'
         - $ref: '#/components/schemas/SetPropertiesUpdate'
         - $ref: '#/components/schemas/RemovePropertiesUpdate'
+        - $ref: '#/components/schemas/AppendFilesUpdate'
 
     ViewUpdate:
       anyOf:
