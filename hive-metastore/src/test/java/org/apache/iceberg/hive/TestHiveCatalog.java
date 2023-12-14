@@ -37,7 +37,6 @@ import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -65,10 +64,10 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -83,6 +82,8 @@ import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 import org.apache.thrift.TException;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -90,7 +91,10 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-public class TestHiveCatalog {
+/**
+ * Run all the tests from abstract of {@link CatalogTests} with few specific tests related to HIVE.
+ */
+public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
   private static ImmutableMap meta =
       ImmutableMap.of(
           "owner", "apache",
@@ -104,10 +108,10 @@ public class TestHiveCatalog {
 
   @RegisterExtension
   private static final HiveMetastoreExtension HIVE_METASTORE_EXTENSION =
-      HiveMetastoreExtension.builder().withDatabase(DB_NAME).build();
+      HiveMetastoreExtension.builder().build();
 
   @BeforeEach
-  public void before() {
+  public void before() throws TException {
     catalog =
         (HiveCatalog)
             CatalogUtil.loadCatalog(
@@ -117,6 +121,34 @@ public class TestHiveCatalog {
                     CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS,
                     String.valueOf(TimeUnit.SECONDS.toMillis(10))),
                 HIVE_METASTORE_EXTENSION.hiveConf());
+    String dbPath = HIVE_METASTORE_EXTENSION.metastore().getDatabasePath(DB_NAME);
+    Database db = new Database(DB_NAME, "description", dbPath, Maps.newHashMap());
+    HIVE_METASTORE_EXTENSION.metastoreClient().createDatabase(db);
+  }
+
+  @AfterEach
+  public void cleanup() throws Exception {
+    HIVE_METASTORE_EXTENSION.metastore().reset();
+  }
+
+  @Override
+  protected boolean requiresNamespaceCreate() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsNamesWithSlashes() {
+    return false;
+  }
+
+  @Override
+  protected boolean supportsNamesWithDot() {
+    return false;
+  }
+
+  @Override
+  protected HiveCatalog catalog() {
+    return catalog;
   }
 
   private Schema getTestSchema() {
@@ -379,7 +411,7 @@ public class TestHiveCatalog {
   }
 
   @Test
-  public void testCreateNamespace() throws Exception {
+  public void testDatabaseAndNamespaceWithLocation() throws Exception {
     Namespace namespace1 = Namespace.of("noLocation");
     catalog.createNamespace(namespace1, meta);
     Database database1 =
@@ -394,7 +426,7 @@ public class TestHiveCatalog {
 
     assertThatThrownBy(() -> catalog.createNamespace(namespace1))
         .isInstanceOf(AlreadyExistsException.class)
-        .hasMessage("Namespace '" + namespace1 + "' already exists!");
+        .hasMessage(String.format("Namespace already exists: %s", namespace1));
     String hiveLocalDir = temp.toFile().toURI().toString();
     // remove the trailing slash of the URI
     hiveLocalDir = hiveLocalDir.substring(0, hiveLocalDir.length() - 1);
@@ -494,21 +526,6 @@ public class TestHiveCatalog {
   }
 
   @Test
-  public void testListNamespace() throws TException {
-    List<Namespace> namespaces;
-    Namespace namespace1 = Namespace.of("dbname1");
-    catalog.createNamespace(namespace1, meta);
-    namespaces = catalog.listNamespaces(namespace1);
-    assertThat(namespaces).as("Hive db not hive the namespace 'dbname1'").isEmpty();
-
-    Namespace namespace2 = Namespace.of("dbname2");
-    catalog.createNamespace(namespace2, meta);
-    namespaces = catalog.listNamespaces();
-
-    assertThat(namespaces).as("Hive db not hive the namespace 'dbname2'").contains(namespace2);
-  }
-
-  @Test
   public void testLoadNamespaceMeta() throws TException {
     Namespace namespace = Namespace.of("dbname_load");
 
@@ -532,30 +549,6 @@ public class TestHiveCatalog {
     assertThat(catalog.namespaceExists(Namespace.of("db2", "db2", "ns2")))
         .as("Should false to namespace doesn't exist")
         .isFalse();
-  }
-
-  @Test
-  public void testSetNamespaceProperties() throws TException {
-    Namespace namespace = Namespace.of("dbname_set");
-
-    catalog.createNamespace(namespace, meta);
-    catalog.setProperties(
-        namespace,
-        ImmutableMap.of(
-            "owner", "alter_apache",
-            "test", "test",
-            "location", "file:/data/tmp",
-            "comment", "iceberg test"));
-
-    Database database = HIVE_METASTORE_EXTENSION.metastoreClient().getDatabase(namespace.level(0));
-    assertThat(database.getParameters()).containsEntry("owner", "alter_apache");
-    assertThat(database.getParameters()).containsEntry("test", "test");
-    assertThat(database.getParameters()).containsEntry("group", "iceberg");
-
-    assertThatThrownBy(
-            () -> catalog.setProperties(Namespace.of("db2", "db2", "ns2"), ImmutableMap.of()))
-        .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessage("Namespace does not exist: db2.db2.ns2");
   }
 
   @Test
@@ -740,27 +733,6 @@ public class TestHiveCatalog {
   }
 
   @Test
-  public void testRemoveNamespaceProperties() throws TException {
-    Namespace namespace = Namespace.of("dbname_remove");
-
-    catalog.createNamespace(namespace, meta);
-
-    catalog.removeProperties(namespace, ImmutableSet.of("comment", "owner"));
-
-    Database database = HIVE_METASTORE_EXTENSION.metastoreClient().getDatabase(namespace.level(0));
-
-    assertThat(database.getParameters()).doesNotContainKey("owner");
-    assertThat(database.getParameters()).containsEntry("group", "iceberg");
-
-    assertThatThrownBy(
-            () ->
-                catalog.removeProperties(
-                    Namespace.of("db2", "db2", "ns2"), ImmutableSet.of("comment", "owner")))
-        .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessage("Namespace does not exist: db2.db2.ns2");
-  }
-
-  @Test
   public void testRemoveNamespaceOwnership() throws TException, IOException {
     removeNamespaceOwnershipAndVerify(
         "remove_individual_ownership",
@@ -886,7 +858,7 @@ public class TestHiveCatalog {
   }
 
   @Test
-  public void testDropNamespace() throws TException {
+  public void dropNamespace() {
     Namespace namespace = Namespace.of("dbname_drop");
     TableIdentifier identifier = TableIdentifier.of(namespace, "table");
     Schema schema = getTestSchema();
@@ -1210,34 +1182,54 @@ public class TestHiveCatalog {
     assertThat(database.getLocationUri()).isEqualTo("s3://bucket/database.db");
   }
 
+  // TODO: This test should be removed after fix of https://github.com/apache/iceberg/issues/9289.
   @Test
-  public void testRegisterTable() {
-    TableIdentifier identifier = TableIdentifier.of(DB_NAME, "t1");
-    catalog.createTable(identifier, getTestSchema());
-    Table registeringTable = catalog.loadTable(identifier);
-    catalog.dropTable(identifier, false);
-    TableOperations ops = ((HasTableOperations) registeringTable).operations();
-    String metadataLocation = ((HiveTableOperations) ops).currentMetadataLocation();
-    Table registeredTable = catalog.registerTable(identifier, metadataLocation);
-    assertThat(registeredTable).isNotNull();
-    TestHelpers.assertSerializedAndLoadedMetadata(registeringTable, registeredTable);
-    String expectedMetadataLocation =
-        ((HasTableOperations) registeredTable).operations().current().metadataFileLocation();
-    assertThat(metadataLocation).isEqualTo(expectedMetadataLocation);
-    assertThat(catalog.loadTable(identifier)).isNotNull();
-    assertThat(catalog.dropTable(identifier)).isTrue();
-  }
+  @Override
+  public void testRenameTableDestinationTableAlreadyExists() {
+    Namespace ns = Namespace.of("newdb");
+    TableIdentifier renamedTable = TableIdentifier.of(ns, "table_renamed");
 
-  @Test
-  public void testRegisterExistingTable() {
-    TableIdentifier identifier = TableIdentifier.of(DB_NAME, "t1");
-    catalog.createTable(identifier, getTestSchema());
-    Table registeringTable = catalog.loadTable(identifier);
-    TableOperations ops = ((HasTableOperations) registeringTable).operations();
-    String metadataLocation = ((HiveTableOperations) ops).currentMetadataLocation();
-    assertThatThrownBy(() -> catalog.registerTable(identifier, metadataLocation))
-        .isInstanceOf(AlreadyExistsException.class)
-        .hasMessage("Table already exists: hivedb.t1");
-    assertThat(catalog.dropTable(identifier, true)).isTrue();
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(ns);
+    }
+
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Source table should not exist before create")
+        .isFalse();
+
+    catalog.buildTable(TABLE, SCHEMA).create();
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Source table should exist after create")
+        .isTrue();
+
+    Assertions.assertThat(catalog.tableExists(renamedTable))
+        .as("Destination table should not exist before create")
+        .isFalse();
+
+    catalog.buildTable(renamedTable, SCHEMA).create();
+    Assertions.assertThat(catalog.tableExists(renamedTable))
+        .as("Destination table should exist after create")
+        .isTrue();
+
+    // With fix of issues#9289,it should match with CatalogTests and expect
+    // AlreadyExistsException.class
+    // and message should contain as "Table already exists"
+    Assertions.assertThatThrownBy(() -> catalog.renameTable(TABLE, renamedTable))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("new table newdb.table_renamed already exists");
+    Assertions.assertThat(catalog.tableExists(TABLE))
+        .as("Source table should still exist after failed rename")
+        .isTrue();
+    Assertions.assertThat(catalog.tableExists(renamedTable))
+        .as("Destination table should still exist after failed rename")
+        .isTrue();
+
+    String sourceTableUUID =
+        ((HasTableOperations) catalog.loadTable(TABLE)).operations().current().uuid();
+    String destinationTableUUID =
+        ((HasTableOperations) catalog.loadTable(renamedTable)).operations().current().uuid();
+    Assertions.assertThat(sourceTableUUID)
+        .as("Source and destination table should remain distinct after failed rename")
+        .isNotEqualTo(destinationTableUUID);
   }
 }
