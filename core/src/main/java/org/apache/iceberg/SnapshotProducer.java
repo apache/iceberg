@@ -35,6 +35,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -427,9 +428,12 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       if (saved != null) {
         cleanUncommitted(Sets.newHashSet(saved.allManifests(ops.io())));
         // also clean up unused manifest lists created by multiple attempts
-        for (String manifestList : manifestLists) {
-          if (!saved.manifestListLocation().equals(manifestList)) {
-            deleteFile(manifestList);
+        Iterator<String> manifestListIterator = manifestLists.iterator();
+        while (manifestListIterator.hasNext()) {
+          String location = manifestListIterator.next();
+          if (!saved.manifestListLocation().equals(location)) {
+            deleteFile(location);
+            manifestListIterator.remove();
           }
         }
       } else {
