@@ -29,8 +29,8 @@ Connectors for Spark, Flink and Hive are maintained in the main Iceberg reposito
 Processing engine connectors maintained in the iceberg repository are built for multiple versions.
 
 For Spark and Flink, each new version that introduces backwards incompatible upgrade has its dedicated integration codebase and release artifacts.
-For example, the code for Iceberg Spark 3.1 integration is under `/spark/v3.1` and the code for Iceberg Spark 3.2 integration is under `/spark/v3.2`.
-Different artifacts (`iceberg-spark-3.1_2.12` and `iceberg-spark-3.2_2.12`) are released for users to consume.
+For example, the code for Iceberg Spark 3.4 integration is under `/spark/v3.4` and the code for Iceberg Spark 3.5 integration is under `/spark/v3.5`.
+Different artifacts (`iceberg-spark-3.4_2.12` and `iceberg-spark-3.5_2.12`) are released for users to consume.
 By doing this, changes across versions are isolated. 
 New features in Iceberg could be developed against the latest features of an engine without breaking support of old APIs in past engine versions.
 
@@ -40,7 +40,7 @@ For Hive, Hive 2 uses the `iceberg-mr` package for Iceberg integration, and Hive
 
 Iceberg provides a runtime connector jar for each supported version of Spark, Flink and Hive.
 When using Iceberg with these engines, the runtime jar is the only addition to the classpath needed in addition to vendor dependencies.
-For example, to use Iceberg with Spark 3.2 and AWS integrations, `iceberg-spark-runtime-3.2_2.12` and AWS SDK dependencies are needed for the Spark installation.
+For example, to use Iceberg with Spark 3.5 and AWS integrations, `iceberg-spark-runtime-3.5_2.12` and AWS SDK dependencies are needed for the Spark installation.
 
 Spark and Flink provide different runtime jars for each supported engine version.
 Hive 2 and Hive 3 currently share the same runtime jar.
