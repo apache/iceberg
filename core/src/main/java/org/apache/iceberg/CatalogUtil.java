@@ -100,7 +100,7 @@ public class CatalogUtil {
 
     LOG.info("Manifests to delete: {}", Joiner.on(", ").join(manifestsToDelete));
 
-    // run all of the deletes
+    // run all the deletes
 
     boolean gcEnabled =
         PropertyUtil.propertyAsBoolean(metadata.properties(), GC_ENABLED, GC_ENABLED_DEFAULT);
@@ -116,6 +116,11 @@ public class CatalogUtil {
         io,
         Iterables.transform(metadata.previousFiles(), TableMetadata.MetadataLogEntry::file),
         "previous metadata",
+        true);
+    deleteFiles(
+        io,
+        Iterables.transform(metadata.statisticsFiles(), StatisticsFile::path),
+        "statistic",
         true);
     deleteFile(io, metadata.metadataFileLocation(), "metadata");
   }

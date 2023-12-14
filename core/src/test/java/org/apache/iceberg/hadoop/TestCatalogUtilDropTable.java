@@ -18,16 +18,27 @@
  */
 package org.apache.iceberg.hadoop;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.GenericBlobMetadata;
+import org.apache.iceberg.GenericStatisticsFile;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.puffin.Blob;
+import org.apache.iceberg.puffin.Puffin;
+import org.apache.iceberg.puffin.PuffinWriter;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -38,19 +49,28 @@ import org.mockito.Mockito;
 public class TestCatalogUtilDropTable extends HadoopTableTestBase {
 
   @Test
-  public void dropTableDataDeletesExpectedFiles() {
+  public void dropTableDataDeletesExpectedFiles() throws IOException {
     table.newFastAppend().appendFile(FILE_A).commit();
     table.newAppend().appendFile(FILE_B).commit();
+    StatisticsFile statisticsFile =
+        writeStatsFile(
+            table.currentSnapshot().snapshotId(),
+            table.currentSnapshot().sequenceNumber(),
+            tableLocation + "/metadata/" + UUID.randomUUID() + ".stats",
+            table.io());
+    table.updateStatistics().setStatistics(statisticsFile.snapshotId(), statisticsFile).commit();
 
-    TableMetadata tableMetadata = readMetadataVersion(3);
+    TableMetadata tableMetadata = readMetadataVersion(4);
     Set<Snapshot> snapshotSet = Sets.newHashSet(table.snapshots());
 
     Set<String> manifestListLocations = manifestListLocations(snapshotSet);
     Set<String> manifestLocations = manifestLocations(snapshotSet, table.io());
     Set<String> dataLocations = dataLocations(snapshotSet, table.io());
     Set<String> metadataLocations = metadataLocations(tableMetadata);
+    Set<String> statisticLocations = statisticLocations(tableMetadata);
     Assertions.assertThat(manifestListLocations).as("should have 2 manifest lists").hasSize(2);
-    Assertions.assertThat(metadataLocations).as("should have 3 metadata locations").hasSize(3);
+    Assertions.assertThat(metadataLocations).as("should have 3 metadata locations").hasSize(4);
+    Assertions.assertThat(statisticLocations).as("should have 1 statistic file").hasSize(1);
 
     FileIO fileIO = Mockito.mock(FileIO.class);
     Mockito.when(fileIO.newInputFile(Mockito.anyString()))
@@ -69,7 +89,8 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
                 manifestListLocations.size()
                     + manifestLocations.size()
                     + dataLocations.size()
-                    + metadataLocations.size()))
+                    + metadataLocations.size()
+                    + statisticLocations.size()))
         .deleteFile(argumentCaptor.capture());
 
     List<String> deletedPaths = argumentCaptor.getAllValues();
@@ -85,6 +106,9 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
     Assertions.assertThat(deletedPaths)
         .as("should contain all created metadata locations")
         .containsAll(metadataLocations);
+    Assertions.assertThat(deletedPaths)
+        .as("should contain all created statistic")
+        .containsAll(statisticLocations);
   }
 
   @Test
@@ -180,5 +204,35 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
             .collect(Collectors.toSet());
     metadataLocations.add(tableMetadata.metadataFileLocation());
     return metadataLocations;
+  }
+
+  private Set<String> statisticLocations(TableMetadata tableMetadata) {
+    return tableMetadata.statisticsFiles().stream()
+        .map(StatisticsFile::path)
+        .collect(Collectors.toSet());
+  }
+
+  private StatisticsFile writeStatsFile(
+      long snapshotId, long snapshotSequenceNumber, String statsLocation, FileIO fileIO)
+      throws IOException {
+    try (PuffinWriter puffinWriter = Puffin.write(fileIO.newOutputFile(statsLocation)).build()) {
+      puffinWriter.add(
+          new Blob(
+              "some-blob-type",
+              ImmutableList.of(1),
+              snapshotId,
+              snapshotSequenceNumber,
+              ByteBuffer.wrap("blob content".getBytes(StandardCharsets.UTF_8))));
+      puffinWriter.finish();
+
+      return new GenericStatisticsFile(
+          snapshotId,
+          statsLocation,
+          puffinWriter.fileSize(),
+          puffinWriter.footerSize(),
+          puffinWriter.writtenBlobsMetadata().stream()
+              .map(GenericBlobMetadata::from)
+              .collect(ImmutableList.toImmutableList()));
+    }
   }
 }
