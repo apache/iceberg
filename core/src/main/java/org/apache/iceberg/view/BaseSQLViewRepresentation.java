@@ -21,16 +21,10 @@ package org.apache.iceberg.view;
 import org.immutables.value.Value;
 
 @Value.Immutable
-public interface SQLViewRepresentation extends ViewRepresentation {
-
-  @Override
-  default String type() {
-    return Type.SQL;
-  }
-
-  /** The view query SQL text. */
-  String sql();
-
-  /** The view query SQL dialect. */
-  String dialect();
-}
+@Value.Include(value = SQLViewRepresentation.class)
+@SuppressWarnings("ImmutablesStyle")
+@Value.Style(
+    typeImmutable = "ImmutableSQLViewRepresentation",
+    visibilityString = "PUBLIC",
+    builderVisibilityString = "PUBLIC")
+interface BaseSQLViewRepresentation extends SQLViewRepresentation {}
