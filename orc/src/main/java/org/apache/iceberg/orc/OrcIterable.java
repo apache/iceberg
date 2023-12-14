@@ -134,7 +134,13 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
 
     try {
       return new VectorizedRowBatchIterator(
-          file.location(), readerSchema, orcFileReader.rows(options), recordsPerBatch);
+          file.location(), readerSchema, orcFileReader.rows(options), recordsPerBatch) {
+        @Override
+        public void close() throws IOException {
+          super.close();
+          orcFileReader.close();
+        }
+      };
     } catch (IOException ioe) {
       throw new RuntimeIOException(ioe, "Failed to get ORC rows for file: %s", file);
     }
