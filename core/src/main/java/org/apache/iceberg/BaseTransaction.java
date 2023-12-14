@@ -73,6 +73,7 @@ public class BaseTransaction implements Transaction {
   private TransactionType type;
   private TableMetadata base;
   private TableMetadata current;
+  private boolean forceReApply;
   private boolean hasLastOpCommitted;
   private final MetricsReporter reporter;
 
@@ -97,6 +98,7 @@ public class BaseTransaction implements Transaction {
     this.type = type;
     this.hasLastOpCommitted = true;
     this.reporter = reporter;
+    this.forceReApply = false;
   }
 
   @Override
@@ -463,6 +465,10 @@ public class BaseTransaction implements Transaction {
   }
 
   private void cleanUpOnCommitFailure() {
+    // After this cleanup we will delete manifests that the current metadata is using. So we must
+    // re-apply updates
+    this.forceReApply = true;
+
     // the commit failed and no files were committed. clean up each update.
     cleanAllUpdates();
 
@@ -485,7 +491,7 @@ public class BaseTransaction implements Transaction {
   }
 
   private void applyUpdates(TableOperations underlyingOps) {
-    if (base != underlyingOps.refresh()) {
+    if (base != underlyingOps.refresh() || forceReApply) {
       // use refreshed the metadata
       this.base = underlyingOps.current();
       this.current = underlyingOps.current();
@@ -499,6 +505,7 @@ public class BaseTransaction implements Transaction {
           throw new PendingUpdateFailedException(e);
         }
       }
+      forceReApply = false;
     }
   }
 

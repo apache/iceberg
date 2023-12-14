@@ -760,4 +760,40 @@ public class TestTransaction extends TableTestBase {
     Assert.assertTrue("Manifest file should exist", new File(manifests.get(0).path()).exists());
     Assert.assertEquals("Should have 2 files in metadata", 2, countAllMetadataFiles(tableDir));
   }
+
+  @Test
+  public void testManuallRetryWithTransaction() {
+    TestTables.TestTableOperations ops = table.ops();
+    ops.failCommits(5);
+
+    Transaction transaction = table.newTransaction();
+    AppendFiles append = transaction.newFastAppend().appendFile(FILE_B);
+
+    Snapshot pending = append.apply();
+    ManifestFile originalManifest = pending.allManifests(FILE_IO).get(0);
+    append.commit();
+
+    Assertions.assertThatThrownBy(transaction::commitTransaction)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
+    Assert.assertFalse(
+        "Original manifest should be deleted because commit failed",
+        new File(originalManifest.path()).exists());
+
+    TableMetadata metadata = readMetadata();
+    Assert.assertNull("No snapshot is committed", metadata.currentSnapshot());
+
+    ManifestFile newManifest = append.apply().allManifests(FILE_IO).get(0);
+
+    //    append.commit();
+    transaction.commitTransaction();
+
+    metadata = readMetadata();
+    validateSnapshot(null, metadata.currentSnapshot(), FILE_B);
+    Assert.assertTrue(
+        "Should commit the new manifest created after retrying the transaction",
+        metadata.currentSnapshot().allManifests(FILE_IO).contains(newManifest));
+    Assert.assertTrue(
+        "New manifest recreated after cleanup should exist", new File(newManifest.path()).exists());
+  }
 }
