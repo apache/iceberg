@@ -137,11 +137,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       StructLike copiedKey = StructCopy.copy(structProjection.wrap(asStructLike(row)));
 
       // Adding a pos-delete to replace the old path-offset.
-      PathOffset previous = insertedRowMap.put(copiedKey, pathOffset);
-      if (previous != null) {
-        // TODO attach the previous row if has a positional-delete row schema in appender factory.
-        posDeleteWriter.delete(previous.path, previous.rowOffset, null);
-      }
+      insertedRowMap.put(copiedKey, pathOffset);
 
       dataWriter.write(row);
     }
