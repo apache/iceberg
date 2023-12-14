@@ -874,6 +874,15 @@ acceptedBreaks:
       justification: "Static utility class - should not have public constructor"
   "1.4.0":
     org.apache.iceberg:iceberg-core:
+    - code: "java.class.removed"
+      old: "class org.apache.iceberg.actions.BinPackStrategy"
+      justification: "Removing deprecated code"
+    - code: "java.class.removed"
+      old: "class org.apache.iceberg.actions.SortStrategy"
+      justification: "Removing deprecated code"
+    - code: "java.class.removed"
+      old: "interface org.apache.iceberg.actions.RewriteStrategy"
+      justification: "Removing deprecated code"
     - code: "java.field.serialVersionUIDChanged"
       new: "field org.apache.iceberg.util.SerializableMap<K, V>.serialVersionUID"
       justification: "Serialization is not be used"
