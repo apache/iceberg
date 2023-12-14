@@ -22,10 +22,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Pair;
@@ -64,17 +62,12 @@ public class ScanTaskSetManager {
 
   public Set<String> fetchSetIds(Table table) {
     return tasksMap.keySet().stream()
-        .filter(e -> e.first().equals(tableUUID(table)))
+        .filter(e -> e.first().equals(Spark3Util.tableUUID(table)))
         .map(Pair::second)
         .collect(Collectors.toSet());
   }
 
-  private String tableUUID(Table table) {
-    TableOperations ops = ((HasTableOperations) table).operations();
-    return ops.current().uuid();
-  }
-
   private Pair<String, String> toId(Table table, String setId) {
-    return Pair.of(tableUUID(table), setId);
+    return Pair.of(Spark3Util.tableUUID(table), setId);
   }
 }
