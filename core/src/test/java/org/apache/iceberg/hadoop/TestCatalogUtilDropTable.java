@@ -69,7 +69,7 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
     Set<String> metadataLocations = metadataLocations(tableMetadata);
     Set<String> statisticLocations = statisticLocations(tableMetadata);
     Assertions.assertThat(manifestListLocations).as("should have 2 manifest lists").hasSize(2);
-    Assertions.assertThat(metadataLocations).as("should have 3 metadata locations").hasSize(4);
+    Assertions.assertThat(metadataLocations).as("should have 4 metadata locations").hasSize(4);
     Assertions.assertThat(statisticLocations).as("should have 1 statistic file").hasSize(1);
 
     FileIO fileIO = Mockito.mock(FileIO.class);

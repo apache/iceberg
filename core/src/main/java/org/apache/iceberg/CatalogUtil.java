@@ -100,7 +100,7 @@ public class CatalogUtil {
 
     LOG.info("Manifests to delete: {}", Joiner.on(", ").join(manifestsToDelete));
 
-    // run all the deletes
+    // run all of the deletes
 
     boolean gcEnabled =
         PropertyUtil.propertyAsBoolean(metadata.properties(), GC_ENABLED, GC_ENABLED_DEFAULT);
