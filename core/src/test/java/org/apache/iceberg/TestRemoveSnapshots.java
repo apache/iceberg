@@ -795,7 +795,7 @@ public class TestRemoveSnapshots extends TableTestBase {
     rewriteManifests.addManifest(newManifest);
     rewriteManifests.commit();
 
-    Set<String> deletedFiles = Sets.newHashSet();
+    Set<String> deletedFiles = ConcurrentHashMap.newKeySet();
     Set<String> deleteThreads = ConcurrentHashMap.newKeySet();
     AtomicInteger deleteThreadsIndex = new AtomicInteger(0);
     AtomicInteger planThreadsIndex = new AtomicInteger(0);
