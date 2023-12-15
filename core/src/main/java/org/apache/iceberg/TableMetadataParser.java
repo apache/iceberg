@@ -490,7 +490,7 @@ public class TableMetadataParser {
 
     List<PartitionStatisticsFile> partitionStatisticsFiles;
     if (node.has(PARTITION_STATISTICS)) {
-      partitionStatisticsFiles = partitionStatisticsFilesFromJson(node.get(PARTITION_STATISTICS));
+      partitionStatisticsFiles = partitionStatsFilesFromJson(node.get(PARTITION_STATISTICS));
     } else {
       partitionStatisticsFiles = ImmutableList.of();
     }
@@ -577,20 +577,17 @@ public class TableMetadataParser {
     return statisticsFilesBuilder.build();
   }
 
-  private static List<PartitionStatisticsFile> partitionStatisticsFilesFromJson(
-      JsonNode partitionStatisticsFilesList) {
+  private static List<PartitionStatisticsFile> partitionStatsFilesFromJson(JsonNode filesList) {
     Preconditions.checkArgument(
-        partitionStatisticsFilesList.isArray(),
+        filesList.isArray(),
         "Cannot parse partition statistics files from non-array: %s",
-        partitionStatisticsFilesList);
+        filesList);
 
-    ImmutableList.Builder<PartitionStatisticsFile> partitionStatisticsFileBuilder =
-        ImmutableList.builder();
-    for (JsonNode partitionStatisticsFile : partitionStatisticsFilesList) {
-      partitionStatisticsFileBuilder.add(
-          PartitionStatisticsFileParser.fromJson(partitionStatisticsFile));
+    ImmutableList.Builder<PartitionStatisticsFile> statsFileBuilder = ImmutableList.builder();
+    for (JsonNode partitionStatsFile : filesList) {
+      statsFileBuilder.add(PartitionStatisticsFileParser.fromJson(partitionStatsFile));
     }
 
-    return partitionStatisticsFileBuilder.build();
+    return statsFileBuilder.build();
   }
 }

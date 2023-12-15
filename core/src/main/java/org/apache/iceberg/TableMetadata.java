@@ -955,23 +955,12 @@ public class TableMetadata implements Serializable {
       this.previousFileLocation = base.metadataFileLocation;
       this.previousFiles = base.previousFiles;
       this.refs = Maps.newHashMap(base.refs);
-      this.statisticsFiles = statsFileBySnapshotID(base);
-      this.partitionStatisticsFiles = partitionStatsFileBySnapshotID(base);
+      this.statisticsFiles = indexStatistics(base.statisticsFiles);
+      this.partitionStatisticsFiles = indexPartitionStatistics(base.partitionStatisticsFiles);
       this.snapshotsById = Maps.newHashMap(base.snapshotsById);
       this.schemasById = Maps.newHashMap(base.schemasById);
       this.specsById = Maps.newHashMap(base.specsById);
       this.sortOrdersById = Maps.newHashMap(base.sortOrdersById);
-    }
-
-    private static Map<Long, List<StatisticsFile>> statsFileBySnapshotID(TableMetadata base) {
-      return base.statisticsFiles.stream()
-          .collect(Collectors.groupingBy(StatisticsFile::snapshotId));
-    }
-
-    private static Map<Long, List<PartitionStatisticsFile>> partitionStatsFileBySnapshotID(
-        TableMetadata base) {
-      return base.partitionStatisticsFiles.stream()
-          .collect(Collectors.groupingBy(PartitionStatisticsFile::snapshotId));
     }
 
     public Builder withMetadataLocation(String newMetadataLocation) {
@@ -1281,7 +1270,6 @@ public class TableMetadata implements Serializable {
     }
 
     public Builder removeStatistics(long snapshotId) {
-      Preconditions.checkNotNull(snapshotId, "snapshotId is null");
       if (statisticsFiles.remove(snapshotId) == null) {
         return this;
       }
@@ -1307,16 +1295,14 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
-    public Builder setPartitionStatistics(PartitionStatisticsFile partitionStatisticsFile) {
-      Preconditions.checkNotNull(partitionStatisticsFile, "partition statistics file is null");
-      partitionStatisticsFiles.put(
-          partitionStatisticsFile.snapshotId(), ImmutableList.of(partitionStatisticsFile));
-      changes.add(new MetadataUpdate.SetPartitionStatistics(partitionStatisticsFile));
+    public Builder setPartitionStatistics(PartitionStatisticsFile file) {
+      Preconditions.checkNotNull(file, "partition statistics file is null");
+      partitionStatisticsFiles.put(file.snapshotId(), ImmutableList.of(file));
+      changes.add(new MetadataUpdate.SetPartitionStatistics(file));
       return this;
     }
 
     public Builder removePartitionStatistics(long snapshotId) {
-      Preconditions.checkNotNull(snapshotId, "snapshotId is null");
       if (partitionStatisticsFiles.remove(snapshotId) == null) {
         return this;
       }
@@ -1774,6 +1760,15 @@ public class TableMetadata implements Serializable {
       }
 
       return newSnapshotLog;
+    }
+
+    private static Map<Long, List<StatisticsFile>> indexStatistics(List<StatisticsFile> files) {
+      return files.stream().collect(Collectors.groupingBy(StatisticsFile::snapshotId));
+    }
+
+    private static Map<Long, List<PartitionStatisticsFile>> indexPartitionStatistics(
+        List<PartitionStatisticsFile> files) {
+      return files.stream().collect(Collectors.groupingBy(PartitionStatisticsFile::snapshotId));
     }
 
     private boolean isAddedSnapshot(long snapshotId) {

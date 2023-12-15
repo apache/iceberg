@@ -18,15 +18,13 @@
  */
 package org.apache.iceberg;
 
-import java.io.Serializable;
-
 /**
  * Represents a partition statistics file that can be used to read table data more efficiently.
  *
  * <p>Statistics are informational. A reader can choose to ignore statistics information. Statistics
  * support is not required to read the table correctly.
  */
-public interface PartitionStatisticsFile extends Serializable {
+public interface PartitionStatisticsFile {
   /** ID of the Iceberg table's snapshot the partition statistics file is associated with. */
   long snapshotId();
 

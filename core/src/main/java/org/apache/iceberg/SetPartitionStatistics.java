@@ -19,31 +19,31 @@
 package org.apache.iceberg;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 public class SetPartitionStatistics implements UpdatePartitionStatistics {
   private final TableOperations ops;
-  private final Set<PartitionStatisticsFile> partitionStatisticsToSet = Sets.newHashSet();
-  private final Set<Long> partitionStatisticsToRemove = Sets.newHashSet();
+  private final Map<Long, PartitionStatisticsFile> statsToSet = Maps.newHashMap();
+  private final Set<Long> statsToRemove = Sets.newHashSet();
 
   public SetPartitionStatistics(TableOperations ops) {
     this.ops = ops;
   }
 
   @Override
-  public UpdatePartitionStatistics setPartitionStatistics(
-      PartitionStatisticsFile partitionStatisticsFile) {
-    Preconditions.checkArgument(
-        null != partitionStatisticsFile, "partition statistics file must not be null");
-    partitionStatisticsToSet.add(partitionStatisticsFile);
+  public UpdatePartitionStatistics setPartitionStatistics(PartitionStatisticsFile file) {
+    Preconditions.checkArgument(null != file, "partition statistics file must not be null");
+    statsToSet.put(file.snapshotId(), file);
     return this;
   }
 
   @Override
   public UpdatePartitionStatistics removePartitionStatistics(long snapshotId) {
-    partitionStatisticsToRemove.add(snapshotId);
+    statsToRemove.add(snapshotId);
     return this;
   }
 
@@ -61,8 +61,8 @@ public class SetPartitionStatistics implements UpdatePartitionStatistics {
 
   private TableMetadata internalApply(TableMetadata base) {
     TableMetadata.Builder builder = TableMetadata.buildFrom(base);
-    partitionStatisticsToSet.forEach(builder::setPartitionStatistics);
-    partitionStatisticsToRemove.forEach(builder::removePartitionStatistics);
+    statsToSet.values().forEach(builder::setPartitionStatistics);
+    statsToRemove.forEach(builder::removePartitionStatistics);
     return builder.build();
   }
 }
