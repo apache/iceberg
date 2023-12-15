@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.UpdateLocation;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class BaseView implements View, Serializable {
 
@@ -102,5 +103,29 @@ public class BaseView implements View, Serializable {
   @Override
   public UUID uuid() {
     return UUID.fromString(ops.current().uuid());
+  }
+
+  /**
+   * This implementation of sqlFor will resolve what is considered the "closest" dialect. If an
+   * exact match is found, then that is returned. Otherwise, the first representation would be
+   * returned. If no SQL representation is found, null is returned.
+   */
+  @Override
+  public SQLViewRepresentation sqlFor(String dialect) {
+    Preconditions.checkArgument(dialect != null, "Invalid dialect: null");
+    Preconditions.checkArgument(!dialect.isEmpty(), "Invalid dialect: (empty string)");
+    SQLViewRepresentation closest = null;
+    for (ViewRepresentation representation : currentVersion().representations()) {
+      if (representation instanceof SQLViewRepresentation) {
+        SQLViewRepresentation sqlViewRepresentation = (SQLViewRepresentation) representation;
+        if (sqlViewRepresentation.dialect().equals(dialect)) {
+          return sqlViewRepresentation;
+        } else if (closest == null) {
+          closest = sqlViewRepresentation;
+        }
+      }
+    }
+
+    return closest;
   }
 }
