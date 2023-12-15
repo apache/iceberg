@@ -155,7 +155,7 @@ public class LockManagers {
     }
 
     @Override
-    public void close() {
+    public void close() throws Exception {
       if (scheduler != null) {
         scheduler.shutdownNow();
         scheduler = null;
