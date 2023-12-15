@@ -111,8 +111,14 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     private RollingEqDeleteWriter eqDeleteWriter;
     private SortedPosDeleteWriter<T> posDeleteWriter;
     private Map<StructLike, PathOffset> insertedRowMap;
+    private boolean positionDelInWrite;
 
     protected BaseEqualityDeltaWriter(StructLike partition, Schema schema, Schema deleteSchema) {
+      this(partition, schema, deleteSchema, true);
+    }
+
+    protected BaseEqualityDeltaWriter(
+        StructLike partition, Schema schema, Schema deleteSchema, boolean positionDelInWrite) {
       Preconditions.checkNotNull(schema, "Iceberg table schema cannot be null.");
       Preconditions.checkNotNull(deleteSchema, "Equality-delete schema cannot be null.");
       this.structProjection = StructProjection.create(schema, deleteSchema);
@@ -122,6 +128,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       this.posDeleteWriter =
           new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, partition);
       this.insertedRowMap = StructLikeMap.create(deleteSchema.asStruct());
+      this.positionDelInWrite = positionDelInWrite;
     }
 
     /** Wrap the data as a {@link StructLike}. */
@@ -137,7 +144,11 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       StructLike copiedKey = StructCopy.copy(structProjection.wrap(asStructLike(row)));
 
       // Adding a pos-delete to replace the old path-offset.
-      insertedRowMap.put(copiedKey, pathOffset);
+      PathOffset previous = insertedRowMap.put(copiedKey, pathOffset);
+      if (previous != null && positionDelInWrite) {
+        // TODO attach the previous row if has a positional-delete row schema in appender factory.
+        posDeleteWriter.delete(previous.path, previous.rowOffset, null);
+      }
 
       dataWriter.write(row);
     }
