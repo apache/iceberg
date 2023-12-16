@@ -140,14 +140,14 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @Test
-  public void testManifestsTableUUID() {
+  public void testMetadataTableUUID() {
     Table manifestsTable = new ManifestsTable(table);
 
     Assertions.assertThat(manifestsTable.uuid())
         .as("UUID should be consistent on multiple calls")
         .isEqualTo(manifestsTable.uuid());
     Assertions.assertThat(manifestsTable.uuid())
-        .as("Metadata table UUID should be different from main table UUID")
+        .as("Metadata table UUID should be different from the base table UUID")
         .isNotEqualTo(table.uuid());
   }
 
