@@ -43,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeWrapper;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
@@ -136,6 +137,18 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
         Assert.assertEquals("Residuals must be ignored", Expressions.alwaysTrue(), task.residual());
       }
     }
+  }
+
+  @Test
+  public void testManifestsTableUUID() {
+    Table manifestsTable = new ManifestsTable(table);
+
+    Assertions.assertThat(manifestsTable.uuid())
+        .as("UUID should be consistent on multiple calls")
+        .isEqualTo(manifestsTable.uuid());
+    Assertions.assertThat(manifestsTable.uuid())
+        .as("Metadata table UUID should be different from main table UUID")
+        .isNotEqualTo(table.uuid());
   }
 
   @Test
