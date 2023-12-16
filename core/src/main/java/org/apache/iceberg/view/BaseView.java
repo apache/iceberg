@@ -118,7 +118,7 @@ public class BaseView implements View, Serializable {
     for (ViewRepresentation representation : currentVersion().representations()) {
       if (representation instanceof SQLViewRepresentation) {
         SQLViewRepresentation sqlViewRepresentation = (SQLViewRepresentation) representation;
-        if (sqlViewRepresentation.dialect().equals(dialect)) {
+        if (sqlViewRepresentation.dialect().equalsIgnoreCase(dialect)) {
           return sqlViewRepresentation;
         } else if (closest == null) {
           closest = sqlViewRepresentation;

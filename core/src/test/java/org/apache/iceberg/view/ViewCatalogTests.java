@@ -1694,6 +1694,28 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
   }
 
   @Test
+  public void testSqlForCaseInsensitive() {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    View view =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withDefaultCatalog(catalog().name())
+            .withQuery("spark", "select * from ns.tbl")
+            .withQuery("trino", "select * from ns.tbl using X")
+            .create();
+
+    assertThat(view.sqlFor("SPARK").sql()).isEqualTo("select * from ns.tbl");
+    assertThat(view.sqlFor("TRINO").sql()).isEqualTo("select * from ns.tbl using X");
+  }
+
+  @Test
   public void testSqlForInvalidArguments() {
     TableIdentifier identifier = TableIdentifier.of("ns", "view");
 
