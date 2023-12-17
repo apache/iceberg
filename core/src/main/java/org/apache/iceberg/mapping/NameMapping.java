@@ -27,6 +27,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 /** Represents a mapping from external schema names to Iceberg type IDs. */
 public class NameMapping implements Serializable {
   private static final Joiner DOT = Joiner.on('.');
+  private static final NameMapping EMPTY = NameMapping.of();
+
+  public static NameMapping empty() {
+    return EMPTY;
+  }
 
   public static NameMapping of(MappedField... fields) {
     return new NameMapping(MappedFields.of(ImmutableList.copyOf(fields)));

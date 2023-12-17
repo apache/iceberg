@@ -66,6 +66,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.SystemConfigs;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
@@ -1119,27 +1120,29 @@ public class Parquet {
 
         ParquetReadOptions options = optionsBuilder.build();
 
+        NameMapping mapping;
+        if (nameMapping != null) {
+          mapping = nameMapping;
+        } else if (SystemConfigs.NETFLIX_PARQUET_ID_FALLBACK_ENABLED.value()) {
+          mapping = null;
+        } else {
+          mapping = NameMapping.empty();
+        }
+
         if (batchedReaderFunc != null) {
           return new VectorizedParquetReader<>(
               file,
               schema,
               options,
               batchedReaderFunc,
-              nameMapping,
+              mapping,
               filter,
               reuseContainers,
               caseSensitive,
               maxRecordsPerBatch);
         } else {
           return new org.apache.iceberg.parquet.ParquetReader<>(
-              file,
-              schema,
-              options,
-              readerFunc,
-              nameMapping,
-              filter,
-              reuseContainers,
-              caseSensitive);
+              file, schema, options, readerFunc, mapping, filter, reuseContainers, caseSensitive);
         }
       }
 
