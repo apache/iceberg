@@ -330,6 +330,38 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   }
 
   @Override
+  public List<Namespace> listNamespaces(Namespace namespace, String databasePattern) {
+    if (!isValidateNamespace(namespace) && !namespace.isEmpty()) {
+      throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
+    }
+    if (!namespace.isEmpty()) {
+      return ImmutableList.of();
+    }
+    try {
+      List<Namespace> namespaces =
+          clients.run(client -> client.getDatabases(databasePattern)).stream()
+              .map(Namespace::of)
+              .collect(Collectors.toList());
+
+      LOG.debug(
+          "Listing namespace {} databasePattern {} returned tables: {}",
+          namespace,
+          databasePattern,
+          namespaces);
+      return namespaces;
+
+    } catch (TException e) {
+      throw new RuntimeException(
+          "Failed to list all namespace: " + namespace + " in Hive Metastore", e);
+
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException(
+          "Interrupted in call to getAllDatabases() " + namespace + " in Hive Metastore", e);
+    }
+  }
+
+  @Override
   public boolean dropNamespace(Namespace namespace) {
     if (!isValidateNamespace(namespace)) {
       return false;
