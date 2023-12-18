@@ -102,24 +102,6 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
       }
       RenameV2View(oldCatalog, oldIdent, newIdent)
 
-    case view@IcebergView(CatalogTableViewDescription(desc), isTempView, child) if !child.resolved =>
-      // Resolve all the UnresolvedRelations and Views in the child.
-      val newChild = AnalysisContext.withAnalysisContext(desc) {
-        val nestedViewDepth = AnalysisContext.get.nestedViewDepth
-        val maxNestedViewDepth = AnalysisContext.get.maxNestedViewDepth
-        if (nestedViewDepth > maxNestedViewDepth) {
-          throw QueryCompilationErrors.viewDepthExceedsMaxResolutionDepthError(
-            desc.identifier, maxNestedViewDepth, view)
-        }
-        SQLConf.withExistingConf(IcebergView.effectiveSQLConf(desc.viewSQLConfigs, isTempView)) {
-          execute(child)
-        }
-      }
-      // Fail the analysis eagerly because outside AnalysisContext, the unresolved operators
-      // inside a view maybe resolved incorrectly.
-      checkAnalysis(newChild)
-      view.copy(view.desc, view.isTempView, child = newChild)
-
     case p@SubqueryAlias(_, view: IcebergView) =>
       p.copy(child = resolveViews(view))
 
@@ -151,8 +133,7 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
     // The view's child should be a logical plan parsed from the `desc.viewText`, the variable
     // `viewText` should be defined, or else we throw an error on the generation of the View
     // operator.
-//    case view@IcebergView(CatalogTableViewDescription(desc), isTempView, child) if !child.resolved =>
-    case view@IcebergView(CatalogTableViewDescription(desc), isTempView, child) =>
+    case view@IcebergView(CatalogTableViewDescription(desc), isTempView, child) if !child.resolved =>
       // Resolve all the UnresolvedRelations and Views in the child.
       val newChild = AnalysisContext.withAnalysisContext(desc) {
         val nestedViewDepth = AnalysisContext.get.nestedViewDepth

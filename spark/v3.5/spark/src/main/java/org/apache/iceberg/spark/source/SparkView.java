@@ -27,34 +27,19 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.view.BaseView;
-import org.apache.iceberg.view.SQLViewRepresentation;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewOperations;
-import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.types.StructType;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class SparkView implements org.apache.spark.sql.connector.catalog.View {
-
-  private static final Logger LOG = LoggerFactory.getLogger(SparkView.class);
 
   private static final Set<String> RESERVED_PROPERTIES =
       ImmutableSet.of("provider", "location", FORMAT_VERSION);
 
   private final View icebergView;
-  private SparkSession lazySpark = null;
 
   public SparkView(View icebergView) {
     this.icebergView = icebergView;
-  }
-
-  private SparkSession sparkSession() {
-    if (lazySpark == null) {
-      this.lazySpark = SparkSession.active();
-    }
-
-    return lazySpark;
   }
 
   public View view() {
@@ -68,14 +53,7 @@ public class SparkView implements org.apache.spark.sql.connector.catalog.View {
 
   @Override
   public String query() {
-    Optional<SQLViewRepresentation> query =
-        icebergView.currentVersion().representations().stream()
-            .filter(SQLViewRepresentation.class::isInstance)
-            .map(SQLViewRepresentation.class::cast)
-            .filter(r -> r.dialect().equalsIgnoreCase("spark"))
-            .findFirst();
-
-    return query
+    return Optional.ofNullable(icebergView.sqlFor("spark"))
         .orElseThrow(() -> new IllegalStateException("No SQL query found for view " + name()))
         .sql();
   }

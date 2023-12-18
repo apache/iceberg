@@ -407,19 +407,29 @@ public class SparkSessionCatalog<
     }
   }
 
+  private boolean isViewCatalog() {
+    return getSessionCatalog() instanceof ViewCatalog;
+  }
+
   @Override
   public Identifier[] listViews(String... namespace) throws NoSuchNamespaceException {
-    // delegate to the session catalog because all views share the same namespace
-    return getSessionCatalog().listViews(namespace);
+    if (isViewCatalog()) {
+      // delegate to the session catalog because all views share the same namespace
+      return getSessionCatalog().listViews(namespace);
+    }
+
+    return new Identifier[0];
   }
 
   @Override
   public View loadView(Identifier ident) throws NoSuchViewException {
     if (null != icebergViewCatalog && icebergViewCatalog.viewExists(ident)) {
       return icebergViewCatalog.loadView(ident);
-    } else {
+    } else if (isViewCatalog() && getSessionCatalog().viewExists(ident)) {
       return getSessionCatalog().loadView(ident);
     }
+
+    throw new NoSuchViewException(ident);
   }
 
   @Override
@@ -445,7 +455,7 @@ public class SparkSessionCatalog<
           columnAliases,
           columnComments,
           properties);
-    } else {
+    } else if (isViewCatalog()) {
       return getSessionCatalog()
           .createView(
               ident,
@@ -458,6 +468,9 @@ public class SparkSessionCatalog<
               columnComments,
               properties);
     }
+
+    throw new UnsupportedOperationException(
+        "Creating view is not supported by catalog: " + catalogName);
   }
 
   @Override
@@ -465,18 +478,23 @@ public class SparkSessionCatalog<
       throws NoSuchViewException, IllegalArgumentException {
     if (null != icebergViewCatalog && icebergViewCatalog.viewExists(ident)) {
       return icebergViewCatalog.alterView(ident, changes);
-    } else {
+    } else if (isViewCatalog()) {
       return getSessionCatalog().alterView(ident, changes);
     }
+
+    throw new UnsupportedOperationException(
+        "Altering view is not supported by catalog: " + catalogName);
   }
 
   @Override
   public boolean dropView(Identifier ident) {
     if (null != icebergViewCatalog && icebergViewCatalog.viewExists(ident)) {
       return icebergViewCatalog.dropView(ident);
-    } else {
+    } else if (isViewCatalog()) {
       return getSessionCatalog().dropView(ident);
     }
+
+    return false;
   }
 
   @Override
@@ -484,8 +502,11 @@ public class SparkSessionCatalog<
       throws NoSuchViewException, ViewAlreadyExistsException {
     if (null != icebergViewCatalog && icebergViewCatalog.viewExists(oldIdent)) {
       icebergViewCatalog.renameView(oldIdent, newIdent);
-    } else {
+    } else if (isViewCatalog()) {
       getSessionCatalog().renameView(oldIdent, newIdent);
     }
+
+    throw new UnsupportedOperationException(
+        "Renaming view is not supported by catalog: " + catalogName);
   }
 }
