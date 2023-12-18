@@ -51,7 +51,7 @@ public class TestInMemoryLockManager {
   }
 
   @After
-  public void after() {
+  public void after() throws Exception {
     lockManager.close();
   }
 
