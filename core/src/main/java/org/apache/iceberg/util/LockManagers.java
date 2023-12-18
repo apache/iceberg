@@ -267,7 +267,7 @@ public class LockManagers {
     }
 
     @Override
-    public void close() {
+    public void close() throws Exception {
       HEARTBEATS.values().forEach(future -> future.cancel(false));
       HEARTBEATS.clear();
       LOCKS.clear();
