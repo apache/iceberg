@@ -39,6 +39,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.CommitFailedException;
+  import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
@@ -67,7 +68,7 @@ public class HadoopTableOperations implements TableOperations {
   private final LockManager lockManager;
 
   private volatile TableMetadata currentMetadata = null;
-  private volatile Integer version = null;
+  private volatile Long version = null;
   private volatile boolean shouldRefresh = true;
 
   protected HadoopTableOperations(
@@ -86,11 +87,11 @@ public class HadoopTableOperations implements TableOperations {
     return currentMetadata;
   }
 
-  private synchronized Pair<Integer, TableMetadata> versionAndMetadata() {
+  private synchronized Pair<Long, TableMetadata> versionAndMetadata() {
     return Pair.of(version, currentMetadata);
   }
 
-  private synchronized void updateVersionAndMetadata(int newVersion, String metadataFile) {
+  private synchronized void updateVersionAndMetadata(long newVersion, String metadataFile) {
     // update if the current version is out of date
     if (version == null || version != newVersion) {
       this.version = newVersion;
@@ -101,7 +102,7 @@ public class HadoopTableOperations implements TableOperations {
 
   @Override
   public TableMetadata refresh() {
-    int ver = version != null ? version : findVersion();
+    long ver = version != null ? version : findVersion();
     try {
       Path metadataFile = getMetadataFile(ver);
       if (version == null && metadataFile == null && ver == 0) {
@@ -129,7 +130,7 @@ public class HadoopTableOperations implements TableOperations {
 
   @Override
   public void commit(TableMetadata base, TableMetadata metadata) {
-    Pair<Integer, TableMetadata> current = versionAndMetadata();
+    Pair<Long, TableMetadata> current = versionAndMetadata();
     if (base != current.second()) {
       throw new CommitFailedException("Cannot commit changes based on stale table metadata");
     }
@@ -146,29 +147,37 @@ public class HadoopTableOperations implements TableOperations {
         !metadata.properties().containsKey(TableProperties.WRITE_METADATA_LOCATION),
         "Hadoop path-based tables cannot relocate metadata");
 
-    String codecName =
-        metadata.property(
-            TableProperties.METADATA_COMPRESSION, TableProperties.METADATA_COMPRESSION_DEFAULT);
-    TableMetadataParser.Codec codec = TableMetadataParser.Codec.fromName(codecName);
-    String fileExtension = TableMetadataParser.getFileExtension(codec);
-    Path tempMetadataFile = metadataPath(UUID.randomUUID().toString() + fileExtension);
-    TableMetadataParser.write(metadata, io().newOutputFile(tempMetadataFile.toString()));
+    boolean versionCommitSuccess = false;
+    try{
+      String codecName =
+              metadata.property(
+                      TableProperties.METADATA_COMPRESSION, TableProperties.METADATA_COMPRESSION_DEFAULT);
+      TableMetadataParser.Codec codec = TableMetadataParser.Codec.fromName(codecName);
+      String fileExtension = TableMetadataParser.getFileExtension(codec);
+      Path tempMetadataFile = metadataPath(UUID.randomUUID().toString() + fileExtension);
+      TableMetadataParser.write(metadata, io().newOutputFile(tempMetadataFile.toString()));
 
-    int nextVersion = (current.first() != null ? current.first() : 0) + 1;
-    Path finalMetadataFile = metadataFilePath(nextVersion, codec);
-    FileSystem fs = getFileSystem(tempMetadataFile, conf);
+      //TODO: What if the variable versionId overflows?
+      long nextVersion = (current.first() != null ? current.first() : 0) + 1;
+      Path finalMetadataFile = metadataFilePath(nextVersion, codec);
+      FileSystem fs = getFileSystem(tempMetadataFile, conf);
 
-    // this rename operation is the atomic commit operation
-    renameToFinal(fs, tempMetadataFile, finalMetadataFile, nextVersion);
+      // this rename operation is the atomic commit operation
+      renameToFinal(fs, tempMetadataFile, finalMetadataFile, nextVersion);
 
-    LOG.info("Committed a new metadata file {}", finalMetadataFile);
+      LOG.info("Committed a new metadata file {}", finalMetadataFile);
 
-    // update the best-effort version pointer
-    writeVersionHint(nextVersion);
+      // update the best-effort version pointer
+      versionCommitSuccess = writeVersionHint(nextVersion);
 
-    deleteRemovedMetadataFiles(base, metadata);
+      deleteRemovedMetadataFiles(base, metadata);
 
-    this.shouldRefresh = true;
+      this.shouldRefresh = true;
+    }catch (Throwable e){
+      //If the versionHint has been submitted successfully, then we don't need to clean up the data file if the task fails.
+      //This is achieved by throwing the CommitStateUnknownException exception
+      throw versionCommitSuccess? new CommitStateUnknownException(e) : new CommitFailedException(e);
+    }
   }
 
   @Override
@@ -234,7 +243,7 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   @VisibleForTesting
-  Path getMetadataFile(int metadataVersion) throws IOException {
+  Path getMetadataFile(long metadataVersion) throws IOException {
     for (TableMetadataParser.Codec codec : TableMetadataParser.Codec.values()) {
       Path metadataFile = metadataFilePath(metadataVersion, codec);
       FileSystem fs = getFileSystem(metadataFile, conf);
@@ -255,11 +264,11 @@ public class HadoopTableOperations implements TableOperations {
     return null;
   }
 
-  private Path metadataFilePath(int metadataVersion, TableMetadataParser.Codec codec) {
+  private Path metadataFilePath(long metadataVersion, TableMetadataParser.Codec codec) {
     return metadataPath("v" + metadataVersion + TableMetadataParser.getFileExtension(codec));
   }
 
-  private Path oldMetadataFilePath(int metadataVersion, TableMetadataParser.Codec codec) {
+  private Path oldMetadataFilePath(long metadataVersion, TableMetadataParser.Codec codec) {
     return metadataPath("v" + metadataVersion + TableMetadataParser.getOldFileExtension(codec));
   }
 
@@ -271,14 +280,14 @@ public class HadoopTableOperations implements TableOperations {
     return new Path(location, "metadata");
   }
 
-  private int version(String fileName) {
+  private long version(String fileName) {
     Matcher matcher = VERSION_PATTERN.matcher(fileName);
     if (!matcher.matches()) {
       return -1;
     }
     String versionNumber = matcher.group(1);
     try {
-      return Integer.parseInt(versionNumber);
+      return Long.parseLong(versionNumber);
     } catch (NumberFormatException ne) {
       return -1;
     }
@@ -289,35 +298,35 @@ public class HadoopTableOperations implements TableOperations {
     return metadataPath(Util.VERSION_HINT_FILENAME);
   }
 
-  private void writeVersionHint(int versionToWrite) {
+  private boolean writeVersionHint(long versionToWrite) {
     Path versionHintFile = versionHintFile();
     FileSystem fs = getFileSystem(versionHintFile, conf);
-
     try {
       Path tempVersionHintFile = metadataPath(UUID.randomUUID().toString() + "-version-hint.temp");
       writeVersionToPath(fs, tempVersionHintFile, versionToWrite);
       fs.delete(versionHintFile, false /* recursive delete */);
-      fs.rename(tempVersionHintFile, versionHintFile);
+      return fs.rename(tempVersionHintFile, versionHintFile);
     } catch (IOException e) {
       LOG.warn("Failed to update version hint", e);
+      return false;
     }
   }
 
-  private void writeVersionToPath(FileSystem fs, Path path, int versionToWrite) throws IOException {
+  private void writeVersionToPath(FileSystem fs, Path path, long versionToWrite) throws IOException {
     try (FSDataOutputStream out = fs.create(path, false /* overwrite */)) {
       out.write(String.valueOf(versionToWrite).getBytes(StandardCharsets.UTF_8));
     }
   }
 
   @VisibleForTesting
-  int findVersion() {
+  long findVersion() {
     Path versionHintFile = versionHintFile();
     FileSystem fs = getFileSystem(versionHintFile, conf);
 
     try (InputStreamReader fsr =
             new InputStreamReader(fs.open(versionHintFile), StandardCharsets.UTF_8);
         BufferedReader in = new BufferedReader(fsr)) {
-      return Integer.parseInt(in.readLine().replace("\n", ""));
+      return Long.parseLong(in.readLine().replace("\n", ""));
 
     } catch (Exception e) {
       try {
@@ -333,10 +342,10 @@ public class HadoopTableOperations implements TableOperations {
         FileStatus[] files =
             fs.listStatus(
                 metadataRoot(), name -> VERSION_PATTERN.matcher(name.getName()).matches());
-        int maxVersion = 0;
+        long maxVersion = 0;
 
         for (FileStatus file : files) {
-          int currentVersion = version(file.getPath().getName());
+          long currentVersion = version(file.getPath().getName());
           if (currentVersion > maxVersion && getMetadataFile(currentVersion) != null) {
             maxVersion = currentVersion;
           }
@@ -358,7 +367,7 @@ public class HadoopTableOperations implements TableOperations {
    * @param src the source file
    * @param dst the destination file
    */
-  private void renameToFinal(FileSystem fs, Path src, Path dst, int nextVersion) {
+  private void renameToFinal(FileSystem fs, Path src, Path dst, long nextVersion) {
     try {
       lockManager.acquire(dst.toString(), src.toString());
       if (fs.exists(dst)) {
