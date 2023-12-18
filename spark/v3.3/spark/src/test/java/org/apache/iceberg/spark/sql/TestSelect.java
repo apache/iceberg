@@ -253,8 +253,7 @@ public class TestSelect extends SparkCatalogTestBase {
 
     // Spark session catalog does not support extended table names
     if (!"spark_catalog".equals(catalogName)) {
-      // read the table at the tag
-      // tag in table name
+      // read the table using the "tag_" prefix in the table name
       List<Object[]> actual3 = sql("SELECT * FROM %s.tag_test_tag", tableName);
       assertEquals("Snapshot at specific tag reference name, prefix", expected, actual3);
     }
@@ -311,8 +310,7 @@ public class TestSelect extends SparkCatalogTestBase {
 
     // Spark session catalog does not support extended table names
     if (!"spark_catalog".equals(catalogName)) {
-      // read the table at the branch
-      // branch in table name
+      // read the table using the "branch_" prefix in the table name
       List<Object[]> actual3 = sql("SELECT * FROM %s.branch_test_branch", tableName);
       assertEquals("Snapshot at specific branch reference name, prefix", expected, actual3);
     }
