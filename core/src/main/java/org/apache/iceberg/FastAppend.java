@@ -49,7 +49,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   private final List<DataFile> newFiles = Lists.newArrayList();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
   private final List<ManifestFile> rewrittenAppendManifests = Lists.newArrayList();
-  private List<ManifestFile> newManifests = Lists.newLinkedList();
+  private List<ManifestFile> newManifests = null;
   private boolean hasNewFiles = false;
 
   FastAppend(String tableName, TableOperations ops) {
@@ -147,7 +147,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
 
     try {
       List<ManifestFile> newWrittenManifests = writeNewManifests();
-      if (!newWrittenManifests.isEmpty()) {
+      if (newWrittenManifests != null) {
         manifests.addAll(newWrittenManifests);
       }
     } catch (IOException e) {
@@ -178,17 +178,19 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
 
   @Override
   protected void cleanUncommitted(Set<ManifestFile> committed) {
-    if (!newManifests.isEmpty()) {
+    if (newManifests != null) {
+      boolean hasDeletes = false;
       List<ManifestFile> committedNewManifests = Lists.newArrayList();
-      java.util.Iterator<ManifestFile> newManifestsIterator = newManifests.iterator();
-      while (newManifestsIterator.hasNext()) {
-        ManifestFile manifest = newManifestsIterator.next();
+      for (ManifestFile manifest : newManifests) {
         if (committed.contains(manifest)) {
           committedNewManifests.add(manifest);
         } else {
           deleteFile(manifest.path());
-          newManifestsIterator.remove();
+          hasDeletes = true;
         }
+      }
+      if (hasDeletes) {
+        this.newManifests = null;
       }
     }
 
@@ -202,12 +204,12 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   }
 
   private List<ManifestFile> writeNewManifests() throws IOException {
-    if (hasNewFiles && !newManifests.isEmpty()) {
+    if (hasNewFiles && newManifests != null) {
       newManifests.forEach(file -> deleteFile(file.path()));
-      newManifests.clear();
+      newManifests = null;
     }
 
-    if (newManifests.isEmpty() && !newFiles.isEmpty()) {
+    if (newManifests == null && !newFiles.isEmpty()) {
       RollingManifestWriter<DataFile> writer = newRollingManifestWriter(spec);
       try {
         newFiles.forEach(writer::add);

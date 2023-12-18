@@ -94,7 +94,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private PartitionSpec dataSpec;
 
   // cache new data manifests after writing
-  private final List<ManifestFile> cachedNewDataManifests = Lists.newLinkedList();
+  private List<ManifestFile> cachedNewDataManifests = null;
   private boolean hasNewDataFiles = false;
 
   // cache new manifests for delete files
@@ -885,14 +885,20 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   private void cleanUncommittedAppends(Set<ManifestFile> committed) {
-    if (!cachedNewDataManifests.isEmpty()) {
-      ListIterator<ManifestFile> dataManifestsIterator = cachedNewDataManifests.listIterator();
-      while (dataManifestsIterator.hasNext()) {
-        ManifestFile dataManifest = dataManifestsIterator.next();
-        if (!committed.contains(dataManifest)) {
-          deleteFile(dataManifest.path());
-          dataManifestsIterator.remove();
+    if (cachedNewDataManifests != null) {
+      boolean hasDeletes = false;
+      List<ManifestFile> committedNewDataManifests = Lists.newArrayList();
+      for (ManifestFile manifest : cachedNewDataManifests) {
+        if (committed.contains(manifest)) {
+          committedNewDataManifests.add(manifest);
+        } else {
+          deleteFile(manifest.path());
+          hasDeletes = true;
         }
+      }
+
+      if (hasDeletes) {
+        this.cachedNewDataManifests = null;
       }
     }
 
@@ -948,12 +954,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   private List<ManifestFile> newDataFilesAsManifests() {
-    if (hasNewDataFiles && !cachedNewDataManifests.isEmpty()) {
+    if (hasNewDataFiles && cachedNewDataManifests != null) {
       cachedNewDataManifests.forEach(file -> deleteFile(file.path()));
-      cachedNewDataManifests.clear();
+      cachedNewDataManifests = null;
     }
 
-    if (cachedNewDataManifests.isEmpty()) {
+    if (cachedNewDataManifests == null) {
       try {
         RollingManifestWriter<DataFile> writer = newRollingManifestWriter(dataSpec());
         try {
@@ -966,7 +972,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
           writer.close();
         }
 
-        this.cachedNewDataManifests.addAll(writer.toManifestFiles());
+        this.cachedNewDataManifests = writer.toManifestFiles();
         this.hasNewDataFiles = false;
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to close manifest writer");
