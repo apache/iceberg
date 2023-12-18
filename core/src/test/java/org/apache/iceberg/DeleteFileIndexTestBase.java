@@ -20,16 +20,21 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import org.apache.iceberg.DeleteFileIndex.EqualityDeletes;
+import org.apache.iceberg.DeleteFileIndex.PositionDeletes;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.CharSequenceSet;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -513,5 +518,71 @@ public abstract class DeleteFileIndexTestBase<
         "Should have expected delete files",
         Sets.newHashSet(FILE_A_EQ_1.path(), FILE_A_POS_1.path()),
         Sets.newHashSet(Iterables.transform(task.deletes(), ContentFile::path)));
+  }
+
+  @Test
+  public void testPositionDeletesGroup() {
+    DeleteFile file1 = withDataSequenceNumber(1, partitionedPosDeletes(SPEC, FILE_A.partition()));
+    DeleteFile file2 = withDataSequenceNumber(2, partitionedPosDeletes(SPEC, FILE_A.partition()));
+    DeleteFile file3 = withDataSequenceNumber(3, partitionedPosDeletes(SPEC, FILE_A.partition()));
+    DeleteFile file4 = withDataSequenceNumber(4, partitionedPosDeletes(SPEC, FILE_A.partition()));
+
+    PositionDeletes group = new PositionDeletes();
+    group.add(file4);
+    group.add(file2);
+    group.add(file1);
+    group.add(file3);
+
+    // the group must not be empty
+    assertThat(group.isEmpty()).isFalse();
+
+    // all files must be reported as referenced
+    CharSequenceSet paths =
+        CharSequenceSet.of(Iterables.transform(group.referencedDeleteFiles(), ContentFile::path));
+    assertThat(paths).contains(file1.path(), file2.path(), file3.path(), file4.path());
+
+    // position deletes are indexed by their data sequence numbers
+    // so that position deletes can apply to data files added in the same snapshot
+    assertThat(group.filter(0)).isEqualTo(new DeleteFile[] {file1, file2, file3, file4});
+    assertThat(group.filter(1)).isEqualTo(new DeleteFile[] {file1, file2, file3, file4});
+    assertThat(group.filter(2)).isEqualTo(new DeleteFile[] {file2, file3, file4});
+    assertThat(group.filter(3)).isEqualTo(new DeleteFile[] {file3, file4});
+    assertThat(group.filter(4)).isEqualTo(new DeleteFile[] {file4});
+    assertThat(group.filter(5)).isEqualTo(new DeleteFile[] {});
+
+    // it should not be possible to add more elements upon indexing
+    assertThatThrownBy(() -> group.add(file1)).isInstanceOf(IllegalStateException.class);
+  }
+
+  @Test
+  public void testEqualityDeletesGroup() {
+    DeleteFile file1 = withDataSequenceNumber(1, partitionedEqDeletes(SPEC, FILE_A.partition()));
+    DeleteFile file2 = withDataSequenceNumber(2, partitionedEqDeletes(SPEC, FILE_A.partition()));
+    DeleteFile file3 = withDataSequenceNumber(3, partitionedEqDeletes(SPEC, FILE_A.partition()));
+    DeleteFile file4 = withDataSequenceNumber(4, partitionedEqDeletes(SPEC, FILE_A.partition()));
+
+    EqualityDeletes group = new EqualityDeletes();
+    group.add(SPEC, file4);
+    group.add(SPEC, file2);
+    group.add(SPEC, file1);
+    group.add(SPEC, file3);
+
+    // the group must not be empty
+    assertThat(group.isEmpty()).isFalse();
+
+    // all files must be reported as referenced
+    CharSequenceSet paths =
+        CharSequenceSet.of(Iterables.transform(group.referencedDeleteFiles(), ContentFile::path));
+    assertThat(paths).contains(file1.path(), file2.path(), file3.path(), file4.path());
+
+    // equality deletes are indexed by data sequence number - 1 to apply to next snapshots
+    assertThat(group.filter(0, FILE_A)).isEqualTo(new DeleteFile[] {file1, file2, file3, file4});
+    assertThat(group.filter(1, FILE_A)).isEqualTo(new DeleteFile[] {file2, file3, file4});
+    assertThat(group.filter(2, FILE_A)).isEqualTo(new DeleteFile[] {file3, file4});
+    assertThat(group.filter(3, FILE_A)).isEqualTo(new DeleteFile[] {file4});
+    assertThat(group.filter(4, FILE_A)).isEqualTo(new DeleteFile[] {});
+
+    // it should not be possible to add more elements upon indexing
+    assertThatThrownBy(() -> group.add(SPEC, file1)).isInstanceOf(IllegalStateException.class);
   }
 }

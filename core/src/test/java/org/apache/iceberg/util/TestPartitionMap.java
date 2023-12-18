@@ -293,4 +293,18 @@ public class TestPartitionMap {
     assertThat(map.get("some-string")).isNull();
     assertThat(map.remove("some-string")).isNull();
   }
+
+  @Test
+  public void testComputeIfAbsent() {
+    PartitionMap<String> map = PartitionMap.create(SPECS);
+
+    String result1 = map.computeIfAbsent(BY_DATA_SPEC.specId(), Row.of("a"), () -> "v1");
+    assertThat(result1).isEqualTo("v1");
+    assertThat(map.get(BY_DATA_SPEC.specId(), CustomRow.of("a"))).isEqualTo("v1");
+
+    // verify existing key is not affected
+    String result2 = map.computeIfAbsent(BY_DATA_SPEC.specId(), CustomRow.of("a"), () -> "v2");
+    assertThat(result2).isEqualTo("v1");
+    assertThat(map.get(BY_DATA_SPEC.specId(), CustomRow.of("a"))).isEqualTo("v1");
+  }
 }

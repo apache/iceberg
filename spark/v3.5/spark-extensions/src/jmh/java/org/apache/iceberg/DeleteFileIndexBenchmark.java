@@ -41,6 +41,7 @@ import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
@@ -80,12 +81,23 @@ public class DeleteFileIndexBenchmark {
 
   private List<DataFile> dataFiles;
 
+  @Param({"true", "false"})
+  private boolean oneToOneMapping;
+
   @Setup
   public void setupBenchmark() throws NoSuchTableException, ParseException {
     setupSpark();
     initTable();
     initDataAndDeletes();
     loadDataFiles();
+  }
+
+  private void initDataAndDeletes() {
+    if (oneToOneMapping) {
+      initDataAndFileScopedDeletes();
+    } else {
+      initDataAndPartitionScopedDeletes();
+    }
   }
 
   @TearDown
@@ -134,7 +146,7 @@ public class DeleteFileIndexBenchmark {
         .build();
   }
 
-  private void initDataAndDeletes() {
+  private void initDataAndPartitionScopedDeletes() {
     for (int partitionOrdinal = 0; partitionOrdinal < NUM_PARTITIONS; partitionOrdinal++) {
       StructLike partition = TestHelpers.Row.of(partitionOrdinal);
 
@@ -147,6 +159,23 @@ public class DeleteFileIndexBenchmark {
 
       for (int fileOrdinal = 0; fileOrdinal < NUM_DELETE_FILES_PER_PARTITION; fileOrdinal++) {
         DeleteFile deleteFile = FileGenerationUtil.generatePositionDeleteFile(table, partition);
+        rowDelta.addDeletes(deleteFile);
+      }
+
+      rowDelta.commit();
+    }
+  }
+
+  private void initDataAndFileScopedDeletes() {
+    for (int partitionOrdinal = 0; partitionOrdinal < NUM_PARTITIONS; partitionOrdinal++) {
+      StructLike partition = TestHelpers.Row.of(partitionOrdinal);
+
+      RowDelta rowDelta = table.newRowDelta();
+
+      for (int fileOrdinal = 0; fileOrdinal < NUM_DATA_FILES_PER_PARTITION; fileOrdinal++) {
+        DataFile dataFile = FileGenerationUtil.generateDataFile(table, partition);
+        DeleteFile deleteFile = FileGenerationUtil.generatePositionDeleteFile(table, dataFile);
+        rowDelta.addRows(dataFile);
         rowDelta.addDeletes(deleteFile);
       }
 
