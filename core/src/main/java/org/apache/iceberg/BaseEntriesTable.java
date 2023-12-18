@@ -61,6 +61,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
 
   static CloseableIterable<FileScanTask> planFiles(
       Table table,
+      Snapshot snapshot,
       CloseableIterable<ManifestFile> manifests,
       Schema tableSchema,
       Schema projectedSchema,
@@ -91,7 +92,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
         filteredManifests,
         manifest ->
             new ManifestReadTask(
-                table, manifest, projectedSchema, schemaString, specString, residuals));
+                table, snapshot, manifest, projectedSchema, schemaString, specString, residuals));
   }
 
   static class ManifestReadTask extends BaseFileScanTask implements DataTask {
@@ -99,11 +100,13 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
     private final Schema fileProjection;
     private final Schema dataTableSchema;
     private final FileIO io;
+    private final Snapshot snapshot;
     private final ManifestFile manifest;
     private final Map<Integer, PartitionSpec> specsById;
 
     ManifestReadTask(
         Table table,
+        Snapshot snapshot,
         ManifestFile manifest,
         Schema projection,
         String schemaString,
@@ -112,6 +115,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
       super(DataFiles.fromManifest(manifest), null, schemaString, specString, residuals);
       this.projection = projection;
       this.io = table.io();
+      this.snapshot = snapshot;
       this.manifest = manifest;
       this.specsById = Maps.newHashMap(table.specs());
       this.dataTableSchema = table.schema();
@@ -130,22 +134,65 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
 
     @Override
     public CloseableIterable<StructLike> rows() {
+      Types.NestedField refSnapshotIdField = projection.findField(MetricsUtil.REF_SNAPSHOT_ID);
+      Types.NestedField refSnapshotTimestampMillisField =
+          projection.findField(MetricsUtil.REF_SNAPSHOT_TIMESTAMP_MILLIS);
       Types.NestedField readableMetricsField = projection.findField(MetricsUtil.READABLE_METRICS);
 
-      if (readableMetricsField == null) {
-        StructProjection structProjection = structProjection(projection);
+      Schema actualProjection =
+          actualProjection(
+              projection,
+              refSnapshotIdField,
+              refSnapshotTimestampMillisField,
+              readableMetricsField);
+      StructProjection structProjection = structProjection(actualProjection);
 
-        return CloseableIterable.transform(
-            entries(fileProjection), entry -> structProjection.wrap((StructLike) entry));
+      CloseableIterable<StructLike> rows;
+      if (readableMetricsField == null) {
+        rows =
+            CloseableIterable.transform(
+                entries(fileProjection), entry -> structProjection.wrap((StructLike) entry));
       } else {
         Schema requiredFileProjection = requiredFileProjection();
-        Schema actualProjection = removeReadableMetrics(projection, readableMetricsField);
-        StructProjection structProjection = structProjection(actualProjection);
-
-        return CloseableIterable.transform(
-            entries(requiredFileProjection),
-            entry -> withReadableMetrics(structProjection, entry, readableMetricsField));
+        rows =
+            CloseableIterable.transform(
+                entries(requiredFileProjection),
+                entry -> withReadableMetrics(structProjection, entry, readableMetricsField));
       }
+      if (refSnapshotIdField != null || refSnapshotTimestampMillisField != null) {
+        return CloseableIterable.transform(
+            rows,
+            r ->
+                new MetricsUtil.StructWithRefSnapshot(
+                    r, projection, snapshot, refSnapshotIdField, refSnapshotTimestampMillisField));
+      }
+
+      return rows;
+    }
+
+    private Schema actualProjection(
+        Schema projection,
+        Types.NestedField refSnapshotIdField,
+        Types.NestedField refSnapshotTimestampField,
+        Types.NestedField readableMetricsField) {
+      Schema actualProjection = projection;
+
+      if (refSnapshotIdField != null) {
+        actualProjection =
+            TypeUtil.selectNot(actualProjection, Sets.newHashSet(refSnapshotIdField.fieldId()));
+      }
+
+      if (refSnapshotTimestampField != null) {
+        actualProjection =
+            TypeUtil.selectNot(
+                actualProjection, Sets.newHashSet(refSnapshotTimestampField.fieldId()));
+      }
+
+      if (readableMetricsField != null) {
+        actualProjection = removeReadableMetrics(actualProjection, readableMetricsField);
+      }
+
+      return actualProjection;
     }
 
     /**

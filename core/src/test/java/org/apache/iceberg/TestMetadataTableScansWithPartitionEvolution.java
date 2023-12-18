@@ -123,8 +123,8 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
     TableScan scan = allEntriesTable.newScan();
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
-      Assertions.assertThat(tasks).hasSize(2);
-      Assertions.assertThat(allRows(tasks)).hasSize(4);
+      Assertions.assertThat(tasks).hasSize(3);
+      Assertions.assertThat(allRows(tasks)).hasSize(6);
     }
   }
 

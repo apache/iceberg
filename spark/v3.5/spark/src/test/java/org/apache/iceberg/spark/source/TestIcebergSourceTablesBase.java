@@ -361,9 +361,14 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .format("iceberg")
         .mode("append")
         .save(loadLocation(tableIdentifier));
+    long firstSnapshotId = table.currentSnapshot().snapshotId();
+    long firstSnapshotTimestamp = table.currentSnapshot().timestampMillis();
 
     // delete the first file to test that not only live files are listed
     table.newDelete().deleteFromRowFilter(Expressions.equal("id", 1)).commit();
+
+    long secondSnapshotId = table.currentSnapshot().snapshotId();
+    long secondSnapshotTimestamp = table.currentSnapshot().timestampMillis();
 
     // add a second file
     df2.select("id", "data")
@@ -374,6 +379,10 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     // ensure table data isn't stale
     table.refresh();
+
+    long thirdSnapshotId = table.currentSnapshot().snapshotId();
+    long thirdSnapshotTimestamp = table.currentSnapshot().timestampMillis();
+
 
     Dataset<Row> entriesTableDs =
         spark
@@ -392,12 +401,21 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         // each row must inherit snapshot_id and sequence_number
         rows.forEach(
             row -> {
-              if (row.get("snapshot_id").equals(table.currentSnapshot().snapshotId())) {
+              if (row.get("snapshot_id").equals(thirdSnapshotId)) {
                 row.put(2, 3L); // data sequence number
                 row.put(3, 3L); // file sequence number
+                row.put(5, thirdSnapshotId);
+                row.put(6, thirdSnapshotTimestamp);
+              } else if (row.get("status").equals(2)) {
+                row.put(2, 1L); // data sequence number
+                row.put(3, 1L); // file sequence number
+                row.put(5, secondSnapshotId);
+                row.put(6, secondSnapshotTimestamp);
               } else {
                 row.put(2, 1L); // data sequence number
                 row.put(3, 1L); // file sequence number
+                row.put(5, firstSnapshotId);
+                row.put(6, firstSnapshotTimestamp);
               }
               GenericData.Record file = (GenericData.Record) row.get("data_file");
               TestHelpers.asMetadataRecord(file);
