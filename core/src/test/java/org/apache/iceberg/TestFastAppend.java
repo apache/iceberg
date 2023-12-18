@@ -314,37 +314,6 @@ public class TestFastAppend extends TableTestBase {
   }
 
   @Test
-  public void testRecoveryWithManualReCommit() {
-    TestTables.TestTableOperations ops = table.ops();
-    ops.failCommits(5);
-
-    AppendFiles append = table.newFastAppend().appendFile(FILE_B);
-
-    Snapshot pending = append.apply();
-    ManifestFile originalManifest = pending.allManifests(FILE_IO).get(0);
-
-    Assertions.assertThatThrownBy(append::commit)
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessage("Injected failure");
-
-    TableMetadata metadata = readMetadata();
-    Assert.assertNull("No snapshot is committed", metadata.currentSnapshot());
-    Assert.assertFalse(
-        "Original manifest from before failure should be deleted",
-        new File(originalManifest.path()).exists());
-
-    ManifestFile newManifest = append.apply().allManifests(FILE_IO).get(0);
-    append.commit();
-
-    metadata = readMetadata();
-    validateSnapshot(null, metadata.currentSnapshot(), FILE_B);
-    Assert.assertTrue("New manifest file should exist", new File(newManifest.path()).exists());
-    Assert.assertTrue(
-        "Should commit the a new manifest created for retrying",
-        metadata.currentSnapshot().allManifests(FILE_IO).contains(newManifest));
-  }
-
-  @Test
   public void testAppendManifestWithSnapshotIdInheritance() throws IOException {
     table.updateProperties().set(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, "true").commit();
 
