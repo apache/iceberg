@@ -19,9 +19,11 @@
 package org.apache.iceberg;
 
 import java.io.Serializable;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.view.ViewMetadata;
 import org.apache.iceberg.view.ViewVersion;
@@ -450,6 +452,120 @@ public interface MetadataUpdate extends Serializable {
     @Override
     public void applyTo(ViewMetadata.Builder viewMetadataBuilder) {
       viewMetadataBuilder.setCurrentVersionId(versionId);
+    }
+  }
+
+  class AppendFilesUpdate implements MetadataUpdate {
+    private final List<String> addedManifests;
+
+    public AppendFilesUpdate(List<String> addedManifests) {
+      this.addedManifests = addedManifests;
+    }
+
+    public List<String> getAddedManifests() {
+      return addedManifests;
+    }
+
+    @Override
+    public void applyTo(TableMetadata.Builder tableMetadataBuilder) {
+      tableMetadataBuilder.appendFiles(addedManifests);
+    }
+  }
+
+  class DeleteFilesUpdate implements MetadataUpdate {
+    private List<String> deletedManifests;
+    private Expression deleteExpression;
+    private boolean caseSensitive;
+
+    public DeleteFilesUpdate() {}
+
+    public void setDeletedManifests(List<String> deletedManifests) {
+      this.deletedManifests = deletedManifests;
+    }
+
+    public List<String> getDeletedManifests() {
+      return deletedManifests;
+    }
+
+    public void setDeleteExpression(Expression expression) {
+      this.deleteExpression = expression;
+    }
+
+    public Expression getDeleteExpression() {
+      return deleteExpression;
+    }
+
+    public void setCaseSensitive(boolean caseSensitive) {
+      this.caseSensitive = caseSensitive;
+    }
+
+    public boolean isCaseSensitive() {
+      return caseSensitive;
+    }
+
+    @Override
+    public void applyTo(TableMetadata.Builder tableMetadataBuilder) {
+      tableMetadataBuilder.deleteFiles(deletedManifests, deleteExpression, caseSensitive);
+    }
+  }
+
+  class OverwriteFilesUpdate implements MetadataUpdate {
+    private List<String> addedManifests;
+    private List<String> deletedManifests;
+    private Expression overwriteByRowFilterExpression;
+    private Expression conflictExpression;
+    private boolean caseSensitive;
+
+    public OverwriteFilesUpdate() {}
+
+    public void setAddedManifests(List<String> addedManifests) {
+      this.addedManifests = addedManifests;
+    }
+
+    public List<String> getAddedManifests() {
+      return addedManifests;
+    }
+
+    public void setDeletedManifests(List<String> deletedManifests) {
+      this.deletedManifests = deletedManifests;
+    }
+
+    public List<String> getDeletedManifests() {
+      return deletedManifests;
+    }
+
+    public void setOverwriteByRowFilterExpression(Expression overwriteByRowFilterExpression) {
+      this.overwriteByRowFilterExpression = overwriteByRowFilterExpression;
+    }
+
+    public Expression getOverwriteByRowFilterExpression() {
+      return overwriteByRowFilterExpression;
+    }
+
+    public void setConflictExpression(Expression conflictExpression) {
+      this.conflictExpression = conflictExpression;
+    }
+
+    public Expression getConflictExpression() {
+      return conflictExpression;
+    }
+
+    public void setCaseSensitive(boolean caseSensitive) {
+      this.caseSensitive = caseSensitive;
+    }
+
+    public boolean isCaseSensitive() {
+      return caseSensitive;
+    }
+
+    @Override
+    public void applyTo(TableMetadata.Builder tableMetadataBuilder) {
+      tableMetadataBuilder.overwriteFiles(
+          addedManifests,
+          deletedManifests,
+          overwriteByRowFilterExpression,
+          conflictExpression,
+          caseSensitive);
     }
   }
 }

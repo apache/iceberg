@@ -30,6 +30,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -1742,6 +1743,37 @@ public class TableMetadata implements Serializable {
 
     private <U extends MetadataUpdate> Stream<U> changes(Class<U> updateClass) {
       return changes.stream().filter(updateClass::isInstance).map(updateClass::cast);
+    }
+
+    public Builder appendFiles(List<String> files) {
+      changes.add(new MetadataUpdate.AppendFilesUpdate(files));
+      return this;
+    }
+
+    public Builder deleteFiles(
+        List<String> manifests, Expression deleteExpression, boolean caseSensitive) {
+      MetadataUpdate.DeleteFilesUpdate update = new MetadataUpdate.DeleteFilesUpdate();
+      update.setDeletedManifests(manifests);
+      update.setDeleteExpression(deleteExpression);
+      update.setCaseSensitive(caseSensitive);
+      changes.add(update);
+      return this;
+    }
+
+    public Builder overwriteFiles(
+        List<String> addedManifests,
+        List<String> deletedManifests,
+        Expression overwriteByRowFilterExpression,
+        Expression conflictExpression,
+        boolean caseSensitive) {
+      MetadataUpdate.OverwriteFilesUpdate update = new MetadataUpdate.OverwriteFilesUpdate();
+      update.setAddedManifests(addedManifests);
+      update.setDeletedManifests(deletedManifests);
+      update.setOverwriteByRowFilterExpression(overwriteByRowFilterExpression);
+      update.setConflictExpression(conflictExpression);
+      update.setCaseSensitive(caseSensitive);
+      changes.add(update);
+      return this;
     }
   }
 }
