@@ -158,7 +158,13 @@ public class LockManagers {
     @Override
     public void close() throws Exception {
       if (scheduler != null) {
-        scheduler.shutdownNow();
+        List<Runnable> tasks = scheduler.shutdownNow();
+        tasks.forEach(
+            task -> {
+              if (task instanceof Future) {
+                ((Future<?>) task).cancel(true);
+              }
+            });
         scheduler = null;
       }
     }
