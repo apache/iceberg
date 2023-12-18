@@ -180,11 +180,8 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   protected void cleanUncommitted(Set<ManifestFile> committed) {
     if (newManifests != null) {
       boolean hasDeletes = false;
-      List<ManifestFile> committedNewManifests = Lists.newArrayList();
       for (ManifestFile manifest : newManifests) {
-        if (committed.contains(manifest)) {
-          committedNewManifests.add(manifest);
-        } else {
+        if (!committed.contains(manifest)) {
           deleteFile(manifest.path());
           hasDeletes = true;
         }

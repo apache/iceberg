@@ -887,11 +887,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private void cleanUncommittedAppends(Set<ManifestFile> committed) {
     if (cachedNewDataManifests != null) {
       boolean hasDeletes = false;
-      List<ManifestFile> committedNewDataManifests = Lists.newArrayList();
       for (ManifestFile manifest : cachedNewDataManifests) {
-        if (committed.contains(manifest)) {
-          committedNewDataManifests.add(manifest);
-        } else {
+        if (!committed.contains(manifest)) {
           deleteFile(manifest.path());
           hasDeletes = true;
         }
