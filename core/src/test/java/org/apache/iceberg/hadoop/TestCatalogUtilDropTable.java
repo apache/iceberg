@@ -67,10 +67,10 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
     Set<String> manifestLocations = manifestLocations(snapshotSet, table.io());
     Set<String> dataLocations = dataLocations(snapshotSet, table.io());
     Set<String> metadataLocations = metadataLocations(tableMetadata);
-    Set<String> statisticLocations = statisticLocations(tableMetadata);
+    Set<String> statsLocations = statsLocations(tableMetadata);
     Assertions.assertThat(manifestListLocations).as("should have 2 manifest lists").hasSize(2);
     Assertions.assertThat(metadataLocations).as("should have 4 metadata locations").hasSize(4);
-    Assertions.assertThat(statisticLocations).as("should have 1 statistic file").hasSize(1);
+    Assertions.assertThat(statsLocations).as("should have 1 stats file").hasSize(1);
 
     FileIO fileIO = Mockito.mock(FileIO.class);
     Mockito.when(fileIO.newInputFile(Mockito.anyString()))
@@ -90,7 +90,7 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
                     + manifestLocations.size()
                     + dataLocations.size()
                     + metadataLocations.size()
-                    + statisticLocations.size()))
+                    + statsLocations.size()))
         .deleteFile(argumentCaptor.capture());
 
     List<String> deletedPaths = argumentCaptor.getAllValues();
@@ -108,7 +108,7 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
         .containsAll(metadataLocations);
     Assertions.assertThat(deletedPaths)
         .as("should contain all created statistic")
-        .containsAll(statisticLocations);
+        .containsAll(statsLocations);
   }
 
   @Test
@@ -206,7 +206,7 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
     return metadataLocations;
   }
 
-  private Set<String> statisticLocations(TableMetadata tableMetadata) {
+  private Set<String> statsLocations(TableMetadata tableMetadata) {
     return tableMetadata.statisticsFiles().stream()
         .map(StatisticsFile::path)
         .collect(Collectors.toSet());

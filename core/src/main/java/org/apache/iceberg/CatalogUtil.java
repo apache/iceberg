@@ -120,7 +120,7 @@ public class CatalogUtil {
     deleteFiles(
         io,
         Iterables.transform(metadata.statisticsFiles(), StatisticsFile::path),
-        "statistic",
+        "statistics",
         true);
     deleteFile(io, metadata.metadataFileLocation(), "metadata");
   }
