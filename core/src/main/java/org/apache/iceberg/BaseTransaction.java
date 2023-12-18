@@ -249,6 +249,15 @@ public class BaseTransaction implements Transaction {
   }
 
   @Override
+  public UpdatePartitionStatistics updatePartitionStatistics() {
+    checkLastOperationCommitted("UpdatePartitionStatistics");
+    UpdatePartitionStatistics updatePartitionStatistics =
+        new SetPartitionStatistics(transactionOps);
+    updates.add(updatePartitionStatistics);
+    return updatePartitionStatistics;
+  }
+
+  @Override
   public ExpireSnapshots expireSnapshots() {
     checkLastOperationCommitted("ExpireSnapshots");
     ExpireSnapshots expire = new RemoveSnapshots(transactionOps);
@@ -734,6 +743,11 @@ public class BaseTransaction implements Transaction {
     }
 
     @Override
+    public UpdatePartitionStatistics updatePartitionStatistics() {
+      return BaseTransaction.this.updatePartitionStatistics();
+    }
+
+    @Override
     public ExpireSnapshots expireSnapshots() {
       return BaseTransaction.this.expireSnapshots();
     }
@@ -767,6 +781,11 @@ public class BaseTransaction implements Transaction {
     @Override
     public List<StatisticsFile> statisticsFiles() {
       return current.statisticsFiles();
+    }
+
+    @Override
+    public List<PartitionStatisticsFile> partitionStatisticsFiles() {
+      return current.partitionStatisticsFiles();
     }
 
     @Override
