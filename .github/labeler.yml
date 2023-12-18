@@ -29,7 +29,7 @@ INFRA:
       'jitpack.yml',
       'travis.yml',
       '.baseline/**/*',
-      '.github/**/*'
+      '.github/**/*',
       'dev/**/*'
     ]
 
