@@ -431,15 +431,26 @@ public class TableMetadataParser {
       defaultSortOrderId = defaultSortOrder.orderId();
     }
 
-    // parse properties map
-    Map<String, String> properties = JsonUtil.getStringMap(PROPERTIES, node);
-    long currentSnapshotId = JsonUtil.getLong(CURRENT_SNAPSHOT_ID, node);
+    Map<String, String> properties;
+    if (node.has(PROPERTIES)) {
+      // parse properties map
+      properties = JsonUtil.getStringMap(PROPERTIES, node);
+    } else {
+      properties = ImmutableMap.of();
+    }
+
+    Long currentSnapshotId = JsonUtil.getLongOrNull(CURRENT_SNAPSHOT_ID, node);
+    if (currentSnapshotId == null) {
+      // This field is optional, but internally we set this to -1 when not set
+      currentSnapshotId = -1L;
+    }
+
     long lastUpdatedMillis = JsonUtil.getLong(LAST_UPDATED_MILLIS, node);
 
     Map<String, SnapshotRef> refs;
     if (node.has(REFS)) {
       refs = refsFromJson(node.get(REFS));
-    } else if (currentSnapshotId != -1) {
+    } else if (currentSnapshotId != -1L) {
       // initialize the main branch if there are no refs
       refs =
           ImmutableMap.of(
@@ -448,14 +459,19 @@ public class TableMetadataParser {
       refs = ImmutableMap.of();
     }
 
-    JsonNode snapshotArray = JsonUtil.get(SNAPSHOTS, node);
-    Preconditions.checkArgument(
-        snapshotArray.isArray(), "Cannot parse snapshots from non-array: %s", snapshotArray);
+    List<Snapshot> snapshots;
+    if (node.has(SNAPSHOTS)) {
+      JsonNode snapshotArray = JsonUtil.get(SNAPSHOTS, node);
+      Preconditions.checkArgument(
+          snapshotArray.isArray(), "Cannot parse snapshots from non-array: %s", snapshotArray);
 
-    List<Snapshot> snapshots = Lists.newArrayListWithExpectedSize(snapshotArray.size());
-    Iterator<JsonNode> iterator = snapshotArray.elements();
-    while (iterator.hasNext()) {
-      snapshots.add(SnapshotParser.fromJson(iterator.next()));
+      snapshots = Lists.newArrayListWithExpectedSize(snapshotArray.size());
+      Iterator<JsonNode> iterator = snapshotArray.elements();
+      while (iterator.hasNext()) {
+        snapshots.add(SnapshotParser.fromJson(iterator.next()));
+      }
+    } else {
+      snapshots = ImmutableList.of();
     }
 
     List<StatisticsFile> statisticsFiles;

@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.actions;
 
 import static org.apache.iceberg.MetadataTableType.POSITION_DELETES;
 import static org.apache.spark.sql.functions.col;
+import static org.apache.spark.sql.functions.lit;
 
 import java.util.List;
 import java.util.Optional;
@@ -40,7 +41,9 @@ import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkTableCache;
 import org.apache.iceberg.spark.SparkTableUtil;
+import org.apache.iceberg.spark.SparkValueConverter;
 import org.apache.iceberg.spark.SparkWriteOptions;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
@@ -88,7 +91,7 @@ class SparkBinPackPositionDeletesRewriter extends SizeBasedPositionDeletesRewrit
 
   protected void doRewrite(String groupId, List<PositionDeletesScanTask> group) {
     // all position deletes are of the same partition, because they are in same file group
-    Preconditions.checkArgument(group.size() > 0, "Empty group");
+    Preconditions.checkArgument(!group.isEmpty(), "Empty group");
     Types.StructType partitionType = group.get(0).spec().partitionType();
     StructLike partition = group.get(0).partition();
 
@@ -125,10 +128,11 @@ class SparkBinPackPositionDeletesRewriter extends SizeBasedPositionDeletesRewrit
         IntStream.range(0, fields.size())
             .mapToObj(
                 i -> {
-                  Class<?> type = fields.get(i).type().typeId().javaClass();
-                  Object value = partition.get(i, type);
-                  Column col = col("partition." + fields.get(i).name());
-                  return col.equalTo(value);
+                  Type type = fields.get(i).type();
+                  Object value = partition.get(i, type.typeId().javaClass());
+                  Object convertedValue = SparkValueConverter.convertToSpark(type, value);
+                  Column col = col("partition.`" + fields.get(i).name() + "`");
+                  return col.eqNullSafe(lit(convertedValue));
                 })
             .reduce(Column::and);
     if (condition.isPresent()) {

@@ -191,9 +191,9 @@ public class ParquetAvroValueReaders {
               case FIXED_LEN_BYTE_ARRAY:
                 return new DecimalReader(desc, decimal.getScale());
               case INT64:
-                return new IntegerAsDecimalReader(desc, decimal.getScale());
-              case INT32:
                 return new LongAsDecimalReader(desc, decimal.getScale());
+              case INT32:
+                return new IntegerAsDecimalReader(desc, decimal.getScale());
               default:
                 throw new UnsupportedOperationException(
                     "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());

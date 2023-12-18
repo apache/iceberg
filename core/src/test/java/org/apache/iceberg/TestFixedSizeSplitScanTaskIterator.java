@@ -21,8 +21,8 @@ package org.apache.iceberg;
 import java.util.List;
 import org.apache.iceberg.BaseFileScanTask.SplitScanTask;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.junit.Assert;
-import org.junit.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 public class TestFixedSizeSplitScanTaskIterator {
   @Test
@@ -57,8 +57,8 @@ public class TestFixedSizeSplitScanTaskIterator {
       List<Long> split = offsetLenPairs.get(i);
       long offset = split.get(0);
       long length = split.get(1);
-      Assert.assertEquals(offset, task.start());
-      Assert.assertEquals(length, task.length());
+      Assertions.assertThat(task.start()).isEqualTo(offset);
+      Assertions.assertThat(task.length()).isEqualTo(length);
     }
   }
 

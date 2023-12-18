@@ -21,22 +21,26 @@ package org.apache.iceberg.view;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.util.JsonUtil;
 
-class ViewVersionParser {
+public class ViewVersionParser {
 
   private static final String VERSION_ID = "version-id";
   private static final String TIMESTAMP_MS = "timestamp-ms";
   private static final String SUMMARY = "summary";
   private static final String REPRESENTATIONS = "representations";
   private static final String SCHEMA_ID = "schema-id";
+  private static final String DEFAULT_CATALOG = "default-catalog";
+  private static final String DEFAULT_NAMESPACE = "default-namespace";
 
   private ViewVersionParser() {}
 
-  static void toJson(ViewVersion version, JsonGenerator generator) throws IOException {
+  public static void toJson(ViewVersion version, JsonGenerator generator) throws IOException {
     Preconditions.checkArgument(version != null, "Cannot serialize null view version");
     generator.writeStartObject();
 
@@ -44,6 +48,13 @@ class ViewVersionParser {
     generator.writeNumberField(TIMESTAMP_MS, version.timestampMillis());
     generator.writeNumberField(SCHEMA_ID, version.schemaId());
     JsonUtil.writeStringMap(SUMMARY, version.summary(), generator);
+
+    if (version.defaultCatalog() != null) {
+      generator.writeStringField(DEFAULT_CATALOG, version.defaultCatalog());
+    }
+
+    JsonUtil.writeStringArray(
+        DEFAULT_NAMESPACE, Arrays.asList(version.defaultNamespace().levels()), generator);
 
     generator.writeArrayFieldStart(REPRESENTATIONS);
     for (ViewRepresentation representation : version.representations()) {
@@ -54,7 +65,7 @@ class ViewVersionParser {
     generator.writeEndObject();
   }
 
-  static String toJson(ViewVersion version) {
+  public static String toJson(ViewVersion version) {
     return JsonUtil.generate(gen -> toJson(version, gen), false);
   }
 
@@ -63,7 +74,7 @@ class ViewVersionParser {
     return JsonUtil.parse(json, ViewVersionParser::fromJson);
   }
 
-  static ViewVersion fromJson(JsonNode node) {
+  public static ViewVersion fromJson(JsonNode node) {
     Preconditions.checkArgument(node != null, "Cannot parse view version from null object");
     Preconditions.checkArgument(
         node.isObject(), "Cannot parse view version from a non-object: %s", node);
@@ -81,11 +92,18 @@ class ViewVersionParser {
       representations.add(representation);
     }
 
+    String defaultCatalog = JsonUtil.getStringOrNull(DEFAULT_CATALOG, node);
+
+    Namespace defaultNamespace =
+        Namespace.of(JsonUtil.getStringArray(JsonUtil.get(DEFAULT_NAMESPACE, node)));
+
     return ImmutableViewVersion.builder()
         .versionId(versionId)
         .timestampMillis(timestamp)
         .schemaId(schemaId)
         .summary(summary)
+        .defaultNamespace(defaultNamespace)
+        .defaultCatalog(defaultCatalog)
         .representations(representations.build())
         .build();
   }

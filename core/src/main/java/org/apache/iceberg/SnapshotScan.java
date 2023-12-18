@@ -66,6 +66,11 @@ public abstract class SnapshotScan<ThisT, T extends ScanTask, G extends ScanTask
 
   protected abstract CloseableIterable<T> doPlanFiles();
 
+  // controls whether to use the snapshot schema while time travelling
+  protected boolean useSnapshotSchema() {
+    return false;
+  }
+
   protected ScanMetrics scanMetrics() {
     if (scanMetrics == null) {
       this.scanMetrics = ScanMetrics.of(new DefaultMetricsContext());
@@ -81,7 +86,10 @@ public abstract class SnapshotScan<ThisT, T extends ScanTask, G extends ScanTask
         table().snapshot(scanSnapshotId) != null,
         "Cannot find snapshot with ID %s",
         scanSnapshotId);
-    return newRefinedScan(table(), tableSchema(), context().useSnapshotId(scanSnapshotId));
+    Schema newSchema =
+        useSnapshotSchema() ? SnapshotUtil.schemaFor(table(), scanSnapshotId) : tableSchema();
+    TableScanContext newContext = context().useSnapshotId(scanSnapshotId);
+    return newRefinedScan(table(), newSchema, newContext);
   }
 
   public ThisT useRef(String name) {
@@ -140,7 +148,9 @@ public abstract class SnapshotScan<ThisT, T extends ScanTask, G extends ScanTask
                   .projectedFieldNames(projectedFieldNames)
                   .tableName(table().name())
                   .snapshotId(snapshot.snapshotId())
-                  .filter(ExpressionUtil.sanitize(filter()))
+                  .filter(
+                      ExpressionUtil.sanitize(
+                          schema().asStruct(), filter(), context().caseSensitive()))
                   .scanMetrics(ScanMetricsResult.fromScanMetrics(scanMetrics()))
                   .metadata(metadata)
                   .build();

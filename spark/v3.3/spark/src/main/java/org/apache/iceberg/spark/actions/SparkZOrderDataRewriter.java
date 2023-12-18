@@ -176,7 +176,7 @@ class SparkZOrderDataRewriter extends SparkShufflingDataRewriter {
     }
 
     Preconditions.checkArgument(
-        validZOrderColNames.size() > 0,
+        !validZOrderColNames.isEmpty(),
         "Cannot ZOrder, all columns provided were identity partition columns and cannot be used");
 
     return validZOrderColNames;

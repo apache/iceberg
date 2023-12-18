@@ -29,9 +29,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.Table;
-import org.apache.iceberg.hadoop.HadoopConfigurable;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -50,7 +47,6 @@ import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
-import org.apache.spark.util.SerializableConfiguration;
 import org.joda.time.DateTime;
 
 public class SparkUtil {
@@ -76,24 +72,6 @@ public class SparkUtil {
   private static final Joiner DOT = Joiner.on(".");
 
   private SparkUtil() {}
-
-  /**
-   * Using this to broadcast FileIO can lead to unexpected behavior, as broadcast variables that
-   * implement {@link AutoCloseable} will be closed by Spark during broadcast removal. As an
-   * alternative, use {@link org.apache.iceberg.SerializableTable}.
-   *
-   * @deprecated will be removed in 1.4.0
-   */
-  @Deprecated
-  public static FileIO serializableFileIO(Table table) {
-    if (table.io() instanceof HadoopConfigurable) {
-      // we need to use Spark's SerializableConfiguration to avoid issues with Kryo serialization
-      ((HadoopConfigurable) table.io())
-          .serializeConfWith(conf -> new SerializableConfiguration(conf)::value);
-    }
-
-    return table.io();
-  }
 
   /**
    * Check whether the partition transforms in a spec can be used to write data.

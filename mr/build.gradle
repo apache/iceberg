@@ -23,6 +23,9 @@ project(':iceberg-mr') {
       exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'
     }
   }
+  test {
+    useJUnitPlatform()
+  }
 
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
@@ -34,11 +37,11 @@ project(':iceberg-mr') {
     implementation project(':iceberg-orc')
     implementation project(':iceberg-parquet')
 
-    compileOnly("org.apache.hadoop:hadoop-client") {
+    compileOnly(libs.hadoop2.client) {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 
-    compileOnly("org.apache.hive:hive-exec::core") {
+    compileOnly("${libs.hive2.exec.get().module}:${libs.hive2.exec.get().getVersion()}:core") {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
       exclude group: 'com.google.guava'
       exclude group: 'com.google.protobuf', module: 'protobuf-java'
@@ -49,28 +52,28 @@ project(':iceberg-mr') {
       exclude group: 'org.pentaho' // missing dependency
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
-    compileOnly("org.apache.hive:hive-metastore")
-    compileOnly("org.apache.hive:hive-serde")
+    compileOnly libs.hive2.metastore
+    compileOnly libs.hive2.serde
 
-    implementation "com.github.ben-manes.caffeine:caffeine"
+    implementation libs.caffeine
 
-    testImplementation "org.apache.calcite:calcite-core"
-    testImplementation "org.apache.calcite:calcite-druid"
+    testImplementation libs.calcite.core
+    testImplementation libs.calcite.druid
 
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
 
-    testImplementation("org.apache.avro:avro")
-    testImplementation("org.apache.calcite:calcite-core")
-    testImplementation("com.esotericsoftware:kryo-shaded:4.0.3")
-    testImplementation("com.fasterxml.jackson.core:jackson-annotations:2.15.2")
-    testImplementation("org.apache.hive:hive-service") {
+    testImplementation libs.avro.avro
+    testImplementation libs.calcite.core
+    testImplementation libs.kryo.shaded
+    testImplementation libs.jackson.annotations
+    testImplementation(libs.hive2.service) {
       exclude group: 'org.apache.hive', module: 'hive-exec'
     }
-    testImplementation("org.apache.tez:tez-dag")
-    testImplementation("org.apache.tez:tez-mapreduce")
+    testImplementation libs.tez08.dag
+    testImplementation libs.tez08.mapreduce
   }
 
   test {

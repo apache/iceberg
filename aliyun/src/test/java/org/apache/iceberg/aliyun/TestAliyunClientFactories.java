@@ -22,43 +22,44 @@ import com.aliyun.oss.OSS;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.junit.Assert;
-import org.junit.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 public class TestAliyunClientFactories {
 
   @Test
   public void testLoadDefault() {
-    Assert.assertEquals(
-        "Default client should be singleton",
-        AliyunClientFactories.defaultFactory(),
-        AliyunClientFactories.defaultFactory());
+    Assertions.assertThat(AliyunClientFactories.defaultFactory())
+        .as("Default client should be singleton")
+        .isEqualTo(AliyunClientFactories.defaultFactory());
 
     AliyunClientFactory defaultFactory = AliyunClientFactories.from(Maps.newHashMap());
-    Assert.assertTrue(
-        "Should load default when factory impl not configured",
-        defaultFactory instanceof AliyunClientFactories.DefaultAliyunClientFactory);
-    Assert.assertNull(
-        "Should have no Aliyun properties set", defaultFactory.aliyunProperties().accessKeyId());
+    Assertions.assertThat(defaultFactory)
+        .as("Should load default when factory impl not configured")
+        .isInstanceOf(AliyunClientFactories.DefaultAliyunClientFactory.class);
+
+    Assertions.assertThat(defaultFactory.aliyunProperties().accessKeyId())
+        .as("Should have no Aliyun properties set")
+        .isNull();
 
     AliyunClientFactory defaultFactoryWithConfig =
         AliyunClientFactories.from(ImmutableMap.of(AliyunProperties.CLIENT_ACCESS_KEY_ID, "key"));
-    Assert.assertTrue(
-        "Should load default when factory impl not configured",
-        defaultFactoryWithConfig instanceof AliyunClientFactories.DefaultAliyunClientFactory);
-    Assert.assertEquals(
-        "Should have access key set",
-        "key",
-        defaultFactoryWithConfig.aliyunProperties().accessKeyId());
+    Assertions.assertThat(defaultFactoryWithConfig)
+        .as("Should load default when factory impl not configured")
+        .isInstanceOf(AliyunClientFactories.DefaultAliyunClientFactory.class);
+
+    Assertions.assertThat(defaultFactoryWithConfig.aliyunProperties().accessKeyId())
+        .as("Should have access key set")
+        .isEqualTo("key");
   }
 
   @Test
   public void testLoadCustom() {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(AliyunProperties.CLIENT_FACTORY, CustomFactory.class.getName());
-    Assert.assertTrue(
-        "Should load custom class",
-        AliyunClientFactories.from(properties) instanceof CustomFactory);
+    Assertions.assertThat(AliyunClientFactories.from(properties))
+        .as("Should load custom class")
+        .isInstanceOf(CustomFactory.class);
   }
 
   public static class CustomFactory implements AliyunClientFactory {

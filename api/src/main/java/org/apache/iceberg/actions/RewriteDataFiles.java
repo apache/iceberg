@@ -24,13 +24,11 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.immutables.value.Value;
 
 /**
  * An action for rewriting data files according to a rewrite strategy. Generally used for optimizing
  * the sizing and layout of data files within a table.
  */
-@Value.Enclosing
 public interface RewriteDataFiles
     extends SnapshotUpdate<RewriteDataFiles, RewriteDataFiles.Result> {
 
@@ -178,33 +176,27 @@ public interface RewriteDataFiles
    * null then that particular file group failed. We should only have failed groups if partial
    * progress is enabled otherwise we will report a total failure for the job.
    */
-  @Value.Immutable
   interface Result {
     List<FileGroupRewriteResult> rewriteResults();
 
-    @Value.Default
     default List<FileGroupFailureResult> rewriteFailures() {
       return ImmutableList.of();
     }
 
-    @Value.Default
     default int addedDataFilesCount() {
       return rewriteResults().stream().mapToInt(FileGroupRewriteResult::addedDataFilesCount).sum();
     }
 
-    @Value.Default
     default int rewrittenDataFilesCount() {
       return rewriteResults().stream()
           .mapToInt(FileGroupRewriteResult::rewrittenDataFilesCount)
           .sum();
     }
 
-    @Value.Default
     default long rewrittenBytesCount() {
       return rewriteResults().stream().mapToLong(FileGroupRewriteResult::rewrittenBytesCount).sum();
     }
 
-    @Value.Default
     default int failedDataFilesCount() {
       return rewriteFailures().stream().mapToInt(FileGroupFailureResult::dataFilesCount).sum();
     }
@@ -214,7 +206,6 @@ public interface RewriteDataFiles
    * For a particular file group, the number of files which are newly created and the number of
    * files which were formerly part of the table but have been rewritten.
    */
-  @Value.Immutable
   interface FileGroupRewriteResult {
     FileGroupInfo info();
 
@@ -222,14 +213,12 @@ public interface RewriteDataFiles
 
     int rewrittenDataFilesCount();
 
-    @Value.Default
     default long rewrittenBytesCount() {
       return 0L;
     }
   }
 
   /** For a file group that failed to rewrite. */
-  @Value.Immutable
   interface FileGroupFailureResult {
     FileGroupInfo info();
 
@@ -240,7 +229,6 @@ public interface RewriteDataFiles
    * A description of a file group, when it was processed, and within which partition. For use
    * tracking rewrite operations and for returning results.
    */
-  @Value.Immutable
   interface FileGroupInfo {
 
     /** returns which file group this is out of the total set of file groups for this rewrite */

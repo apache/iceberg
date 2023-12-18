@@ -1,4 +1,5 @@
 {
+  "view-uuid": "fa6506c3-7681-40c8-86dc-e36561f83385",
   "format-version": 1,
   "location": "s3://bucket/test/location",
   "properties": {"some-key": "some-value"},
@@ -34,34 +35,30 @@
     {
       "version-id": 1,
       "timestamp-ms": 4353,
-      "summary": {"operation":"create"},
+      "summary": {"user": "some-user"},
       "schema-id": 1,
+      "default-catalog": "some-catalog",
+      "default-namespace": [],
       "representations": [
         {
           "type": "sql",
           "sql": "select 'foo' foo",
-          "dialect": "spark-sql",
-          "default-catalog": "some-catalog",
-          "default-namespace": [],
-          "field-aliases": [],
-          "field-comments": []
+          "dialect": "spark-sql"
         }
       ]
     },
     {
       "version-id": 2,
       "timestamp-ms": 5555,
-      "summary": {"operation": "replace"},
+      "summary": {"user": "some-user"},
       "schema-id": 1,
+      "default-catalog": "some-catalog",
+      "default-namespace": [],
       "representations": [
         {
           "type": "sql",
           "sql": "select 1 id, 'abc' data",
-          "dialect": "spark-sql",
-          "default-catalog": "some-catalog",
-          "default-namespace": [],
-          "field-aliases": [],
-          "field-comments": []
+          "dialect": "spark-sql"
         }
       ]
     }

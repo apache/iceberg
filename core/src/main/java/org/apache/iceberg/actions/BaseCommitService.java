@@ -28,6 +28,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Queues;
@@ -49,13 +50,16 @@ import org.slf4j.LoggerFactory;
 abstract class BaseCommitService<T> implements Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(BaseCommitService.class);
 
+  public static final long TIMEOUT_IN_MS_DEFAULT = TimeUnit.MINUTES.toMillis(120);
+
   private final Table table;
   private final ExecutorService committerService;
   private final ConcurrentLinkedQueue<T> completedRewrites;
   private final ConcurrentLinkedQueue<String> inProgressCommits;
-  private final List<T> committedRewrites;
+  private final ConcurrentLinkedQueue<T> committedRewrites;
   private final int rewritesPerCommit;
   private final AtomicBoolean running = new AtomicBoolean(false);
+  private final long timeoutInMS;
 
   /**
    * Constructs a {@link BaseCommitService}
@@ -64,17 +68,30 @@ abstract class BaseCommitService<T> implements Closeable {
    * @param rewritesPerCommit number of file groups to include in a commit
    */
   BaseCommitService(Table table, int rewritesPerCommit) {
+    this(table, rewritesPerCommit, TIMEOUT_IN_MS_DEFAULT);
+  }
+
+  /**
+   * Constructs a {@link BaseCommitService}
+   *
+   * @param table table to perform commit on
+   * @param rewritesPerCommit number of file groups to include in a commit
+   * @param timeoutInMS The timeout to wait for commits to complete after all rewrite jobs have been
+   *     completed
+   */
+  BaseCommitService(Table table, int rewritesPerCommit, long timeoutInMS) {
     this.table = table;
     LOG.info(
         "Creating commit service for table {} with {} groups per commit", table, rewritesPerCommit);
     this.rewritesPerCommit = rewritesPerCommit;
+    this.timeoutInMS = timeoutInMS;
 
     committerService =
         Executors.newSingleThreadExecutor(
             new ThreadFactoryBuilder().setNameFormat("Committer-Service").build());
 
     completedRewrites = Queues.newConcurrentLinkedQueue();
-    committedRewrites = Lists.newArrayList();
+    committedRewrites = Queues.newConcurrentLinkedQueue();
     inProgressCommits = Queues.newConcurrentLinkedQueue();
   }
 
@@ -100,9 +117,9 @@ abstract class BaseCommitService<T> implements Closeable {
     LOG.info("Starting commit service for {}", table);
     committerService.execute(
         () -> {
-          while (running.get() || completedRewrites.size() > 0 || inProgressCommits.size() > 0) {
+          while (running.get() || !completedRewrites.isEmpty() || !inProgressCommits.isEmpty()) {
             try {
-              if (completedRewrites.size() == 0 && inProgressCommits.size() == 0) {
+              if (completedRewrites.isEmpty() && inProgressCommits.isEmpty()) {
                 // give other threads a chance to make progress
                 Thread.sleep(100);
               }
@@ -112,7 +129,7 @@ abstract class BaseCommitService<T> implements Closeable {
             }
 
             // commit whatever is left once done with writing.
-            if (!running.get() && completedRewrites.size() > 0) {
+            if (!running.get() && !completedRewrites.isEmpty()) {
               commitReadyCommitGroups();
             }
           }
@@ -138,7 +155,7 @@ abstract class BaseCommitService<T> implements Closeable {
     Preconditions.checkState(
         committerService.isShutdown(),
         "Cannot get results from a service which has not been closed");
-    return committedRewrites;
+    return Lists.newArrayList(committedRewrites.iterator());
   }
 
   @Override
@@ -154,11 +171,13 @@ abstract class BaseCommitService<T> implements Closeable {
       // the commit pool to finish doing its commits to Iceberg State. In the case of partial
       // progress this should have been occurring simultaneously with rewrites, if not there should
       // be only a single commit operation.
-      if (!committerService.awaitTermination(120, TimeUnit.MINUTES)) {
+      if (!committerService.awaitTermination(timeoutInMS, TimeUnit.MILLISECONDS)) {
         LOG.warn(
-            "Commit operation did not complete within 120 minutes of the all files "
+            "Commit operation did not complete within {} minutes ({} ms) of the all files "
                 + "being rewritten. This may mean that some changes were not successfully committed to the "
-                + "table.");
+                + "table.",
+            TimeUnit.MILLISECONDS.toMinutes(timeoutInMS),
+            timeoutInMS);
         timeout = true;
       }
     } catch (InterruptedException e) {
@@ -169,7 +188,11 @@ abstract class BaseCommitService<T> implements Closeable {
 
     if (!completedRewrites.isEmpty() && timeout) {
       LOG.error("Attempting to cleanup uncommitted file groups");
-      completedRewrites.forEach(this::abortFileGroup);
+      synchronized (completedRewrites) {
+        while (!completedRewrites.isEmpty()) {
+          abortFileGroup(completedRewrites.poll());
+        }
+      }
     }
 
     Preconditions.checkArgument(
@@ -211,11 +234,17 @@ abstract class BaseCommitService<T> implements Closeable {
     }
   }
 
-  private boolean canCreateCommitGroup() {
+  @VisibleForTesting
+  boolean canCreateCommitGroup() {
     // Either we have a full commit group, or we have completed writing and need to commit
     // what is left over
     boolean fullCommitGroup = completedRewrites.size() >= rewritesPerCommit;
-    boolean writingComplete = !running.get() && completedRewrites.size() > 0;
+    boolean writingComplete = !running.get() && !completedRewrites.isEmpty();
     return fullCommitGroup || writingComplete;
+  }
+
+  @VisibleForTesting
+  boolean completedRewritesAllCommitted() {
+    return completedRewrites.isEmpty() && inProgressCommits.isEmpty();
   }
 }

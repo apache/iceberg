@@ -19,18 +19,18 @@
 
 version: 2
 updates:
-  - package-ecosystem: "pip"
-    directory: "/python/"
-    schedule:
-      interval: "weekly"
-      day: "sunday"
-    open-pull-requests-limit: 5
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "sunday"
   - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+    open-pull-requests-limit: 50
+  - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"

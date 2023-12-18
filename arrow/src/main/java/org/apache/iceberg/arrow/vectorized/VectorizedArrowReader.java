@@ -93,7 +93,11 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   }
 
   private VectorizedArrowReader() {
-    this.icebergField = null;
+    this(null);
+  }
+
+  private VectorizedArrowReader(Types.NestedField icebergField) {
+    this.icebergField = icebergField;
     this.batchSize = DEFAULT_BATCH_SIZE;
     this.columnDescriptor = null;
     this.rootAlloc = null;
@@ -117,6 +121,10 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     TIME_MICROS,
     UUID,
     DICTIONARY
+  }
+
+  protected Types.NestedField icebergField() {
+    return icebergField;
   }
 
   @Override
@@ -485,6 +493,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     private NullabilityHolder nulls;
 
     PositionVectorReader(boolean setArrowValidityVector) {
+      super(MetadataColumns.ROW_POSITION);
       this.setArrowValidityVector = setArrowValidityVector;
     }
 
@@ -563,13 +572,20 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   public static class ConstantVectorReader<T> extends VectorizedArrowReader {
     private final T value;
 
+    /** @deprecated since 1.4.0, will be removed in 1.5.0; use typed constant readers. */
+    @Deprecated
     public ConstantVectorReader(T value) {
+      this.value = value;
+    }
+
+    public ConstantVectorReader(Types.NestedField icebergField, T value) {
+      super(icebergField);
       this.value = value;
     }
 
     @Override
     public VectorHolder read(VectorHolder reuse, int numValsToRead) {
-      return VectorHolder.constantHolder(numValsToRead, value);
+      return VectorHolder.constantHolder(icebergField(), numValsToRead, value);
     }
 
     @Override
@@ -590,7 +606,9 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
    * Holder which indicates whether a given row is deleted.
    */
   public static class DeletedVectorReader extends VectorizedArrowReader {
-    public DeletedVectorReader() {}
+    public DeletedVectorReader() {
+      super(MetadataColumns.IS_DELETED);
+    }
 
     @Override
     public VectorHolder read(VectorHolder reuse, int numValsToRead) {

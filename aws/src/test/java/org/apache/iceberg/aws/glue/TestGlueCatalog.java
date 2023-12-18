@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.aws.AwsProperties;
+import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
@@ -79,9 +80,9 @@ public class TestGlueCatalog {
         CATALOG_NAME,
         WAREHOUSE_PATH,
         new AwsProperties(),
+        new S3FileIOProperties(),
         glue,
         LockManagers.defaultLockManager(),
-        null,
         ImmutableMap.of());
   }
 
@@ -92,9 +93,9 @@ public class TestGlueCatalog {
         CATALOG_NAME,
         null,
         new AwsProperties(),
+        new S3FileIOProperties(),
         glue,
         LockManagers.defaultLockManager(),
-        null,
         ImmutableMap.of());
     Mockito.doReturn(
             GetDatabaseResponse.builder().database(Database.builder().name("db").build()).build())
@@ -117,9 +118,9 @@ public class TestGlueCatalog {
         CATALOG_NAME,
         WAREHOUSE_PATH + "/",
         new AwsProperties(),
+        new S3FileIOProperties(),
         glue,
         LockManagers.defaultLockManager(),
-        null,
         ImmutableMap.of());
     Mockito.doReturn(
             GetDatabaseResponse.builder().database(Database.builder().name("db").build()).build())
@@ -152,18 +153,32 @@ public class TestGlueCatalog {
   }
 
   @Test
+  public void testDefaultWarehouseLocationDbUriTrailingSlash() {
+    Mockito.doReturn(
+            GetDatabaseResponse.builder()
+                .database(Database.builder().name("db").locationUri("s3://bucket2/db/").build())
+                .build())
+        .when(glue)
+        .getDatabase(Mockito.any(GetDatabaseRequest.class));
+    String location = glueCatalog.defaultWarehouseLocation(TableIdentifier.of("db", "table"));
+
+    Assertions.assertThat(location).isEqualTo("s3://bucket2/db/table");
+  }
+
+  @Test
   public void testDefaultWarehouseLocationCustomCatalogId() {
     GlueCatalog catalogWithCustomCatalogId = new GlueCatalog();
     String catalogId = "myCatalogId";
     AwsProperties awsProperties = new AwsProperties();
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties();
     awsProperties.setGlueCatalogId(catalogId);
     catalogWithCustomCatalogId.initialize(
         CATALOG_NAME,
         WAREHOUSE_PATH + "/",
         awsProperties,
+        s3FileIOProperties,
         glue,
         LockManagers.defaultLockManager(),
-        null,
         ImmutableMap.of());
 
     Mockito.doReturn(
@@ -476,9 +491,15 @@ public class TestGlueCatalog {
   public void testLoadNamespaceMetadata() {
     Map<String, String> parameters = Maps.newHashMap();
     parameters.put("key", "val");
+    parameters.put(IcebergToGlueConverter.GLUE_DB_LOCATION_KEY, "s3://bucket2/db");
     Mockito.doReturn(
             GetDatabaseResponse.builder()
-                .database(Database.builder().name("db1").parameters(parameters).build())
+                .database(
+                    Database.builder()
+                        .name("db1")
+                        .parameters(parameters)
+                        .locationUri("s3://bucket2/db/")
+                        .build())
                 .build())
         .when(glue)
         .getDatabase(Mockito.any(GetDatabaseRequest.class));
@@ -596,9 +617,9 @@ public class TestGlueCatalog {
         CATALOG_NAME,
         WAREHOUSE_PATH,
         new AwsProperties(),
+        new S3FileIOProperties(),
         glue,
         LockManagers.defaultLockManager(),
-        null,
         catalogProps);
     Map<String, String> properties = glueCatalog.properties();
     Assertions.assertThat(properties)
@@ -613,14 +634,15 @@ public class TestGlueCatalog {
   @Test
   public void testValidateIdentifierSkipNameValidation() {
     AwsProperties props = new AwsProperties();
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties();
     props.setGlueCatalogSkipNameValidation(true);
     glueCatalog.initialize(
         CATALOG_NAME,
         WAREHOUSE_PATH,
         props,
+        s3FileIOProperties,
         glue,
         LockManagers.defaultLockManager(),
-        null,
         ImmutableMap.of());
     Assertions.assertThat(glueCatalog.isValidIdentifier(TableIdentifier.parse("db-1.a-1")))
         .isEqualTo(true);
@@ -630,18 +652,19 @@ public class TestGlueCatalog {
   public void testTableLevelS3TagProperties() {
     Map<String, String> properties =
         ImmutableMap.of(
-            AwsProperties.S3_WRITE_TABLE_TAG_ENABLED,
+            S3FileIOProperties.WRITE_TABLE_TAG_ENABLED,
             "true",
-            AwsProperties.S3_WRITE_NAMESPACE_TAG_ENABLED,
+            S3FileIOProperties.WRITE_NAMESPACE_TAG_ENABLED,
             "true");
     AwsProperties awsProperties = new AwsProperties(properties);
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
     glueCatalog.initialize(
         CATALOG_NAME,
         WAREHOUSE_PATH,
         awsProperties,
+        s3FileIOProperties,
         glue,
         LockManagers.defaultLockManager(),
-        null,
         properties);
     GlueTableOperations glueTableOperations =
         (GlueTableOperations)
@@ -650,9 +673,11 @@ public class TestGlueCatalog {
 
     Assertions.assertThat(tableCatalogProperties)
         .containsEntry(
-            AwsProperties.S3_WRITE_TAGS_PREFIX.concat(AwsProperties.S3_TAG_ICEBERG_TABLE), "table")
+            S3FileIOProperties.WRITE_TAGS_PREFIX.concat(S3FileIOProperties.S3_TAG_ICEBERG_TABLE),
+            "table")
         .containsEntry(
-            AwsProperties.S3_WRITE_TAGS_PREFIX.concat(AwsProperties.S3_TAG_ICEBERG_NAMESPACE),
+            S3FileIOProperties.WRITE_TAGS_PREFIX.concat(
+                S3FileIOProperties.S3_TAG_ICEBERG_NAMESPACE),
             "db");
   }
 }

@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -362,6 +364,18 @@ public class TestTagDDL extends SparkExtensionsTestBase {
     sql("ALTER TABLE %s DROP TAG IF EXISTS %s", tableName, tagName);
     table.refresh();
     Assert.assertNull("The tag needs to be dropped.", table.refs().get(tagName));
+  }
+
+  @Test
+  public void createOrReplaceWithNonExistingTag() throws NoSuchTableException {
+    Table table = insertRows();
+    String tagName = "t1";
+    insertRows();
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    sql("ALTER TABLE %s CREATE OR REPLACE TAG %s AS OF VERSION %d", tableName, tagName, snapshotId);
+    table.refresh();
+    assertThat(table.refs().get(tagName).snapshotId()).isEqualTo(snapshotId);
   }
 
   private Table insertRows() throws NoSuchTableException {

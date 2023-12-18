@@ -28,9 +28,12 @@ import static org.apache.iceberg.BaseMetastoreTableOperations.TABLE_TYPE_PROP;
 import static org.apache.iceberg.TableMetadataParser.getFileExtension;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -74,16 +77,13 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class HiveTableTest extends HiveTableBaseTest {
   static final String NON_DEFAULT_DATABASE = "nondefault";
 
-  @Rule public TemporaryFolder tempFolder = new TemporaryFolder();
+  @TempDir private Path tempFolder;
 
   @Test
   public void testCreate() throws TException {
@@ -91,27 +91,29 @@ public class HiveTableTest extends HiveTableBaseTest {
     // Table should be renamed in hive metastore
     String tableName = TABLE_IDENTIFIER.name();
     org.apache.hadoop.hive.metastore.api.Table table =
-        metastoreClient.getTable(TABLE_IDENTIFIER.namespace().level(0), tableName);
+        HIVE_METASTORE_EXTENSION
+            .metastoreClient()
+            .getTable(TABLE_IDENTIFIER.namespace().level(0), tableName);
 
     // check parameters are in expected state
     Map<String, String> parameters = table.getParameters();
-    Assert.assertNotNull(parameters);
-    Assert.assertTrue(ICEBERG_TABLE_TYPE_VALUE.equalsIgnoreCase(parameters.get(TABLE_TYPE_PROP)));
-    Assert.assertTrue("EXTERNAL_TABLE".equalsIgnoreCase(table.getTableType()));
+    assertThat(parameters).isNotNull();
+    assertThat(parameters.get(TABLE_TYPE_PROP)).isEqualToIgnoringCase(ICEBERG_TABLE_TYPE_VALUE);
+    assertThat(table.getTableType()).isEqualToIgnoringCase("EXTERNAL_TABLE");
 
     // Ensure the table is pointing to empty location
-    Assert.assertEquals(getTableLocation(tableName), table.getSd().getLocation());
+    assertThat(table.getSd().getLocation()).isEqualTo(getTableLocation(tableName));
 
     // Ensure it is stored as unpartitioned table in hive.
-    Assert.assertEquals(0, table.getPartitionKeysSize());
+    assertThat(table.getPartitionKeysSize()).isEqualTo(0);
 
     // Only 1 snapshotFile Should exist and no manifests should exist
-    Assert.assertEquals(1, metadataVersionFiles(tableName).size());
-    Assert.assertEquals(0, manifestFiles(tableName).size());
+    assertThat(metadataVersionFiles(tableName)).hasSize(1);
+    assertThat(manifestFiles(tableName)).hasSize(0);
 
     final Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
     // Iceberg schema should match the loaded table
-    Assert.assertEquals(schema.asStruct(), icebergTable.schema().asStruct());
+    assertThat(icebergTable.schema().asStruct()).isEqualTo(schema.asStruct());
   }
 
   @Test
@@ -122,25 +124,26 @@ public class HiveTableTest extends HiveTableBaseTest {
     Table original = catalog.loadTable(TABLE_IDENTIFIER);
 
     catalog.renameTable(TABLE_IDENTIFIER, renameTableIdentifier);
-    Assert.assertFalse(catalog.tableExists(TABLE_IDENTIFIER));
-    Assert.assertTrue(catalog.tableExists(renameTableIdentifier));
+    assertThat(catalog.tableExists(TABLE_IDENTIFIER)).isFalse();
+    assertThat(catalog.tableExists(renameTableIdentifier)).isTrue();
 
     Table renamed = catalog.loadTable(renameTableIdentifier);
 
-    Assert.assertEquals(original.schema().asStruct(), renamed.schema().asStruct());
-    Assert.assertEquals(original.spec(), renamed.spec());
-    Assert.assertEquals(original.location(), renamed.location());
-    Assert.assertEquals(original.currentSnapshot(), renamed.currentSnapshot());
+    assertThat(renamed.schema().asStruct()).isEqualTo(original.schema().asStruct());
+    assertThat(renamed.spec()).isEqualTo(original.spec());
+    assertThat(renamed.location()).isEqualTo(original.location());
+    assertThat(renamed.currentSnapshot()).isEqualTo(original.currentSnapshot());
 
-    Assert.assertTrue(catalog.dropTable(renameTableIdentifier));
+    assertThat(catalog.dropTable(renameTableIdentifier)).isTrue();
   }
 
   @Test
   public void testDrop() {
-    Assert.assertTrue("Table should exist", catalog.tableExists(TABLE_IDENTIFIER));
-    Assert.assertTrue(
-        "Drop should return true and drop the table", catalog.dropTable(TABLE_IDENTIFIER));
-    Assert.assertFalse("Table should not exist", catalog.tableExists(TABLE_IDENTIFIER));
+    assertThat(catalog.tableExists(TABLE_IDENTIFIER)).as("Table should exist").isTrue();
+    assertThat(catalog.dropTable(TABLE_IDENTIFIER))
+        .as("Drop should return true and drop the table")
+        .isTrue();
+    assertThat(catalog.tableExists(TABLE_IDENTIFIER)).as("Table should not exist").isFalse();
   }
 
   @Test
@@ -152,13 +155,13 @@ public class HiveTableTest extends HiveTableBaseTest {
     String manifestListLocation =
         table.currentSnapshot().manifestListLocation().replace("file:", "");
 
-    Assert.assertTrue(
-        "Drop should return true and drop the table",
-        catalog.dropTable(TABLE_IDENTIFIER, false /* do not delete underlying files */));
-    Assert.assertFalse("Table should not exist", catalog.tableExists(TABLE_IDENTIFIER));
+    assertThat(catalog.dropTable(TABLE_IDENTIFIER, false /* do not delete underlying files */))
+        .as("Drop should return true and drop the table")
+        .isTrue();
+    assertThat(catalog.tableExists(TABLE_IDENTIFIER)).as("Table should not exist").isFalse();
 
-    Assert.assertTrue("Table data files should exist", new File(fileLocation).exists());
-    Assert.assertTrue("Table metadata files should exist", new File(manifestListLocation).exists());
+    assertThat(new File(fileLocation)).as("Table data files should exist").exists();
+    assertThat(new File(manifestListLocation)).as("Table metadata files should exist").exists();
   }
 
   @Test
@@ -214,29 +217,30 @@ public class HiveTableTest extends HiveTableBaseTest {
 
     List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
 
-    Assert.assertTrue(
-        "Drop (table and data) should return true and drop the table",
-        catalog.dropTable(TABLE_IDENTIFIER));
-    Assert.assertFalse("Table should not exist", catalog.tableExists(TABLE_IDENTIFIER));
+    assertThat(catalog.dropTable(TABLE_IDENTIFIER))
+        .as("Drop (table and data) should return true and drop the table")
+        .isTrue();
+    assertThat(catalog.tableExists(TABLE_IDENTIFIER)).as("Table should not exist").isFalse();
 
-    Assert.assertFalse("Table data files should not exist", new File(location1).exists());
-    Assert.assertFalse("Table data files should not exist", new File(location2).exists());
-    Assert.assertFalse(
-        "Table manifest list files should not exist", new File(manifestListLocation).exists());
+    assertThat(new File(location1)).as("Table data files should not exist").doesNotExist();
+    assertThat(new File(location2)).as("Table data files should not exist").doesNotExist();
+    assertThat(new File(manifestListLocation))
+        .as("Table manifest list files should not exist")
+        .doesNotExist();
     for (ManifestFile manifest : manifests) {
-      Assert.assertFalse(
-          "Table manifest files should not exist",
-          new File(manifest.path().replace("file:", "")).exists());
+      assertThat(new File(manifest.path().replace("file:", "")))
+          .as("Table manifest files should not exist")
+          .doesNotExist();
     }
-    Assert.assertFalse(
-        "Table metadata file should not exist",
-        new File(
+    assertThat(
+            new File(
                 ((HasTableOperations) table)
                     .operations()
                     .current()
                     .metadataFileLocation()
-                    .replace("file:", ""))
-            .exists());
+                    .replace("file:", "")))
+        .as("Table metadata file should not exist")
+        .doesNotExist();
   }
 
   @Test
@@ -248,17 +252,17 @@ public class HiveTableTest extends HiveTableBaseTest {
     icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
 
     // Only 2 snapshotFile Should exist and no manifests should exist
-    Assert.assertEquals(2, metadataVersionFiles(TABLE_NAME).size());
-    Assert.assertEquals(0, manifestFiles(TABLE_NAME).size());
-    Assert.assertEquals(altered.asStruct(), icebergTable.schema().asStruct());
+    assertThat(metadataVersionFiles(TABLE_NAME)).hasSize(2);
+    assertThat(manifestFiles(TABLE_NAME)).hasSize(0);
+    assertThat(icebergTable.schema().asStruct()).isEqualTo(altered.asStruct());
 
     final org.apache.hadoop.hive.metastore.api.Table table =
-        metastoreClient.getTable(DB_NAME, TABLE_NAME);
+        HIVE_METASTORE_EXTENSION.metastoreClient().getTable(DB_NAME, TABLE_NAME);
     final List<String> hiveColumns =
         table.getSd().getCols().stream().map(FieldSchema::getName).collect(Collectors.toList());
     final List<String> icebergColumns =
         altered.columns().stream().map(Types.NestedField::name).collect(Collectors.toList());
-    Assert.assertEquals(icebergColumns, hiveColumns);
+    assertThat(hiveColumns).isEqualTo(icebergColumns);
   }
 
   @Test
@@ -285,10 +289,9 @@ public class HiveTableTest extends HiveTableBaseTest {
         .addColumn("int", Types.IntegerType.get())
         .commit();
 
-    Assert.assertEquals(
-        "Schema should match expected",
-        expectedSchema.asStruct(),
-        icebergTable.schema().asStruct());
+    assertThat(icebergTable.schema().asStruct())
+        .as("Schema should match expected")
+        .isEqualTo(expectedSchema.asStruct());
 
     expectedSchema =
         new Schema(
@@ -299,21 +302,20 @@ public class HiveTableTest extends HiveTableBaseTest {
                 .fields());
     icebergTable.updateSchema().deleteColumn("string").commit();
 
-    Assert.assertEquals(
-        "Schema should match expected",
-        expectedSchema.asStruct(),
-        icebergTable.schema().asStruct());
+    assertThat(icebergTable.schema().asStruct())
+        .as("Schema should match expected")
+        .isEqualTo(expectedSchema.asStruct());
   }
 
   @Test
   public void testFailure() throws TException {
     Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
     org.apache.hadoop.hive.metastore.api.Table table =
-        metastoreClient.getTable(DB_NAME, TABLE_NAME);
+        HIVE_METASTORE_EXTENSION.metastoreClient().getTable(DB_NAME, TABLE_NAME);
     String dummyLocation = "dummylocation";
     table.getParameters().put(METADATA_LOCATION_PROP, dummyLocation);
-    metastoreClient.alter_table(DB_NAME, TABLE_NAME, table);
-    Assertions.assertThatThrownBy(
+    HIVE_METASTORE_EXTENSION.metastoreClient().alter_table(DB_NAME, TABLE_NAME, table);
+    assertThatThrownBy(
             () -> icebergTable.updateSchema().addColumn("data", Types.LongType.get()).commit())
         .isInstanceOf(CommitFailedException.class)
         .hasMessageContaining("is not same as the current table metadata location 'dummylocation'");
@@ -327,24 +329,24 @@ public class HiveTableTest extends HiveTableBaseTest {
             .filter(t -> t.namespace().level(0).equals(DB_NAME) && t.name().equals(TABLE_NAME))
             .collect(Collectors.toList());
 
-    Assert.assertEquals(1, expectedIdents.size());
-    Assert.assertTrue(catalog.tableExists(TABLE_IDENTIFIER));
+    assertThat(expectedIdents).hasSize(1);
+    assertThat(catalog.tableExists(TABLE_IDENTIFIER)).isTrue();
 
     // create a hive table
     String hiveTableName = "test_hive_table";
     org.apache.hadoop.hive.metastore.api.Table hiveTable = createHiveTable(hiveTableName);
-    metastoreClient.createTable(hiveTable);
+    HIVE_METASTORE_EXTENSION.metastoreClient().createTable(hiveTable);
 
     catalog.setListAllTables(false);
     List<TableIdentifier> tableIdents1 = catalog.listTables(TABLE_IDENTIFIER.namespace());
-    Assert.assertEquals("should only 1 iceberg table .", 1, tableIdents1.size());
+    assertThat(tableIdents1).as("should only 1 iceberg table .").hasSize(1);
 
     catalog.setListAllTables(true);
     List<TableIdentifier> tableIdents2 = catalog.listTables(TABLE_IDENTIFIER.namespace());
-    Assert.assertEquals("should be 2 tables in namespace .", 2, tableIdents2.size());
+    assertThat(tableIdents2).as("should be 2 tables in namespace .").hasSize(2);
 
-    Assert.assertTrue(catalog.tableExists(TABLE_IDENTIFIER));
-    metastoreClient.dropTable(DB_NAME, hiveTableName);
+    assertThat(catalog.tableExists(TABLE_IDENTIFIER)).isTrue();
+    HIVE_METASTORE_EXTENSION.metastoreClient().dropTable(DB_NAME, hiveTableName);
   }
 
   private org.apache.hadoop.hive.metastore.api.Table createHiveTable(String hiveTableName)
@@ -362,7 +364,7 @@ public class HiveTableTest extends HiveTableBaseTest {
     StorageDescriptor sd =
         new StorageDescriptor(
             Lists.newArrayList(),
-            tempFolder.newFolder().getAbsolutePath(),
+            tempFolder.toAbsolutePath().toString(),
             "org.apache.hadoop.mapred.TextInputFormat",
             "org.apache.hadoop.mapred.TextOutputFormat",
             false,
@@ -400,54 +402,52 @@ public class HiveTableTest extends HiveTableBaseTest {
         namespace, Collections.singletonMap("location", nonDefaultLocation.getPath()));
     Map<String, String> namespaceMeta = catalog.loadNamespaceMetadata(namespace);
     // Make sure that we are testing a namespace with a non default location :)
-    Assert.assertEquals(namespaceMeta.get("location"), "file:" + nonDefaultLocation.getPath());
+    assertThat("file:" + nonDefaultLocation.getPath()).isEqualTo(namespaceMeta.get("location"));
 
     TableIdentifier tableIdentifier = TableIdentifier.of(namespace, TABLE_NAME);
     catalog.createTable(tableIdentifier, schema);
 
     // Let's check the location loaded through the catalog
     Table table = catalog.loadTable(tableIdentifier);
-    Assert.assertEquals(namespaceMeta.get("location") + "/" + TABLE_NAME, table.location());
+    assertThat(table.location()).isEqualTo(namespaceMeta.get("location") + "/" + TABLE_NAME);
 
     // Drop the database and purge the files
-    metastoreClient.dropDatabase(NON_DEFAULT_DATABASE, true, true, true);
+    HIVE_METASTORE_EXTENSION.metastoreClient().dropDatabase(NON_DEFAULT_DATABASE, true, true, true);
   }
 
   @Test
   public void testRegisterTable() throws TException {
     org.apache.hadoop.hive.metastore.api.Table originalTable =
-        metastoreClient.getTable(DB_NAME, TABLE_NAME);
+        HIVE_METASTORE_EXTENSION.metastoreClient().getTable(DB_NAME, TABLE_NAME);
 
     Map<String, String> originalParams = originalTable.getParameters();
-    Assert.assertNotNull(originalParams);
-    Assert.assertTrue(
-        ICEBERG_TABLE_TYPE_VALUE.equalsIgnoreCase(originalParams.get(TABLE_TYPE_PROP)));
-    Assert.assertTrue("EXTERNAL_TABLE".equalsIgnoreCase(originalTable.getTableType()));
+    assertThat(originalParams).isNotNull();
+    assertThat(originalParams.get(TABLE_TYPE_PROP)).isEqualToIgnoringCase(ICEBERG_TABLE_TYPE_VALUE);
+    assertThat(originalTable.getTableType()).isEqualToIgnoringCase("EXTERNAL_TABLE");
 
     catalog.dropTable(TABLE_IDENTIFIER, false);
-    Assert.assertFalse(catalog.tableExists(TABLE_IDENTIFIER));
+    assertThat(catalog.tableExists(TABLE_IDENTIFIER)).isFalse();
 
     List<String> metadataVersionFiles = metadataVersionFiles(TABLE_NAME);
-    Assert.assertEquals(1, metadataVersionFiles.size());
+    assertThat(metadataVersionFiles).hasSize(1);
 
     catalog.registerTable(TABLE_IDENTIFIER, "file:" + metadataVersionFiles.get(0));
 
     org.apache.hadoop.hive.metastore.api.Table newTable =
-        metastoreClient.getTable(DB_NAME, TABLE_NAME);
+        HIVE_METASTORE_EXTENSION.metastoreClient().getTable(DB_NAME, TABLE_NAME);
 
     Map<String, String> newTableParameters = newTable.getParameters();
-    Assert.assertNull(newTableParameters.get(PREVIOUS_METADATA_LOCATION_PROP));
-    Assert.assertEquals(
-        originalParams.get(TABLE_TYPE_PROP), newTableParameters.get(TABLE_TYPE_PROP));
-    Assert.assertEquals(
-        originalParams.get(METADATA_LOCATION_PROP), newTableParameters.get(METADATA_LOCATION_PROP));
-    Assert.assertEquals(originalTable.getSd(), newTable.getSd());
+    assertThat(newTableParameters)
+        .doesNotContainKey(PREVIOUS_METADATA_LOCATION_PROP)
+        .containsEntry(TABLE_TYPE_PROP, originalParams.get(TABLE_TYPE_PROP))
+        .containsEntry(METADATA_LOCATION_PROP, originalParams.get(METADATA_LOCATION_PROP));
+    assertThat(newTable.getSd()).isEqualTo(originalTable.getSd());
   }
 
   @Test
   public void testRegisterHadoopTableToHiveCatalog() throws IOException, TException {
     // create a hadoop catalog
-    String tableLocation = tempFolder.newFolder().toString();
+    String tableLocation = tempFolder.toString();
     HadoopCatalog hadoopCatalog = new HadoopCatalog(new Configuration(), tableLocation);
     // create table using hadoop catalog
     TableIdentifier identifier = TableIdentifier.of(DB_NAME, "table1");
@@ -457,8 +457,8 @@ public class HiveTableTest extends HiveTableBaseTest {
     // insert some data
     String file1Location = appendData(table, "file1");
     List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles());
-    Assert.assertEquals("Should scan 1 file", 1, tasks.size());
-    Assert.assertEquals(tasks.get(0).file().path(), file1Location);
+    assertThat(tasks).as("Should scan 1 file").hasSize(1);
+    assertThat(file1Location).isEqualTo(tasks.get(0).file().path());
 
     // collect metadata file
     List<String> metadataFiles =
@@ -466,31 +466,31 @@ public class HiveTableTest extends HiveTableBaseTest {
             .map(File::getAbsolutePath)
             .filter(f -> f.endsWith(getFileExtension(TableMetadataParser.Codec.NONE)))
             .collect(Collectors.toList());
-    Assert.assertEquals(2, metadataFiles.size());
+    assertThat(metadataFiles).hasSize(2);
 
-    Assertions.assertThatThrownBy(() -> metastoreClient.getTable(DB_NAME, "table1"))
+    assertThatThrownBy(() -> HIVE_METASTORE_EXTENSION.metastoreClient().getTable(DB_NAME, "table1"))
         .isInstanceOf(NoSuchObjectException.class)
         .hasMessage("hivedb.table1 table not found");
-    Assertions.assertThatThrownBy(() -> catalog.loadTable(identifier))
+    assertThatThrownBy(() -> catalog.loadTable(identifier))
         .isInstanceOf(NoSuchTableException.class)
         .hasMessage("Table does not exist: hivedb.table1");
 
     // register the table to hive catalog using the latest metadata file
     String latestMetadataFile = ((BaseTable) table).operations().current().metadataFileLocation();
     catalog.registerTable(identifier, "file:" + latestMetadataFile);
-    Assert.assertNotNull(metastoreClient.getTable(DB_NAME, "table1"));
+    assertThat(HIVE_METASTORE_EXTENSION.metastoreClient().getTable(DB_NAME, "table1")).isNotNull();
 
     // load the table in hive catalog
     table = catalog.loadTable(identifier);
-    Assert.assertNotNull(table);
+    assertThat(table).isNotNull();
 
     // insert some data
     String file2Location = appendData(table, "file2");
     tasks = Lists.newArrayList(table.newScan().planFiles());
-    Assert.assertEquals("Should scan 2 files", 2, tasks.size());
+    assertThat(tasks).as("Should scan 2 files").hasSize(2);
     Set<String> files =
         tasks.stream().map(task -> task.file().path().toString()).collect(Collectors.toSet());
-    Assert.assertTrue(files.contains(file1Location) && files.contains(file2Location));
+    assertThat(files).contains(file1Location, file2Location);
   }
 
   private String appendData(Table table, String fileName) throws IOException {
@@ -525,19 +525,18 @@ public class HiveTableTest extends HiveTableBaseTest {
   @Test
   public void testRegisterExistingTable() throws TException {
     org.apache.hadoop.hive.metastore.api.Table originalTable =
-        metastoreClient.getTable(DB_NAME, TABLE_NAME);
+        HIVE_METASTORE_EXTENSION.metastoreClient().getTable(DB_NAME, TABLE_NAME);
 
     Map<String, String> originalParams = originalTable.getParameters();
-    Assert.assertNotNull(originalParams);
-    Assert.assertTrue(
-        ICEBERG_TABLE_TYPE_VALUE.equalsIgnoreCase(originalParams.get(TABLE_TYPE_PROP)));
-    Assert.assertTrue("EXTERNAL_TABLE".equalsIgnoreCase(originalTable.getTableType()));
+    assertThat(originalParams).isNotNull();
+    assertThat(originalParams.get(TABLE_TYPE_PROP)).isEqualToIgnoringCase(ICEBERG_TABLE_TYPE_VALUE);
+    assertThat(originalTable.getTableType()).isEqualToIgnoringCase("EXTERNAL_TABLE");
 
     List<String> metadataVersionFiles = metadataVersionFiles(TABLE_NAME);
-    Assert.assertEquals(1, metadataVersionFiles.size());
+    assertThat(metadataVersionFiles).hasSize(1);
 
     // Try to register an existing table
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> catalog.registerTable(TABLE_IDENTIFIER, "file:" + metadataVersionFiles.get(0)))
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessage("Table already exists: hivedb.tbl");
@@ -553,7 +552,7 @@ public class HiveTableTest extends HiveTableBaseTest {
 
     catalog.createTable(TABLE_IDENTIFIER, schema, PartitionSpec.unpartitioned());
     org.apache.hadoop.hive.metastore.api.Table hmsTable =
-        metastoreClient.getTable(DB_NAME, TABLE_NAME);
+        HIVE_METASTORE_EXTENSION.metastoreClient().getTable(DB_NAME, TABLE_NAME);
 
     assertHiveEnabled(hmsTable, false);
   }
@@ -568,7 +567,7 @@ public class HiveTableTest extends HiveTableBaseTest {
 
     catalog.createTable(TABLE_IDENTIFIER, schema, PartitionSpec.unpartitioned());
     org.apache.hadoop.hive.metastore.api.Table hmsTable =
-        metastoreClient.getTable(DB_NAME, TABLE_NAME);
+        HIVE_METASTORE_EXTENSION.metastoreClient().getTable(DB_NAME, TABLE_NAME);
 
     assertHiveEnabled(hmsTable, true);
 
@@ -578,7 +577,7 @@ public class HiveTableTest extends HiveTableBaseTest {
     catalog.getConf().set(ConfigProperties.ENGINE_HIVE_ENABLED, "false");
 
     catalog.createTable(TABLE_IDENTIFIER, schema, PartitionSpec.unpartitioned());
-    hmsTable = metastoreClient.getTable(DB_NAME, TABLE_NAME);
+    hmsTable = HIVE_METASTORE_EXTENSION.metastoreClient().getTable(DB_NAME, TABLE_NAME);
 
     assertHiveEnabled(hmsTable, false);
   }
@@ -595,7 +594,7 @@ public class HiveTableTest extends HiveTableBaseTest {
 
     catalog.createTable(TABLE_IDENTIFIER, schema, PartitionSpec.unpartitioned(), tableProperties);
     org.apache.hadoop.hive.metastore.api.Table hmsTable =
-        metastoreClient.getTable(DB_NAME, TABLE_NAME);
+        HIVE_METASTORE_EXTENSION.metastoreClient().getTable(DB_NAME, TABLE_NAME);
 
     assertHiveEnabled(hmsTable, true);
 
@@ -606,7 +605,7 @@ public class HiveTableTest extends HiveTableBaseTest {
     catalog.getConf().set(ConfigProperties.ENGINE_HIVE_ENABLED, "true");
 
     catalog.createTable(TABLE_IDENTIFIER, schema, PartitionSpec.unpartitioned(), tableProperties);
-    hmsTable = metastoreClient.getTable(DB_NAME, TABLE_NAME);
+    hmsTable = HIVE_METASTORE_EXTENSION.metastoreClient().getTable(DB_NAME, TABLE_NAME);
 
     assertHiveEnabled(hmsTable, false);
   }
@@ -618,35 +617,35 @@ public class HiveTableTest extends HiveTableBaseTest {
     File realLocation = new File(metadataLocation(TABLE_NAME));
     File fakeLocation = new File(metadataLocation(TABLE_NAME) + "_dummy");
 
-    Assert.assertTrue(realLocation.renameTo(fakeLocation));
-    Assertions.assertThatThrownBy(() -> catalog.loadTable(TABLE_IDENTIFIER))
+    assertThat(realLocation.renameTo(fakeLocation)).isTrue();
+    assertThatThrownBy(() -> catalog.loadTable(TABLE_IDENTIFIER))
         .isInstanceOf(NotFoundException.class)
         .hasMessageStartingWith("Failed to open input stream for file");
-    Assert.assertTrue(fakeLocation.renameTo(realLocation));
+    assertThat(fakeLocation.renameTo(realLocation)).isTrue();
   }
 
   private void assertHiveEnabled(
       org.apache.hadoop.hive.metastore.api.Table hmsTable, boolean expected) {
     if (expected) {
-      Assert.assertEquals(
-          "org.apache.iceberg.mr.hive.HiveIcebergStorageHandler",
-          hmsTable.getParameters().get(hive_metastoreConstants.META_TABLE_STORAGE));
-      Assert.assertEquals(
-          "org.apache.iceberg.mr.hive.HiveIcebergSerDe",
-          hmsTable.getSd().getSerdeInfo().getSerializationLib());
-      Assert.assertEquals(
-          "org.apache.iceberg.mr.hive.HiveIcebergInputFormat", hmsTable.getSd().getInputFormat());
-      Assert.assertEquals(
-          "org.apache.iceberg.mr.hive.HiveIcebergOutputFormat", hmsTable.getSd().getOutputFormat());
+      assertThat(hmsTable.getParameters())
+          .containsEntry(
+              hive_metastoreConstants.META_TABLE_STORAGE,
+              "org.apache.iceberg.mr.hive.HiveIcebergStorageHandler");
+      assertThat(hmsTable.getSd().getSerdeInfo().getSerializationLib())
+          .isEqualTo("org.apache.iceberg.mr.hive.HiveIcebergSerDe");
+      assertThat(hmsTable.getSd().getInputFormat())
+          .isEqualTo("org.apache.iceberg.mr.hive.HiveIcebergInputFormat");
+      assertThat(hmsTable.getSd().getOutputFormat())
+          .isEqualTo("org.apache.iceberg.mr.hive.HiveIcebergOutputFormat");
     } else {
-      Assert.assertNull(hmsTable.getParameters().get(hive_metastoreConstants.META_TABLE_STORAGE));
-      Assert.assertEquals(
-          "org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe",
-          hmsTable.getSd().getSerdeInfo().getSerializationLib());
-      Assert.assertEquals(
-          "org.apache.hadoop.mapred.FileInputFormat", hmsTable.getSd().getInputFormat());
-      Assert.assertEquals(
-          "org.apache.hadoop.mapred.FileOutputFormat", hmsTable.getSd().getOutputFormat());
+      assertThat(hmsTable.getParameters())
+          .doesNotContainKey(hive_metastoreConstants.META_TABLE_STORAGE);
+      assertThat(hmsTable.getSd().getSerdeInfo().getSerializationLib())
+          .isEqualTo("org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe");
+      assertThat(hmsTable.getSd().getInputFormat())
+          .isEqualTo("org.apache.hadoop.mapred.FileInputFormat");
+      assertThat(hmsTable.getSd().getOutputFormat())
+          .isEqualTo("org.apache.hadoop.mapred.FileOutputFormat");
     }
   }
 }

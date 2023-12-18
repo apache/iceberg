@@ -759,6 +759,9 @@ public class TestHiveIcebergStorageHandlerNoScan {
     expectedIcebergProperties.put("custom_property", "initial_val");
     expectedIcebergProperties.put("EXTERNAL", "TRUE");
     expectedIcebergProperties.put("storage_handler", HiveIcebergStorageHandler.class.getName());
+    expectedIcebergProperties.put(
+        TableProperties.PARQUET_COMPRESSION,
+        TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0);
 
     // Check the HMS table parameters
     org.apache.hadoop.hive.metastore.api.Table hmsTable =
@@ -779,7 +782,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
     Assert.assertEquals(expectedIcebergProperties, icebergTable.properties());
 
     if (Catalogs.hiveCatalog(shell.getHiveConf(), tableProperties)) {
-      Assert.assertEquals(13, hmsParams.size());
+      Assert.assertEquals(14, hmsParams.size());
       Assert.assertEquals("initial_val", hmsParams.get("custom_property"));
       Assert.assertEquals("TRUE", hmsParams.get(InputFormatConfig.EXTERNAL_TABLE_PURGE));
       Assert.assertEquals("TRUE", hmsParams.get("EXTERNAL"));
@@ -824,8 +827,8 @@ public class TestHiveIcebergStorageHandlerNoScan {
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
     if (Catalogs.hiveCatalog(shell.getHiveConf(), tableProperties)) {
-      Assert.assertEquals(
-          16, hmsParams.size()); // 2 newly-added properties + previous_metadata_location prop
+      // 2 newly-added properties + previous_metadata_location prop + explicit Parquet compression
+      Assert.assertEquals(17, hmsParams.size());
       Assert.assertEquals("true", hmsParams.get("new_prop_1"));
       Assert.assertEquals("false", hmsParams.get("new_prop_2"));
       Assert.assertEquals("new_val", hmsParams.get("custom_property"));

@@ -181,13 +181,21 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
   }
 
   /**
-   * Returns the smallest of our max write file threshold and our estimated split size based on the
-   * number of output files we want to generate. Add an overhead onto the estimated split size to
-   * try to avoid small errors in size creating brand-new files.
+   * Calculates the split size to use in bin-packing rewrites.
+   *
+   * <p>This method determines the target split size as the input size divided by the desired number
+   * of output files. The final split size is adjusted to be at least as big as the target file size
+   * but less than the max write file size.
    */
   protected long splitSize(long inputSize) {
     long estimatedSplitSize = (inputSize / numOutputFiles(inputSize)) + SPLIT_OVERHEAD;
-    return Math.min(estimatedSplitSize, writeMaxFileSize());
+    if (estimatedSplitSize < targetFileSize) {
+      return targetFileSize;
+    } else if (estimatedSplitSize > writeMaxFileSize()) {
+      return writeMaxFileSize();
+    } else {
+      return estimatedSplitSize;
+    }
   }
 
   /**

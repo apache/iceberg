@@ -37,10 +37,10 @@ You will need to provide the AWS v2 SDK because that is what Iceberg depends on.
 You can choose to use the [AWS SDK bundle](https://mvnrepository.com/artifact/software.amazon.awssdk/bundle), 
 or individual AWS client packages (Glue, S3, DynamoDB, KMS, STS) if you would like to have a minimal dependency footprint.
 
-All the default AWS clients use the [URL Connection HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/url-connection-client)
+All the default AWS clients use the [Apache HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/apache-client)
 for HTTP connection management.
 This dependency is not part of the AWS SDK bundle and needs to be added separately.
-To choose a different HTTP client library such as [Apache HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/apache-client),
+To choose a different HTTP client library such as [URL Connection HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/url-connection-client),
 see the section [client customization](#aws-client-customization) for more details.
 
 All the AWS module features can be loaded through custom catalog properties,
@@ -49,25 +49,11 @@ Here are some examples.
 
 ### Spark
 
-For example, to use AWS features with Spark 3.3 (with scala 2.12) and AWS clients version 2.20.18, you can start the Spark SQL shell with:
+For example, to use AWS features with Spark 3.4 (with scala 2.12) and AWS clients (which is packaged in the `iceberg-aws-bundle`), you can start the Spark SQL shell with:
 
 ```sh
-# add Iceberg dependency
-ICEBERG_VERSION={{% icebergVersion %}}
-DEPENDENCIES="org.apache.iceberg:iceberg-spark-runtime-3.3_2.12:$ICEBERG_VERSION"
-
-# add AWS dependency
-AWS_SDK_VERSION=2.20.18
-AWS_MAVEN_GROUP=software.amazon.awssdk
-AWS_PACKAGES=(
-    "bundle"
-)
-for pkg in "${AWS_PACKAGES[@]}"; do
-    DEPENDENCIES+=",$AWS_MAVEN_GROUP:$pkg:$AWS_SDK_VERSION"
-done
-
 # start Spark SQL client shell
-spark-sql --packages $DEPENDENCIES \
+spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.4_2.12:{{% icebergVersion %}},org.apache.iceberg:iceberg-aws-bundle:{{% icebergVersion %}} \
     --conf spark.sql.defaultCatalog=my_catalog \
     --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \
@@ -75,7 +61,7 @@ spark-sql --packages $DEPENDENCIES \
     --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO
 ```
 
-As you can see, In the shell command, we use `--packages` to specify the additional AWS bundle and HTTP client dependencies with their version as `2.20.18`.
+As you can see, In the shell command, we use `--packages` to specify the additional `iceberg-aws-bundle` that contains all relevant AWS dependencies.
 
 ### Flink
 
@@ -87,21 +73,12 @@ ICEBERG_VERSION={{% icebergVersion %}}
 MAVEN_URL=https://repo1.maven.org/maven2
 ICEBERG_MAVEN_URL=$MAVEN_URL/org/apache/iceberg
 wget $ICEBERG_MAVEN_URL/iceberg-flink-runtime/$ICEBERG_VERSION/iceberg-flink-runtime-$ICEBERG_VERSION.jar
-
-# download AWS dependency
-AWS_SDK_VERSION=2.20.18
-AWS_MAVEN_URL=$MAVEN_URL/software/amazon/awssdk
-AWS_PACKAGES=(
-    "bundle"
-)
-for pkg in "${AWS_PACKAGES[@]}"; do
-    wget $AWS_MAVEN_URL/$pkg/$AWS_SDK_VERSION/$pkg-$AWS_SDK_VERSION.jar
-done
+wget $ICEBERG_MAVEN_URL/iceberg-aws-bundle/$ICEBERG_VERSION/iceberg-aws-bundle-$ICEBERG_VERSION.jar
 
 # start Flink SQL client shell
 /path/to/bin/sql-client.sh embedded \
     -j iceberg-flink-runtime-$ICEBERG_VERSION.jar \
-    -j bundle-$AWS_SDK_VERSION.jar \
+    -j iceberg-aws-bundle-$ICEBERG_VERSION.jar \
     shell
 ```
 
@@ -562,7 +539,7 @@ The Glue, S3 and DynamoDB clients are then initialized with the assume-role cred
 Here is an example to start Spark shell with this client factory:
 
 ```shell
-spark-sql --packages org.apache.iceberg:iceberg-spark-runtime:{{% icebergVersion %}},software.amazon.awssdk:bundle:2.20.18 \
+spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.4_2.12:{{% icebergVersion %}},org.apache.iceberg:iceberg-aws-bundle:{{% icebergVersion %}} \
     --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \    
     --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
@@ -574,9 +551,9 @@ spark-sql --packages org.apache.iceberg:iceberg-spark-runtime:{{% icebergVersion
 ### HTTP Client Configurations
 AWS clients support two types of HTTP Client, [URL Connection HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/url-connection-client) 
 and [Apache HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/apache-client).
-By default, AWS clients use **URL Connection** HTTP Client to communicate with the service. 
-This HTTP client optimizes for minimum dependencies and startup latency but supports less functionality than other implementations. 
-In contrast, Apache HTTP Client supports more functionalities and more customized settings, such as expect-continue handshake and TCP KeepAlive, at the cost of extra dependency and additional startup latency. 
+By default, AWS clients use **Apache** HTTP Client to communicate with the service. 
+This HTTP client supports various functionalities and customized settings, such as expect-continue handshake and TCP KeepAlive, at the cost of extra dependency and additional startup latency.
+In contrast, URL Connection HTTP Client optimizes for minimum dependencies and startup latency but supports less functionality than other implementations.
 
 For more details of configuration, see sections [URL Connection HTTP Client Configurations](#url-connection-http-client-configurations) and [Apache HTTP Client Configurations](#apache-http-client-configurations).
 
@@ -641,22 +618,17 @@ For versions before 6.5.0, you can use a [bootstrap action](https://docs.aws.ama
 ```sh
 #!/bin/bash
 
-AWS_SDK_VERSION=2.20.18
 ICEBERG_VERSION={{% icebergVersion %}}
 MAVEN_URL=https://repo1.maven.org/maven2
 ICEBERG_MAVEN_URL=$MAVEN_URL/org/apache/iceberg
-AWS_MAVEN_URL=$MAVEN_URL/software/amazon/awssdk
 # NOTE: this is just an example shared class path between Spark and Flink,
 #  please choose a proper class path for production.
 LIB_PATH=/usr/share/aws/aws-java-sdk/
 
-AWS_PACKAGES=(
-  "bundle"
-)
-
 ICEBERG_PACKAGES=(
   "iceberg-spark-runtime-3.3_2.12"
   "iceberg-flink-runtime"
+  "iceberg-aws-bundle"
 )
 
 install_dependencies () {
@@ -671,7 +643,6 @@ install_dependencies () {
 }
 
 install_dependencies $LIB_PATH $ICEBERG_MAVEN_URL $ICEBERG_VERSION "${ICEBERG_PACKAGES[@]}"
-install_dependencies $LIB_PATH $AWS_MAVEN_URL $AWS_SDK_VERSION "${AWS_PACKAGES[@]}"
 ```
 
 ### AWS Glue

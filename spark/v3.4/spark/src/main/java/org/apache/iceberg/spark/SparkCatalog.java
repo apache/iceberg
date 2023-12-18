@@ -170,7 +170,7 @@ public class SparkCatalog extends BaseCatalog {
       SparkTable sparkTable = (SparkTable) table;
 
       Preconditions.checkArgument(
-          sparkTable.snapshotId() == null,
+          sparkTable.snapshotId() == null && sparkTable.branch() == null,
           "Cannot do time-travel based on both table identifier and AS OF");
 
       try {
@@ -313,6 +313,10 @@ public class SparkCatalog extends BaseCatalog {
           throw new UnsupportedOperationException(
               "Cannot specify the 'sort-order' because it's a reserved table "
                   + "property. Please use the command 'ALTER TABLE ... WRITE ORDERED BY' to specify write sort-orders.");
+        } else if ("identifier-fields".equalsIgnoreCase(set.property())) {
+          throw new UnsupportedOperationException(
+              "Cannot specify the 'identifier-fields' because it's a reserved table property. "
+                  + "Please use the command 'ALTER TABLE ... SET IDENTIFIER FIELDS' to specify identifier fields.");
         } else {
           propertyChanges.add(set);
         }

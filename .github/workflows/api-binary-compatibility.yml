@@ -21,7 +21,7 @@ name: "API Binary Compatibility Checks"
 on:
   push:
     branches:
-      - 'master'
+      - 'main'
       - '0.**'
     tags:
       - 'apache-iceberg-**'
@@ -38,7 +38,7 @@ jobs:
   revapi:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           # fetch-depth of zero ensures that the tags are pulled in and we're not in a detached HEAD state
           # revapi depends on the tags, specifically the tag from git describe, to find the relevant override
@@ -46,13 +46,13 @@ jobs:
           #
           # See https://github.com/actions/checkout/issues/124
           fetch-depth: 0
-      - uses: actions/setup-java@v3
+      - uses: actions/setup-java@v4
         with:
           distribution: zulu
           java-version: 11
       - run: |
           echo "Using the old version tag, as per git describe, of $(git describe)";
-      - run: ./gradlew :iceberg-api:revapi --rerun-tasks
+      - run: ./gradlew revapi --rerun-tasks
       - uses: actions/upload-artifact@v3
         if: failure()
         with:

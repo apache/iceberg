@@ -126,7 +126,7 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
           if (maxConcurrentDeletes != null) {
             if (table.io() instanceof SupportsBulkOperations) {
               LOG.warn(
-                  "max_concurrent_deletes only works with FileIOs that do not support bulk deletes. This"
+                  "max_concurrent_deletes only works with FileIOs that do not support bulk deletes. This "
                       + "table is currently using {} which supports bulk deletes so the parameter will be ignored. "
                       + "See that IO's documentation to learn how to adjust parallelism for that particular "
                       + "IO's bulk delete.",

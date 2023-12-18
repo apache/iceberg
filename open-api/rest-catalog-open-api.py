@@ -17,8 +17,7 @@
 
 from __future__ import annotations
 
-from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Extra, Field
 
@@ -85,18 +84,6 @@ class PrimitiveType(BaseModel):
     __root__: str = Field(..., example=['long', 'string', 'fixed[16]', 'decimal(10,2)'])
 
 
-class Type1(Enum):
-    struct = 'struct'
-
-
-class Type2(Enum):
-    list = 'list'
-
-
-class Type3(Enum):
-    map = 'map'
-
-
 class ExpressionType(BaseModel):
     __root__: str = Field(
         ...,
@@ -126,10 +113,6 @@ class Reference(BaseModel):
     __root__: str = Field(..., example=['column-name'])
 
 
-class Type4(Enum):
-    transform = 'transform'
-
-
 class Transform(BaseModel):
     __root__: str = Field(
         ...,
@@ -157,14 +140,12 @@ class PartitionSpec(BaseModel):
     fields: List[PartitionField]
 
 
-class SortDirection(Enum):
-    asc = 'asc'
-    desc = 'desc'
+class SortDirection(BaseModel):
+    __root__: Literal['asc', 'desc']
 
 
-class NullOrder(Enum):
-    nulls_first = 'nulls-first'
-    nulls_last = 'nulls-last'
+class NullOrder(BaseModel):
+    __root__: Literal['nulls-first', 'nulls-last']
 
 
 class SortField(BaseModel):
@@ -179,15 +160,8 @@ class SortOrder(BaseModel):
     fields: List[SortField]
 
 
-class Operation(Enum):
-    append = 'append'
-    replace = 'replace'
-    overwrite = 'overwrite'
-    delete = 'delete'
-
-
 class Summary(BaseModel):
-    operation: Operation
+    operation: Literal['append', 'replace', 'overwrite', 'delete']
     additionalProperties: Optional[str] = None
 
 
@@ -205,13 +179,8 @@ class Snapshot(BaseModel):
     schema_id: Optional[int] = Field(None, alias='schema-id')
 
 
-class Type5(Enum):
-    tag = 'tag'
-    branch = 'branch'
-
-
 class SnapshotReference(BaseModel):
-    type: Type5
+    type: Literal['tag', 'branch']
     snapshot_id: int = Field(..., alias='snapshot-id')
     max_ref_age_ms: Optional[int] = Field(None, alias='max-ref-age-ms')
     max_snapshot_age_ms: Optional[int] = Field(None, alias='max-snapshot-age-ms')
@@ -240,32 +209,55 @@ class MetadataLog(BaseModel):
     __root__: List[MetadataLogItem]
 
 
-class Action(Enum):
-    upgrade_format_version = 'upgrade-format-version'
-    add_schema = 'add-schema'
-    set_current_schema = 'set-current-schema'
-    add_spec = 'add-spec'
-    set_default_spec = 'set-default-spec'
-    add_sort_order = 'add-sort-order'
-    set_default_sort_order = 'set-default-sort-order'
-    add_snapshot = 'add-snapshot'
-    set_snapshot_ref = 'set-snapshot-ref'
-    remove_snapshots = 'remove-snapshots'
-    remove_snapshot_ref = 'remove-snapshot-ref'
-    set_location = 'set-location'
-    set_properties = 'set-properties'
-    remove_properties = 'remove-properties'
+class SQLViewRepresentation(BaseModel):
+    type: str
+    sql: str
+    dialect: str
+
+
+class ViewRepresentation(BaseModel):
+    __root__: SQLViewRepresentation
+
+
+class ViewHistoryEntry(BaseModel):
+    version_id: int = Field(..., alias='version-id')
+    timestamp_ms: int = Field(..., alias='timestamp-ms')
+
+
+class ViewVersion(BaseModel):
+    version_id: int = Field(..., alias='version-id')
+    timestamp_ms: int = Field(..., alias='timestamp-ms')
+    schema_id: int = Field(
+        ...,
+        alias='schema-id',
+        description='Schema ID to set as current, or -1 to set last added schema',
+    )
+    summary: Dict[str, str]
+    representations: List[ViewRepresentation]
+    default_catalog: Optional[str] = Field(None, alias='default-catalog')
+    default_namespace: Namespace = Field(..., alias='default-namespace')
 
 
 class BaseUpdate(BaseModel):
-    action: Action
+    action: str
+
+
+class AssignUUIDUpdate(BaseUpdate):
+    """
+    Assigning a UUID to a table/view should only be done when creating the table/view. It is not safe to re-assign the UUID if a table/view already has a UUID assigned
+    """
+
+    action: Literal['assign-uuid']
+    uuid: str
 
 
 class UpgradeFormatVersionUpdate(BaseUpdate):
+    action: Literal['upgrade-format-version']
     format_version: int = Field(..., alias='format-version')
 
 
 class SetCurrentSchemaUpdate(BaseUpdate):
+    action: Literal['set-current-schema']
     schema_id: int = Field(
         ...,
         alias='schema-id',
@@ -274,10 +266,12 @@ class SetCurrentSchemaUpdate(BaseUpdate):
 
 
 class AddPartitionSpecUpdate(BaseUpdate):
+    action: Literal['add-spec']
     spec: PartitionSpec
 
 
 class SetDefaultSpecUpdate(BaseUpdate):
+    action: Literal['set-default-spec']
     spec_id: int = Field(
         ...,
         alias='spec-id',
@@ -286,10 +280,12 @@ class SetDefaultSpecUpdate(BaseUpdate):
 
 
 class AddSortOrderUpdate(BaseUpdate):
+    action: Literal['add-sort-order']
     sort_order: SortOrder = Field(..., alias='sort-order')
 
 
 class SetDefaultSortOrderUpdate(BaseUpdate):
+    action: Literal['set-default-sort-order']
     sort_order_id: int = Field(
         ...,
         alias='sort-order-id',
@@ -298,68 +294,132 @@ class SetDefaultSortOrderUpdate(BaseUpdate):
 
 
 class AddSnapshotUpdate(BaseUpdate):
+    action: Literal['add-snapshot']
     snapshot: Snapshot
 
 
 class SetSnapshotRefUpdate(BaseUpdate, SnapshotReference):
+    action: Literal['set-snapshot-ref']
     ref_name: str = Field(..., alias='ref-name')
 
 
 class RemoveSnapshotsUpdate(BaseUpdate):
+    action: Literal['remove-snapshots']
     snapshot_ids: List[int] = Field(..., alias='snapshot-ids')
 
 
 class RemoveSnapshotRefUpdate(BaseUpdate):
+    action: Literal['remove-snapshot-ref']
     ref_name: str = Field(..., alias='ref-name')
 
 
 class SetLocationUpdate(BaseUpdate):
+    action: Literal['set-location']
     location: str
 
 
 class SetPropertiesUpdate(BaseUpdate):
+    action: Literal['set-properties']
     updates: Dict[str, str]
 
 
 class RemovePropertiesUpdate(BaseUpdate):
+    action: Literal['remove-properties']
     removals: List[str]
 
 
-class Type6(Enum):
-    assert_create = 'assert-create'
-    assert_table_uuid = 'assert-table-uuid'
-    assert_ref_snapshot_id = 'assert-ref-snapshot-id'
-    assert_last_assigned_field_id = 'assert-last-assigned-field-id'
-    assert_current_schema_id = 'assert-current-schema-id'
-    assert_last_assigned_partition_id = 'assert-last-assigned-partition-id'
-    assert_default_spec_id = 'assert-default-spec-id'
-    assert_default_sort_order_id = 'assert-default-sort-order-id'
+class AddViewVersionUpdate(BaseUpdate):
+    action: Literal['add-view-version']
+    view_version: ViewVersion = Field(..., alias='view-version')
+
+
+class SetCurrentViewVersionUpdate(BaseUpdate):
+    action: Literal['set-current-view-version']
+    view_version_id: int = Field(
+        ...,
+        alias='view-version-id',
+        description='The view version id to set as current, or -1 to set last added view version id',
+    )
 
 
 class TableRequirement(BaseModel):
+    type: str
+
+
+class AssertCreate(TableRequirement):
     """
-    Assertions from the client that must be valid for the commit to succeed. Assertions are identified by `type` -
-    - `assert-create` - the table must not already exist; used for create transactions
-    - `assert-table-uuid` - the table UUID must match the requirement's `uuid`
-    - `assert-ref-snapshot-id` - the table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; if `snapshot-id` is `null` or missing, the ref must not already exist
-    - `assert-last-assigned-field-id` - the table's last assigned column id must match the requirement's `last-assigned-field-id`
-    - `assert-current-schema-id` - the table's current schema id must match the requirement's `current-schema-id`
-    - `assert-last-assigned-partition-id` - the table's last assigned partition id must match the requirement's `last-assigned-partition-id`
-    - `assert-default-spec-id` - the table's default spec id must match the requirement's `default-spec-id`
-    - `assert-default-sort-order-id` - the table's default sort order id must match the requirement's `default-sort-order-id`
+    The table must not already exist; used for create transactions
     """
 
-    type: Type6
-    ref: Optional[str] = None
-    uuid: Optional[str] = None
-    snapshot_id: Optional[int] = Field(None, alias='snapshot-id')
-    last_assigned_field_id: Optional[int] = Field(None, alias='last-assigned-field-id')
-    current_schema_id: Optional[int] = Field(None, alias='current-schema-id')
-    last_assigned_partition_id: Optional[int] = Field(
-        None, alias='last-assigned-partition-id'
-    )
-    default_spec_id: Optional[int] = Field(None, alias='default-spec-id')
-    default_sort_order_id: Optional[int] = Field(None, alias='default-sort-order-id')
+    type: Literal['assert-create']
+
+
+class AssertTableUUID(TableRequirement):
+    """
+    The table UUID must match the requirement's `uuid`
+    """
+
+    type: Literal['assert-table-uuid']
+    uuid: str
+
+
+class AssertRefSnapshotId(TableRequirement):
+    """
+    The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; if `snapshot-id` is `null` or missing, the ref must not already exist
+    """
+
+    type: Literal['assert-ref-snapshot-id']
+    ref: str
+    snapshot_id: int = Field(..., alias='snapshot-id')
+
+
+class AssertLastAssignedFieldId(TableRequirement):
+    """
+    The table's last assigned column id must match the requirement's `last-assigned-field-id`
+    """
+
+    type: Literal['assert-last-assigned-field-id']
+    last_assigned_field_id: int = Field(..., alias='last-assigned-field-id')
+
+
+class AssertCurrentSchemaId(TableRequirement):
+    """
+    The table's current schema id must match the requirement's `current-schema-id`
+    """
+
+    type: Literal['assert-current-schema-id']
+    current_schema_id: int = Field(..., alias='current-schema-id')
+
+
+class AssertLastAssignedPartitionId(TableRequirement):
+    """
+    The table's last assigned partition id must match the requirement's `last-assigned-partition-id`
+    """
+
+    type: Literal['assert-last-assigned-partition-id']
+    last_assigned_partition_id: int = Field(..., alias='last-assigned-partition-id')
+
+
+class AssertDefaultSpecId(TableRequirement):
+    """
+    The table's default spec id must match the requirement's `default-spec-id`
+    """
+
+    type: Literal['assert-default-spec-id']
+    default_spec_id: int = Field(..., alias='default-spec-id')
+
+
+class AssertDefaultSortOrderId(TableRequirement):
+    """
+    The table's default sort order id must match the requirement's `default-sort-order-id`
+    """
+
+    type: Literal['assert-default-sort-order-id']
+    default_sort_order_id: int = Field(..., alias='default-sort-order-id')
+
+
+class ViewRequirement(BaseModel):
+    __root__: Any = Field(..., discriminator='type')
 
 
 class RegisterTableRequest(BaseModel):
@@ -367,29 +427,18 @@ class RegisterTableRequest(BaseModel):
     metadata_location: str = Field(..., alias='metadata-location')
 
 
-class TokenType(Enum):
-    """
-    Token type identifier, from RFC 8693 Section 3
-
-    See https://datatracker.ietf.org/doc/html/rfc8693#section-3
-    """
-
-    urn_ietf_params_oauth_token_type_access_token = (
-        'urn:ietf:params:oauth:token-type:access_token'
+class TokenType(BaseModel):
+    __root__: Literal[
+        'urn:ietf:params:oauth:token-type:access_token',
+        'urn:ietf:params:oauth:token-type:refresh_token',
+        'urn:ietf:params:oauth:token-type:id_token',
+        'urn:ietf:params:oauth:token-type:saml1',
+        'urn:ietf:params:oauth:token-type:saml2',
+        'urn:ietf:params:oauth:token-type:jwt',
+    ] = Field(
+        ...,
+        description='Token type identifier, from RFC 8693 Section 3\n\nSee https://datatracker.ietf.org/doc/html/rfc8693#section-3',
     )
-    urn_ietf_params_oauth_token_type_refresh_token = (
-        'urn:ietf:params:oauth:token-type:refresh_token'
-    )
-    urn_ietf_params_oauth_token_type_id_token = (
-        'urn:ietf:params:oauth:token-type:id_token'
-    )
-    urn_ietf_params_oauth_token_type_saml1 = 'urn:ietf:params:oauth:token-type:saml1'
-    urn_ietf_params_oauth_token_type_saml2 = 'urn:ietf:params:oauth:token-type:saml2'
-    urn_ietf_params_oauth_token_type_jwt = 'urn:ietf:params:oauth:token-type:jwt'
-
-
-class GrantType(Enum):
-    client_credentials = 'client_credentials'
 
 
 class OAuthClientCredentialsRequest(BaseModel):
@@ -399,7 +448,7 @@ class OAuthClientCredentialsRequest(BaseModel):
     See https://datatracker.ietf.org/doc/html/rfc6749#section-4.4
     """
 
-    grant_type: GrantType
+    grant_type: Literal['client_credentials']
     scope: Optional[str] = None
     client_id: str = Field(
         ...,
@@ -411,12 +460,6 @@ class OAuthClientCredentialsRequest(BaseModel):
     )
 
 
-class GrantType1(Enum):
-    urn_ietf_params_oauth_grant_type_token_exchange = (
-        'urn:ietf:params:oauth:grant-type:token-exchange'
-    )
-
-
 class OAuthTokenExchangeRequest(BaseModel):
     """
     OAuth2 token exchange request
@@ -424,7 +467,7 @@ class OAuthTokenExchangeRequest(BaseModel):
     See https://datatracker.ietf.org/doc/html/rfc8693
     """
 
-    grant_type: GrantType1
+    grant_type: Literal['urn:ietf:params:oauth:grant-type:token-exchange']
     scope: Optional[str] = None
     requested_token_type: Optional[TokenType] = None
     subject_token: str = Field(
@@ -469,38 +512,24 @@ class CommitReport(BaseModel):
     metadata: Optional[Dict[str, str]] = None
 
 
-class Error(Enum):
-    invalid_request = 'invalid_request'
-    invalid_client = 'invalid_client'
-    invalid_grant = 'invalid_grant'
-    unauthorized_client = 'unauthorized_client'
-    unsupported_grant_type = 'unsupported_grant_type'
-    invalid_scope = 'invalid_scope'
-
-
 class OAuthError(BaseModel):
-    error: Error
+    error: Literal[
+        'invalid_request',
+        'invalid_client',
+        'invalid_grant',
+        'unauthorized_client',
+        'unsupported_grant_type',
+        'invalid_scope',
+    ]
     error_description: Optional[str] = None
     error_uri: Optional[str] = None
-
-
-class TokenType1(Enum):
-    """
-    Access token type for client credentials or token exchange
-
-    See https://datatracker.ietf.org/doc/html/rfc6749#section-7.1
-    """
-
-    bearer = 'bearer'
-    mac = 'mac'
-    N_A = 'N_A'
 
 
 class OAuthTokenResponse(BaseModel):
     access_token: str = Field(
         ..., description='The access token, for client credentials or token exchange'
     )
-    token_type: TokenType1 = Field(
+    token_type: Literal['bearer', 'mac', 'N_A'] = Field(
         ...,
         description='Access token type for client credentials or token exchange\n\nSee https://datatracker.ietf.org/doc/html/rfc6749#section-7.1',
     )
@@ -518,10 +547,14 @@ class OAuthTokenResponse(BaseModel):
 
 
 class IcebergErrorResponse(BaseModel):
+    """
+    JSON wrapper for all error responses (non-2xx)
+    """
+
     class Config:
         extra = Extra.forbid
 
-    error: Optional[ErrorModel] = None
+    error: ErrorModel
 
 
 class CreateNamespaceResponse(BaseModel):
@@ -578,12 +611,12 @@ class RenameTableRequest(BaseModel):
 
 
 class TransformTerm(BaseModel):
-    type: Type4
+    type: Literal['transform']
     transform: Transform
     term: Reference
 
 
-class ReportMetricsRequest1(CommitReport):
+class ReportMetricsRequest2(CommitReport):
     report_type: str = Field(..., alias='report-type')
 
 
@@ -618,19 +651,19 @@ class StructField(BaseModel):
 
 
 class StructType(BaseModel):
-    type: Type1
+    type: Literal['struct']
     fields: List[StructField]
 
 
 class ListType(BaseModel):
-    type: Type2
+    type: Literal['list']
     element_id: int = Field(..., alias='element-id')
     element: Type
     element_required: bool = Field(..., alias='element-required')
 
 
 class MapType(BaseModel):
-    type: Type3
+    type: Literal['map']
     key_id: int = Field(..., alias='key-id')
     key: Type
     value_id: int = Field(..., alias='value-id')
@@ -682,11 +715,24 @@ class TableMetadata(BaseModel):
     snapshots: Optional[List[Snapshot]] = None
     refs: Optional[SnapshotReferences] = None
     current_snapshot_id: Optional[int] = Field(None, alias='current-snapshot-id')
+    last_sequence_number: Optional[int] = Field(None, alias='last-sequence-number')
     snapshot_log: Optional[SnapshotLog] = Field(None, alias='snapshot-log')
     metadata_log: Optional[MetadataLog] = Field(None, alias='metadata-log')
 
 
+class ViewMetadata(BaseModel):
+    view_uuid: str = Field(..., alias='view-uuid')
+    format_version: int = Field(..., alias='format-version', ge=1, le=1)
+    location: str
+    current_version_id: int = Field(..., alias='current-version-id')
+    versions: List[ViewVersion]
+    version_log: List[ViewHistoryEntry] = Field(..., alias='version-log')
+    schemas: List[Schema]
+    properties: Optional[Dict[str, str]] = None
+
+
 class AddSchemaUpdate(BaseUpdate):
+    action: Literal['add-schema']
     schema_: Schema = Field(..., alias='schema')
     last_column_id: Optional[int] = Field(
         None,
@@ -697,6 +743,7 @@ class AddSchemaUpdate(BaseUpdate):
 
 class TableUpdate(BaseModel):
     __root__: Union[
+        AssignUUIDUpdate,
         UpgradeFormatVersionUpdate,
         AddSchemaUpdate,
         SetCurrentSchemaUpdate,
@@ -711,6 +758,19 @@ class TableUpdate(BaseModel):
         SetLocationUpdate,
         SetPropertiesUpdate,
         RemovePropertiesUpdate,
+    ]
+
+
+class ViewUpdate(BaseModel):
+    __root__: Union[
+        AssignUUIDUpdate,
+        UpgradeFormatVersionUpdate,
+        AddSchemaUpdate,
+        SetLocationUpdate,
+        SetPropertiesUpdate,
+        RemovePropertiesUpdate,
+        AddViewVersionUpdate,
+        SetCurrentViewVersionUpdate,
     ]
 
 
@@ -761,6 +821,14 @@ class CommitTableRequest(BaseModel):
     updates: List[TableUpdate]
 
 
+class CommitViewRequest(BaseModel):
+    identifier: Optional[TableIdentifier] = Field(
+        None, description='View identifier to update'
+    )
+    requirements: Optional[List[ViewRequirement]] = None
+    updates: List[ViewUpdate]
+
+
 class CommitTransactionRequest(BaseModel):
     table_changes: List[CommitTableRequest] = Field(..., alias='table-changes')
 
@@ -775,8 +843,43 @@ class CreateTableRequest(BaseModel):
     properties: Optional[Dict[str, str]] = None
 
 
-class ReportMetricsRequest2(BaseModel):
-    __root__: Union[ReportMetricsRequest, ReportMetricsRequest1]
+class CreateViewRequest(BaseModel):
+    name: str
+    location: Optional[str] = None
+    schema_: Schema = Field(..., alias='schema')
+    view_version: ViewVersion = Field(
+        ...,
+        alias='view-version',
+        description='The view version to create, will replace the schema-id sent within the view-version with the id assigned to the provided schema',
+    )
+    properties: Dict[str, str]
+
+
+class LoadViewResult(BaseModel):
+    """
+    Result used when a view is successfully loaded.
+
+
+    The view metadata JSON is returned in the `metadata` field. The corresponding file location of view metadata is returned in the `metadata-location` field.
+    Clients can check whether metadata has changed by comparing metadata locations after the view has been created.
+
+    The `config` map returns view-specific configuration for the view's resources.
+
+    The following configurations should be respected by clients:
+
+    ## General Configurations
+
+    - `token`: Authorization bearer token to use for view requests if OAuth2 security is enabled
+
+    """
+
+    metadata_location: str = Field(..., alias='metadata-location')
+    metadata: ViewMetadata
+    config: Optional[Dict[str, str]] = None
+
+
+class ReportMetricsRequest(BaseModel):
+    __root__: Union[ReportMetricsRequest1, ReportMetricsRequest2]
 
 
 class ScanReport(BaseModel):
@@ -802,7 +905,7 @@ class Schema(StructType):
     )
 
 
-class ReportMetricsRequest(ScanReport):
+class ReportMetricsRequest1(ScanReport):
     report_type: str = Field(..., alias='report-type')
 
 
@@ -811,6 +914,8 @@ ListType.update_forward_refs()
 MapType.update_forward_refs()
 Expression.update_forward_refs()
 TableMetadata.update_forward_refs()
+ViewMetadata.update_forward_refs()
 AddSchemaUpdate.update_forward_refs()
 CreateTableRequest.update_forward_refs()
-ReportMetricsRequest2.update_forward_refs()
+CreateViewRequest.update_forward_refs()
+ReportMetricsRequest.update_forward_refs()

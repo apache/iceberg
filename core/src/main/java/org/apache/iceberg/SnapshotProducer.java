@@ -26,6 +26,10 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFAULT;
+import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED;
+import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
@@ -41,6 +45,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.events.Listeners;
+import org.apache.iceberg.exceptions.CleanableFailure;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -81,10 +86,13 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private final LoadingCache<ManifestFile, ManifestFile> manifestsWithMetadata;
 
   private final TableOperations ops;
+  private final boolean strictCleanup;
+  private final boolean canInheritSnapshotId;
   private final String commitUUID = UUID.randomUUID().toString();
   private final AtomicInteger manifestCount = new AtomicInteger(0);
   private final AtomicInteger attempt = new AtomicInteger(0);
   private final List<String> manifestLists = Lists.newArrayList();
+  private final long targetManifestSizeBytes;
   private MetricsReporter reporter = LoggingMetricsReporter.instance();
   private volatile Long snapshotId = null;
   private TableMetadata base;
@@ -97,6 +105,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   protected SnapshotProducer(TableOperations ops) {
     this.ops = ops;
+    this.strictCleanup = ops.requireStrictCleanup();
     this.base = ops.current();
     this.manifestsWithMetadata =
         Caffeine.newBuilder()
@@ -107,6 +116,14 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                   }
                   return addMetadata(ops, file);
                 });
+    this.targetManifestSizeBytes =
+        ops.current()
+            .propertyAsLong(MANIFEST_TARGET_SIZE_BYTES, MANIFEST_TARGET_SIZE_BYTES_DEFAULT);
+    boolean snapshotIdInheritanceEnabled =
+        ops.current()
+            .propertyAsBoolean(
+                SNAPSHOT_ID_INHERITANCE_ENABLED, SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT);
+    this.canInheritSnapshotId = ops.current().formatVersion() > 1 || snapshotIdInheritanceEnabled;
   }
 
   protected abstract ThisT self();
@@ -347,6 +364,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   @Override
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public void commit() {
     // this is always set to the latest commit attempt's snapshot id.
     AtomicLong newSnapshotId = new AtomicLong(-1L);
@@ -393,7 +411,11 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     } catch (CommitStateUnknownException commitStateUnknownException) {
       throw commitStateUnknownException;
     } catch (RuntimeException e) {
-      Exceptions.suppressAndThrow(e, this::cleanAll);
+      if (!strictCleanup || e instanceof CleanableFailure) {
+        Exceptions.suppressAndThrow(e, this::cleanAll);
+      }
+
+      throw e;
     }
 
     try {
@@ -494,6 +516,15 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         ops.current().formatVersion(), spec, newManifestOutput(), snapshotId());
   }
 
+  protected RollingManifestWriter<DataFile> newRollingManifestWriter(PartitionSpec spec) {
+    return new RollingManifestWriter<>(() -> newManifestWriter(spec), targetManifestSizeBytes);
+  }
+
+  protected RollingManifestWriter<DeleteFile> newRollingDeleteManifestWriter(PartitionSpec spec) {
+    return new RollingManifestWriter<>(
+        () -> newDeleteManifestWriter(spec), targetManifestSizeBytes);
+  }
+
   protected ManifestReader<DataFile> newManifestReader(ManifestFile manifest) {
     return ManifestFiles.read(manifest, ops.io(), ops.current().specsById());
   }
@@ -511,6 +542,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       }
     }
     return snapshotId;
+  }
+
+  protected boolean canInheritSnapshotId() {
+    return canInheritSnapshotId;
   }
 
   private static ManifestFile addMetadata(TableOperations ops, ManifestFile manifest) {

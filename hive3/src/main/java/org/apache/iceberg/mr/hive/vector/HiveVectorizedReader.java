@@ -21,7 +21,6 @@ package org.apache.iceberg.mr.hive.vector;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import org.apache.commons.lang3.ArrayUtils;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.ql.exec.vector.VectorizedRowBatch;
 import org.apache.hadoop.hive.ql.io.IOConstants;
@@ -101,7 +100,7 @@ public class HiveVectorizedReader {
         }
       }
 
-      partitionColIndices = ArrayUtils.toPrimitive(partitionColIndicesList.toArray(new Integer[0]));
+      partitionColIndices = partitionColIndicesList.stream().mapToInt(Integer::intValue).toArray();
       partitionValues = partitionValuesList.toArray(new Object[0]);
 
       ColumnProjectionUtils.setReadColumns(job, readColumnIds);

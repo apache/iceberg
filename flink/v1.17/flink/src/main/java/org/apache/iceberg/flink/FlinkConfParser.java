@@ -18,11 +18,13 @@
  */
 package org.apache.iceberg.flink;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ReadableConfig;
+import org.apache.flink.util.TimeUtils;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -57,6 +59,10 @@ class FlinkConfParser {
 
   public StringConfParser stringConf() {
     return new StringConfParser();
+  }
+
+  public DurationConfParser durationConf() {
+    return new DurationConfParser();
   }
 
   class BooleanConfParser extends ConfParser<BooleanConfParser, Boolean> {
@@ -177,6 +183,29 @@ class FlinkConfParser {
 
     public E parseOptional() {
       return parse(s -> Enum.valueOf(enumClass, s), null);
+    }
+  }
+
+  class DurationConfParser extends ConfParser<DurationConfParser, Duration> {
+    private Duration defaultValue;
+
+    @Override
+    protected DurationConfParser self() {
+      return this;
+    }
+
+    public DurationConfParser defaultValue(Duration value) {
+      this.defaultValue = value;
+      return self();
+    }
+
+    public Duration parse() {
+      Preconditions.checkArgument(defaultValue != null, "Default value cannot be null");
+      return parse(TimeUtils::parseDuration, defaultValue);
+    }
+
+    public Duration parseOptional() {
+      return parse(TimeUtils::parseDuration, null);
     }
   }
 

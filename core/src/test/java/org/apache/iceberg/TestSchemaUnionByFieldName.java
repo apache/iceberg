@@ -43,8 +43,7 @@ import org.apache.iceberg.types.Types.TimeType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.types.Types.UUIDType;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestSchemaUnionByFieldName {
 
@@ -83,7 +82,7 @@ public class TestSchemaUnionByFieldName {
   public void testAddTopLevelPrimitives() {
     Schema newSchema = new Schema(primitiveFields(0, primitiveTypes()));
     Schema applied = new SchemaUpdate(new Schema(), 0).unionByNameWith(newSchema).apply();
-    Assert.assertEquals(newSchema.asStruct(), applied.asStruct());
+    Assertions.assertThat(applied.asStruct()).isEqualTo(newSchema.asStruct());
   }
 
   @Test
@@ -92,7 +91,7 @@ public class TestSchemaUnionByFieldName {
       Schema newSchema =
           new Schema(optional(1, "aList", Types.ListType.ofOptional(2, primitiveType)));
       Schema applied = new SchemaUpdate(new Schema(), 0).unionByNameWith(newSchema).apply();
-      Assert.assertEquals(newSchema.asStruct(), applied.asStruct());
+      Assertions.assertThat(applied.asStruct()).isEqualTo(newSchema.asStruct());
     }
   }
 
@@ -103,7 +102,7 @@ public class TestSchemaUnionByFieldName {
           new Schema(
               optional(1, "aMap", Types.MapType.ofOptional(2, 3, primitiveType, primitiveType)));
       Schema applied = new SchemaUpdate(new Schema(), 0).unionByNameWith(newSchema).apply();
-      Assert.assertEquals(newSchema.asStruct(), applied.asStruct());
+      Assertions.assertThat(applied.asStruct()).isEqualTo(newSchema.asStruct());
     }
   }
 
@@ -114,7 +113,7 @@ public class TestSchemaUnionByFieldName {
           new Schema(
               optional(1, "aStruct", Types.StructType.of(optional(2, "primitive", primitiveType))));
       Schema applied = new SchemaUpdate(new Schema(), 0).unionByNameWith(currentSchema).apply();
-      Assert.assertEquals(currentSchema.asStruct(), applied.asStruct());
+      Assertions.assertThat(applied.asStruct()).isEqualTo(currentSchema.asStruct());
     }
   }
 
@@ -126,7 +125,7 @@ public class TestSchemaUnionByFieldName {
           new Schema(
               optional(1, "aStruct", Types.StructType.of(optional(2, "primitive", primitiveType))));
       Schema applied = new SchemaUpdate(currentSchema, 1).unionByNameWith(newSchema).apply();
-      Assert.assertEquals(newSchema.asStruct(), applied.asStruct());
+      Assertions.assertThat(applied.asStruct()).isEqualTo(newSchema.asStruct());
     }
   }
 
@@ -137,7 +136,7 @@ public class TestSchemaUnionByFieldName {
         new Schema(
             optional(1, "aStruct", Types.StructType.of(primitiveFields(1, primitiveTypes()))));
     Schema applied = new SchemaUpdate(currentSchema, 1).unionByNameWith(newSchema).apply();
-    Assert.assertEquals(newSchema.asStruct(), applied.asStruct());
+    Assertions.assertThat(applied.asStruct()).isEqualTo(newSchema.asStruct());
   }
 
   @Test
@@ -166,7 +165,7 @@ public class TestSchemaUnionByFieldName {
                                                 Types.ListType.ofOptional(
                                                     10, DecimalType.of(11, 20))))))))))));
     Schema applied = new SchemaUpdate(new Schema(), 0).unionByNameWith(newSchema).apply();
-    Assert.assertEquals(newSchema.asStruct(), applied.asStruct());
+    Assertions.assertThat(applied.asStruct()).isEqualTo(newSchema.asStruct());
   }
 
   @Test
@@ -202,7 +201,7 @@ public class TestSchemaUnionByFieldName {
                                                                 "aString",
                                                                 StringType.get()))))))))))))));
     Schema applied = new SchemaUpdate(new Schema(), 0).unionByNameWith(newSchema).apply();
-    Assert.assertEquals(newSchema.asStruct(), applied.asStruct());
+    Assertions.assertThat(applied.asStruct()).isEqualTo(newSchema.asStruct());
   }
 
   @Test
@@ -235,7 +234,7 @@ public class TestSchemaUnionByFieldName {
                                     Types.MapType.ofOptional(
                                         12, 13, StringType.get(), StringType.get()))))))));
     Schema applied = new SchemaUpdate(new Schema(), 0).unionByNameWith(newSchema).apply();
-    Assert.assertEquals(newSchema.asStruct(), applied.asStruct());
+    Assertions.assertThat(applied.asStruct()).isEqualTo(newSchema.asStruct());
   }
 
   @Test
@@ -289,8 +288,8 @@ public class TestSchemaUnionByFieldName {
     Schema newSchema = new Schema(required(1, "aCol", LongType.get()));
 
     Schema applied = new SchemaUpdate(currentSchema, 1).unionByNameWith(newSchema).apply();
-    Assert.assertEquals(1, applied.asStruct().fields().size());
-    Assert.assertEquals(LongType.get(), applied.asStruct().fields().get(0).type());
+    Assertions.assertThat(applied.asStruct().fields()).hasSize(1);
+    Assertions.assertThat(applied.asStruct().fields().get(0).type()).isEqualTo(LongType.get());
   }
 
   @Test
@@ -300,12 +299,9 @@ public class TestSchemaUnionByFieldName {
     Schema newSchema = new Schema(required(1, "aCol", DoubleType.get()));
 
     Schema applied = new SchemaUpdate(currentSchema, 1).unionByNameWith(newSchema).apply();
-    Assert.assertEquals(1, applied.asStruct().fields().size());
-    Assert.assertEquals(DoubleType.get(), applied.asStruct().fields().get(0).type());
-    // When attempted Assert.assertEquals(newSchema.asStruct(), applied.asStruct());
-    // Got java.lang.AssertionError:
-    // Expected :struct<1: aCol: required double>
-    // Actual   :struct<1: aCol: required double ()>
+    Assertions.assertThat(applied.asStruct()).isEqualTo(newSchema.asStruct());
+    Assertions.assertThat(applied.asStruct().fields()).hasSize(1);
+    Assertions.assertThat(applied.asStruct().fields().get(0).type()).isEqualTo(DoubleType.get());
   }
 
   @Test
@@ -327,7 +323,7 @@ public class TestSchemaUnionByFieldName {
     Schema newSchema = new Schema(required(1, "aCol", DecimalType.of(22, 1)));
 
     Schema applied = new SchemaUpdate(currentSchema, 1).unionByNameWith(newSchema).apply();
-    Assert.assertEquals(newSchema.asStruct(), applied.asStruct());
+    Assertions.assertThat(applied.asStruct()).isEqualTo(newSchema.asStruct());
   }
 
   @Test
@@ -388,7 +384,7 @@ public class TestSchemaUnionByFieldName {
                                         optional(5, "value", StringType.get()),
                                         optional(6, "time", TimeType.get())))))))));
 
-    Assert.assertEquals(expected.asStruct(), applied.asStruct());
+    Assertions.assertThat(applied.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -427,7 +423,7 @@ public class TestSchemaUnionByFieldName {
 
     Schema union = new SchemaUpdate(aSchema, 0).unionByNameWith(mirrored).apply();
     // We don't expect the original schema to have been altered.
-    Assert.assertEquals(aSchema.asStruct(), union.asStruct());
+    Assertions.assertThat(union.asStruct()).isEqualTo(aSchema.asStruct());
   }
 
   @Test
@@ -463,7 +459,7 @@ public class TestSchemaUnionByFieldName {
                         7, "d1", Types.StructType.of(optional(8, "d2", Types.StringType.get()))))));
 
     Schema union = new SchemaUpdate(schema, 5).unionByNameWith(observed).apply();
-    Assert.assertEquals(observed.asStruct(), union.asStruct());
+    Assertions.assertThat(union.asStruct()).isEqualTo(observed.asStruct());
   }
 
   @Test
@@ -514,7 +510,7 @@ public class TestSchemaUnionByFieldName {
                                                                 StringType.get()))))))))))))));
 
     Schema applied = new SchemaUpdate(schema, 4).unionByNameWith(observed).apply();
-    Assert.assertEquals(observed.asStruct(), applied.asStruct());
+    Assertions.assertThat(applied.asStruct()).isEqualTo(observed.asStruct());
   }
 
   @Test
@@ -579,6 +575,6 @@ public class TestSchemaUnionByFieldName {
                                         "list2",
                                         ListType.ofOptional(7, StringType.get())))))))));
 
-    Assert.assertEquals(expected.asStruct(), union.asStruct());
+    Assertions.assertThat(union.asStruct()).isEqualTo(expected.asStruct());
   }
 }

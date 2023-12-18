@@ -18,14 +18,36 @@
  */
 package org.apache.iceberg.nessie;
 
+import static org.apache.iceberg.types.Types.NestedField.required;
+
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
+import org.assertj.core.data.Index;
 import org.junit.jupiter.api.Test;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.model.Branch;
+import org.projectnessie.model.CommitMeta;
+import org.projectnessie.model.Content;
+import org.projectnessie.model.ContentKey;
+import org.projectnessie.model.IcebergTable;
+import org.projectnessie.model.LogResponse;
+import org.projectnessie.model.Operation;
 import org.projectnessie.model.Reference;
 
 public class TestNessieIcebergClient extends BaseTestIceberg {
@@ -70,7 +92,7 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
   public void testWithReferenceAfterRecreatingBranch()
       throws NessieConflictException, NessieNotFoundException {
     String branch = "branchToBeDropped";
-    createBranch(branch, null);
+    createBranch(branch);
     NessieIcebergClient client = new NessieIcebergClient(api, branch, null, ImmutableMap.of());
 
     // just create a new commit on the branch and then delete & re-create it
@@ -80,9 +102,9 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
     client
         .getApi()
         .deleteBranch()
-        .branch((Branch) client.getApi().getReference().refName(branch).get())
+        .branch((Branch) api.getReference().refName(branch).get())
         .delete();
-    createBranch(branch, null);
+    createBranch(branch);
 
     // make sure the client uses the re-created branch
     Reference ref = client.getApi().getReference().refName(branch).get();
@@ -92,14 +114,442 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
   }
 
   @Test
+  public void testCreateNamespace() throws NessieConflictException, NessieNotFoundException {
+    String branch = "createNamespaceBranch";
+    createBranch(branch);
+    Map<String, String> catalogOptions =
+        Map.of(
+            CatalogProperties.USER, "iceberg-user",
+            CatalogProperties.APP_ID, "iceberg-nessie");
+    NessieIcebergClient client = new NessieIcebergClient(api, branch, null, catalogOptions);
+
+    client.createNamespace(Namespace.of("a"), Map.of());
+    Assertions.assertThat(client.listNamespaces(Namespace.of("a"))).isNotNull();
+
+    List<LogResponse.LogEntry> entries = api.getCommitLog().refName(branch).get().getLogEntries();
+    Assertions.assertThat(entries)
+        .isNotEmpty()
+        .first()
+        .extracting(LogResponse.LogEntry::getCommitMeta)
+        .extracting(CommitMeta::getMessage, CommitMeta::getAuthor, CommitMeta::getProperties)
+        .containsExactly(
+            "create namespace a",
+            "iceberg-user",
+            ImmutableMap.of(
+                "application-type", "iceberg",
+                "app-id", "iceberg-nessie"));
+  }
+
+  @Test
+  public void testCreateNamespaceInvalid() throws NessieConflictException, NessieNotFoundException {
+    String branch = "createNamespaceInvalidBranch";
+    createBranch(branch);
+    NessieIcebergClient client = new NessieIcebergClient(api, branch, null, Map.of());
+
+    Assertions.assertThatIllegalArgumentException()
+        .isThrownBy(() -> client.createNamespace(Namespace.empty(), Map.of()))
+        .withMessageContaining("Creating empty namespaces is not supported");
+
+    Assertions.assertThatThrownBy(() -> client.createNamespace(Namespace.of("a", "b"), Map.of()))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessageContaining("Cannot create namespace 'a.b': parent namespace 'a' does not exist");
+  }
+
+  @Test
+  public void testCreateNamespaceConflict()
+      throws NessieConflictException, NessieNotFoundException {
+    String branch = "createNamespaceConflictBranch";
+    createBranch(branch);
+    NessieIcebergClient client = new NessieIcebergClient(api, branch, null, Map.of());
+
+    client.createNamespace(Namespace.of("a"), Map.of());
+
+    Assertions.assertThatThrownBy(() -> client.createNamespace(Namespace.of("a"), Map.of()))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("Namespace already exists: a");
+
+    client.commitTable(
+        null, newTableMetadata(), "file:///tmp/iceberg", (String) null, ContentKey.of("a", "tbl"));
+
+    Assertions.assertThatThrownBy(() -> client.createNamespace(Namespace.of("a", "tbl"), Map.of()))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("Another content object with name 'a.tbl' already exists");
+  }
+
+  @Test
+  public void testCreateNamespaceExternalConflict()
+      throws NessieConflictException, NessieNotFoundException {
+    String branch = "createNamespaceExternalConflictBranch";
+    createBranch(branch);
+    NessieIcebergClient client = new NessieIcebergClient(api, branch, null, Map.of());
+
+    org.projectnessie.model.Namespace nessieNs =
+        org.projectnessie.model.Namespace.of(ContentKey.of("a"));
+    commit(branch, "create namespace a", Operation.Put.of(ContentKey.of("a"), nessieNs));
+
+    Assertions.assertThatThrownBy(() -> client.createNamespace(Namespace.of("a"), Map.of()))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("Namespace already exists: a");
+
+    IcebergTable table = IcebergTable.of("file:///tmp/iceberg", 1, 1, 1, 1);
+    commit(branch, "create table a.tbl2", Operation.Put.of(ContentKey.of("a", "tbl"), table));
+
+    Assertions.assertThatThrownBy(() -> client.createNamespace(Namespace.of("a", "tbl"), Map.of()))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("Another content object with name 'a.tbl' already exists");
+  }
+
+  @Test
+  public void testCreateNamespaceNonExistingRef()
+      throws NessieConflictException, NessieNotFoundException {
+    String branch = "createNamespaceNonExistingRefBranch";
+    createBranch(branch);
+    NessieIcebergClient client = new NessieIcebergClient(api, branch, null, Map.of());
+
+    client.createNamespace(Namespace.of("a"), Map.of());
+
+    api.deleteBranch().branch((Branch) api.getReference().refName(branch).get()).delete();
+
+    Assertions.assertThatThrownBy(() -> client.createNamespace(Namespace.of("b"), Map.of()))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining(
+            "Cannot create namespace 'b': ref 'createNamespaceNonExistingRefBranch' is no longer valid");
+  }
+
+  @Test
+  public void testDropNamespace() throws NessieConflictException, NessieNotFoundException {
+    String branch = "dropNamespaceBranch";
+    createBranch(branch);
+    Map<String, String> catalogOptions =
+        Map.of(
+            CatalogProperties.USER, "iceberg-user",
+            CatalogProperties.APP_ID, "iceberg-nessie");
+    NessieIcebergClient client = new NessieIcebergClient(api, branch, null, catalogOptions);
+
+    Namespace parent = Namespace.of("a");
+    Namespace child = Namespace.of("a", "b");
+
+    Assertions.assertThat(client.dropNamespace(parent)).isFalse();
+    Assertions.assertThat(client.dropNamespace(child)).isFalse();
+
+    client.createNamespace(parent, Map.of());
+    client.createNamespace(child, Map.of());
+
+    Assertions.assertThat(client.dropNamespace(child)).isTrue();
+    Assertions.assertThat(client.dropNamespace(parent)).isTrue();
+
+    List<LogResponse.LogEntry> entries = api.getCommitLog().refName(branch).get().getLogEntries();
+    Assertions.assertThat(entries)
+        .isNotEmpty()
+        .extracting(LogResponse.LogEntry::getCommitMeta)
+        .satisfies(
+            meta -> {
+              Assertions.assertThat(meta.getMessage()).contains("drop namespace a");
+              Assertions.assertThat(meta.getAuthor()).isEqualTo("iceberg-user");
+              Assertions.assertThat(meta.getProperties())
+                  .containsEntry(NessieUtil.APPLICATION_TYPE, "iceberg")
+                  .containsEntry(CatalogProperties.APP_ID, "iceberg-nessie");
+            },
+            Index.atIndex(0))
+        .satisfies(
+            meta -> {
+              Assertions.assertThat(meta.getMessage()).contains("drop namespace a.b");
+              Assertions.assertThat(meta.getAuthor()).isEqualTo("iceberg-user");
+              Assertions.assertThat(meta.getProperties())
+                  .containsEntry(NessieUtil.APPLICATION_TYPE, "iceberg")
+                  .containsEntry(CatalogProperties.APP_ID, "iceberg-nessie");
+            },
+            Index.atIndex(1));
+  }
+
+  @Test
+  public void testDropNamespaceNotEmpty() throws NessieConflictException, NessieNotFoundException {
+    String branch = "dropNamespaceInvalidBranch";
+    createBranch(branch);
+    NessieIcebergClient client = new NessieIcebergClient(api, branch, null, Map.of());
+
+    client.createNamespace(Namespace.of("a"), Map.of());
+    client.createNamespace(Namespace.of("a", "b"), Map.of());
+
+    Assertions.assertThatThrownBy(() -> client.dropNamespace(Namespace.of("a")))
+        .isInstanceOf(NamespaceNotEmptyException.class)
+        .hasMessageContaining("Namespace 'a' is not empty.");
+  }
+
+  @Test
+  public void testDropNamespaceConflict() throws NessieConflictException, NessieNotFoundException {
+    String branch = "dropNamespaceConflictBranch";
+    createBranch(branch);
+    NessieIcebergClient client = new NessieIcebergClient(api, branch, null, Map.of());
+
+    client.createNamespace(Namespace.of("a"), Map.of());
+
+    client.commitTable(
+        null, newTableMetadata(), "file:///tmp/iceberg", (String) null, ContentKey.of("a", "tbl"));
+
+    Assertions.assertThatThrownBy(() -> client.dropNamespace(Namespace.of("a", "tbl")))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessageContaining("Content object with name 'a.tbl' is not a namespace.");
+  }
+
+  @Test
+  public void testDropNamespaceExternalConflict()
+      throws NessieConflictException, NessieNotFoundException {
+    String branch = "dropNamespaceExternalConflictBranch";
+    createBranch(branch);
+    NessieIcebergClient client = new NessieIcebergClient(api, branch, null, Map.of());
+
+    client.createNamespace(Namespace.of("a"), Map.of());
+
+    org.projectnessie.model.Namespace original = fetchNamespace(ContentKey.of("a"), branch);
+    org.projectnessie.model.Namespace updated =
+        org.projectnessie.model.Namespace.builder()
+            .from(original)
+            .properties(Map.of("k1", "v1"))
+            .build();
+    commit(branch, "update namespace a", Operation.Put.of(ContentKey.of("a"), updated));
+
+    Assertions.assertThatThrownBy(() -> client.dropNamespace(Namespace.of("a")))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining(
+            "Cannot drop namespace 'a': Values of existing and expected content for key 'a' are different.");
+  }
+
+  @Test
+  public void testDropNamespaceNonExistingRef()
+      throws NessieConflictException, NessieNotFoundException {
+    String branch = "dropNamespaceNonExistingRefBranch";
+    createBranch(branch);
+    NessieIcebergClient client = new NessieIcebergClient(api, branch, null, Map.of());
+
+    client.createNamespace(Namespace.of("a"), Map.of());
+
+    api.deleteBranch().branch((Branch) api.getReference().refName(branch).get()).delete();
+
+    Assertions.assertThat(client.dropNamespace(Namespace.of("a"))).isFalse();
+  }
+
+  @Test
+  public void testSetProperties() throws NessieConflictException, NessieNotFoundException {
+    String branch = "setPropertiesBranch";
+    createBranch(branch);
+    Map<String, String> catalogOptions =
+        Map.of(
+            CatalogProperties.USER, "iceberg-user",
+            CatalogProperties.APP_ID, "iceberg-nessie");
+    NessieIcebergClient client = new NessieIcebergClient(api, branch, null, catalogOptions);
+
+    Namespace ns = Namespace.of("a");
+    client.createNamespace(ns, Map.of("k1", "v1a"));
+
+    Assertions.assertThat(client.setProperties(ns, Map.of("k1", "v1b", "k2", "v2"))).isTrue();
+
+    Assertions.assertThat(client.loadNamespaceMetadata(ns))
+        .hasSize(2)
+        .containsEntry("k1", "v1b")
+        .containsEntry("k2", "v2");
+
+    List<LogResponse.LogEntry> entries = api.getCommitLog().refName(branch).get().getLogEntries();
+    Assertions.assertThat(entries)
+        .isNotEmpty()
+        .first()
+        .extracting(LogResponse.LogEntry::getCommitMeta)
+        .satisfies(
+            meta -> {
+              Assertions.assertThat(meta.getMessage()).contains("update namespace a");
+              Assertions.assertThat(meta.getAuthor()).isEqualTo("iceberg-user");
+              Assertions.assertThat(meta.getProperties())
+                  .containsEntry(NessieUtil.APPLICATION_TYPE, "iceberg")
+                  .containsEntry(CatalogProperties.APP_ID, "iceberg-nessie");
+            });
+  }
+
+  @Test
+  public void testSetPropertiesExternalConflict()
+      throws NessieConflictException, NessieNotFoundException {
+    String branch = "setPropertiesExternalConflictBranch";
+    createBranch(branch);
+    NessieIcebergClient client = new NessieIcebergClient(api, branch, null, Map.of());
+
+    Namespace ns = Namespace.of("a");
+    client.createNamespace(ns, Map.of("k1", "v1a"));
+
+    ContentKey key = ContentKey.of("a");
+    org.projectnessie.model.Namespace original = fetchNamespace(key, branch);
+    org.projectnessie.model.Namespace updated =
+        org.projectnessie.model.Namespace.builder()
+            .from(original)
+            .properties(Map.of("k1", "v1b", "k2", "v2"))
+            .build();
+    commit(branch, "update namespace a", Operation.Put.of(key, updated));
+
+    // will generate a conflict and a retry
+    Assertions.assertThat(client.setProperties(ns, Map.of("k1", "v1c", "k3", "v3"))).isTrue();
+
+    Assertions.assertThat(client.loadNamespaceMetadata(ns))
+        .hasSize(3)
+        .containsEntry("k1", "v1c")
+        .containsEntry("k2", "v2")
+        .containsEntry("k3", "v3");
+  }
+
+  @Test
+  public void testSetPropertiesNonExistingNs()
+      throws NessieConflictException, NessieNotFoundException {
+    String branch = "setPropertiesNonExistingNsBranch";
+    createBranch(branch);
+    NessieIcebergClient client = new NessieIcebergClient(api, branch, null, Map.of());
+
+    client.createNamespace(Namespace.of("a"), Map.of());
+
+    commit(branch, "delete namespace a", Operation.Delete.of(ContentKey.of("a")));
+
+    Assertions.assertThatThrownBy(
+            () -> client.setProperties(Namespace.of("a"), Map.of("k1", "v1a")))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessageContaining("Namespace does not exist: a");
+  }
+
+  @Test
+  public void testSetPropertiesNonExistingRef()
+      throws NessieConflictException, NessieNotFoundException {
+    String branch = "setPropertiesNonExistingRefBranch";
+    createBranch(branch);
+    NessieIcebergClient client = new NessieIcebergClient(api, branch, null, Map.of());
+
+    client.createNamespace(Namespace.of("a"), Map.of());
+
+    api.deleteBranch().branch((Branch) api.getReference().refName(branch).get()).delete();
+
+    Assertions.assertThatThrownBy(() -> client.setProperties(Namespace.of("a"), Map.of("k1", "v1")))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining(
+            "Cannot update properties on namespace 'a': ref 'setPropertiesNonExistingRefBranch' is no longer valid");
+  }
+
+  @Test
+  public void testRemoveProperties() throws NessieConflictException, NessieNotFoundException {
+    String branch = "removePropertiesBranch";
+    createBranch(branch);
+    Map<String, String> catalogOptions =
+        Map.of(
+            CatalogProperties.USER, "iceberg-user",
+            CatalogProperties.APP_ID, "iceberg-nessie");
+    NessieIcebergClient client = new NessieIcebergClient(api, branch, null, catalogOptions);
+
+    Namespace ns = Namespace.of("a");
+
+    client.createNamespace(ns, Map.of("k1", "v1", "k2", "v2"));
+
+    Assertions.assertThat(client.removeProperties(ns, Set.of("k1"))).isTrue();
+
+    Assertions.assertThat(client.loadNamespaceMetadata(ns)).hasSize(1).containsOnlyKeys("k2");
+
+    List<LogResponse.LogEntry> entries = api.getCommitLog().refName(branch).get().getLogEntries();
+    Assertions.assertThat(entries)
+        .isNotEmpty()
+        .first()
+        .extracting(LogResponse.LogEntry::getCommitMeta)
+        .satisfies(
+            meta -> {
+              Assertions.assertThat(meta.getMessage()).contains("update namespace a");
+              Assertions.assertThat(meta.getAuthor()).isEqualTo("iceberg-user");
+              Assertions.assertThat(meta.getProperties())
+                  .containsEntry(NessieUtil.APPLICATION_TYPE, "iceberg")
+                  .containsEntry(CatalogProperties.APP_ID, "iceberg-nessie");
+            });
+  }
+
+  @Test
+  public void testRemovePropertiesExternalConflict()
+      throws NessieConflictException, NessieNotFoundException {
+    String branch = "removePropertiesExternalConflictBranch";
+    createBranch(branch);
+    NessieIcebergClient client = new NessieIcebergClient(api, branch, null, Map.of());
+
+    Namespace ns = Namespace.of("a");
+    client.createNamespace(ns, Map.of("k1", "v1"));
+
+    ContentKey key = ContentKey.of("a");
+    org.projectnessie.model.Namespace original = fetchNamespace(key, branch);
+    org.projectnessie.model.Namespace updated =
+        org.projectnessie.model.Namespace.builder()
+            .from(original)
+            .properties(Map.of("k2", "v2", "k3", "v3"))
+            .build();
+    commit(branch, "update namespace a", Operation.Put.of(key, updated));
+
+    // will generate a conflict and a retry
+    Assertions.assertThat(client.removeProperties(ns, Set.of("k2"))).isTrue();
+
+    Assertions.assertThat(client.loadNamespaceMetadata(ns)).hasSize(1).containsOnlyKeys("k3");
+  }
+
+  @Test
+  public void testRemovePropertiesNonExistingNs()
+      throws NessieConflictException, NessieNotFoundException {
+    String branch = "removePropertiesNonExistingNsBranch";
+    createBranch(branch);
+    NessieIcebergClient client = new NessieIcebergClient(api, branch, null, Map.of());
+
+    client.createNamespace(Namespace.of("a"), Map.of("k1", "v1"));
+
+    commit(branch, "delete namespace a", Operation.Delete.of(ContentKey.of("a")));
+
+    Assertions.assertThatThrownBy(() -> client.removeProperties(Namespace.of("a"), Set.of("k1")))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessageContaining("Namespace does not exist: a");
+  }
+
+  @Test
+  public void testRemovePropertiesNonExistingRef()
+      throws NessieConflictException, NessieNotFoundException {
+    String branch = "removePropertiesNonExistingRefBranch";
+    createBranch(branch);
+    NessieIcebergClient client = new NessieIcebergClient(api, branch, null, Map.of());
+
+    client.createNamespace(Namespace.of("a"), Map.of("k1", "v1"));
+
+    api.deleteBranch().branch((Branch) api.getReference().refName(branch).get()).delete();
+
+    Assertions.assertThatThrownBy(() -> client.removeProperties(Namespace.of("a"), Set.of("k1")))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining(
+            "Cannot update properties on namespace 'a': ref 'removePropertiesNonExistingRefBranch' is no longer valid");
+  }
+
+  @Test
   public void testInvalidClientApiVersion() throws IOException {
     try (NessieCatalog newCatalog = new NessieCatalog()) {
       newCatalog.setConf(hadoopConfig);
       ImmutableMap.Builder<String, String> options =
           ImmutableMap.<String, String>builder().put("client-api-version", "3");
-      Assertions.assertThatThrownBy(() -> newCatalog.initialize("nessie", options.buildOrThrow()))
-          .isInstanceOf(IllegalArgumentException.class)
-          .hasMessage("Unsupported client-api-version: 3. Can only be 1 or 2");
+      Assertions.assertThatIllegalArgumentException()
+          .isThrownBy(() -> newCatalog.initialize("nessie", options.buildOrThrow()))
+          .withMessage("Unsupported client-api-version: 3. Can only be 1 or 2");
     }
+  }
+
+  private void commit(String branch, String message, Operation... operations)
+      throws NessieNotFoundException, NessieConflictException {
+    Branch ref = (Branch) api.getReference().refName(branch).get();
+    api.commitMultipleOperations()
+        .branch(ref)
+        .commitMeta(NessieUtil.buildCommitMetadata(message, Map.of()))
+        .operations(Arrays.asList(operations))
+        .commit();
+  }
+
+  private org.projectnessie.model.Namespace fetchNamespace(ContentKey key, String branch)
+      throws NessieNotFoundException {
+    Reference reference = api.getReference().refName(branch).get();
+    Content content = api.getContent().key(key).reference(reference).get().get(key);
+    return content.unwrap(org.projectnessie.model.Namespace.class).orElseThrow();
+  }
+
+  private static TableMetadata newTableMetadata() {
+    Schema schema = new Schema(required(1, "id", Types.LongType.get()));
+    return TableMetadata.newTableMetadata(
+        schema, PartitionSpec.unpartitioned(), SortOrder.unsorted(), null, Map.of());
   }
 }

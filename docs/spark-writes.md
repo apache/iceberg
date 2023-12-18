@@ -34,16 +34,16 @@ Some plans are only available when using [Iceberg SQL extensions](../spark-confi
 
 Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations. Spark DSv2 is an evolving API with different levels of support in Spark versions:
 
-| Feature support                                  | Spark 3 | Notes                                        |
-|--------------------------------------------------|-----------|----------------------------------------------|
-| [SQL insert into](#insert-into)                  | ✔️        |                                              |
-| [SQL merge into](#merge-into)                    | ✔️        | ⚠ Requires Iceberg Spark extensions          |
-| [SQL insert overwrite](#insert-overwrite)        | ✔️        |                                              |
-| [SQL delete from](#delete-from)                  | ✔️        | ⚠ Row-level delete requires Spark extensions |
-| [SQL update](#update)                            | ✔️        | ⚠ Requires Iceberg Spark extensions          |
-| [DataFrame append](#appending-data)              | ✔️        |                                              |
-| [DataFrame overwrite](#overwriting-data)         | ✔️        |                                              |
-| [DataFrame CTAS and RTAS](#creating-tables)      | ✔️        |                                              |
+| Feature support                                  | Spark 3 | Notes                                                                       |
+|--------------------------------------------------|-----------|-----------------------------------------------------------------------------|
+| [SQL insert into](#insert-into)                  | ✔️        | ⚠ Requires `spark.sql.storeAssignmentPolicy=ANSI` (default since Spark 3.0) |
+| [SQL merge into](#merge-into)                    | ✔️        | ⚠ Requires Iceberg Spark extensions                                         |
+| [SQL insert overwrite](#insert-overwrite)        | ✔️        | ⚠ Requires `spark.sql.storeAssignmentPolicy=ANSI` (default since Spark 3.0) |
+| [SQL delete from](#delete-from)                  | ✔️        | ⚠ Row-level delete requires Iceberg Spark extensions                        |
+| [SQL update](#update)                            | ✔️        | ⚠ Requires Iceberg Spark extensions                                         |
+| [DataFrame append](#appending-data)              | ✔️        |                                                                             |
+| [DataFrame overwrite](#overwriting-data)         | ✔️        |                                                                             |
+| [DataFrame CTAS and RTAS](#creating-tables)      | ✔️        | ⚠ Requires DSv2 API                                                         |
 
 
 ## Writing with SQL
@@ -184,8 +184,6 @@ If the delete filter matches entire partitions of the table, Iceberg will perfor
 
 ### `UPDATE`
 
-Spark 3.1 added support for `UPDATE` queries that update matching rows in tables.
-
 Update queries accept a filter to match rows to update.
 
 ```sql
@@ -210,7 +208,7 @@ Branch writes can also be performed as part of a write-audit-publish (WAP) workf
 Note WAP branch and branch identifier cannot both be specified.
 Also, the branch must exist before performing the write. 
 The operation does **not** create the branch if it does not exist. 
-For more information on branches please refer to [branches](../../tables/branching)
+For more information on branches please refer to [branches](../tables/branching)
  
 ```sql
 -- INSERT (1,' a') (2, 'b') into the audit branch.
@@ -312,6 +310,33 @@ data.writeTo("prod.db.table")
     .tableProperty("location", "/path/to/location")
     .createOrReplace()
 ```
+
+### Schema Merge
+
+While inserting or updating Iceberg is capable of resolving schema mismatch at runtime. If configured, Iceberg will perform an automatic schema evolution as follows:
+
+
+* A new column is present in the source but not in the target table.
+    
+  The new column is added to the target table. Column values are set to `NULL` in all the rows already present in the table
+
+* A column is present in the target but not in the source. 
+
+  The target column value is set to `NULL` when inserting or left unchanged when updating the row.
+
+The target table must be configured to accept any schema change by setting the property `write.spark.accept-any-schema` to `true`.
+
+```sql
+ALTER TABLE prod.db.sample SET TBLPROPERTIES (
+  'write.spark.accept-any-schema'='true'
+)
+```
+The writer must enable the `mergeSchema` option.
+
+```scala
+data.writeTo("prod.db.sample").option("mergeSchema","true").append()
+```
+
 
 ## Writing Distribution Modes
 

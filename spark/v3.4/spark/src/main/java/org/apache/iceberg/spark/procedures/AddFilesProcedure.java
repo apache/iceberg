@@ -40,6 +40,7 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
 import org.apache.iceberg.util.LocationUtil;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.TableIdentifier;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
@@ -71,7 +72,7 @@ class AddFilesProcedure extends BaseProcedure {
       new StructType(
           new StructField[] {
             new StructField("added_files_count", DataTypes.LongType, false, Metadata.empty()),
-            new StructField("changed_partition_count", DataTypes.LongType, false, Metadata.empty()),
+            new StructField("changed_partition_count", DataTypes.LongType, true, Metadata.empty()),
           });
 
   private AddFilesProcedure(TableCatalog tableCatalog) {
@@ -117,10 +118,16 @@ class AddFilesProcedure extends BaseProcedure {
   private InternalRow[] toOutputRows(Snapshot snapshot) {
     Map<String, String> summary = snapshot.summary();
     return new InternalRow[] {
-      newInternalRow(
-          Long.parseLong(summary.getOrDefault(SnapshotSummary.ADDED_FILES_PROP, "0")),
-          Long.parseLong(summary.getOrDefault(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP, "0")))
+      newInternalRow(addedFilesCount(summary), changedPartitionCount(summary))
     };
+  }
+
+  private long addedFilesCount(Map<String, String> stats) {
+    return PropertyUtil.propertyAsLong(stats, SnapshotSummary.ADDED_FILES_PROP, 0L);
+  }
+
+  private Long changedPartitionCount(Map<String, String> stats) {
+    return PropertyUtil.propertyAsNullableLong(stats, SnapshotSummary.CHANGED_PARTITION_COUNT_PROP);
   }
 
   private boolean isFileIdentifier(Identifier ident) {

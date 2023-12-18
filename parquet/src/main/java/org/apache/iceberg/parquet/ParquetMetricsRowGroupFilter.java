@@ -27,6 +27,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Binder;
+import org.apache.iceberg.expressions.Bound;
 import org.apache.iceberg.expressions.BoundReference;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
@@ -556,6 +557,11 @@ public class ParquetMetricsRowGroupFilter {
     @SuppressWarnings("unchecked")
     private <T> T max(Statistics<?> statistics, int id) {
       return (T) conversions.get(id).apply(statistics.genericGetMax());
+    }
+
+    @Override
+    public <T> Boolean handleNonReference(Bound<T> term) {
+      return ROWS_MIGHT_MATCH;
     }
   }
 

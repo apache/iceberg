@@ -28,19 +28,24 @@ import com.esotericsoftware.kryo.serializers.ClosureSerializer;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.OutputStream;
+import java.io.Serializable;
 import java.lang.invoke.SerializedLambda;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.IntStream;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundSetPredicate;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.ByteBuffers;
 import org.assertj.core.api.Assertions;
 import org.objenesis.strategy.StdInstantiatorStrategy;
@@ -168,6 +173,103 @@ public class TestHelpers {
         });
   }
 
+  /**
+   * Deserializes a single {@link Object} from an array of bytes.
+   *
+   * <p>If the call site incorrectly types the return value, a {@link ClassCastException} is thrown
+   * from the call site. Without Generics in this declaration, the call site must type cast and can
+   * cause the same ClassCastException. Note that in both cases, the ClassCastException is in the
+   * call site, not in this method.
+   *
+   * <p>This code is borrowed from `org.apache.commons:commons-lang3`
+   *
+   * @param <T> the object type to be deserialized
+   * @param objectData the serialized object, must not be null
+   * @return the deserialized object
+   * @throws NullPointerException if {@code objectData} is {@code null}
+   * @throws IOException (runtime) if the serialization fails
+   */
+  public static <T> T deserialize(final byte[] objectData)
+      throws IOException, ClassNotFoundException {
+    Preconditions.checkNotNull(objectData, "objectData");
+    return deserialize(new ByteArrayInputStream(objectData));
+  }
+
+  /**
+   * Deserializes an {@link Object} from the specified stream.
+   *
+   * <p>The stream will be closed once the object is written. This avoids the need for a finally
+   * clause, and maybe also exception handling, in the application code.
+   *
+   * <p>The stream passed in is not buffered internally within this method. This is the
+   * responsibility of your application if desired.
+   *
+   * <p>If the call site incorrectly types the return value, a {@link ClassCastException} is thrown
+   * from the call site. Without Generics in this declaration, the call site must type cast and can
+   * cause the same ClassCastException. Note that in both cases, the ClassCastException is in the
+   * call site, not in this method.
+   *
+   * <p>This code is borrowed from `org.apache.commons:commons-lang3`
+   *
+   * @param <T> the object type to be deserialized
+   * @param inputStream the serialized object input stream, must not be null
+   * @return the deserialized object
+   * @throws NullPointerException if {@code inputStream} is {@code null}
+   * @throws IOException (runtime) if the serialization fails
+   * @throws ClassNotFoundException if Class is not found
+   */
+  public static <T> T deserialize(final InputStream inputStream)
+      throws IOException, ClassNotFoundException {
+    Preconditions.checkNotNull(inputStream, "inputStream");
+    try (ObjectInputStream in = new ObjectInputStream(inputStream)) {
+      @SuppressWarnings("unchecked")
+      final T obj = (T) in.readObject();
+      return obj;
+    }
+  }
+  /**
+   * Serializes an {@link Object} to a byte array for storage/serialization.
+   *
+   * <p>This code is borrowed from `org.apache.commons:commons-lang3`
+   *
+   * @param obj the object to serialize to bytes
+   * @return a byte[] with the converted Serializable
+   * @throws IOException (runtime) if the serialization fails
+   */
+  public static byte[] serialize(final Serializable obj) throws IOException {
+    final ByteArrayOutputStream baos = new ByteArrayOutputStream(512);
+    serialize(obj, baos);
+    return baos.toByteArray();
+  }
+
+  /**
+   * Serializes an {@link Object} to the specified stream.
+   *
+   * <p>The stream will be closed once the object is written. This avoids the need for a finally
+   * clause, and maybe also exception handling, in the application code.
+   *
+   * <p>The stream passed in is not buffered internally within this method. This is the
+   * responsibility of your application if desired.
+   *
+   * <p>This code is borrowed from `org.apache.commons:commons-lang3`
+   *
+   * @param obj the object to serialize to bytes, may be null
+   * @param outputStream the stream to write to, must not be null
+   * @throws NullPointerException if {@code outputStream} is {@code null}
+   * @throws IOException (runtime) if the serialization fails
+   */
+  public static void serialize(final Serializable obj, final OutputStream outputStream)
+      throws IOException {
+    Preconditions.checkNotNull(outputStream, "outputStream");
+    try (ObjectOutputStream out = new ObjectOutputStream(outputStream)) {
+      out.writeObject(obj);
+    }
+  }
+
+  public static ExpectedSpecBuilder newExpectedSpecBuilder() {
+    return new ExpectedSpecBuilder();
+  }
+
   public static class KryoHelpers {
     private KryoHelpers() {}
 
@@ -255,6 +357,52 @@ public class TestHelpers {
     @Override
     public int hashCode() {
       return Arrays.hashCode(values);
+    }
+  }
+
+  // similar to Row but has its own hashCode() and equals() implementations
+  // it is useful for testing custom collections that rely on wrappers
+  public static class CustomRow implements StructLike {
+    public static CustomRow of(Object... values) {
+      return new CustomRow(values);
+    }
+
+    private final Object[] values;
+
+    private CustomRow(Object... values) {
+      this.values = values;
+    }
+
+    @Override
+    public int size() {
+      return values.length;
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      return javaClass.cast(values[pos]);
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      values[pos] = value;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+      if (this == other) {
+        return true;
+      } else if (other == null || getClass() != other.getClass()) {
+        return false;
+      }
+
+      CustomRow that = (CustomRow) other;
+      return Arrays.equals(values, that.values);
+    }
+
+    @Override
+    public int hashCode() {
+      return 17 * Arrays.hashCode(values);
     }
   }
 
@@ -566,8 +714,49 @@ public class TestHelpers {
     }
 
     @Override
+    public DataFile copyWithStats(Set<Integer> requestedColumns) {
+      return this;
+    }
+
+    @Override
     public List<Long> splitOffsets() {
       return null;
+    }
+  }
+
+  public static class ExpectedSpecBuilder {
+    private final UnboundPartitionSpec.Builder unboundPartitionSpecBuilder;
+
+    private Schema schema;
+
+    private ExpectedSpecBuilder() {
+      this.unboundPartitionSpecBuilder = UnboundPartitionSpec.builder();
+    }
+
+    public ExpectedSpecBuilder withSchema(Schema newSchema) {
+      this.schema = newSchema;
+      return this;
+    }
+
+    public ExpectedSpecBuilder withSpecId(int newSpecId) {
+      unboundPartitionSpecBuilder.withSpecId(newSpecId);
+      return this;
+    }
+
+    public ExpectedSpecBuilder addField(
+        String transformAsString, int sourceId, int partitionId, String name) {
+      unboundPartitionSpecBuilder.addField(transformAsString, sourceId, partitionId, name);
+      return this;
+    }
+
+    public ExpectedSpecBuilder addField(String transformAsString, int sourceId, String name) {
+      unboundPartitionSpecBuilder.addField(transformAsString, sourceId, name);
+      return this;
+    }
+
+    public PartitionSpec build() {
+      Preconditions.checkNotNull(schema, "Field schema is missing");
+      return unboundPartitionSpecBuilder.build().bind(schema);
     }
   }
 }

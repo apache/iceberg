@@ -269,7 +269,7 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
                     dataFiles(fileExecutor, table.location(), jobContext, table.io(), false);
 
                 // Check if we have files already committed and remove data files if there are any
-                if (dataFiles.size() > 0) {
+                if (!dataFiles.isEmpty()) {
                   Tasks.foreach(dataFiles)
                       .retry(3)
                       .suppressFailureWhenFinished()
@@ -327,7 +327,7 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
 
     Collection<DataFile> dataFiles = dataFiles(executor, location, jobContext, io, true);
 
-    if (dataFiles.size() > 0) {
+    if (!dataFiles.isEmpty()) {
       // Appending data files to the table
       AppendFiles append = table.newAppend();
       dataFiles.forEach(append::appendFile);

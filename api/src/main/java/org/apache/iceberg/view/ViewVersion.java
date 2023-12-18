@@ -20,8 +20,7 @@ package org.apache.iceberg.view;
 
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.immutables.value.Value;
+import org.apache.iceberg.catalog.Namespace;
 
 /**
  * A version of the view at a point in time.
@@ -30,7 +29,6 @@ import org.immutables.value.Value;
  *
  * <p>Versions are created by view operations, like Create and Replace.
  */
-@Value.Immutable
 public interface ViewVersion {
 
   /** Return this version's id. Version ids are monotonically increasing */
@@ -66,17 +64,18 @@ public interface ViewVersion {
    *
    * @return the string operation which produced the view version
    */
-  @Value.Lazy
   default String operation() {
-    return summary().get("operation");
+    return versionId() == 1 ? "create" : "replace";
   }
 
   /** The query output schema at version create time, without aliases */
   int schemaId();
 
-  @Value.Check
-  default void check() {
-    Preconditions.checkArgument(
-        summary().containsKey("operation"), "Invalid view version summary, missing operation");
+  /** The default catalog when the view is created. */
+  default String defaultCatalog() {
+    return null;
   }
+
+  /** The default namespace to use when the SQL does not contain a namespace. */
+  Namespace defaultNamespace();
 }

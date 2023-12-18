@@ -25,6 +25,7 @@ case class CreateOrReplaceTag(
     table: Seq[String],
     tag: String,
     tagOptions: TagOptions,
+    create: Boolean,
     replace: Boolean,
     ifNotExists: Boolean) extends LeafCommand {
 

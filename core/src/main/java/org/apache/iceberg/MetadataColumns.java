@@ -127,6 +127,10 @@ public class MetadataColumns {
     return name.equals(PARTITION_COLUMN_NAME) || META_COLUMNS.containsKey(name);
   }
 
+  public static boolean isMetadataColumn(int id) {
+    return META_IDS.contains(id);
+  }
+
   public static boolean nonMetadataColumn(String name) {
     return !isMetadataColumn(name);
   }

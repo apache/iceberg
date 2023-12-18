@@ -201,4 +201,26 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
         ImmutableList.of(row(1L, "2023/05/30", java.sql.Date.valueOf("2023-05-30"))),
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
+
+  @Test
+  public void testMigrateEmptyPartitionedTable() throws Exception {
+    Assume.assumeTrue(catalogName.equals("spark_catalog"));
+    String location = temp.newFolder().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet PARTITIONED BY (id) LOCATION '%s'",
+        tableName, location);
+    Object result = scalarSql("CALL %s.system.migrate('%s')", catalogName, tableName);
+    Assert.assertEquals(0L, result);
+  }
+
+  @Test
+  public void testMigrateEmptyTable() throws Exception {
+    Assume.assumeTrue(catalogName.equals("spark_catalog"));
+    String location = temp.newFolder().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        tableName, location);
+    Object result = scalarSql("CALL %s.system.migrate('%s')", catalogName, tableName);
+    Assert.assertEquals(0L, result);
+  }
 }

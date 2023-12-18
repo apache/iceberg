@@ -83,7 +83,12 @@ Start the Flink SQL client. There is a separate `flink-runtime` module in the Ic
 # HADOOP_HOME is your hadoop root directory after unpack the binary package.
 export HADOOP_CLASSPATH=`$HADOOP_HOME/bin/hadoop classpath`   
 
-./bin/sql-client.sh embedded -j <flink-runtime-directory>/iceberg-flink-runtime-1.16-{{% icebergVersion %}}.jar shell
+# Below works for 1.15 or less
+./bin/sql-client.sh embedded -j <flink-runtime-directory>/iceberg-flink-runtime-1.15-{{% icebergVersion %}}.jar shell
+
+# 1.16 or above has a regression in loading external jar via -j option. See FLINK-30035 for details.
+put iceberg-flink-runtime-1.16-{{% icebergVersion %}}.jar in flink/lib dir
+./bin/sql-client.sh embedded shell
 ```
 
 By default, Iceberg ships with Hadoop jars for Hadoop catalog. To use Hive catalog, load the Hive jars when opening the Flink SQL client. Fortunately, Flink has provided a [bundled hive jar](https://repo.maven.apache.org/maven2/org/apache/flink/flink-sql-connector-hive-2.3.9_2.12/1.16.2/flink-sql-connector-hive-2.3.9_2.12-1.16.2.jar) for the SQL client. An example on how to download the dependencies and get started:
@@ -274,7 +279,7 @@ env.execute("Test Iceberg DataStream");
 
 ### Branch Writes
 Writing to branches in Iceberg tables is also supported via the `toBranch` API in `FlinkSink`
-For more information on branches please refer to [branches](../../tables/branching).
+For more information on branches please refer to [branches](../tables/branching).
 ```java
 FlinkSink.forRowData(input)
     .tableLoader(tableLoader)

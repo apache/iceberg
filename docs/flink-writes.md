@@ -69,9 +69,9 @@ Iceberg supports `UPSERT` based on the primary key when writing data into v2 tab
 
 ```sql
 CREATE TABLE `hive_catalog`.`default`.`sample` (
-  `id`  INT UNIQUE COMMENT 'unique id',
-  `data` STRING NOT NULL,
- PRIMARY KEY(`id`) NOT ENFORCED
+    `id` INT COMMENT 'unique id',
+    `data` STRING NOT NULL,
+    PRIMARY KEY(`id`) NOT ENFORCED
 ) with ('format-version'='2', 'write.upsert.enabled'='true');
 ```
 
@@ -111,7 +111,7 @@ FlinkSink.forRowData(input)
 env.execute("Test Iceberg DataStream");
 ```
 
-The iceberg API also allows users to write generic `DataStream<T>` to iceberg table, more example could be found in this [unit test](https://github.com/apache/iceberg/blob/master/flink/v1.16/flink/src/test/java/org/apache/iceberg/flink/sink/TestFlinkIcebergSink.java).
+The iceberg API also allows users to write generic `DataStream<T>` to iceberg table, more example could be found in this [unit test](https://github.com/apache/iceberg/blob/main/flink/v1.16/flink/src/test/java/org/apache/iceberg/flink/sink/TestFlinkIcebergSink.java).
 
 ### Overwrite data
 
@@ -193,7 +193,7 @@ FlinkSink.builderFor(
 
 ### Branch Writes
 Writing to branches in Iceberg tables is also supported via the `toBranch` API in `FlinkSink`
-For more information on branches please refer to [branches](../../tables/branching).
+For more information on branches please refer to [branches](../tables/branching).
 ```java
 FlinkSink.forRowData(input)
     .tableLoader(tableLoader)
@@ -271,3 +271,12 @@ INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
 ```
 
 Check out all the options here: [write-options](/flink-configuration#write-options) 
+
+## Notes
+
+Flink streaming write jobs rely on snapshot summary to keep the last committed checkpoint ID, and
+store uncommitted data as temporary files. Therefore, [expiring snapshots](../tables/maintenance#expire-snapshots)
+and [deleting orphan files](../tables/maintenance#delete-orphan-files) could possibly corrupt
+the state of the Flink job. To avoid that, make sure to keep the last snapshot created by the Flink
+job (which can be identified by the `flink.job-id` property in the summary), and only delete
+orphan files that are old enough.

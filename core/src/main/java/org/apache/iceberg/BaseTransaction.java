@@ -31,9 +31,11 @@ import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.exceptions.CleanableFailure;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -43,6 +45,7 @@ import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
@@ -318,18 +321,12 @@ public class BaseTransaction implements Transaction {
       throw e;
 
     } catch (RuntimeException e) {
-      // the commit failed and no files were committed. clean up each update.
-      Tasks.foreach(updates)
-          .suppressFailureWhenFinished()
-          .run(
-              update -> {
-                if (update instanceof SnapshotProducer) {
-                  ((SnapshotProducer) update).cleanAll();
-                }
-              });
+      // the commit failed and no files were committed. clean up each update
+      if (!ops.requireStrictCleanup() || e instanceof CleanableFailure) {
+        cleanAllUpdates();
+      }
 
       throw e;
-
     } finally {
       // create table never needs to retry because the table has no previous state. because retries
       // are not a
@@ -380,14 +377,9 @@ public class BaseTransaction implements Transaction {
 
     } catch (RuntimeException e) {
       // the commit failed and no files were committed. clean up each update.
-      Tasks.foreach(updates)
-          .suppressFailureWhenFinished()
-          .run(
-              update -> {
-                if (update instanceof SnapshotProducer) {
-                  ((SnapshotProducer) update).cleanAll();
-                }
-              });
+      if (!ops.requireStrictCleanup() || e instanceof CleanableFailure) {
+        cleanAllUpdates();
+      }
 
       throw e;
 
@@ -433,7 +425,10 @@ public class BaseTransaction implements Transaction {
       cleanUpOnCommitFailure();
       throw e.wrapped();
     } catch (RuntimeException e) {
-      cleanUpOnCommitFailure();
+      if (!ops.requireStrictCleanup() || e instanceof CleanableFailure) {
+        cleanUpOnCommitFailure();
+      }
+
       throw e;
     }
 
@@ -474,6 +469,16 @@ public class BaseTransaction implements Transaction {
 
   private void cleanUpOnCommitFailure() {
     // the commit failed and no files were committed. clean up each update.
+    cleanAllUpdates();
+
+    // delete all the uncommitted files
+    Tasks.foreach(deletedFiles)
+        .suppressFailureWhenFinished()
+        .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
+        .run(ops.io()::deleteFile);
+  }
+
+  private void cleanAllUpdates() {
     Tasks.foreach(updates)
         .suppressFailureWhenFinished()
         .run(
@@ -482,12 +487,6 @@ public class BaseTransaction implements Transaction {
                 ((SnapshotProducer) update).cleanAll();
               }
             });
-
-    // delete all files that were cleaned up
-    Tasks.foreach(deletedFiles)
-        .suppressFailureWhenFinished()
-        .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
-        .run(ops.io()::deleteFile);
   }
 
   private void applyUpdates(TableOperations underlyingOps) {
@@ -508,9 +507,11 @@ public class BaseTransaction implements Transaction {
     }
   }
 
+  // committedFiles returns null whenever the set of committed files
+  // cannot be determined from the provided snapshots
   private static Set<String> committedFiles(TableOperations ops, Set<Long> snapshotIds) {
     if (snapshotIds.isEmpty()) {
-      return null;
+      return ImmutableSet.of();
     }
 
     Set<String> committedFiles = Sets.newHashSet();
@@ -771,6 +772,11 @@ public class BaseTransaction implements Transaction {
     @Override
     public Map<String, SnapshotRef> refs() {
       return current.refs();
+    }
+
+    @Override
+    public UUID uuid() {
+      return UUID.fromString(current.uuid());
     }
 
     @Override

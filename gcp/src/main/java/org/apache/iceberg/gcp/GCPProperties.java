@@ -19,8 +19,11 @@
 package org.apache.iceberg.gcp;
 
 import java.io.Serializable;
+import java.util.Date;
 import java.util.Map;
 import java.util.Optional;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.PropertyUtil;
 
 public class GCPProperties implements Serializable {
   // Service Options
@@ -36,6 +39,19 @@ public class GCPProperties implements Serializable {
   public static final String GCS_CHANNEL_READ_CHUNK_SIZE = "gcs.channel.read.chunk-size-bytes";
   public static final String GCS_CHANNEL_WRITE_CHUNK_SIZE = "gcs.channel.write.chunk-size-bytes";
 
+  public static final String GCS_OAUTH2_TOKEN = "gcs.oauth2.token";
+  public static final String GCS_OAUTH2_TOKEN_EXPIRES_AT = "gcs.oauth2.token-expires-at";
+  // Boolean to explicitly configure "no authentication" for testing purposes using a GCS emulator
+  public static final String GCS_NO_AUTH = "gcs.no-auth";
+
+  /** Configure the batch size used when deleting multiple files from a given GCS bucket */
+  public static final String GCS_DELETE_BATCH_SIZE = "gcs.delete.batch-size";
+  /**
+   * Max possible batch size for deletion. Currently, a max of 100 keys is advised, so we default to
+   * a number below that. https://cloud.google.com/storage/docs/batch
+   */
+  public static final int GCS_DELETE_BATCH_SIZE_DEFAULT = 50;
+
   private String projectId;
   private String clientLibToken;
   private String serviceHost;
@@ -47,8 +63,15 @@ public class GCPProperties implements Serializable {
   private Integer gcsChannelReadChunkSize;
   private Integer gcsChannelWriteChunkSize;
 
+  private boolean gcsNoAuth;
+  private String gcsOAuth2Token;
+  private Date gcsOAuth2TokenExpiresAt;
+
+  private int gcsDeleteBatchSize = GCS_DELETE_BATCH_SIZE_DEFAULT;
+
   public GCPProperties() {}
 
+  @SuppressWarnings("JavaUtilDate") // GCP API uses java.util.Date
   public GCPProperties(Map<String, String> properties) {
     projectId = properties.get(GCS_PROJECT_ID);
     clientLibToken = properties.get(GCS_CLIENT_LIB_TOKEN);
@@ -65,6 +88,22 @@ public class GCPProperties implements Serializable {
     if (properties.containsKey(GCS_CHANNEL_WRITE_CHUNK_SIZE)) {
       gcsChannelWriteChunkSize = Integer.parseInt(properties.get(GCS_CHANNEL_WRITE_CHUNK_SIZE));
     }
+
+    gcsOAuth2Token = properties.get(GCS_OAUTH2_TOKEN);
+    if (properties.containsKey(GCS_OAUTH2_TOKEN_EXPIRES_AT)) {
+      gcsOAuth2TokenExpiresAt =
+          new Date(Long.parseLong(properties.get(GCS_OAUTH2_TOKEN_EXPIRES_AT)));
+    }
+    gcsNoAuth = Boolean.parseBoolean(properties.getOrDefault(GCS_NO_AUTH, "false"));
+    Preconditions.checkState(
+        !(gcsOAuth2Token != null && gcsNoAuth),
+        "Invalid auth settings: must not configure %s and %s",
+        GCS_NO_AUTH,
+        GCS_OAUTH2_TOKEN);
+
+    gcsDeleteBatchSize =
+        PropertyUtil.propertyAsInt(
+            properties, GCS_DELETE_BATCH_SIZE, GCS_DELETE_BATCH_SIZE_DEFAULT);
   }
 
   public Optional<Integer> channelReadChunkSize() {
@@ -97,5 +136,21 @@ public class GCPProperties implements Serializable {
 
   public Optional<String> userProject() {
     return Optional.ofNullable(gcsUserProject);
+  }
+
+  public Optional<String> oauth2Token() {
+    return Optional.ofNullable(gcsOAuth2Token);
+  }
+
+  public boolean noAuth() {
+    return gcsNoAuth;
+  }
+
+  public Optional<Date> oauth2TokenExpiresAt() {
+    return Optional.ofNullable(gcsOAuth2TokenExpiresAt);
+  }
+
+  public int deleteBatchSize() {
+    return gcsDeleteBatchSize;
   }
 }

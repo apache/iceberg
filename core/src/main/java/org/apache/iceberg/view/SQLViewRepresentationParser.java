@@ -21,21 +21,12 @@ package org.apache.iceberg.view;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.util.JsonUtil;
 
 class SQLViewRepresentationParser {
   private static final String SQL = "sql";
   private static final String DIALECT = "dialect";
-  private static final String SCHEMA_ID = "schema-id";
-  private static final String DEFAULT_CATALOG = "default-catalog";
-  private static final String DEFAULT_NAMESPACE = "default-namespace";
-  private static final String FIELD_ALIASES = "field-aliases";
-  private static final String FIELD_COMMENTS = "field-comments";
 
   private SQLViewRepresentationParser() {}
 
@@ -49,23 +40,6 @@ class SQLViewRepresentationParser {
     generator.writeStringField(ViewRepresentationParser.TYPE, view.type());
     generator.writeStringField(SQL, view.sql());
     generator.writeStringField(DIALECT, view.dialect());
-
-    if (view.defaultCatalog() != null) {
-      generator.writeStringField(DEFAULT_CATALOG, view.defaultCatalog());
-    }
-
-    if (view.defaultNamespace() != null) {
-      JsonUtil.writeStringArray(
-          DEFAULT_NAMESPACE, Arrays.asList(view.defaultNamespace().levels()), generator);
-    }
-
-    if (!view.fieldAliases().isEmpty()) {
-      JsonUtil.writeStringArray(FIELD_ALIASES, view.fieldAliases(), generator);
-    }
-
-    if (!view.fieldComments().isEmpty()) {
-      JsonUtil.writeStringArray(FIELD_COMMENTS, view.fieldComments(), generator);
-    }
 
     generator.writeEndObject();
   }
@@ -83,27 +57,6 @@ class SQLViewRepresentationParser {
         ImmutableSQLViewRepresentation.builder()
             .sql(JsonUtil.getString(SQL, node))
             .dialect(JsonUtil.getString(DIALECT, node));
-    String defaultCatalog = JsonUtil.getStringOrNull(DEFAULT_CATALOG, node);
-    if (defaultCatalog != null) {
-      builder.defaultCatalog(defaultCatalog);
-    }
-
-    Integer schemaId = JsonUtil.getIntOrNull(SCHEMA_ID, node);
-
-    List<String> namespace = JsonUtil.getStringListOrNull(DEFAULT_NAMESPACE, node);
-    if (namespace != null && !namespace.isEmpty()) {
-      builder.defaultNamespace(Namespace.of(Iterables.toArray(namespace, String.class)));
-    }
-
-    List<String> fieldAliases = JsonUtil.getStringListOrNull(FIELD_ALIASES, node);
-    if (fieldAliases != null) {
-      builder.fieldAliases(fieldAliases);
-    }
-
-    List<String> fieldComments = JsonUtil.getStringListOrNull(FIELD_COMMENTS, node);
-    if (fieldComments != null) {
-      builder.fieldComments(fieldComments);
-    }
 
     return builder.build();
   }

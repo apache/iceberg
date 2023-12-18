@@ -57,6 +57,7 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -170,6 +171,10 @@ public class SparkTable
 
   public Long snapshotId() {
     return snapshotId;
+  }
+
+  public String branch() {
+    return branch;
   }
 
   public SparkTable copyWithSnapshotId(long newSnapshotId) {
@@ -329,7 +334,7 @@ public class SparkTable
             .ignoreResiduals();
 
     if (branch != null) {
-      scan.useRef(branch);
+      scan = scan.useRef(branch);
     }
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
@@ -371,6 +376,10 @@ public class SparkTable
             .newDelete()
             .set("spark.app.id", sparkSession().sparkContext().applicationId())
             .deleteFromRowFilter(deleteExpr);
+
+    if (SparkTableUtil.wapEnabled(table())) {
+      branch = SparkTableUtil.determineWriteBranch(sparkSession(), branch);
+    }
 
     if (branch != null) {
       deleteFiles.toBranch(branch);

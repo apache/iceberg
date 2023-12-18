@@ -20,18 +20,18 @@ package org.apache.iceberg.nessie;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
-import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.hadoop.Configurable;
@@ -41,36 +41,43 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.view.BaseMetastoreViewCatalog;
+import org.apache.iceberg.view.ViewOperations;
 import org.projectnessie.client.NessieClientBuilder;
 import org.projectnessie.client.NessieConfigConstants;
 import org.projectnessie.client.api.NessieApiV1;
 import org.projectnessie.client.api.NessieApiV2;
-import org.projectnessie.client.http.HttpClientBuilder;
+import org.projectnessie.client.config.NessieClientConfigSource;
+import org.projectnessie.client.config.NessieClientConfigSources;
+import org.projectnessie.model.Content;
 import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.TableReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Nessie implementation of Iceberg Catalog.
- *
- * <p>A note on namespaces: Nessie namespaces are implicit and do not need to be explicitly created
- * or deleted. The create and delete namespace methods are no-ops for the NessieCatalog. One can
- * still list namespaces that have objects stored in them to assist with namespace-centric catalog
- * exploration.
- */
-public class NessieCatalog extends BaseMetastoreCatalog
+/** Nessie implementation of Iceberg Catalog. */
+public class NessieCatalog extends BaseMetastoreViewCatalog
     implements AutoCloseable, SupportsNamespaces, Configurable<Object> {
 
   private static final Logger LOG = LoggerFactory.getLogger(NessieCatalog.class);
   private static final Joiner SLASH = Joiner.on("/");
   private static final String NAMESPACE_LOCATION_PROPS = "location";
+
+  private static final Map<String, String> DEFAULT_CATALOG_OPTIONS =
+      ImmutableMap.<String, String>builder()
+          .put(CatalogProperties.TABLE_DEFAULT_PREFIX + TableProperties.GC_ENABLED, "false")
+          .put(
+              CatalogProperties.TABLE_DEFAULT_PREFIX
+                  + TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED,
+              "false") // just in case METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT changes
+          .build();
+
   private NessieIcebergClient client;
   private String warehouseLocation;
   private Object config;
   private String name;
   private FileIO fileIO;
-  private Map<String, String> catalogOptions;
+  private Map<String, String> catalogOptions = DEFAULT_CATALOG_OPTIONS;
   private CloseableGroup closeableGroup;
 
   public NessieCatalog() {}
@@ -90,10 +97,11 @@ public class NessieCatalog extends BaseMetastoreCatalog
     String requestedHash =
         options.get(removePrefix.apply(NessieConfigConstants.CONF_NESSIE_REF_HASH));
 
-    NessieClientBuilder<?> nessieClientBuilder =
-        createNessieClientBuilder(
-                options.get(NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL))
-            .fromConfig(x -> options.get(removePrefix.apply(x)));
+    NessieClientConfigSource configSource =
+        NessieClientConfigSources.mapConfigSource(options)
+            .fallbackTo(x -> options.get(removePrefix.apply(x)));
+    NessieClientBuilder nessieClientBuilder =
+        NessieClientBuilder.createClientBuilderFromSystemSettings(configSource);
     // default version is set to v1.
     final String apiVersion =
         options.getOrDefault(removePrefix.apply(NessieUtil.CLIENT_API_VERSION), "1");
@@ -135,7 +143,10 @@ public class NessieCatalog extends BaseMetastoreCatalog
     this.client = Preconditions.checkNotNull(client, "client must be non-null");
     this.fileIO = Preconditions.checkNotNull(fileIO, "fileIO must be non-null");
     this.catalogOptions =
-        Preconditions.checkNotNull(catalogOptions, "catalogOptions must be non-null");
+        ImmutableMap.<String, String>builder()
+            .putAll(DEFAULT_CATALOG_OPTIONS)
+            .putAll(Preconditions.checkNotNull(catalogOptions, "catalogOptions must be non-null"))
+            .buildKeepingLast();
     this.warehouseLocation = validateWarehouseLocation(name, catalogOptions);
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(client);
@@ -175,22 +186,6 @@ public class NessieCatalog extends BaseMetastoreCatalog
     return warehouseLocation;
   }
 
-  private static NessieClientBuilder<?> createNessieClientBuilder(String customBuilder) {
-    NessieClientBuilder<?> clientBuilder;
-    if (customBuilder != null) {
-      try {
-        clientBuilder =
-            DynMethods.builder("builder").impl(customBuilder).build().asStatic().invoke();
-      } catch (Exception e) {
-        throw new RuntimeException(
-            String.format("Failed to use custom NessieClientBuilder '%s'.", customBuilder), e);
-      }
-    } else {
-      clientBuilder = HttpClientBuilder.builder();
-    }
-    return clientBuilder;
-  }
-
   @Override
   public void close() throws IOException {
     if (null != closeableGroup) {
@@ -211,8 +206,7 @@ public class NessieCatalog extends BaseMetastoreCatalog
             org.projectnessie.model.Namespace.of(tableIdentifier.namespace().levels()),
             tr.getName()),
         client.withReference(tr.getReference(), tr.getHash()),
-        fileIO,
-        catalogOptions);
+        fileIO);
   }
 
   @Override
@@ -254,26 +248,17 @@ public class NessieCatalog extends BaseMetastoreCatalog
   public void renameTable(TableIdentifier from, TableIdentifier to) {
     TableReference fromTableReference = parseTableReference(from);
     TableReference toTableReference = parseTableReference(to);
-    String fromReference =
-        fromTableReference.hasReference()
-            ? fromTableReference.getReference()
-            : client.getRef().getName();
-    String toReference =
-        toTableReference.hasReference()
-            ? toTableReference.getReference()
-            : client.getRef().getName();
-    Preconditions.checkArgument(
-        fromReference.equalsIgnoreCase(toReference),
-        "from: %s and to: %s reference name must be same",
-        fromReference,
-        toReference);
 
+    validateReferenceForRename(fromTableReference, toTableReference, Content.Type.ICEBERG_TABLE);
+
+    TableIdentifier fromIdentifier =
+        NessieUtil.removeCatalogName(
+            identifierWithoutTableReference(from, fromTableReference), name());
+    TableIdentifier toIdentifier =
+        NessieUtil.removeCatalogName(identifierWithoutTableReference(to, toTableReference), name());
     client
         .withReference(fromTableReference.getReference(), fromTableReference.getHash())
-        .renameTable(
-            identifierWithoutTableReference(from, fromTableReference),
-            NessieUtil.removeCatalogName(
-                identifierWithoutTableReference(to, toTableReference), name()));
+        .renameTable(fromIdentifier, toIdentifier);
   }
 
   @Override
@@ -353,6 +338,67 @@ public class NessieCatalog extends BaseMetastoreCatalog
 
   @Override
   protected Map<String, String> properties() {
-    return catalogOptions == null ? ImmutableMap.of() : catalogOptions;
+    return catalogOptions;
+  }
+
+  @Override
+  protected ViewOperations newViewOps(TableIdentifier identifier) {
+    TableReference tr = parseTableReference(identifier);
+    return new NessieViewOperations(
+        ContentKey.of(
+            org.projectnessie.model.Namespace.of(identifier.namespace().levels()), tr.getName()),
+        client.withReference(tr.getReference(), tr.getHash()),
+        fileIO);
+  }
+
+  @Override
+  public List<TableIdentifier> listViews(Namespace namespace) {
+    return client.listViews(namespace);
+  }
+
+  @Override
+  public boolean dropView(TableIdentifier identifier) {
+    TableReference tableReference = parseTableReference(identifier);
+    return client
+        .withReference(tableReference.getReference(), tableReference.getHash())
+        .dropView(identifierWithoutTableReference(identifier, tableReference), false);
+  }
+
+  @Override
+  public void renameView(TableIdentifier from, TableIdentifier to) {
+    TableReference fromTableReference = parseTableReference(from);
+    TableReference toTableReference = parseTableReference(to);
+
+    validateReferenceForRename(fromTableReference, toTableReference, Content.Type.ICEBERG_VIEW);
+
+    TableIdentifier fromIdentifier =
+        NessieUtil.removeCatalogName(
+            identifierWithoutTableReference(from, fromTableReference), name());
+    TableIdentifier toIdentifier =
+        NessieUtil.removeCatalogName(identifierWithoutTableReference(to, toTableReference), name());
+    client
+        .withReference(fromTableReference.getReference(), fromTableReference.getHash())
+        .renameView(fromIdentifier, toIdentifier);
+  }
+
+  private void validateReferenceForRename(
+      TableReference fromTableReference, TableReference toTableReference, Content.Type type) {
+    String fromReference =
+        fromTableReference.hasReference()
+            ? fromTableReference.getReference()
+            : client.getRef().getName();
+    String toReference =
+        toTableReference.hasReference()
+            ? toTableReference.getReference()
+            : client.getRef().getName();
+    Preconditions.checkArgument(
+        fromReference.equalsIgnoreCase(toReference),
+        "Cannot rename %s '%s' on reference '%s' to '%s' on reference '%s':"
+            + " source and target references must be the same.",
+        NessieUtil.contentTypeString(type).toLowerCase(Locale.ENGLISH),
+        fromTableReference.getName(),
+        fromReference,
+        toTableReference.getName(),
+        toReference);
   }
 }

@@ -19,7 +19,6 @@
 package org.apache.iceberg.arrow.vectorized.parquet;
 
 import java.io.IOException;
-import org.apache.arrow.vector.DecimalVector;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.VarBinaryVector;
@@ -367,102 +366,6 @@ public class VectorizedPageIterator extends BasePageIterator {
     return Math.min(expectedBatchSize, triplesCount - triplesRead);
   }
 
-  /**
-   * Method for reading a batch of decimals backed by INT32 and INT64 parquet data types. Since
-   * Arrow stores all decimals in 16 bytes, byte arrays are appropriately padded before being
-   * written to Arrow data buffers.
-   *
-   * @deprecated will be removed in 1.4.0
-   */
-  @Deprecated
-  class IntBackedDecimalPageReader extends BagePageReader {
-    @Override
-    protected void nextVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
-      vectorizedDefinitionLevelReader
-          .intBackedDecimalReader()
-          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader);
-    }
-
-    @Override
-    protected void nextDictEncodedVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
-      vectorizedDefinitionLevelReader
-          .intBackedDecimalReader()
-          .nextDictEncodedBatch(
-              vector,
-              numVals,
-              typeWidth,
-              batchSize,
-              holder,
-              dictionaryEncodedValuesReader,
-              dictionary);
-    }
-  }
-
-  /** @deprecated will be removed in 1.4.0 */
-  @Deprecated
-  class LongBackedDecimalPageReader extends BagePageReader {
-    @Override
-    protected void nextVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
-      vectorizedDefinitionLevelReader
-          .longBackedDecimalReader()
-          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader);
-    }
-
-    @Override
-    protected void nextDictEncodedVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
-      vectorizedDefinitionLevelReader
-          .longBackedDecimalReader()
-          .nextDictEncodedBatch(
-              vector,
-              numVals,
-              typeWidth,
-              batchSize,
-              holder,
-              dictionaryEncodedValuesReader,
-              dictionary);
-    }
-  }
-
-  /**
-   * Method for reading a batch of decimals backed by fixed length byte array parquet data type.
-   * Arrow stores all decimals in 16 bytes. This method provides the necessary padding to the
-   * decimals read. Moreover, Arrow interprets the decimals in Arrow buffer as little endian.
-   * Parquet stores fixed length decimals as big endian. So, this method uses {@link
-   * DecimalVector#setBigEndian(int, byte[])} method so that the data in Arrow vector is indeed
-   * little endian.
-   *
-   * @deprecated will be removed in 1.4.0
-   */
-  @Deprecated
-  class FixedLengthDecimalPageReader extends BagePageReader {
-    @Override
-    protected void nextVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
-      vectorizedDefinitionLevelReader
-          .fixedLengthDecimalReader()
-          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader);
-    }
-
-    @Override
-    protected void nextDictEncodedVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
-      vectorizedDefinitionLevelReader
-          .fixedLengthDecimalReader()
-          .nextDictEncodedBatch(
-              vector,
-              numVals,
-              typeWidth,
-              batchSize,
-              holder,
-              dictionaryEncodedValuesReader,
-              dictionary);
-    }
-  }
-
   class FixedSizeBinaryPageReader extends BagePageReader {
     @Override
     protected void nextVal(
@@ -583,24 +486,6 @@ public class VectorizedPageIterator extends BasePageIterator {
 
   DoublePageReader doublePageReader() {
     return new DoublePageReader();
-  }
-
-  /** @deprecated will be removed in 1.4.0 */
-  @Deprecated
-  IntBackedDecimalPageReader intBackedDecimalPageReader() {
-    return new IntBackedDecimalPageReader();
-  }
-
-  /** @deprecated will be removed in 1.4.0 */
-  @Deprecated
-  LongBackedDecimalPageReader longBackedDecimalPageReader() {
-    return new LongBackedDecimalPageReader();
-  }
-
-  /** @deprecated will be removed in 1.4.0 */
-  @Deprecated
-  FixedLengthDecimalPageReader fixedLengthDecimalPageReader() {
-    return new FixedLengthDecimalPageReader();
   }
 
   FixedSizeBinaryPageReader fixedSizeBinaryPageReader() {

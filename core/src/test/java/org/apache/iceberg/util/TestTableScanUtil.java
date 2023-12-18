@@ -18,32 +18,39 @@
  */
 package org.apache.iceberg.util;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.iceberg.BaseCombinedScanTask;
+import org.apache.iceberg.BaseFileScanTask;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MergeableScanTask;
 import org.apache.iceberg.MockFileScanTask;
 import org.apache.iceberg.PartitionScanTask;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SplittableScanTask;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.TableTestBase;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 public class TestTableScanUtil {
@@ -99,15 +106,13 @@ public class TestTableScanUtil {
             new BaseCombinedScanTask(Arrays.asList(testFiles.get(1), testFiles.get(2))),
             new BaseCombinedScanTask(Arrays.asList(testFiles.get(3), testFiles.get(4))));
 
-    Assert.assertEquals(
-        "Should plan 3 Combined tasks since there is delete files to be considered",
-        3,
-        combinedScanTasks.size());
+    assertThat(combinedScanTasks)
+        .as("Should plan 3 Combined tasks since there is delete files to be considered")
+        .hasSize(3);
     for (int i = 0; i < expectedCombinedTasks.size(); ++i) {
-      Assert.assertEquals(
-          "Scan tasks detail in combined task check failed",
-          expectedCombinedTasks.get(i).files(),
-          combinedScanTasks.get(i).files());
+      assertThat(combinedScanTasks.get(i).files())
+          .as("Scan tasks detail in combined task check failed")
+          .isEqualTo(expectedCombinedTasks.get(i).files());
     }
   }
 
@@ -125,8 +130,46 @@ public class TestTableScanUtil {
 
     CloseableIterable<ScanTaskGroup<ParentTask>> taskGroups =
         TableScanUtil.planTaskGroups(CloseableIterable.withNoopClose(tasks), 128, 10, 4);
+    assertThat(taskGroups).as("Must have 3 task groups").hasSize(3);
+  }
 
-    Assert.assertEquals("Must have 3 task groups", 3, Iterables.size(taskGroups));
+  @Test
+  public void testTaskGroupPlanningCorruptedOffset() {
+    DataFile dataFile =
+        DataFiles.builder(TableTestBase.SPEC)
+            .withPath("/path/to/data-a.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .withSplitOffsets(
+                ImmutableList.of(2L, 12L)) // the last offset is beyond the end of the file
+            .build();
+
+    ResidualEvaluator residualEvaluator =
+        ResidualEvaluator.of(TableTestBase.SPEC, Expressions.equal("id", 1), false);
+
+    BaseFileScanTask baseFileScanTask =
+        new BaseFileScanTask(
+            dataFile,
+            null,
+            SchemaParser.toJson(TableTestBase.SCHEMA),
+            PartitionSpecParser.toJson(TableTestBase.SPEC),
+            residualEvaluator);
+
+    List<BaseFileScanTask> baseFileScanTasks = ImmutableList.of(baseFileScanTask);
+
+    int taskCount = 0;
+    for (ScanTaskGroup<BaseFileScanTask> task :
+        TableScanUtil.planTaskGroups(CloseableIterable.withNoopClose(baseFileScanTasks), 1, 1, 0)) {
+      for (FileScanTask fileScanTask : task.tasks()) {
+        DataFile taskDataFile = fileScanTask.file();
+        Assertions.assertThat(taskDataFile.splitOffsets()).isNull();
+        taskCount++;
+      }
+    }
+
+    // 10 tasks since the split offsets are ignored and there are 1 byte splits for a 10 byte file
+    Assertions.assertThat(taskCount).isEqualTo(10);
   }
 
   @Test
@@ -139,7 +182,7 @@ public class TestTableScanUtil {
             new ChildTask3(32),
             new ChildTask3(32));
     List<ParentTask> mergedTasks = TableScanUtil.mergeTasks(tasks);
-    Assert.assertEquals("Appropriate tasks should be merged", 3, mergedTasks.size());
+    assertThat(mergedTasks).as("Appropriate tasks should be merged").hasSize(3);
   }
 
   private static final Schema TEST_SCHEMA =
@@ -172,11 +215,11 @@ public class TestTableScanUtil {
     int count = 0;
     for (ScanTaskGroup<PartitionScanTask> task :
         TableScanUtil.planTaskGroups(tasks, 512, 10, 4, SPEC1.partitionType())) {
-      Assert.assertEquals(4, task.filesCount());
-      Assert.assertEquals(64 + 128 + 64 + 128, task.sizeBytes());
+      assertThat(task.filesCount()).isEqualTo(4);
+      assertThat(task.sizeBytes()).isEqualTo(64 + 128 + 64 + 128);
       count += 1;
     }
-    Assert.assertEquals(1, count);
+    assertThat(count).isOne();
 
     // We have 2 files from partition 1 and 2 files from partition 2, so they should be combined
     // separately
@@ -190,11 +233,11 @@ public class TestTableScanUtil {
     count = 0;
     for (ScanTaskGroup<PartitionScanTask> task :
         TableScanUtil.planTaskGroups(tasks, 512, 10, 4, SPEC1.partitionType())) {
-      Assert.assertEquals(2, task.filesCount());
-      Assert.assertEquals(64 + 128, task.sizeBytes());
+      assertThat(task.filesCount()).isEqualTo(2);
+      assertThat(task.sizeBytes()).isEqualTo(64 + 128);
       count += 1;
     }
-    Assert.assertEquals(2, count);
+    assertThat(count).isEqualTo(2);
 
     // Similar to the case above, but now files have different partition specs
     tasks =
@@ -207,11 +250,11 @@ public class TestTableScanUtil {
     count = 0;
     for (ScanTaskGroup<PartitionScanTask> task :
         TableScanUtil.planTaskGroups(tasks, 512, 10, 4, SPEC1.partitionType())) {
-      Assert.assertEquals(2, task.filesCount());
-      Assert.assertEquals(64 + 128, task.sizeBytes());
+      assertThat(task.filesCount()).isEqualTo(2);
+      assertThat(task.sizeBytes()).isEqualTo(64 + 128);
       count += 1;
     }
-    Assert.assertEquals(2, count);
+    assertThat(count).isEqualTo(2);
 
     // Combining within partitions should also respect split size. In this case, the split size
     // is equal to the file size, so each partition will have 2 tasks.
@@ -225,11 +268,11 @@ public class TestTableScanUtil {
     count = 0;
     for (ScanTaskGroup<PartitionScanTask> task :
         TableScanUtil.planTaskGroups(tasks, 128, 10, 4, SPEC1.partitionType())) {
-      Assert.assertEquals(1, task.filesCount());
-      Assert.assertEquals(128, task.sizeBytes());
+      assertThat(task.filesCount()).isOne();
+      assertThat(task.sizeBytes()).isEqualTo(128);
       count += 1;
     }
-    Assert.assertEquals(4, count);
+    assertThat(count).isEqualTo(4);
 
     // The following should throw exception since `SPEC2` is not an intersection of partition specs
     // across all tasks.
@@ -241,6 +284,20 @@ public class TestTableScanUtil {
             () -> TableScanUtil.planTaskGroups(tasks2, 128, 10, 4, SPEC2.partitionType()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot find field");
+  }
+
+  @Test
+  public void testAdaptiveSplitSize() {
+    long scanSize = 500L * 1024 * 1024 * 1024; // 500 GB
+    int parallelism = 500;
+    long smallDefaultSplitSize = 128 * 1024 * 1024; // 128 MB
+    long largeDefaultSplitSize = 2L * 1024 * 1024 * 1024; // 2 GB
+
+    long adjusted1 = TableScanUtil.adjustSplitSize(scanSize, parallelism, smallDefaultSplitSize);
+    assertThat(adjusted1).isEqualTo(smallDefaultSplitSize);
+
+    long adjusted2 = TableScanUtil.adjustSplitSize(scanSize, parallelism, largeDefaultSplitSize);
+    assertThat(adjusted2).isEqualTo(scanSize / parallelism);
   }
 
   private PartitionScanTask taskWithPartition(

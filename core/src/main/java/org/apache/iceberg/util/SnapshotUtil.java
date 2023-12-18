@@ -337,6 +337,17 @@ public class SnapshotUtil {
    *     timestamp
    */
   public static long snapshotIdAsOfTime(Table table, long timestampMillis) {
+    Long snapshotId = nullableSnapshotIdAsOfTime(table, timestampMillis);
+
+    Preconditions.checkArgument(
+        snapshotId != null,
+        "Cannot find a snapshot older than %s",
+        DateTimeUtil.formatTimestampMillis(timestampMillis));
+
+    return snapshotId;
+  }
+
+  public static Long nullableSnapshotIdAsOfTime(Table table, long timestampMillis) {
     Long snapshotId = null;
     for (HistoryEntry logEntry : table.history()) {
       if (logEntry.timestampMillis() <= timestampMillis) {
@@ -344,10 +355,6 @@ public class SnapshotUtil {
       }
     }
 
-    Preconditions.checkArgument(
-        snapshotId != null,
-        "Cannot find a snapshot older than %s",
-        DateTimeUtil.formatTimestampMillis(timestampMillis));
     return snapshotId;
   }
 
@@ -402,49 +409,51 @@ public class SnapshotUtil {
   }
 
   /**
-   * Return the schema of the snapshot at a given branch.
+   * Return the schema of the snapshot at a given ref.
    *
-   * <p>If branch does not exist, the table schema is returned because it will be the schema when
-   * the new branch is created.
+   * <p>If the ref does not exist or the ref is a branch, the table schema is returned because it
+   * will be the schema when the new branch is created. If the ref is a tag, then the snapshot
+   * schema is returned.
    *
    * @param table a {@link Table}
-   * @param branch branch name of the table (nullable)
-   * @return schema of the specific snapshot at the given branch
+   * @param ref ref name of the table (nullable)
+   * @return schema of the specific snapshot at the given ref
    */
-  public static Schema schemaFor(Table table, String branch) {
-    if (branch == null || branch.equals(SnapshotRef.MAIN_BRANCH)) {
+  public static Schema schemaFor(Table table, String ref) {
+    if (ref == null || ref.equals(SnapshotRef.MAIN_BRANCH)) {
       return table.schema();
     }
 
-    Snapshot ref = table.snapshot(branch);
-    if (ref == null) {
+    SnapshotRef snapshotRef = table.refs().get(ref);
+    if (null == snapshotRef || snapshotRef.isBranch()) {
       return table.schema();
     }
 
-    return schemaFor(table, ref.snapshotId());
+    return schemaFor(table, snapshotRef.snapshotId());
   }
 
   /**
-   * Return the schema of the snapshot at a given branch.
+   * Return the schema of the snapshot at a given ref.
    *
-   * <p>If branch does not exist, the table schema is returned because it will be the schema when
-   * the new branch is created.
+   * <p>If the ref does not exist or the ref is a branch, the table schema is returned because it
+   * will be the schema when the new branch is created. If the ref is a tag, then the snapshot
+   * schema is returned.
    *
    * @param metadata a {@link TableMetadata}
-   * @param branch branch name of the table (nullable)
+   * @param ref ref name of the table (nullable)
    * @return schema of the specific snapshot at the given branch
    */
-  public static Schema schemaFor(TableMetadata metadata, String branch) {
-    if (branch == null || branch.equals(SnapshotRef.MAIN_BRANCH)) {
+  public static Schema schemaFor(TableMetadata metadata, String ref) {
+    if (ref == null || ref.equals(SnapshotRef.MAIN_BRANCH)) {
       return metadata.schema();
     }
 
-    SnapshotRef ref = metadata.ref(branch);
-    if (ref == null) {
+    SnapshotRef snapshotRef = metadata.ref(ref);
+    if (snapshotRef == null || snapshotRef.isBranch()) {
       return metadata.schema();
     }
 
-    Snapshot snapshot = metadata.snapshot(ref.snapshotId());
+    Snapshot snapshot = metadata.snapshot(snapshotRef.snapshotId());
     return metadata.schemas().get(snapshot.schemaId());
   }
 

@@ -49,14 +49,4 @@ public class TestDefaultCounter {
     Assertions.assertThat(counter.unit()).isEqualTo(MetricsContext.Unit.BYTES);
     Assertions.assertThat(counter.isNoop()).isFalse();
   }
-
-  @Test
-  public void counterOverflow() {
-    Counter counter = new DefaultCounter(MetricsContext.Unit.COUNT);
-    counter.increment(Long.MAX_VALUE);
-    Assertions.assertThatThrownBy(counter::increment)
-        .isInstanceOf(ArithmeticException.class)
-        .hasMessage("long overflow");
-    Assertions.assertThat(counter.value()).isEqualTo(Long.MAX_VALUE);
-  }
 }

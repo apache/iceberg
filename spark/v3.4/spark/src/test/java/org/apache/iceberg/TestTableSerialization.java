@@ -20,12 +20,20 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.source.SerializableTableWithSize;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
@@ -79,6 +87,48 @@ public class TestTableSerialization {
   }
 
   @Test
+  public void testCloseSerializableTableKryoSerialization() throws Exception {
+    for (Table tbl : tables()) {
+      Table spyTable = spy(tbl);
+      FileIO spyIO = spy(tbl.io());
+      when(spyTable.io()).thenReturn(spyIO);
+
+      Table serializableTable = SerializableTableWithSize.copyOf(spyTable);
+
+      Table serializableTableCopy = spy(KryoHelpers.roundTripSerialize(serializableTable));
+      FileIO spyFileIOCopy = spy(serializableTableCopy.io());
+      when(serializableTableCopy.io()).thenReturn(spyFileIOCopy);
+
+      ((AutoCloseable) serializableTable).close(); // mimics close on the driver
+      ((AutoCloseable) serializableTableCopy).close(); // mimics close on executors
+
+      verify(spyIO, never()).close();
+      verify(spyFileIOCopy, times(1)).close();
+    }
+  }
+
+  @Test
+  public void testCloseSerializableTableJavaSerialization() throws Exception {
+    for (Table tbl : tables()) {
+      Table spyTable = spy(tbl);
+      FileIO spyIO = spy(tbl.io());
+      when(spyTable.io()).thenReturn(spyIO);
+
+      Table serializableTable = SerializableTableWithSize.copyOf(spyTable);
+
+      Table serializableTableCopy = spy(TestHelpers.roundTripSerialize(serializableTable));
+      FileIO spyFileIOCopy = spy(serializableTableCopy.io());
+      when(serializableTableCopy.io()).thenReturn(spyFileIOCopy);
+
+      ((AutoCloseable) serializableTable).close(); // mimics close on the driver
+      ((AutoCloseable) serializableTableCopy).close(); // mimics close on executors
+
+      verify(spyIO, never()).close();
+      verify(spyFileIOCopy, times(1)).close();
+    }
+  }
+
+  @Test
   public void testSerializableTableKryoSerialization() throws IOException {
     Table serializableTable = SerializableTableWithSize.copyOf(table);
     TestHelpers.assertSerializedAndLoadedMetadata(
@@ -109,5 +159,18 @@ public class TestTableSerialization {
 
     TestHelpers.assertSerializedMetadata(
         txnTable, KryoHelpers.roundTripSerialize(serializableTxnTable));
+  }
+
+  private List<Table> tables() {
+    List<Table> tables = Lists.newArrayList();
+
+    tables.add(table);
+
+    for (MetadataTableType type : MetadataTableType.values()) {
+      Table metadataTable = MetadataTableUtils.createMetadataTableInstance(table, type);
+      tables.add(metadataTable);
+    }
+
+    return tables;
   }
 }

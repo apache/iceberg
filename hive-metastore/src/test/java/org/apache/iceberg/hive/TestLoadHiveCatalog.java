@@ -18,29 +18,30 @@
  */
 package org.apache.iceberg.hive;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.Collections;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
 public class TestLoadHiveCatalog {
 
   private static TestHiveMetastore metastore;
 
-  @BeforeClass
+  @BeforeAll
   public static void startMetastore() throws Exception {
     HiveConf hiveConf = new HiveConf(TestLoadHiveCatalog.class);
     metastore = new TestHiveMetastore();
     metastore.start(hiveConf);
   }
 
-  @AfterClass
+  @AfterAll
   public static void stopMetastore() throws Exception {
     if (metastore != null) {
       metastore.stop();
@@ -67,7 +68,7 @@ public class TestLoadHiveCatalog {
 
     CachedClientPool clientPool1 = (CachedClientPool) hiveCatalog1.clientPool();
     CachedClientPool clientPool2 = (CachedClientPool) hiveCatalog2.clientPool();
-    Assert.assertSame(clientPool1.clientPool(), clientPool2.clientPool());
+    assertThat(clientPool2.clientPool()).isSameAs(clientPool1.clientPool());
 
     Configuration conf1 = new Configuration(metastore.hiveConf());
     Configuration conf2 = new Configuration(metastore.hiveConf());
@@ -89,7 +90,7 @@ public class TestLoadHiveCatalog {
                 conf2);
     clientPool1 = (CachedClientPool) hiveCatalog1.clientPool();
     clientPool2 = (CachedClientPool) hiveCatalog2.clientPool();
-    Assert.assertSame(clientPool1.clientPool(), clientPool2.clientPool());
+    assertThat(clientPool2.clientPool()).isSameAs(clientPool1.clientPool());
 
     conf2.set("any.key", "any.value2");
     hiveCatalog2 =
@@ -100,6 +101,6 @@ public class TestLoadHiveCatalog {
                 ImmutableMap.of(CatalogProperties.CLIENT_POOL_CACHE_KEYS, "conf:any.key"),
                 conf2);
     clientPool2 = (CachedClientPool) hiveCatalog2.clientPool();
-    Assert.assertNotSame(clientPool1.clientPool(), clientPool2.clientPool());
+    assertThat(clientPool2.clientPool()).isNotSameAs(clientPool1.clientPool());
   }
 }

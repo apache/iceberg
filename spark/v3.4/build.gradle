@@ -17,7 +17,6 @@
  * under the License.
  */
 
-String sparkVersion = '3.4.1'
 String sparkMajorVersion = '3.4'
 String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
 
@@ -31,9 +30,9 @@ configure(sparkProjects) {
   configurations {
     all {
       resolutionStrategy {
-        force "com.fasterxml.jackson.module:jackson-module-scala_${scalaVersion}:2.13.4"
-        force 'com.fasterxml.jackson.core:jackson-databind:2.13.4.2'
-        force 'com.fasterxml.jackson.core:jackson-core:2.13.4'
+        force "com.fasterxml.jackson.module:jackson-module-scala_${scalaVersion}:${libs.versions.jackson214.get()}"
+        force "com.fasterxml.jackson.core:jackson-databind:${libs.versions.jackson214.get()}"
+        force "com.fasterxml.jackson.core:jackson-core:${libs.versions.jackson214.get()}"
       }
     }
   }
@@ -59,11 +58,11 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     implementation project(':iceberg-orc')
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-arrow')
-    implementation("org.scala-lang.modules:scala-collection-compat_${scalaVersion}")
+    implementation("org.scala-lang.modules:scala-collection-compat_${scalaVersion}:${libs.versions.scala.collection.compat.get()}")
 
-    compileOnly "com.google.errorprone:error_prone_annotations"
-    compileOnly "org.apache.avro:avro"
-    compileOnly("org.apache.spark:spark-hive_${scalaVersion}:${sparkVersion}") {
+    compileOnly libs.errorprone.annotations
+    compileOnly libs.avro.avro
+    compileOnly("org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark.hive34.get()}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
       exclude group: 'org.apache.parquet'
@@ -73,10 +72,10 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
       exclude group: 'org.roaringbitmap'
     }
 
-    implementation("org.apache.parquet:parquet-column")
-    implementation("org.apache.parquet:parquet-hadoop")
+    implementation libs.parquet.column
+    implementation libs.parquet.hadoop
 
-    implementation("org.apache.orc:orc-core::nohive") {
+    implementation("${libs.orc.core.get().module}:${libs.versions.orc.get()}:nohive") {
       exclude group: 'org.apache.hadoop'
       exclude group: 'commons-lang'
       // These artifacts are shaded and included in the orc-core fat jar
@@ -84,13 +83,13 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
       exclude group: 'org.apache.hive', module: 'hive-storage-api'
     }
 
-    implementation("org.apache.arrow:arrow-vector") {
+    implementation(libs.arrow.vector) {
       exclude group: 'io.netty', module: 'netty-buffer'
       exclude group: 'io.netty', module: 'netty-common'
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
 
-    testImplementation("org.apache.hadoop:hadoop-minicluster") {
+    testImplementation(libs.hadoop2.minicluster) {
       exclude group: 'org.apache.avro', module: 'avro'
       // to make sure netty libs only come from project(':iceberg-arrow')
       exclude group: 'io.netty', module: 'netty-buffer'
@@ -101,7 +100,8 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
-    testImplementation "org.xerial:sqlite-jdbc"
+    testImplementation libs.sqlite.jdbc
+    testImplementation libs.awaitility
   }
 
   test {
@@ -134,16 +134,16 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
   }
 
   dependencies {
-    implementation("org.scala-lang.modules:scala-collection-compat_${scalaVersion}")
-    implementation "org.roaringbitmap:RoaringBitmap"
+    implementation("org.scala-lang.modules:scala-collection-compat_${scalaVersion}:${libs.versions.scala.collection.compat.get()}")
+    implementation libs.roaringbitmap
 
-    compileOnly "org.scala-lang:scala-library:${scalaVersion}"
+    compileOnly "org.scala-lang:scala-library"
     compileOnly project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compileOnly project(':iceberg-api')
     compileOnly project(':iceberg-core')
     compileOnly project(':iceberg-common')
     compileOnly project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}")
-    compileOnly("org.apache.spark:spark-hive_${scalaVersion}:${sparkVersion}") {
+    compileOnly("org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark.hive34.get()}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
       exclude group: 'org.apache.parquet'
@@ -152,7 +152,7 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
       exclude group: 'io.netty', module: 'netty-common'
       exclude group: 'org.roaringbitmap'
     }
-    compileOnly "com.google.errorprone:error_prone_annotations"
+    compileOnly libs.errorprone.annotations
 
     testImplementation project(path: ':iceberg-data')
     testImplementation project(path: ':iceberg-parquet')
@@ -161,12 +161,12 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     testImplementation project(path: ":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}", configuration: 'testArtifacts')
 
-    testImplementation "org.apache.avro:avro"
-    testImplementation "org.apache.parquet:parquet-hadoop"
+    testImplementation libs.avro.avro
+    testImplementation libs.parquet.hadoop
 
     // Required because we remove antlr plugin dependencies from the compile configuration, see note above
-    runtimeOnly "org.antlr:antlr4-runtime:4.9.3"
-    antlr "org.antlr:antlr4:4.9.3"
+    runtimeOnly libs.antlr.runtime
+    antlr libs.antlr.antlr4
   }
 
   generateGrammarSource {
@@ -213,11 +213,13 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     implementation project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}")
     implementation project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVersion}")
     implementation project(':iceberg-aws')
+    implementation project(':iceberg-azure')
     implementation(project(':iceberg-aliyun')) {
       exclude group: 'edu.umd.cs.findbugs', module: 'findbugs'
       exclude group: 'org.apache.httpcomponents', module: 'httpclient'
       exclude group: 'commons-logging', module: 'commons-logging'
     }
+    implementation project(':iceberg-gcp')
     implementation project(':iceberg-hive-metastore')
     implementation(project(':iceberg-nessie')) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
@@ -226,10 +228,11 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
       exclude group: 'net.snowflake' , module: 'snowflake-jdbc'
     }
 
-    integrationImplementation "org.scala-lang.modules:scala-collection-compat_${scalaVersion}"
-    integrationImplementation "org.apache.spark:spark-hive_${scalaVersion}:${sparkVersion}"
-    integrationImplementation 'org.junit.vintage:junit-vintage-engine'
-    integrationImplementation 'org.slf4j:slf4j-simple'
+    integrationImplementation "org.scala-lang.modules:scala-collection-compat_${scalaVersion}:${libs.versions.scala.collection.compat.get()}"
+    integrationImplementation "org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark.hive34.get()}"
+    integrationImplementation libs.junit.vintage.engine
+    integrationImplementation libs.slf4j.simple
+    integrationImplementation libs.assertj.core
     integrationImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     integrationImplementation project(path: ":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}", configuration: 'testArtifacts')
@@ -252,7 +255,8 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     }
 
     // Relocate dependencies to avoid conflicts
-    relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
+    relocate 'com.google.errorprone', 'org.apache.iceberg.shaded.com.google.errorprone'
+    relocate 'com.google.flatbuffers', 'org.apache.iceberg.shaded.com.google.flatbuffers'
     relocate 'com.fasterxml', 'org.apache.iceberg.shaded.com.fasterxml'
     relocate 'com.github.benmanes', 'org.apache.iceberg.shaded.com.github.benmanes'
     relocate 'org.checkerframework', 'org.apache.iceberg.shaded.org.checkerframework'
@@ -263,7 +267,8 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     relocate 'shaded.parquet', 'org.apache.iceberg.shaded.org.apache.parquet.shaded'
     relocate 'org.apache.orc', 'org.apache.iceberg.shaded.org.apache.orc'
     relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'
-    relocate 'org.apache.httpcomponents.client5', 'org.apache.iceberg.shaded.org.apache.httpcomponents.client5'
+    relocate 'org.apache.hc.client5', 'org.apache.iceberg.shaded.org.apache.hc.client5'
+    relocate 'org.apache.hc.core5', 'org.apache.iceberg.shaded.org.apache.hc.core5'
     // relocate Arrow and related deps to shade Iceberg specific version
     relocate 'io.netty', 'org.apache.iceberg.shaded.io.netty'
     relocate 'org.apache.arrow', 'org.apache.iceberg.shaded.org.apache.arrow'

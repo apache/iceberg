@@ -28,6 +28,7 @@ import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -67,6 +68,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.util.SerializableSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -330,7 +332,10 @@ public class FlinkSink {
       DataStream<RowData> rowDataInput = inputCreator.apply(uidPrefix);
 
       if (table == null) {
-        tableLoader.open();
+        if (!tableLoader.isOpen()) {
+          tableLoader.open();
+        }
+
         try (TableLoader loader = tableLoader) {
           this.table = loader.loadTable();
         } catch (IOException e) {
@@ -381,7 +386,7 @@ public class FlinkSink {
     @VisibleForTesting
     List<Integer> checkAndGetEqualityFieldIds() {
       List<Integer> equalityFieldIds = Lists.newArrayList(table.schema().identifierFieldIds());
-      if (equalityFieldColumns != null && equalityFieldColumns.size() > 0) {
+      if (equalityFieldColumns != null && !equalityFieldColumns.isEmpty()) {
         Set<Integer> equalityFieldSet =
             Sets.newHashSetWithExpectedSize(equalityFieldColumns.size());
         for (String column : equalityFieldColumns) {
@@ -462,8 +467,19 @@ public class FlinkSink {
         }
       }
 
+      SerializableTable serializableTable = (SerializableTable) SerializableTable.copyOf(table);
+      Duration tableRefreshInterval = flinkWriteConf.tableRefreshInterval();
+
+      SerializableSupplier<Table> tableSupplier;
+      if (tableRefreshInterval != null) {
+        tableSupplier =
+            new CachingTableSupplier(serializableTable, tableLoader, tableRefreshInterval);
+      } else {
+        tableSupplier = () -> serializableTable;
+      }
+
       IcebergStreamWriter<RowData> streamWriter =
-          createStreamWriter(table, flinkWriteConf, flinkRowType, equalityFieldIds);
+          createStreamWriter(tableSupplier, flinkWriteConf, flinkRowType, equalityFieldIds);
 
       int parallelism =
           flinkWriteConf.writeParallelism() == null
@@ -574,24 +590,25 @@ public class FlinkSink {
   }
 
   static IcebergStreamWriter<RowData> createStreamWriter(
-      Table table,
+      SerializableSupplier<Table> tableSupplier,
       FlinkWriteConf flinkWriteConf,
       RowType flinkRowType,
       List<Integer> equalityFieldIds) {
-    Preconditions.checkArgument(table != null, "Iceberg table shouldn't be null");
+    Preconditions.checkArgument(tableSupplier != null, "Iceberg table supplier shouldn't be null");
 
-    Table serializableTable = SerializableTable.copyOf(table);
+    Table initTable = tableSupplier.get();
     FileFormat format = flinkWriteConf.dataFileFormat();
     TaskWriterFactory<RowData> taskWriterFactory =
         new RowDataTaskWriterFactory(
-            serializableTable,
+            tableSupplier,
             flinkRowType,
             flinkWriteConf.targetDataFileSize(),
             format,
-            writeProperties(table, format, flinkWriteConf),
+            writeProperties(initTable, format, flinkWriteConf),
             equalityFieldIds,
             flinkWriteConf.upsertMode());
-    return new IcebergStreamWriter<>(table.name(), taskWriterFactory);
+
+    return new IcebergStreamWriter<>(initTable.name(), taskWriterFactory);
   }
 
   /**

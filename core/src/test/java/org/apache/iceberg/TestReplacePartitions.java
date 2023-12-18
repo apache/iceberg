@@ -24,6 +24,7 @@ import java.io.File;
 import java.io.IOException;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
@@ -244,11 +245,9 @@ public class TestReplacePartitions extends TableTestBase {
     ReplacePartitions replace =
         table.newReplacePartitions().addFile(FILE_F).addFile(FILE_G).validateAppendOnly();
 
-    AssertHelpers.assertThrows(
-        "Should reject commit with file not matching delete expression",
-        ValidationException.class,
-        "Cannot commit file that conflicts with existing partition",
-        () -> commit(table, replace, branch));
+    Assertions.assertThatThrownBy(() -> commit(table, replace, branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot commit file that conflicts with existing partition");
 
     Assert.assertEquals(
         "Should not create a new snapshot",
@@ -332,20 +331,20 @@ public class TestReplacePartitions extends TableTestBase {
 
     // Concurrent Replace Partitions should fail with ValidationException
     ReplacePartitions replace = table.newReplacePartitions();
-    AssertHelpers.assertThrows(
-        "Should reject commit with file matching partitions replaced",
-        ValidationException.class,
-        "Found conflicting files that can contain records matching partitions "
-            + "[data_bucket=0, data_bucket=1]: [/path/to/data-a.parquet]",
-        () ->
-            commit(
-                table,
-                replace
-                    .addFile(FILE_A)
-                    .addFile(FILE_B)
-                    .validateNoConflictingData()
-                    .validateNoConflictingDeletes(),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    replace
+                        .addFile(FILE_A)
+                        .addFile(FILE_B)
+                        .validateNoConflictingData()
+                        .validateNoConflictingDeletes(),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(
+            "Found conflicting files that can contain records matching partitions "
+                + "[data_bucket=0, data_bucket=1]: [/path/to/data-a.parquet]");
   }
 
   @Test
@@ -358,22 +357,22 @@ public class TestReplacePartitions extends TableTestBase {
     // Concurrent Replace Partitions should fail with ValidationException
     commit(table, table.newReplacePartitions().addFile(FILE_A), branch);
 
-    AssertHelpers.assertThrows(
-        "Should reject commit with file matching partitions replaced",
-        ValidationException.class,
-        "Found conflicting files that can contain records matching partitions "
-            + "[data_bucket=0, data_bucket=1]: [/path/to/data-a.parquet]",
-        () ->
-            commit(
-                table,
-                table
-                    .newReplacePartitions()
-                    .validateFromSnapshot(baseId)
-                    .addFile(FILE_A)
-                    .addFile(FILE_B)
-                    .validateNoConflictingData()
-                    .validateNoConflictingDeletes(),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    table
+                        .newReplacePartitions()
+                        .validateFromSnapshot(baseId)
+                        .addFile(FILE_A)
+                        .addFile(FILE_B)
+                        .validateNoConflictingData()
+                        .validateNoConflictingDeletes(),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(
+            "Found conflicting files that can contain records matching partitions "
+                + "[data_bucket=0, data_bucket=1]: [/path/to/data-a.parquet]");
   }
 
   @Test
@@ -427,21 +426,21 @@ public class TestReplacePartitions extends TableTestBase {
     // Concurrent ReplacePartitions should fail with ValidationException
     commit(table, unpartitioned.newReplacePartitions().addFile(FILE_UNPARTITIONED_A), branch);
 
-    AssertHelpers.assertThrows(
-        "Should reject commit with file matching partitions replaced",
-        ValidationException.class,
-        "Found conflicting files that can contain records matching true: "
-            + "[/path/to/data-unpartitioned-a.parquet]",
-        () ->
-            commit(
-                table,
-                unpartitioned
-                    .newReplacePartitions()
-                    .validateFromSnapshot(replaceBaseId)
-                    .validateNoConflictingData()
-                    .validateNoConflictingDeletes()
-                    .addFile(FILE_UNPARTITIONED_A),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    unpartitioned
+                        .newReplacePartitions()
+                        .validateFromSnapshot(replaceBaseId)
+                        .validateNoConflictingData()
+                        .validateNoConflictingDeletes()
+                        .addFile(FILE_UNPARTITIONED_A),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(
+            "Found conflicting files that can contain records matching true: "
+                + "[/path/to/data-unpartitioned-a.parquet]");
   }
 
   @Test
@@ -454,22 +453,22 @@ public class TestReplacePartitions extends TableTestBase {
     // Concurrent Append and ReplacePartition should fail with ValidationException
     commit(table, table.newFastAppend().appendFile(FILE_B), branch);
 
-    AssertHelpers.assertThrows(
-        "Should reject commit with file matching partitions replaced",
-        ValidationException.class,
-        "Found conflicting files that can contain records matching partitions "
-            + "[data_bucket=0, data_bucket=1]: [/path/to/data-b.parquet]",
-        () ->
-            commit(
-                table,
-                table
-                    .newReplacePartitions()
-                    .validateFromSnapshot(baseId)
-                    .validateNoConflictingData()
-                    .validateNoConflictingDeletes()
-                    .addFile(FILE_A)
-                    .addFile(FILE_B),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    table
+                        .newReplacePartitions()
+                        .validateFromSnapshot(baseId)
+                        .validateNoConflictingData()
+                        .validateNoConflictingDeletes()
+                        .addFile(FILE_A)
+                        .addFile(FILE_B),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(
+            "Found conflicting files that can contain records matching partitions "
+                + "[data_bucket=0, data_bucket=1]: [/path/to/data-b.parquet]");
   }
 
   @Test
@@ -529,21 +528,21 @@ public class TestReplacePartitions extends TableTestBase {
     // Concurrent Append and ReplacePartitions should fail with ValidationException
     commit(table, unpartitioned.newAppend().appendFile(FILE_UNPARTITIONED_A), branch);
 
-    AssertHelpers.assertThrows(
-        "Should reject commit with file matching partitions replaced",
-        ValidationException.class,
-        "Found conflicting files that can contain records matching true: "
-            + "[/path/to/data-unpartitioned-a.parquet]",
-        () ->
-            commit(
-                table,
-                unpartitioned
-                    .newReplacePartitions()
-                    .validateFromSnapshot(replaceBaseId)
-                    .validateNoConflictingData()
-                    .validateNoConflictingDeletes()
-                    .addFile(FILE_UNPARTITIONED_A),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    unpartitioned
+                        .newReplacePartitions()
+                        .validateFromSnapshot(replaceBaseId)
+                        .validateNoConflictingData()
+                        .validateNoConflictingDeletes()
+                        .addFile(FILE_UNPARTITIONED_A),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(
+            "Found conflicting files that can contain records matching true: "
+                + "[/path/to/data-unpartitioned-a.parquet]");
   }
 
   @Test
@@ -558,21 +557,21 @@ public class TestReplacePartitions extends TableTestBase {
     commit(
         table, table.newRowDelta().addDeletes(FILE_A_DELETES).validateFromSnapshot(baseId), branch);
 
-    AssertHelpers.assertThrows(
-        "Should reject commit with file matching partitions replaced",
-        ValidationException.class,
-        "Found new conflicting delete files that can apply to records matching "
-            + "[data_bucket=0]: [/path/to/data-a-deletes.parquet]",
-        () ->
-            commit(
-                table,
-                table
-                    .newReplacePartitions()
-                    .validateFromSnapshot(baseId)
-                    .validateNoConflictingData()
-                    .validateNoConflictingDeletes()
-                    .addFile(FILE_A),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    table
+                        .newReplacePartitions()
+                        .validateFromSnapshot(baseId)
+                        .validateNoConflictingData()
+                        .validateNoConflictingDeletes()
+                        .addFile(FILE_A),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(
+            "Found new conflicting delete files that can apply to records matching "
+                + "[data_bucket=0]: [/path/to/data-a-deletes.parquet]");
   }
 
   @Test
@@ -590,21 +589,21 @@ public class TestReplacePartitions extends TableTestBase {
     // Concurrent Delete and ReplacePartitions should fail with ValidationException
     commit(table, unpartitioned.newRowDelta().addDeletes(FILE_UNPARTITIONED_A_DELETES), branch);
 
-    AssertHelpers.assertThrows(
-        "Should reject commit with file matching partitions replaced",
-        ValidationException.class,
-        "Found new conflicting delete files that can apply to records matching true: "
-            + "[/path/to/data-unpartitioned-a-deletes.parquet]",
-        () ->
-            commit(
-                table,
-                unpartitioned
-                    .newReplacePartitions()
-                    .validateFromSnapshot(replaceBaseId)
-                    .validateNoConflictingData()
-                    .validateNoConflictingDeletes()
-                    .addFile(FILE_UNPARTITIONED_A),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    unpartitioned
+                        .newReplacePartitions()
+                        .validateFromSnapshot(replaceBaseId)
+                        .validateNoConflictingData()
+                        .validateNoConflictingDeletes()
+                        .addFile(FILE_UNPARTITIONED_A),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(
+            "Found new conflicting delete files that can apply to records matching true: "
+                + "[/path/to/data-unpartitioned-a-deletes.parquet]");
   }
 
   @Test
@@ -673,21 +672,21 @@ public class TestReplacePartitions extends TableTestBase {
     // Concurrent Overwrite and ReplacePartition should fail with ValidationException
     commit(table, table.newOverwrite().deleteFile(FILE_A), branch);
 
-    AssertHelpers.assertThrows(
-        "Should reject commit with file matching partitions replaced",
-        ValidationException.class,
-        "Found conflicting deleted files that can apply to records matching "
-            + "[data_bucket=0]: [/path/to/data-a.parquet]",
-        () ->
-            commit(
-                table,
-                table
-                    .newReplacePartitions()
-                    .validateFromSnapshot(baseId)
-                    .validateNoConflictingData()
-                    .validateNoConflictingDeletes()
-                    .addFile(FILE_A),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    table
+                        .newReplacePartitions()
+                        .validateFromSnapshot(baseId)
+                        .validateNoConflictingData()
+                        .validateNoConflictingDeletes()
+                        .addFile(FILE_A),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(
+            "Found conflicting deleted files that can apply to records matching "
+                + "[data_bucket=0]: [/path/to/data-a.parquet]");
   }
 
   @Test
@@ -746,21 +745,21 @@ public class TestReplacePartitions extends TableTestBase {
     // Concurrent Overwrite and ReplacePartitions should fail with ValidationException
     commit(table, unpartitioned.newOverwrite().deleteFile(FILE_UNPARTITIONED_A), branch);
 
-    AssertHelpers.assertThrows(
-        "Should reject commit with file matching partitions replaced",
-        ValidationException.class,
-        "Found conflicting deleted files that can contain records matching true: "
-            + "[/path/to/data-unpartitioned-a.parquet]",
-        () ->
-            commit(
-                table,
-                unpartitioned
-                    .newReplacePartitions()
-                    .validateFromSnapshot(replaceBaseId)
-                    .validateNoConflictingData()
-                    .validateNoConflictingDeletes()
-                    .addFile(FILE_UNPARTITIONED_A),
-                branch));
+    Assertions.assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    unpartitioned
+                        .newReplacePartitions()
+                        .validateFromSnapshot(replaceBaseId)
+                        .validateNoConflictingData()
+                        .validateNoConflictingDeletes()
+                        .addFile(FILE_UNPARTITIONED_A),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(
+            "Found conflicting deleted files that can contain records matching true: "
+                + "[/path/to/data-unpartitioned-a.parquet]");
   }
 
   @Test

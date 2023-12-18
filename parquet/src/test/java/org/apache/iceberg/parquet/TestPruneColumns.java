@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.parquet;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types.DoubleType;
 import org.apache.iceberg.types.Types.ListType;
@@ -30,8 +32,7 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestPruneColumns {
   @Test
@@ -118,7 +119,7 @@ public class TestPruneColumns {
             .named("table");
 
     MessageType actual = ParquetSchemaUtil.pruneColumns(fileSchema, projection);
-    Assert.assertEquals("Pruned schema should not rename repeated struct", expected, actual);
+    assertThat(actual).as("Pruned schema should not rename repeated struct").isEqualTo(expected);
   }
 
   @Test
@@ -193,7 +194,7 @@ public class TestPruneColumns {
             .named("table");
 
     MessageType actual = ParquetSchemaUtil.pruneColumns(fileSchema, projection);
-    Assert.assertEquals("Pruned schema should not rename repeated struct", expected, actual);
+    assertThat(actual).as("Pruned schema should not rename repeated struct").isEqualTo(expected);
   }
 
   @Test
@@ -267,6 +268,6 @@ public class TestPruneColumns {
             .named("table");
 
     MessageType actual = ParquetSchemaUtil.pruneColumns(fileSchema, projection);
-    Assert.assertEquals("Pruned schema should be matched", expected, actual);
+    assertThat(actual).as("Pruned schema should be matched").isEqualTo(expected);
   }
 }

@@ -160,7 +160,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     int attemptId = getRuntimeContext().getAttemptNumber();
     this.manifestOutputFileFactory =
         FlinkManifestUtil.createOutputFileFactory(
-            table, flinkJobId, operatorUniqueId, subTaskId, attemptId);
+            () -> table, table.properties(), flinkJobId, operatorUniqueId, subTaskId, attemptId);
     this.maxCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
 
     this.checkpointsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
@@ -247,6 +247,9 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
           checkpointId,
           maxCommittedCheckpointId);
     }
+
+    // reload the table in case new configuration is needed
+    this.table = tableLoader.loadTable();
   }
 
   private void commitUpToCheckpoint(

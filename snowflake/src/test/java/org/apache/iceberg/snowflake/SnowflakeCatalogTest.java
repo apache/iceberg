@@ -33,8 +33,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class SnowflakeCatalogTest {
 
@@ -45,7 +45,7 @@ public class SnowflakeCatalogTest {
   private SnowflakeCatalog.FileIOFactory fakeFileIOFactory;
   private Map<String, String> properties;
 
-  @Before
+  @BeforeEach
   public void before() {
     catalog = new SnowflakeCatalog();
 

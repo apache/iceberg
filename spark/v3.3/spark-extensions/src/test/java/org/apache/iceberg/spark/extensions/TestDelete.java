@@ -25,12 +25,12 @@ import static org.apache.iceberg.TableProperties.DELETE_MODE_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.apache.spark.sql.functions.lit;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -46,6 +46,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericRecord;
@@ -143,20 +144,19 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   public void testDeleteFileThenMetadataDelete() throws Exception {
     Assume.assumeFalse("Avro does not support metadata delete", fileFormat.equals("avro"));
     createAndInitUnpartitionedTable();
-
-    sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", tableName);
     createBranchIfNeeded();
+    sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", commitTarget());
 
     // MOR mode: writes a delete file as null cannot be deleted by metadata
     sql("DELETE FROM %s AS t WHERE t.id IS NULL", commitTarget());
 
     // Metadata Delete
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
-    Set<DataFile> dataFilesBefore = TestHelpers.dataFiles(table, branch);
+    List<DataFile> dataFilesBefore = TestHelpers.dataFiles(table, branch);
 
     sql("DELETE FROM %s AS t WHERE t.id = 1", commitTarget());
 
-    Set<DataFile> dataFilesAfter = TestHelpers.dataFiles(table, branch);
+    List<DataFile> dataFilesAfter = TestHelpers.dataFiles(table, branch);
     Assert.assertTrue(
         "Data file should have been removed", dataFilesBefore.size() > dataFilesAfter.size());
 
@@ -164,6 +164,38 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         "Should have expected rows",
         ImmutableList.of(row(2, "hardware")),
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @Test
+  public void testDeleteWithPartitionedTable() throws Exception {
+    createAndInitPartitionedTable();
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (3, 'hr')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'hardware'), (2, 'hardware')", tableName);
+
+    // row level delete
+    sql("DELETE FROM %s WHERE id = 1", tableName);
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(2, "hardware"), row(3, "hr")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+    List<Row> rowLevelDeletePartitions =
+        spark.sql("SELECT * FROM " + tableName + ".partitions ").collectAsList();
+    Assert.assertEquals(
+        "row level delete does not reduce number of partition", 2, rowLevelDeletePartitions.size());
+
+    // partition aligned delete
+    sql("DELETE FROM %s WHERE dep = 'hr'", tableName);
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(2, "hardware")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+    List<Row> actualPartitions =
+        spark.sql("SELECT * FROM " + tableName + ".partitions ").collectAsList();
+    Assert.assertEquals(
+        "partition aligned delete results in 1 partition", 1, actualPartitions.size());
   }
 
   @Test
@@ -1054,10 +1086,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
     if (mode(table) == COPY_ON_WRITE) {
-      // copy-on-write is tested against v1 and such tables have different partition evolution
-      // behavior
-      // that's why the number of changed partitions is 4 for copy-on-write
-      validateCopyOnWrite(currentSnapshot, "4", "4", "1");
+      validateCopyOnWrite(currentSnapshot, "3", "4", "1");
     } else {
       validateMergeOnRead(currentSnapshot, "3", "3", null);
     }
@@ -1133,6 +1162,42 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
                     String.format(
                         "Cannot write to both branch and WAP branch, but got branch [%s] and WAP branch [wap]",
                         branch)));
+  }
+
+  @Test
+  public void testDeleteToCustomWapBranchWithoutWhereClause() throws NoSuchTableException {
+    assumeThat(branch)
+        .as("Run only if custom WAP branch is not main")
+        .isNotNull()
+        .isNotEqualTo(SnapshotRef.MAIN_BRANCH);
+
+    createAndInitPartitionedTable();
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s' = 'true')",
+        tableName, TableProperties.WRITE_AUDIT_PUBLISH_ENABLED);
+    append(tableName, new Employee(0, "hr"), new Employee(1, "hr"), new Employee(2, "hr"));
+    createBranchIfNeeded();
+
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, branch),
+        () -> {
+          sql("DELETE FROM %s t WHERE id=1", tableName);
+          Assertions.assertThat(spark.table(tableName).count()).isEqualTo(2L);
+          Assertions.assertThat(spark.table(tableName + ".branch_" + branch).count()).isEqualTo(2L);
+          Assertions.assertThat(spark.table(tableName + ".branch_main").count())
+              .as("Should not modify main branch")
+              .isEqualTo(3L);
+        });
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, branch),
+        () -> {
+          sql("DELETE FROM %s t", tableName);
+          Assertions.assertThat(spark.table(tableName).count()).isEqualTo(0L);
+          Assertions.assertThat(spark.table(tableName + ".branch_" + branch).count()).isEqualTo(0L);
+          Assertions.assertThat(spark.table(tableName + ".branch_main").count())
+              .as("Should not modify main branch")
+              .isEqualTo(3L);
+        });
   }
 
   // TODO: multiple stripes for ORC

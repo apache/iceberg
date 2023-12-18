@@ -18,39 +18,37 @@
  */
 package org.apache.iceberg.util;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.Timeout;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
+@Timeout(value = 5)
 public class TestInMemoryLockManager {
 
   private LockManagers.InMemoryLockManager lockManager;
   private String lockEntityId;
   private String ownerId;
 
-  @Rule public Timeout timeout = new Timeout(5, TimeUnit.SECONDS);
-
-  @Before
+  @BeforeEach
   public void before() {
     lockEntityId = UUID.randomUUID().toString();
     ownerId = UUID.randomUUID().toString();
     lockManager = new LockManagers.InMemoryLockManager(Maps.newHashMap());
   }
 
-  @After
+  @AfterEach
   public void after() throws Exception {
     lockManager.close();
   }
@@ -80,24 +78,26 @@ public class TestInMemoryLockManager {
                   }
                 })
             .collect(Collectors.toList());
-    Assert.assertEquals(
-        "only 1 thread should have acquired the lock", 1, results.stream().filter(s -> s).count());
+    assertThat(results.stream().filter(s -> s).count())
+        .as("only 1 thread should have acquired the lock")
+        .isOne();
   }
 
   @Test
   public void testReleaseAndAcquire() {
-    Assert.assertTrue(lockManager.acquire(lockEntityId, ownerId));
-    Assert.assertTrue(lockManager.release(lockEntityId, ownerId));
-    Assert.assertTrue(
-        "acquire after release should succeed", lockManager.acquire(lockEntityId, ownerId));
+    assertThat(lockManager.acquire(lockEntityId, ownerId)).isTrue();
+    assertThat(lockManager.release(lockEntityId, ownerId)).isTrue();
+    assertThat(lockManager.acquire(lockEntityId, ownerId))
+        .as("acquire after release should succeed")
+        .isTrue();
   }
 
   @Test
   public void testReleaseWithWrongOwner() {
-    Assert.assertTrue(lockManager.acquire(lockEntityId, ownerId));
-    Assert.assertFalse(
-        "should return false if ownerId is wrong",
-        lockManager.release(lockEntityId, UUID.randomUUID().toString()));
+    assertThat(lockManager.acquire(lockEntityId, ownerId)).isTrue();
+    assertThat(lockManager.release(lockEntityId, UUID.randomUUID().toString()))
+        .as("should return false if ownerId is wrong")
+        .isFalse();
   }
 
   @Test
@@ -106,7 +106,7 @@ public class TestInMemoryLockManager {
         ImmutableMap.of(
             CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS, "500",
             CatalogProperties.LOCK_ACQUIRE_TIMEOUT_MS, "2000"));
-    Assert.assertTrue(lockManager.acquire(lockEntityId, ownerId));
+    assertThat(lockManager.acquire(lockEntityId, ownerId)).isTrue();
     String oldOwner = ownerId;
 
     CompletableFuture.supplyAsync(
@@ -116,14 +116,16 @@ public class TestInMemoryLockManager {
           } catch (InterruptedException e) {
             throw new RuntimeException(e);
           }
-          Assert.assertTrue(lockManager.release(lockEntityId, oldOwner));
+          assertThat(lockManager.release(lockEntityId, oldOwner)).isTrue();
           return null;
         });
 
     ownerId = UUID.randomUUID().toString();
     long start = System.currentTimeMillis();
-    Assert.assertTrue(lockManager.acquire(lockEntityId, ownerId));
-    Assert.assertTrue("should succeed after 200ms", System.currentTimeMillis() - start >= 200);
+    assertThat(lockManager.acquire(lockEntityId, ownerId)).isTrue();
+    assertThat(System.currentTimeMillis() - start)
+        .as("should succeed after 200ms")
+        .isGreaterThanOrEqualTo(200);
   }
 
   @Test
@@ -143,14 +145,17 @@ public class TestInMemoryLockManager {
                     } catch (InterruptedException e) {
                       throw new RuntimeException(e);
                     }
-                    Assert.assertTrue(lockManager.release(lockEntityId, owner));
+                    assertThat(lockManager.release(lockEntityId, owner)).isTrue();
                   }
                   return succeeded;
                 })
             .collect(Collectors.toList());
-    Assert.assertEquals(
-        "all lock acquire should succeed sequentially", 3, results.stream().filter(s -> s).count());
-    Assert.assertTrue("must take more than 3 seconds", System.currentTimeMillis() - start >= 3000);
+    assertThat(results.stream().filter(s -> s).count())
+        .as("all lock acquire should succeed sequentially")
+        .isEqualTo(3);
+    assertThat(System.currentTimeMillis() - start)
+        .as("must take more than 3 seconds")
+        .isGreaterThanOrEqualTo(3000);
   }
 
   @Test
@@ -166,7 +171,8 @@ public class TestInMemoryLockManager {
             .parallel()
             .mapToObj(i -> lockManager.acquire(lockEntityId, ownerId))
             .collect(Collectors.toList());
-    Assert.assertEquals(
-        "only 1 thread should have acquired the lock", 1, results.stream().filter(s -> s).count());
+    assertThat(results.stream().filter(s -> s).count())
+        .as("only 1 thread should have acquired the lock")
+        .isOne();
   }
 }

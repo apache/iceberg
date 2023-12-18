@@ -28,6 +28,7 @@ import java.nio.ByteOrder;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Before;
@@ -70,12 +71,12 @@ public class TestScanDataFileColumns {
                 .withMetrics(
                     new Metrics(
                         3L,
-                        ImmutableMap.of(1, 50L), // column size
-                        ImmutableMap.of(1, 3L), // value count
-                        ImmutableMap.of(1, 0L), // null count
+                        ImmutableMap.of(1, 50L, 2, 100L), // column size
+                        ImmutableMap.of(1, 3L, 2, 5L), // value count
+                        ImmutableMap.of(1, 0L, 2, 0L), // null count
                         null,
-                        ImmutableMap.of(1, longToBuffer(0L)), // lower bounds
-                        ImmutableMap.of(1, longToBuffer(2L)))) // upper bounds)
+                        ImmutableMap.of(1, longToBuffer(0L), 2, longToBuffer(3L)), // lower bounds
+                        ImmutableMap.of(1, longToBuffer(2L), 2, longToBuffer(4L)))) // upper bounds
                 .build())
         .appendFile(
             DataFiles.builder(PartitionSpec.unpartitioned())
@@ -84,12 +85,13 @@ public class TestScanDataFileColumns {
                 .withMetrics(
                     new Metrics(
                         3L,
-                        ImmutableMap.of(1, 60L), // column size
-                        ImmutableMap.of(1, 3L), // value count
-                        ImmutableMap.of(1, 0L), // null count
+                        ImmutableMap.of(1, 60L, 2, 120L), // column size
+                        ImmutableMap.of(1, 3L, 2, 10L), // value count
+                        ImmutableMap.of(1, 0L, 2, 0L), // null count
                         null,
-                        ImmutableMap.of(1, longToBuffer(10L)), // lower bounds
-                        ImmutableMap.of(1, longToBuffer(12L)))) // upper bounds)
+                        ImmutableMap.of(1, longToBuffer(10L), 2, longToBuffer(13L)), // lower bounds
+                        ImmutableMap.of(
+                            1, longToBuffer(12L), 2, longToBuffer(14L)))) // upper bounds
                 .build())
         .appendFile(
             DataFiles.builder(PartitionSpec.unpartitioned())
@@ -98,12 +100,13 @@ public class TestScanDataFileColumns {
                 .withMetrics(
                     new Metrics(
                         3L,
-                        ImmutableMap.of(1, 70L), // column size
-                        ImmutableMap.of(1, 3L), // value count
-                        ImmutableMap.of(1, 0L), // null count
+                        ImmutableMap.of(1, 70L, 2, 140L), // column size
+                        ImmutableMap.of(1, 3L, 2, 15L), // value count
+                        ImmutableMap.of(1, 0L, 2, 0L), // null count
                         null,
-                        ImmutableMap.of(1, longToBuffer(20L)), // lower bounds
-                        ImmutableMap.of(1, longToBuffer(22L)))) // upper bounds)
+                        ImmutableMap.of(1, longToBuffer(20L), 2, longToBuffer(23L)), // lower bounds
+                        ImmutableMap.of(
+                            1, longToBuffer(22L), 2, longToBuffer(24L)))) // upper bounds
                 .build())
         .commit();
   }
@@ -123,11 +126,24 @@ public class TestScanDataFileColumns {
   public void testColumnStatsLoading() {
     // stats columns should be suppressed by default
     for (FileScanTask fileTask : table.newScan().includeColumnStats().planFiles()) {
-      Assert.assertNotNull(fileTask.file().valueCounts());
-      Assert.assertNotNull(fileTask.file().nullValueCounts());
-      Assert.assertNotNull(fileTask.file().lowerBounds());
-      Assert.assertNotNull(fileTask.file().upperBounds());
-      Assert.assertNotNull(fileTask.file().columnSizes());
+      Assert.assertEquals(2, fileTask.file().valueCounts().size());
+      Assert.assertEquals(2, fileTask.file().nullValueCounts().size());
+      Assert.assertEquals(2, fileTask.file().lowerBounds().size());
+      Assert.assertEquals(2, fileTask.file().upperBounds().size());
+      Assert.assertEquals(2, fileTask.file().columnSizes().size());
+    }
+  }
+
+  @Test
+  public void testColumnStatsPartial() {
+    // stats columns should be suppressed by default
+    for (FileScanTask fileTask :
+        table.newScan().includeColumnStats(ImmutableSet.of("id")).planFiles()) {
+      Assert.assertEquals(1, fileTask.file().valueCounts().size());
+      Assert.assertEquals(1, fileTask.file().nullValueCounts().size());
+      Assert.assertEquals(1, fileTask.file().lowerBounds().size());
+      Assert.assertEquals(1, fileTask.file().upperBounds().size());
+      Assert.assertEquals(1, fileTask.file().columnSizes().size());
     }
   }
 

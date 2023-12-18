@@ -18,17 +18,26 @@
  */
 package org.apache.iceberg.gcp.gcs;
 
+import com.google.auth.oauth2.AccessToken;
+import com.google.auth.oauth2.OAuth2Credentials;
+import com.google.cloud.NoCredentials;
+import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Stream;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.gcp.GCPProperties;
-import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.BulkDeletionFailureException;
+import org.apache.iceberg.io.DelegateFileIO;
+import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.slf4j.Logger;
@@ -46,7 +55,7 @@ import org.slf4j.LoggerFactory;
  * <p>See <a href="https://cloud.google.com/storage/docs/folders#overview">Cloud Storage
  * Overview</a>
  */
-public class GCSFileIO implements FileIO {
+public class GCSFileIO implements DelegateFileIO {
   private static final Logger LOG = LoggerFactory.getLogger(GCSFileIO.class);
   private static final String DEFAULT_METRICS_IMPL =
       "org.apache.iceberg.hadoop.HadoopMetricsContext";
@@ -109,7 +118,7 @@ public class GCSFileIO implements FileIO {
     return properties.immutableMap();
   }
 
-  private Storage client() {
+  public Storage client() {
     if (storage == null) {
       synchronized (this) {
         if (storage == null) {
@@ -133,24 +142,44 @@ public class GCSFileIO implements FileIO {
           gcpProperties.clientLibToken().ifPresent(builder::setClientLibToken);
           gcpProperties.serviceHost().ifPresent(builder::setHost);
 
-          // Report Hadoop metrics if Hadoop is available
-          try {
-            DynConstructors.Ctor<MetricsContext> ctor =
-                DynConstructors.builder(MetricsContext.class)
-                    .hiddenImpl(DEFAULT_METRICS_IMPL, String.class)
-                    .buildChecked();
-            MetricsContext context = ctor.newInstance("gcs");
-            context.initialize(properties);
-            this.metrics = context;
-          } catch (NoClassDefFoundError | NoSuchMethodException | ClassCastException e) {
-            LOG.warn(
-                "Unable to load metrics class: '{}', falling back to null metrics",
-                DEFAULT_METRICS_IMPL,
-                e);
+          // Google Cloud APIs default to automatically detect the credentials to use, which is
+          // in most cases the convenient way, especially in GCP.
+          // See javadoc of com.google.auth.oauth2.GoogleCredentials.getApplicationDefault().
+          if (gcpProperties.noAuth()) {
+            // Explicitly allow "no credentials" for testing purposes.
+            builder.setCredentials(NoCredentials.getInstance());
           }
+          gcpProperties
+              .oauth2Token()
+              .ifPresent(
+                  token -> {
+                    // Explicitly configure an OAuth token.
+                    AccessToken accessToken =
+                        new AccessToken(token, gcpProperties.oauth2TokenExpiresAt().orElse(null));
+                    builder.setCredentials(OAuth2Credentials.create(accessToken));
+                  });
 
           return builder.build().getService();
         };
+
+    initMetrics(properties);
+  }
+
+  @SuppressWarnings("CatchBlockLogException")
+  private void initMetrics(Map<String, String> props) {
+    // Report Hadoop metrics if Hadoop is available
+    try {
+      DynConstructors.Ctor<MetricsContext> ctor =
+          DynConstructors.builder(MetricsContext.class)
+              .hiddenImpl(DEFAULT_METRICS_IMPL, String.class)
+              .buildChecked();
+      MetricsContext context = ctor.newInstance("gcs");
+      context.initialize(props);
+      this.metrics = context;
+    } catch (NoClassDefFoundError | NoSuchMethodException | ClassCastException e) {
+      LOG.warn(
+          "Unable to load metrics class: '{}', falling back to null metrics", DEFAULT_METRICS_IMPL);
+    }
   }
 
   @Override
@@ -162,5 +191,45 @@ public class GCSFileIO implements FileIO {
         storage = null;
       }
     }
+  }
+
+  @Override
+  public Iterable<FileInfo> listPrefix(String prefix) {
+    GCSLocation location = new GCSLocation(prefix);
+    return () ->
+        client()
+            .list(location.bucket(), Storage.BlobListOption.prefix(location.prefix()))
+            .streamAll()
+            .map(
+                blob ->
+                    new FileInfo(
+                        String.format("gs://%s/%s", blob.getBucket(), blob.getName()),
+                        blob.getSize(),
+                        createTimeMillis(blob)))
+            .iterator();
+  }
+
+  private long createTimeMillis(Blob blob) {
+    if (blob.getCreateTimeOffsetDateTime() == null) {
+      return 0;
+    }
+    return blob.getCreateTimeOffsetDateTime().toInstant().toEpochMilli();
+  }
+
+  @Override
+  public void deletePrefix(String prefix) {
+    internalDeleteFiles(
+        Streams.stream(listPrefix(prefix))
+            .map(fileInfo -> BlobId.fromGsUtilUri(fileInfo.location())));
+  }
+
+  @Override
+  public void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException {
+    internalDeleteFiles(Streams.stream(pathsToDelete).map(BlobId::fromGsUtilUri));
+  }
+
+  private void internalDeleteFiles(Stream<BlobId> blobIdsToDelete) {
+    Streams.stream(Iterators.partition(blobIdsToDelete.iterator(), gcpProperties.deleteBatchSize()))
+        .forEach(batch -> client().delete(batch));
   }
 }

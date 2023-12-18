@@ -36,6 +36,7 @@ public class S3SignRequestParser {
   private static final String URI = "uri";
   private static final String HEADERS = "headers";
   private static final String PROPERTIES = "properties";
+  private static final String BODY = "body";
 
   private S3SignRequestParser() {}
 
@@ -61,6 +62,10 @@ public class S3SignRequestParser {
       JsonUtil.writeStringMap(PROPERTIES, request.properties(), gen);
     }
 
+    if (request.body() != null && !request.body().isEmpty()) {
+      gen.writeStringField(BODY, request.body());
+    }
+
     gen.writeEndObject();
   }
 
@@ -83,6 +88,10 @@ public class S3SignRequestParser {
 
     if (json.has(PROPERTIES)) {
       builder.properties(JsonUtil.getStringMap(PROPERTIES, json));
+    }
+
+    if (json.has(BODY)) {
+      builder.body(JsonUtil.getString(BODY, json));
     }
 
     return builder.build();

@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData;
@@ -170,9 +171,11 @@ abstract class BaseFile<F>
    * Copy constructor.
    *
    * @param toCopy a generic data file to copy.
-   * @param fullCopy whether to copy all fields or to drop column-level stats
+   * @param copyStats whether to copy all fields or to drop column-level stats
+   * @param requestedColumnIds column ids for which to keep stats. If <code>null</code> then every
+   *     column stat is kept.
    */
-  BaseFile(BaseFile<F> toCopy, boolean fullCopy) {
+  BaseFile(BaseFile<F> toCopy, boolean copyStats, Set<Integer> requestedColumnIds) {
     this.fileOrdinal = toCopy.fileOrdinal;
     this.partitionSpecId = toCopy.partitionSpecId;
     this.content = toCopy.content;
@@ -182,13 +185,13 @@ abstract class BaseFile<F>
     this.partitionType = toCopy.partitionType;
     this.recordCount = toCopy.recordCount;
     this.fileSizeInBytes = toCopy.fileSizeInBytes;
-    if (fullCopy) {
-      this.columnSizes = SerializableMap.copyOf(toCopy.columnSizes);
-      this.valueCounts = SerializableMap.copyOf(toCopy.valueCounts);
-      this.nullValueCounts = SerializableMap.copyOf(toCopy.nullValueCounts);
-      this.nanValueCounts = SerializableMap.copyOf(toCopy.nanValueCounts);
-      this.lowerBounds = SerializableByteBufferMap.wrap(SerializableMap.copyOf(toCopy.lowerBounds));
-      this.upperBounds = SerializableByteBufferMap.wrap(SerializableMap.copyOf(toCopy.upperBounds));
+    if (copyStats) {
+      this.columnSizes = copyMap(toCopy.columnSizes, requestedColumnIds);
+      this.valueCounts = copyMap(toCopy.valueCounts, requestedColumnIds);
+      this.nullValueCounts = copyMap(toCopy.nullValueCounts, requestedColumnIds);
+      this.nanValueCounts = copyMap(toCopy.nanValueCounts, requestedColumnIds);
+      this.lowerBounds = copyByteBufferMap(toCopy.lowerBounds, requestedColumnIds);
+      this.upperBounds = copyByteBufferMap(toCopy.upperBounds, requestedColumnIds);
     } else {
       this.columnSizes = null;
       this.valueCounts = null;
@@ -460,7 +463,27 @@ abstract class BaseFile<F>
 
   @Override
   public List<Long> splitOffsets() {
-    return ArrayUtil.toLongList(splitOffsets);
+    if (hasWellDefinedOffsets()) {
+      return ArrayUtil.toUnmodifiableLongList(splitOffsets);
+    }
+
+    return null;
+  }
+
+  long[] splitOffsetArray() {
+    if (hasWellDefinedOffsets()) {
+      return splitOffsets;
+    }
+
+    return null;
+  }
+
+  private boolean hasWellDefinedOffsets() {
+    // If the last split offset is past the file size this means the split offsets are corrupted and
+    // should not be used
+    return splitOffsets != null
+        && splitOffsets.length != 0
+        && splitOffsets[splitOffsets.length - 1] < fileSizeInBytes;
   }
 
   @Override
@@ -471,6 +494,15 @@ abstract class BaseFile<F>
   @Override
   public Integer sortOrderId() {
     return sortOrderId;
+  }
+
+  private static <K, V> Map<K, V> copyMap(Map<K, V> map, Set<K> keys) {
+    return keys == null ? SerializableMap.copyOf(map) : SerializableMap.filteredCopyOf(map, keys);
+  }
+
+  private static Map<Integer, ByteBuffer> copyByteBufferMap(
+      Map<Integer, ByteBuffer> map, Set<Integer> keys) {
+    return SerializableByteBufferMap.wrap(copyMap(map, keys));
   }
 
   private static <K, V> Map<K, V> toReadableMap(Map<K, V> map) {

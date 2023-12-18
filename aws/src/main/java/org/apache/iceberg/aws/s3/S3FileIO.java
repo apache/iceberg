@@ -33,12 +33,10 @@ import org.apache.iceberg.aws.S3FileIOAwsClientFactories;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.CredentialSupplier;
-import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.SupportsBulkOperations;
-import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -75,8 +73,7 @@ import software.amazon.awssdk.services.s3.model.Tagging;
  * schemes s3a, s3n, https are also treated as s3 file paths. Using this FileIO with other schemes
  * will result in {@link org.apache.iceberg.exceptions.ValidationException}.
  */
-public class S3FileIO
-    implements FileIO, SupportsBulkOperations, SupportsPrefixOperations, CredentialSupplier {
+public class S3FileIO implements CredentialSupplier, DelegateFileIO {
   private static final Logger LOG = LoggerFactory.getLogger(S3FileIO.class);
   private static final String DEFAULT_METRICS_IMPL =
       "org.apache.iceberg.hadoop.HadoopMetricsContext";
@@ -323,7 +320,7 @@ public class S3FileIO
     deleteFiles(() -> Streams.stream(listPrefix(prefix)).map(FileInfo::location).iterator());
   }
 
-  private S3Client client() {
+  public S3Client client() {
     if (client == null) {
       synchronized (this) {
         if (client == null) {
@@ -379,21 +376,23 @@ public class S3FileIO
       }
     }
 
+    initMetrics(properties);
+  }
+
+  @SuppressWarnings("CatchBlockLogException")
+  private void initMetrics(Map<String, String> props) {
     // Report Hadoop metrics if Hadoop is available
     try {
       DynConstructors.Ctor<MetricsContext> ctor =
           DynConstructors.builder(MetricsContext.class)
-              .loader(S3FileIO.class.getClassLoader())
               .hiddenImpl(DEFAULT_METRICS_IMPL, String.class)
               .buildChecked();
       MetricsContext context = ctor.newInstance("s3");
-      context.initialize(properties);
+      context.initialize(props);
       this.metrics = context;
     } catch (NoClassDefFoundError | NoSuchMethodException | ClassCastException e) {
       LOG.warn(
-          "Unable to load metrics class: '{}', falling back to null metrics",
-          DEFAULT_METRICS_IMPL,
-          e);
+          "Unable to load metrics class: '{}', falling back to null metrics", DEFAULT_METRICS_IMPL);
     }
   }
 

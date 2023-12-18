@@ -21,7 +21,7 @@ package org.apache.iceberg.exceptions;
 import com.google.errorprone.annotations.FormatMethod;
 
 /** Exception raised when attempting to load a namespace that does not exist. */
-public class NoSuchNamespaceException extends RuntimeException {
+public class NoSuchNamespaceException extends RuntimeException implements CleanableFailure {
   @FormatMethod
   public NoSuchNamespaceException(String message, Object... args) {
     super(String.format(message, args));

@@ -186,54 +186,6 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     }
   }
 
-  /** @deprecated will be removed in 1.4.0 */
-  @Deprecated
-  public class IntBackedDecimalBatchReader extends BatchReader {
-    @Override
-    protected int nextBatchOf(
-        final FieldVector vector,
-        final int expectedBatchSize,
-        final int numValsInVector,
-        final int typeWidth,
-        NullabilityHolder holder) {
-      return vectorizedPageIterator
-          .intBackedDecimalPageReader()
-          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
-    }
-  }
-
-  /** @deprecated will be removed in 1.4.0 */
-  @Deprecated
-  public class LongBackedDecimalBatchReader extends BatchReader {
-    @Override
-    protected int nextBatchOf(
-        final FieldVector vector,
-        final int expectedBatchSize,
-        final int numValsInVector,
-        final int typeWidth,
-        NullabilityHolder holder) {
-      return vectorizedPageIterator
-          .longBackedDecimalPageReader()
-          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
-    }
-  }
-
-  /** @deprecated will be removed in 1.4.0 */
-  @Deprecated
-  public class FixedLengthDecimalBatchReader extends BatchReader {
-    @Override
-    protected int nextBatchOf(
-        final FieldVector vector,
-        final int expectedBatchSize,
-        final int numValsInVector,
-        final int typeWidth,
-        NullabilityHolder holder) {
-      return vectorizedPageIterator
-          .fixedLengthDecimalPageReader()
-          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
-    }
-  }
-
   public class FixedSizeBinaryBatchReader extends BatchReader {
     @Override
     protected int nextBatchOf(
@@ -316,24 +268,6 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
 
   public DoubleBatchReader doubleBatchReader() {
     return new DoubleBatchReader();
-  }
-
-  /** @deprecated will be removed in 1.4.0 */
-  @Deprecated
-  public IntBackedDecimalBatchReader intBackedDecimalBatchReader() {
-    return new IntBackedDecimalBatchReader();
-  }
-
-  /** @deprecated will be removed in 1.4.0 */
-  @Deprecated
-  public LongBackedDecimalBatchReader longBackedDecimalBatchReader() {
-    return new LongBackedDecimalBatchReader();
-  }
-
-  /** @deprecated will be removed in 1.4.0 */
-  @Deprecated
-  public FixedLengthDecimalBatchReader fixedLengthDecimalBatchReader() {
-    return new FixedLengthDecimalBatchReader();
   }
 
   public FixedSizeBinaryBatchReader fixedSizeBinaryBatchReader() {

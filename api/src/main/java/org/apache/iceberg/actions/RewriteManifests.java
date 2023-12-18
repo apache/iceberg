@@ -20,10 +20,8 @@ package org.apache.iceberg.actions;
 
 import java.util.function.Predicate;
 import org.apache.iceberg.ManifestFile;
-import org.immutables.value.Value;
 
 /** An action that rewrites manifests. */
-@Value.Enclosing
 public interface RewriteManifests
     extends SnapshotUpdate<RewriteManifests, RewriteManifests.Result> {
   /**
@@ -57,7 +55,6 @@ public interface RewriteManifests
   RewriteManifests stagingLocation(String stagingLocation);
 
   /** The action result that contains a summary of the execution. */
-  @Value.Immutable
   interface Result {
     /** Returns rewritten manifests. */
     Iterable<ManifestFile> rewrittenManifests();

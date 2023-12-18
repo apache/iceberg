@@ -134,7 +134,7 @@ public class TestCompressionSettings {
 
     if (initProperties.get(TableProperties.PARQUET_COMPRESSION) == null) {
       Assert.assertEquals(
-          TableProperties.PARQUET_COMPRESSION_DEFAULT,
+          TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0,
           resultProperties.get(TableProperties.PARQUET_COMPRESSION));
       Assert.assertEquals(
           TableProperties.PARQUET_COMPRESSION_LEVEL_DEFAULT,
@@ -215,7 +215,7 @@ public class TestCompressionSettings {
             icebergTable, override, new org.apache.flink.configuration.Configuration());
 
     IcebergStreamWriter<RowData> streamWriter =
-        FlinkSink.createStreamWriter(icebergTable, flinkWriteConfig, flinkRowType, null);
+        FlinkSink.createStreamWriter(() -> icebergTable, flinkWriteConfig, flinkRowType, null);
     OneInputStreamOperatorTestHarness<RowData, WriteResult> harness =
         new OneInputStreamOperatorTestHarness<>(streamWriter, 1, 1, 0);
 

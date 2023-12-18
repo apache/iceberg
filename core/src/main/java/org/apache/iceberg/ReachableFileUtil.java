@@ -72,7 +72,7 @@ public class ReachableFileUtil {
   private static void metadataFileLocations(
       TableMetadata metadata, Set<String> metadataFileLocations, FileIO io, boolean recursive) {
     List<MetadataLogEntry> metadataLogEntries = metadata.previousFiles();
-    if (metadataLogEntries.size() > 0) {
+    if (!metadataLogEntries.isEmpty()) {
       for (MetadataLogEntry metadataLogEntry : metadataLogEntries) {
         metadataFileLocations.add(metadataLogEntry.file());
       }

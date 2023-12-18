@@ -21,7 +21,7 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
-import org.apache.iceberg.TestScanPlanningAndReporting.TestMetricsReporter;
+import org.apache.iceberg.ScanPlanningAndReportingTestBase.TestMetricsReporter;
 import org.apache.iceberg.metrics.CommitMetricsResult;
 import org.apache.iceberg.metrics.CommitReport;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;

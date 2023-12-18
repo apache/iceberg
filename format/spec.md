@@ -167,29 +167,33 @@ A **`map`** is a collection of key-value pairs with a key type and a value type.
 
 #### Primitive Types
 
-| Primitive type     | Description                                                              | Requirements                                     |
-|--------------------|--------------------------------------------------------------------------|--------------------------------------------------|
-| **`boolean`**      | True or false                                                            |                                                  |
-| **`int`**          | 32-bit signed integers                                                   | Can promote to `long`                            |
-| **`long`**         | 64-bit signed integers                                                   |                                                  |
-| **`float`**        | [32-bit IEEE 754](https://en.wikipedia.org/wiki/IEEE_754) floating point | Can promote to double                            |
-| **`double`**       | [64-bit IEEE 754](https://en.wikipedia.org/wiki/IEEE_754) floating point |                                                  |
-| **`decimal(P,S)`** | Fixed-point decimal; precision P, scale S                                | Scale is fixed [1], precision must be 38 or less |
-| **`date`**         | Calendar date without timezone or time                                   |                                                  |
-| **`time`**         | Time of day without date, timezone                                       | Microsecond precision [2]                        |
-| **`timestamp`**    | Timestamp without timezone                                               | Microsecond precision [2]                        |
-| **`timestamptz`**  | Timestamp with timezone                                                  | Stored as UTC [2]                                |
-| **`string`**       | Arbitrary-length character sequences                                     | Encoded with UTF-8 [3]                           |
-| **`uuid`**         | Universally unique identifiers                                           | Should use 16-byte fixed                         |
-| **`fixed(L)`**     | Fixed-length byte array of length L                                      |                                                  |
-| **`binary`**       | Arbitrary-length byte array                                              |                                                  |
+Supported primitive types are defined in the table below. Primitive types added after v1 have an "added by" version that is the first spec version in which the type is allowed. For example, nanosecond-precision timestamps are part of the v3 spec; using v3 types in v1 or v2 tables can break forward compatibility.
+
+| Added by verison | Primitive type     | Description                                                              | Requirements                                     |
+|------------------|--------------------|--------------------------------------------------------------------------|--------------------------------------------------|
+|                  | **`boolean`**      | True or false                                                            |                                                  |
+|                  | **`int`**          | 32-bit signed integers                                                   | Can promote to `long`                            |
+|                  | **`long`**         | 64-bit signed integers                                                   |                                                  |
+|                  | **`float`**        | [32-bit IEEE 754](https://en.wikipedia.org/wiki/IEEE_754) floating point | Can promote to double                            |
+|                  | **`double`**       | [64-bit IEEE 754](https://en.wikipedia.org/wiki/IEEE_754) floating point |                                                  |
+|                  | **`decimal(P,S)`** | Fixed-point decimal; precision P, scale S                                | Scale is fixed [1], precision must be 38 or less |
+|                  | **`date`**         | Calendar date without timezone or time                                   |                                                  |
+|                  | **`time`**         | Time of day without date, timezone                                       | Microsecond precision [2]                        |
+|                  | **`timestamp`**    | Timestamp, microsecond precision, without timezone                       | [2]                                              |
+|                  | **`timestamptz`**  | Timestamp, microsecond precision, with timezone                          | [2]                                              |
+| [v3](#version-3) | **`timestamp_ns`** | Timestamp, nanosecond precision, without timezone                        | [2]                                              |
+| [v3](#version-3) | **`timestamptz_ns`** | Timestamp, nanosecond precision, with timezone                         | [2]                                              |
+|                  | **`string`**       | Arbitrary-length character sequences                                     | Encoded with UTF-8 [3]                           |
+|                  | **`uuid`**         | Universally unique identifiers                                           | Should use 16-byte fixed                         |
+|                  | **`fixed(L)`**     | Fixed-length byte array of length L                                      |                                                  |
+|                  | **`binary`**       | Arbitrary-length byte array                                              |                                                  |
 
 Notes:
 
 1. Decimal scale is fixed and cannot be changed by schema evolution. Precision can only be widened.
-2. All time and timestamp values are stored with microsecond precision.
-    - Timestamps _with time zone_ represent a point in time: values are stored as UTC and do not retain a source time zone (`2017-11-16 17:10:34 PST` is stored/retrieved as `2017-11-17 01:10:34 UTC` and these values are considered identical).
-    - Timestamps _without time zone_ represent a date and time of day regardless of zone: the time value is independent of zone adjustments (`2017-11-16 17:10:34` is always retrieved as `2017-11-16 17:10:34`). Timestamp values are stored as a long that encodes microseconds from the unix epoch.
+2. `time`, `timestamp`, and `timestamptz` values are represented with _microsecond precision_. `timestamp_ns` and `timstamptz_ns` values are represented with _nanosecond precision_.
+    - Timestamp values _with time zone_ represent a point in time: values are stored as UTC and do not retain a source time zone (`2017-11-16 17:10:34 PST` is stored/retrieved as `2017-11-17 01:10:34 UTC` and these values are considered identical).
+    - Timestamp values _without time zone_ represent a date and time of day regardless of zone: the time value is independent of zone adjustments (`2017-11-16 17:10:34` is always retrieved as `2017-11-16 17:10:34`).
 3. Character strings must be stored as UTF-8 encoded byte arrays.
 
 For details on how to serialize a schema to JSON, see Appendix C.
@@ -301,18 +305,21 @@ The source column, selected by id, must be a primitive type and cannot be contai
 
 Partition specs capture the transform from table data to partition values. This is used to transform predicates to partition predicates, in addition to transforming data values. Deriving partition predicates from column predicates on the table data is used to separate the logical queries from physical storage: the partitioning can change and the correct partition filters are always derived from column predicates. This simplifies queries because users don’t have to supply both logical predicates and partition predicates. For more information, see Scan Planning below.
 
+Two partition specs are considered equivalent with each other if they have the same number of fields and for each corresponding field, the fields have the same source column ID, transform definition and partition name. Writers must not create a new parition spec if there already exists a compatible partition spec defined in the table.
+
+Partition field IDs must be reused if an existing partition spec contains an equivalent field.
 
 #### Partition Transforms
 
 | Transform name    | Description                                                  | Source types                                                                                              | Result type |
 |-------------------|--------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|-------------|
 | **`identity`**    | Source value, unmodified                                     | Any                                                                                                       | Source type |
-| **`bucket[N]`**   | Hash of value, mod `N` (see below)                           | `int`, `long`, `decimal`, `date`, `time`, `timestamp`, `timestamptz`, `string`, `uuid`, `fixed`, `binary` | `int`       |
+| **`bucket[N]`**   | Hash of value, mod `N` (see below)                           | `int`, `long`, `decimal`, `date`, `time`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`, `string`, `uuid`, `fixed`, `binary` | `int`       |
 | **`truncate[W]`** | Value truncated to width `W` (see below)                     | `int`, `long`, `decimal`, `string`                                                                        | Source type |
-| **`year`**        | Extract a date or timestamp year, as years from 1970         | `date`, `timestamp`, `timestamptz`                                                                        | `int`       |
-| **`month`**       | Extract a date or timestamp month, as months from 1970-01-01 | `date`, `timestamp`, `timestamptz`                                                                        | `int`       |
-| **`day`**         | Extract a date or timestamp day, as days from 1970-01-01     | `date`, `timestamp`, `timestamptz`                                                                        | `int`      |
-| **`hour`**        | Extract a timestamp hour, as hours from 1970-01-01 00:00:00  | `timestamp`, `timestamptz`                                                                                        | `int`       |
+| **`year`**        | Extract a date or timestamp year, as years from 1970         | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                      | `int`       |
+| **`month`**       | Extract a date or timestamp month, as months from 1970-01-01 | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                      | `int`       |
+| **`day`**         | Extract a date or timestamp day, as days from 1970-01-01     | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                      | `int`       |
+| **`hour`**        | Extract a timestamp hour, as hours from 1970-01-01 00:00:00  | `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                              | `int`       |
 | **`void`**        | Always produces `null`                                       | Any                                                                                                       | Source type or `int` |
 
 All transforms must return `null` for a `null` input value.
@@ -591,7 +598,7 @@ Delete files that match the query filter must be applied to data files at read t
     - The data file's partition (both spec and partition values) is equal to the delete file's partition
 * An _equality_ delete file must be applied to a data file when all of the following are true:
     - The data file's data sequence number is _strictly less than_ the delete's data sequence number
-    - The data file's partition (both spec and partition values) is equal to the delete file's partition _or_ the delete file's partition spec is unpartitioned
+    - The data file's partition (both spec id and partition values) is equal to the delete file's partition _or_ the delete file's partition spec is unpartitioned
 
 In general, deletes are applied only to data files that are older and in the same partition, except for two special cases:
 
@@ -603,6 +610,7 @@ Notes:
 
 1. An alternative, *strict projection*, creates a partition predicate that will match a file if all of the rows in the file must match the scan predicate. These projections are used to calculate the residual predicates for each file in a scan.
 2. For example, if `file_a` has rows with `id` between 1 and 10 and a delete file contains rows with `id` between 1 and 4, a scan for `id = 9` may ignore the delete file because none of the deletes can match a row that will be selected.
+3. Floating point partition values are considered equal if their IEEE 754 floating-point "single format" bit layout are equal with NaNs normalized to have only the the most significant mantissa bit set (the equivelant of calling `Float.floatToIntBits` or `Double.doubleToLongBits` in Java). The Avro specification requires all floating point values to be encoded in this format.
 
 #### Snapshot Reference
 
@@ -671,10 +679,11 @@ Table metadata consists of the following fields:
 | _optional_ | _required_ | **`default-sort-order-id`**| Default sort order id of the table. Note that this could be used by writers, but is not used when reading because reads use the specs stored in manifest files. |
 |            | _optional_ | **`refs`** | A map of snapshot references. The map keys are the unique snapshot reference names in the table, and the map values are snapshot reference objects. There is always a `main` branch reference pointing to the `current-snapshot-id` even if the `refs` map is null. |
 | _optional_ | _optional_ | **`statistics`** | A list (optional) of [table statistics](#table-statistics). |
+| _optional_ | _optional_ | **`partition-statistics`**  | A list (optional) of [partition statistics](#partition-statistics). |
 
 For serialization details, see Appendix C.
 
-#### Table statistics
+#### Table Statistics
 
 Table statistics files are valid [Puffin files](../puffin-spec). Statistics are informational. A reader can choose to
 ignore statistics information. Statistics support is not required to read the table correctly. A table can contain
@@ -701,6 +710,57 @@ Blob metadata is a struct with the following fields:
 | _required_ | _required_ | **`fields`** | `list<integer>` | Ordered list of fields, given by field ID, on which the statistic was calculated. |
 | _optional_ | _optional_ | **`properties`** | `map<string, string>` | Additional properties associated with the statistic. Subset of Blob properties in the Puffin file. |
 
+
+#### Partition Statistics
+
+Partition statistics files are based on [partition statistics file spec](#partition-statistics-file). 
+Partition statistics are not required for reading or planning and readers may ignore them.
+Each table snapshot may be associated with at most one partition statistics file.
+A writer can optionally write the partition statistics file during each write operation, or it can also be computed on demand.
+Partition statistics file must be registered in the table metadata file to be considered as a valid statistics file for the reader.
+
+`partition-statistics` field of table metadata is an optional list of structs with the following fields:
+
+| v1 | v2 | Field name | Type | Description |
+|----|----|------------|------|-------------|
+| _required_ | _required_ | **`snapshot-id`** | `long` | ID of the Iceberg table's snapshot the partition statistics file is associated with. |
+| _required_ | _required_ | **`statistics-path`** | `string` | Path of the partition statistics file. See [Partition statistics file](#partition-statistics-file). |
+| _required_ | _required_ | **`file-size-in-bytes`** | `long` | Size of the partition statistics file. |
+
+#### Partition Statistics File
+
+Statistics information for each unique partition tuple is stored as a row in any of the data file format of the table (for example, Parquet or ORC).
+These rows must be sorted (in ascending manner with NULL FIRST) by `partition` field to optimize filtering rows while scanning.
+
+The schema of the partition statistics file is as follows:
+
+| v1 | v2 | Field id, name | Type | Description |
+|----|----|----------------|------|-------------|
+| _required_ | _required_ | **`1 partition`** | `struct<..>` | Partition data tuple, schema based on the unified partition type considering all specs in a table |
+| _required_ | _required_ | **`2 spec_id`** | `int` | Partition spec id |
+| _required_ | _required_ | **`3 data_record_count`** | `long` | Count of records in data files |
+| _required_ | _required_ | **`4 data_file_count`** | `int` | Count of data files |
+| _required_ | _required_ | **`5 total_data_file_size_in_bytes`** | `long` | Total size of data files in bytes |
+| _optional_ | _optional_ | **`6 position_delete_record_count`** | `long` | Count of records in position delete files |
+| _optional_ | _optional_ | **`7 position_delete_file_count`** | `int` | Count of position delete files |
+| _optional_ | _optional_ | **`8 equality_delete_record_count`** | `long` | Count of records in equality delete files |
+| _optional_ | _optional_ | **`9 equality_delete_file_count`** | `int` | Count of equality delete files |
+| _optional_ | _optional_ | **`10 total_record_count`** | `long` | Accurate count of records in a partition after applying the delete files if any |
+| _optional_ | _optional_ | **`11 last_updated_at`** | `long` | Timestamp in milliseconds from the unix epoch when the partition was last updated |
+| _optional_ | _optional_ | **`12 last_updated_snapshot_id`** | `long` | ID of snapshot that last updated this partition |
+
+Note that partition data tuple's schema is based on the partition spec output using partition field ids for the struct field ids.
+The unified partition type is a struct containing all fields that have ever been a part of any spec in the table 
+and sorted by the field ids in ascending order.  
+In other words, the struct fields represent a union of all known partition fields sorted in ascending order by the field ids.
+For example,
+1) spec#0 has two fields {field#1, field#2}
+and then the table has evolved into spec#1 which has three fields {field#1, field#2, field#3}.
+The unified partition type looks like Struct<field#1, field#2, field#3>.
+
+2) spec#0 has two fields {field#1, field#2}
+and then the table has evolved into spec#1 which has just one field {field#2}.
+The unified partition type looks like Struct<field#1, field#2>.
 
 #### Commit Conflict Resolution and Retry
 
@@ -862,10 +922,12 @@ Maps with non-string keys must use an array representation with the `map` logica
 |**`float`**|`float`||
 |**`double`**|`double`||
 |**`decimal(P,S)`**|`{ "type": "fixed",`<br />&nbsp;&nbsp;`"size": minBytesRequired(P),`<br />&nbsp;&nbsp;`"logicalType": "decimal",`<br />&nbsp;&nbsp;`"precision": P,`<br />&nbsp;&nbsp;`"scale": S }`|Stored as fixed using the minimum number of bytes for the given precision.|
-|**`date`**|`{ "type": "int",`<br />&nbsp;&nbsp;`"logicalType": "date" }`|Stores days from the 1970-01-01.|
+|**`date`**|`{ "type": "int",`<br />&nbsp;&nbsp;`"logicalType": "date" }`|Stores days from 1970-01-01.|
 |**`time`**|`{ "type": "long",`<br />&nbsp;&nbsp;`"logicalType": "time-micros" }`|Stores microseconds from midnight.|
-|**`timestamp`**|`{ "type": "long",`<br />&nbsp;&nbsp;`"logicalType": "timestamp-micros",`<br />&nbsp;&nbsp;`"adjust-to-utc": false }`|Stores microseconds from 1970-01-01 00:00:00.000000.|
-|**`timestamptz`**|`{ "type": "long",`<br />&nbsp;&nbsp;`"logicalType": "timestamp-micros",`<br />&nbsp;&nbsp;`"adjust-to-utc": true }`|Stores microseconds from 1970-01-01 00:00:00.000000 UTC.|
+|**`timestamp`**      | `{ "type": "long",`<br />&nbsp;&nbsp;`"logicalType": "timestamp-micros",`<br />&nbsp;&nbsp;`"adjust-to-utc": false }` | Stores microseconds from 1970-01-01 00:00:00.000000. [1]            |
+|**`timestamptz`**    | `{ "type": "long",`<br />&nbsp;&nbsp;`"logicalType": "timestamp-micros",`<br />&nbsp;&nbsp;`"adjust-to-utc": true }`  | Stores microseconds from 1970-01-01 00:00:00.000000 UTC. [1]        |
+|**`timestamp_ns`**   | `{ "type": "long",`<br />&nbsp;&nbsp;`"logicalType": "timestamp-nanos",`<br />&nbsp;&nbsp;`"adjust-to-utc": false }`  | Stores nanoseconds from 1970-01-01 00:00:00.000000000. [1], [2]     |
+|**`timestamptz_ns`** | `{ "type": "long",`<br />&nbsp;&nbsp;`"logicalType": "timestamp-nanos",`<br />&nbsp;&nbsp;`"adjust-to-utc": true }`   | Stores nanoseconds from 1970-01-01 00:00:00.000000000 UTC. [1], [2] |
 |**`string`**|`string`||
 |**`uuid`**|`{ "type": "fixed",`<br />&nbsp;&nbsp;`"size": 16,`<br />&nbsp;&nbsp;`"logicalType": "uuid" }`||
 |**`fixed(L)`**|`{ "type": "fixed",`<br />&nbsp;&nbsp;`"size": L }`||
@@ -873,6 +935,11 @@ Maps with non-string keys must use an array representation with the `map` logica
 |**`struct`**|`record`||
 |**`list`**|`array`||
 |**`map`**|`array` of key-value records, or `map` when keys are strings (optional).|Array storage must use logical type name `map` and must store elements that are 2-field records. The first field is a non-null key and the second field is the value.|
+
+Notes:
+
+1. Avro type annotation `adjust-to-utc` is an Iceberg convention; default value is `false` if not present.
+2. Avro logical type `timestamp-nanos` is an Iceberg convention; the Avro specification does not define this type.
 
 
 **Field IDs**
@@ -896,7 +963,7 @@ Note that the string map case is for maps where the key type is a string. Using 
 
 **Data Type Mappings**
 
-Values should be stored in Parquet using the types and logical type annotations in the table below. Column IDs are required.
+Values should be stored in Parquet using the types and logical type annotations in the table below. Column IDs are required to be stored as [field IDs](http://github.com/apache/parquet-format/blob/40699d05bd24181de6b1457babbee2c16dce3803/src/main/thrift/parquet.thrift#L459) on the parquet schema.
 
 Lists must use the [3-level representation](https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#lists).
 
@@ -908,10 +975,12 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 | **`float`**        | `float`                                                            |                                             |                                                                |
 | **`double`**       | `double`                                                           |                                             |                                                                |
 | **`decimal(P,S)`** | `P <= 9`: `int32`,<br />`P <= 18`: `int64`,<br />`fixed` otherwise | `DECIMAL(P,S)`                              | Fixed must use the minimum number of bytes that can store `P`. |
-| **`date`**         | `int32`                                                            | `DATE`                                      | Stores days from the 1970-01-01.                               |
+| **`date`**         | `int32`                                                            | `DATE`                                      | Stores days from 1970-01-01.                                   |
 | **`time`**         | `int64`                                                            | `TIME_MICROS` with `adjustToUtc=false`      | Stores microseconds from midnight.                             |
 | **`timestamp`**    | `int64`                                                            | `TIMESTAMP_MICROS` with `adjustToUtc=false` | Stores microseconds from 1970-01-01 00:00:00.000000.           |
 | **`timestamptz`**  | `int64`                                                            | `TIMESTAMP_MICROS` with `adjustToUtc=true`  | Stores microseconds from 1970-01-01 00:00:00.000000 UTC.       |
+| **`timestamp_ns`**   | `int64`                                                          | `TIMESTAMP_NANOS` with `adjustToUtc=false`  | Stores nanoseconds from 1970-01-01 00:00:00.000000000.         |
+| **`timestamptz_ns`** | `int64`                                                          | `TIMESTAMP_NANOS` with `adjustToUtc=true`   | Stores nanoseconds from 1970-01-01 00:00:00.000000000 UTC.     |
 | **`string`**       | `binary`                                                           | `UTF8`                                      | Encoding must be UTF-8.                                        |
 | **`uuid`**         | `fixed_len_byte_array[16]`                                         | `UUID`                                      |                                                                |
 | **`fixed(L)`**     | `fixed_len_byte_array[L]`                                          |                                             |                                                                |
@@ -935,8 +1004,10 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 | **`decimal(P,S)`** | `decimal`           |                                                      |                                                                                         |
 | **`date`**         | `date`              |                                                      |                                                                                         |
 | **`time`**         | `long`              | `iceberg.long-type`=`TIME`                           | Stores microseconds from midnight.                                                      |
-| **`timestamp`**    | `timestamp`         |                                                      | [1]                                                                                     |
-| **`timestamptz`**  | `timestamp_instant` |                                                      | [1]                                                                                     |
+| **`timestamp`**    | `timestamp`         | `iceberg.timestamp-unit`=`MICROS`                    | Stores microseconds from 2015-01-01 00:00:00.000000. [1], [2]                           |
+| **`timestamptz`**  | `timestamp_instant` | `iceberg.timestamp-unit`=`MICROS`                    | Stores microseconds from 2015-01-01 00:00:00.000000 UTC. [1], [2]                       |
+| **`timestamp_ns`** | `timestamp`         | `iceberg.timestamp-unit`=`NANOS`                     | Stores nanoseconds from 2015-01-01 00:00:00.000000000. [1]                              |
+| **`timestamptz_ns`** | `timestamp_instant` | `iceberg.timestamp-unit`=`NANOS`                   | Stores nanoseconds from 2015-01-01 00:00:00.000000000 UTC. [1]                          |
 | **`string`**       | `string`            |                                                      | ORC `varchar` and `char` would also map to **`string`**.                                |
 | **`uuid`**         | `binary`            | `iceberg.binary-type`=`UUID`                         |                                                                                         |
 | **`fixed(L)`**     | `binary`            | `iceberg.binary-type`=`FIXED` & `iceberg.length`=`L` | The length would not be checked by the ORC reader and should be checked by the adapter. |
@@ -948,6 +1019,7 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 Notes:
 
 1. ORC's [TimestampColumnVector](https://orc.apache.org/api/hive-storage-api/org/apache/hadoop/hive/ql/exec/vector/TimestampColumnVector.html) consists of a time field (milliseconds since epoch) and a nanos field (nanoseconds within the second). Hence the milliseconds within the second are reported twice; once in the time field and again in the nanos field. The read adapter should only use milliseconds within the second from one of these fields. The write adapter should also report milliseconds within the second twice; once in the time field and again in the nanos field. ORC writer is expected to correctly consider millis information from one of the fields. More details at https://issues.apache.org/jira/browse/ORC-546
+2. ORC `timestamp` and `timestamp_instant` values store nanosecond precision. Iceberg ORC writers for Iceberg types `timestamp` and `timestamptz` **must** truncate nanoseconds to microseconds. `iceberg.timestamp-unit` is assumed to be `MICROS` if not present.
 
 One of the interesting challenges with this is how to map Iceberg’s schema evolution (id based) on to ORC’s (name based). In theory, we could use Iceberg’s column ids as the column and field names, but that would be inconvenient.
 
@@ -971,8 +1043,10 @@ The 32-bit hash implementation is 32-bit Murmur3 hash, x86 variant, seeded with 
 | **`decimal(P,S)`** | `hashBytes(minBigEndian(unscaled(v)))`[2] | `14.20` ￫ `-500754589`                     |
 | **`date`**         | `hashInt(daysFromUnixEpoch(v))`           | `2017-11-16` ￫ `-653330422`                |
 | **`time`**         | `hashLong(microsecsFromMidnight(v))`      | `22:31:08` ￫ `-662762989`                  |
-| **`timestamp`**    | `hashLong(microsecsFromUnixEpoch(v))`     | `2017-11-16T22:31:08` ￫ `-2047944441`      |
-| **`timestamptz`**  | `hashLong(microsecsFromUnixEpoch(v))`     | `2017-11-16T14:31:08-08:00`￫ `-2047944441` |
+| **`timestamp`**    | `hashLong(microsecsFromUnixEpoch(v))`     | `2017-11-16T22:31:08` ￫ `-2047944441`<br />`2017-11-16T22:31:08.000001` ￫ `-1207196810` |
+| **`timestamptz`**  | `hashLong(microsecsFromUnixEpoch(v))`     | `2017-11-16T14:31:08-08:00` ￫ `-2047944441`<br />`2017-11-16T14:31:08.000001-08:00` ￫ `-1207196810` |
+| **`timestamp_ns`** | `hashLong(nanosecsFromUnixEpoch(v))`      | `2017-11-16T22:31:08` ￫ `-737750069`<br />`2017-11-16T22:31:08.000001` ￫ `-976603392`<br />`2017-11-16T22:31:08.000000001` ￫ `-160215926` |
+| **`timestamptz_ns`** | `hashLong(nanosecsFromUnixEpoch(v))`    | `2017-11-16T14:31:08-08:00` ￫ `-737750069`<br />`2017-11-16T14:31:08.000001-08:00` ￫ `-976603392`<br />`2017-11-16T14:31:08.000000001-08:00` ￫ `-160215926` |
 | **`string`**       | `hashBytes(utf8Bytes(v))`                 | `iceberg` ￫ `1210000089`                   |
 | **`uuid`**         | `hashBytes(uuidBytes(v))`		[3]      | `f79c3e09-677c-4bbd-a479-3f349cb785e7` ￫ `1488055340`               |
 | **`fixed(L)`**     | `hashBytes(v)`                            | `00 01 02 03` ￫ `-188683207`               |
@@ -1018,8 +1092,10 @@ Types are serialized according to this table:
 |**`double`**|`JSON string: "double"`|`"double"`|
 |**`date`**|`JSON string: "date"`|`"date"`|
 |**`time`**|`JSON string: "time"`|`"time"`|
-|**`timestamp without zone`**|`JSON string: "timestamp"`|`"timestamp"`|
-|**`timestamp with zone`**|`JSON string: "timestamptz"`|`"timestamptz"`|
+|**`timestamp, microseconds, without zone`**|`JSON string: "timestamp"`|`"timestamp"`|
+|**`timestamp, microseconds, with zone`**|`JSON string: "timestamptz"`|`"timestamptz"`|
+|**`timestamp, nanoseconds, without zone`**|`JSON string: "timestamp_ns"`|`"timestamp_ns"`|
+|**`timestamp, nanoseconds, with zone`**|`JSON string: "timestamptz_ns"`|`"timestamptz_ns"`|
 |**`string`**|`JSON string: "string"`|`"string"`|
 |**`uuid`**|`JSON string: "uuid"`|`"uuid"`|
 |**`fixed(L)`**|`JSON string: "fixed[<L>]"`|`"fixed[16]"`|
@@ -1179,8 +1255,10 @@ This serialization scheme is for storing single values as individual binary valu
 | **`double`**                 | Stored as 8-byte little-endian                                                                               |
 | **`date`**                   | Stores days from the 1970-01-01 in an 4-byte little-endian int                                               |
 | **`time`**                   | Stores microseconds from midnight in an 8-byte little-endian long                                            |
-| **`timestamp without zone`** | Stores microseconds from 1970-01-01 00:00:00.000000 in an 8-byte little-endian long                          |
-| **`timestamp with zone`**    | Stores microseconds from 1970-01-01 00:00:00.000000 UTC in an 8-byte little-endian long                      |
+| **`timestamp`**              | Stores microseconds from 1970-01-01 00:00:00.000000 in an 8-byte little-endian long                          |
+| **`timestamptz`**            | Stores microseconds from 1970-01-01 00:00:00.000000 UTC in an 8-byte little-endian long                      |
+| **`timestamp_ns`**           | Stores nanoseconds from 1970-01-01 00:00:00.000000000 in an 8-byte little-endian long                        |
+| **`timestamptz_ns`**         | Stores nanoseconds from 1970-01-01 00:00:00.000000000 UTC in an 8-byte little-endian long                    |
 | **`string`**                 | UTF-8 bytes (without length)                                                                                 |
 | **`uuid`**                   | 16-byte big-endian value, see example in Appendix B                                                          |
 | **`fixed(L)`**               | Binary value                                                                                                 |
@@ -1206,6 +1284,8 @@ This serialization scheme is for storing single values as individual binary valu
 | **`time`**         | **`JSON string`**                         | `"22:31:08.123456"`                        | Stores ISO-8601 standard time with microsecond precision |
 | **`timestamp`**    | **`JSON string`**                         | `"2017-11-16T22:31:08.123456"`             | Stores ISO-8601 standard timestamp with microsecond precision; must not include a zone offset |
 | **`timestamptz`**  | **`JSON string`**                         | `"2017-11-16T22:31:08.123456+00:00"`       | Stores ISO-8601 standard timestamp with microsecond precision; must include a zone offset and it must be '+00:00' |
+| **`timestamp_ns`** | **`JSON string`**                         | `"2017-11-16T22:31:08.123456789"`          | Stores ISO-8601 standard timestamp with nanosecond precision; must not include a zone offset |
+| **`timestamptz_ns`** | **`JSON string`**                       | `"2017-11-16T22:31:08.123456789+00:00"`    | Stores ISO-8601 standard timestamp with nanosecond precision; must include a zone offset and it must be '+00:00' |
 | **`string`**       | **`JSON string`**                         | `"iceberg"`                                | |
 | **`uuid`**         | **`JSON string`**                         | `"f79c3e09-677c-4bbd-a479-3f349cb785e7"`   | Stores the lowercase uuid string |
 | **`fixed(L)`**     | **`JSON string`**                         | `"000102ff"`                               | Stored as a hexadecimal string |
@@ -1222,6 +1302,8 @@ This serialization scheme is for storing single values as individual binary valu
 Default values are added to struct fields in v3.
 * The `write-default` is a forward-compatible change because it is only used at write time. Old writers will fail because the field is missing.
 * Tables with `initial-default` will be read correctly by older readers if `initial-default` is always null for optional fields. Otherwise, old readers will default optional columns with null. Old readers will fail to read required fields which are populated by `initial-default` because that default is not supported.
+
+Types `timestamp_ns` and `timestamptz_ns` are added in v3.
 
 ### Version 2
 

@@ -23,7 +23,7 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.RESTRequest;
 
-/** A REST request to rename a table. */
+/** A REST request to rename a table or a view. */
 public class RenameTableRequest implements RESTRequest {
 
   private TableIdentifier source;

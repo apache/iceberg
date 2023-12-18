@@ -18,12 +18,16 @@
  */
 package org.apache.iceberg.spark;
 
+import static org.apache.iceberg.PlanningMode.LOCAL;
+
 import java.util.Map;
+import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.spark.SparkConf;
 import org.apache.spark.sql.SparkSession;
 
 /**
@@ -45,6 +49,10 @@ import org.apache.spark.sql.SparkSession;
  * <p>Note this class is NOT meant to be serialized and sent to executors.
  */
 public class SparkReadConf {
+
+  private static final String DRIVER_MAX_RESULT_SIZE = "spark.driver.maxResultSize";
+  private static final String DRIVER_MAX_RESULT_SIZE_DEFAULT = "1G";
+  private static final long DISTRIBUTED_PLANNING_MIN_RESULT_SIZE = 256L * 1024 * 1024; // 256 MB
 
   private final SparkSession spark;
   private final Table table;
@@ -73,7 +81,12 @@ public class SparkReadConf {
 
   public boolean localityEnabled() {
     boolean defaultValue = Util.mayHaveBlockLocations(table.io(), table.location());
-    return PropertyUtil.propertyAsBoolean(readOptions, SparkReadOptions.LOCALITY, defaultValue);
+    return confParser
+        .booleanConf()
+        .option(SparkReadOptions.LOCALITY)
+        .sessionConf(SparkSQLProperties.LOCALITY)
+        .defaultValue(defaultValue)
+        .parse();
   }
 
   public Long snapshotId() {
@@ -266,5 +279,58 @@ public class SparkReadConf {
         .sessionConf(SparkSQLProperties.AGGREGATE_PUSH_DOWN_ENABLED)
         .defaultValue(SparkSQLProperties.AGGREGATE_PUSH_DOWN_ENABLED_DEFAULT)
         .parse();
+  }
+
+  public boolean adaptiveSplitSizeEnabled() {
+    return confParser
+        .booleanConf()
+        .tableProperty(TableProperties.ADAPTIVE_SPLIT_SIZE_ENABLED)
+        .defaultValue(TableProperties.ADAPTIVE_SPLIT_SIZE_ENABLED_DEFAULT)
+        .parse();
+  }
+
+  public int parallelism() {
+    int defaultParallelism = spark.sparkContext().defaultParallelism();
+    int numShufflePartitions = spark.sessionState().conf().numShufflePartitions();
+    return Math.max(defaultParallelism, numShufflePartitions);
+  }
+
+  public boolean distributedPlanningEnabled() {
+    return dataPlanningMode() != LOCAL || deletePlanningMode() != LOCAL;
+  }
+
+  public PlanningMode dataPlanningMode() {
+    if (driverMaxResultSize() < DISTRIBUTED_PLANNING_MIN_RESULT_SIZE) {
+      return LOCAL;
+    }
+
+    String modeName =
+        confParser
+            .stringConf()
+            .sessionConf(SparkSQLProperties.DATA_PLANNING_MODE)
+            .tableProperty(TableProperties.DATA_PLANNING_MODE)
+            .defaultValue(TableProperties.PLANNING_MODE_DEFAULT)
+            .parse();
+    return PlanningMode.fromName(modeName);
+  }
+
+  public PlanningMode deletePlanningMode() {
+    if (driverMaxResultSize() < DISTRIBUTED_PLANNING_MIN_RESULT_SIZE) {
+      return LOCAL;
+    }
+
+    String modeName =
+        confParser
+            .stringConf()
+            .sessionConf(SparkSQLProperties.DELETE_PLANNING_MODE)
+            .tableProperty(TableProperties.DELETE_PLANNING_MODE)
+            .defaultValue(TableProperties.PLANNING_MODE_DEFAULT)
+            .parse();
+    return PlanningMode.fromName(modeName);
+  }
+
+  private long driverMaxResultSize() {
+    SparkConf sparkConf = spark.sparkContext().conf();
+    return sparkConf.getSizeAsBytes(DRIVER_MAX_RESULT_SIZE, DRIVER_MAX_RESULT_SIZE_DEFAULT);
   }
 }

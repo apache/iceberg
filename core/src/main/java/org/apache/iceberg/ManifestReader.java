@@ -203,9 +203,11 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   }
 
   CloseableIterable<ManifestEntry<F>> entries() {
-    if ((rowFilter != null && rowFilter != Expressions.alwaysTrue())
-        || (partFilter != null && partFilter != Expressions.alwaysTrue())
-        || (partitionSet != null)) {
+    return entries(false /* all entries */);
+  }
+
+  private CloseableIterable<ManifestEntry<F>> entries(boolean onlyLive) {
+    if (hasRowFilter() || hasPartitionFilter() || partitionSet != null) {
       Evaluator evaluator = evaluator();
       InclusiveMetricsEvaluator metricsEvaluator = metricsEvaluator();
 
@@ -213,20 +215,32 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
       boolean requireStatsProjection = requireStatsProjection(rowFilter, columns);
       Collection<String> projectColumns =
           requireStatsProjection ? withStatsColumns(columns) : columns;
+      CloseableIterable<ManifestEntry<F>> entries =
+          open(projection(fileSchema, fileProjection, projectColumns, caseSensitive));
 
       return CloseableIterable.filter(
           content == FileType.DATA_FILES
               ? scanMetrics.skippedDataFiles()
               : scanMetrics.skippedDeleteFiles(),
-          open(projection(fileSchema, fileProjection, projectColumns, caseSensitive)),
+          onlyLive ? filterLiveEntries(entries) : entries,
           entry ->
               entry != null
                   && evaluator.eval(entry.file().partition())
                   && metricsEvaluator.eval(entry.file())
                   && inPartitionSet(entry.file()));
     } else {
-      return open(projection(fileSchema, fileProjection, columns, caseSensitive));
+      CloseableIterable<ManifestEntry<F>> entries =
+          open(projection(fileSchema, fileProjection, columns, caseSensitive));
+      return onlyLive ? filterLiveEntries(entries) : entries;
     }
+  }
+
+  private boolean hasRowFilter() {
+    return rowFilter != null && rowFilter != Expressions.alwaysTrue();
+  }
+
+  private boolean hasPartitionFilter() {
+    return partFilter != null && partFilter != Expressions.alwaysTrue();
   }
 
   private boolean inPartitionSet(F fileToCheck) {
@@ -266,12 +280,16 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   }
 
   CloseableIterable<ManifestEntry<F>> liveEntries() {
-    return CloseableIterable.filter(
-        content == FileType.DATA_FILES
-            ? scanMetrics.skippedDataFiles()
-            : scanMetrics.skippedDeleteFiles(),
-        entries(),
-        entry -> entry != null && entry.status() != ManifestEntry.Status.DELETED);
+    return entries(true /* only live entries */);
+  }
+
+  private CloseableIterable<ManifestEntry<F>> filterLiveEntries(
+      CloseableIterable<ManifestEntry<F>> entries) {
+    return CloseableIterable.filter(entries, this::isLiveEntry);
+  }
+
+  private boolean isLiveEntry(ManifestEntry<F> entry) {
+    return entry != null && entry.status() != ManifestEntry.Status.DELETED;
   }
 
   /** @return an Iterator of DataFile. Makes defensive copies of files before returning */

@@ -36,6 +36,7 @@ import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
+import static org.apache.iceberg.expressions.Expressions.truncate;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
@@ -77,6 +78,7 @@ import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.io.DelegatingSeekableInputStream;
 import org.apache.parquet.schema.MessageType;
 import org.assertj.core.api.Assertions;
+import org.assertj.core.api.Assumptions;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
@@ -938,6 +940,17 @@ public class TestMetricsRowGroupFilter {
     Assert.assertTrue("Should succeed with promoted schema", shouldRead);
   }
 
+  @Test
+  public void testTransformFilter() {
+    Assumptions.assumeThat(format).isEqualTo(FileFormat.PARQUET);
+    boolean shouldRead =
+        new ParquetMetricsRowGroupFilter(SCHEMA, equal(truncate("required", 2), "some_value"), true)
+            .shouldRead(parquetSchema, rowGroupMetadata);
+    Assertions.assertThat(shouldRead)
+        .as("Should read: filter contains non-reference evaluate as True")
+        .isTrue();
+  }
+
   private boolean shouldRead(Expression expression) {
     return shouldRead(expression, true);
   }
@@ -962,7 +975,7 @@ public class TestMetricsRowGroupFilter {
             .filter(expression)
             .caseSensitive(caseSensitive)
             .build()) {
-      return Lists.newArrayList(reader).size() > 0;
+      return !Lists.newArrayList(reader).isEmpty();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

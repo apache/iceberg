@@ -81,7 +81,7 @@ public class SparkPositionDeletesRewriteBuilder implements WriteBuilder {
     ScanTaskSetManager taskSetManager = ScanTaskSetManager.get();
     List<PositionDeletesScanTask> tasks = taskSetManager.fetchTasks(table, fileSetId);
     Preconditions.checkArgument(
-        tasks != null && tasks.size() > 0, "No scan tasks found for %s", fileSetId);
+        tasks != null && !tasks.isEmpty(), "No scan tasks found for %s", fileSetId);
 
     int specId = specId(fileSetId, tasks);
     StructLike partition = partition(fileSetId, tasks);

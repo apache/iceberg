@@ -33,6 +33,7 @@ import org.apache.commons.io.filefilter.TrueFileFilter;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.MigrateTable;
 import org.apache.iceberg.actions.SnapshotTable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -268,7 +269,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     // reads should succeed without any exceptions
     List<Object[]> results1 = sql("select * from %s order by id", dest);
-    Assert.assertTrue(results1.size() > 0);
+    Assert.assertFalse(results1.isEmpty());
     assertEquals("Output must match", results1, expected1);
 
     String newCol2 = "newCol2";
@@ -278,7 +279,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     // reads should succeed without any exceptions
     List<Object[]> results2 = sql("select * from %s order by id", dest);
-    Assert.assertTrue(results2.size() > 0);
+    Assert.assertFalse(results2.isEmpty());
     assertEquals("Output must match", results2, expected2);
   }
 
@@ -312,7 +313,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     // reads should succeed
     List<Object[]> results = sql("select * from %s order by id", dest);
-    Assert.assertTrue(results.size() > 0);
+    Assert.assertFalse(results.isEmpty());
     assertEquals("Output must match", results, expected);
   }
 
@@ -350,7 +351,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     // reads should succeed without any exceptions
     List<Object[]> results1 = sql("select * from %s order by id", dest);
-    Assert.assertTrue(results1.size() > 0);
+    Assert.assertFalse(results1.isEmpty());
     assertEquals("Output must match", expected1, results1);
 
     sql("ALTER TABLE %s DROP COLUMN %s", dest, colName2);
@@ -359,7 +360,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     // reads should succeed without any exceptions
     List<Object[]> results2 = sql("select * from %s order by id", dest);
-    Assert.assertTrue(results2.size() > 0);
+    Assert.assertFalse(results2.isEmpty());
     assertEquals("Output must match", expected2, results2);
   }
 
@@ -391,7 +392,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     // reads should return same output as that of non-iceberg table
     List<Object[]> results = sql("select * from %s order by id", dest);
-    Assert.assertTrue(results.size() > 0);
+    Assert.assertFalse(results.isEmpty());
     assertEquals("Output must match", expected, results);
   }
 
@@ -531,7 +532,9 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String source = sourceName("test_reserved_properties_table");
     String dest = destName(destTableName);
     createSourceTable(CREATE_PARQUET, source);
-    assertSnapshotFileCount(SparkActions.get().snapshotTable(source).as(dest), source, dest);
+    SnapshotTableSparkAction action = SparkActions.get().snapshotTable(source).as(dest);
+    action.tableProperty(TableProperties.FORMAT_VERSION, "1");
+    assertSnapshotFileCount(action, source, dest);
     SparkTable table = loadTable(dest);
     // set sort orders
     table.table().replaceSortOrder().asc("id").desc("data").commit();
@@ -803,7 +806,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     // check migrated table is returning expected result
     List<Object[]> results = sql("SELECT * FROM %s", tableName);
-    Assert.assertTrue(results.size() > 0);
+    Assert.assertFalse(results.isEmpty());
     assertEquals("Output must match", expected, results);
   }
 
@@ -825,7 +828,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     // check migrated table is returning expected result
     List<Object[]> results = sql("SELECT * FROM %s", tableName);
-    Assert.assertTrue(results.size() > 0);
+    Assert.assertFalse(results.isEmpty());
     assertEquals("Output must match", expected, results);
   }
 
@@ -850,7 +853,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     // check migrated table is returning expected result
     List<Object[]> results = sql("SELECT * FROM %s", tableName);
-    Assert.assertTrue(results.size() > 0);
+    Assert.assertFalse(results.isEmpty());
     assertEquals("Output must match", expected, results);
   }
 
@@ -877,7 +880,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     // check migrated table is returning expected result
     List<Object[]> results = sql("SELECT * FROM %s", tableName);
-    Assert.assertTrue(results.size() > 0);
+    Assert.assertFalse(results.isEmpty());
     assertEquals("Output must match", expected, results);
   }
 
@@ -901,7 +904,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     // check migrated table is returning expected result
     List<Object[]> results = sql("SELECT * FROM %s", tableName);
-    Assert.assertTrue(results.size() > 0);
+    Assert.assertFalse(results.isEmpty());
     assertEquals("Output must match", expected, results);
   }
 

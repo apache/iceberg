@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.BaseTable;
@@ -74,19 +75,19 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   // Schema passed to create tables
   protected static final Schema SCHEMA =
       new Schema(
-          required(3, "id", Types.IntegerType.get(), "unique ID"),
+          required(3, "id", Types.IntegerType.get(), "unique ID 🤪"),
           required(4, "data", Types.StringType.get()));
 
   // This is the actual schema for the table, with column IDs reassigned
   private static final Schema TABLE_SCHEMA =
       new Schema(
-          required(1, "id", Types.IntegerType.get(), "unique ID"),
+          required(1, "id", Types.IntegerType.get(), "unique ID 🤪"),
           required(2, "data", Types.StringType.get()));
 
   // This is the actual schema for the table, with column IDs reassigned
   private static final Schema REPLACE_SCHEMA =
       new Schema(
-          required(2, "id", Types.IntegerType.get(), "unique ID"),
+          required(2, "id", Types.IntegerType.get(), "unique ID 🤪"),
           required(3, "data", Types.StringType.get()));
 
   // another schema that is not the same
@@ -113,7 +114,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   static final SortOrder REPLACE_WRITE_ORDER =
       SortOrder.builderFor(REPLACE_SCHEMA).asc(Expressions.bucket("id", 16)).asc("id").build();
 
-  static final DataFile FILE_A =
+  protected static final DataFile FILE_A =
       DataFiles.builder(SPEC)
           .withPath("/path/to/data-a.parquet")
           .withFileSizeInBytes(10)
@@ -160,6 +161,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   protected boolean supportsNamesWithSlashes() {
+    return true;
+  }
+
+  protected boolean supportsNamesWithDot() {
     return true;
   }
 
@@ -469,6 +474,8 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testNamespaceWithDot() {
+    Assumptions.assumeTrue(supportsNamesWithDot());
+
     C catalog = catalog();
 
     Namespace withDot = Namespace.of("new.db");
@@ -546,6 +553,8 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testTableNameWithDot() {
+    Assumptions.assumeTrue(supportsNamesWithDot());
+
     C catalog = catalog();
 
     TableIdentifier ident = TableIdentifier.of("ns", "ta.ble");
@@ -634,6 +643,8 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assertions.assertThat(table.properties().entrySet())
         .as("Table properties should be a superset of the requested properties")
         .containsAll(properties.entrySet());
+    Assertions.assertThat(table.uuid())
+        .isEqualTo(UUID.fromString(((BaseTable) table).operations().current().uuid()));
   }
 
   @Test
@@ -2697,7 +2708,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     String metadataLocation = ops.current().metadataFileLocation();
     Assertions.assertThatThrownBy(() -> catalog.registerTable(identifier, metadataLocation))
         .isInstanceOf(AlreadyExistsException.class)
-        .hasMessage("Table already exists: a.t1");
+        .hasMessageStartingWith("Table already exists: a.t1");
     Assertions.assertThat(catalog.dropTable(identifier)).isTrue();
   }
 

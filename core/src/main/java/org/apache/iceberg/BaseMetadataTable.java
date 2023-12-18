@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
@@ -43,6 +44,7 @@ public abstract class BaseMetadataTable extends BaseReadOnlyTable
   private final SortOrder sortOrder = SortOrder.unsorted();
   private final BaseTable table;
   private final String name;
+  private final UUID uuid;
 
   protected BaseMetadataTable(Table table, String name) {
     super("metadata");
@@ -50,6 +52,7 @@ public abstract class BaseMetadataTable extends BaseReadOnlyTable
         table instanceof BaseTable, "Cannot create metadata table for non-data table: %s", table);
     this.table = (BaseTable) table;
     this.name = name;
+    this.uuid = UUID.randomUUID();
   }
 
   /**
@@ -197,6 +200,11 @@ public abstract class BaseMetadataTable extends BaseReadOnlyTable
   @Override
   public Map<String, SnapshotRef> refs() {
     return table().refs();
+  }
+
+  @Override
+  public UUID uuid() {
+    return uuid;
   }
 
   @Override

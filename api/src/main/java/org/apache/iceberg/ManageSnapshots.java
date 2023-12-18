@@ -84,6 +84,19 @@ public interface ManageSnapshots extends PendingUpdate<Snapshot> {
   ManageSnapshots cherrypick(long snapshotId);
 
   /**
+   * Create a new branch. The branch will point to current snapshot if the current snapshot is not
+   * NULL. Otherwise, the branch will point to a newly created empty snapshot.
+   *
+   * @param name branch name
+   * @return this for method chaining
+   * @throws IllegalArgumentException if a branch with the given name already exists
+   */
+  default ManageSnapshots createBranch(String name) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement createBranch(String)");
+  }
+
+  /**
    * Create a new branch pointing to the given snapshot id.
    *
    * @param name branch name
@@ -150,26 +163,26 @@ public interface ManageSnapshots extends PendingUpdate<Snapshot> {
   ManageSnapshots replaceBranch(String name, long snapshotId);
 
   /**
-   * Replaces the branch with the given name to point to the source snapshot. The source branch will
-   * remain unchanged, the target branch will retain its retention properties.
+   * Replaces the {@code from} branch to point to the {@code to} snapshot. The {@code to} will
+   * remain unchanged, and {@code from} branch will retain its retention properties.
    *
-   * @param name Branch to replace
-   * @param source Source reference for the target to be replaced with
+   * @param from Branch to replace
+   * @param to The branch {@code from} should be replaced with
    * @return this for method chaining
    */
-  ManageSnapshots replaceBranch(String name, String source);
+  ManageSnapshots replaceBranch(String from, String to);
 
   /**
-   * Performs a fast-forward of the given target branch up to the source snapshot if target is an
-   * ancestor of source. The source branch will remain unchanged, the target branch will retain its
+   * Performs a fast-forward of {@code from} up to the {@code to} snapshot if {@code from} is an
+   * ancestor of {@code to}. The {@code to} will remain unchanged, and {@code from} will retain its
    * retention properties.
    *
-   * @param name Branch to fast-forward
-   * @param source Source reference for the target to be fast forwarded to
+   * @param from Branch to fast-forward
+   * @param to Ref for the {@code from} branch to be fast forwarded to
    * @return this for method chaining
-   * @throws IllegalArgumentException if the target branch is not an ancestor of source
+   * @throws IllegalArgumentException if {@code from} is not an ancestor of {@code to}
    */
-  ManageSnapshots fastForwardBranch(String name, String source);
+  ManageSnapshots fastForwardBranch(String from, String to);
 
   /**
    * Updates the minimum number of snapshots to keep for a branch.

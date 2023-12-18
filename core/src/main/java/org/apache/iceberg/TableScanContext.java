@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import javax.annotation.Nullable;
 import org.apache.iceberg.expressions.Expression;
@@ -60,6 +61,9 @@ abstract class TableScanContext {
   }
 
   @Nullable
+  public abstract Set<Integer> columnsToKeepStats();
+
+  @Nullable
   public abstract Collection<String> selectedColumns();
 
   @Nullable
@@ -96,6 +100,9 @@ abstract class TableScanContext {
     return LoggingMetricsReporter.instance();
   }
 
+  @Nullable
+  public abstract String branch();
+
   TableScanContext useSnapshotId(Long scanSnapshotId) {
     return ImmutableTableScanContext.builder().from(this).snapshotId(scanSnapshotId).build();
   }
@@ -119,6 +126,16 @@ abstract class TableScanContext {
     return ImmutableTableScanContext.builder()
         .from(this)
         .returnColumnStats(returnColumnStats)
+        .build();
+  }
+
+  TableScanContext columnsToKeepStats(Set<Integer> columnsToKeepStats) {
+    Preconditions.checkState(
+        returnColumnStats(),
+        "Cannot select columns to keep stats when column stats are not returned");
+    return ImmutableTableScanContext.builder()
+        .from(this)
+        .columnsToKeepStats(columnsToKeepStats)
         .build();
   }
 
@@ -170,6 +187,10 @@ abstract class TableScanContext {
                 ? reporter
                 : MetricsReporters.combine(metricsReporter(), reporter))
         .build();
+  }
+
+  TableScanContext useBranch(String ref) {
+    return ImmutableTableScanContext.builder().from(this).branch(ref).build();
   }
 
   public static TableScanContext empty() {

@@ -30,6 +30,7 @@ import org.apache.iceberg.IncrementalChangelogScan;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsModes;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StructLike;
@@ -164,7 +165,9 @@ public class SparkScanBuilder
           pushableFilters.add(filter);
         }
 
-        if (expr == null || !ExpressionUtil.selectsPartitions(expr, table, caseSensitive)) {
+        if (expr == null
+            || unpartitioned()
+            || !ExpressionUtil.selectsPartitions(expr, table, caseSensitive)) {
           postScanFilters.add(filter);
         } else {
           LOG.info("Evaluating completely on Iceberg side: {}", filter);
@@ -180,6 +183,10 @@ public class SparkScanBuilder
     this.pushedFilters = pushableFilters.toArray(new Filter[0]);
 
     return postScanFilters.toArray(new Filter[0]);
+  }
+
+  private boolean unpartitioned() {
+    return table.specs().values().stream().noneMatch(PartitionSpec::isPartitioned);
   }
 
   @Override
@@ -473,6 +480,7 @@ public class SparkScanBuilder
     return new SparkBatchQueryScan(spark, table, scan, readConf, expectedSchema, filterExpressions);
   }
 
+  @SuppressWarnings("CyclomaticComplexity")
   public Scan buildChangelogScan() {
     Preconditions.checkArgument(
         readConf.snapshotId() == null
@@ -510,12 +518,20 @@ public class SparkScanBuilder
           SparkReadOptions.END_TIMESTAMP);
     }
 
+    boolean emptyScan = false;
     if (startTimestamp != null) {
       startSnapshotId = getStartSnapshotId(startTimestamp);
+      if (startSnapshotId == null && endTimestamp == null) {
+        emptyScan = true;
+      }
     }
 
     if (endTimestamp != null) {
-      endSnapshotId = SnapshotUtil.snapshotIdAsOfTime(table, endTimestamp);
+      endSnapshotId = SnapshotUtil.nullableSnapshotIdAsOfTime(table, endTimestamp);
+      if ((startSnapshotId == null && endSnapshotId == null)
+          || (startSnapshotId != null && startSnapshotId.equals(endSnapshotId))) {
+        emptyScan = true;
+      }
     }
 
     Schema expectedSchema = schemaWithMetadataColumns();
@@ -537,18 +553,16 @@ public class SparkScanBuilder
 
     scan = configureSplitPlanning(scan);
 
-    return new SparkChangelogScan(spark, table, scan, readConf, expectedSchema, filterExpressions);
+    return new SparkChangelogScan(
+        spark, table, scan, readConf, expectedSchema, filterExpressions, emptyScan);
   }
 
   private Long getStartSnapshotId(Long startTimestamp) {
     Snapshot oldestSnapshotAfter = SnapshotUtil.oldestAncestorAfter(table, startTimestamp);
-    Preconditions.checkArgument(
-        oldestSnapshotAfter != null,
-        "Cannot find a snapshot older than %s for table %s",
-        startTimestamp,
-        table.name());
 
-    if (oldestSnapshotAfter.timestampMillis() == startTimestamp) {
+    if (oldestSnapshotAfter == null) {
+      return null;
+    } else if (oldestSnapshotAfter.timestampMillis() == startTimestamp) {
       return oldestSnapshotAfter.snapshotId();
     } else {
       return oldestSnapshotAfter.parentId();
@@ -651,7 +665,7 @@ public class SparkScanBuilder
 
   @Override
   public Statistics estimateStatistics() {
-    return ((SparkScan) build()).estimateStatistics();
+    return ((SupportsReportStatistics) build()).estimateStatistics();
   }
 
   @Override

@@ -138,7 +138,7 @@ public class CustomCatalog extends BaseMetastoreCatalog {
   @Override
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
     // Example service to delete table
-    CustomService.deleteTable(identifier.namepsace().level(0), identifier.name());
+    CustomService.deleteTable(identifier.namespace().level(0), identifier.name());
   }
 
   @Override
@@ -146,7 +146,7 @@ public class CustomCatalog extends BaseMetastoreCatalog {
     Preconditions.checkArgument(from.namespace().level(0).equals(to.namespace().level(0)),
             "Cannot move table between databases");
     // Example service to rename table
-    CustomService.renameTable(from.namepsace().level(0), from.name(), to.name());
+    CustomService.renameTable(from.namespace().level(0), from.name(), to.name());
   }
 
   // implement this method to read catalog name and properties during initialization

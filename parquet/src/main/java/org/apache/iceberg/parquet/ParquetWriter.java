@@ -86,7 +86,8 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     this.targetRowGroupSize = rowGroupSize;
     this.props = properties;
     this.metadata = ImmutableMap.copyOf(metadata);
-    this.compressor = new CodecFactory(conf, props.getPageSizeThreshold()).getCompressor(codec);
+    this.compressor =
+        new ParquetCodecFactory(conf, props.getPageSizeThreshold()).getCompressor(codec);
     this.parquetSchema = ParquetSchemaUtil.convert(schema, "table");
     this.model = (ParquetValueWriter<T>) createWriterFunc.apply(parquetSchema);
     this.metricsConfig = metricsConfig;

@@ -63,4 +63,18 @@ public class SparkSQLProperties {
   // Controls the WAP branch used for write-audit-publish workflow.
   // When set, new snapshots will be committed to this branch.
   public static final String WAP_BRANCH = "spark.wap.branch";
+
+  // Controls write compress options
+  public static final String COMPRESSION_CODEC = "spark.sql.iceberg.compression-codec";
+  public static final String COMPRESSION_LEVEL = "spark.sql.iceberg.compression-level";
+  public static final String COMPRESSION_STRATEGY = "spark.sql.iceberg.compression-strategy";
+
+  // Overrides the data planning mode
+  public static final String DATA_PLANNING_MODE = "spark.sql.iceberg.data-planning-mode";
+
+  // Overrides the delete planning mode
+  public static final String DELETE_PLANNING_MODE = "spark.sql.iceberg.delete-planning-mode";
+
+  // Controls whether to report locality information to Spark while allocating input partitions
+  public static final String LOCALITY = "spark.sql.iceberg.locality.enabled";
 }

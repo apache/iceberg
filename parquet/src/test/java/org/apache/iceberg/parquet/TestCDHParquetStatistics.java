@@ -18,12 +18,12 @@
  */
 package org.apache.iceberg.parquet;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import org.apache.parquet.column.statistics.Statistics;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 /**
  * Tests for Parquet 1.5.0-Stats which cannot be evaluated like later versions of Parquet stats.
@@ -39,6 +39,6 @@ public class TestCDHParquetStatistics {
     when(cdhBinaryColumnStats.getMaxBytes()).thenReturn(null);
     when(cdhBinaryColumnStats.getMinBytes()).thenReturn(null);
     when(cdhBinaryColumnStats.getNumNulls()).thenReturn(0L);
-    Assert.assertTrue(ParquetMetricsRowGroupFilter.minMaxUndefined(cdhBinaryColumnStats));
+    assertThat(ParquetMetricsRowGroupFilter.minMaxUndefined(cdhBinaryColumnStats)).isTrue();
   }
 }

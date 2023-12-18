@@ -46,6 +46,7 @@ import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeSet;
@@ -75,18 +76,15 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
 
   private final FileFormat fileFormat;
   private final boolean partitioned;
-  private final List<T> dataRows;
 
   private StructLike partition = null;
   private OutputFileFactory fileFactory = null;
+  private List<T> dataRows;
 
   public TestFileWriterFactory(FileFormat fileFormat, boolean partitioned) {
     super(TABLE_FORMAT_VERSION);
     this.fileFormat = fileFormat;
     this.partitioned = partitioned;
-    this.dataRows =
-        ImmutableList.of(
-            toRow(1, "aaa"), toRow(2, "aaa"), toRow(3, "aaa"), toRow(4, "aaa"), toRow(5, "aaa"));
   }
 
   protected abstract StructLikeSet toSet(Iterable<T> records);
@@ -112,6 +110,10 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
     }
 
     this.fileFactory = OutputFileFactory.builderFor(table, 1, 1).format(fileFormat).build();
+
+    this.dataRows =
+        ImmutableList.of(
+            toRow(1, "aaa"), toRow(2, "aaa"), toRow(3, "aaa"), toRow(4, "aaa"), toRow(5, "aaa"));
   }
 
   @Test
@@ -229,6 +231,23 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
     DeleteFile deleteFile = result.first();
     CharSequenceSet referencedDataFiles = result.second();
 
+    if (fileFormat == FileFormat.AVRO) {
+      Assert.assertNull(deleteFile.lowerBounds());
+      Assert.assertNull(deleteFile.upperBounds());
+      Assert.assertNull(deleteFile.columnSizes());
+    } else {
+      Assert.assertEquals(1, referencedDataFiles.size());
+      Assert.assertEquals(2, deleteFile.lowerBounds().size());
+      Assert.assertTrue(deleteFile.lowerBounds().containsKey(DELETE_FILE_PATH.fieldId()));
+      Assert.assertEquals(2, deleteFile.upperBounds().size());
+      Assert.assertTrue(deleteFile.upperBounds().containsKey(DELETE_FILE_PATH.fieldId()));
+      Assert.assertEquals(2, deleteFile.columnSizes().size());
+    }
+
+    Assert.assertNull(deleteFile.valueCounts());
+    Assert.assertNull(deleteFile.nullValueCounts());
+    Assert.assertNull(deleteFile.nanValueCounts());
+
     // verify the written delete file
     GenericRecord deleteRecord = GenericRecord.create(DeleteSchemaUtil.pathPosSchema());
     List<Record> expectedDeletes =
@@ -270,6 +289,34 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
     DeleteFile deleteFile = result.first();
     CharSequenceSet referencedDataFiles = result.second();
 
+    if (fileFormat == FileFormat.AVRO) {
+      Assert.assertNull(deleteFile.lowerBounds());
+      Assert.assertNull(deleteFile.upperBounds());
+      Assert.assertNull(deleteFile.columnSizes());
+      Assert.assertNull(deleteFile.valueCounts());
+      Assert.assertNull(deleteFile.nullValueCounts());
+      Assert.assertNull(deleteFile.nanValueCounts());
+    } else {
+      Assert.assertEquals(1, referencedDataFiles.size());
+      Assert.assertEquals(4, deleteFile.lowerBounds().size());
+      Assert.assertTrue(deleteFile.lowerBounds().containsKey(DELETE_FILE_PATH.fieldId()));
+      Assert.assertTrue(deleteFile.lowerBounds().containsKey(DELETE_FILE_POS.fieldId()));
+      for (Types.NestedField column : table.schema().columns()) {
+        Assert.assertTrue(deleteFile.lowerBounds().containsKey(column.fieldId()));
+      }
+      Assert.assertEquals(4, deleteFile.upperBounds().size());
+      Assert.assertTrue(deleteFile.upperBounds().containsKey(DELETE_FILE_PATH.fieldId()));
+      Assert.assertTrue(deleteFile.upperBounds().containsKey(DELETE_FILE_POS.fieldId()));
+      for (Types.NestedField column : table.schema().columns()) {
+        Assert.assertTrue(deleteFile.upperBounds().containsKey(column.fieldId()));
+      }
+      // ORC also contains metrics for the deleted row struct, not just actual data fields
+      Assert.assertTrue(deleteFile.columnSizes().size() >= 4);
+      Assert.assertTrue(deleteFile.valueCounts().size() >= 2);
+      Assert.assertTrue(deleteFile.nullValueCounts().size() >= 2);
+      Assert.assertNull(deleteFile.nanValueCounts());
+    }
+
     // verify the written delete file
     GenericRecord deletedRow = GenericRecord.create(table.schema());
     Schema positionDeleteSchema = DeleteSchemaUtil.posDeleteSchema(table.schema());
@@ -299,6 +346,62 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
     // verify the delete file is applied correctly
     List<T> expectedRows =
         ImmutableList.of(toRow(2, "aaa"), toRow(3, "aaa"), toRow(4, "aaa"), toRow(5, "aaa"));
+    Assert.assertEquals("Records should match", toSet(expectedRows), actualRowSet("*"));
+  }
+
+  @Test
+  public void testPositionDeleteWriterMultipleDataFiles() throws IOException {
+    FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
+
+    // write two data files
+    DataFile dataFile1 = writeData(writerFactory, dataRows, table.spec(), partition);
+    DataFile dataFile2 = writeData(writerFactory, dataRows, table.spec(), partition);
+
+    // write a position delete file referencing both
+    List<PositionDelete<T>> deletes =
+        ImmutableList.of(
+            positionDelete(dataFile1.path(), 0L, null),
+            positionDelete(dataFile1.path(), 2L, null),
+            positionDelete(dataFile2.path(), 4L, null));
+    Pair<DeleteFile, CharSequenceSet> result =
+        writePositionDeletes(writerFactory, deletes, table.spec(), partition);
+    DeleteFile deleteFile = result.first();
+    CharSequenceSet referencedDataFiles = result.second();
+
+    // verify the written delete file has NO lower and upper bounds
+    Assert.assertEquals(2, referencedDataFiles.size());
+    Assert.assertNull(deleteFile.lowerBounds());
+    Assert.assertNull(deleteFile.upperBounds());
+    Assert.assertNull(deleteFile.valueCounts());
+    Assert.assertNull(deleteFile.nullValueCounts());
+    Assert.assertNull(deleteFile.nanValueCounts());
+
+    if (fileFormat == FileFormat.AVRO) {
+      Assert.assertNull(deleteFile.columnSizes());
+    } else {
+      Assert.assertEquals(2, deleteFile.columnSizes().size());
+    }
+
+    // commit the data and delete files
+    table
+        .newRowDelta()
+        .addRows(dataFile1)
+        .addRows(dataFile2)
+        .addDeletes(deleteFile)
+        .validateDataFilesExist(referencedDataFiles)
+        .validateDeletedFiles()
+        .commit();
+
+    // verify the delete file is applied correctly
+    List<T> expectedRows =
+        ImmutableList.of(
+            toRow(2, "aaa"),
+            toRow(4, "aaa"),
+            toRow(5, "aaa"),
+            toRow(1, "aaa"),
+            toRow(2, "aaa"),
+            toRow(3, "aaa"),
+            toRow(4, "aaa"));
     Assert.assertEquals("Records should match", toSet(expectedRows), actualRowSet("*"));
   }
 

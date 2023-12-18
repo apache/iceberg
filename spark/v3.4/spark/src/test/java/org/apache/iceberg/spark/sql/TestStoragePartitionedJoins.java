@@ -18,10 +18,14 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
+import static org.apache.iceberg.PlanningMode.LOCAL;
+
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -44,8 +48,16 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+@RunWith(Parameterized.class)
 public class TestStoragePartitionedJoins extends SparkTestBaseWithCatalog {
+
+  @Parameterized.Parameters(name = "planningMode = {0}")
+  public static Object[] parameters() {
+    return new Object[] {LOCAL, DISTRIBUTED};
+  }
 
   private static final String OTHER_TABLE_NAME = "other_table";
 
@@ -83,6 +95,12 @@ public class TestStoragePartitionedJoins extends SparkTestBaseWithCatalog {
           "-1",
           SparkSQLProperties.PRESERVE_DATA_GROUPING,
           "true");
+
+  private final PlanningMode planningMode;
+
+  public TestStoragePartitionedJoins(PlanningMode planningMode) {
+    this.planningMode = planningMode;
+  }
 
   @BeforeClass
   public static void setupSparkConf() {
@@ -564,6 +582,7 @@ public class TestStoragePartitionedJoins extends SparkTestBaseWithCatalog {
         sourceColumnType,
         transform,
         tablePropsAsString(TABLE_PROPERTIES));
+    configurePlanningMode(tableName, planningMode);
 
     sql(
         createTableStmt,
@@ -572,6 +591,7 @@ public class TestStoragePartitionedJoins extends SparkTestBaseWithCatalog {
         sourceColumnType,
         transform,
         tablePropsAsString(TABLE_PROPERTIES));
+    configurePlanningMode(tableName(OTHER_TABLE_NAME), planningMode);
 
     Table table = validationCatalog.loadTable(tableIdent);
     Dataset<Row> dataDF = randomDataDF(table.schema(), 200);

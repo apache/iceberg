@@ -35,9 +35,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 public class IcebergEnumeratorStateSerializer
     implements SimpleVersionedSerializer<IcebergEnumeratorState> {
 
-  public static final IcebergEnumeratorStateSerializer INSTANCE =
-      new IcebergEnumeratorStateSerializer();
-
   private static final int VERSION = 2;
 
   private static final ThreadLocal<DataOutputSerializer> SERIALIZER_CACHE =
@@ -45,8 +42,11 @@ public class IcebergEnumeratorStateSerializer
 
   private final IcebergEnumeratorPositionSerializer positionSerializer =
       IcebergEnumeratorPositionSerializer.INSTANCE;
-  private final IcebergSourceSplitSerializer splitSerializer =
-      IcebergSourceSplitSerializer.INSTANCE;
+  private final IcebergSourceSplitSerializer splitSerializer;
+
+  public IcebergEnumeratorStateSerializer(boolean caseSensitive) {
+    this.splitSerializer = new IcebergSourceSplitSerializer(caseSensitive);
+  }
 
   @Override
   public int getVersion() {

@@ -24,13 +24,11 @@ import java.util.Map;
 import java.util.function.Supplier;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestWriter;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
@@ -64,16 +62,14 @@ class FlinkManifestUtil {
   }
 
   static ManifestOutputFileFactory createOutputFileFactory(
-      Table table, String flinkJobId, String operatorUniqueId, int subTaskId, long attemptNumber) {
-    TableOperations ops = ((HasTableOperations) table).operations();
+      Supplier<Table> tableSupplier,
+      Map<String, String> tableProps,
+      String flinkJobId,
+      String operatorUniqueId,
+      int subTaskId,
+      long attemptNumber) {
     return new ManifestOutputFileFactory(
-        ops,
-        table.io(),
-        table.properties(),
-        flinkJobId,
-        operatorUniqueId,
-        subTaskId,
-        attemptNumber);
+        tableSupplier, tableProps, flinkJobId, operatorUniqueId, subTaskId, attemptNumber);
   }
 
   /**

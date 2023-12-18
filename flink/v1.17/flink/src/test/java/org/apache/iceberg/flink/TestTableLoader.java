@@ -37,6 +37,11 @@ public class TestTableLoader implements TableLoader {
   public void open() {}
 
   @Override
+  public boolean isOpen() {
+    return true;
+  }
+
+  @Override
   public Table loadTable() {
     return TestTables.load(dir, "test");
   }

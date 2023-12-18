@@ -43,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeWrapper;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
@@ -53,22 +54,50 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     super(formatVersion);
   }
 
-  private void preparePartitionedTable() {
-    preparePartitionedTableData();
+  private void preparePartitionedTable(boolean transactional) {
+    preparePartitionedTableData(transactional);
 
     if (formatVersion == 2) {
-      table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
-      table.newRowDelta().addDeletes(FILE_B_DELETES).commit();
-      table.newRowDelta().addDeletes(FILE_C2_DELETES).commit();
-      table.newRowDelta().addDeletes(FILE_D2_DELETES).commit();
+      if (transactional) {
+        table
+            .newRowDelta()
+            .addDeletes(FILE_A_DELETES)
+            .addDeletes(FILE_B_DELETES)
+            .addDeletes(FILE_C2_DELETES)
+            .addDeletes(FILE_D2_DELETES)
+            .commit();
+      } else {
+        table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
+        table.newRowDelta().addDeletes(FILE_B_DELETES).commit();
+        table.newRowDelta().addDeletes(FILE_C2_DELETES).commit();
+        table.newRowDelta().addDeletes(FILE_D2_DELETES).commit();
+      }
+    }
+  }
+
+  private void preparePartitionedTable() {
+    preparePartitionedTable(false);
+  }
+
+  private void preparePartitionedTableData(boolean transactional) {
+    if (transactional) {
+      table
+          .newFastAppend()
+          .appendFile(FILE_A)
+          .appendFile(FILE_B)
+          .appendFile(FILE_C)
+          .appendFile(FILE_D)
+          .commit();
+    } else {
+      table.newFastAppend().appendFile(FILE_A).commit();
+      table.newFastAppend().appendFile(FILE_C).commit();
+      table.newFastAppend().appendFile(FILE_D).commit();
+      table.newFastAppend().appendFile(FILE_B).commit();
     }
   }
 
   private void preparePartitionedTableData() {
-    table.newFastAppend().appendFile(FILE_A).commit();
-    table.newFastAppend().appendFile(FILE_C).commit();
-    table.newFastAppend().appendFile(FILE_D).commit();
-    table.newFastAppend().appendFile(FILE_B).commit();
+    preparePartitionedTableData(false);
   }
 
   @Test
@@ -108,6 +137,18 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
         Assert.assertEquals("Residuals must be ignored", Expressions.alwaysTrue(), task.residual());
       }
     }
+  }
+
+  @Test
+  public void testMetadataTableUUID() {
+    Table manifestsTable = new ManifestsTable(table);
+
+    Assertions.assertThat(manifestsTable.uuid())
+        .as("UUID should be consistent on multiple calls")
+        .isEqualTo(manifestsTable.uuid());
+    Assertions.assertThat(manifestsTable.uuid())
+        .as("Metadata table UUID should be different from the base table UUID")
+        .isNotEqualTo(table.uuid());
   }
 
   @Test
@@ -1258,6 +1299,163 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     Assert.assertEquals(
         "Expected correct delete file on constant column",
         FILE_B_DELETES.path(),
+        constantsMap(posDeleteTask, partitionType).get(MetadataColumns.FILE_PATH.fieldId()));
+  }
+
+  @Test
+  public void testPositionDeletesBaseTableFilterManifestLevel() {
+    testPositionDeletesBaseTableFilter(false);
+  }
+
+  @Test
+  public void testPositionDeletesBaseTableFilterEntriesLevel() {
+    testPositionDeletesBaseTableFilter(true);
+  }
+
+  private void testPositionDeletesBaseTableFilter(boolean transactional) {
+    Assume.assumeTrue("Position deletes supported only for v2 tables", formatVersion == 2);
+    preparePartitionedTable(transactional);
+
+    PositionDeletesTable positionDeletesTable = new PositionDeletesTable(table);
+
+    Expression expression =
+        Expressions.and(
+            Expressions.equal("data", "u"), // hashes to bucket 0
+            Expressions.greaterThan("id", 0));
+    BatchScan scan =
+        ((PositionDeletesTable.PositionDeletesBatchScan) positionDeletesTable.newBatchScan())
+            .baseTableFilter(expression);
+    assertThat(scan).isExactlyInstanceOf(PositionDeletesTable.PositionDeletesBatchScan.class);
+    PositionDeletesTable.PositionDeletesBatchScan deleteScan =
+        (PositionDeletesTable.PositionDeletesBatchScan) scan;
+
+    List<ScanTask> tasks = Lists.newArrayList(scan.planFiles());
+
+    Assert.assertEquals(
+        "Expected to scan one delete manifest",
+        1,
+        deleteScan.scanMetrics().scannedDeleteManifests().value());
+    int expectedSkippedManifests = transactional ? 0 : 3;
+    Assert.assertEquals(
+        "Wrong number of manifests skipped",
+        expectedSkippedManifests,
+        deleteScan.scanMetrics().skippedDeleteManifests().value());
+
+    assertThat(tasks).hasSize(1);
+
+    ScanTask task = tasks.get(0);
+    assertThat(task).isInstanceOf(PositionDeletesScanTask.class);
+
+    Types.StructType partitionType = Partitioning.partitionType(table);
+    PositionDeletesScanTask posDeleteTask = (PositionDeletesScanTask) task;
+
+    // base table filter should only be used to evaluate partitions
+    posDeleteTask.residual().isEquivalentTo(Expressions.alwaysTrue());
+
+    int filePartition = posDeleteTask.file().partition().get(0, Integer.class);
+    StructLike taskPartitionStruct =
+        (StructLike)
+            constantsMap(posDeleteTask, partitionType).get(MetadataColumns.PARTITION_COLUMN_ID);
+    int taskPartition = taskPartitionStruct.get(0, Integer.class);
+    Assert.assertEquals("Expected correct partition on task's file", 0, filePartition);
+    Assert.assertEquals("Expected correct partition on task's column", 0, taskPartition);
+
+    Assert.assertEquals(
+        "Expected correct partition spec id on task", 0, posDeleteTask.file().specId());
+    Assert.assertEquals(
+        "Expected correct partition spec id on constant column",
+        0,
+        constantsMap(posDeleteTask, partitionType).get(MetadataColumns.SPEC_ID.fieldId()));
+
+    Assert.assertEquals(
+        "Expected correct delete file on task", FILE_A_DELETES.path(), posDeleteTask.file().path());
+    Assert.assertEquals(
+        "Expected correct delete file on constant column",
+        FILE_A_DELETES.path(),
+        constantsMap(posDeleteTask, partitionType).get(MetadataColumns.FILE_PATH.fieldId()));
+  }
+
+  @Test
+  public void testPositionDeletesWithBaseTableFilterNot() {
+    Assume.assumeTrue("Position deletes supported only for v2 tables", formatVersion == 2);
+
+    // use identity rather than bucket partition spec,
+    // as bucket.project does not support projecting notEq
+    table.updateSpec().removeField("data_bucket").addField("id").commit();
+    PartitionSpec spec = table.spec();
+
+    String path0 = "/path/to/data-0-deletes.parquet";
+    PartitionData partitionData0 = new PartitionData(spec.partitionType());
+    partitionData0.set(0, 0);
+    DeleteFile deleteFileA =
+        FileMetadata.deleteFileBuilder(spec)
+            .ofPositionDeletes()
+            .withPath(path0)
+            .withFileSizeInBytes(10)
+            .withPartition(partitionData0)
+            .withRecordCount(1)
+            .build();
+
+    String path1 = "/path/to/data-1-deletes.parquet";
+    PartitionData partitionData1 = new PartitionData(spec.partitionType());
+    partitionData1.set(0, 1);
+    DeleteFile deleteFileB =
+        FileMetadata.deleteFileBuilder(spec)
+            .ofPositionDeletes()
+            .withPath(path1)
+            .withFileSizeInBytes(10)
+            .withPartition(partitionData1)
+            .withRecordCount(1)
+            .build();
+    table.newRowDelta().addDeletes(deleteFileA).addDeletes(deleteFileB).commit();
+
+    PositionDeletesTable positionDeletesTable = new PositionDeletesTable(table);
+
+    Expression expression = Expressions.not(Expressions.equal("id", 0));
+    BatchScan scan =
+        ((PositionDeletesTable.PositionDeletesBatchScan) positionDeletesTable.newBatchScan())
+            .baseTableFilter(expression);
+    assertThat(scan).isExactlyInstanceOf(PositionDeletesTable.PositionDeletesBatchScan.class);
+    PositionDeletesTable.PositionDeletesBatchScan deleteScan =
+        (PositionDeletesTable.PositionDeletesBatchScan) scan;
+
+    List<ScanTask> tasks = Lists.newArrayList(scan.planFiles());
+
+    Assert.assertEquals(
+        "Expected to scan one delete manifest",
+        1,
+        deleteScan.scanMetrics().scannedDeleteManifests().value());
+    assertThat(tasks).hasSize(1);
+
+    ScanTask task = tasks.get(0);
+    assertThat(task).isInstanceOf(PositionDeletesScanTask.class);
+
+    Types.StructType partitionType = Partitioning.partitionType(table);
+    PositionDeletesScanTask posDeleteTask = (PositionDeletesScanTask) task;
+
+    // base table filter should only be used to evaluate partitions
+    posDeleteTask.residual().isEquivalentTo(Expressions.alwaysTrue());
+
+    int filePartition = posDeleteTask.file().partition().get(0, Integer.class);
+    StructLike taskPartitionStruct =
+        (StructLike)
+            constantsMap(posDeleteTask, partitionType).get(MetadataColumns.PARTITION_COLUMN_ID);
+    int taskPartition =
+        taskPartitionStruct.get(1, Integer.class); // new partition field in position 1
+    Assert.assertEquals("Expected correct partition on task's file", 1, filePartition);
+    Assert.assertEquals("Expected correct partition on task's column", 1, taskPartition);
+
+    Assert.assertEquals(
+        "Expected correct partition spec id on task", 1, posDeleteTask.file().specId());
+    Assert.assertEquals(
+        "Expected correct partition spec id on constant column",
+        1,
+        constantsMap(posDeleteTask, partitionType).get(MetadataColumns.SPEC_ID.fieldId()));
+
+    Assert.assertEquals("Expected correct delete file on task", path1, posDeleteTask.file().path());
+    Assert.assertEquals(
+        "Expected correct delete file on constant column",
+        path1,
         constantsMap(posDeleteTask, partitionType).get(MetadataColumns.FILE_PATH.fieldId()));
   }
 

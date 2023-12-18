@@ -2,7 +2,6 @@
 .DS_Store
 .cache
 tmp/
-site
 
 # intellij files
 .idea
@@ -28,12 +27,12 @@ lib/
 site/site
 
 # benchmark output
-spark/v3.1/spark/benchmark/*
-spark/v3.2/spark/benchmark/*
 spark/v3.3/spark/benchmark/*
 spark/v3.3/spark-extensions/benchmark/*
 spark/v3.4/spark/benchmark/*
 spark/v3.4/spark-extensions/benchmark/*
+spark/v3.5/spark/benchmark/*
+spark/v3.5/spark-extensions/benchmark/*
 data/benchmark/*
 
 __pycache__/
@@ -64,7 +63,3 @@ metastore_db/
 spark-warehouse/
 derby.log
 
-# Python stuff
-python/.mypy_cache/
-python/htmlcov
-python/coverage.xml

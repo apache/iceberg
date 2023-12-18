@@ -29,6 +29,7 @@ import static org.apache.iceberg.expressions.Expressions.year;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -419,71 +420,65 @@ public class TestUpdatePartitionSpec extends TableTestBase {
 
   @Test
   public void testRemoveNewlyAddedFieldByName() {
-    AssertHelpers.assertThrows(
-        "Should fail trying to remove unknown field",
-        IllegalArgumentException.class,
-        "Cannot delete newly added field",
-        () ->
-            new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
-                .addField("prefix", truncate("data", 4))
-                .removeField("prefix"));
+    Assertions.assertThatThrownBy(
+            () ->
+                new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
+                    .addField("prefix", truncate("data", 4))
+                    .removeField("prefix"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot delete newly added field");
   }
 
   @Test
   public void testRemoveNewlyAddedFieldByTransform() {
-    AssertHelpers.assertThrows(
-        "Should fail adding a duplicate field",
-        IllegalArgumentException.class,
-        "Cannot delete newly added field",
-        () ->
-            new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
-                .addField("prefix", truncate("data", 4))
-                .removeField(truncate("data", 4)));
+    Assertions.assertThatThrownBy(
+            () ->
+                new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
+                    .addField("prefix", truncate("data", 4))
+                    .removeField(truncate("data", 4)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot delete newly added field");
   }
 
   @Test
   public void testAddAlreadyAddedFieldByTransform() {
-    AssertHelpers.assertThrows(
-        "Should fail adding a duplicate field",
-        IllegalArgumentException.class,
-        "Cannot add duplicate partition field",
-        () ->
-            new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
-                .addField("prefix", truncate("data", 4))
-                .addField(truncate("data", 4)));
+    Assertions.assertThatThrownBy(
+            () ->
+                new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
+                    .addField("prefix", truncate("data", 4))
+                    .addField(truncate("data", 4)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot add duplicate partition field");
   }
 
   @Test
   public void testAddAlreadyAddedFieldByName() {
-    AssertHelpers.assertThrows(
-        "Should fail adding a duplicate field",
-        IllegalArgumentException.class,
-        "Cannot add duplicate partition field",
-        () ->
-            new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
-                .addField("prefix", truncate("data", 4))
-                .addField("prefix", truncate("data", 6)));
+    Assertions.assertThatThrownBy(
+            () ->
+                new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
+                    .addField("prefix", truncate("data", 4))
+                    .addField("prefix", truncate("data", 6)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot add duplicate partition field");
   }
 
   @Test
   public void testAddRedundantTimePartition() {
-    AssertHelpers.assertThrows(
-        "Should fail adding a duplicate field",
-        IllegalArgumentException.class,
-        "Cannot add redundant partition field",
-        () ->
-            new BaseUpdatePartitionSpec(formatVersion, UNPARTITIONED)
-                .addField(day("ts"))
-                .addField(hour("ts"))); // conflicts with hour
+    Assertions.assertThatThrownBy(
+            () ->
+                new BaseUpdatePartitionSpec(formatVersion, UNPARTITIONED)
+                    .addField(day("ts"))
+                    .addField(hour("ts"))) // conflicts with hour
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot add redundant partition field");
 
-    AssertHelpers.assertThrows(
-        "Should fail adding a duplicate field",
-        IllegalArgumentException.class,
-        "Cannot add redundant partition",
-        () ->
-            new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
-                .addField(hour("ts")) // does not conflict with day because day already exists
-                .addField(month("ts"))); // conflicts with hour
+    Assertions.assertThatThrownBy(
+            () ->
+                new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
+                    .addField(hour("ts")) // does not conflict with day because day already exists
+                    .addField(month("ts"))) // conflicts with hour
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot add redundant partition");
   }
 
   @Test
@@ -532,106 +527,99 @@ public class TestUpdatePartitionSpec extends TableTestBase {
 
   @Test
   public void testAddDuplicateByName() {
-    AssertHelpers.assertThrows(
-        "Should fail adding a duplicate field",
-        IllegalArgumentException.class,
-        "Cannot add duplicate partition field",
-        () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED).addField("category"));
+    Assertions.assertThatThrownBy(
+            () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED).addField("category"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot add duplicate partition field");
   }
 
   @Test
   public void testAddDuplicateByRef() {
-    AssertHelpers.assertThrows(
-        "Should fail adding a duplicate field",
-        IllegalArgumentException.class,
-        "Cannot add duplicate partition field",
-        () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED).addField(ref("category")));
+    Assertions.assertThatThrownBy(
+            () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED).addField(ref("category")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot add duplicate partition field");
   }
 
   @Test
   public void testAddDuplicateTransform() {
-    AssertHelpers.assertThrows(
-        "Should fail adding a duplicate field",
-        IllegalArgumentException.class,
-        "Cannot add duplicate partition field",
-        () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED).addField(bucket("id", 16)));
+    Assertions.assertThatThrownBy(
+            () ->
+                new BaseUpdatePartitionSpec(formatVersion, PARTITIONED).addField(bucket("id", 16)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot add duplicate partition field");
   }
 
   @Test
   public void testAddNamedDuplicate() {
-    AssertHelpers.assertThrows(
-        "Should fail adding a duplicate field",
-        IllegalArgumentException.class,
-        "Cannot add duplicate partition field",
-        () ->
-            new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
-                .addField("b16", bucket("id", 16)));
+    Assertions.assertThatThrownBy(
+            () ->
+                new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
+                    .addField("b16", bucket("id", 16)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot add duplicate partition field");
   }
 
   @Test
   public void testRemoveUnknownFieldByName() {
-    AssertHelpers.assertThrows(
-        "Should fail trying to remove unknown field",
-        IllegalArgumentException.class,
-        "Cannot find partition field to remove",
-        () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED).removeField("moon"));
+    Assertions.assertThatThrownBy(
+            () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED).removeField("moon"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot find partition field to remove");
   }
 
   @Test
   public void testRemoveUnknownFieldByEquivalent() {
-    AssertHelpers.assertThrows(
-        "Should fail trying to remove unknown field",
-        IllegalArgumentException.class,
-        "Cannot find partition field to remove",
-        () ->
-            new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
-                .removeField(hour("ts")) // day(ts) exists
-        );
+    Assertions.assertThatThrownBy(
+            () ->
+                new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
+                    .removeField(hour("ts")) // day(ts) exists
+            )
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot find partition field to remove");
   }
 
   @Test
   public void testRenameUnknownField() {
-    AssertHelpers.assertThrows(
-        "Should fail trying to rename an unknown field",
-        IllegalArgumentException.class,
-        "Cannot find partition field to rename",
-        () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED).renameField("shake", "seal"));
+    Assertions.assertThatThrownBy(
+            () ->
+                new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
+                    .renameField("shake", "seal"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot find partition field to rename: shake");
   }
 
   @Test
   public void testRenameAfterAdd() {
-    AssertHelpers.assertThrows(
-        "Should fail trying to rename an added field",
-        IllegalArgumentException.class,
-        "Cannot rename newly added partition field",
-        () ->
-            new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
-                .addField("data_trunc", truncate("data", 4))
-                .renameField("data_trunc", "prefix"));
+    Assertions.assertThatThrownBy(
+            () ->
+                new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
+                    .addField("data_trunc", truncate("data", 4))
+                    .renameField("data_trunc", "prefix"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot rename newly added partition field: data_trunc");
   }
 
   @Test
   public void testDeleteAndRename() {
-    AssertHelpers.assertThrows(
-        "Should fail trying to rename a deleted field",
-        IllegalArgumentException.class,
-        "Cannot rename and delete partition field",
-        () ->
-            new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
-                .renameField("shard", "id_bucket")
-                .removeField(bucket("id", 16)));
+    Assertions.assertThatThrownBy(
+            () ->
+                new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
+                    .renameField("shard", "id_bucket")
+                    .removeField(bucket("id", 16)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot rename and delete partition field: shard");
   }
 
   @Test
   public void testRenameAndDelete() {
-    AssertHelpers.assertThrows(
-        "Should fail trying to delete a renamed field",
-        IllegalArgumentException.class,
-        "Cannot delete and rename partition field",
-        () ->
-            new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
-                .removeField(bucket("id", 16))
-                .renameField("shard", "id_bucket"));
+    Assertions.assertThatThrownBy(
+            () ->
+                new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
+                    .removeField(bucket("id", 16))
+                    .renameField("shard", "id_bucket"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot delete and rename partition field: shard");
   }
 
   @Test

@@ -29,6 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.util.JsonUtil;
+import org.apache.iceberg.view.ViewVersionParser;
 
 public class MetadataUpdateParser {
 
@@ -54,6 +55,8 @@ public class MetadataUpdateParser {
   static final String SET_LOCATION = "set-location";
   static final String SET_STATISTICS = "set-statistics";
   static final String REMOVE_STATISTICS = "remove-statistics";
+  static final String ADD_VIEW_VERSION = "add-view-version";
+  static final String SET_CURRENT_VIEW_VERSION = "set-current-view-version";
 
   // AssignUUID
   private static final String UUID = "uuid";
@@ -112,6 +115,12 @@ public class MetadataUpdateParser {
   // SetLocation
   private static final String LOCATION = "location";
 
+  // AddViewVersion
+  private static final String VIEW_VERSION = "view-version";
+
+  // SetCurrentViewVersion
+  private static final String VIEW_VERSION_ID = "view-version-id";
+
   private static final Map<Class<? extends MetadataUpdate>, String> ACTIONS =
       ImmutableMap.<Class<? extends MetadataUpdate>, String>builder()
           .put(MetadataUpdate.AssignUUID.class, ASSIGN_UUID)
@@ -131,6 +140,8 @@ public class MetadataUpdateParser {
           .put(MetadataUpdate.SetProperties.class, SET_PROPERTIES)
           .put(MetadataUpdate.RemoveProperties.class, REMOVE_PROPERTIES)
           .put(MetadataUpdate.SetLocation.class, SET_LOCATION)
+          .put(MetadataUpdate.AddViewVersion.class, ADD_VIEW_VERSION)
+          .put(MetadataUpdate.SetCurrentViewVersion.class, SET_CURRENT_VIEW_VERSION)
           .buildOrThrow();
 
   public static String toJson(MetadataUpdate metadataUpdate) {
@@ -208,6 +219,13 @@ public class MetadataUpdateParser {
       case SET_LOCATION:
         writeSetLocation((MetadataUpdate.SetLocation) metadataUpdate, generator);
         break;
+      case ADD_VIEW_VERSION:
+        writeAddViewVersion((MetadataUpdate.AddViewVersion) metadataUpdate, generator);
+        break;
+      case SET_CURRENT_VIEW_VERSION:
+        writeSetCurrentViewVersionId(
+            (MetadataUpdate.SetCurrentViewVersion) metadataUpdate, generator);
+        break;
       default:
         throw new IllegalArgumentException(
             String.format(
@@ -271,6 +289,10 @@ public class MetadataUpdateParser {
         return readRemoveProperties(jsonNode);
       case SET_LOCATION:
         return readSetLocation(jsonNode);
+      case ADD_VIEW_VERSION:
+        return readAddViewVersion(jsonNode);
+      case SET_CURRENT_VIEW_VERSION:
+        return readCurrentViewVersionId(jsonNode);
       default:
         throw new UnsupportedOperationException(
             String.format("Cannot convert metadata update action to json: %s", action));
@@ -382,6 +404,17 @@ public class MetadataUpdateParser {
   private static void writeSetLocation(MetadataUpdate.SetLocation update, JsonGenerator gen)
       throws IOException {
     gen.writeStringField(LOCATION, update.location());
+  }
+
+  private static void writeAddViewVersion(
+      MetadataUpdate.AddViewVersion metadataUpdate, JsonGenerator gen) throws IOException {
+    gen.writeFieldName(VIEW_VERSION);
+    ViewVersionParser.toJson(metadataUpdate.viewVersion(), gen);
+  }
+
+  private static void writeSetCurrentViewVersionId(
+      MetadataUpdate.SetCurrentViewVersion metadataUpdate, JsonGenerator gen) throws IOException {
+    gen.writeNumberField(VIEW_VERSION_ID, metadataUpdate.versionId());
   }
 
   private static MetadataUpdate readAssignUUID(JsonNode node) {
@@ -511,5 +544,14 @@ public class MetadataUpdateParser {
   private static MetadataUpdate readSetLocation(JsonNode node) {
     String location = JsonUtil.getString(LOCATION, node);
     return new MetadataUpdate.SetLocation(location);
+  }
+
+  private static MetadataUpdate readAddViewVersion(JsonNode node) {
+    return new MetadataUpdate.AddViewVersion(
+        ViewVersionParser.fromJson(JsonUtil.get(VIEW_VERSION, node)));
+  }
+
+  private static MetadataUpdate readCurrentViewVersionId(JsonNode node) {
+    return new MetadataUpdate.SetCurrentViewVersion(JsonUtil.getInt(VIEW_VERSION_ID, node));
   }
 }

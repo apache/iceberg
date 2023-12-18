@@ -100,6 +100,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private final Map<String, String> extraSnapshotMetadata;
   private final boolean partitionedFanoutEnabled;
   private final SparkWriteRequirements writeRequirements;
+  private final Map<String, String> writeProperties;
 
   private boolean cleanupOnAbort = true;
 
@@ -128,6 +129,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     this.partitionedFanoutEnabled = writeConf.fanoutWriterEnabled();
     this.writeRequirements = writeRequirements;
     this.outputSpecId = writeConf.outputSpecId();
+    this.writeProperties = writeConf.writeProperties();
   }
 
   @Override
@@ -186,7 +188,8 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         targetFileSize,
         writeSchema,
         dsSchema,
-        partitionedFanoutEnabled);
+        partitionedFanoutEnabled,
+        writeProperties);
   }
 
   private void commitOperation(SnapshotUpdate<?> operation, String description) {
@@ -255,6 +258,11 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     @Override
     public DataWriterFactory createBatchWriterFactory(PhysicalWriteInfo info) {
       return createWriterFactory();
+    }
+
+    @Override
+    public boolean useCommitCoordinator() {
+      return false;
     }
 
     @Override
@@ -616,6 +624,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     private final StructType dsSchema;
     private final boolean partitionedFanoutEnabled;
     private final String queryId;
+    private final Map<String, String> writeProperties;
 
     protected WriterFactory(
         Broadcast<Table> tableBroadcast,
@@ -625,7 +634,8 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         long targetFileSize,
         Schema writeSchema,
         StructType dsSchema,
-        boolean partitionedFanoutEnabled) {
+        boolean partitionedFanoutEnabled,
+        Map<String, String> writeProperties) {
       this.tableBroadcast = tableBroadcast;
       this.format = format;
       this.outputSpecId = outputSpecId;
@@ -634,6 +644,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       this.dsSchema = dsSchema;
       this.partitionedFanoutEnabled = partitionedFanoutEnabled;
       this.queryId = queryId;
+      this.writeProperties = writeProperties;
     }
 
     @Override
@@ -657,6 +668,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
               .dataFileFormat(format)
               .dataSchema(writeSchema)
               .dataSparkType(dsSchema)
+              .writeProperties(writeProperties)
               .build();
 
       if (spec.isUnpartitioned()) {

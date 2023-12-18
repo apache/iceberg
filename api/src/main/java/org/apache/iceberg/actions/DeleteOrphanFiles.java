@@ -24,7 +24,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.immutables.value.Value;
 
 /**
  * An action that deletes orphan metadata, data and delete files in a table.
@@ -32,7 +31,6 @@ import org.immutables.value.Value;
  * <p>A file is considered orphan if it is not reachable by any valid snapshot. The set of actual
  * files is built by listing the underlying storage which makes this operation expensive.
  */
-@Value.Enclosing
 public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrphanFiles.Result> {
   /**
    * Passes a location which should be scanned for orphan files.
@@ -141,7 +139,6 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
   }
 
   /** The action result that contains a summary of the execution. */
-  @Value.Immutable
   interface Result {
     /** Returns locations of orphan files. */
     Iterable<String> orphanFileLocations();

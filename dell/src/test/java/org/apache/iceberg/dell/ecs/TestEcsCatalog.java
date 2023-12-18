@@ -41,21 +41,21 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
-import org.junit.After;
 import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 public class TestEcsCatalog {
 
   static final Schema SCHEMA = new Schema(required(1, "id", Types.IntegerType.get()));
 
-  @Rule public EcsS3MockRule rule = EcsS3MockRule.create();
+  @RegisterExtension public EcsS3MockRule rule = EcsS3MockRule.create();
 
   private EcsCatalog ecsCatalog;
 
-  @Before
+  @BeforeEach
   public void before() {
     ecsCatalog = new EcsCatalog();
     Map<String, String> properties = Maps.newHashMap();
@@ -64,7 +64,7 @@ public class TestEcsCatalog {
     ecsCatalog.initialize("test", properties);
   }
 
-  @After
+  @AfterEach
   public void after() throws IOException {
     ecsCatalog.close();
   }

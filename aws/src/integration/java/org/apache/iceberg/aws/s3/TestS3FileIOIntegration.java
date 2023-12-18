@@ -33,11 +33,10 @@ import java.util.Random;
 import java.util.UUID;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
-import org.apache.commons.lang3.SerializationUtils;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.AwsIntegTestUtil;
-import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -354,8 +353,8 @@ public class TestS3FileIOIntegration {
   public void testClientFactorySerialization() throws Exception {
     S3FileIO fileIO = new S3FileIO(clientFactory::s3);
     write(fileIO);
-    byte[] data = SerializationUtils.serialize(fileIO);
-    S3FileIO fileIO2 = SerializationUtils.deserialize(data);
+    byte[] data = TestHelpers.serialize(fileIO);
+    S3FileIO fileIO2 = TestHelpers.deserialize(data);
     validateRead(fileIO2);
   }
 
@@ -377,7 +376,7 @@ public class TestS3FileIOIntegration {
 
   @Test
   public void testDeleteFilesMultipleBatchesWithCrossRegionAccessPoints() throws Exception {
-    clientFactory.initialize(ImmutableMap.of(AwsProperties.S3_USE_ARN_REGION_ENABLED, "true"));
+    clientFactory.initialize(ImmutableMap.of(S3FileIOProperties.USE_ARN_REGION_ENABLED, "true"));
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, getDeletionTestProperties());
     s3FileIO.initialize(
         ImmutableMap.of(

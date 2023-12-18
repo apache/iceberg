@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.expressions.Bound;
 import org.apache.iceberg.expressions.BoundPredicate;
+import org.apache.iceberg.expressions.BoundReference;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.Literal;
@@ -270,7 +271,8 @@ class ExpressionToSearchArgument
 
   @Override
   public <T> Action predicate(BoundPredicate<T> pred) {
-    if (UNSUPPORTED_TYPES.contains(pred.ref().type().typeId())) {
+    if (UNSUPPORTED_TYPES.contains(pred.ref().type().typeId())
+        || !(pred.term() instanceof BoundReference)) {
       // Cannot push down predicates for types which cannot be represented in PredicateLeaf.Type, so
       // return
       // TruthValue.YES_NO_NULL which signifies that this predicate cannot help with filtering

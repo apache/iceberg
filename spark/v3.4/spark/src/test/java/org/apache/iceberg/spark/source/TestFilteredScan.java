@@ -19,6 +19,8 @@
 package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.Files.localOutput;
+import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
+import static org.apache.iceberg.PlanningMode.LOCAL;
 import static org.apache.spark.sql.catalyst.util.DateTimeUtils.fromJavaTimestamp;
 import static org.apache.spark.sql.functions.callUDF;
 import static org.apache.spark.sql.functions.column;
@@ -27,6 +29,7 @@ import java.io.File;
 import java.io.IOException;
 import java.sql.Timestamp;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Function;
@@ -36,8 +39,10 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
@@ -56,10 +61,11 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.api.java.UDF1;
 import org.apache.spark.sql.catalyst.expressions.UnsafeRow;
+import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.InputPartition;
 import org.apache.spark.sql.connector.read.ScanBuilder;
-import org.apache.spark.sql.connector.read.SupportsPushDownFilters;
+import org.apache.spark.sql.connector.read.SupportsPushDownV2Filters;
 import org.apache.spark.sql.sources.And;
 import org.apache.spark.sql.sources.EqualTo;
 import org.apache.spark.sql.sources.Filter;
@@ -149,21 +155,23 @@ public class TestFilteredScan {
 
   private final String format;
   private final boolean vectorized;
+  private final PlanningMode planningMode;
 
-  @Parameterized.Parameters(name = "format = {0}, vectorized = {1}")
+  @Parameterized.Parameters(name = "format = {0}, vectorized = {1}, planningMode = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
-      {"parquet", false},
-      {"parquet", true},
-      {"avro", false},
-      {"orc", false},
-      {"orc", true}
+      {"parquet", false, LOCAL},
+      {"parquet", true, DISTRIBUTED},
+      {"avro", false, LOCAL},
+      {"orc", false, DISTRIBUTED},
+      {"orc", true, LOCAL}
     };
   }
 
-  public TestFilteredScan(String format, boolean vectorized) {
+  public TestFilteredScan(String format, boolean vectorized, PlanningMode planningMode) {
     this.format = format;
     this.vectorized = vectorized;
+    this.planningMode = planningMode;
   }
 
   private File parent = null;
@@ -177,7 +185,16 @@ public class TestFilteredScan {
     File dataFolder = new File(unpartitioned, "data");
     Assert.assertTrue("Mkdir should succeed", dataFolder.mkdirs());
 
-    Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), unpartitioned.toString());
+    Table table =
+        TABLES.create(
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            ImmutableMap.of(
+                TableProperties.DATA_PLANNING_MODE,
+                planningMode.modeName(),
+                TableProperties.DELETE_PLANNING_MODE,
+                planningMode.modeName()),
+            unpartitioned.toString());
     Schema tableSchema = table.schema(); // use the table schema because ids are reassigned
 
     FileFormat fileFormat = FileFormat.fromString(format);
@@ -601,9 +618,9 @@ public class TestFilteredScan {
   }
 
   private void pushFilters(ScanBuilder scan, Filter... filters) {
-    Assertions.assertThat(scan).isInstanceOf(SupportsPushDownFilters.class);
-    SupportsPushDownFilters filterable = (SupportsPushDownFilters) scan;
-    filterable.pushFilters(filters);
+    Assertions.assertThat(scan).isInstanceOf(SupportsPushDownV2Filters.class);
+    SupportsPushDownV2Filters filterable = (SupportsPushDownV2Filters) scan;
+    filterable.pushPredicates(Arrays.stream(filters).map(Filter::toV2).toArray(Predicate[]::new));
   }
 
   private Table buildPartitionedTable(

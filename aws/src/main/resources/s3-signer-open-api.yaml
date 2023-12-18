@@ -121,6 +121,10 @@ components:
           type: object
           additionalProperties:
             type: string
+        body:
+          type: string
+          description: Optional body of the S3 request to send to the signing API. This should only be populated
+            for S3 requests which do not have the relevant data in the URI itself (e.g. DeleteObjects requests)
 
 
   #############################

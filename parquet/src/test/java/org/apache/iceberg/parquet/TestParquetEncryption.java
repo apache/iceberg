@@ -22,11 +22,13 @@ import static org.apache.iceberg.Files.localInput;
 import static org.apache.iceberg.Files.localOutput;
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.createTempFile;
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.util.List;
 import org.apache.avro.generic.GenericData;
@@ -38,11 +40,9 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.parquet.crypto.ParquetCryptoRuntimeException;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestParquetEncryption {
 
@@ -53,9 +53,9 @@ public class TestParquetEncryption {
   private static File file;
   private static final Schema schema = new Schema(optional(1, columnName, IntegerType.get()));
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
-  @Before
+  @BeforeEach
   public void writeEncryptedFile() throws IOException {
     List<GenericData.Record> records = Lists.newArrayListWithCapacity(recordCount);
     org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
@@ -120,7 +120,7 @@ public class TestParquetEncryption {
             .iterator()) {
       for (int i = 1; i <= recordCount; i++) {
         GenericData.Record readRecord = (GenericData.Record) readRecords.next();
-        Assert.assertEquals(i, readRecord.get(columnName));
+        assertThat(readRecord.get(columnName)).isEqualTo(i);
       }
     }
   }

@@ -23,8 +23,7 @@ import static com.aliyun.oss.internal.OSSUtils.OSS_RESOURCE_MANAGER;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestOSSURI {
   @Test
@@ -32,9 +31,9 @@ public class TestOSSURI {
     String location = "oss://bucket/path/to/file";
     OSSURI uri = new OSSURI(location);
 
-    Assert.assertEquals("bucket", uri.bucket());
-    Assert.assertEquals("path/to/file", uri.key());
-    Assert.assertEquals(location, uri.toString());
+    Assertions.assertThat(uri.bucket()).isEqualTo("bucket");
+    Assertions.assertThat(uri.key()).isEqualTo("path/to/file");
+    Assertions.assertThat(uri.toString()).isEqualTo(location);
   }
 
   @Test
@@ -42,9 +41,9 @@ public class TestOSSURI {
     String location = "oss://bucket/path%20to%20file";
     OSSURI uri = new OSSURI(location);
 
-    Assert.assertEquals("bucket", uri.bucket());
-    Assert.assertEquals("path%20to%20file", uri.key());
-    Assert.assertEquals(location, uri.toString());
+    Assertions.assertThat(uri.bucket()).isEqualTo("bucket");
+    Assertions.assertThat(uri.key()).isEqualTo("path%20to%20file");
+    Assertions.assertThat(uri.toString()).isEqualTo(location);
   }
 
   @Test
@@ -93,9 +92,9 @@ public class TestOSSURI {
     String location = "oss://bucket/path/to/file#print";
     OSSURI uri = new OSSURI(location);
 
-    Assert.assertEquals("bucket", uri.bucket());
-    Assert.assertEquals("path/to/file", uri.key());
-    Assert.assertEquals(location, uri.toString());
+    Assertions.assertThat(uri.bucket()).isEqualTo("bucket");
+    Assertions.assertThat(uri.key()).isEqualTo("path/to/file");
+    Assertions.assertThat(uri.toString()).isEqualTo(location);
   }
 
   @Test
@@ -103,17 +102,17 @@ public class TestOSSURI {
     String location = "oss://bucket/path/to/file?query=foo#bar";
     OSSURI uri = new OSSURI(location);
 
-    Assert.assertEquals("bucket", uri.bucket());
-    Assert.assertEquals("path/to/file", uri.key());
-    Assert.assertEquals(location, uri.toString());
+    Assertions.assertThat(uri.bucket()).isEqualTo("bucket");
+    Assertions.assertThat(uri.key()).isEqualTo("path/to/file");
+    Assertions.assertThat(uri.toString()).isEqualTo(location);
   }
 
   @Test
   public void testValidSchemes() {
     for (String scheme : Lists.newArrayList("https", "oss")) {
       OSSURI uri = new OSSURI(scheme + "://bucket/path/to/file");
-      Assert.assertEquals("bucket", uri.bucket());
-      Assert.assertEquals("path/to/file", uri.key());
+      Assertions.assertThat(uri.bucket()).isEqualTo("bucket");
+      Assertions.assertThat(uri.key()).isEqualTo("path/to/file");
     }
   }
 }

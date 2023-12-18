@@ -120,6 +120,17 @@ SELECT * FROM prod.db.table TIMESTAMP AS OF 499162860;
 SELECT * FROM prod.db.table FOR SYSTEM_TIME AS OF 499162860;
 ```
 
+The branch or tag may also be specified using a similar syntax to metadata tables, with `branch_<branchname>` or `tag_<tagname>`:
+
+```sql
+SELECT * FROM prod.db.table.`branch_audit-branch`;
+SELECT * FROM prod.db.table.`tag_historical-snapshot`;
+```
+
+(Identifiers with "-" are not valid, and so must be escaped using back quotes.)
+
+Note that the identifier with branch or tag may not be used in combination with `VERSION AS OF`.
+
 #### DataFrame
 
 To select a specific table snapshot or the snapshot at some time in the DataFrame API, Iceberg supports four Spark read options:
@@ -176,7 +187,7 @@ To read appended data incrementally, use:
 
 ```scala
 // get the data added after start-snapshot-id (10963874102873L) until end-snapshot-id (63874143573109L)
-spark.read()
+spark.read
   .format("iceberg")
   .option("start-snapshot-id", "10963874102873")
   .option("end-snapshot-id", "63874143573109")
@@ -194,10 +205,6 @@ Incremental read is not supported by Spark's SQL syntax.
 To inspect a table's history, snapshots, and other metadata, Iceberg supports metadata tables.
 
 Metadata tables are identified by adding the metadata table name after the original table name. For example, history for `db.table` is read using `db.table.history`.
-
-{{< hint info >}}
-For Spark 3, prior to 3.2, the Spark [session catalog](../spark-configuration#replacing-the-session-catalog) does not support table names with multipart identifiers such as `catalog.database.table.metadata`. As a workaround, configure an `org.apache.iceberg.spark.SparkCatalog`, or use the Spark `DataFrameReader` API.
-{{< /hint >}}
 
 ### History
 
@@ -258,7 +265,7 @@ select
 from prod.db.table.history h
 join prod.db.table.snapshots s
   on h.snapshot_id = s.snapshot_id
-order by made_current_at
+order by made_current_at;
 ```
 
 | made_current_at | operation | snapshot_id | is_current_ancestor | summary[spark.app.id] |
@@ -268,19 +275,43 @@ order by made_current_at
 | 2019-02-09 16:32:47.336 | append    | 57897183625154 | true                | application_1520379288616_155055 |
 | 2019-02-08 03:47:55.948 | overwrite | 51792995261850 | true                | application_1520379288616_152431 |
 
+### Entries
+
+To show all the table's current manifest entries for both data and delete files.
+
+```sql
+SELECT * FROM prod.db.table.entries;
+```
+
+| status | snapshot_id | sequence_number | file_sequence_number | data_file | readable_metrics |
+| -- | -- | -- | -- | -- | -- |
+| 2 | 57897183625154 | 0 | 0 | {"content":0,"file_path":"s3:/.../table/data/00047-25-833044d0-127b-415c-b874-038a4f978c29-00612.parquet","file_format":"PARQUET","spec_id":0,"record_count":15,"file_size_in_bytes":473,"column_sizes":{1:103},"value_counts":{1:15},"null_value_counts":{1:0},"nan_value_counts":{},"lower_bounds":{1:},"upper_bounds":{1:},"key_metadata":null,"split_offsets":[4],"equality_ids":null,"sort_order_id":0} | {"c1":{"column_size":103,"value_count":15,"null_value_count":0,"nan_value_count":null,"lower_bound":1,"upper_bound":3}} |
+
 ### Files
 
-To show a table's current data files:
+To show a table's current files:
 
 ```sql
 SELECT * FROM prod.db.table.files;
 ```
 
-|content|file_path                                                                                                                                   |file_format|spec_id|partition|record_count|file_size_in_bytes|column_sizes      |value_counts    |null_value_counts|nan_value_counts|lower_bounds           |upper_bounds           |key_metadata|split_offsets|equality_ids|sort_order_id|
+| content | file_path | file_format | spec_id | record_count | file_size_in_bytes | column_sizes | value_counts | null_value_counts | nan_value_counts | lower_bounds | upper_bounds | key_metadata | split_offsets | equality_ids | sort_order_id | readable_metrics |
 | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |
-| 0 | s3:/.../table/data/00000-3-8d6d60e8-d427-4809-bcf0-f5d45a4aad96.parquet | PARQUET   | 0  | {1999-01-01, 01} | 1            | 597                | [1 -> 90, 2 -> 62] | [1 -> 1, 2 -> 1] | [1 -> 0, 2 -> 0]  | []               | [1 -> , 2 -> c] | [1 -> , 2 -> c] | null         | [4]           | null | null |
-| 0 | s3:/.../table/data/00001-4-8d6d60e8-d427-4809-bcf0-f5d45a4aad96.parquet | PARQUET   | 0  | {1999-01-01, 02} | 1            | 597                | [1 -> 90, 2 -> 62] | [1 -> 1, 2 -> 1] | [1 -> 0, 2 -> 0]  | []               | [1 -> , 2 -> b] | [1 -> , 2 -> b] | null         | [4]           | null | null |
-| 0 | s3:/.../table/data/00002-5-8d6d60e8-d427-4809-bcf0-f5d45a4aad96.parquet | PARQUET   | 0  | {1999-01-01, 03} | 1            | 597                | [1 -> 90, 2 -> 62] | [1 -> 1, 2 -> 1] | [1 -> 0, 2 -> 0]  | []               | [1 -> , 2 -> a] | [1 -> , 2 -> a] | null         | [4]           | null | null |
+| 0 | s3:/.../table/data/00042-3-a9aa8b24-20bc-4d56-93b0-6b7675782bb5-00001.parquet | PARQUET | 0 | 1 | 652 | {1:52,2:48} | {1:1,2:1} | {1:0,2:0} | {} | {1:,2:d} | {1:,2:d} | NULL | [4] | NULL | 0 | {"data":{"column_size":48,"value_count":1,"null_value_count":0,"nan_value_count":null,"lower_bound":"d","upper_bound":"d"},"id":{"column_size":52,"value_count":1,"null_value_count":0,"nan_value_count":null,"lower_bound":1,"upper_bound":1}} |
+| 0 | s3:/.../table/data/00000-0-f9709213-22ca-4196-8733-5cb15d2afeb9-00001.parquet | PARQUET | 0 | 1 | 643 | {1:46,2:48} | {1:1,2:1} | {1:0,2:0} | {} | {1:,2:a} | {1:,2:a} | NULL | [4] | NULL | 0 | {"data":{"column_size":48,"value_count":1,"null_value_count":0,"nan_value_count":null,"lower_bound":"a","upper_bound":"a"},"id":{"column_size":46,"value_count":1,"null_value_count":0,"nan_value_count":null,"lower_bound":1,"upper_bound":1}} | 
+| 0 | s3:/.../table/data/00001-1-f9709213-22ca-4196-8733-5cb15d2afeb9-00001.parquet | PARQUET | 0 | 2 | 644 | {1:49,2:51} | {1:2,2:2} | {1:0,2:0} | {} | {1:,2:b} | {1:,2:c} | NULL | [4] | NULL | 0 | {"data":{"column_size":51,"value_count":2,"null_value_count":0,"nan_value_count":null,"lower_bound":"b","upper_bound":"c"},"id":{"column_size":49,"value_count":2,"null_value_count":0,"nan_value_count":null,"lower_bound":2,"upper_bound":3}} |
+| 1 | s3:/.../table/data/00081-4-a9aa8b24-20bc-4d56-93b0-6b7675782bb5-00001-deletes.parquet | PARQUET | 0 | 1 | 1560 | {2147483545:46,2147483546:152} | {2147483545:1,2147483546:1} | {2147483545:0,2147483546:0} | {} | {2147483545:,2147483546:s3:/.../table/data/00000-0-f9709213-22ca-4196-8733-5cb15d2afeb9-00001.parquet} | {2147483545:,2147483546:s3:/.../table/data/00000-0-f9709213-22ca-4196-8733-5cb15d2afeb9-00001.parquet} | NULL | [4] | NULL | NULL | {"data":{"column_size":null,"value_count":null,"null_value_count":null,"nan_value_count":null,"lower_bound":null,"upper_bound":null},"id":{"column_size":null,"value_count":null,"null_value_count":null,"nan_value_count":null,"lower_bound":null,"upper_bound":null}} |
+| 2 | s3:/.../table/data/00047-25-833044d0-127b-415c-b874-038a4f978c29-00612.parquet | PARQUET | 0 | 126506 | 28613985 | {100:135377,101:11314} | {100:126506,101:126506} | {100:105434,101:11} | {} | {100:0,101:17} | {100:404455227527,101:23} | NULL | NULL | [1] | 0 | {"id":{"column_size":135377,"value_count":126506,"null_value_count":105434,"nan_value_count":null,"lower_bound":0,"upper_bound":404455227527},"data":{"column_size":11314,"value_count":126506,"null_value_count": 11,"nan_value_count":null,"lower_bound":17,"upper_bound":23}} |
+
+{{< hint info >}}
+Content refers to type of content stored by the data file:
+  0  Data
+  1  Position Deletes
+  2  Equality Deletes
+{{< /hint >}}
+
+To show only data files or delete files, query `prod.db.table.data_files` and `prod.db.table.delete_files` respectively.
+To show all files, data files and delete files across all tracked snapshots, query `prod.db.table.all_files`, `prod.db.table.all_data_files` and `prod.db.table.all_delete_files` respectively.
 
 ### Manifests
 
@@ -311,17 +342,29 @@ To show a table's current partitions:
 SELECT * FROM prod.db.table.partitions;
 ```
 
-| partition | record_count | file_count | spec_id |
-| -- | -- | -- | -- |
-|  {20211001, 11}|           1|         1|         0|
-|  {20211002, 11}|           1|         1|         0|
-|  {20211001, 10}|           1|         1|         0|
-|  {20211002, 10}|           1|         1|         0|
+| partition      | spec_id | record_count  | file_count | total_data_file_size_in_bytes | position_delete_record_count | position_delete_file_count | equality_delete_record_count | equality_delete_file_count | last_updated_at(μs) | last_updated_snapshot_id |
+| -------------- |---------|---------------|------------|--------------------------|------------------------------|----------------------------|------------------------------|----------------------------|---------------------|--------------------------|
+| {20211001, 11} | 0       | 1             | 1          | 100                      | 2                            | 1                          | 0                            | 0                          | 1633086034192000    | 9205185327307503337      |
+| {20211002, 11} | 0       | 4             | 3          | 500                      | 1                            | 1                          | 0                            | 0                          | 1633172537358000    | 867027598972211003       |
+| {20211001, 10} | 0       | 7             | 4          | 700                      | 0                            | 0                          | 0                            | 0                          | 1633082598716000    | 3280122546965981531      |
+| {20211002, 10} | 0       | 3             | 2          | 400                      | 0                            | 0                          | 1                            | 1                          | 1633169159489000    | 6941468797545315876      |
 
 Note:
-1. For unpartitioned tables, the partitions table will contain only the record_count and file_count columns.
+1. For unpartitioned tables, the partitions table will not contain the partition and spec_id fields.
 
 2. The partitions metadata table shows partitions with data files or delete files in the current snapshot. However, delete files are not applied, and so in some cases partitions may be shown even though all their data rows are marked deleted by delete files.
+
+### Positional Delete Files
+
+To show all positional delete files from the current snapshot of table:
+
+```sql
+SELECT * from prod.db.table.position_deletes;
+```
+
+| file_path | pos | row | spec_id | delete_file_path |
+| -- | -- | -- | -- | -- |
+| s3:/.../table/data/00042-3-a9aa8b24-20bc-4d56-93b0-6b7675782bb5-00001.parquet | 1 | 0 | 0 | s3:/.../table/data/00191-1933-25e9f2f3-d863-4a69-a5e1-f9aeeebe60bb-00001-deletes.parquet |
 
 ### All Metadata Tables
 
@@ -344,6 +387,31 @@ SELECT * FROM prod.db.table.all_data_files;
 |      0|s3://.../dt=20210102/00000-0-756e2512-49ae-45bb-aae3-c0ca475e7879-00001.parquet|    PARQUET|{20210102}|          14|              2444|{1 -> 94, 2 -> 17}|{1 -> 14, 2 -> 14}|  {1 -> 0, 2 -> 0}|              {}|{1 -> 1, 2 -> 20210102}|{1 -> 2, 2 -> 20210102}|        null|          [4]|        null|            0|
 |      0|s3://.../dt=20210103/00000-0-26222098-032f-472b-8ea5-651a55b21210-00001.parquet|    PARQUET|{20210103}|          14|              2444|{1 -> 94, 2 -> 17}|{1 -> 14, 2 -> 14}|  {1 -> 0, 2 -> 0}|              {}|{1 -> 1, 2 -> 20210103}|{1 -> 3, 2 -> 20210103}|        null|          [4]|        null|            0|
 |      0|s3://.../dt=20210104/00000-0-a3bb1927-88eb-4f1c-bc6e-19076b0d952e-00001.parquet|    PARQUET|{20210104}|          14|              2444|{1 -> 94, 2 -> 17}|{1 -> 14, 2 -> 14}|  {1 -> 0, 2 -> 0}|              {}|{1 -> 1, 2 -> 20210104}|{1 -> 3, 2 -> 20210104}|        null|          [4]|        null|            0|
+
+#### All Delete Files
+
+To show the table's delete files and each file's metadata from all the snapshots:
+
+```sql
+SELECT * FROM prod.db.table.all_delete_files;
+```
+
+| content | file_path | file_format | spec_id | record_count | file_size_in_bytes | column_sizes | value_counts | null_value_counts | nan_value_counts | lower_bounds | upper_bounds | key_metadata | split_offsets | equality_ids | sort_order_id | readable_metrics |
+| -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |
+| 1 | s3:/.../table/data/00081-4-a9aa8b24-20bc-4d56-93b0-6b7675782bb5-00001-deletes.parquet | PARQUET | 0 | 1 | 1560 | {2147483545:46,2147483546:152} | {2147483545:1,2147483546:1} | {2147483545:0,2147483546:0} | {} | {2147483545:,2147483546:s3:/.../table/data/00000-0-f9709213-22ca-4196-8733-5cb15d2afeb9-00001.parquet} | {2147483545:,2147483546:s3:/.../table/data/00000-0-f9709213-22ca-4196-8733-5cb15d2afeb9-00001.parquet} | NULL | [4] | NULL | NULL | {"data":{"column_size":null,"value_count":null,"null_value_count":null,"nan_value_count":null,"lower_bound":null,"upper_bound":null},"id":{"column_size":null,"value_count":null,"null_value_count":null,"nan_value_count":null,"lower_bound":null,"upper_bound":null}} |
+| 2 | s3:/.../table/data/00047-25-833044d0-127b-415c-b874-038a4f978c29-00612.parquet | PARQUET | 0 | 126506 | 28613985 | {100:135377,101:11314} | {100:126506,101:126506} | {100:105434,101:11} | {} | {100:0,101:17} | {100:404455227527,101:23} | NULL | NULL | [1] | 0 | {"id":{"column_size":135377,"value_count":126506,"null_value_count":105434,"nan_value_count":null,"lower_bound":0,"upper_bound":404455227527},"data":{"column_size":11314,"value_count":126506,"null_value_count": 11,"nan_value_count":null,"lower_bound":17,"upper_bound":23}} |
+
+#### All Entries
+
+To show the table's manifest entries from all the snapshots for both data and delete files:
+
+```sql
+SELECT * FROM prod.db.table.all_entries;
+```
+
+| status | snapshot_id | sequence_number | file_sequence_number | data_file | readable_metrics |
+| -- | -- | -- | -- | -- | -- |
+| 2 | 57897183625154 | 0 | 0 | {"content":0,"file_path":"s3:/.../table/data/00047-25-833044d0-127b-415c-b874-038a4f978c29-00612.parquet","file_format":"PARQUET","spec_id":0,"record_count":15,"file_size_in_bytes":473,"column_sizes":{1:103},"value_counts":{1:15},"null_value_counts":{1:0},"nan_value_counts":{},"lower_bounds":{1:},"upper_bounds":{1:},"key_metadata":null,"split_offsets":[4],"equality_ids":null,"sort_order_id":0} | {"c1":{"column_size":103,"value_count":15,"null_value_count":0,"nan_value_count":null,"lower_bound":1,"upper_bound":3}} |
 
 #### All Manifests
 

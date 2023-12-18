@@ -31,6 +31,7 @@ import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
+import static org.apache.iceberg.expressions.Expressions.year;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
@@ -474,6 +475,21 @@ public class TestExpressionToSearchArgument {
             .build();
 
     SearchArgument actual = ExpressionToSearchArgument.convert(boundFilter, readSchema);
+    Assertions.assertThat(actual.toString()).isEqualTo(expected.toString());
+  }
+
+  @Test
+  public void testExpressionContainsNonReferenceTerm() {
+    Schema schema = new Schema(required(1, "ts", Types.TimestampType.withoutZone()));
+
+    // all operations for these types should resolve to YES_NO_NULL
+    Expression expr = equal(year("ts"), 10);
+    Expression boundFilter = Binder.bind(schema.asStruct(), expr, true);
+    SearchArgument expected =
+        SearchArgumentFactory.newBuilder().literal(TruthValue.YES_NO_NULL).build();
+
+    SearchArgument actual =
+        ExpressionToSearchArgument.convert(boundFilter, ORCSchemaUtil.convert(schema));
     Assertions.assertThat(actual.toString()).isEqualTo(expected.toString());
   }
 }

@@ -149,7 +149,7 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
         validateDeletedDataFiles(base, startingSnapshotId, filter, parent);
       }
 
-      if (deletedDataFiles.size() > 0) {
+      if (!deletedDataFiles.isEmpty()) {
         validateNoNewDeletesForDataFiles(
             base, startingSnapshotId, conflictDetectionFilter, deletedDataFiles, parent);
       }

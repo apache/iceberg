@@ -108,6 +108,85 @@ Example:
   void sequenceNumber(long sequenceNumber);
 ```
 
+## Adding new functionality without breaking APIs
+Ideally, we'd want to add new functionality without breaking existing APIs, especially within the scope of the API modules that are being checked by [Revapi](https://revapi.org/).
+
+Let's assume we'd want to add a `createBranch(String name)` method to the `ManageSnapshots` API.
+
+The most straight-forward way would be to add the below code:
+
+```java
+public interface ManageSnapshots extends PendingUpdate<Snapshot> {
+  // existing code...
+
+  // adding this method introduces an API-breaking change
+  ManageSnapshots createBranch(String name);
+}
+```
+
+And then add the implementation:
+```java
+public class SnapshotManager implements ManageSnapshots {
+  // existing code...
+
+  @Override
+  public ManageSnapshots createBranch(String name, long snapshotId) {
+    updateSnapshotReferencesOperation().createBranch(name, snapshotId);
+    return this;
+  }
+}
+```
+
+### Checking for API breakages
+Running `./gradlew revapi` will flag this as an API-breaking change:
+```
+./gradlew revapi
+> Task :iceberg-api:revapi FAILED
+> Task :iceberg-api:showDeprecationRulesOnRevApiFailure FAILED
+
+1: Task failed with an exception.
+-----------
+* What went wrong:
+Execution failed for task ':iceberg-api:revapi'.
+> There were Java public API/ABI breaks reported by revapi:
+
+  java.method.addedToInterface: Method was added to an interface.
+
+  old: <none>
+  new: method org.apache.iceberg.ManageSnapshots org.apache.iceberg.ManageSnapshots::createBranch(java.lang.String)
+
+  SOURCE: BREAKING, BINARY: NON_BREAKING, SEMANTIC: POTENTIALLY_BREAKING
+
+  From old archive: <none>
+  From new archive: iceberg-api-1.4.0-SNAPSHOT.jar
+
+  If this is an acceptable break that will not harm your users, you can ignore it in future runs like so for:
+
+    * Just this break:
+        ./gradlew :iceberg-api:revapiAcceptBreak --justification "{why this break is ok}" \
+          --code "java.method.addedToInterface" \
+          --new "method org.apache.iceberg.ManageSnapshots org.apache.iceberg.ManageSnapshots::createBranch(java.lang.String)"
+    * All breaks in this project:
+        ./gradlew :iceberg-api:revapiAcceptAllBreaks --justification "{why this break is ok}"
+    * All breaks in all projects:
+        ./gradlew revapiAcceptAllBreaks --justification "{why this break is ok}"
+  ----------------------------------------------------------------------------------------------------
+
+```
+
+### Adding a default implementation
+In order to avoid breaking the API, we can add a default implementation that throws an `UnsupportedOperationException`:
+```java
+public interface ManageSnapshots extends PendingUpdate<Snapshot> {
+  // existing code...
+
+  // introduces new code without breaking the API
+  default ManageSnapshots createBranch(String name) {
+    throw new UnsupportedOperationException(this.getClass().getName() + " doesn't implement createBranch(String)");
+  }
+}
+```
+
 ## Style
 
 For Java styling, check out the section
