@@ -44,6 +44,7 @@ import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
@@ -505,9 +506,11 @@ public class BaseTransaction implements Transaction {
     }
   }
 
+  // committedFiles returns null whenever the set of committed files
+  // cannot be determined from the provided snapshots
   private static Set<String> committedFiles(TableOperations ops, Set<Long> snapshotIds) {
     if (snapshotIds.isEmpty()) {
-      return null;
+      return ImmutableSet.of();
     }
 
     Set<String> committedFiles = Sets.newHashSet();
