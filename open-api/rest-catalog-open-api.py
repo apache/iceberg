@@ -419,7 +419,16 @@ class AssertDefaultSortOrderId(TableRequirement):
 
 
 class ViewRequirement(BaseModel):
-    __root__: Any = Field(..., discriminator='type')
+    type: str
+
+
+class AssertViewUUID(ViewRequirement):
+    """
+    The view UUID must match the requirement's `uuid`
+    """
+
+    type: Literal['assert-view-uuid']
+    uuid: str
 
 
 class RegisterTableRequest(BaseModel):

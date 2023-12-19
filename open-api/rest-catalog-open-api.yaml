@@ -2568,26 +2568,26 @@ components:
         propertyName: type
         mapping:
           assert-view-uuid: '#/components/schemas/AssertViewUUID'
-        type: object
-        required:
-          - type
-        properties:
-          type:
-            type: "string"
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: "string"
 
-        AssertViewUUID:
-          allOf:
-            - $ref: "#/components/schemas/ViewRequirement"
-          description: The view UUID must match the requirement's `uuid`
-          required:
-            - type
-            - uuid
-          properties:
-            type:
-              type: string
-              enum: [ "assert-view-uuid" ]
-            uuid:
-              type: string
+    AssertViewUUID:
+      allOf:
+        - $ref: "#/components/schemas/ViewRequirement"
+      description: The view UUID must match the requirement's `uuid`
+      required:
+        - type
+        - uuid
+      properties:
+        type:
+          type: string
+          enum: [ "assert-view-uuid" ]
+        uuid:
+          type: string
 
     LoadTableResult:
       description: |
@@ -3251,12 +3251,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/IcebergErrorResponse'
-            example: {
-              "error": {
-                "message": "The server does not support this operation",
-                "type": "UnsupportedOperationException",
-                "code": 406
-              } }
+          example: {
+            "error": {
+              "message": "The server does not support this operation",
+              "type": "UnsupportedOperationException",
+              "code": 406
+            } }
 
     CreateNamespaceResponse:
       description:
