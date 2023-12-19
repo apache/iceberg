@@ -252,6 +252,11 @@ public class SerializableTable implements Table, Serializable {
   }
 
   @Override
+  public List<PartitionStatisticsFile> partitionStatisticsFiles() {
+    return lazyTable().partitionStatisticsFiles();
+  }
+
+  @Override
   public Map<String, SnapshotRef> refs() {
     return refs;
   }
@@ -359,6 +364,11 @@ public class SerializableTable implements Table, Serializable {
   @Override
   public UpdateStatistics updateStatistics() {
     throw new UnsupportedOperationException(errorMsg("updateStatistics"));
+  }
+
+  @Override
+  public UpdatePartitionStatistics updatePartitionStatistics() {
+    throw new UnsupportedOperationException(errorMsg("updatePartitionStatistics"));
   }
 
   @Override
