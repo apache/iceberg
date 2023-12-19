@@ -86,3 +86,7 @@ AES GCM Stream encrypts all blocks by the GCM cipher, without padding. The AES G
 The AES GCM cipher protects against byte replacement inside a ciphertext block - but, without an AAD, it can't prevent replacement of one ciphertext block with another (encrypted with the same key). AES GCM Stream leverages AADs to protect against swapping ciphertext blocks inside a file or between files. AES GCM Stream can also protect against swapping full files - for example, replacement of a metadata file with an old version. AADs are built to reflects the identity of a file and of the blocks inside the file.
 
 AES GCM Stream constructs a block AAD from two components: an AAD prefix - a string provided by Iceberg for the file (with the file ID), and an AAD suffix - the block sequence number in the file, as an int in a 4-byte little-endian form. The block AAD is a direct concatenation of the prefix and suffix parts.
+
+### File length
+
+An attacker can delete a few last blocks in an encrypted file. To detect the attack, the reader implementations of the AES GCM Stream must use the file length value taken from a trusted source (such as a signed file metadata), and not from the file system.
