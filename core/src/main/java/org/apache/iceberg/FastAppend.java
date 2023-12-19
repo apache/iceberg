@@ -179,16 +179,16 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   @Override
   protected void cleanUncommitted(Set<ManifestFile> committed) {
     if (newManifests != null) {
-      List<ManifestFile> committedNewManifests = Lists.newArrayList();
+      boolean hasDeletes = false;
       for (ManifestFile manifest : newManifests) {
-        if (committed.contains(manifest)) {
-          committedNewManifests.add(manifest);
-        } else {
+        if (!committed.contains(manifest)) {
           deleteFile(manifest.path());
+          hasDeletes = true;
         }
       }
-
-      this.newManifests = committedNewManifests;
+      if (hasDeletes) {
+        this.newManifests = null;
+      }
     }
 
     // clean up only rewrittenAppendManifests as they are always owned by the table
