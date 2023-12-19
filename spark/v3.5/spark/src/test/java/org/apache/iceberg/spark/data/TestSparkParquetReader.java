@@ -84,10 +84,10 @@ public class TestSparkParquetReader extends AvroDataTest {
             .build()) {
       Iterator<InternalRow> rows = reader.iterator();
       for (GenericData.Record record : expected) {
-        assertThat(rows.hasNext()).as("Should have expected number of rows").isTrue();
+        assertThat(rows).as("Should have expected number of rows").hasNext();
         assertEqualsUnsafe(schema.asStruct(), record, rows.next());
       }
-      assertThat(rows.hasNext()).as("Should not have extra rows").isFalse();
+      assertThat(rows).as("Should not have extra rows").isExhausted();
     }
   }
 

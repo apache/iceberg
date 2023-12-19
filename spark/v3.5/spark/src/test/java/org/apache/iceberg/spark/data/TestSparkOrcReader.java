@@ -81,10 +81,10 @@ public class TestSparkOrcReader extends AvroDataTest {
       final Iterator<InternalRow> actualRows = reader.iterator();
       final Iterator<InternalRow> expectedRows = expected.iterator();
       while (expectedRows.hasNext()) {
-        assertThat(actualRows.hasNext()).as("Should have expected number of rows").isTrue();
+        assertThat(actualRows).as("Should have expected number of rows").hasNext();
         assertEquals(schema, expectedRows.next(), actualRows.next());
       }
-      assertThat(actualRows.hasNext()).as("Should not have extra rows").isFalse();
+      assertThat(actualRows).as("Should not have extra rows").isExhausted();
     }
 
     try (CloseableIterable<ColumnarBatch> reader =
@@ -97,10 +97,10 @@ public class TestSparkOrcReader extends AvroDataTest {
       final Iterator<InternalRow> actualRows = batchesToRows(reader.iterator());
       final Iterator<InternalRow> expectedRows = expected.iterator();
       while (expectedRows.hasNext()) {
-        assertThat(actualRows.hasNext()).as("Should have expected number of rows").isTrue();
+        assertThat(actualRows).as("Should have expected number of rows").hasNext();
         assertEquals(schema, expectedRows.next(), actualRows.next());
       }
-      assertThat(actualRows.hasNext()).as("Should not have extra rows").isFalse();
+      assertThat(actualRows).as("Should not have extra rows").isExhausted();
     }
   }
 

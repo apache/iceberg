@@ -110,10 +110,10 @@ public class TestSparkParquetWriter {
       Iterator<InternalRow> expected = records.iterator();
       Iterator<InternalRow> rows = reader.iterator();
       for (int i = 0; i < numRows; i += 1) {
-        assertThat(rows.hasNext()).as("Should have expected number of rows").isTrue();
+        assertThat(rows).as("Should have expected number of rows").hasNext();
         TestHelpers.assertEquals(COMPLEX_SCHEMA, expected.next(), rows.next());
       }
-      assertThat(rows.hasNext()).as("Should not have extra rows").isFalse();
+      assertThat(rows).as("Should not have extra rows").isExhausted();
     }
   }
 }

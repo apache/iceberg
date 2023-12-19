@@ -295,11 +295,11 @@ public class TestSparkParquetReadMetadataColumns {
       final Iterator<InternalRow> actualRows = reader.iterator();
 
       for (InternalRow internalRow : expected) {
-        assertThat(actualRows.hasNext()).as("Should have expected number of rows").isTrue();
+        assertThat(actualRows).as("Should have expected number of rows").hasNext();
         TestHelpers.assertEquals(PROJECTION_SCHEMA, internalRow, actualRows.next());
       }
 
-      assertThat(actualRows.hasNext()).as("Should not have extra rows").isFalse();
+      assertThat(actualRows).as("Should not have extra rows").isExhausted();
     }
   }
 

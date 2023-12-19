@@ -130,12 +130,12 @@ public class TestSparkRecordOrcReaderWriter extends AvroDataTest {
     Iterator<Record> expectedIter = expected.iterator();
     Iterator<Record> actualIter = actual.iterator();
     for (int i = 0; i < size; i += 1) {
-      assertThat(expectedIter.hasNext()).as("Expected iterator should have more rows").isTrue();
-      assertThat(actualIter.hasNext()).as("Actual iterator should have more rows").isTrue();
+      assertThat(expectedIter).as("Expected iterator should have more rows").hasNext();
+      assertThat(actualIter).as("Actual iterator should have more rows").hasNext();
       assertThat(actualIter.next()).as("Should have same rows.").isEqualTo(expectedIter.next());
     }
-    assertThat(expectedIter.hasNext()).as("Expected iterator should not have any extra rows.").isFalse();
-    assertThat(actualIter.hasNext()).as("Actual iterator should not have any extra rows.").isFalse();
+    assertThat(expectedIter).as("Expected iterator should not have any extra rows.").isExhausted();
+    assertThat(actualIter).as("Actual iterator should not have any extra rows.").isExhausted();
   }
 
   private static void assertEqualsUnsafe(
@@ -143,11 +143,11 @@ public class TestSparkRecordOrcReaderWriter extends AvroDataTest {
     Iterator<Record> expectedIter = expected.iterator();
     Iterator<InternalRow> actualIter = actual.iterator();
     for (int i = 0; i < size; i += 1) {
-      assertThat(expectedIter.hasNext()).as("Expected iterator should have more rows").isTrue();
-      assertThat(actualIter.hasNext()).as("Actual iterator should have more rows").isTrue();
+      assertThat(expectedIter).as("Expected iterator should have more rows").hasNext();
+      assertThat(actualIter).as("Actual iterator should have more rows").hasNext();
       GenericsHelpers.assertEqualsUnsafe(struct, expectedIter.next(), actualIter.next());
     }
-    assertThat(expectedIter.hasNext()).as("Expected iterator should not have any extra rows.").isFalse();
-    assertThat(actualIter.hasNext()).as("Actual iterator should not have any extra rows.").isFalse();
+    assertThat(expectedIter).as("Expected iterator should not have any extra rows.").isExhausted();
+    assertThat(actualIter).as("Actual iterator should not have any extra rows.").isExhausted();
   }
 }
