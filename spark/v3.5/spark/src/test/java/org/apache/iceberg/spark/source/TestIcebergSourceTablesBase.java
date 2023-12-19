@@ -702,7 +702,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .load(loadLocation(tableIdentifier, "all_entries"))
             .collectAsList();
 
-    assertThat(table.snapshots().iterator().hasNext()).as("Stage table should have some snapshots").isTrue();
+    assertThat(table.snapshots().iterator()).as("Stage table should have some snapshots").hasNext();
     assertThat(table.currentSnapshot()).as("Stage table should have null currentSnapshot").isNull();
     assertThat(actualAllData).as("Actual results should have two rows").hasSize(2);
     assertThat(actualAllManifests).as("Actual results should have two rows").hasSize(2);
