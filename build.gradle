@@ -787,6 +787,7 @@ project(':iceberg-parquet') {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 
+    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
   }
 }
