@@ -74,10 +74,10 @@ public class SystemConfigs {
 
   /** @deprecated will be removed in 2.0.0; use name mapping instead */
   @Deprecated
-  public static final ConfigEntry<Boolean> NETFLIX_PARQUET_ID_FALLBACK_ENABLED =
+  public static final ConfigEntry<Boolean> NETFLIX_UNSAFE_PARQUET_ID_FALLBACK_ENABLED =
       new ConfigEntry<>(
-          "iceberg.netflix.parquet-id-fallback.enabled",
-          "ICEBERG_NETFLIX_PARQUET_ID_FALLBACK_ENABLED",
+          "iceberg.netflix.unsafe-parquet-id-fallback.enabled",
+          "ICEBERG_NETFLIX_UNSAFE_PARQUET_ID_FALLBACK_ENABLED",
           true,
           s -> {
             LOG.warn(

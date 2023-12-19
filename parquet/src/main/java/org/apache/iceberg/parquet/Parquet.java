@@ -1123,7 +1123,7 @@ public class Parquet {
         NameMapping mapping;
         if (nameMapping != null) {
           mapping = nameMapping;
-        } else if (SystemConfigs.NETFLIX_PARQUET_ID_FALLBACK_ENABLED.value()) {
+        } else if (SystemConfigs.NETFLIX_UNSAFE_PARQUET_ID_FALLBACK_ENABLED.value()) {
           mapping = null;
         } else {
           mapping = NameMapping.empty();
