@@ -17,6 +17,8 @@
  * under the License.
  */
 package org.apache.iceberg.spark.source;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -33,22 +35,20 @@ import org.apache.spark.sql.types.CharType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.DecimalType;
 import org.apache.spark.sql.types.VarcharType;
-import org.assertj.core.api.Assertions;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
 public class TestIcebergSpark {
 
   private static SparkSession spark = null;
 
-  @BeforeClass
+  @BeforeAll
   public static void startSpark() {
     TestIcebergSpark.spark = SparkSession.builder().master("local[2]").getOrCreate();
   }
 
-  @AfterClass
+  @AfterAll
   public static void stopSpark() {
     SparkSession currentSpark = TestIcebergSpark.spark;
     TestIcebergSpark.spark = null;
@@ -59,69 +59,64 @@ public class TestIcebergSpark {
   public void testRegisterIntegerBucketUDF() {
     IcebergSpark.registerBucketUDF(spark, "iceberg_bucket_int_16", DataTypes.IntegerType, 16);
     List<Row> results = spark.sql("SELECT iceberg_bucket_int_16(1)").collectAsList();
-    Assert.assertEquals(1, results.size());
-    Assert.assertEquals(
-        (int) Transforms.bucket(16).bind(Types.IntegerType.get()).apply(1),
-        results.get(0).getInt(0));
+
+    assertThat(results).hasSize(1);
+    assertThat((int) Transforms.bucket(16).bind(Types.IntegerType.get()).apply(1))
+            .isEqualTo(results.get(0).getInt(0));
   }
 
   @Test
   public void testRegisterShortBucketUDF() {
     IcebergSpark.registerBucketUDF(spark, "iceberg_bucket_short_16", DataTypes.ShortType, 16);
     List<Row> results = spark.sql("SELECT iceberg_bucket_short_16(1S)").collectAsList();
-    Assert.assertEquals(1, results.size());
-    Assert.assertEquals(
-        (int) Transforms.bucket(16).bind(Types.IntegerType.get()).apply(1),
-        results.get(0).getInt(0));
+    assertThat(results).hasSize(1);
+    assertThat((int) Transforms.bucket(16).bind(Types.IntegerType.get()).apply(1))
+            .isEqualTo(results.get(0).getInt(0));
   }
 
   @Test
   public void testRegisterByteBucketUDF() {
     IcebergSpark.registerBucketUDF(spark, "iceberg_bucket_byte_16", DataTypes.ByteType, 16);
     List<Row> results = spark.sql("SELECT iceberg_bucket_byte_16(1Y)").collectAsList();
-    Assert.assertEquals(1, results.size());
-    Assert.assertEquals(
-        (int) Transforms.bucket(16).bind(Types.IntegerType.get()).apply(1),
-        results.get(0).getInt(0));
+    assertThat(results).hasSize(1);
+    assertThat((int) Transforms.bucket(16).bind(Types.IntegerType.get()).apply(1))
+            .isEqualTo(results.get(0).getInt(0));
   }
 
   @Test
   public void testRegisterLongBucketUDF() {
     IcebergSpark.registerBucketUDF(spark, "iceberg_bucket_long_16", DataTypes.LongType, 16);
     List<Row> results = spark.sql("SELECT iceberg_bucket_long_16(1L)").collectAsList();
-    Assert.assertEquals(1, results.size());
-    Assert.assertEquals(
-        (int) Transforms.bucket(16).bind(Types.LongType.get()).apply(1L), results.get(0).getInt(0));
+    assertThat(results).hasSize(1);
+    assertThat((int) Transforms.bucket(16).bind(Types.LongType.get()).apply(1L))
+            .isEqualTo(results.get(0).getInt(0));
   }
 
   @Test
   public void testRegisterStringBucketUDF() {
     IcebergSpark.registerBucketUDF(spark, "iceberg_bucket_string_16", DataTypes.StringType, 16);
     List<Row> results = spark.sql("SELECT iceberg_bucket_string_16('hello')").collectAsList();
-    Assert.assertEquals(1, results.size());
-    Assert.assertEquals(
-        (int) Transforms.bucket(16).bind(Types.StringType.get()).apply("hello"),
-        results.get(0).getInt(0));
+    assertThat(results).hasSize(1);
+    assertThat((int) Transforms.bucket(16).bind(Types.StringType.get()).apply("hello"))
+            .isEqualTo(results.get(0).getInt(0));
   }
 
   @Test
   public void testRegisterCharBucketUDF() {
     IcebergSpark.registerBucketUDF(spark, "iceberg_bucket_char_16", new CharType(5), 16);
     List<Row> results = spark.sql("SELECT iceberg_bucket_char_16('hello')").collectAsList();
-    Assert.assertEquals(1, results.size());
-    Assert.assertEquals(
-        (int) Transforms.bucket(16).bind(Types.StringType.get()).apply("hello"),
-        results.get(0).getInt(0));
+    assertThat(results).hasSize(1);
+    assertThat((int) Transforms.bucket(16).bind(Types.StringType.get()).apply("hello"))
+            .isEqualTo(results.get(0).getInt(0));
   }
 
   @Test
   public void testRegisterVarCharBucketUDF() {
     IcebergSpark.registerBucketUDF(spark, "iceberg_bucket_varchar_16", new VarcharType(5), 16);
     List<Row> results = spark.sql("SELECT iceberg_bucket_varchar_16('hello')").collectAsList();
-    Assert.assertEquals(1, results.size());
-    Assert.assertEquals(
-        (int) Transforms.bucket(16).bind(Types.StringType.get()).apply("hello"),
-        results.get(0).getInt(0));
+    assertThat(results).hasSize(1);
+    assertThat((int) Transforms.bucket(16).bind(Types.StringType.get()).apply("hello"))
+            .isEqualTo(results.get(0).getInt(0));
   }
 
   @Test
@@ -129,13 +124,12 @@ public class TestIcebergSpark {
     IcebergSpark.registerBucketUDF(spark, "iceberg_bucket_date_16", DataTypes.DateType, 16);
     List<Row> results =
         spark.sql("SELECT iceberg_bucket_date_16(DATE '2021-06-30')").collectAsList();
-    Assert.assertEquals(1, results.size());
-    Assert.assertEquals(
-        (int)
+    assertThat(results).hasSize(1);
+    assertThat((int)
             Transforms.bucket(16)
-                .bind(Types.DateType.get())
-                .apply(DateTimeUtils.fromJavaDate(Date.valueOf("2021-06-30"))),
-        results.get(0).getInt(0));
+                    .bind(Types.DateType.get())
+                    .apply(DateTimeUtils.fromJavaDate(Date.valueOf("2021-06-30"))))
+            .isEqualTo(results.get(0).getInt(0));
   }
 
   @Test
@@ -146,42 +140,39 @@ public class TestIcebergSpark {
         spark
             .sql("SELECT iceberg_bucket_timestamp_16(TIMESTAMP '2021-06-30 00:00:00.000')")
             .collectAsList();
-    Assert.assertEquals(1, results.size());
-    Assert.assertEquals(
-        (int)
+    assertThat(results).hasSize(1);
+    assertThat((int)
             Transforms.bucket(16)
-                .bind(Types.TimestampType.withZone())
-                .apply(
-                    DateTimeUtils.fromJavaTimestamp(Timestamp.valueOf("2021-06-30 00:00:00.000"))),
-        results.get(0).getInt(0));
+                    .bind(Types.TimestampType.withZone())
+                    .apply(
+                            DateTimeUtils.fromJavaTimestamp(Timestamp.valueOf("2021-06-30 00:00:00.000"))))
+            .isEqualTo(results.get(0).getInt(0));
   }
 
   @Test
   public void testRegisterBinaryBucketUDF() {
     IcebergSpark.registerBucketUDF(spark, "iceberg_bucket_binary_16", DataTypes.BinaryType, 16);
     List<Row> results = spark.sql("SELECT iceberg_bucket_binary_16(X'0020001F')").collectAsList();
-    Assert.assertEquals(1, results.size());
-    Assert.assertEquals(
-        (int)
+    assertThat(results).hasSize(1);
+    assertThat((int)
             Transforms.bucket(16)
-                .bind(Types.BinaryType.get())
-                .apply(ByteBuffer.wrap(new byte[] {0x00, 0x20, 0x00, 0x1F})),
-        results.get(0).getInt(0));
+                    .bind(Types.BinaryType.get())
+                    .apply(ByteBuffer.wrap(new byte[] {0x00, 0x20, 0x00, 0x1F})))
+            .isEqualTo(results.get(0).getInt(0));
   }
 
   @Test
   public void testRegisterDecimalBucketUDF() {
     IcebergSpark.registerBucketUDF(spark, "iceberg_bucket_decimal_16", new DecimalType(4, 2), 16);
     List<Row> results = spark.sql("SELECT iceberg_bucket_decimal_16(11.11)").collectAsList();
-    Assert.assertEquals(1, results.size());
-    Assert.assertEquals(
-        (int) Transforms.bucket(16).bind(Types.DecimalType.of(4, 2)).apply(new BigDecimal("11.11")),
-        results.get(0).getInt(0));
+    assertThat(results).hasSize(1);
+    assertThat((int) Transforms.bucket(16).bind(Types.DecimalType.of(4, 2)).apply(new BigDecimal("11.11")))
+            .isEqualTo(results.get(0).getInt(0));
   }
 
   @Test
   public void testRegisterBooleanBucketUDF() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 IcebergSpark.registerBucketUDF(
                     spark, "iceberg_bucket_boolean_16", DataTypes.BooleanType, 16))
@@ -191,7 +182,7 @@ public class TestIcebergSpark {
 
   @Test
   public void testRegisterDoubleBucketUDF() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 IcebergSpark.registerBucketUDF(
                     spark, "iceberg_bucket_double_16", DataTypes.DoubleType, 16))
@@ -201,7 +192,7 @@ public class TestIcebergSpark {
 
   @Test
   public void testRegisterFloatBucketUDF() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 IcebergSpark.registerBucketUDF(
                     spark, "iceberg_bucket_float_16", DataTypes.FloatType, 16))
@@ -213,37 +204,34 @@ public class TestIcebergSpark {
   public void testRegisterIntegerTruncateUDF() {
     IcebergSpark.registerTruncateUDF(spark, "iceberg_truncate_int_4", DataTypes.IntegerType, 4);
     List<Row> results = spark.sql("SELECT iceberg_truncate_int_4(1)").collectAsList();
-    Assert.assertEquals(1, results.size());
-    Assert.assertEquals(
-        Transforms.truncate(4).bind(Types.IntegerType.get()).apply(1), results.get(0).getInt(0));
+    assertThat(results).hasSize(1);
+    assertThat(Transforms.truncate(4).bind(Types.IntegerType.get()).apply(1))
+            .isEqualTo(results.get(0).getInt(0));
   }
 
   @Test
   public void testRegisterLongTruncateUDF() {
     IcebergSpark.registerTruncateUDF(spark, "iceberg_truncate_long_4", DataTypes.LongType, 4);
     List<Row> results = spark.sql("SELECT iceberg_truncate_long_4(1L)").collectAsList();
-    Assert.assertEquals(1, results.size());
-    Assert.assertEquals(
-        Transforms.truncate(4).bind(Types.LongType.get()).apply(1L), results.get(0).getLong(0));
+    assertThat(results).hasSize(1);
+    assertThat(Transforms.truncate(4).bind(Types.LongType.get()).apply(1L))
+            .isEqualTo(results.get(0).getLong(0));
   }
 
   @Test
   public void testRegisterDecimalTruncateUDF() {
     IcebergSpark.registerTruncateUDF(spark, "iceberg_truncate_decimal_4", new DecimalType(4, 2), 4);
     List<Row> results = spark.sql("SELECT iceberg_truncate_decimal_4(11.11)").collectAsList();
-    Assert.assertEquals(1, results.size());
-    Assert.assertEquals(
-        Transforms.truncate(4).bind(Types.DecimalType.of(4, 2)).apply(new BigDecimal("11.11")),
-        results.get(0).getDecimal(0));
+    assertThat(results).hasSize(1);
+    assertThat(Transforms.truncate(4).bind(Types.DecimalType.of(4, 2)).apply(new BigDecimal("11.11"))).isEqualTo(results.get(0).getDecimal(0));
   }
 
   @Test
   public void testRegisterStringTruncateUDF() {
     IcebergSpark.registerTruncateUDF(spark, "iceberg_truncate_string_4", DataTypes.StringType, 4);
     List<Row> results = spark.sql("SELECT iceberg_truncate_string_4('hello')").collectAsList();
-    Assert.assertEquals(1, results.size());
-    Assert.assertEquals(
-        Transforms.truncate(4).bind(Types.StringType.get()).apply("hello"),
-        results.get(0).getString(0));
+    assertThat(results).hasSize(1);
+    assertThat(Transforms.truncate(4).bind(Types.StringType.get()).apply("hello"))
+            .isEqualTo(results.get(0).getString(0));
   }
 }

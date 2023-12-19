@@ -17,6 +17,7 @@
  * under the License.
  */
 package org.apache.iceberg.spark.source;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
 import org.apache.iceberg.CachingCatalog;
@@ -25,13 +26,12 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSessionCatalog;
-import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
+import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
-import org.assertj.core.api.Assertions;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
-public class TestSparkCatalogCacheExpiration extends SparkTestBaseWithCatalog {
+public class TestSparkCatalogCacheExpiration extends TestBaseWithCatalog {
 
   private static final String sessionCatalogName = "spark_catalog";
   private static final String sessionCatalogImpl = SparkSessionCatalog.class.getName();
@@ -57,7 +57,7 @@ public class TestSparkCatalogCacheExpiration extends SparkTestBaseWithCatalog {
 
   // Add more catalogs to the spark session, so we only need to start spark one time for multiple
   // different catalog configuration tests.
-  @BeforeClass
+  @BeforeAll
   public static void beforeClass() {
     // Catalog - expiration_disabled: Catalog with caching on and expiration disabled.
     ImmutableMap.of(
@@ -93,18 +93,18 @@ public class TestSparkCatalogCacheExpiration extends SparkTestBaseWithCatalog {
   @Test
   public void testSparkSessionCatalogWithExpirationEnabled() {
     SparkSessionCatalog<?> sparkCatalog = sparkSessionCatalog();
-    Assertions.assertThat(sparkCatalog)
+    assertThat(sparkCatalog)
         .extracting("icebergCatalog")
         .extracting("cacheEnabled")
         .isEqualTo(true);
 
-    Assertions.assertThat(sparkCatalog)
+    assertThat(sparkCatalog)
         .extracting("icebergCatalog")
         .extracting("icebergCatalog")
         .isInstanceOfSatisfying(
             Catalog.class,
             icebergCatalog -> {
-              Assertions.assertThat(icebergCatalog)
+              assertThat(icebergCatalog)
                   .isExactlyInstanceOf(CachingCatalog.class)
                   .extracting("expirationIntervalMillis")
                   .isEqualTo(3000L);
@@ -114,14 +114,14 @@ public class TestSparkCatalogCacheExpiration extends SparkTestBaseWithCatalog {
   @Test
   public void testCacheEnabledAndExpirationDisabled() {
     SparkCatalog sparkCatalog = getSparkCatalog("expiration_disabled");
-    Assertions.assertThat(sparkCatalog).extracting("cacheEnabled").isEqualTo(true);
+    assertThat(sparkCatalog).extracting("cacheEnabled").isEqualTo(true);
 
-    Assertions.assertThat(sparkCatalog)
+    assertThat(sparkCatalog)
         .extracting("icebergCatalog")
         .isInstanceOfSatisfying(
             CachingCatalog.class,
             icebergCatalog -> {
-              Assertions.assertThat(icebergCatalog)
+              assertThat(icebergCatalog)
                   .extracting("expirationIntervalMillis")
                   .isEqualTo(-1L);
             });
@@ -130,14 +130,14 @@ public class TestSparkCatalogCacheExpiration extends SparkTestBaseWithCatalog {
   @Test
   public void testCacheDisabledImplicitly() {
     SparkCatalog sparkCatalog = getSparkCatalog("cache_disabled_implicitly");
-    Assertions.assertThat(sparkCatalog).extracting("cacheEnabled").isEqualTo(false);
+    assertThat(sparkCatalog).extracting("cacheEnabled").isEqualTo(false);
 
-    Assertions.assertThat(sparkCatalog)
+    assertThat(sparkCatalog)
         .extracting("icebergCatalog")
         .isInstanceOfSatisfying(
             Catalog.class,
             icebergCatalog ->
-                Assertions.assertThat(icebergCatalog).isNotInstanceOf(CachingCatalog.class));
+                assertThat(icebergCatalog).isNotInstanceOf(CachingCatalog.class));
   }
 
   private SparkSessionCatalog<?> sparkSessionCatalog() {

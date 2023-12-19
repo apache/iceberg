@@ -19,9 +19,11 @@
 package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.hadoop.HadoopTableOperations;
@@ -29,40 +31,38 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.PathIdentifier;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.iceberg.spark.SparkTestBase;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
-import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
-public class TestPathIdentifier extends SparkTestBase {
+public class TestPathIdentifier extends TestBase {
 
   private static final Schema SCHEMA =
       new Schema(
           required(1, "id", Types.LongType.get()), required(2, "data", Types.StringType.get()));
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir
+  public Path temp;
   private File tableLocation;
   private PathIdentifier identifier;
   private SparkCatalog sparkCatalog;
 
-  @Before
+  @BeforeEach
   public void before() throws IOException {
-    tableLocation = temp.newFolder();
+    tableLocation = temp.toFile();
     identifier = new PathIdentifier(tableLocation.getAbsolutePath());
     sparkCatalog = new SparkCatalog();
     sparkCatalog.initialize("test", new CaseInsensitiveStringMap(ImmutableMap.of()));
   }
 
-  @After
+  @AfterEach
   public void after() {
     tableLocation.delete();
     sparkCatalog = null;
@@ -75,12 +75,12 @@ public class TestPathIdentifier extends SparkTestBase {
             sparkCatalog.createTable(
                 identifier, SparkSchemaUtil.convert(SCHEMA), new Transform[0], ImmutableMap.of());
 
-    Assert.assertEquals(table.table().location(), tableLocation.getAbsolutePath());
-    Assertions.assertThat(table.table()).isInstanceOf(BaseTable.class);
-    Assertions.assertThat(((BaseTable) table.table()).operations())
+    assertThat(table.table().location()).isEqualTo(tableLocation.getAbsolutePath());
+    assertThat(table.table()).isInstanceOf(BaseTable.class);
+    assertThat(((BaseTable) table.table()).operations())
         .isInstanceOf(HadoopTableOperations.class);
 
-    Assert.assertEquals(sparkCatalog.loadTable(identifier), table);
-    Assert.assertTrue(sparkCatalog.dropTable(identifier));
+    assertThat(sparkCatalog.loadTable(identifier)).isEqualTo(table);
+    assertThat(sparkCatalog.dropTable(identifier)).isTrue();
   }
 }

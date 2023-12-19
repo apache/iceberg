@@ -19,9 +19,12 @@
 package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.math.RoundingMode;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
@@ -43,8 +46,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.math.LongMath;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.SparkReadOptions;
-import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
 import org.apache.iceberg.spark.SparkWriteOptions;
+import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.Column;
@@ -54,15 +57,12 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.assertj.core.api.Assertions;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
-public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
+public class TestDataSourceOptions extends TestBaseWithCatalog {
 
   private static final Configuration CONF = new Configuration();
   private static final Schema SCHEMA =
@@ -70,14 +70,15 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
           optional(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
   private static SparkSession spark = null;
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir
+  public Path temp;
 
-  @BeforeClass
+  @BeforeAll
   public static void startSpark() {
     TestDataSourceOptions.spark = SparkSession.builder().master("local[2]").getOrCreate();
   }
 
-  @AfterClass
+  @AfterAll
   public static void stopSpark() {
     SparkSession currentSpark = TestDataSourceOptions.spark;
     TestDataSourceOptions.spark = null;
@@ -86,7 +87,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
 
   @Test
   public void testWriteFormatOptionOverridesTableProperties() throws IOException {
-    String tableLocation = temp.newFolder("iceberg-table").toString();
+    String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -109,14 +110,14 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
       tasks.forEach(
           task -> {
             FileFormat fileFormat = FileFormat.fromFileName(task.file().path());
-            Assert.assertEquals(FileFormat.PARQUET, fileFormat);
+            assertThat(fileFormat).isEqualTo(FileFormat.PARQUET);
           });
     }
   }
 
   @Test
   public void testNoWriteFormatOption() throws IOException {
-    String tableLocation = temp.newFolder("iceberg-table").toString();
+    String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -134,14 +135,14 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
       tasks.forEach(
           task -> {
             FileFormat fileFormat = FileFormat.fromFileName(task.file().path());
-            Assert.assertEquals(FileFormat.AVRO, fileFormat);
+            assertThat(fileFormat).isEqualTo(FileFormat.AVRO);
           });
     }
   }
 
   @Test
   public void testHadoopOptions() throws IOException {
-    String tableLocation = temp.newFolder("iceberg-table").toString();
+    String tableLocation = temp.resolve("iceberg-table").toFile().toString();
     Configuration sparkHadoopConf = spark.sessionState().newHadoopConf();
     String originalDefaultFS = sparkHadoopConf.get("fs.default.name");
 
@@ -175,7 +176,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
       List<SimpleRecord> resultRecords =
           resultDf.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
 
-      Assert.assertEquals("Records should match", expectedRecords, resultRecords);
+      assertThat(resultRecords).as("Records should match").isEqualTo(expectedRecords);
     } finally {
       sparkHadoopConf.set("fs.default.name", originalDefaultFS);
     }
@@ -183,7 +184,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
 
   @Test
   public void testSplitOptionsOverridesTableProperties() throws IOException {
-    String tableLocation = temp.newFolder("iceberg-table").toString();
+    String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -207,7 +208,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
 
     List<DataFile> files =
         Lists.newArrayList(icebergTable.currentSnapshot().addedDataFiles(icebergTable.io()));
-    Assert.assertEquals("Should have written 1 file", 1, files.size());
+    assertThat(files).as("Should have written 1 file").hasSize(1);
 
     long fileSize = files.get(0).fileSizeInBytes();
     long splitSize = LongMath.divide(fileSize, 2, RoundingMode.CEILING);
@@ -219,12 +220,12 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
             .option(SparkReadOptions.SPLIT_SIZE, String.valueOf(splitSize))
             .load(tableLocation);
 
-    Assert.assertEquals("Spark partitions should match", 2, resultDf.javaRDD().getNumPartitions());
+    assertThat(2).as("Spark partitions should match").isEqualTo(resultDf.javaRDD().getNumPartitions());
   }
 
   @Test
   public void testIncrementalScanOptions() throws IOException {
-    String tableLocation = temp.newFolder("iceberg-table").toString();
+    String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -245,7 +246,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
     List<Long> snapshotIds = SnapshotUtil.currentAncestorIds(table);
 
     // start-snapshot-id and snapshot-id are both configured.
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 spark
                     .read()
@@ -259,7 +260,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
             "Cannot set start-snapshot-id and end-snapshot-id for incremental scans when either snapshot-id or as-of-timestamp is set");
 
     // end-snapshot-id and as-of-timestamp are both configured.
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 spark
                     .read()
@@ -275,7 +276,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
             "Cannot set start-snapshot-id and end-snapshot-id for incremental scans when either snapshot-id or as-of-timestamp is set");
 
     // only end-snapshot-id is configured.
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 spark
                     .read()
@@ -297,7 +298,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
             .orderBy("id")
             .as(Encoders.bean(SimpleRecord.class))
             .collectAsList();
-    Assert.assertEquals("Records should match", expectedRecords.subList(1, 4), result);
+    assertThat(expectedRecords.subList(1, 4)).as("Records should match").isEqualTo(result);
 
     // test (2nd snapshot, 3rd snapshot] incremental scan.
     Dataset<Row> resultDf =
@@ -309,13 +310,13 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
             .load(tableLocation);
     List<SimpleRecord> result1 =
         resultDf.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    Assert.assertEquals("Records should match", expectedRecords.subList(2, 3), result1);
-    Assert.assertEquals("Unprocessed count should match record count", 1, resultDf.count());
+    assertThat(expectedRecords.subList(2, 3)).as("Records should match").isEqualTo(result1);
+    assertThat(1).as("Unprocessed count should match record count").isEqualTo(resultDf.count());
   }
 
   @Test
   public void testMetadataSplitSizeOptionOverrideTableProperties() throws IOException {
-    String tableLocation = temp.newFolder("iceberg-table").toString();
+    String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -332,7 +333,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
 
     List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
 
-    Assert.assertEquals("Must be 2 manifests", 2, manifests.size());
+    assertThat(manifests).as("Must be 2 manifests").hasSize(2);
 
     // set the target metadata split size so each manifest ends up in a separate split
     table
@@ -341,7 +342,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
         .commit();
 
     Dataset<Row> entriesDf = spark.read().format("iceberg").load(tableLocation + "#entries");
-    Assert.assertEquals("Num partitions must match", 2, entriesDf.javaRDD().getNumPartitions());
+    assertThat(2).as("Num partitions must match").isEqualTo(entriesDf.javaRDD().getNumPartitions());
 
     // override the table property using options
     entriesDf =
@@ -350,12 +351,12 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
             .format("iceberg")
             .option(SparkReadOptions.SPLIT_SIZE, String.valueOf(128 * 1024 * 1024))
             .load(tableLocation + "#entries");
-    Assert.assertEquals("Num partitions must match", 1, entriesDf.javaRDD().getNumPartitions());
+    assertThat(1).as("Num partitions must match").isEqualTo(entriesDf.javaRDD().getNumPartitions());
   }
 
   @Test
   public void testDefaultMetadataSplitSize() throws IOException {
-    String tableLocation = temp.newFolder("iceberg-table").toString();
+    String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -384,12 +385,12 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
     Dataset<Row> metadataDf = spark.read().format("iceberg").load(tableLocation + "#entries");
 
     int partitionNum = metadataDf.javaRDD().getNumPartitions();
-    Assert.assertEquals("Spark partitions should match", expectedSplits, partitionNum);
+    assertThat(expectedSplits).as("Spark partitions should match").isEqualTo(partitionNum);
   }
 
   @Test
   public void testExtraSnapshotMetadata() throws IOException {
-    String tableLocation = temp.newFolder("iceberg-table").toString();
+    String tableLocation = temp.resolve("iceberg-table").toFile().toString();
     HadoopTables tables = new HadoopTables(CONF);
     tables.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableLocation);
 
@@ -407,13 +408,13 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
 
     Table table = tables.load(tableLocation);
 
-    Assert.assertTrue(table.currentSnapshot().summary().get("extra-key").equals("someValue"));
-    Assert.assertTrue(table.currentSnapshot().summary().get("another-key").equals("anotherValue"));
+    assertThat(table.currentSnapshot().summary().get("extra-key")).isEqualTo("someValue");
+    assertThat(table.currentSnapshot().summary().get("another-key")).isEqualTo("anotherValue");
   }
 
   @Test
   public void testExtraSnapshotMetadataWithSQL() throws InterruptedException, IOException {
-    String tableLocation = temp.newFolder("iceberg-table").toString();
+    String tableLocation = temp.resolve("iceberg-table").toFile().toString();
     HadoopTables tables = new HadoopTables(CONF);
 
     Table table =
@@ -448,9 +449,9 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
     writerThread.join();
 
     List<Snapshot> snapshots = Lists.newArrayList(table.snapshots());
-    Assert.assertEquals(2, snapshots.size());
-    Assert.assertNull(snapshots.get(0).summary().get("writer-thread"));
-    Assertions.assertThat(snapshots.get(1).summary())
+    assertThat(snapshots).hasSize(2);
+    assertThat(snapshots.get(0).summary().get("writer-thread")).isNull();
+    assertThat(snapshots.get(1).summary())
         .containsEntry("writer-thread", "test-extra-commit-message-writer-thread")
         .containsEntry("extra-key", "someValue")
         .containsEntry("another-key", "anotherValue");
@@ -491,9 +492,10 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
 
     Table table = validationCatalog.loadTable(tableIdent);
     List<Snapshot> snapshots = Lists.newArrayList(table.snapshots());
-    Assert.assertEquals(2, snapshots.size());
-    Assert.assertNull(snapshots.get(0).summary().get("writer-thread"));
-    Assertions.assertThat(snapshots.get(1).summary())
+
+    assertThat(snapshots).hasSize(2);
+    assertThat(snapshots.get(0).summary().get("writer-thread")).isNull();
+    assertThat(snapshots.get(1).summary())
         .containsEntry("writer-thread", "test-extra-commit-message-delete-thread")
         .containsEntry("extra-key", "someValue")
         .containsEntry("another-key", "anotherValue");

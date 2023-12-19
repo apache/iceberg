@@ -17,12 +17,12 @@
  * under the License.
  */
 package org.apache.iceberg.spark.source;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.Arrays;
 import org.apache.iceberg.util.JsonUtil;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestStreamingOffset {
 
@@ -35,10 +35,8 @@ public class TestStreamingOffset {
           new StreamingOffset(System.currentTimeMillis(), 3L, false),
           new StreamingOffset(System.currentTimeMillis(), 4L, true)
         };
-    Assert.assertArrayEquals(
-        "StreamingOffsets should match",
-        expected,
-        Arrays.stream(expected).map(elem -> StreamingOffset.fromJson(elem.json())).toArray());
+    assertThat(expected).as("StreamingOffsets should match")
+                    .isEqualTo(Arrays.stream(expected).map(elem -> StreamingOffset.fromJson(elem.json())).toArray());
   }
 
   @Test
@@ -51,6 +49,6 @@ public class TestStreamingOffset {
     actual.put("scan_all_files", false);
     String expectedJson = expected.json();
     String actualJson = JsonUtil.mapper().writeValueAsString(actual);
-    Assert.assertEquals("Json should match", expectedJson, actualJson);
+    assertThat(expectedJson).isEqualTo(actualJson);
   }
 }

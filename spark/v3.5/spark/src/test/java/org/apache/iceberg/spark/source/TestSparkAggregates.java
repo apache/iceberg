@@ -17,6 +17,7 @@
  * under the License.
  */
 package org.apache.iceberg.spark.source;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
 import org.apache.iceberg.expressions.Expression;
@@ -29,8 +30,7 @@ import org.apache.spark.sql.connector.expressions.aggregate.Count;
 import org.apache.spark.sql.connector.expressions.aggregate.CountStar;
 import org.apache.spark.sql.connector.expressions.aggregate.Max;
 import org.apache.spark.sql.connector.expressions.aggregate.Min;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestSparkAggregates {
 
@@ -50,27 +50,26 @@ public class TestSparkAggregates {
           Max max = new Max(namedReference);
           Expression expectedMax = Expressions.max(unquoted);
           Expression actualMax = SparkAggregates.convert(max);
-          Assert.assertEquals("Max must match", expectedMax.toString(), actualMax.toString());
+          assertThat(expectedMax.toString()).as("Max must match").isEqualTo(String.valueOf(actualMax));
 
           Min min = new Min(namedReference);
           Expression expectedMin = Expressions.min(unquoted);
           Expression actualMin = SparkAggregates.convert(min);
-          Assert.assertEquals("Min must match", expectedMin.toString(), actualMin.toString());
+          assertThat(expectedMin.toString()).as("Min must match").isEqualTo(String.valueOf(actualMin));
 
           Count count = new Count(namedReference, false);
           Expression expectedCount = Expressions.count(unquoted);
           Expression actualCount = SparkAggregates.convert(count);
-          Assert.assertEquals("Count must match", expectedCount.toString(), actualCount.toString());
+          assertThat(expectedCount.toString()).as("Count must match").isEqualTo(String.valueOf(actualCount));
 
           Count countDistinct = new Count(namedReference, true);
           Expression convertedCountDistinct = SparkAggregates.convert(countDistinct);
-          Assert.assertNull("Count Distinct is converted to null", convertedCountDistinct);
+          assertThat(convertedCountDistinct).as("Count Distinct is converted to null").isNull();
 
           CountStar countStar = new CountStar();
           Expression expectedCountStar = Expressions.countStar();
           Expression actualCountStar = SparkAggregates.convert(countStar);
-          Assert.assertEquals(
-              "CountStar must match", expectedCountStar.toString(), actualCountStar.toString());
+          assertThat(expectedCountStar.toString()).as("CountStar must match").isEqualTo(String.valueOf(actualCountStar));
         });
   }
 }

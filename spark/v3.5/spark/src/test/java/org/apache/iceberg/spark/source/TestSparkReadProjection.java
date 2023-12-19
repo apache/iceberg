@@ -110,7 +110,7 @@ public class TestSparkReadProjection extends TestReadProjection {
   @Override
   protected Record writeAndRead(String desc, Schema writeSchema, Schema readSchema, Record record)
       throws IOException {
-    File parent = temp.newFolder(desc);
+    File parent = temp.resolve(desc).toFile();
     File location = new File(parent, "test");
     File dataFolder = new File(location, "data");
     Assert.assertTrue("mkdirs should succeed", dataFolder.mkdirs());

@@ -20,9 +20,11 @@ package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.FileFormat.PARQUET;
 import static org.apache.iceberg.Files.localOutput;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -47,14 +49,13 @@ import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestBaseReader {
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir
+  public Path temp;
 
   private Table table;
 
@@ -129,15 +130,13 @@ public class TestBaseReader {
     int countRecords = 0;
     while (reader.next()) {
       countRecords += 1;
-      Assert.assertNotNull("Reader should return non-null value", reader.get());
+      assertThat(reader.get()).as("Reader should return non-null value").isNotNull();
     }
 
-    Assert.assertEquals(
-        "Reader returned incorrect number of records", totalTasks * recordPerTask, countRecords);
+    assertThat(totalTasks * recordPerTask).as("Reader returned incorrect number of records").isEqualTo(countRecords);
     tasks.forEach(
         t ->
-            Assert.assertTrue(
-                "All iterators should be closed after read exhausion", reader.isIteratorClosed(t)));
+            assertThat(reader.isIteratorClosed(t)).as("All iterators should be closed after read exhausion").isTrue());
   }
 
   @Test
@@ -145,28 +144,23 @@ public class TestBaseReader {
     Integer totalTasks = 2;
     Integer recordPerTask = 1;
     List<FileScanTask> tasks = createFileScanTasks(totalTasks, recordPerTask);
-    Assert.assertEquals(2, tasks.size());
+    assertThat(tasks).hasSize(2);
     FileScanTask firstTask = tasks.get(0);
     FileScanTask secondTask = tasks.get(1);
 
     ClosureTrackingReader reader = new ClosureTrackingReader(table, tasks);
 
     // Total of 2 elements
-    Assert.assertTrue(reader.next());
-    Assert.assertFalse(
-        "First iter should not be closed on its last element", reader.isIteratorClosed(firstTask));
+    assertThat(reader.next()).isTrue();
+    assertThat(reader.isIteratorClosed(firstTask)).as("First iter should not be closed on its last element").isFalse();
 
-    Assert.assertTrue(reader.next());
-    Assert.assertTrue(
-        "First iter should be closed after moving to second iter",
-        reader.isIteratorClosed(firstTask));
-    Assert.assertFalse(
-        "Second iter should not be closed on its last element",
-        reader.isIteratorClosed(secondTask));
+    assertThat(reader.next()).isTrue();
+    assertThat(reader.isIteratorClosed(firstTask)).as("First iter should be closed after moving to second iter").isTrue();
+    assertThat(reader.isIteratorClosed(secondTask)).as("Second iter should not be closed on its last element").isFalse();
 
-    Assert.assertFalse(reader.next());
-    Assert.assertTrue(reader.isIteratorClosed(firstTask));
-    Assert.assertTrue(reader.isIteratorClosed(secondTask));
+    assertThat(reader.next()).isFalse();
+    assertThat(reader.isIteratorClosed(firstTask)).isTrue();
+    assertThat(reader.isIteratorClosed(secondTask)).isTrue();
   }
 
   @Test
@@ -181,8 +175,7 @@ public class TestBaseReader {
 
     tasks.forEach(
         t ->
-            Assert.assertFalse(
-                "Iterator should not be created eagerly for tasks", reader.hasIterator(t)));
+            assertThat(reader.hasIterator(t)).as("Iterator should not be created eagerly for tasks").isFalse());
   }
 
   @Test
@@ -195,8 +188,8 @@ public class TestBaseReader {
 
     Integer halfDataSize = (totalTasks * recordPerTask) / 2;
     for (int i = 0; i < halfDataSize; i++) {
-      Assert.assertTrue("Reader should have some element", reader.next());
-      Assert.assertNotNull("Reader should return non-null value", reader.get());
+      assertThat(reader.next()).as("Reader should have some element").isTrue();
+      assertThat(reader.get()).as("Reader should return non-null value").isNotNull();
     }
 
     reader.close();
@@ -206,8 +199,7 @@ public class TestBaseReader {
     tasks.forEach(
         t -> {
           if (reader.hasIterator(t)) {
-            Assert.assertTrue(
-                "Iterator should be closed after read exhausion", reader.isIteratorClosed(t));
+            assertThat(reader.isIteratorClosed(t)).as("Iterator should be closed after read exhausion").isTrue();
           }
         });
   }
@@ -222,20 +214,17 @@ public class TestBaseReader {
 
     // Total 100 elements, only 5 iterators have been created
     for (int i = 0; i < 45; i++) {
-      Assert.assertTrue("eader should have some element", reader.next());
-      Assert.assertNotNull("Reader should return non-null value", reader.get());
+      assertThat(reader.next()).as("Reader should have some element").isTrue();
+      assertThat(reader.get()).as("Reader should return non-null value").isNotNull();
     }
 
     for (int closeAttempt = 0; closeAttempt < 5; closeAttempt++) {
       reader.close();
       for (int i = 0; i < 5; i++) {
-        Assert.assertTrue(
-            "Iterator should be closed after read exhausion",
-            reader.isIteratorClosed(tasks.get(i)));
+        assertThat(reader.isIteratorClosed(tasks.get(i))).as("Iterator should be closed after read exhausion").isTrue();
       }
       for (int i = 5; i < 10; i++) {
-        Assert.assertFalse(
-            "Iterator should not be created eagerly for tasks", reader.hasIterator(tasks.get(i)));
+        assertThat(reader.hasIterator(tasks.get(i))).as("Iterator should not be created eagerly for tasks").isFalse();
       }
     }
   }
@@ -243,10 +232,10 @@ public class TestBaseReader {
   private List<FileScanTask> createFileScanTasks(Integer totalTasks, Integer recordPerTask)
       throws IOException {
     String desc = "make_scan_tasks";
-    File parent = temp.newFolder(desc);
+    File parent = temp.resolve(desc).toFile();
     File location = new File(parent, "test");
     File dataFolder = new File(location, "data");
-    Assert.assertTrue("mkdirs should succeed", dataFolder.mkdirs());
+    assertThat(dataFolder.mkdirs()).as("mkdirs should succeed").isTrue();
 
     Schema schema = new Schema(Types.NestedField.required(0, "id", Types.LongType.get()));
 
