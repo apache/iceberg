@@ -25,7 +25,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.IcebergBuild;
@@ -1486,10 +1485,74 @@ public class TestViews extends SparkExtensionsTestBase {
         .hasMessageContaining("Cannot unset reserved property: 'spark.query-column-names'");
   }
 
+  @Test
+  public void createOrReplaceViewWithColumnAliases() throws NoSuchTableException {
+    insertRows(6);
+    String viewName = viewName("viewWithColumnAliases");
+
+    sql(
+        "CREATE VIEW %s (new_id COMMENT 'ID', new_data COMMENT 'DATA') AS SELECT id, data FROM %s WHERE id <= 3",
+        viewName, tableName);
+
+    View view = viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName));
+    assertThat(view.properties()).containsEntry("spark.query-column-names", "id,data");
+
+    assertThat(view.schema().columns()).hasSize(2);
+    Types.NestedField first = view.schema().columns().get(0);
+    assertThat(first.name()).isEqualTo("new_id");
+    assertThat(first.doc()).isEqualTo("ID");
+
+    Types.NestedField second = view.schema().columns().get(1);
+    assertThat(second.name()).isEqualTo("new_data");
+    assertThat(second.doc()).isEqualTo("DATA");
+
+    assertThat(sql("SELECT new_id FROM %s", viewName))
+        .hasSize(3)
+        .containsExactlyInAnyOrder(row(1), row(2), row(3));
+
+    sql(
+        "CREATE OR REPLACE VIEW %s (data2 COMMENT 'new data', id2 COMMENT 'new ID') AS SELECT data, id FROM %s WHERE id <= 3",
+        viewName, tableName);
+
+    assertThat(sql("SELECT data2, id2 FROM %s", viewName))
+        .hasSize(3)
+        .containsExactlyInAnyOrder(row("2", 1), row("4", 2), row("6", 3));
+
+    view = viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName));
+    assertThat(view.properties()).containsEntry("spark.query-column-names", "data,id");
+
+    assertThat(view.schema().columns()).hasSize(2);
+    first = view.schema().columns().get(0);
+    assertThat(first.name()).isEqualTo("data2");
+    assertThat(first.doc()).isEqualTo("new data");
+
+    second = view.schema().columns().get(1);
+    assertThat(second.name()).isEqualTo("id2");
+    assertThat(second.doc()).isEqualTo("new ID");
+  }
+
+  @Test
+  public void alterViewIsNotSupported() throws NoSuchTableException {
+    insertRows(6);
+    String viewName = "alteredView";
+
+    sql("CREATE VIEW %s AS SELECT id, data FROM %s WHERE id <= 3", viewName, tableName);
+
+    assertThat(sql("SELECT id FROM %s", viewName))
+        .hasSize(3)
+        .containsExactlyInAnyOrder(row(1), row(2), row(3));
+
+    assertThatThrownBy(
+            () -> sql("ALTER VIEW %s AS SELECT id FROM %s WHERE id > 3", viewName, tableName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "ALTER VIEW <viewName> AS is not supported. Use CREATE OR REPLACE VIEW instead");
+  }
+
   private void insertRows(int numRows) throws NoSuchTableException {
     List<SimpleRecord> records = Lists.newArrayListWithCapacity(numRows);
     for (int i = 1; i <= numRows; i++) {
-      records.add(new SimpleRecord(i, UUID.randomUUID().toString()));
+      records.add(new SimpleRecord(i, Integer.toString(i * 2)));
     }
 
     Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
