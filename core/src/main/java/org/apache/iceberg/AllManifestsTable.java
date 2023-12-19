@@ -50,7 +50,11 @@ import org.apache.iceberg.util.StructProjection;
  */
 public class AllManifestsTable extends BaseMetadataTable {
   public static final Types.NestedField REF_SNAPSHOT_ID =
-      Types.NestedField.required(18, "reference_snapshot_id", Types.LongType.get());
+      Types.NestedField.required(18, MetricsUtil.REF_SNAPSHOT_ID, Types.LongType.get());
+
+  public static final Types.NestedField REF_SNAPSHOT_TIMESTAMP_MILLIS =
+      Types.NestedField.required(
+          19, MetricsUtil.REF_SNAPSHOT_TIMESTAMP_MILLIS, Types.LongType.get());
 
   private static final Schema MANIFEST_FILE_SCHEMA =
       new Schema(
@@ -75,7 +79,8 @@ public class AllManifestsTable extends BaseMetadataTable {
                       Types.NestedField.required(11, "contains_nan", Types.BooleanType.get()),
                       Types.NestedField.optional(12, "lower_bound", Types.StringType.get()),
                       Types.NestedField.optional(13, "upper_bound", Types.StringType.get())))),
-          REF_SNAPSHOT_ID);
+          REF_SNAPSHOT_ID,
+          REF_SNAPSHOT_TIMESTAMP_MILLIS);
 
   AllManifestsTable(Table table) {
     this(table, table.name() + ".all_manifests");
@@ -132,7 +137,13 @@ public class AllManifestsTable extends BaseMetadataTable {
               snap -> {
                 if (snap.manifestListLocation() != null) {
                   return new ManifestListReadTask(
-                      io, schema(), specs, snap.manifestListLocation(), filter, snap.snapshotId());
+                      io,
+                      schema(),
+                      specs,
+                      snap.manifestListLocation(),
+                      filter,
+                      snap.snapshotId(),
+                      snap.timestampMillis());
                 } else {
                   return StaticDataTask.of(
                       io.newInputFile(
@@ -142,7 +153,10 @@ public class AllManifestsTable extends BaseMetadataTable {
                       snap.allManifests(io),
                       manifest ->
                           manifestFileToRow(
-                              specs.get(manifest.partitionSpecId()), manifest, snap.snapshotId()));
+                              specs.get(manifest.partitionSpecId()),
+                              manifest,
+                              snap.snapshotId(),
+                              snap.timestampMillis()));
                 }
               }));
     }
@@ -155,6 +169,7 @@ public class AllManifestsTable extends BaseMetadataTable {
     private final String manifestListLocation;
     private final Expression residual;
     private final long referenceSnapshotId;
+    private final long referenceSnapshotTimestampMillis;
     private DataFile lazyDataFile = null;
 
     ManifestListReadTask(
@@ -163,13 +178,15 @@ public class AllManifestsTable extends BaseMetadataTable {
         Map<Integer, PartitionSpec> specs,
         String manifestListLocation,
         Expression residual,
-        long referenceSnapshotId) {
+        long referenceSnapshotId,
+        long referenceSnapshotTimestampMillis) {
       this.io = io;
       this.schema = schema;
       this.specs = specs;
       this.manifestListLocation = manifestListLocation;
       this.residual = residual;
       this.referenceSnapshotId = referenceSnapshotId;
+      this.referenceSnapshotTimestampMillis = referenceSnapshotTimestampMillis;
     }
 
     @Override
@@ -194,7 +211,10 @@ public class AllManifestsTable extends BaseMetadataTable {
                 manifests,
                 manifest ->
                     manifestFileToRow(
-                        specs.get(manifest.partitionSpecId()), manifest, referenceSnapshotId));
+                        specs.get(manifest.partitionSpecId()),
+                        manifest,
+                        referenceSnapshotId,
+                        referenceSnapshotTimestampMillis));
 
         StructProjection projection = StructProjection.create(MANIFEST_FILE_SCHEMA, schema);
         return CloseableIterable.transform(rowIterable, projection::wrap);
@@ -247,7 +267,10 @@ public class AllManifestsTable extends BaseMetadataTable {
   }
 
   static StaticDataTask.Row manifestFileToRow(
-      PartitionSpec spec, ManifestFile manifest, long referenceSnapshotId) {
+      PartitionSpec spec,
+      ManifestFile manifest,
+      long referenceSnapshotId,
+      long referenceSnapshotTimestampMillis) {
     return StaticDataTask.Row.of(
         manifest.content().id(),
         manifest.path(),
@@ -261,7 +284,8 @@ public class AllManifestsTable extends BaseMetadataTable {
         manifest.content() == ManifestContent.DELETES ? manifest.existingFilesCount() : 0,
         manifest.content() == ManifestContent.DELETES ? manifest.deletedFilesCount() : 0,
         ManifestsTable.partitionSummariesToRows(spec, manifest.partitions()),
-        referenceSnapshotId);
+        referenceSnapshotId,
+        referenceSnapshotTimestampMillis);
   }
 
   private static class SnapshotEvaluator {
