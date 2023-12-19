@@ -19,11 +19,13 @@
 package org.apache.iceberg.spark.data;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -50,11 +52,9 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.UTF8String;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
@@ -100,7 +100,7 @@ public class TestSparkOrcReadMetadataColumns {
     return new Object[] {false, true};
   }
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir public java.nio.file.Path temp;
 
   private boolean vectorized;
   private File testFile;
@@ -109,10 +109,10 @@ public class TestSparkOrcReadMetadataColumns {
     this.vectorized = vectorized;
   }
 
-  @Before
+  @BeforeEach
   public void writeFile() throws IOException {
-    testFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", testFile.delete());
+    File testFile = temp.toFile();
+    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     try (FileAppender<InternalRow> writer =
         ORC.write(Files.localOutput(testFile))
@@ -201,10 +201,10 @@ public class TestSparkOrcReadMetadataColumns {
       final Iterator<InternalRow> actualRows = reader.iterator();
       final Iterator<InternalRow> expectedRows = expected.iterator();
       while (expectedRows.hasNext()) {
-        Assert.assertTrue("Should have expected number of rows", actualRows.hasNext());
+        assertThat(actualRows.hasNext()).as("Should have expected number of rows").isTrue();
         TestHelpers.assertEquals(PROJECTION_SCHEMA, expectedRows.next(), actualRows.next());
       }
-      Assert.assertFalse("Should not have extra rows", actualRows.hasNext());
+      assertThat(actualRows.hasNext()).as("Should not have extra rows").isFalse();
     } finally {
       if (reader != null) {
         reader.close();

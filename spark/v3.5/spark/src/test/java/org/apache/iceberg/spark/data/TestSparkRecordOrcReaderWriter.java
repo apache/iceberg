@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.data;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -38,15 +39,14 @@ import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestSparkRecordOrcReaderWriter extends AvroDataTest {
   private static final int NUM_RECORDS = 200;
 
   private void writeAndValidate(Schema schema, List<Record> expectedRecords) throws IOException {
-    final File originalFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", originalFile.delete());
+    final File originalFile = temp.toFile();
+    assertThat(originalFile.delete()).as("Delete should succeed").isTrue();
 
     // Write few generic records into the original test file.
     try (FileAppender<Record> writer =
@@ -68,8 +68,8 @@ public class TestSparkRecordOrcReaderWriter extends AvroDataTest {
       assertEqualsUnsafe(schema.asStruct(), expectedRecords, reader, expectedRecords.size());
     }
 
-    final File anotherFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", anotherFile.delete());
+    final File anotherFile = temp.toFile();
+    assertThat(anotherFile.delete()).as("Delete should succeed").isTrue();
 
     // Write those spark InternalRows into a new file again.
     try (FileAppender<InternalRow> writer =
@@ -130,12 +130,12 @@ public class TestSparkRecordOrcReaderWriter extends AvroDataTest {
     Iterator<Record> expectedIter = expected.iterator();
     Iterator<Record> actualIter = actual.iterator();
     for (int i = 0; i < size; i += 1) {
-      Assert.assertTrue("Expected iterator should have more rows", expectedIter.hasNext());
-      Assert.assertTrue("Actual iterator should have more rows", actualIter.hasNext());
-      Assert.assertEquals("Should have same rows.", expectedIter.next(), actualIter.next());
+      assertThat(expectedIter.hasNext()).as("Expected iterator should have more rows").isTrue();
+      assertThat(actualIter.hasNext()).as("Actual iterator should have more rows").isTrue();
+      assertThat(actualIter.next()).as("Should have same rows.").isEqualTo(expectedIter.next());
     }
-    Assert.assertFalse("Expected iterator should not have any extra rows.", expectedIter.hasNext());
-    Assert.assertFalse("Actual iterator should not have any extra rows.", actualIter.hasNext());
+    assertThat(expectedIter.hasNext()).as("Expected iterator should not have any extra rows.").isFalse();
+    assertThat(actualIter.hasNext()).as("Actual iterator should not have any extra rows.").isFalse();
   }
 
   private static void assertEqualsUnsafe(
@@ -143,11 +143,11 @@ public class TestSparkRecordOrcReaderWriter extends AvroDataTest {
     Iterator<Record> expectedIter = expected.iterator();
     Iterator<InternalRow> actualIter = actual.iterator();
     for (int i = 0; i < size; i += 1) {
-      Assert.assertTrue("Expected iterator should have more rows", expectedIter.hasNext());
-      Assert.assertTrue("Actual iterator should have more rows", actualIter.hasNext());
+      assertThat(expectedIter.hasNext()).as("Expected iterator should have more rows").isTrue();
+      assertThat(actualIter.hasNext()).as("Actual iterator should have more rows").isTrue();
       GenericsHelpers.assertEqualsUnsafe(struct, expectedIter.next(), actualIter.next());
     }
-    Assert.assertFalse("Expected iterator should not have any extra rows.", expectedIter.hasNext());
-    Assert.assertFalse("Actual iterator should not have any extra rows.", actualIter.hasNext());
+    assertThat(expectedIter.hasNext()).as("Expected iterator should not have any extra rows.").isFalse();
+    assertThat(actualIter.hasNext()).as("Actual iterator should not have any extra rows.").isFalse();
   }
 }

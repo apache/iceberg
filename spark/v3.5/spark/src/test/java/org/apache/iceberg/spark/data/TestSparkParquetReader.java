@@ -20,6 +20,8 @@ package org.apache.iceberg.spark.data;
 
 import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.File;
 import java.io.IOException;
@@ -56,25 +58,19 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestSparkParquetReader extends AvroDataTest {
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    Assume.assumeTrue(
-        "Parquet Avro cannot write non-string map keys",
-        null
-            == TypeUtil.find(
-                schema,
-                type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()));
+    assumeTrue(null == TypeUtil.find(schema,
+                type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()),
+        "Parquet Avro cannot write non-string map keys");
 
     List<GenericData.Record> expected = RandomData.generateList(schema, 100, 0L);
 
-    File testFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", testFile.delete());
+    File testFile = temp.toFile();
+    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     try (FileAppender<GenericData.Record> writer =
         Parquet.write(Files.localOutput(testFile)).schema(schema).named("test").build()) {
@@ -88,10 +84,10 @@ public class TestSparkParquetReader extends AvroDataTest {
             .build()) {
       Iterator<InternalRow> rows = reader.iterator();
       for (GenericData.Record record : expected) {
-        Assert.assertTrue("Should have expected number of rows", rows.hasNext());
+        assertThat(rows.hasNext()).as("Should have expected number of rows").isTrue();
         assertEqualsUnsafe(schema.asStruct(), record, rows.next());
       }
-      Assert.assertFalse("Should not have extra rows", rows.hasNext());
+      assertThat(rows.hasNext()).as("Should not have extra rows").isFalse();
     }
   }
 
@@ -112,7 +108,7 @@ public class TestSparkParquetReader extends AvroDataTest {
             schema,
             PartitionSpec.unpartitioned(),
             ImmutableMap.of(),
-            temp.newFolder().getCanonicalPath());
+                java.nio.file.Files.createTempDirectory(temp, null).toFile().getCanonicalPath());
 
     table
         .newAppend()
@@ -131,7 +127,7 @@ public class TestSparkParquetReader extends AvroDataTest {
   @Test
   public void testInt96TimestampProducedBySparkIsReadCorrectly() throws IOException {
     String outputFilePath =
-        String.format("%s/%s", temp.getRoot().getAbsolutePath(), "parquet_int96.parquet");
+        String.format("%s/%s", temp.toAbsolutePath(), "parquet_int96.parquet");
     HadoopOutputFile outputFile =
         HadoopOutputFile.fromPath(
             new org.apache.hadoop.fs.Path(outputFilePath), new Configuration());
@@ -157,15 +153,16 @@ public class TestSparkParquetReader extends AvroDataTest {
 
     InputFile parquetInputFile = Files.localInput(outputFilePath);
     List<InternalRow> readRows = rowsFromFile(parquetInputFile, schema);
-    Assert.assertEquals(rows.size(), readRows.size());
-    Assertions.assertThat(readRows).isEqualTo(rows);
+
+    assertThat(readRows).hasSameSizeAs(rows);
+    assertThat(readRows).isEqualTo(rows);
 
     // Now we try to import that file as an Iceberg table to make sure Iceberg can read
     // Int96 end to end.
     Table int96Table = tableFromInputFile(parquetInputFile, schema);
     List<Record> tableRecords = Lists.newArrayList(IcebergGenerics.read(int96Table).build());
 
-    Assert.assertEquals(rows.size(), tableRecords.size());
+    assertThat(tableRecords).hasSameSizeAs(rows);
 
     for (int i = 0; i < tableRecords.size(); i++) {
       GenericsHelpers.assertEqualsUnsafe(schema.asStruct(), tableRecords.get(i), rows.get(i));

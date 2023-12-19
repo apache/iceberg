@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.data;
 
 import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -31,15 +32,14 @@ import org.apache.iceberg.avro.AvroIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.junit.Assert;
 
 public class TestSparkAvroReader extends AvroDataTest {
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     List<Record> expected = RandomData.generateList(schema, 100, 0L);
 
-    File testFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", testFile.delete());
+    File testFile = temp.toFile();
+    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     try (FileAppender<Record> writer =
         Avro.write(Files.localOutput(testFile)).schema(schema).named("test").build()) {

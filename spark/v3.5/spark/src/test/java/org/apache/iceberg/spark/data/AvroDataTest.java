@@ -22,6 +22,7 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.Schema;
@@ -34,9 +35,8 @@ import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.spark.sql.internal.SQLConf;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public abstract class AvroDataTest {
 
@@ -63,7 +63,7 @@ public abstract class AvroDataTest {
           required(117, "dec_38_10", Types.DecimalType.of(38, 10)) // Spark's maximum precision
           );
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir public Path temp;
 
   @Test
   public void testSimpleStruct() throws IOException {

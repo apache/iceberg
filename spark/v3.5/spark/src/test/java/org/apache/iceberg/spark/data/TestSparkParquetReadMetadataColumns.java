@@ -19,6 +19,8 @@
 package org.apache.iceberg.spark.data;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -57,12 +59,9 @@ import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.UTF8String;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
@@ -119,7 +118,8 @@ public class TestSparkParquetReadMetadataColumns {
     return new Object[][] {new Object[] {false}, new Object[] {true}};
   }
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir
+  public java.nio.file.Path temp;
 
   private final boolean vectorized;
   private File testFile;
@@ -128,14 +128,14 @@ public class TestSparkParquetReadMetadataColumns {
     this.vectorized = vectorized;
   }
 
-  @Before
+  @BeforeEach
   public void writeFile() throws IOException {
     List<Path> fileSplits = Lists.newArrayList();
     StructType struct = SparkSchemaUtil.convert(DATA_SCHEMA);
     Configuration conf = new Configuration();
 
-    testFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", testFile.delete());
+    testFile = temp.toFile();
+    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
     ParquetFileWriter parquetFileWriter =
         new ParquetFileWriter(
             conf,
@@ -144,8 +144,8 @@ public class TestSparkParquetReadMetadataColumns {
 
     parquetFileWriter.start();
     for (int i = 0; i < NUM_ROW_GROUPS; i += 1) {
-      File split = temp.newFile();
-      Assert.assertTrue("Delete should succeed", split.delete());
+      File split = temp.toFile();
+      assertThat(split.delete()).as("Delete should succeed").isTrue();
       fileSplits.add(new Path(split.getAbsolutePath()));
       try (FileAppender<InternalRow> writer =
           Parquet.write(Files.localOutput(split))
@@ -171,7 +171,7 @@ public class TestSparkParquetReadMetadataColumns {
 
   @Test
   public void testReadRowNumbersWithDelete() throws IOException {
-    Assume.assumeTrue(vectorized);
+    assumeTrue(vectorized);
 
     List<InternalRow> expectedRowsAfterDelete = Lists.newArrayList();
     EXPECTED_ROWS.forEach(row -> expectedRowsAfterDelete.add(row.copy()));
@@ -295,11 +295,11 @@ public class TestSparkParquetReadMetadataColumns {
       final Iterator<InternalRow> actualRows = reader.iterator();
 
       for (InternalRow internalRow : expected) {
-        Assert.assertTrue("Should have expected number of rows", actualRows.hasNext());
+        assertThat(actualRows.hasNext()).as("Should have expected number of rows").isTrue();
         TestHelpers.assertEquals(PROJECTION_SCHEMA, internalRow, actualRows.next());
       }
 
-      Assert.assertFalse("Should not have extra rows", actualRows.hasNext());
+      assertThat(actualRows.hasNext()).as("Should not have extra rows").isFalse();
     }
   }
 

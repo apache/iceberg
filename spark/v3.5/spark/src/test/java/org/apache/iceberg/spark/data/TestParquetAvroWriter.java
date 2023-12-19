@@ -20,9 +20,11 @@ package org.apache.iceberg.spark.data;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Iterator;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.Files;
@@ -35,13 +37,11 @@ import org.apache.iceberg.parquet.ParquetAvroWriter;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.schema.MessageType;
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestParquetAvroWriter {
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
   private static final Schema COMPLEX_SCHEMA =
       new Schema(
@@ -90,8 +90,8 @@ public class TestParquetAvroWriter {
   public void testCorrectness() throws IOException {
     Iterable<Record> records = RandomData.generate(COMPLEX_SCHEMA, 50_000, 34139);
 
-    File testFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", testFile.delete());
+    File testFile = temp.toFile();
+    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     try (FileAppender<Record> writer =
         Parquet.write(Files.localOutput(testFile))
@@ -115,7 +115,7 @@ public class TestParquetAvroWriter {
       Iterator<Record> iter = records.iterator();
       for (Record actual : reader) {
         Record expected = iter.next();
-        Assert.assertEquals("Record " + recordNum + " should match expected", expected, actual);
+        assertThat(actual).as("Record " + recordNum + " should match expected").isEqualTo(expected);
         recordNum += 1;
       }
     }

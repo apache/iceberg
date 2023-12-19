@@ -20,9 +20,11 @@ package org.apache.iceberg.spark.data;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Iterator;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.Files;
@@ -34,14 +36,12 @@ import org.apache.iceberg.parquet.ParquetAvroValueReaders;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.schema.MessageType;
-import org.junit.Assert;
-import org.junit.Ignore;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestParquetAvroReader {
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
   private static final Schema COMPLEX_SCHEMA =
       new Schema(
@@ -87,7 +87,7 @@ public class TestParquetAvroReader {
           optional(2, "slide", Types.StringType.get()),
           required(25, "foo", Types.DecimalType.of(7, 5)));
 
-  @Ignore
+  @Disabled
   public void testStructSchema() throws IOException {
     Schema structSchema =
         new Schema(
@@ -145,7 +145,7 @@ public class TestParquetAvroReader {
     double stddev = Math.sqrt((((double) sumSq) / trials) - (mean * mean));
   }
 
-  @Ignore
+  @Disabled
   public void testWithOldReadPath() throws IOException {
     File testFile = writeTestData(COMPLEX_SCHEMA, 500_000, 1985);
     // RandomData uses the root record name "test", which must match for records to be equal
@@ -194,8 +194,8 @@ public class TestParquetAvroReader {
   public void testCorrectness() throws IOException {
     Iterable<Record> records = RandomData.generate(COMPLEX_SCHEMA, 50_000, 34139);
 
-    File testFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", testFile.delete());
+    File testFile = temp.toFile();
+    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     try (FileAppender<Record> writer =
         Parquet.write(Files.localOutput(testFile)).schema(COMPLEX_SCHEMA).build()) {
@@ -217,15 +217,15 @@ public class TestParquetAvroReader {
       Iterator<Record> iter = records.iterator();
       for (Record actual : reader) {
         Record expected = iter.next();
-        Assert.assertEquals("Record " + recordNum + " should match expected", expected, actual);
+        assertThat(actual).as("Record " + recordNum + " should match expected").isEqualTo(expected);
         recordNum += 1;
       }
     }
   }
 
   private File writeTestData(Schema schema, int numRecords, int seed) throws IOException {
-    File testFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", testFile.delete());
+    File testFile = temp.toFile();
+    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     try (FileAppender<Record> writer =
         Parquet.write(Files.localOutput(testFile)).schema(schema).build()) {
