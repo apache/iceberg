@@ -68,6 +68,7 @@ import org.apache.iceberg.spark.source.StagedSparkTable;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
+import org.apache.iceberg.view.UpdateViewProperties;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NamespaceAlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
@@ -611,8 +612,40 @@ public class SparkCatalog extends BaseCatalog
   @Override
   public View alterView(Identifier ident, ViewChange... changes)
       throws NoSuchViewException, IllegalArgumentException {
+    if (null != asViewCatalog) {
+      try {
+        org.apache.iceberg.view.View view = asViewCatalog.loadView(buildIdentifier(ident));
+        UpdateViewProperties updateViewProperties = view.updateProperties();
+
+        for (ViewChange change : changes) {
+          if (change instanceof ViewChange.SetProperty) {
+            ViewChange.SetProperty property = (ViewChange.SetProperty) change;
+            verifyNonReservedProperty(property.property());
+            updateViewProperties.set(property.property(), property.value());
+          } else if (change instanceof ViewChange.RemoveProperty) {
+            ViewChange.RemoveProperty remove = (ViewChange.RemoveProperty) change;
+            verifyNonReservedProperty(remove.property());
+            updateViewProperties.remove(remove.property());
+          }
+        }
+
+        updateViewProperties.commit();
+
+        return new SparkView(catalogName, view);
+      } catch (org.apache.iceberg.exceptions.NoSuchViewException e) {
+        throw new NoSuchViewException(ident);
+      }
+    }
+
     throw new UnsupportedOperationException(
         "Altering a view is not supported by catalog: " + catalogName);
+  }
+
+  private static void verifyNonReservedProperty(String property) {
+    if (SparkView.RESERVED_PROPERTIES.contains(property)) {
+      throw new UnsupportedOperationException(
+          String.format("Cannot specify '%s' because it's a reserved view property", property));
+    }
   }
 
   @Override

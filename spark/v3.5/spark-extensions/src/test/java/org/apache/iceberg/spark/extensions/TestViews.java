@@ -1362,6 +1362,127 @@ public class TestViews extends SparkExtensionsTestBase {
     assertThat(sql("SHOW CREATE TABLE %s", viewName)).containsExactly(row(expected));
   }
 
+  @Test
+  public void alterViewSetProperties() {
+    String viewName = "viewWithSetProperties";
+
+    sql("CREATE VIEW %s AS SELECT id FROM %s WHERE id <= 3", viewName, tableName);
+
+    ViewCatalog viewCatalog = viewCatalog();
+    assertThat(viewCatalog.loadView(TableIdentifier.of(NAMESPACE, viewName)).properties())
+        .doesNotContainKey("key1")
+        .doesNotContainKey("comment");
+
+    sql("ALTER VIEW %s SET TBLPROPERTIES ('key1' = 'val1', 'comment' = 'view comment')", viewName);
+    assertThat(viewCatalog.loadView(TableIdentifier.of(NAMESPACE, viewName)).properties())
+        .containsEntry("key1", "val1")
+        .containsEntry("comment", "view comment");
+
+    sql("ALTER VIEW %s SET TBLPROPERTIES ('key1' = 'new_val1')", viewName);
+    assertThat(viewCatalog.loadView(TableIdentifier.of(NAMESPACE, viewName)).properties())
+        .containsEntry("key1", "new_val1")
+        .containsEntry("comment", "view comment");
+  }
+
+  @Test
+  public void alterViewSetReservedProperties() {
+    String viewName = "viewWithSetReservedProperties";
+
+    sql("CREATE VIEW %s AS SELECT id FROM %s WHERE id <= 3", viewName, tableName);
+
+    assertThatThrownBy(() -> sql("ALTER VIEW %s SET TBLPROPERTIES ('provider' = 'val1')", viewName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "The feature is not supported: provider is a reserved table property");
+
+    assertThatThrownBy(
+            () -> sql("ALTER VIEW %s SET TBLPROPERTIES ('location' = 'random_location')", viewName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "The feature is not supported: location is a reserved table property");
+
+    assertThatThrownBy(
+            () -> sql("ALTER VIEW %s SET TBLPROPERTIES ('format-version' = '99')", viewName))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining(
+            "Cannot specify 'format-version' because it's a reserved view property");
+
+    assertThatThrownBy(
+            () -> sql("ALTER VIEW %s SET TBLPROPERTIES ('queryColumnNames' = 'a,b,c')", viewName))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining(
+            "Cannot specify 'queryColumnNames' because it's a reserved view property");
+  }
+
+  @Test
+  public void alterViewUnsetProperties() {
+    String viewName = "viewWithUnsetProperties";
+    sql("CREATE VIEW %s AS SELECT id FROM %s WHERE id <= 3", viewName, tableName);
+
+    ViewCatalog viewCatalog = viewCatalog();
+    assertThat(viewCatalog.loadView(TableIdentifier.of(NAMESPACE, viewName)).properties())
+        .doesNotContainKey("key1")
+        .doesNotContainKey("comment");
+
+    sql("ALTER VIEW %s SET TBLPROPERTIES ('key1' = 'val1', 'comment' = 'view comment')", viewName);
+    assertThat(viewCatalog.loadView(TableIdentifier.of(NAMESPACE, viewName)).properties())
+        .containsEntry("key1", "val1")
+        .containsEntry("comment", "view comment");
+
+    sql("ALTER VIEW %s UNSET TBLPROPERTIES ('key1')", viewName);
+    assertThat(viewCatalog.loadView(TableIdentifier.of(NAMESPACE, viewName)).properties())
+        .doesNotContainKey("key1")
+        .containsEntry("comment", "view comment");
+  }
+
+  @Test
+  public void alterViewUnsetUnknownProperty() {
+    String viewName = "viewWithUnsetUnknownProp";
+    sql("CREATE VIEW %s AS SELECT id FROM %s WHERE id <= 3", viewName, tableName);
+
+    assertThatThrownBy(() -> sql("ALTER VIEW %s UNSET TBLPROPERTIES ('unknown-key')", viewName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Attempted to unset non-existing property 'unknown-key'");
+
+    assertThatNoException()
+        .isThrownBy(
+            () -> sql("ALTER VIEW %s UNSET TBLPROPERTIES IF EXISTS ('unknown-key')", viewName));
+  }
+
+  @Test
+  public void alterViewUnsetReservedProperties() {
+    String viewName = "viewWithUnsetReservedProperties";
+
+    sql("CREATE VIEW %s AS SELECT id FROM %s WHERE id <= 3", viewName, tableName);
+
+    assertThatThrownBy(() -> sql("ALTER VIEW %s UNSET TBLPROPERTIES ('provider')", viewName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "The feature is not supported: provider is a reserved table property");
+
+    assertThatThrownBy(() -> sql("ALTER VIEW %s UNSET TBLPROPERTIES ('location')", viewName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "The feature is not supported: location is a reserved table property");
+
+    assertThatThrownBy(() -> sql("ALTER VIEW %s UNSET TBLPROPERTIES ('format-version')", viewName))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining(
+            "Cannot specify 'format-version' because it's a reserved view property");
+
+    // queryColumnNames is only used internally, so it technically doesn't exist on a Spark VIEW
+    assertThatThrownBy(
+            () -> sql("ALTER VIEW %s UNSET TBLPROPERTIES ('queryColumnNames')", viewName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Attempted to unset non-existing property 'queryColumnNames'");
+
+    assertThatThrownBy(
+            () -> sql("ALTER VIEW %s UNSET TBLPROPERTIES IF EXISTS ('queryColumnNames')", viewName))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining(
+            "Cannot specify 'queryColumnNames' because it's a reserved view property");
+  }
+
   private void insertRows(int numRows) throws NoSuchTableException {
     List<SimpleRecord> records = Lists.newArrayListWithCapacity(numRows);
     for (int i = 1; i <= numRows; i++) {
