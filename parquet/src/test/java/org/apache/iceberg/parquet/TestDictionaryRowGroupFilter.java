@@ -40,6 +40,7 @@ import static org.apache.iceberg.expressions.Expressions.truncate;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
@@ -81,7 +82,6 @@ import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.schema.MessageType;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -222,25 +222,25 @@ public class TestDictionaryRowGroupFilter {
   @TestTemplate
   public void testAssumptions() {
     // this case validates that other cases don't need to test expressions with null literals.
-    Assertions.assertThatThrownBy(() -> equal("col", null))
+    assertThatThrownBy(() -> equal("col", null))
         .isInstanceOf(NullPointerException.class)
         .hasMessageContaining("Cannot create expression literal from null");
-    Assertions.assertThatThrownBy(() -> notEqual("col", null))
+    assertThatThrownBy(() -> notEqual("col", null))
         .isInstanceOf(NullPointerException.class)
         .hasMessageContaining("Cannot create expression literal from null");
-    Assertions.assertThatThrownBy(() -> lessThan("col", null))
+    assertThatThrownBy(() -> lessThan("col", null))
         .isInstanceOf(NullPointerException.class)
         .hasMessageContaining("Cannot create expression literal from null");
-    Assertions.assertThatThrownBy(() -> lessThanOrEqual("col", null))
+    assertThatThrownBy(() -> lessThanOrEqual("col", null))
         .isInstanceOf(NullPointerException.class)
         .hasMessageContaining("Cannot create expression literal from null");
-    Assertions.assertThatThrownBy(() -> greaterThan("col", null))
+    assertThatThrownBy(() -> greaterThan("col", null))
         .isInstanceOf(NullPointerException.class)
         .hasMessageContaining("Cannot create expression literal from null");
-    Assertions.assertThatThrownBy(() -> startsWith("col", null))
+    assertThatThrownBy(() -> startsWith("col", null))
         .isInstanceOf(NullPointerException.class)
         .hasMessageContaining("Cannot create expression literal from null");
-    Assertions.assertThatThrownBy(() -> notStartsWith("col", null))
+    assertThatThrownBy(() -> notStartsWith("col", null))
         .isInstanceOf(NullPointerException.class)
         .hasMessageContaining("Cannot create expression literal from null");
   }
@@ -466,7 +466,7 @@ public class TestDictionaryRowGroupFilter {
 
   @TestTemplate
   public void testMissingColumn() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 new ParquetDictionaryRowGroupFilter(SCHEMA, lessThan("missing", 5))
                     .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore))
@@ -1014,7 +1014,7 @@ public class TestDictionaryRowGroupFilter {
 
   @TestTemplate
   public void testMissingDictionaryPageForColumn() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("some_nulls", "some"))
                     .shouldRead(parquetSchema, rowGroupMetadata, descriptor -> null))
