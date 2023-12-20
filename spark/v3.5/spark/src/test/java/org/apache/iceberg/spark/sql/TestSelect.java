@@ -234,23 +234,30 @@ public class TestSelect extends SparkCatalogTestBase {
   }
 
   @Test
-  public void testTagReferenceAsOf() {
+  public void testTagReference() {
     Table table = validationCatalog.loadTable(tableIdent);
     long snapshotId = table.currentSnapshot().snapshotId();
     table.manageSnapshots().createTag("test_tag", snapshotId).commit();
-
-    // create a second snapshot, read the table at the snapshot
     List<Object[]> expected = sql("SELECT * FROM %s", tableName);
+
+    // create a second snapshot, read the table at the tag
     sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
     List<Object[]> actual1 = sql("SELECT * FROM %s VERSION AS OF 'test_tag'", tableName);
     assertEquals("Snapshot at specific tag reference name", expected, actual1);
 
-    // read the table at the snapshot
+    // read the table at the tag
     // HIVE time travel syntax
     List<Object[]> actual2 = sql("SELECT * FROM %s FOR SYSTEM_VERSION AS OF 'test_tag'", tableName);
     assertEquals("Snapshot at specific tag reference name", expected, actual2);
 
-    // read the table using DataFrameReader option: branch
+    // Spark session catalog does not support extended table names
+    if (!"spark_catalog".equals(catalogName)) {
+      // read the table using the "tag_" prefix in the table name
+      List<Object[]> actual3 = sql("SELECT * FROM %s.tag_test_tag", tableName);
+      assertEquals("Snapshot at specific tag reference name, prefix", expected, actual3);
+    }
+
+    // read the table using DataFrameReader option: tag
     Dataset<Row> df =
         spark.read().format("iceberg").option(SparkReadOptions.TAG, "test_tag").load(tableName);
     List<Object[]> fromDF = rowsToJava(df.collectAsList());
@@ -283,22 +290,29 @@ public class TestSelect extends SparkCatalogTestBase {
   }
 
   @Test
-  public void testBranchReferenceAsOf() {
+  public void testBranchReference() {
     Table table = validationCatalog.loadTable(tableIdent);
     long snapshotId = table.currentSnapshot().snapshotId();
     table.manageSnapshots().createBranch("test_branch", snapshotId).commit();
-
-    // create a second snapshot, read the table at the snapshot
     List<Object[]> expected = sql("SELECT * FROM %s", tableName);
+
+    // create a second snapshot, read the table at the branch
     sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
     List<Object[]> actual1 = sql("SELECT * FROM %s VERSION AS OF 'test_branch'", tableName);
     assertEquals("Snapshot at specific branch reference name", expected, actual1);
 
-    // read the table at the snapshot
+    // read the table at the branch
     // HIVE time travel syntax
     List<Object[]> actual2 =
         sql("SELECT * FROM %s FOR SYSTEM_VERSION AS OF 'test_branch'", tableName);
     assertEquals("Snapshot at specific branch reference name", expected, actual2);
+
+    // Spark session catalog does not support extended table names
+    if (!"spark_catalog".equals(catalogName)) {
+      // read the table using the "branch_" prefix in the table name
+      List<Object[]> actual3 = sql("SELECT * FROM %s.branch_test_branch", tableName);
+      assertEquals("Snapshot at specific branch reference name, prefix", expected, actual3);
+    }
 
     // read the table using DataFrameReader option: branch
     Dataset<Row> df =
@@ -417,6 +431,21 @@ public class TestSelect extends SparkCatalogTestBase {
                   "SELECT * FROM %s.%s TIMESTAMP AS OF %s",
                   tableName, timestampPrefix + timestamp, timestamp);
             })
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot do time-travel based on both table identifier and AS OF");
+  }
+
+  @Test
+  public void testInvalidTimeTravelAgainstBranchIdentifierWithAsOf() {
+    long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    validationCatalog.loadTable(tableIdent).manageSnapshots().createBranch("b1").commit();
+
+    // create a second snapshot
+    sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
+
+    // using branch_b1 in the table identifier and VERSION AS OF
+    Assertions.assertThatThrownBy(
+            () -> sql("SELECT * FROM %s.branch_b1 VERSION AS OF %s", tableName, snapshotId))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot do time-travel based on both table identifier and AS OF");
   }

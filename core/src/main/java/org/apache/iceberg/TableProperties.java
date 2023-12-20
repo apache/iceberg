@@ -360,4 +360,11 @@ public class TableProperties {
 
   public static final String UPSERT_ENABLED = "write.upsert.enabled";
   public static final boolean UPSERT_ENABLED_DEFAULT = false;
+
+  public static final String ENCRYPTION_TABLE_KEY = "encryption.key-id";
+
+  public static final String ENCRYPTION_DEK_LENGTH = "encryption.data-key-length";
+  public static final int ENCRYPTION_DEK_LENGTH_DEFAULT = 16;
+
+  public static final int ENCRYPTION_AAD_LENGTH_DEFAULT = 16;
 }

@@ -884,7 +884,7 @@ paths:
         406:
           $ref: '#/components/responses/UnsupportedOperationResponse'
         409:
-          description: Conflict - The target table identifier to rename to already exists
+          description: Conflict - The target identifier to rename to already exists as a table or view
           content:
             application/json:
               schema:
@@ -1056,6 +1056,356 @@ paths:
                 }
               }
 
+  /v1/{prefix}/namespaces/{namespace}/views:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+
+    get:
+      tags:
+        - Catalog API
+      summary: List all view identifiers underneath a given namespace
+      description: Return all view identifiers under this namespace
+      operationId: listViews
+      responses:
+        200:
+          $ref: '#/components/responses/ListTablesResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - The namespace specified does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+              examples:
+                NamespaceNotFound:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+    post:
+      tags:
+        - Catalog API
+      summary: Create a view in the given namespace
+      description:
+        Create a view in the given namespace.
+      operationId: createView
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateViewRequest'
+      responses:
+        200:
+          $ref: '#/components/responses/LoadViewResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - The namespace specified does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+              examples:
+                NamespaceNotFound:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        409:
+          description: Conflict - The view already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+              examples:
+                NamespaceAlreadyExists:
+                  $ref: '#/components/examples/ViewAlreadyExistsError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+  /v1/{prefix}/namespaces/{namespace}/views/{view}:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/view'
+
+    get:
+      tags:
+        - Catalog API
+      summary: Load a view from the catalog
+      operationId: loadView
+      description:
+        Load a view from the catalog.
+
+
+        The response contains both configuration and view metadata. The configuration, if non-empty is used
+        as additional configuration for the view that overrides catalog configuration.
+
+
+        The response also contains the view's full metadata, matching the view metadata JSON file.
+
+
+        The catalog configuration may contain credentials that should be used for subsequent requests for the
+        view. The configuration key "token" is used to pass an access token to be used as a bearer token
+        for view requests. Otherwise, a token may be passed using a RFC 8693 token type as a configuration
+        key. For example, "urn:ietf:params:oauth:token-type:jwt=<JWT-token>".
+      responses:
+        200:
+          $ref: '#/components/responses/LoadViewResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description:
+            Not Found - NoSuchViewException, view to load does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+              examples:
+                ViewToLoadDoesNotExist:
+                  $ref: '#/components/examples/NoSuchViewError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+    post:
+      tags:
+        - Catalog API
+      summary: Replace a view
+      operationId: replaceView
+      description:
+        Commit updates to a view.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommitViewRequest'
+      responses:
+        200:
+          $ref: '#/components/responses/LoadViewResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description:
+            Not Found - NoSuchViewException, view to load does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+              examples:
+                ViewToUpdateDoesNotExist:
+                  $ref: '#/components/examples/NoSuchViewError'
+        409:
+          description:
+            Conflict - CommitFailedException. The client may retry.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        500:
+          description:
+            An unknown server-side problem occurred; the commit state is unknown.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+              example: {
+                "error": {
+                  "message": "Internal Server Error",
+                  "type": "CommitStateUnknownException",
+                  "code": 500
+                }
+              }
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        502:
+          description:
+            A gateway or proxy received an invalid response from the upstream server; the commit state is unknown.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+              example: {
+                "error": {
+                  "message": "Invalid response from the upstream server",
+                  "type": "CommitStateUnknownException",
+                  "code": 502
+                }
+              }
+        504:
+          description:
+            A server-side gateway timeout occurred; the commit state is unknown.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+              example: {
+                "error": {
+                  "message": "Gateway timed out during commit",
+                  "type": "CommitStateUnknownException",
+                  "code": 504
+                }
+              }
+        5XX:
+          description:
+            A server-side problem that might not be addressable on the client.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+              example: {
+                "error": {
+                  "message": "Bad Gateway",
+                  "type": "InternalServerError",
+                  "code": 502
+                }
+              }
+
+    delete:
+      tags:
+        - Catalog API
+      summary: Drop a view from the catalog
+      operationId: dropView
+      description: Remove a view from the catalog
+      responses:
+        204:
+          description: Success, no content
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description:
+            Not Found - NoSuchViewException, view to drop does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+              examples:
+                ViewToDeleteDoesNotExist:
+                  $ref: '#/components/examples/NoSuchViewError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+    head:
+      tags:
+        - Catalog API
+      summary: Check if a view exists
+      operationId: viewExists
+      description:
+        Check if a view exists within a given namespace. This request does not return a response body.
+      responses:
+        204:
+          description: Success, no content
+        400:
+          description: Bad Request
+        401:
+          description: Unauthorized
+        404:
+          description: Not Found
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+  /v1/{prefix}/views/rename:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+
+    post:
+      tags:
+        - Catalog API
+      summary: Rename a view from its current name to a new name
+      description:
+        Rename a view from one identifier to another. It's valid to move a view
+        across namespaces, but the server implementation is not required to support it.
+      operationId: renameView
+      requestBody:
+        description: Current view identifier to rename and new view identifier to rename to
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenameTableRequest'
+            examples:
+              RenameViewSameNamespace:
+                $ref: '#/components/examples/RenameViewSameNamespace'
+        required: true
+      responses:
+        200:
+          description: OK
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description:
+            Not Found
+            - NoSuchViewException, view to rename does not exist
+            - NoSuchNamespaceException, The target namespace of the new identifier does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+              examples:
+                ViewToRenameDoesNotExist:
+                  $ref: '#/components/examples/NoSuchViewError'
+                NamespaceToRenameToDoesNotExist:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        406:
+          $ref: '#/components/responses/UnsupportedOperationResponse'
+        409:
+          description: Conflict - The target identifier to rename to already exists as a table or view
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+              example:
+                $ref: '#/components/examples/ViewAlreadyExistsError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
 
 components:
   #######################################################
@@ -1089,6 +1439,15 @@ components:
       name: table
       in: path
       description: A table name
+      required: true
+      schema:
+        type: string
+      example: "sales"
+
+    view:
+      name: view
+      in: path
+      description: A view name
       required: true
       schema:
         type: string
@@ -1671,194 +2030,369 @@ components:
         metadata-log:
           $ref: '#/components/schemas/MetadataLog'
 
+    SQLViewRepresentation:
+      type: object
+      required:
+        - type
+        - sql
+        - dialect
+      properties:
+        type:
+          type: string
+        sql:
+          type: string
+        dialect:
+          type: string
+
+    ViewRepresentation:
+      oneOf:
+        - $ref: '#/components/schemas/SQLViewRepresentation'
+
+    ViewHistoryEntry:
+      type: object
+      required:
+        - version-id
+        - timestamp-ms
+      properties:
+        version-id:
+          type: integer
+        timestamp-ms:
+          type: integer
+          format: int64
+
+    ViewVersion:
+      type: object
+      required:
+        - version-id
+        - timestamp-ms
+        - schema-id
+        - summary
+        - representations
+        - default-namespace
+      properties:
+        version-id:
+          type: integer
+        timestamp-ms:
+          type: integer
+          format: int64
+        schema-id:
+          type: integer
+          description: Schema ID to set as current, or -1 to set last added schema
+        summary:
+          type: object
+          additionalProperties:
+            type: string
+        representations:
+          type: array
+          items:
+            $ref: '#/components/schemas/ViewRepresentation'
+        default-catalog:
+          type: string
+        default-namespace:
+          $ref: '#/components/schemas/Namespace'
+
+    ViewMetadata:
+      type: object
+      required:
+        - view-uuid
+        - format-version
+        - location
+        - current-version-id
+        - versions
+        - version-log
+        - schemas
+      properties:
+        view-uuid:
+          type: string
+        format-version:
+          type: integer
+          minimum: 1
+          maximum: 1
+        location:
+          type: string
+        current-version-id:
+          type: integer
+        versions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ViewVersion'
+        version-log:
+          type: array
+          items:
+            $ref: '#/components/schemas/ViewHistoryEntry'
+        schemas:
+          type: array
+          items:
+            $ref: '#/components/schemas/Schema'
+        properties:
+          type: object
+          additionalProperties:
+            type: string
+
     BaseUpdate:
+      discriminator:
+        propertyName: action
+        mapping:
+          assign-uuid: '#/components/schemas/AssignUUIDUpdate'
+          upgrade-format-version: '#/components/schemas/UpgradeFormatVersionUpdate'
+          add-schema: '#/components/schemas/AddSchemaUpdate'
+          set-current-schema: '#/components/schemas/SetCurrentSchemaUpdate'
+          add-spec: '#/components/schemas/AddPartitionSpecUpdate'
+          set-default-spec: '#/components/schemas/SetDefaultSpecUpdate'
+          add-sort-order: '#/components/schemas/AddSortOrderUpdate'
+          set-default-sort-order: '#/components/schemas/SetDefaultSortOrderUpdate'
+          add-snapshot: '#/components/schemas/AddSnapshotUpdate'
+          set-snapshot-ref: '#/components/schemas/SetSnapshotRefUpdate'
+          remove-snapshots: '#/components/schemas/RemoveSnapshotsUpdate'
+          remove-snapshot-ref: '#/components/schemas/RemoveSnapshotRefUpdate'
+          set-location: '#/components/schemas/SetLocationUpdate'
+          set-properties: '#/components/schemas/SetPropertiesUpdate'
+          remove-properties: '#/components/schemas/RemovePropertiesUpdate'
+          add-view-version: '#/components/schemas/AddViewVersionUpdate'
+          set-current-view-version: '#/components/schemas/SetCurrentViewVersionUpdate'
       type: object
       required:
         - action
       properties:
         action:
           type: string
-          enum:
-            - assign-uuid
-            - upgrade-format-version
-            - add-schema
-            - set-current-schema
-            - add-spec
-            - set-default-spec
-            - add-sort-order
-            - set-default-sort-order
-            - add-snapshot
-            - set-snapshot-ref
-            - remove-snapshots
-            - remove-snapshot-ref
-            - set-location
-            - set-properties
-            - remove-properties
 
     AssignUUIDUpdate:
       description: Assigning a UUID to a table/view should only be done when creating the table/view. It is not safe to re-assign the UUID if a table/view already has a UUID assigned
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
-        - type: object
-          required:
-            - uuid
-          properties:
-            uuid:
-              type: string
+      required:
+        - action
+        - uuid
+      properties:
+        action:
+          type: string
+          enum: ["assign-uuid"]
+        uuid:
+          type: string
 
     UpgradeFormatVersionUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
-        - type: object
-          required:
-            - format-version
-          properties:
-            format-version:
-              type: integer
+      required:
+        - action
+        - format-version
+      properties:
+        action:
+          type: string
+          enum: ["upgrade-format-version"]
+        format-version:
+          type: integer
 
     AddSchemaUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
-        - type: object
-          required:
-            - schema
-          properties:
-            schema:
-              $ref: '#/components/schemas/Schema'
-            last-column-id:
-              type: integer
-              description: The highest assigned column ID for the table. This is used to ensure columns are always assigned an unused ID when evolving schemas. When omitted, it will be computed on the server side.
+      required:
+        - action
+        - schema
+      properties:
+        action:
+          type: string
+          enum: ["add-schema"]
+        schema:
+          $ref: '#/components/schemas/Schema'
+        last-column-id:
+          type: integer
+          description: The highest assigned column ID for the table. This is used to ensure columns are always assigned an unused ID when evolving schemas. When omitted, it will be computed on the server side.
 
     SetCurrentSchemaUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
-        - type: object
-          required:
-            - schema-id
-          properties:
-            schema-id:
-              type: integer
-              description: Schema ID to set as current, or -1 to set last added schema
+      required:
+        - action
+        - schema-id
+      properties:
+        action:
+          type: string
+          enum: ["set-current-schema"]
+        schema-id:
+          type: integer
+          description: Schema ID to set as current, or -1 to set last added schema
 
     AddPartitionSpecUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
-        - type: object
-          required:
-            - spec
-          properties:
-            spec:
-              $ref: '#/components/schemas/PartitionSpec'
+      required:
+        - action
+        - spec
+      properties:
+        action:
+          type: string
+          enum: ["add-spec"]
+        spec:
+          $ref: '#/components/schemas/PartitionSpec'
 
     SetDefaultSpecUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
-        - type: object
-          required:
-            - spec-id
-          properties:
-            spec-id:
-              type: integer
-              description: Partition spec ID to set as the default, or -1 to set last added spec
+      required:
+        - action
+        - spec-id
+      properties:
+        action:
+          type: string
+          enum: [ "set-default-spec" ]
+        spec-id:
+          type: integer
+          description: Partition spec ID to set as the default, or -1 to set last added spec
 
     AddSortOrderUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
-        - type: object
-          required:
-            - sort-order
-          properties:
-            sort-order:
-              $ref: '#/components/schemas/SortOrder'
+      required:
+        - action
+        - sort-order
+      properties:
+        action:
+          type: string
+          enum: [ "add-sort-order" ]
+        sort-order:
+          $ref: '#/components/schemas/SortOrder'
 
     SetDefaultSortOrderUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
-        - type: object
-          required:
-            - sort-order-id
-          properties:
-            sort-order-id:
-              type: integer
-              description: Sort order ID to set as the default, or -1 to set last added sort order
+      required:
+        - action
+        - sort-order-id
+      properties:
+        action:
+          type: string
+          enum: [ "set-default-sort-order" ]
+        sort-order-id:
+          type: integer
+          description: Sort order ID to set as the default, or -1 to set last added sort order
 
     AddSnapshotUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
-        - type: object
-          required:
-            - snapshot
-          properties:
-            snapshot:
-              $ref: '#/components/schemas/Snapshot'
+      required:
+        - action
+        - snapshot
+      properties:
+        action:
+          type: string
+          enum: [ "add-snapshot" ]
+        snapshot:
+          $ref: '#/components/schemas/Snapshot'
 
     SetSnapshotRefUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
         - $ref: '#/components/schemas/SnapshotReference'
-        - type: object
-          required:
-            - ref-name
-          properties:
-            ref-name:
-              type: string
+      required:
+        - action
+        - ref-name
+      properties:
+        action:
+          type: string
+          enum: [ "set-snapshot-ref" ]
+        ref-name:
+          type: string
 
     RemoveSnapshotsUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
-        - type: object
-          required:
-            - snapshot-ids
-          properties:
-            snapshot-ids:
-              type: array
-              items:
-                type: integer
-                format: int64
+      required:
+        - action
+        - snapshot-ids
+      properties:
+        action:
+          type: string
+          enum: [ "remove-snapshots" ]
+        snapshot-ids:
+          type: array
+          items:
+            type: integer
+            format: int64
 
     RemoveSnapshotRefUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
-        - type: object
-          required:
-            - ref-name
-          properties:
-            ref-name:
-              type: string
+      required:
+        - action
+        - ref-name
+      properties:
+        action:
+          type: string
+          enum: [ "remove-snapshot-ref" ]
+        ref-name:
+          type: string
 
     SetLocationUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
-        - type: object
-          required:
-            - location
-          properties:
-            location:
-              type: string
+      required:
+        - action
+        - location
+      properties:
+        action:
+          type: string
+          enum: [ "set-location" ]
+        location:
+          type: string
 
     SetPropertiesUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
-        - type: object
-          required:
-            - updates
-          properties:
-            updates:
-              type: object
-              additionalProperties:
-                type: string
+      required:
+        - action
+        - updates
+      properties:
+        action:
+          type: string
+          enum: [ "set-properties" ]
+        updates:
+          type: object
+          additionalProperties:
+            type: string
 
     RemovePropertiesUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
-        - type: object
-          required:
-            - removals
-          properties:
-            removals:
-              type: array
-              items:
-                type: string
+      required:
+        - action
+        - removals
+      properties:
+        action:
+          type: string
+          enum: [ "remove-properties" ]
+        removals:
+          type: array
+          items:
+            type: string
+
+    AddViewVersionUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+      required:
+        - action
+        - view-version
+      properties:
+        action:
+          type: string
+          enum: [ "add-view-version" ]
+        view-version:
+          $ref: '#/components/schemas/ViewVersion'
+
+    SetCurrentViewVersionUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+      required:
+        - action
+        - view-version-id
+      properties:
+        action:
+          type: string
+          enum: [ "set-current-view-version" ]
+        view-version-id:
+          type: integer
+          description: The view version id to set as current, or -1 to set last added view version id
 
     TableUpdate:
       anyOf:
@@ -1877,6 +2411,17 @@ components:
         - $ref: '#/components/schemas/SetLocationUpdate'
         - $ref: '#/components/schemas/SetPropertiesUpdate'
         - $ref: '#/components/schemas/RemovePropertiesUpdate'
+
+    ViewUpdate:
+      anyOf:
+        - $ref: '#/components/schemas/AssignUUIDUpdate'
+        - $ref: '#/components/schemas/UpgradeFormatVersionUpdate'
+        - $ref: '#/components/schemas/AddSchemaUpdate'
+        - $ref: '#/components/schemas/SetLocationUpdate'
+        - $ref: '#/components/schemas/SetPropertiesUpdate'
+        - $ref: '#/components/schemas/RemovePropertiesUpdate'
+        - $ref: '#/components/schemas/AddViewVersionUpdate'
+        - $ref: '#/components/schemas/SetCurrentViewVersionUpdate'
 
     TableRequirement:
       discriminator:
@@ -2018,6 +2563,32 @@ components:
         default-sort-order-id:
           type: integer
 
+    ViewRequirement:
+      discriminator:
+        propertyName: type
+        mapping:
+          assert-view-uuid: '#/components/schemas/AssertViewUUID'
+        type: object
+        required:
+          - type
+        properties:
+          type:
+            type: "string"
+
+        AssertViewUUID:
+          allOf:
+            - $ref: "#/components/schemas/ViewRequirement"
+          description: The view UUID must match the requirement's `uuid`
+          required:
+            - type
+            - uuid
+          properties:
+            type:
+              type: string
+              enum: [ "assert-view-uuid" ]
+            uuid:
+              type: string
+
     LoadTableResult:
       description: |
         Result used when a table is successfully loaded.
@@ -2076,6 +2647,23 @@ components:
           items:
             $ref: '#/components/schemas/TableUpdate'
 
+    CommitViewRequest:
+      type: object
+      required:
+        - updates
+      properties:
+        identifier:
+          description: View identifier to update
+          $ref: '#/components/schemas/TableIdentifier'
+        requirements:
+          type: array
+          items:
+            $ref: '#/components/schemas/ViewRequirement'
+        updates:
+          type: array
+          items:
+            $ref: '#/components/schemas/ViewUpdate'
+
     CommitTransactionRequest:
       type: object
       required:
@@ -2120,6 +2708,58 @@ components:
           type: string
         metadata-location:
           type: string
+
+    CreateViewRequest:
+      type: object
+      required:
+        - name
+        - schema
+        - view-version
+        - properties
+      properties:
+        name:
+          type: string
+        location:
+          type: string
+        schema:
+          $ref: '#/components/schemas/Schema'
+        view-version:
+          $ref: '#/components/schemas/ViewVersion'
+          description: The view version to create, will replace the schema-id sent within the view-version with the id assigned to the provided schema
+        properties:
+          type: object
+          additionalProperties:
+            type: string
+
+    LoadViewResult:
+      description: |
+        Result used when a view is successfully loaded.
+
+
+        The view metadata JSON is returned in the `metadata` field. The corresponding file location of view metadata is returned in the `metadata-location` field.
+        Clients can check whether metadata has changed by comparing metadata locations after the view has been created.
+
+        The `config` map returns view-specific configuration for the view's resources.
+
+        The following configurations should be respected by clients:
+
+        ## General Configurations
+
+        - `token`: Authorization bearer token to use for view requests if OAuth2 security is enabled
+
+      type: object
+      required:
+        - metadata-location
+        - metadata
+      properties:
+        metadata-location:
+          type: string
+        metadata:
+          $ref: '#/components/schemas/ViewMetadata'
+        config:
+          type: object
+          additionalProperties:
+            type: string
 
     TokenType:
       type: string
@@ -2742,6 +3382,13 @@ components:
           schema:
             $ref: '#/components/schemas/LoadTableResult'
 
+    LoadViewResponse:
+      description: View metadata result when loading a view
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/LoadViewResult'
+
     CommitTableResponse:
       description:
         Response used when a table is successfully updated.
@@ -2806,11 +3453,21 @@ components:
       }
 
     NoSuchTableError:
-      summary: The requested table does not
+      summary: The requested table does not exist
       value: {
         "error": {
           "message": "The given table does not exist",
           "type": "NoSuchTableException",
+          "code": 404
+        }
+      }
+
+    NoSuchViewError:
+      summary: The requested view does not exist
+      value: {
+        "error": {
+          "message": "The given view does not exist",
+          "type": "NoSuchViewException",
           "code": 404
         }
       }
@@ -2832,11 +3489,28 @@ components:
         "destination": { "namespace": ["accounting", "tax"], "name": "owed" }
       }
 
+    RenameViewSameNamespace:
+      summary: Rename a view in the same namespace
+      value: {
+        "source": { "namespace": [ "accounting", "tax" ], "name": "paid-view" },
+        "destination": { "namespace": [ "accounting", "tax" ], "name": "owed-view" }
+      }
+
     TableAlreadyExistsError:
       summary: The requested table identifier already exists
       value: {
         "error": {
           "message": "The given table already exists",
+          "type": "AlreadyExistsException",
+          "code": 409
+        }
+      }
+
+    ViewAlreadyExistsError:
+      summary: The requested view identifier already exists
+      value: {
+        "error": {
+          "message": "The given view already exists",
           "type": "AlreadyExistsException",
           "code": 409
         }

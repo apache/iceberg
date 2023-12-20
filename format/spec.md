@@ -305,6 +305,9 @@ The source column, selected by id, must be a primitive type and cannot be contai
 
 Partition specs capture the transform from table data to partition values. This is used to transform predicates to partition predicates, in addition to transforming data values. Deriving partition predicates from column predicates on the table data is used to separate the logical queries from physical storage: the partitioning can change and the correct partition filters are always derived from column predicates. This simplifies queries because users don’t have to supply both logical predicates and partition predicates. For more information, see Scan Planning below.
 
+Two partition specs are considered equivalent with each other if they have the same number of fields and for each corresponding field, the fields have the same source column ID, transform definition and partition name. Writers must not create a new parition spec if there already exists a compatible partition spec defined in the table.
+
+Partition field IDs must be reused if an existing partition spec contains an equivalent field.
 
 #### Partition Transforms
 
@@ -595,7 +598,7 @@ Delete files that match the query filter must be applied to data files at read t
     - The data file's partition (both spec and partition values) is equal to the delete file's partition
 * An _equality_ delete file must be applied to a data file when all of the following are true:
     - The data file's data sequence number is _strictly less than_ the delete's data sequence number
-    - The data file's partition (both spec and partition values) is equal to the delete file's partition _or_ the delete file's partition spec is unpartitioned
+    - The data file's partition (both spec id and partition values) is equal to the delete file's partition _or_ the delete file's partition spec is unpartitioned
 
 In general, deletes are applied only to data files that are older and in the same partition, except for two special cases:
 
@@ -607,6 +610,7 @@ Notes:
 
 1. An alternative, *strict projection*, creates a partition predicate that will match a file if all of the rows in the file must match the scan predicate. These projections are used to calculate the residual predicates for each file in a scan.
 2. For example, if `file_a` has rows with `id` between 1 and 10 and a delete file contains rows with `id` between 1 and 4, a scan for `id = 9` may ignore the delete file because none of the deletes can match a row that will be selected.
+3. Floating point partition values are considered equal if their IEEE 754 floating-point "single format" bit layout are equal with NaNs normalized to have only the the most significant mantissa bit set (the equivelant of calling `Float.floatToIntBits` or `Double.doubleToLongBits` in Java). The Avro specification requires all floating point values to be encoded in this format.
 
 #### Snapshot Reference
 
@@ -959,7 +963,7 @@ Note that the string map case is for maps where the key type is a string. Using 
 
 **Data Type Mappings**
 
-Values should be stored in Parquet using the types and logical type annotations in the table below. Column IDs are required.
+Values should be stored in Parquet using the types and logical type annotations in the table below. Column IDs are required to be stored as [field IDs](http://github.com/apache/parquet-format/blob/40699d05bd24181de6b1457babbee2c16dce3803/src/main/thrift/parquet.thrift#L459) on the parquet schema.
 
 Lists must use the [3-level representation](https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#lists).
 

@@ -34,6 +34,8 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
+import org.apache.hc.client5.http.io.HttpClientConnectionManager;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHeaders;
@@ -72,6 +74,10 @@ public class HTTPClient implements RESTClient {
   static final String CLIENT_GIT_COMMIT_SHORT_HEADER = "X-Client-Git-Commit-Short";
 
   private static final String REST_MAX_RETRIES = "rest.client.max-retries";
+  private static final String REST_MAX_CONNECTIONS = "rest.client.max-connections";
+  private static final int REST_MAX_CONNECTIONS_DEFAULT = 100;
+  private static final String REST_MAX_CONNECTIONS_PER_ROUTE = "rest.client.connections-per-route";
+  private static final int REST_MAX_CONNECTIONS_PER_ROUTE_DEFAULT = 100;
 
   private final String uri;
   private final CloseableHttpClient httpClient;
@@ -87,6 +93,18 @@ public class HTTPClient implements RESTClient {
     this.mapper = objectMapper;
 
     HttpClientBuilder clientBuilder = HttpClients.custom();
+
+    HttpClientConnectionManager connectionManager =
+        PoolingHttpClientConnectionManagerBuilder.create()
+            .useSystemProperties()
+            .setMaxConnTotal(Integer.getInteger(REST_MAX_CONNECTIONS, REST_MAX_CONNECTIONS_DEFAULT))
+            .setMaxConnPerRoute(
+                PropertyUtil.propertyAsInt(
+                    properties,
+                    REST_MAX_CONNECTIONS_PER_ROUTE,
+                    REST_MAX_CONNECTIONS_PER_ROUTE_DEFAULT))
+            .build();
+    clientBuilder.setConnectionManager(connectionManager);
 
     if (baseHeaders != null) {
       clientBuilder.setDefaultHeaders(

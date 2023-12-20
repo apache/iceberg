@@ -164,6 +164,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     return true;
   }
 
+  protected boolean supportsNamesWithDot() {
+    return true;
+  }
+
   @Test
   public void testCreateNamespace() {
     C catalog = catalog();
@@ -470,6 +474,8 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testNamespaceWithDot() {
+    Assumptions.assumeTrue(supportsNamesWithDot());
+
     C catalog = catalog();
 
     Namespace withDot = Namespace.of("new.db");
@@ -547,6 +553,8 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testTableNameWithDot() {
+    Assumptions.assumeTrue(supportsNamesWithDot());
+
     C catalog = catalog();
 
     TableIdentifier ident = TableIdentifier.of("ns", "ta.ble");

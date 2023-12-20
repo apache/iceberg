@@ -45,6 +45,7 @@ import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
@@ -245,6 +246,15 @@ public class BaseTransaction implements Transaction {
     UpdateStatistics updateStatistics = new SetStatistics(transactionOps);
     updates.add(updateStatistics);
     return updateStatistics;
+  }
+
+  @Override
+  public UpdatePartitionStatistics updatePartitionStatistics() {
+    checkLastOperationCommitted("UpdatePartitionStatistics");
+    UpdatePartitionStatistics updatePartitionStatistics =
+        new SetPartitionStatistics(transactionOps);
+    updates.add(updatePartitionStatistics);
+    return updatePartitionStatistics;
   }
 
   @Override
@@ -506,9 +516,11 @@ public class BaseTransaction implements Transaction {
     }
   }
 
+  // committedFiles returns null whenever the set of committed files
+  // cannot be determined from the provided snapshots
   private static Set<String> committedFiles(TableOperations ops, Set<Long> snapshotIds) {
     if (snapshotIds.isEmpty()) {
-      return null;
+      return ImmutableSet.of();
     }
 
     Set<String> committedFiles = Sets.newHashSet();
@@ -731,6 +743,11 @@ public class BaseTransaction implements Transaction {
     }
 
     @Override
+    public UpdatePartitionStatistics updatePartitionStatistics() {
+      return BaseTransaction.this.updatePartitionStatistics();
+    }
+
+    @Override
     public ExpireSnapshots expireSnapshots() {
       return BaseTransaction.this.expireSnapshots();
     }
@@ -764,6 +781,11 @@ public class BaseTransaction implements Transaction {
     @Override
     public List<StatisticsFile> statisticsFiles() {
       return current.statisticsFiles();
+    }
+
+    @Override
+    public List<PartitionStatisticsFile> partitionStatisticsFiles() {
+      return current.partitionStatisticsFiles();
     }
 
     @Override

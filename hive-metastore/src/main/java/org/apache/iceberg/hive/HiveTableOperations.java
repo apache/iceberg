@@ -209,7 +209,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       String baseMetadataLocation = base != null ? base.metadataFileLocation() : null;
       if (!Objects.equals(baseMetadataLocation, metadataLocation)) {
         throw new CommitFailedException(
-            "Base metadata location '%s' is not same as the current table metadata location '%s' for %s.%s",
+            "Cannot commit: Base metadata location '%s' is not same as the current table metadata location '%s' for %s.%s",
             baseMetadataLocation, metadataLocation, database, tableName);
       }
 

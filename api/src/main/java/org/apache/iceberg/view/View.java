@@ -121,4 +121,15 @@ public interface View {
   default UUID uuid() {
     throw new UnsupportedOperationException("Retrieving a view's uuid is not supported");
   }
+
+  /**
+   * Returns the view representation for the given SQL dialect
+   *
+   * @return the view representation for the given SQL dialect, or null if no representation could
+   *     be resolved
+   */
+  default SQLViewRepresentation sqlFor(String dialect) {
+    throw new UnsupportedOperationException(
+        "Resolving a sql with a given dialect is not supported");
+  }
 }

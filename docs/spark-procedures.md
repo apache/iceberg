@@ -354,7 +354,7 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 |---------------|-----------|------|-------------|
 | `table`       | ✔️  | string | Name of the table to update |
 | `strategy`    |    | string | Name of the strategy - binpack or sort. Defaults to binpack strategy |
-| `sort_order`  |    | string | For Zorder use a comma separated list of columns within zorder(). (Supported in Spark 3.2 and Above) Example: zorder(c1,c2,c3). <br/>Else, Comma separated sort orders in the format (ColumnName SortDirection NullOrder). <br/>Where SortDirection can be ASC or DESC. NullOrder can be NULLS FIRST or NULLS LAST. <br/>Defaults to the table's sort order |
+| `sort_order`  |    | string | For Zorder use a comma separated list of columns within zorder(). Example: zorder(c1,c2,c3). <br/>Else, Comma separated sort orders in the format (ColumnName SortDirection NullOrder). <br/>Where SortDirection can be ASC or DESC. NullOrder can be NULLS FIRST or NULLS LAST. <br/>Defaults to the table's sort order |
 | `options`     | ️   | map<string, string> | Options to be used for actions|
 | `where`       | ️   | string | predicate as a string used for filtering the files. Note that all files that may contain data matching the filter will be selected for rewriting|
 
@@ -442,10 +442,11 @@ This procedure invalidates all cached Spark plans that reference the affected ta
 
 #### Usage
 
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
-| `table`       | ✔️  | string | Name of the table to update |
-| `use_caching` | ️   | boolean | Use Spark caching during operation (defaults to true) |
+| Argument Name | Required? | Type | Description                                                   |
+|---------------|-----------|------|---------------------------------------------------------------|
+| `table`       | ✔️  | string | Name of the table to update                                   |
+| `use_caching` | ️   | boolean | Use Spark caching during operation (defaults to true)         |
+| `spec_id`     | ️   | int | Spec id of the manifests to rewrite (defaults to current spec id) |
 
 #### Output
 
@@ -649,10 +650,10 @@ Warning : Files added by this method can be physically deleted by Iceberg operat
 | Output Name               | Type | Description                                       |
 |---------------------------|------|---------------------------------------------------|
 | `added_files_count`       | long | The number of files added by this command         |
-| `changed_partition_count` | long | The number of partitioned changed by this command |
+| `changed_partition_count` | long | The number of partitioned changed by this command (if known) |
 
 {{< hint warning >}}
-changed_partition_count will be 0 when table property `compatibility.snapshot-id-inheritance.enabled` is set to true or if the table format version is > 1.
+changed_partition_count will be NULL when table property `compatibility.snapshot-id-inheritance.enabled` is set to true or if the table format version is > 1.
 {{< /hint >}}
 #### Examples
 

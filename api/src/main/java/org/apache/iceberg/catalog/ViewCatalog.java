@@ -92,6 +92,7 @@ public interface ViewCatalog {
    * @param to new view identifier
    * @throws NoSuchViewException if the "from" view does not exist
    * @throws AlreadyExistsException if the "to" view already exists
+   * @throws NoSuchNamespaceException if the "to" namespace doesn't exist
    */
   void renameView(TableIdentifier from, TableIdentifier to);
 

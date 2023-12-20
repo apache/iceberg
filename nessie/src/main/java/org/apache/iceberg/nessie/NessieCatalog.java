@@ -20,11 +20,11 @@ package org.apache.iceberg.nessie;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
-import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.TableOperations;
@@ -41,19 +41,22 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.view.BaseMetastoreViewCatalog;
+import org.apache.iceberg.view.ViewOperations;
 import org.projectnessie.client.NessieClientBuilder;
 import org.projectnessie.client.NessieConfigConstants;
 import org.projectnessie.client.api.NessieApiV1;
 import org.projectnessie.client.api.NessieApiV2;
 import org.projectnessie.client.config.NessieClientConfigSource;
 import org.projectnessie.client.config.NessieClientConfigSources;
+import org.projectnessie.model.Content;
 import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.TableReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Nessie implementation of Iceberg Catalog. */
-public class NessieCatalog extends BaseMetastoreCatalog
+public class NessieCatalog extends BaseMetastoreViewCatalog
     implements AutoCloseable, SupportsNamespaces, Configurable<Object> {
 
   private static final Logger LOG = LoggerFactory.getLogger(NessieCatalog.class);
@@ -203,8 +206,7 @@ public class NessieCatalog extends BaseMetastoreCatalog
             org.projectnessie.model.Namespace.of(tableIdentifier.namespace().levels()),
             tr.getName()),
         client.withReference(tr.getReference(), tr.getHash()),
-        fileIO,
-        catalogOptions);
+        fileIO);
   }
 
   @Override
@@ -246,26 +248,17 @@ public class NessieCatalog extends BaseMetastoreCatalog
   public void renameTable(TableIdentifier from, TableIdentifier to) {
     TableReference fromTableReference = parseTableReference(from);
     TableReference toTableReference = parseTableReference(to);
-    String fromReference =
-        fromTableReference.hasReference()
-            ? fromTableReference.getReference()
-            : client.getRef().getName();
-    String toReference =
-        toTableReference.hasReference()
-            ? toTableReference.getReference()
-            : client.getRef().getName();
-    Preconditions.checkArgument(
-        fromReference.equalsIgnoreCase(toReference),
-        "from: %s and to: %s reference name must be same",
-        fromReference,
-        toReference);
 
+    validateReferenceForRename(fromTableReference, toTableReference, Content.Type.ICEBERG_TABLE);
+
+    TableIdentifier fromIdentifier =
+        NessieUtil.removeCatalogName(
+            identifierWithoutTableReference(from, fromTableReference), name());
+    TableIdentifier toIdentifier =
+        NessieUtil.removeCatalogName(identifierWithoutTableReference(to, toTableReference), name());
     client
         .withReference(fromTableReference.getReference(), fromTableReference.getHash())
-        .renameTable(
-            identifierWithoutTableReference(from, fromTableReference),
-            NessieUtil.removeCatalogName(
-                identifierWithoutTableReference(to, toTableReference), name()));
+        .renameTable(fromIdentifier, toIdentifier);
   }
 
   @Override
@@ -346,5 +339,66 @@ public class NessieCatalog extends BaseMetastoreCatalog
   @Override
   protected Map<String, String> properties() {
     return catalogOptions;
+  }
+
+  @Override
+  protected ViewOperations newViewOps(TableIdentifier identifier) {
+    TableReference tr = parseTableReference(identifier);
+    return new NessieViewOperations(
+        ContentKey.of(
+            org.projectnessie.model.Namespace.of(identifier.namespace().levels()), tr.getName()),
+        client.withReference(tr.getReference(), tr.getHash()),
+        fileIO);
+  }
+
+  @Override
+  public List<TableIdentifier> listViews(Namespace namespace) {
+    return client.listViews(namespace);
+  }
+
+  @Override
+  public boolean dropView(TableIdentifier identifier) {
+    TableReference tableReference = parseTableReference(identifier);
+    return client
+        .withReference(tableReference.getReference(), tableReference.getHash())
+        .dropView(identifierWithoutTableReference(identifier, tableReference), false);
+  }
+
+  @Override
+  public void renameView(TableIdentifier from, TableIdentifier to) {
+    TableReference fromTableReference = parseTableReference(from);
+    TableReference toTableReference = parseTableReference(to);
+
+    validateReferenceForRename(fromTableReference, toTableReference, Content.Type.ICEBERG_VIEW);
+
+    TableIdentifier fromIdentifier =
+        NessieUtil.removeCatalogName(
+            identifierWithoutTableReference(from, fromTableReference), name());
+    TableIdentifier toIdentifier =
+        NessieUtil.removeCatalogName(identifierWithoutTableReference(to, toTableReference), name());
+    client
+        .withReference(fromTableReference.getReference(), fromTableReference.getHash())
+        .renameView(fromIdentifier, toIdentifier);
+  }
+
+  private void validateReferenceForRename(
+      TableReference fromTableReference, TableReference toTableReference, Content.Type type) {
+    String fromReference =
+        fromTableReference.hasReference()
+            ? fromTableReference.getReference()
+            : client.getRef().getName();
+    String toReference =
+        toTableReference.hasReference()
+            ? toTableReference.getReference()
+            : client.getRef().getName();
+    Preconditions.checkArgument(
+        fromReference.equalsIgnoreCase(toReference),
+        "Cannot rename %s '%s' on reference '%s' to '%s' on reference '%s':"
+            + " source and target references must be the same.",
+        NessieUtil.contentTypeString(type).toLowerCase(Locale.ENGLISH),
+        fromTableReference.getName(),
+        fromReference,
+        toTableReference.getName(),
+        toReference);
   }
 }

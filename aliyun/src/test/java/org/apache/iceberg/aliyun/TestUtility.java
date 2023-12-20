@@ -18,9 +18,9 @@
  */
 package org.apache.iceberg.aliyun;
 
-import org.apache.iceberg.aliyun.oss.AliyunOSSTestRule;
+import org.apache.iceberg.aliyun.oss.AliyunOSSExtension;
 import org.apache.iceberg.aliyun.oss.OSSURI;
-import org.apache.iceberg.aliyun.oss.mock.AliyunOSSMockRule;
+import org.apache.iceberg.aliyun.oss.mock.AliyunOSSMockExtension;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
@@ -41,33 +41,34 @@ public class TestUtility {
 
   private TestUtility() {}
 
-  public static AliyunOSSTestRule initialize() {
-    AliyunOSSTestRule testRule;
+  public static AliyunOSSExtension initialize() {
+    AliyunOSSExtension extension;
 
     String implClass = System.getenv(ALIYUN_TEST_OSS_RULE_CLASS);
     if (!Strings.isNullOrEmpty(implClass)) {
-      LOG.info("The initializing AliyunOSSTestRule implementation is: {}", implClass);
+      LOG.info("The initializing AliyunOSSExtension implementation is: {}", implClass);
       try {
-        DynConstructors.Ctor<AliyunOSSTestRule> ctor =
-            DynConstructors.builder(AliyunOSSTestRule.class).impl(implClass).buildChecked();
-        testRule = ctor.newInstance();
+        DynConstructors.Ctor<AliyunOSSExtension> ctor =
+            DynConstructors.builder(AliyunOSSExtension.class).impl(implClass).buildChecked();
+        extension = ctor.newInstance();
       } catch (NoSuchMethodException e) {
         throw new IllegalArgumentException(
             String.format(
-                "Cannot initialize AliyunOSSTestRule, missing no-arg constructor: %s", implClass),
+                "Cannot initialize AliyunOSSExtension, missing no-arg constructor: %s", implClass),
             e);
       } catch (ClassCastException e) {
         throw new IllegalArgumentException(
             String.format(
-                "Cannot initialize AliyunOSSTestRule, %s does not implement it.", implClass),
+                "Cannot initialize AliyunOSSExtension, %s does not implement it.", implClass),
             e);
       }
     } else {
-      LOG.info("Initializing AliyunOSSTestRule implementation with default AliyunOSSMockRule");
-      testRule = AliyunOSSMockRule.builder().silent().build();
+      LOG.info(
+          "Initializing AliyunOSSExtension implementation with default AliyunOSSMockExtension");
+      extension = AliyunOSSMockExtension.builder().silent().build();
     }
 
-    return testRule;
+    return extension;
   }
 
   public static String accessKeyId() {

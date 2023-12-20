@@ -44,6 +44,7 @@ public abstract class BaseMetadataTable extends BaseReadOnlyTable
   private final SortOrder sortOrder = SortOrder.unsorted();
   private final BaseTable table;
   private final String name;
+  private final UUID uuid;
 
   protected BaseMetadataTable(Table table, String name) {
     super("metadata");
@@ -51,6 +52,7 @@ public abstract class BaseMetadataTable extends BaseReadOnlyTable
         table instanceof BaseTable, "Cannot create metadata table for non-data table: %s", table);
     this.table = (BaseTable) table;
     this.name = name;
+    this.uuid = UUID.randomUUID();
   }
 
   /**
@@ -196,13 +198,18 @@ public abstract class BaseMetadataTable extends BaseReadOnlyTable
   }
 
   @Override
+  public List<PartitionStatisticsFile> partitionStatisticsFiles() {
+    return ImmutableList.of();
+  }
+
+  @Override
   public Map<String, SnapshotRef> refs() {
     return table().refs();
   }
 
   @Override
   public UUID uuid() {
-    return UUID.randomUUID();
+    return uuid;
   }
 
   @Override
