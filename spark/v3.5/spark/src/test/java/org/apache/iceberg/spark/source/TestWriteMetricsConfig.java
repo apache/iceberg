@@ -74,7 +74,7 @@ public class TestWriteMetricsConfig {
                   required(5, "data", Types.StringType.get()))));
 
   @TempDir
-  public Path temp;
+  private Path temp;
 
   private static SparkSession spark = null;
   private static JavaSparkContext sc = null;

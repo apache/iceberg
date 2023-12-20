@@ -88,7 +88,7 @@ public class TestForwardCompatibility {
           .build();
 
   @TempDir
-  public Path temp;
+  private Path temp;
 
   private static SparkSession spark = null;
 

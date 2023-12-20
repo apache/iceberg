@@ -49,7 +49,7 @@ public class TestPathIdentifier extends TestBase {
           required(1, "id", Types.LongType.get()), required(2, "data", Types.StringType.get()));
 
   @TempDir
-  public Path temp;
+  private Path temp;
   private File tableLocation;
   private PathIdentifier identifier;
   private SparkCatalog sparkCatalog;

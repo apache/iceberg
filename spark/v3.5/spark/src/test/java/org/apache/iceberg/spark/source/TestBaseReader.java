@@ -55,7 +55,7 @@ import org.junit.jupiter.api.io.TempDir;
 public class TestBaseReader {
 
   @TempDir
-  public Path temp;
+  private Path temp;
 
   private Table table;
 

@@ -71,7 +71,7 @@ public class TestDataSourceOptions extends TestBaseWithCatalog {
   private static SparkSession spark = null;
 
   @TempDir
-  public Path temp;
+  private Path temp;
 
   @BeforeAll
   public static void startSpark() {

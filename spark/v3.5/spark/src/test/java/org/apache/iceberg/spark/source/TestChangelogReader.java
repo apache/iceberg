@@ -65,7 +65,7 @@ public class TestChangelogReader extends TestBase {
   private DataFile dataFile2;
 
   @TempDir
-  public Path temp;
+  private Path temp;
 
   @BeforeEach
   public void before() throws IOException {

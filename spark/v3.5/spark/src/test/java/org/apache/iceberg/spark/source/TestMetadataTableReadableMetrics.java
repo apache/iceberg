@@ -54,7 +54,7 @@ import org.junit.jupiter.api.io.TempDir;
 public class TestMetadataTableReadableMetrics extends TestBaseWithCatalog {
 
   @TempDir
-  public Path temp;
+  private Path temp;
 
   private static final Types.StructType LEAF_STRUCT_TYPE =
       Types.StructType.of(

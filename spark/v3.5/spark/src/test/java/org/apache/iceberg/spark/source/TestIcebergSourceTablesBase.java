@@ -118,7 +118,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
   private static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA).identity("id").build();
 
   @TempDir
-  public Path temp;
+  private Path temp;
 
   public abstract Table createTable(
       TableIdentifier ident, Schema schema, PartitionSpec spec, Map<String, String> properties);
