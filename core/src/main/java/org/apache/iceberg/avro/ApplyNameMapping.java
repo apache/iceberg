@@ -24,9 +24,9 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import org.apache.avro.LogicalType;
 import org.apache.avro.Schema;
-import org.apache.commons.compress.utils.Lists;
 import org.apache.iceberg.mapping.MappedField;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
  * An Avro Schema visitor to apply a name mapping to add Iceberg field IDs.
