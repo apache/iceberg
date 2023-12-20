@@ -116,6 +116,15 @@ public class AvroSchemaUtil {
     return ImmutableMap.copyOf(converter.getConversionMap());
   }
 
+  public static Schema pruneColumns(Schema schema, Set<Integer> selectedIds) {
+    return new PruneColumns(selectedIds, null).rootSchema(schema);
+  }
+
+  /**
+   * @deprecated will be removed in 2.0.0; use applyNameMapping and pruneColumns(Schema, Set)
+   *     instead.
+   */
+  @Deprecated
   public static Schema pruneColumns(
       Schema schema, Set<Integer> selectedIds, NameMapping nameMapping) {
     return new PruneColumns(selectedIds, nameMapping).rootSchema(schema);
@@ -124,6 +133,14 @@ public class AvroSchemaUtil {
   public static Schema buildAvroProjection(
       Schema schema, org.apache.iceberg.Schema expected, Map<String, String> renames) {
     return AvroCustomOrderSchemaVisitor.visit(schema, new BuildAvroProjection(expected, renames));
+  }
+
+  public static Schema applyNameMapping(Schema fileSchema, NameMapping nameMapping) {
+    if (nameMapping != null) {
+      return AvroSchemaVisitor.visit(fileSchema, new ApplyNameMapping(nameMapping));
+    }
+
+    return fileSchema;
   }
 
   public static boolean isTimestamptz(Schema schema) {
@@ -290,6 +307,15 @@ public class AvroSchemaUtil {
     return getId(schema, KEY_ID_PROP);
   }
 
+  static Integer keyId(Schema mapSchema) {
+    Object idObj = mapSchema.getObjectProp(KEY_ID_PROP);
+    if (idObj != null) {
+      return toInt(idObj);
+    }
+
+    return null;
+  }
+
   static Integer getKeyId(
       Schema schema, NameMapping nameMapping, Iterable<String> parentFieldNames) {
     Preconditions.checkArgument(
@@ -305,6 +331,15 @@ public class AvroSchemaUtil {
     return getId(schema, VALUE_ID_PROP);
   }
 
+  static Integer valueId(Schema mapSchema) {
+    Object idObj = mapSchema.getObjectProp(VALUE_ID_PROP);
+    if (idObj != null) {
+      return toInt(idObj);
+    }
+
+    return null;
+  }
+
   static Integer getValueId(
       Schema schema, NameMapping nameMapping, Iterable<String> parentFieldNames) {
     Preconditions.checkArgument(
@@ -318,6 +353,15 @@ public class AvroSchemaUtil {
     Preconditions.checkArgument(
         schema.getType() == ARRAY, "Cannot get array element id for non-array schema: %s", schema);
     return getId(schema, ELEMENT_ID_PROP);
+  }
+
+  static Integer elementId(Schema arraySchema) {
+    Object idObj = arraySchema.getObjectProp(ELEMENT_ID_PROP);
+    if (idObj != null) {
+      return toInt(idObj);
+    }
+
+    return null;
   }
 
   static Integer getElementId(
@@ -341,9 +385,7 @@ public class AvroSchemaUtil {
     if (id != null) {
       return toInt(id);
     } else if (nameMapping != null) {
-      List<String> names = Lists.newArrayList(parentFieldNames);
-      names.add(field.name());
-      MappedField mappedField = nameMapping.find(names);
+      MappedField mappedField = nameMapping.find(parentFieldNames, field.name());
       if (mappedField != null) {
         return mappedField.id();
       }
