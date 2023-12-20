@@ -31,6 +31,7 @@ import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.types.Row;
 import org.apache.flink.util.CloseableIterator;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
@@ -44,10 +45,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class TestIcebergSourceBounded extends TestFlinkScan {
+  public TestIcebergSourceBounded(FileFormat fileFormat) {
+    super(fileFormat);
+  }
+
   @Override
   protected List<Row> runWithProjection(String... projected) throws Exception {
     Schema icebergTableSchema =
-        catalogResource.catalog().loadTable(TestFixtures.TABLE_IDENTIFIER).schema();
+        catalogExtension.catalog().loadTable(TestFixtures.TABLE_IDENTIFIER).schema();
     TableSchema.Builder builder = TableSchema.builder();
     TableSchema schema = FlinkSchemaUtil.toSchema(FlinkSchemaUtil.convert(icebergTableSchema));
     for (String field : projected) {

@@ -23,15 +23,17 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 import org.apache.flink.test.junit5.MiniClusterExtension;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -40,7 +42,7 @@ import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.flink.HadoopCatResource;
+import org.apache.iceberg.flink.HadoopCatalogExtension;
 import org.apache.iceberg.flink.MiniFlinkClusterExtension;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.TestFixtures;
@@ -51,12 +53,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public abstract class TestFlinkScan {
   @RegisterExtension
   public static MiniClusterExtension miniClusterResource =
@@ -65,18 +67,22 @@ public abstract class TestFlinkScan {
   @TempDir Path temporaryDirectory;
 
   @RegisterExtension
-  public final HadoopCatResource catalogResource =
-      new HadoopCatResource(temporaryDirectory, TestFixtures.DATABASE, TestFixtures.TABLE);
+  public static final HadoopCatalogExtension catalogExtension =
+      new HadoopCatalogExtension(TestFixtures.DATABASE, TestFixtures.TABLE);
 
-  public static Stream<Arguments> parameters() {
-    return Stream.of(
-        Arguments.of(FileFormat.fromString("avro")),
-        Arguments.of(FileFormat.fromString("parquet")),
-        Arguments.of(FileFormat.fromString("orc")));
+  protected final FileFormat fileFormat;
+
+  @Parameters(name = "format={0}")
+  public static Collection<FileFormat> fileFormat() {
+    return Arrays.asList(FileFormat.AVRO, FileFormat.PARQUET, FileFormat.ORC);
+  }
+
+  TestFlinkScan(FileFormat fileFormat) {
+    this.fileFormat = fileFormat;
   }
 
   protected TableLoader tableLoader() {
-    return catalogResource.tableLoader();
+    return catalogExtension.tableLoader();
   }
 
   protected abstract List<Row> runWithProjection(String... projected) throws Exception;
@@ -92,21 +98,19 @@ public abstract class TestFlinkScan {
 
   protected abstract List<Row> run() throws Exception;
 
-  @ParameterizedTest(name = "format={0}")
-  @MethodSource("parameters")
-  public void testUnpartitionedTable(FileFormat fileFormat) throws Exception {
+  @TestTemplate
+  public void testUnpartitionedTable() throws Exception {
     Table table =
-        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+        catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
     List<Record> expectedRecords = RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L);
     new GenAppenderHelper(table, fileFormat, temporaryDirectory).appendToTable(expectedRecords);
     TestHelpers.assertRecords(run(), expectedRecords, TestFixtures.SCHEMA);
   }
 
-  @ParameterizedTest(name = "format={0}")
-  @MethodSource("parameters")
-  public void testPartitionedTable(FileFormat fileFormat) throws Exception {
+  @TestTemplate
+  public void testPartitionedTable() throws Exception {
     Table table =
-        catalogResource
+        catalogExtension
             .catalog()
             .createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA, TestFixtures.SPEC);
     List<Record> expectedRecords = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
@@ -116,11 +120,10 @@ public abstract class TestFlinkScan {
     TestHelpers.assertRecords(run(), expectedRecords, TestFixtures.SCHEMA);
   }
 
-  @ParameterizedTest(name = "format={0}")
-  @MethodSource("parameters")
-  public void testProjection(FileFormat fileFormat) throws Exception {
+  @TestTemplate
+  public void testProjection() throws Exception {
     Table table =
-        catalogResource
+        catalogExtension
             .catalog()
             .createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA, TestFixtures.SPEC);
     List<Record> inputRecords = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
@@ -129,9 +132,8 @@ public abstract class TestFlinkScan {
     assertRows(runWithProjection("data"), Row.of(inputRecords.get(0).get(0)));
   }
 
-  @ParameterizedTest(name = "format={0}")
-  @MethodSource("parameters")
-  public void testIdentityPartitionProjections(FileFormat fileFormat) throws Exception {
+  @TestTemplate
+  public void testIdentityPartitionProjections() throws Exception {
     Schema logSchema =
         new Schema(
             Types.NestedField.optional(1, "id", Types.IntegerType.get()),
@@ -142,7 +144,7 @@ public abstract class TestFlinkScan {
         PartitionSpec.builderFor(logSchema).identity("dt").identity("level").build();
 
     Table table =
-        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, logSchema, spec);
+        catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, logSchema, spec);
     List<Record> inputRecords = RandomGenericData.generate(logSchema, 10, 0L);
 
     int idx = 0;
@@ -204,11 +206,10 @@ public abstract class TestFlinkScan {
     }
   }
 
-  @ParameterizedTest(name = "format={0}")
-  @MethodSource("parameters")
-  public void testSnapshotReads(FileFormat fileFormat) throws Exception {
+  @TestTemplate
+  public void testSnapshotReads() throws Exception {
     Table table =
-        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+        catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
 
     GenAppenderHelper helper = new GenAppenderHelper(table, fileFormat, temporaryDirectory);
 
@@ -232,11 +233,10 @@ public abstract class TestFlinkScan {
         TestFixtures.SCHEMA);
   }
 
-  @ParameterizedTest(name = "format={0}")
-  @MethodSource("parameters")
-  public void testTagReads(FileFormat fileFormat) throws Exception {
+  @TestTemplate
+  public void testTagReads() throws Exception {
     Table table =
-        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+        catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
 
     GenAppenderHelper helper = new GenAppenderHelper(table, fileFormat, temporaryDirectory);
 
@@ -262,11 +262,10 @@ public abstract class TestFlinkScan {
         runWithOptions(ImmutableMap.of("tag", "t1")), expectedRecords, TestFixtures.SCHEMA);
   }
 
-  @ParameterizedTest(name = "format={0}")
-  @MethodSource("parameters")
-  public void testBranchReads(FileFormat fileFormat) throws Exception {
+  @TestTemplate
+  public void testBranchReads() throws Exception {
     Table table =
-        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+        catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
 
     GenAppenderHelper helper = new GenAppenderHelper(table, fileFormat, temporaryDirectory);
 
@@ -299,11 +298,10 @@ public abstract class TestFlinkScan {
     TestHelpers.assertRecords(run(), mainExpectedRecords, TestFixtures.SCHEMA);
   }
 
-  @ParameterizedTest(name = "format={0}")
-  @MethodSource("parameters")
-  public void testIncrementalReadViaTag(FileFormat fileFormat) throws Exception {
+  @TestTemplate
+  public void testIncrementalReadViaTag() throws Exception {
     Table table =
-        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+        catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
 
     GenAppenderHelper helper = new GenAppenderHelper(table, fileFormat, temporaryDirectory);
 
@@ -378,11 +376,10 @@ public abstract class TestFlinkScan {
         .hasMessage("END_SNAPSHOT_ID and END_TAG cannot both be set.");
   }
 
-  @ParameterizedTest(name = "format={0}")
-  @MethodSource("parameters")
-  public void testIncrementalRead(FileFormat fileFormat) throws Exception {
+  @TestTemplate
+  public void testIncrementalRead() throws Exception {
     Table table =
-        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+        catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
 
     GenAppenderHelper helper = new GenAppenderHelper(table, fileFormat, temporaryDirectory);
 
@@ -414,11 +411,10 @@ public abstract class TestFlinkScan {
         TestFixtures.SCHEMA);
   }
 
-  @ParameterizedTest(name = "format={0}")
-  @MethodSource("parameters")
-  public void testFilterExpPartition(FileFormat fileFormat) throws Exception {
+  @TestTemplate
+  public void testFilterExpPartition() throws Exception {
     Table table =
-        catalogResource
+        catalogExtension
             .catalog()
             .createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA, TestFixtures.SPEC);
 
@@ -444,7 +440,7 @@ public abstract class TestFlinkScan {
       Expression filter, String sqlFilter, boolean caseSensitive, FileFormat fileFormat)
       throws Exception {
     Table table =
-        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+        catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
 
     List<Record> expectedRecords = RandomGenericData.generate(TestFixtures.SCHEMA, 3, 0L);
     expectedRecords.get(0).set(0, "a");
@@ -461,24 +457,21 @@ public abstract class TestFlinkScan {
     TestHelpers.assertRecords(actual, expectedRecords.subList(1, 3), TestFixtures.SCHEMA);
   }
 
-  @ParameterizedTest(name = "format={0}")
-  @MethodSource("parameters")
-  public void testFilterExp(FileFormat fileFormat) throws Exception {
+  @TestTemplate
+  public void testFilterExp() throws Exception {
     testFilterExp(Expressions.greaterThanOrEqual("data", "b"), "where data>='b'", true, fileFormat);
   }
 
-  @ParameterizedTest(name = "format={0}")
-  @MethodSource("parameters")
-  public void testFilterExpCaseInsensitive(FileFormat fileFormat) throws Exception {
+  @TestTemplate
+  public void testFilterExpCaseInsensitive() throws Exception {
     // sqlFilter does not support case-insensitive filtering:
     // https://issues.apache.org/jira/browse/FLINK-16175
     testFilterExp(
         Expressions.greaterThanOrEqual("DATA", "b"), "where data>='b'", false, fileFormat);
   }
 
-  @ParameterizedTest(name = "format={0}")
-  @MethodSource("parameters")
-  public void testPartitionTypes(FileFormat fileFormat) throws Exception {
+  @TestTemplate
+  public void testPartitionTypes() throws Exception {
     Schema typesSchema =
         new Schema(
             Types.NestedField.optional(1, "id", Types.IntegerType.get()),
@@ -499,7 +492,7 @@ public abstract class TestFlinkScan {
             .build();
 
     Table table =
-        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, typesSchema, spec);
+        catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, typesSchema, spec);
     List<Record> records = RandomGenericData.generate(typesSchema, 10, 0L);
     GenAppenderHelper appender = new GenAppenderHelper(table, fileFormat, temporaryDirectory);
     for (Record record : records) {
@@ -519,9 +512,8 @@ public abstract class TestFlinkScan {
     TestHelpers.assertRecords(run(), records, typesSchema);
   }
 
-  @ParameterizedTest(name = "format={0}")
-  @MethodSource("parameters")
-  public void testCustomizedFlinkDataTypes(FileFormat fileFormat) throws Exception {
+  @TestTemplate
+  public void testCustomizedFlinkDataTypes() throws Exception {
     Schema schema =
         new Schema(
             Types.NestedField.required(
@@ -530,7 +522,7 @@ public abstract class TestFlinkScan {
                 Types.MapType.ofRequired(2, 3, Types.StringType.get(), Types.StringType.get())),
             Types.NestedField.required(
                 4, "arr", Types.ListType.ofRequired(5, Types.StringType.get())));
-    Table table = catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, schema);
+    Table table = catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, schema);
     List<Record> records = RandomGenericData.generate(schema, 10, 0L);
     GenAppenderHelper helper = new GenAppenderHelper(table, fileFormat, temporaryDirectory);
     helper.appendToTable(records);

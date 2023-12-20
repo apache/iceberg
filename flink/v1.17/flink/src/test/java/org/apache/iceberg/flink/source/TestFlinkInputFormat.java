@@ -42,11 +42,14 @@ import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Assumptions;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.api.TestTemplate;
 
 /** Test {@link FlinkInputFormat}. */
 public class TestFlinkInputFormat extends TestFlinkSource {
+  public TestFlinkInputFormat(FileFormat fileFormat) {
+    super(fileFormat);
+  }
+
   @Override
   protected List<Row> run(
       FlinkSource.Builder formatBuilder,
@@ -57,9 +60,8 @@ public class TestFlinkInputFormat extends TestFlinkSource {
     return runFormat(formatBuilder.tableLoader(tableLoader()).buildFormat());
   }
 
-  @ParameterizedTest(name = "format={0}")
-  @MethodSource("parameters")
-  public void testNestedProjection(FileFormat fileFormat) throws Exception {
+  @TestTemplate
+  public void testNestedProjection() throws Exception {
     Schema schema =
         new Schema(
             required(1, "data", Types.StringType.get()),
@@ -72,7 +74,8 @@ public class TestFlinkInputFormat extends TestFlinkSource {
                     Types.NestedField.required(5, "f3", Types.LongType.get()))),
             required(6, "id", Types.LongType.get()));
 
-    Table table = catalogResource.catalog().createTable(TableIdentifier.of("default", "t"), schema);
+    Table table =
+        catalogExtension.catalog().createTable(TableIdentifier.of("default", "t"), schema);
 
     List<Record> writeRecords = RandomGenericData.generate(schema, 2, 0L);
     new GenAppenderHelper(table, fileFormat, temporaryDirectory).appendToTable(writeRecords);
@@ -103,9 +106,8 @@ public class TestFlinkInputFormat extends TestFlinkSource {
     TestHelpers.assertRows(result, expected);
   }
 
-  @ParameterizedTest(name = "format={0}")
-  @MethodSource("parameters")
-  public void testBasicProjection(FileFormat fileFormat) throws IOException {
+  @TestTemplate
+  public void testBasicProjection() throws IOException {
     Schema writeSchema =
         new Schema(
             Types.NestedField.required(0, "id", Types.LongType.get()),
@@ -113,7 +115,7 @@ public class TestFlinkInputFormat extends TestFlinkSource {
             Types.NestedField.optional(2, "time", Types.TimestampType.withZone()));
 
     Table table =
-        catalogResource.catalog().createTable(TableIdentifier.of("default", "t"), writeSchema);
+        catalogExtension.catalog().createTable(TableIdentifier.of("default", "t"), writeSchema);
 
     List<Record> writeRecords = RandomGenericData.generate(writeSchema, 2, 0L);
     new GenAppenderHelper(table, fileFormat, temporaryDirectory).appendToTable(writeRecords);
@@ -138,9 +140,8 @@ public class TestFlinkInputFormat extends TestFlinkSource {
     TestHelpers.assertRows(result, expected);
   }
 
-  @ParameterizedTest(name = "format={0}")
-  @MethodSource("parameters")
-  public void testReadPartitionColumn(FileFormat fileFormat) throws Exception {
+  @TestTemplate
+  public void testReadPartitionColumn() throws Exception {
     Assumptions.assumeTrue(FileFormat.ORC != fileFormat, "Temporary skip ORC");
 
     Schema nestedSchema =
@@ -156,7 +157,7 @@ public class TestFlinkInputFormat extends TestFlinkSource {
         PartitionSpec.builderFor(nestedSchema).identity("struct.innerName").build();
 
     Table table =
-        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, nestedSchema, spec);
+        catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, nestedSchema, spec);
     List<Record> records = RandomGenericData.generate(nestedSchema, 10, 0L);
     GenAppenderHelper appender = new GenAppenderHelper(table, fileFormat, temporaryDirectory);
     for (Record record : records) {

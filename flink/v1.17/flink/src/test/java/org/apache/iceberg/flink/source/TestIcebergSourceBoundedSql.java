@@ -26,6 +26,7 @@ import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.config.TableConfigOptions;
 import org.apache.flink.types.Row;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkConfigOptions;
@@ -34,6 +35,10 @@ import org.junit.jupiter.api.BeforeEach;
 public class TestIcebergSourceBoundedSql extends TestIcebergSourceBounded {
   private volatile TableEnvironment tEnv;
 
+  public TestIcebergSourceBoundedSql(FileFormat fileFormat) {
+    super(fileFormat);
+  }
+
   @BeforeEach
   public void before() throws IOException {
     Configuration tableConf = getTableEnv().getConfig().getConfiguration();
@@ -41,7 +46,7 @@ public class TestIcebergSourceBoundedSql extends TestIcebergSourceBounded {
     SqlHelpers.sql(
         getTableEnv(),
         "create catalog iceberg_catalog with ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s')",
-        catalogResource.warehouse());
+        catalogExtension.warehouse());
     SqlHelpers.sql(getTableEnv(), "use catalog iceberg_catalog");
     getTableEnv()
         .getConfig()
