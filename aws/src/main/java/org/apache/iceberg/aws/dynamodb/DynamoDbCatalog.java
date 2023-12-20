@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.aws.dynamodb;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -87,7 +86,7 @@ import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 
 /** DynamoDB implementation of Iceberg catalog */
 public class DynamoDbCatalog extends BaseMetastoreCatalog
-    implements Closeable, SupportsNamespaces, Configurable {
+    implements SupportsNamespaces, Configurable {
 
   private static final Logger LOG = LoggerFactory.getLogger(DynamoDbCatalog.class);
   private static final int CATALOG_TABLE_CREATION_WAIT_ATTEMPTS_MAX = 5;
@@ -487,6 +486,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
 
   @Override
   public void close() throws IOException {
+    super.close();
     closeableGroup.close();
   }
 

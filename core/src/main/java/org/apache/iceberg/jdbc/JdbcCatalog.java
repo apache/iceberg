@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.jdbc;
 
-import java.io.Closeable;
+import java.io.IOException;
 import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -62,7 +62,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class JdbcCatalog extends BaseMetastoreCatalog
-    implements Configurable<Object>, SupportsNamespaces, Closeable {
+    implements Configurable<Object>, SupportsNamespaces {
 
   public static final String PROPERTY_PREFIX = "jdbc.";
   private static final String NAMESPACE_EXISTS_PROPERTY = "exists";
@@ -481,8 +481,11 @@ public class JdbcCatalog extends BaseMetastoreCatalog
   }
 
   @Override
-  public void close() {
-    connections.close();
+  public void close() throws IOException {
+    super.close();
+    if (connections != null) {
+      connections.close();
+    }
   }
 
   @Override

@@ -279,7 +279,7 @@ public class TestS3FileIO {
   }
 
   @Test
-  public void testMissingTableMetadata() {
+  public void testMissingTableMetadata() throws IOException {
     Map<String, String> conf = Maps.newHashMap();
     conf.put(
         CatalogProperties.URI,

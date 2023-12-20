@@ -21,7 +21,6 @@ package org.apache.iceberg.aws.glue;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.RemovalListener;
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -85,7 +84,7 @@ import software.amazon.awssdk.services.glue.model.TableInput;
 import software.amazon.awssdk.services.glue.model.UpdateDatabaseRequest;
 
 public class GlueCatalog extends BaseMetastoreCatalog
-    implements Closeable, SupportsNamespaces, Configurable<Configuration> {
+    implements SupportsNamespaces, Configurable<Configuration> {
 
   private static final Logger LOG = LoggerFactory.getLogger(GlueCatalog.class);
 
@@ -633,6 +632,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
 
   @Override
   public void close() throws IOException {
+    super.close();
     closeableGroup.close();
     if (fileIOCloser != null) {
       fileIOCloser.invalidateAll();

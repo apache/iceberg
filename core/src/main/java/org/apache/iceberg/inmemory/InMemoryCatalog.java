@@ -302,6 +302,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
 
   @Override
   public void close() throws IOException {
+    super.close();
     namespaces.clear();
     tables.clear();
     views.clear();
