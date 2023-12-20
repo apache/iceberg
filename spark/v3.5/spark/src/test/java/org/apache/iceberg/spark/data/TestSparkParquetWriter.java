@@ -38,7 +38,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 public class TestSparkParquetWriter {
-  @TempDir public Path temp;
+  @TempDir private Path temp;
 
   private static final Schema COMPLEX_SCHEMA =
       new Schema(

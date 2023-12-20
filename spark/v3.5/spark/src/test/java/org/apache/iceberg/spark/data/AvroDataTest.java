@@ -63,7 +63,7 @@ public abstract class AvroDataTest {
           required(117, "dec_38_10", Types.DecimalType.of(38, 10)) // Spark's maximum precision
           );
 
-  @TempDir public Path temp;
+  @TempDir private Path temp;
 
   @Test
   public void testSimpleStruct() throws IOException {
