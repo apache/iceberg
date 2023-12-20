@@ -21,7 +21,7 @@ package org.apache.iceberg.spark.data;
 import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -63,12 +63,12 @@ import org.junit.jupiter.api.Test;
 public class TestSparkParquetReader extends AvroDataTest {
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    assumeTrue(
-        null
-            == TypeUtil.find(
+    assumeThat(
+            TypeUtil.find(
                 schema,
-                type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()),
-        "Parquet Avro cannot write non-string map keys");
+                type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()))
+        .as("Parquet Avro cannot write non-string map keys")
+        .isNull();
 
     List<GenericData.Record> expected = RandomData.generateList(schema, 100, 0L);
 

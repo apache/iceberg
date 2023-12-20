@@ -81,13 +81,11 @@ public class TestParquetVectorizedReads extends AvroDataTest {
       throws IOException {
     // Write test data
     assumeThat(
-            null
-                == TypeUtil.find(
-                    schema,
-                    type ->
-                        type.isMapType() && type.asMapType().keyType() != Types.StringType.get()))
+            TypeUtil.find(
+                schema,
+                type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()))
         .as("Parquet Avro cannot write non-string map keys")
-        .isTrue();
+        .isNull();
 
     Iterable<GenericData.Record> expected =
         generateData(schema, numRecords, seed, nullPercentage, transform);
