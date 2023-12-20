@@ -886,13 +886,6 @@ acceptedBreaks:
     - code: "java.field.serialVersionUIDChanged"
       new: "field org.apache.iceberg.util.SerializableMap<K, V>.serialVersionUID"
       justification: "Serialization is not be used"
-    - code: "java.method.exception.checkedAdded"
-      old: "method void org.apache.iceberg.jdbc.JdbcCatalog::close()"
-      new: "method void org.apache.iceberg.jdbc.JdbcCatalog::close() throws java.io.IOException"
-      justification: "The metricsReporter needs to be closed, and it throws an IOException.\
-        \ Clearly, jdbcCatalog should also implement this logic, and thus it needs\
-        \ to throw this exception as well. Moreover, the Closeable interface inherently\
-        \ throws an exception, so the change here is not an issue."
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"

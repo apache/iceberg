@@ -49,6 +49,7 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -481,8 +482,12 @@ public class JdbcCatalog extends BaseMetastoreCatalog
   }
 
   @Override
-  public void close() throws IOException {
-    super.close();
+  public void close() {
+    try {
+      super.close();
+    } catch (IOException e) {
+      throw new RuntimeIOException(e);
+    }
     if (connections != null) {
       connections.close();
     }
