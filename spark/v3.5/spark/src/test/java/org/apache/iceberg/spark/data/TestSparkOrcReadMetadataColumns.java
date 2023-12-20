@@ -110,7 +110,7 @@ public class TestSparkOrcReadMetadataColumns {
 
   @BeforeEach
   public void writeFile() throws IOException {
-    File testFile = temp.toFile();
+    testFile = temp.toFile();
     assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     try (FileAppender<InternalRow> writer =
