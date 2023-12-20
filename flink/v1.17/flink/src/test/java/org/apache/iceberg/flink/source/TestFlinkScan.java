@@ -437,7 +437,7 @@ public abstract class TestFlinkScan {
   }
 
   private void testFilterExp(
-      Expression filter, String sqlFilter, boolean caseSensitive, FileFormat fileFormat)
+      Expression filter, String sqlFilter, boolean caseSensitive, FileFormat format)
       throws Exception {
     Table table =
         catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
@@ -447,7 +447,7 @@ public abstract class TestFlinkScan {
     expectedRecords.get(1).set(0, "b");
     expectedRecords.get(2).set(0, "c");
 
-    GenAppenderHelper helper = new GenAppenderHelper(table, fileFormat, temporaryDirectory);
+    GenAppenderHelper helper = new GenAppenderHelper(table, format, temporaryDirectory);
     DataFile dataFile = helper.writeFile(expectedRecords);
     helper.appendToTable(dataFile);
 
