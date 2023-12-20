@@ -116,7 +116,7 @@ public class GenericsHelpers {
       case LONG:
       case FLOAT:
       case DOUBLE:
-        assertThat(expected).as("Primitive value should be equal to expected").isEqualTo(actual);
+        assertThat(actual).as("Primitive value should be equal to expected").isEqualTo(expected);
         break;
       case DATE:
         assertThat(expected).as("Should expect a LocalDate").isInstanceOf(LocalDate.class);
@@ -259,14 +259,14 @@ public class GenericsHelpers {
       case LONG:
       case FLOAT:
       case DOUBLE:
-        assertThat(expected).as("Primitive value should be equal to expected").isEqualTo(actual);
+        assertThat(actual).as("Primitive value should be equal to expected").isEqualTo(expected);
         break;
       case DATE:
         assertThat(expected).as("Should expect a LocalDate").isInstanceOf(LocalDate.class);
         int expectedDays = (int) ChronoUnit.DAYS.between(EPOCH_DAY, (LocalDate) expected);
-        assertThat(expectedDays)
+        assertThat(actual)
             .as("Primitive value should be equal to expected")
-            .isEqualTo(actual);
+            .isEqualTo(expectedDays);
         break;
       case TIMESTAMP:
         Types.TimestampType timestampType = (Types.TimestampType) type;
@@ -275,18 +275,18 @@ public class GenericsHelpers {
               .as("Should expect an OffsetDateTime")
               .isInstanceOf(OffsetDateTime.class);
           long expectedMicros = ChronoUnit.MICROS.between(EPOCH, (OffsetDateTime) expected);
-          assertThat(expectedMicros)
+          assertThat(actual)
               .as("Primitive value should be equal to expected")
-              .isEqualTo(actual);
+              .isEqualTo(expectedMicros);
         } else {
           assertThat(expected)
               .as("Should expect an LocalDateTime")
               .isInstanceOf(LocalDateTime.class);
           long expectedMicros =
               ChronoUnit.MICROS.between(EPOCH, ((LocalDateTime) expected).atZone(ZoneId.of("UTC")));
-          assertThat(expectedMicros)
+          assertThat(actual)
               .as("Primitive value should be equal to expected")
-              .isEqualTo(actual);
+              .isEqualTo(expectedMicros);
         }
         break;
       case STRING:
