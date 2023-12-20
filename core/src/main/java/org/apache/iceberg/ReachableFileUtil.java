@@ -148,7 +148,8 @@ public class ReachableFileUtil {
    * @param table table for which statistics files needs to be listed
    * @param predicate predicate for filtering the statistics files
    * @return the location of statistics files
-   * @deprecated use the {@code statisticsFilesLocationsForSnapshots(table, snapshotIds)} instead.
+   * @deprecated since 1.5.0, will be removed in 1.6.0; use the {@code
+   *     statisticsFilesLocationsForSnapshots(table, snapshotIds)} instead.
    */
   @Deprecated
   public static List<String> statisticsFilesLocations(
@@ -170,15 +171,15 @@ public class ReachableFileUtil {
   public static List<String> statisticsFilesLocationsForSnapshots(
       Table table, Set<Long> snapshotIds) {
     List<String> statsFileLocations = Lists.newArrayList();
+
     Predicate<StatisticsFile> statsFilePredicate;
     Predicate<PartitionStatisticsFile> partitionStatsFilePredicate;
     if (snapshotIds == null) {
-      statsFilePredicate = statisticsFile -> true;
-      partitionStatsFilePredicate = partitionStatisticsFile -> true;
+      statsFilePredicate = file -> true;
+      partitionStatsFilePredicate = file -> true;
     } else {
-      statsFilePredicate = statisticsFile -> snapshotIds.contains(statisticsFile.snapshotId());
-      partitionStatsFilePredicate =
-          partitionStatisticsFile -> snapshotIds.contains(partitionStatisticsFile.snapshotId());
+      statsFilePredicate = file -> snapshotIds.contains(file.snapshotId());
+      partitionStatsFilePredicate = file -> snapshotIds.contains(file.snapshotId());
     }
 
     table.statisticsFiles().stream()
