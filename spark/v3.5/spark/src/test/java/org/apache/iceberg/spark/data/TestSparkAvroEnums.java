@@ -17,6 +17,7 @@
  * under the License.
  */
 package org.apache.iceberg.spark.data;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;

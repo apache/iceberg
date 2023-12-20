@@ -48,7 +48,9 @@ public class TestSparkDateTimes {
   public void checkSparkDate(String dateString) {
     Literal<Integer> date = Literal.of(dateString).to(Types.DateType.get());
     String sparkDate = DateTimeUtils.toJavaDate(date.value()).toString();
-    assertThat(sparkDate).as("Should be the same date (" + date.value() + ")").isEqualTo(dateString);
+    assertThat(sparkDate)
+        .as("Should be the same date (" + date.value() + ")")
+        .isEqualTo(dateString);
   }
 
   @Test
@@ -69,6 +71,8 @@ public class TestSparkDateTimes {
     ZoneId zoneId = DateTimeUtils.getZoneId("UTC");
     TimestampFormatter formatter = TimestampFormatter.getFractionFormatter(zoneId);
     String sparkTimestamp = formatter.format(ts.value());
-    assertThat(sparkTimestamp).as("Should be the same timestamp (" + ts.value() + ")").isEqualTo(sparkRepr);
+    assertThat(sparkTimestamp)
+        .as("Should be the same timestamp (" + ts.value() + ")")
+        .isEqualTo(sparkRepr);
   }
 }

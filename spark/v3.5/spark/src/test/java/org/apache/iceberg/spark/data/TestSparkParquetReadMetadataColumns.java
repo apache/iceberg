@@ -118,8 +118,7 @@ public class TestSparkParquetReadMetadataColumns {
     return new Object[][] {new Object[] {false}, new Object[] {true}};
   }
 
-  @TempDir
-  public java.nio.file.Path temp;
+  @TempDir public java.nio.file.Path temp;
 
   private final boolean vectorized;
   private File testFile;

@@ -63,7 +63,10 @@ import org.junit.jupiter.api.Test;
 public class TestSparkParquetReader extends AvroDataTest {
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    assumeTrue(null == TypeUtil.find(schema,
+    assumeTrue(
+        null
+            == TypeUtil.find(
+                schema,
                 type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()),
         "Parquet Avro cannot write non-string map keys");
 
@@ -108,7 +111,7 @@ public class TestSparkParquetReader extends AvroDataTest {
             schema,
             PartitionSpec.unpartitioned(),
             ImmutableMap.of(),
-                java.nio.file.Files.createTempDirectory(temp, null).toFile().getCanonicalPath());
+            java.nio.file.Files.createTempDirectory(temp, null).toFile().getCanonicalPath());
 
     table
         .newAppend()
@@ -126,8 +129,7 @@ public class TestSparkParquetReader extends AvroDataTest {
 
   @Test
   public void testInt96TimestampProducedBySparkIsReadCorrectly() throws IOException {
-    String outputFilePath =
-        String.format("%s/%s", temp.toAbsolutePath(), "parquet_int96.parquet");
+    String outputFilePath = String.format("%s/%s", temp.toAbsolutePath(), "parquet_int96.parquet");
     HadoopOutputFile outputFile =
         HadoopOutputFile.fromPath(
             new org.apache.hadoop.fs.Path(outputFilePath), new Configuration());

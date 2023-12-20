@@ -80,12 +80,14 @@ public class TestParquetVectorizedReads extends AvroDataTest {
       Function<GenericData.Record, GenericData.Record> transform)
       throws IOException {
     // Write test data
-    assumeThat(null
-            == TypeUtil.find(
-            schema,
-            type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()))
-            .as("Parquet Avro cannot write non-string map keys")
-            .isTrue();
+    assumeThat(
+            null
+                == TypeUtil.find(
+                    schema,
+                    type ->
+                        type.isMapType() && type.asMapType().keyType() != Types.StringType.get()))
+        .as("Parquet Avro cannot write non-string map keys")
+        .isTrue();
 
     Iterable<GenericData.Record> expected =
         generateData(schema, numRecords, seed, nullPercentage, transform);
@@ -325,8 +327,7 @@ public class TestParquetVectorizedReads extends AvroDataTest {
     try (FileAppender<GenericData.Record> writer = getParquetV2Writer(schema, dataFile)) {
       writer.addAll(data);
     }
-    assertThatThrownBy(
-            () -> assertRecordsMatch(schema, 30000, data, dataFile, false, BATCH_SIZE))
+    assertThatThrownBy(() -> assertRecordsMatch(schema, 30000, data, dataFile, false, BATCH_SIZE))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessageStartingWith("Cannot support vectorized reads for column")
         .hasMessageEndingWith("Disable vectorized reads to read this table/file");
