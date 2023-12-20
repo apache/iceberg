@@ -63,7 +63,7 @@ public class TestIcebergSpark {
 
     assertThat(results).hasSize(1);
     assertThat(results.get(0).getInt(0))
-        .isEqualTo((int) Transforms.bucket(16).bind(Types.IntegerType.get()).apply(1));
+        .isEqualTo(Transforms.bucket(16).bind(Types.IntegerType.get()).apply(1));
   }
 
   @Test
@@ -72,7 +72,7 @@ public class TestIcebergSpark {
     List<Row> results = spark.sql("SELECT iceberg_bucket_short_16(1S)").collectAsList();
     assertThat(results).hasSize(1);
     assertThat(results.get(0).getInt(0))
-        .isEqualTo((int) Transforms.bucket(16).bind(Types.IntegerType.get()).apply(1));
+        .isEqualTo(Transforms.bucket(16).bind(Types.IntegerType.get()).apply(1));
   }
 
   @Test
@@ -81,7 +81,7 @@ public class TestIcebergSpark {
     List<Row> results = spark.sql("SELECT iceberg_bucket_byte_16(1Y)").collectAsList();
     assertThat(results).hasSize(1);
     assertThat(results.get(0).getInt(0))
-        .isEqualTo((int) Transforms.bucket(16).bind(Types.IntegerType.get()).apply(1));
+        .isEqualTo(Transforms.bucket(16).bind(Types.IntegerType.get()).apply(1));
   }
 
   @Test
@@ -90,7 +90,7 @@ public class TestIcebergSpark {
     List<Row> results = spark.sql("SELECT iceberg_bucket_long_16(1L)").collectAsList();
     assertThat(results).hasSize(1);
     assertThat(results.get(0).getInt(0))
-        .isEqualTo((int) Transforms.bucket(16).bind(Types.LongType.get()).apply(1L));
+        .isEqualTo(Transforms.bucket(16).bind(Types.LongType.get()).apply(1L));
   }
 
   @Test
@@ -99,7 +99,7 @@ public class TestIcebergSpark {
     List<Row> results = spark.sql("SELECT iceberg_bucket_string_16('hello')").collectAsList();
     assertThat(results).hasSize(1);
     assertThat(results.get(0).getInt(0))
-        .isEqualTo((int) Transforms.bucket(16).bind(Types.StringType.get()).apply("hello"));
+        .isEqualTo(Transforms.bucket(16).bind(Types.StringType.get()).apply("hello"));
   }
 
   @Test
@@ -108,7 +108,7 @@ public class TestIcebergSpark {
     List<Row> results = spark.sql("SELECT iceberg_bucket_char_16('hello')").collectAsList();
     assertThat(results).hasSize(1);
     assertThat(results.get(0).getInt(0))
-        .isEqualTo((int) Transforms.bucket(16).bind(Types.StringType.get()).apply("hello"));
+        .isEqualTo(Transforms.bucket(16).bind(Types.StringType.get()).apply("hello"));
   }
 
   @Test
@@ -117,7 +117,7 @@ public class TestIcebergSpark {
     List<Row> results = spark.sql("SELECT iceberg_bucket_varchar_16('hello')").collectAsList();
     assertThat(results).hasSize(1);
     assertThat(results.get(0).getInt(0))
-        .isEqualTo((int) Transforms.bucket(16).bind(Types.StringType.get()).apply("hello"));
+        .isEqualTo(Transforms.bucket(16).bind(Types.StringType.get()).apply("hello"));
   }
 
   @Test
@@ -128,10 +128,9 @@ public class TestIcebergSpark {
     assertThat(results).hasSize(1);
     assertThat(results.get(0).getInt(0))
         .isEqualTo(
-            (int)
-                Transforms.bucket(16)
-                    .bind(Types.DateType.get())
-                    .apply(DateTimeUtils.fromJavaDate(Date.valueOf("2021-06-30"))));
+            Transforms.bucket(16)
+                .bind(Types.DateType.get())
+                .apply(DateTimeUtils.fromJavaDate(Date.valueOf("2021-06-30"))));
   }
 
   @Test
@@ -145,12 +144,10 @@ public class TestIcebergSpark {
     assertThat(results).hasSize(1);
     assertThat(results.get(0).getInt(0))
         .isEqualTo(
-            (int)
-                Transforms.bucket(16)
-                    .bind(Types.TimestampType.withZone())
-                    .apply(
-                        DateTimeUtils.fromJavaTimestamp(
-                            Timestamp.valueOf("2021-06-30 00:00:00.000"))));
+            Transforms.bucket(16)
+                .bind(Types.TimestampType.withZone())
+                .apply(
+                    DateTimeUtils.fromJavaTimestamp(Timestamp.valueOf("2021-06-30 00:00:00.000"))));
   }
 
   @Test
@@ -160,10 +157,9 @@ public class TestIcebergSpark {
     assertThat(results).hasSize(1);
     assertThat(results.get(0).getInt(0))
         .isEqualTo(
-            (int)
-                Transforms.bucket(16)
-                    .bind(Types.BinaryType.get())
-                    .apply(ByteBuffer.wrap(new byte[] {0x00, 0x20, 0x00, 0x1F})));
+            Transforms.bucket(16)
+                .bind(Types.BinaryType.get())
+                .apply(ByteBuffer.wrap(new byte[] {0x00, 0x20, 0x00, 0x1F})));
   }
 
   @Test
@@ -173,10 +169,7 @@ public class TestIcebergSpark {
     assertThat(results).hasSize(1);
     assertThat(results.get(0).getInt(0))
         .isEqualTo(
-            (int)
-                Transforms.bucket(16)
-                    .bind(Types.DecimalType.of(4, 2))
-                    .apply(new BigDecimal("11.11")));
+            Transforms.bucket(16).bind(Types.DecimalType.of(4, 2)).apply(new BigDecimal("11.11")));
   }
 
   @Test

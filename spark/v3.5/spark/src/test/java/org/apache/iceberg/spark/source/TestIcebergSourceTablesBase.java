@@ -1990,9 +1990,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .olderThan(System.currentTimeMillis())
             .execute();
 
-    assertThat(Iterables.isEmpty(result1.orphanFileLocations()))
-        .as("Should not delete any metadata files")
-        .isTrue();
+    assertThat(result1.orphanFileLocations()).as("Should not delete any metadata files").isEmpty();
 
     DeleteOrphanFiles.Result result2 =
         actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();

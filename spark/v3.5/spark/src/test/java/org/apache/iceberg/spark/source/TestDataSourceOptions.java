@@ -409,8 +409,9 @@ public class TestDataSourceOptions extends TestBaseWithCatalog {
 
     Table table = tables.load(tableLocation);
 
-    assertThat(table.currentSnapshot().summary().get("extra-key")).isEqualTo("someValue");
-    assertThat(table.currentSnapshot().summary().get("another-key")).isEqualTo("anotherValue");
+    assertThat(table.currentSnapshot().summary())
+        .containsEntry("extra-key", "someValue")
+        .containsEntry("another-key", "anotherValue");
   }
 
   @Test
