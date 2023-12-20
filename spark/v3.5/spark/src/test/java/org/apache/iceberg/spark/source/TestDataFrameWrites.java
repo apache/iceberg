@@ -147,7 +147,7 @@ public class TestDataFrameWrites extends AvroDataTest {
   @Test
   public void testWriteWithCustomDataLocation() throws IOException {
     File location = createTableFolder();
-    File tablePropertyDataLocation = temp.newFolder("test-table-property-data-dir");
+    File tablePropertyDataLocation = temp.resolve("test-table-property-data-dir").toFile();
     Table table = createTable(new Schema(SUPPORTED_PRIMITIVES.fields()), location);
     table
         .updateProperties()
@@ -157,7 +157,7 @@ public class TestDataFrameWrites extends AvroDataTest {
   }
 
   private File createTableFolder() throws IOException {
-    File parent = temp.newFolder("parquet");
+    File parent = temp.resolve("parquet").toFile();
     File location = new File(parent, "test");
     Assert.assertTrue("Mkdir should succeed", location.mkdirs());
     return location;
@@ -247,7 +247,7 @@ public class TestDataFrameWrites extends AvroDataTest {
   private Dataset<Row> createDataset(Iterable<Record> records, Schema schema) throws IOException {
     // this uses the SparkAvroReader to create a DataFrame from the list of records
     // it assumes that SparkAvroReader is correct
-    File testFile = temp.newFile();
+    File testFile = temp.toFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
     try (FileAppender<Record> writer =
@@ -285,7 +285,7 @@ public class TestDataFrameWrites extends AvroDataTest {
     Assume.assumeTrue(
         "Spark 3 rejects writing nulls to a required column", spark.version().startsWith("2"));
 
-    File location = new File(temp.newFolder("parquet"), "test");
+    File location = new File(temp.resolve("parquet").toFile(), "test");
     String sourcePath = String.format("%s/nullable_poc/sourceFolder/", location.toString());
     String targetPath = String.format("%s/nullable_poc/targetFolder/", location.toString());
 
@@ -338,7 +338,7 @@ public class TestDataFrameWrites extends AvroDataTest {
     Assume.assumeTrue(
         "Spark 3 rejects writing nulls to a required column", spark.version().startsWith("2"));
 
-    File location = new File(temp.newFolder("parquet"), "test");
+    File location = new File(temp.resolve("parquet").toFile(), "test");
     String sourcePath = String.format("%s/nullable_poc/sourceFolder/", location.toString());
     String targetPath = String.format("%s/nullable_poc/targetFolder/", location.toString());
 
