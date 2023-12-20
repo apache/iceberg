@@ -332,16 +332,14 @@ public class TestHelpers {
       case FIXED:
         assertThat(expected).as("Should expect a Fixed").isInstanceOf(GenericData.Fixed.class);
         assertThat(actual).as("Should be a byte[]").isInstanceOf(byte[].class);
-        assertThat((byte[]) actual)
+        assertThat(actual)
             .as("Bytes should match")
             .isEqualTo(((GenericData.Fixed) expected).bytes());
         break;
       case BINARY:
         assertThat(expected).as("Should expect a ByteBuffer").isInstanceOf(ByteBuffer.class);
         assertThat(actual).as("Should be a byte[]").isInstanceOf(byte[].class);
-        assertThat((byte[]) actual)
-            .as("Bytes should match")
-            .isEqualTo(((ByteBuffer) expected).array());
+        assertThat(actual).as("Bytes should match").isEqualTo(((ByteBuffer) expected).array());
         break;
       case DECIMAL:
         assertThat(expected).as("Should expect a BigDecimal").isInstanceOf(BigDecimal.class);
