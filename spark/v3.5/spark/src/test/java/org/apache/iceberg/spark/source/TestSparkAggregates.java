@@ -17,6 +17,7 @@
  * under the License.
  */
 package org.apache.iceberg.spark.source;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
@@ -50,17 +51,23 @@ public class TestSparkAggregates {
           Max max = new Max(namedReference);
           Expression expectedMax = Expressions.max(unquoted);
           Expression actualMax = SparkAggregates.convert(max);
-          assertThat(expectedMax.toString()).as("Max must match").isEqualTo(String.valueOf(actualMax));
+          assertThat(expectedMax.toString())
+              .as("Max must match")
+              .isEqualTo(String.valueOf(actualMax));
 
           Min min = new Min(namedReference);
           Expression expectedMin = Expressions.min(unquoted);
           Expression actualMin = SparkAggregates.convert(min);
-          assertThat(expectedMin.toString()).as("Min must match").isEqualTo(String.valueOf(actualMin));
+          assertThat(expectedMin.toString())
+              .as("Min must match")
+              .isEqualTo(String.valueOf(actualMin));
 
           Count count = new Count(namedReference, false);
           Expression expectedCount = Expressions.count(unquoted);
           Expression actualCount = SparkAggregates.convert(count);
-          assertThat(expectedCount.toString()).as("Count must match").isEqualTo(String.valueOf(actualCount));
+          assertThat(expectedCount.toString())
+              .as("Count must match")
+              .isEqualTo(String.valueOf(actualCount));
 
           Count countDistinct = new Count(namedReference, true);
           Expression convertedCountDistinct = SparkAggregates.convert(countDistinct);
@@ -69,7 +76,9 @@ public class TestSparkAggregates {
           CountStar countStar = new CountStar();
           Expression expectedCountStar = Expressions.countStar();
           Expression actualCountStar = SparkAggregates.convert(countStar);
-          assertThat(expectedCountStar.toString()).as("CountStar must match").isEqualTo(String.valueOf(actualCountStar));
+          assertThat(expectedCountStar.toString())
+              .as("CountStar must match")
+              .isEqualTo(String.valueOf(actualCountStar));
         });
   }
 }

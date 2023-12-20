@@ -73,8 +73,7 @@ public class TestWriteMetricsConfig {
                   required(4, "id", Types.IntegerType.get()),
                   required(5, "data", Types.StringType.get()))));
 
-  @TempDir
-  private Path temp;
+  @TempDir private Path temp;
 
   private static SparkSession spark = null;
   private static JavaSparkContext sc = null;
@@ -233,8 +232,7 @@ public class TestWriteMetricsConfig {
     properties.put(TableProperties.DEFAULT_WRITE_METRICS_MODE, "counts");
     properties.put("write.metadata.metrics.column.ids", "full");
 
-    assertThatThrownBy(
-            () -> tables.create(SIMPLE_SCHEMA, spec, properties, tableLocation))
+    assertThatThrownBy(() -> tables.create(SIMPLE_SCHEMA, spec, properties, tableLocation))
         .isInstanceOf(ValidationException.class)
         .hasMessageStartingWith(
             "Invalid metrics config, could not find column ids from table prop write.metadata.metrics.column.ids in schema table");
@@ -294,7 +292,7 @@ public class TestWriteMetricsConfig {
       Map<Integer, ByteBuffer> upperBounds = file.upperBounds();
       assertThat(upperBounds).hasSize(2);
       assertThat(upperBounds).containsKey(recordId.fieldId());
-      
+
       ByteBuffer recordDataUpperBound = upperBounds.get(recordData.fieldId());
       assertThat(ByteBuffers.toByteArray(recordDataUpperBound)).hasSize(2);
     }

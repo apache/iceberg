@@ -17,6 +17,7 @@
  * under the License.
  */
 package org.apache.iceberg.spark.source;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
@@ -110,7 +111,9 @@ public class TestSparkStagedScan extends CatalogTestBase {
               .option(SparkReadOptions.SCAN_TASK_SET_ID, setID)
               .option(SparkReadOptions.SPLIT_SIZE, tasks.get(0).file().fileSizeInBytes())
               .load(tableName);
-      assertThat(2).as("Num partitions should match").isEqualTo(scanDF.javaRDD().getNumPartitions());
+      assertThat(2)
+          .as("Num partitions should match")
+          .isEqualTo(scanDF.javaRDD().getNumPartitions());
 
       // load the staged file set and make sure we combine both files into a single split
       scanDF =
@@ -120,7 +123,9 @@ public class TestSparkStagedScan extends CatalogTestBase {
               .option(SparkReadOptions.SCAN_TASK_SET_ID, setID)
               .option(SparkReadOptions.SPLIT_SIZE, Long.MAX_VALUE)
               .load(tableName);
-      assertThat(1).as("Num partitions should match").isEqualTo(scanDF.javaRDD().getNumPartitions());
+      assertThat(1)
+          .as("Num partitions should match")
+          .isEqualTo(scanDF.javaRDD().getNumPartitions());
     }
   }
 }

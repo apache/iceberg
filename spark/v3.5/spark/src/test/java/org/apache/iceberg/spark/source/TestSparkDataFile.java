@@ -133,8 +133,7 @@ public class TestSparkDataFile {
     currentSpark.stop();
   }
 
-  @TempDir
-  private Path temp;
+  @TempDir private Path temp;
   private String tableLocation = null;
 
   @BeforeEach

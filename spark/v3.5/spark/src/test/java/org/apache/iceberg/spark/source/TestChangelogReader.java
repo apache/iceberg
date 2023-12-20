@@ -64,8 +64,7 @@ public class TestChangelogReader extends TestBase {
   private DataFile dataFile1;
   private DataFile dataFile2;
 
-  @TempDir
-  private Path temp;
+  @TempDir private Path temp;
 
   @BeforeEach
   public void before() throws IOException {
@@ -255,8 +254,6 @@ public class TestChangelogReader extends TestBase {
   private DataFile writeDataFile(List<Record> records) throws IOException {
     // records all use IDs that are in bucket id_bucket=0
     return FileHelpers.writeDataFile(
-        table,
-        Files.localOutput(temp.toFile()),
-        TestHelpers.Row.of(0), records);
+        table, Files.localOutput(temp.toFile()), TestHelpers.Row.of(0), records);
   }
 }

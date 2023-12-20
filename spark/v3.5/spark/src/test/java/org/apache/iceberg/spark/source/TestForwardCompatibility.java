@@ -87,8 +87,7 @@ public class TestForwardCompatibility {
           .addField("identity", 1, "id_zero")
           .build();
 
-  @TempDir
-  private Path temp;
+  @TempDir private Path temp;
 
   private static SparkSession spark = null;
 

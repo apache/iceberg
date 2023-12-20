@@ -17,6 +17,7 @@
  * under the License.
  */
 package org.apache.iceberg.spark.source;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
@@ -121,9 +122,7 @@ public class TestSparkCatalogCacheExpiration extends TestBaseWithCatalog {
         .isInstanceOfSatisfying(
             CachingCatalog.class,
             icebergCatalog -> {
-              assertThat(icebergCatalog)
-                  .extracting("expirationIntervalMillis")
-                  .isEqualTo(-1L);
+              assertThat(icebergCatalog).extracting("expirationIntervalMillis").isEqualTo(-1L);
             });
   }
 
@@ -136,8 +135,7 @@ public class TestSparkCatalogCacheExpiration extends TestBaseWithCatalog {
         .extracting("icebergCatalog")
         .isInstanceOfSatisfying(
             Catalog.class,
-            icebergCatalog ->
-                assertThat(icebergCatalog).isNotInstanceOf(CachingCatalog.class));
+            icebergCatalog -> assertThat(icebergCatalog).isNotInstanceOf(CachingCatalog.class));
   }
 
   private SparkSessionCatalog<?> sparkSessionCatalog() {

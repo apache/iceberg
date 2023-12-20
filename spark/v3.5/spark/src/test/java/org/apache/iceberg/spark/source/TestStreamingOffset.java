@@ -17,6 +17,7 @@
  * under the License.
  */
 package org.apache.iceberg.spark.source;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -35,8 +36,10 @@ public class TestStreamingOffset {
           new StreamingOffset(System.currentTimeMillis(), 3L, false),
           new StreamingOffset(System.currentTimeMillis(), 4L, true)
         };
-    assertThat(expected).as("StreamingOffsets should match")
-                    .isEqualTo(Arrays.stream(expected).map(elem -> StreamingOffset.fromJson(elem.json())).toArray());
+    assertThat(expected)
+        .as("StreamingOffsets should match")
+        .isEqualTo(
+            Arrays.stream(expected).map(elem -> StreamingOffset.fromJson(elem.json())).toArray());
   }
 
   @Test

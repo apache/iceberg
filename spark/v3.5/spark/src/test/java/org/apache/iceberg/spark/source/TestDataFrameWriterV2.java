@@ -17,6 +17,7 @@
  * under the License.
  */
 package org.apache.iceberg.spark.source;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -102,8 +103,7 @@ public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
             "{ \"id\": 3, \"data\": \"c\", \"new_col\": 12.06 }",
             "{ \"id\": 4, \"data\": \"d\", \"new_col\": 14.41 }");
 
-    assertThatThrownBy(
-            () -> threeColDF.writeTo(tableName).option("merge-schema", "true").append())
+    assertThatThrownBy(() -> threeColDF.writeTo(tableName).option("merge-schema", "true").append())
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
             "Cannot write to `testhadoop`.`default`.`table`, the reason is too many data columns");

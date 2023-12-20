@@ -57,8 +57,7 @@ public class TestStructuredStreaming {
           optional(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
   private static SparkSession spark = null;
 
-  @TempDir
-  private Path temp;
+  @TempDir private Path temp;
 
   @BeforeAll
   public static void startSpark() {

@@ -48,8 +48,7 @@ public class TestPathIdentifier extends TestBase {
       new Schema(
           required(1, "id", Types.LongType.get()), required(2, "data", Types.StringType.get()));
 
-  @TempDir
-  private Path temp;
+  @TempDir private Path temp;
   private File tableLocation;
   private PathIdentifier identifier;
   private SparkCatalog sparkCatalog;
@@ -77,8 +76,7 @@ public class TestPathIdentifier extends TestBase {
 
     assertThat(table.table().location()).isEqualTo(tableLocation.getAbsolutePath());
     assertThat(table.table()).isInstanceOf(BaseTable.class);
-    assertThat(((BaseTable) table.table()).operations())
-        .isInstanceOf(HadoopTableOperations.class);
+    assertThat(((BaseTable) table.table()).operations()).isInstanceOf(HadoopTableOperations.class);
 
     assertThat(sparkCatalog.loadTable(identifier)).isEqualTo(table);
     assertThat(sparkCatalog.dropTable(identifier)).isTrue();

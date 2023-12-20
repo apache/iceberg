@@ -54,8 +54,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 public class TestBaseReader {
 
-  @TempDir
-  private Path temp;
+  @TempDir private Path temp;
 
   private Table table;
 
@@ -133,10 +132,14 @@ public class TestBaseReader {
       assertThat(reader.get()).as("Reader should return non-null value").isNotNull();
     }
 
-    assertThat(totalTasks * recordPerTask).as("Reader returned incorrect number of records").isEqualTo(countRecords);
+    assertThat(totalTasks * recordPerTask)
+        .as("Reader returned incorrect number of records")
+        .isEqualTo(countRecords);
     tasks.forEach(
         t ->
-            assertThat(reader.isIteratorClosed(t)).as("All iterators should be closed after read exhausion").isTrue());
+            assertThat(reader.isIteratorClosed(t))
+                .as("All iterators should be closed after read exhausion")
+                .isTrue());
   }
 
   @Test
@@ -152,11 +155,17 @@ public class TestBaseReader {
 
     // Total of 2 elements
     assertThat(reader.next()).isTrue();
-    assertThat(reader.isIteratorClosed(firstTask)).as("First iter should not be closed on its last element").isFalse();
+    assertThat(reader.isIteratorClosed(firstTask))
+        .as("First iter should not be closed on its last element")
+        .isFalse();
 
     assertThat(reader.next()).isTrue();
-    assertThat(reader.isIteratorClosed(firstTask)).as("First iter should be closed after moving to second iter").isTrue();
-    assertThat(reader.isIteratorClosed(secondTask)).as("Second iter should not be closed on its last element").isFalse();
+    assertThat(reader.isIteratorClosed(firstTask))
+        .as("First iter should be closed after moving to second iter")
+        .isTrue();
+    assertThat(reader.isIteratorClosed(secondTask))
+        .as("Second iter should not be closed on its last element")
+        .isFalse();
 
     assertThat(reader.next()).isFalse();
     assertThat(reader.isIteratorClosed(firstTask)).isTrue();
@@ -175,7 +184,9 @@ public class TestBaseReader {
 
     tasks.forEach(
         t ->
-            assertThat(reader.hasIterator(t)).as("Iterator should not be created eagerly for tasks").isFalse());
+            assertThat(reader.hasIterator(t))
+                .as("Iterator should not be created eagerly for tasks")
+                .isFalse());
   }
 
   @Test
@@ -199,7 +210,9 @@ public class TestBaseReader {
     tasks.forEach(
         t -> {
           if (reader.hasIterator(t)) {
-            assertThat(reader.isIteratorClosed(t)).as("Iterator should be closed after read exhausion").isTrue();
+            assertThat(reader.isIteratorClosed(t))
+                .as("Iterator should be closed after read exhausion")
+                .isTrue();
           }
         });
   }
@@ -221,10 +234,14 @@ public class TestBaseReader {
     for (int closeAttempt = 0; closeAttempt < 5; closeAttempt++) {
       reader.close();
       for (int i = 0; i < 5; i++) {
-        assertThat(reader.isIteratorClosed(tasks.get(i))).as("Iterator should be closed after read exhausion").isTrue();
+        assertThat(reader.isIteratorClosed(tasks.get(i)))
+            .as("Iterator should be closed after read exhausion")
+            .isTrue();
       }
       for (int i = 5; i < 10; i++) {
-        assertThat(reader.hasIterator(tasks.get(i))).as("Iterator should not be created eagerly for tasks").isFalse();
+        assertThat(reader.hasIterator(tasks.get(i)))
+            .as("Iterator should not be created eagerly for tasks")
+            .isFalse();
       }
     }
   }

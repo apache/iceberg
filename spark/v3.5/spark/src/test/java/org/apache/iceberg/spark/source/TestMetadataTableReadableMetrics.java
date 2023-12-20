@@ -53,8 +53,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 public class TestMetadataTableReadableMetrics extends TestBaseWithCatalog {
 
-  @TempDir
-  private Path temp;
+  @TempDir private Path temp;
 
   private static final Types.StructType LEAF_STRUCT_TYPE =
       Types.StructType.of(
@@ -125,8 +124,7 @@ public class TestMetadataTableReadableMetrics extends TestBaseWithCatalog {
             createPrimitiveRecord(
                 false, 2, 2L, Float.NaN, 2.0D, new BigDecimal("2.00"), "2", null, null));
 
-    DataFile dataFile =
-        FileHelpers.writeDataFile(table, Files.localOutput(temp.toFile()), records);
+    DataFile dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.toFile()), records);
     table.newAppend().appendFile(dataFile).commit();
     return table;
   }
@@ -144,8 +142,7 @@ public class TestMetadataTableReadableMetrics extends TestBaseWithCatalog {
             createNestedRecord(0L, 0.0),
             createNestedRecord(1L, Double.NaN),
             createNestedRecord(null, null));
-    DataFile dataFile =
-        FileHelpers.writeDataFile(table, Files.localOutput(temp.toFile()), records);
+    DataFile dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.toFile()), records);
     table.newAppend().appendFile(dataFile).commit();
     return Pair.of(table, dataFile);
   }

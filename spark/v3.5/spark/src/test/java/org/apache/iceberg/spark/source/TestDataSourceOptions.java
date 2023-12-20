@@ -70,8 +70,7 @@ public class TestDataSourceOptions extends TestBaseWithCatalog {
           optional(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
   private static SparkSession spark = null;
 
-  @TempDir
-  private Path temp;
+  @TempDir private Path temp;
 
   @BeforeAll
   public static void startSpark() {
@@ -220,7 +219,9 @@ public class TestDataSourceOptions extends TestBaseWithCatalog {
             .option(SparkReadOptions.SPLIT_SIZE, String.valueOf(splitSize))
             .load(tableLocation);
 
-    assertThat(2).as("Spark partitions should match").isEqualTo(resultDf.javaRDD().getNumPartitions());
+    assertThat(2)
+        .as("Spark partitions should match")
+        .isEqualTo(resultDf.javaRDD().getNumPartitions());
   }
 
   @Test
