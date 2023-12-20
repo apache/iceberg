@@ -21,12 +21,14 @@ package org.apache.iceberg.spark.source;
 import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.view.BaseView;
+import org.apache.iceberg.view.SQLViewRepresentation;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewOperations;
 import org.apache.spark.sql.types.StructType;
@@ -37,8 +39,11 @@ public class SparkView implements org.apache.spark.sql.connector.catalog.View {
       ImmutableSet.of("provider", "location", FORMAT_VERSION);
 
   private final View icebergView;
+  private final String catalogName;
+  private StructType lazySchema = null;
 
-  public SparkView(View icebergView) {
+  public SparkView(String catalogName, View icebergView) {
+    this.catalogName = catalogName;
     this.icebergView = icebergView;
   }
 
@@ -53,14 +58,16 @@ public class SparkView implements org.apache.spark.sql.connector.catalog.View {
 
   @Override
   public String query() {
-    return Optional.ofNullable(icebergView.sqlFor("spark"))
-        .orElseThrow(() -> new IllegalStateException("No SQL query found for view " + name()))
-        .sql();
+    SQLViewRepresentation sqlRepr = icebergView.sqlFor("spark");
+    Preconditions.checkState(sqlRepr != null, "Cannot load SQL for view %s", name());
+    return sqlRepr.sql();
   }
 
   @Override
   public String currentCatalog() {
-    return icebergView.currentVersion().defaultCatalog();
+    return null != icebergView.currentVersion().defaultCatalog()
+        ? icebergView.currentVersion().defaultCatalog()
+        : catalogName;
   }
 
   @Override
@@ -70,7 +77,11 @@ public class SparkView implements org.apache.spark.sql.connector.catalog.View {
 
   @Override
   public StructType schema() {
-    return SparkSchemaUtil.convert(icebergView.schema());
+    if (null == lazySchema) {
+      this.lazySchema = SparkSchemaUtil.convert(icebergView.schema());
+    }
+
+    return lazySchema;
   }
 
   @Override
@@ -80,12 +91,16 @@ public class SparkView implements org.apache.spark.sql.connector.catalog.View {
 
   @Override
   public String[] columnAliases() {
-    return new String[0];
+    return icebergView.schema().columns().stream()
+        .map(Types.NestedField::name)
+        .toArray(String[]::new);
   }
 
   @Override
   public String[] columnComments() {
-    return new String[0];
+    return icebergView.schema().columns().stream()
+        .map(Types.NestedField::doc)
+        .toArray(String[]::new);
   }
 
   @Override

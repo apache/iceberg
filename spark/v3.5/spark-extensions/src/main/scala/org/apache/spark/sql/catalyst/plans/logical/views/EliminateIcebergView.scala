@@ -31,6 +31,6 @@ import org.apache.spark.sql.catalyst.rules.Rule
  */
 object EliminateIcebergView extends Rule[LogicalPlan] with CastSupport {
   override def apply(plan: LogicalPlan): LogicalPlan = plan transformUp {
-    case IcebergView(_, _, child) => child
+    case IcebergView(_, child) => child
   }
 }

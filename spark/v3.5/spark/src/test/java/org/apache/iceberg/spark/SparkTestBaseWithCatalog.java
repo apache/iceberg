@@ -87,7 +87,7 @@ public abstract class SparkTestBaseWithCatalog extends SparkTestBase {
     config.forEach(
         (key, value) -> spark.conf().set("spark.sql.catalog." + catalogName + "." + key, value));
 
-    if (null != config.get("type") && config.get("type").equalsIgnoreCase("hadoop")) {
+    if ("hadoop".equalsIgnoreCase(config.get("type"))) {
       spark.conf().set("spark.sql.catalog." + catalogName + ".warehouse", "file:" + warehouse);
     }
 

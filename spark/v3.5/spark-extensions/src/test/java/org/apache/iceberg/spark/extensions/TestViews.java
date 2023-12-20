@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Map;
@@ -34,6 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.source.SimpleRecord;
+import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -48,7 +50,7 @@ public class TestViews extends SparkExtensionsTestBase {
 
   @Before
   public void before() {
-    spark.conf().set("spark.sql.defaultCatalog", SparkCatalogConfig.SPARK_WITH_VIEWS.catalogName());
+    spark.conf().set("spark.sql.defaultCatalog", catalogName);
     sql("CREATE NAMESPACE IF NOT EXISTS %s", NAMESPACE);
     sql("CREATE TABLE %s (id INT, data STRING)", tableName);
   }
@@ -74,7 +76,7 @@ public class TestViews extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void createAndReadFromView() throws NoSuchTableException {
+  public void readFromView() throws NoSuchTableException {
     insertRows(10);
     String viewName = "simpleView";
 
@@ -84,21 +86,48 @@ public class TestViews extends SparkExtensionsTestBase {
     viewCatalog
         .buildView(TableIdentifier.of(NAMESPACE, viewName))
         .withQuery("spark", String.format("SELECT id FROM %s", tableName))
-        .withQuery("trino", String.format("SELECT id FROM %s", tableName))
+        // use non-existing column name to make sure only the SQL definition for spark is loaded
+        .withQuery("trino", String.format("SELECT non_existing FROM %s", tableName))
         .withDefaultNamespace(NAMESPACE)
-        .withDefaultCatalog(SparkCatalogConfig.SPARK_WITH_VIEWS.catalogName())
+        .withDefaultCatalog(catalogName)
         .withSchema(schema)
         .create();
 
-    List<Object[]> objects = sql("SELECT * FROM %s", viewName);
     List<Object[]> expected =
         IntStream.rangeClosed(1, 10).mapToObj(this::row).collect(Collectors.toList());
 
-    assertThat(objects).hasSize(10).containsExactlyInAnyOrderElementsOf(expected);
+    assertThat(sql("SELECT * FROM %s", viewName))
+        .hasSize(10)
+        .containsExactlyInAnyOrderElementsOf(expected);
   }
 
   @Test
-  public void createAndReadFromMultipleViews() throws NoSuchTableException {
+  public void readFromTrinoView() throws NoSuchTableException {
+    insertRows(10);
+    String viewName = "trinoView";
+
+    ViewCatalog viewCatalog = viewCatalog();
+    Schema schema = tableCatalog().loadTable(TableIdentifier.of(NAMESPACE, tableName)).schema();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("trino", String.format("SELECT id FROM %s", tableName))
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema)
+        .create();
+
+    List<Object[]> expected =
+        IntStream.rangeClosed(1, 10).mapToObj(this::row).collect(Collectors.toList());
+
+    // there's no explicit view defined for spark, so it will fall back to the defined trino view
+    assertThat(sql("SELECT * FROM %s", viewName))
+        .hasSize(10)
+        .containsExactlyInAnyOrderElementsOf(expected);
+  }
+
+  @Test
+  public void readFromMultipleViews() throws NoSuchTableException {
     insertRows(6);
     String viewName = "firstView";
     String secondView = "secondView";
@@ -110,7 +139,6 @@ public class TestViews extends SparkExtensionsTestBase {
         .buildView(TableIdentifier.of(NAMESPACE, viewName))
         .withQuery("spark", String.format("SELECT id FROM %s WHERE id <= 3", tableName))
         .withDefaultNamespace(NAMESPACE)
-        .withDefaultCatalog(SparkCatalogConfig.SPARK_WITH_VIEWS.catalogName())
         .withSchema(schema)
         .create();
 
@@ -118,26 +146,72 @@ public class TestViews extends SparkExtensionsTestBase {
         .buildView(TableIdentifier.of(NAMESPACE, secondView))
         .withQuery("spark", String.format("SELECT id FROM %s WHERE id > 3", tableName))
         .withDefaultNamespace(NAMESPACE)
-        .withDefaultCatalog(SparkCatalogConfig.SPARK_WITH_VIEWS.catalogName())
         .withSchema(schema)
         .create();
 
-    List<Object[]> first = sql("SELECT * FROM %s", viewName);
-    assertThat(first).hasSize(3).containsExactlyInAnyOrder(row(1), row(2), row(3));
+    assertThat(sql("SELECT * FROM %s", viewName))
+        .hasSize(3)
+        .containsExactlyInAnyOrder(row(1), row(2), row(3));
 
-    List<Object[]> second = sql("SELECT * FROM %s", secondView);
-    assertThat(second).hasSize(3).containsExactlyInAnyOrder(row(4), row(5), row(6));
+    assertThat(sql("SELECT * FROM %s", secondView))
+        .hasSize(3)
+        .containsExactlyInAnyOrder(row(4), row(5), row(6));
+  }
+
+  @Test
+  public void readFromViewUsingNonExistingTable() throws NoSuchTableException {
+    insertRows(10);
+    String viewName = "viewWithNonExistingTable";
+
+    ViewCatalog viewCatalog = viewCatalog();
+    Schema schema = tableCatalog().loadTable(TableIdentifier.of(NAMESPACE, tableName)).schema();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("spark", "SELECT id FROM non_existing")
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema)
+        .create();
+
+    assertThatThrownBy(() -> sql("SELECT * FROM %s", viewName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            String.format(
+                "The table or view `%s`.`%s`.`non_existing` cannot be found",
+                catalogName, NAMESPACE));
+  }
+
+  @Test
+  public void readFromViewUsingNonExistingColumn() throws NoSuchTableException {
+    insertRows(10);
+    String viewName = "viewWithNonExistingColumn";
+
+    ViewCatalog viewCatalog = viewCatalog();
+    Schema schema = tableCatalog().loadTable(TableIdentifier.of(NAMESPACE, tableName)).schema();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("spark", String.format("SELECT non_existing FROM %s", tableName))
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema)
+        .create();
+
+    assertThatThrownBy(() -> sql("SELECT * FROM %s", viewName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "A column or function parameter with name `non_existing` cannot be resolved");
   }
 
   private ViewCatalog viewCatalog() {
-    Catalog icebergCatalog =
-        Spark3Util.loadIcebergCatalog(spark, SparkCatalogConfig.SPARK_WITH_VIEWS.catalogName());
+    Catalog icebergCatalog = Spark3Util.loadIcebergCatalog(spark, catalogName);
     assertThat(icebergCatalog).isInstanceOf(ViewCatalog.class);
     return (ViewCatalog) icebergCatalog;
   }
 
   private Catalog tableCatalog() {
-    return Spark3Util.loadIcebergCatalog(spark, SparkCatalogConfig.SPARK_WITH_VIEWS.catalogName());
+    return Spark3Util.loadIcebergCatalog(spark, catalogName);
   }
 
   private void insertRows(int numRows) throws NoSuchTableException {

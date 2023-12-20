@@ -839,7 +839,7 @@ public class SparkCatalog extends BaseCatalog {
     if (null != asViewCatalog) {
       try {
         org.apache.iceberg.view.View view = asViewCatalog.loadView(buildIdentifier(ident));
-        return new SparkView(view);
+        return new SparkView(catalogName, view);
       } catch (org.apache.iceberg.exceptions.NoSuchViewException e) {
         throw new NoSuchViewException(ident);
       }
@@ -874,7 +874,7 @@ public class SparkCatalog extends BaseCatalog {
                 .withLocation(properties.get("location"))
                 .withProperties(Spark3Util.rebuildCreateProperties(properties))
                 .create();
-        return new SparkView(view);
+        return new SparkView(catalogName, view);
       } catch (org.apache.iceberg.exceptions.NoSuchNamespaceException e) {
         throw new NoSuchNamespaceException(currentNamespace);
       } catch (AlreadyExistsException e) {
@@ -906,7 +906,7 @@ public class SparkCatalog extends BaseCatalog {
 
         updateViewProperties.commit();
 
-        return new SparkView(view);
+        return new SparkView(catalogName, view);
       } catch (org.apache.iceberg.exceptions.NoSuchViewException e) {
         throw new NoSuchViewException(ident);
       }
