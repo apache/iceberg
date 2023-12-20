@@ -50,7 +50,7 @@ public abstract class TestReadProjection {
   protected abstract Record writeAndRead(
       String desc, Schema writeSchema, Schema readSchema, Record record) throws IOException;
 
-  @TempDir private Path temp;
+  @TempDir protected Path temp;
 
   @Test
   public void testFullProjection() throws Exception {
