@@ -204,6 +204,143 @@ public class TestViews extends SparkExtensionsTestBase {
             "A column or function parameter with name `non_existing` cannot be resolved");
   }
 
+  @Test
+  public void readFromViewHiddenByTempView() throws NoSuchTableException {
+    insertRows(10);
+    String viewName = "viewHiddenByTempView";
+
+    ViewCatalog viewCatalog = viewCatalog();
+    Schema schema = tableCatalog().loadTable(TableIdentifier.of(NAMESPACE, tableName)).schema();
+
+    sql("CREATE TEMPORARY VIEW %s AS SELECT id FROM %s WHERE id <= 5", viewName, tableName);
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("spark", String.format("SELECT id FROM %s WHERE id > 5", tableName))
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema)
+        .create();
+
+    List<Object[]> expected =
+        IntStream.rangeClosed(1, 5).mapToObj(this::row).collect(Collectors.toList());
+
+    assertThat(sql("SELECT * FROM %s", viewName))
+        .hasSize(5)
+        .containsExactlyInAnyOrderElementsOf(expected);
+  }
+
+  @Test
+  public void readFromViewHiddenByGlobalTempView() throws NoSuchTableException {
+    insertRows(10);
+    String viewName = "viewHiddenByGlobalTempView";
+
+    ViewCatalog viewCatalog = viewCatalog();
+    Schema schema = tableCatalog().loadTable(TableIdentifier.of(NAMESPACE, tableName)).schema();
+
+    sql("CREATE GLOBAL TEMPORARY VIEW %s AS SELECT id FROM %s WHERE id <= 5", viewName, tableName);
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("spark", String.format("SELECT id FROM %s WHERE id > 5", tableName))
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema)
+        .create();
+
+    List<Object[]> expected =
+        IntStream.rangeClosed(1, 5).mapToObj(this::row).collect(Collectors.toList());
+
+    // FIXME: this should return the ids from the global temp view
+    assertThat(sql("SELECT * FROM %s", viewName))
+        .hasSize(5)
+        .containsExactlyInAnyOrderElementsOf(expected);
+  }
+
+  @Test
+  public void readFromViewReferencingAnotherView() throws NoSuchTableException {
+    insertRows(10);
+    String firstView = "viewBeingReferencedInAnotherView";
+    String viewReferencingOtherView = "viewReferencingOtherView";
+
+    ViewCatalog viewCatalog = viewCatalog();
+    Schema schema = tableCatalog().loadTable(TableIdentifier.of(NAMESPACE, tableName)).schema();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, firstView))
+        .withQuery("spark", String.format("SELECT id FROM %s", tableName))
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema)
+        .create();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewReferencingOtherView))
+        .withQuery("spark", String.format("SELECT id FROM %s", firstView))
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema)
+        .create();
+
+    List<Object[]> expected =
+        IntStream.rangeClosed(1, 10).mapToObj(this::row).collect(Collectors.toList());
+
+    assertThat(sql("SELECT * FROM %s", viewReferencingOtherView))
+        .hasSize(10)
+        .containsExactlyInAnyOrderElementsOf(expected);
+  }
+
+  @Test
+  public void readFromViewReferencingTempView() throws NoSuchTableException {
+    insertRows(10);
+    String tempView = "tempViewBeingReferencedInAnotherView";
+    String viewReferencingTempView = "viewReferencingTempView";
+
+    ViewCatalog viewCatalog = viewCatalog();
+    Schema schema = tableCatalog().loadTable(TableIdentifier.of(NAMESPACE, tableName)).schema();
+
+    sql("CREATE TEMPORARY VIEW %s AS SELECT id FROM %s WHERE id <= 5", tempView, tableName);
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewReferencingTempView))
+        .withQuery("spark", String.format("SELECT id FROM %s", tempView))
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema)
+        .create();
+
+    List<Object[]> expected =
+        IntStream.rangeClosed(1, 5).mapToObj(this::row).collect(Collectors.toList());
+
+    assertThat(sql("SELECT * FROM %s", tempView))
+        .hasSize(5)
+        .containsExactlyInAnyOrderElementsOf(expected);
+
+    // FIXME: this should work
+    assertThat(sql("SELECT * FROM %s", viewReferencingTempView))
+        .hasSize(5)
+        .containsExactlyInAnyOrderElementsOf(expected);
+  }
+
+  @Test
+  public void readFromViewWithCTE() throws NoSuchTableException {
+    insertRows(10);
+    String viewName = "viewWithCTE";
+
+    ViewCatalog viewCatalog = viewCatalog();
+    Schema schema = tableCatalog().loadTable(TableIdentifier.of(NAMESPACE, tableName)).schema();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("spark", String.format("SELECT * FROM (SELECT max(id) FROM %s)", tableName))
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema)
+        .create();
+
+    assertThat(sql("SELECT * FROM %s", viewName)).hasSize(1).containsExactly(row(10));
+  }
+
   private ViewCatalog viewCatalog() {
     Catalog icebergCatalog = Spark3Util.loadIcebergCatalog(spark, catalogName);
     assertThat(icebergCatalog).isInstanceOf(ViewCatalog.class);
