@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Schema;
@@ -37,8 +36,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import org.junit.Assert;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 public abstract class TestReadProjection {
   final String format;
@@ -50,7 +51,7 @@ public abstract class TestReadProjection {
   protected abstract Record writeAndRead(
       String desc, Schema writeSchema, Schema readSchema, Record record) throws IOException;
 
-  @TempDir protected Path temp;
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   @Test
   public void testFullProjection() throws Exception {
@@ -71,7 +72,9 @@ public abstract class TestReadProjection {
 
     int cmp =
         Comparators.charSequences().compare("test", (CharSequence) projected.getField("data"));
-    assertThat(cmp).as("Should contain the correct data value").isEqualTo(0);
+
+    // TODO: update this Assert with AssertJ
+    Assert.assertEquals("Should contain the correct data value", 0, cmp);
   }
 
   @Test
