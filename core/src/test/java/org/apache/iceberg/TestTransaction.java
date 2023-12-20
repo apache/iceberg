@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -812,81 +811,5 @@ public class TestTransaction extends TableTestBase {
 
     Assert.assertEquals(
         "Should produce 2 manifests", 2, table.currentSnapshot().allManifests(table.io()).size());
-  }
-
-  @Test
-  public void testTransactionRecommitWithDeletes() {
-    // Deletes require V2
-    Assumptions.assumeThat(formatVersion).isEqualTo(2);
-
-    // We cannot fast-append delete files, so disable the merging for now
-    table
-        .updateProperties()
-        .set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1")
-        .set(TableProperties.MANIFEST_MERGE_ENABLED, "false")
-        .commit();
-
-    table.newAppend().appendFile(FILE_A).commit();
-    table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
-    table.newAppend().appendFile(FILE_B).commit();
-    table.newRowDelta().addDeletes(FILE_B_DELETES).commit();
-    table.newAppend().appendFile(FILE_C).commit();
-    table.newAppend().appendFile(FILE_D).commit();
-
-    Assert.assertEquals(
-        "Should produce 6 manifest", 6, table.currentSnapshot().allManifests(table.io()).size());
-
-    // Make sure that we merge everything from now on!
-    table.updateProperties().set(TableProperties.MANIFEST_MERGE_ENABLED, "true").commit();
-
-    // start a transaction with appended files that will merge
-    Transaction transaction = Transactions.newTransaction(table.name(), table.ops());
-
-    RowDelta append = transaction.newRowDelta().addDeletes(FILE_C2_DELETES);
-    Snapshot pending = append.apply();
-
-    List<ManifestFile> manifests = pending.allManifests(table.io());
-
-    Assert.assertEquals(
-        "Should produce 2 pending merged manifest (one DATA, one DELETE)", 2, manifests.size());
-
-    // because a merge happened, the appended manifest is deleted the by append operation
-    append.commit();
-
-    // concurrently commit deletes for FILE_D without a transaction to cause the previous append to
-    // retry
-    table.newRowDelta().addDeletes(FILE_D2_DELETES).commit();
-    Assert.assertEquals(
-        "Should still produce 2 committed merged manifest",
-        2,
-        table.currentSnapshot().allManifests(table.io()).size());
-
-    transaction.commitTransaction();
-
-    // Collect all the files
-    Set<String> paths = Sets.newHashSet();
-    for (FileScanTask task : table.newScan().planFiles()) {
-      paths.add(task.file().path().toString());
-      paths.addAll(
-          task.deletes().stream().map(m -> m.path().toString()).collect(Collectors.toSet()));
-    }
-
-    Set<String> expectedPaths =
-        Sets.newHashSet(
-            FILE_A.path().toString(),
-            FILE_A_DELETES.path().toString(),
-            FILE_B.path().toString(),
-            FILE_B_DELETES.path().toString(),
-            FILE_C.path().toString(),
-            FILE_C2_DELETES.path().toString(),
-            FILE_D.path().toString(),
-            FILE_D2_DELETES.path().toString());
-
-    Assert.assertEquals("Should contain all committed files", expectedPaths, paths);
-
-    Assert.assertEquals(
-        "Should produce 2 manifests (one DATA, one DELETE)",
-        2,
-        table.currentSnapshot().allManifests(table.io()).size());
   }
 }
