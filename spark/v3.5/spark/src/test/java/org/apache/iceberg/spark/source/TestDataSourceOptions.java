@@ -219,9 +219,9 @@ public class TestDataSourceOptions extends TestBaseWithCatalog {
             .option(SparkReadOptions.SPLIT_SIZE, String.valueOf(splitSize))
             .load(tableLocation);
 
-    assertThat(2)
+    assertThat(resultDf.javaRDD().getNumPartitions())
         .as("Spark partitions should match")
-        .isEqualTo(resultDf.javaRDD().getNumPartitions());
+        .isEqualTo(2);
   }
 
   @Test
@@ -299,7 +299,7 @@ public class TestDataSourceOptions extends TestBaseWithCatalog {
             .orderBy("id")
             .as(Encoders.bean(SimpleRecord.class))
             .collectAsList();
-    assertThat(expectedRecords.subList(1, 4)).as("Records should match").isEqualTo(result);
+    assertThat(result).as("Records should match").isEqualTo(expectedRecords.subList(1, 4));
 
     // test (2nd snapshot, 3rd snapshot] incremental scan.
     Dataset<Row> resultDf =
@@ -311,8 +311,8 @@ public class TestDataSourceOptions extends TestBaseWithCatalog {
             .load(tableLocation);
     List<SimpleRecord> result1 =
         resultDf.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    assertThat(expectedRecords.subList(2, 3)).as("Records should match").isEqualTo(result1);
-    assertThat(1).as("Unprocessed count should match record count").isEqualTo(resultDf.count());
+    assertThat(result1).as("Records should match").isEqualTo(expectedRecords.subList(2, 3));
+    assertThat(resultDf.count()).as("Unprocessed count should match record count").isEqualTo(1);
   }
 
   @Test
@@ -343,7 +343,7 @@ public class TestDataSourceOptions extends TestBaseWithCatalog {
         .commit();
 
     Dataset<Row> entriesDf = spark.read().format("iceberg").load(tableLocation + "#entries");
-    assertThat(2).as("Num partitions must match").isEqualTo(entriesDf.javaRDD().getNumPartitions());
+    assertThat(entriesDf.javaRDD().getNumPartitions()).as("Num partitions must match").isEqualTo(2);
 
     // override the table property using options
     entriesDf =
@@ -352,7 +352,7 @@ public class TestDataSourceOptions extends TestBaseWithCatalog {
             .format("iceberg")
             .option(SparkReadOptions.SPLIT_SIZE, String.valueOf(128 * 1024 * 1024))
             .load(tableLocation + "#entries");
-    assertThat(1).as("Num partitions must match").isEqualTo(entriesDf.javaRDD().getNumPartitions());
+    assertThat(entriesDf.javaRDD().getNumPartitions()).as("Num partitions must match").isEqualTo(1);
   }
 
   @Test
@@ -386,7 +386,7 @@ public class TestDataSourceOptions extends TestBaseWithCatalog {
     Dataset<Row> metadataDf = spark.read().format("iceberg").load(tableLocation + "#entries");
 
     int partitionNum = metadataDf.javaRDD().getNumPartitions();
-    assertThat(expectedSplits).as("Spark partitions should match").isEqualTo(partitionNum);
+    assertThat(partitionNum).as("Spark partitions should match").isEqualTo(expectedSplits);
   }
 
   @Test

@@ -236,7 +236,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .collectAsList();
 
     assertThat(actual).as("Results should contain only one status").hasSize(1);
-    assertThat(1).as("That status should be Added (1)").isEqualTo(actual.get(0).getInt(0));
+    assertThat(actual.get(0).getInt(0)).as("That status should be Added (1)").isEqualTo(1);
   }
 
   @Test
@@ -434,20 +434,20 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
     final int expectedEntryCount = 1;
 
     // count entries
-    assertThat(expectedEntryCount)
+    assertThat(
+            spark.read().format("iceberg").load(loadLocation(tableIdentifier, "entries")).count())
         .as("Count should return " + expectedEntryCount)
-        .isEqualTo(
-            spark.read().format("iceberg").load(loadLocation(tableIdentifier, "entries")).count());
+        .isEqualTo(expectedEntryCount);
 
     // count all_entries
-    assertThat(expectedEntryCount)
-        .as("Count should return " + expectedEntryCount)
-        .isEqualTo(
+    assertThat(
             spark
                 .read()
                 .format("iceberg")
                 .load(loadLocation(tableIdentifier, "all_entries"))
-                .count());
+                .count())
+        .as("Count should return " + expectedEntryCount)
+        .isEqualTo(expectedEntryCount);
   }
 
   @Test
@@ -598,10 +598,10 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
     long snapshotId = table.currentSnapshot().snapshotId();
 
     assertThat(actual).as("Entries table should have 2 rows").hasSize(2);
-    assertThat(0).as("Sequence number must match").isEqualTo(actual.get(0).getLong(0));
-    assertThat(snapshotId).as("Snapshot id must match").isEqualTo(actual.get(0).getLong(1));
-    assertThat(0).as("Sequence number must match").isEqualTo(actual.get(1).getLong(0));
-    assertThat(snapshotId).as("Snapshot id must match").isEqualTo(actual.get(1).getLong(1));
+    assertThat(actual.get(0).getLong(0)).as("Sequence number must match").isEqualTo(0);
+    assertThat(actual.get(0).getLong(1)).as("Snapshot id must match").isEqualTo(snapshotId);
+    assertThat(actual.get(1).getLong(0)).as("Sequence number must match").isEqualTo(0);
+    assertThat(actual.get(1).getLong(1)).as("Snapshot id must match").isEqualTo(snapshotId);
   }
 
   @Test
@@ -1783,7 +1783,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         .as("Records should match")
         .isEqualTo(resultDf3.orderBy("id").collectAsList());
 
-    assertThat(originalSparkSchema).as("Schemas should match").isEqualTo(resultDf3.schema());
+    assertThat(resultDf3.schema()).as("Schemas should match").isEqualTo(originalSparkSchema);
   }
 
   @Test
@@ -1810,9 +1810,9 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
 
     Dataset<Row> resultDf = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
 
-    assertThat(originalRecords)
+    assertThat(resultDf.orderBy("id").collectAsList())
         .as("Records should match")
-        .isEqualTo(resultDf.orderBy("id").collectAsList());
+        .isEqualTo(originalRecords);
 
     long tsBeforeDropColumn = waitUntilAfter(System.currentTimeMillis());
     table.updateSchema().deleteColumn("data").commit();
@@ -1840,9 +1840,9 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             RowFactory.create(5, "C"));
 
     Dataset<Row> resultDf2 = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
-    assertThat(updatedRecords)
+    assertThat(resultDf2.orderBy("id").collectAsList())
         .as("Records should match")
-        .isEqualTo(resultDf2.orderBy("id").collectAsList());
+        .isEqualTo(updatedRecords);
 
     Dataset<Row> resultDf3 =
         spark
@@ -1851,11 +1851,11 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .option(SparkReadOptions.AS_OF_TIMESTAMP, tsBeforeDropColumn)
             .load(loadLocation(tableIdentifier));
 
-    assertThat(originalRecords)
+    assertThat(resultDf3.orderBy("id").collectAsList())
         .as("Records should match")
-        .isEqualTo(resultDf3.orderBy("id").collectAsList());
+        .isEqualTo(originalRecords);
 
-    assertThat(originalSparkSchema).as("Schemas should match").isEqualTo(resultDf3.schema());
+    assertThat(resultDf3.schema()).as("Schemas should match").isEqualTo(originalSparkSchema);
 
     // At tsAfterDropColumn, there has been a schema change, but no new snapshot,
     // so the snapshot as of tsAfterDropColumn is the same as that as of tsBeforeDropColumn.
@@ -1866,11 +1866,11 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .option(SparkReadOptions.AS_OF_TIMESTAMP, tsAfterDropColumn)
             .load(loadLocation(tableIdentifier));
 
-    assertThat(originalRecords)
+    assertThat(resultDf4.orderBy("id").collectAsList())
         .as("Records should match")
-        .isEqualTo(resultDf4.orderBy("id").collectAsList());
+        .isEqualTo(originalRecords);
 
-    assertThat(originalSparkSchema).as("Schemas should match").isEqualTo(resultDf4.schema());
+    assertThat(resultDf4.schema()).as("Schemas should match").isEqualTo(originalSparkSchema);
   }
 
   @Test
@@ -1895,9 +1895,9 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
 
     Dataset<Row> resultDf = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
 
-    assertThat(originalRecords)
+    assertThat(resultDf.orderBy("id").collectAsList())
         .as("Records should match")
-        .isEqualTo(resultDf.orderBy("id").collectAsList());
+        .isEqualTo(originalRecords);
 
     Snapshot snapshotBeforeAddColumn = table.currentSnapshot();
 
@@ -1927,9 +1927,9 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
 
     Dataset<Row> resultDf2 = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
 
-    assertThat(updatedRecords)
+    assertThat(resultDf2.orderBy("id").collectAsList())
         .as("Records should match")
-        .isEqualTo(resultDf2.orderBy("id").collectAsList());
+        .isEqualTo(updatedRecords);
 
     table.updateSchema().deleteColumn("data").commit();
 
@@ -1943,9 +1943,9 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
 
     Dataset<Row> resultDf3 = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
 
-    assertThat(recordsAfterDropColumn)
+    assertThat(resultDf3.orderBy("id").collectAsList())
         .as("Records should match")
-        .isEqualTo(resultDf3.orderBy("id").collectAsList());
+        .isEqualTo(recordsAfterDropColumn);
 
     Dataset<Row> resultDf4 =
         spark
@@ -1954,11 +1954,11 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .option(SparkReadOptions.SNAPSHOT_ID, snapshotBeforeAddColumn.snapshotId())
             .load(loadLocation(tableIdentifier));
 
-    assertThat(originalRecords)
+    assertThat(resultDf4.orderBy("id").collectAsList())
         .as("Records should match")
-        .isEqualTo(resultDf4.orderBy("id").collectAsList());
+        .isEqualTo(originalRecords);
 
-    assertThat(originalSparkSchema).as("Schemas should match").isEqualTo(resultDf4.schema());
+    assertThat(resultDf4.schema()).as("Schemas should match").isEqualTo(originalSparkSchema);
   }
 
   @Test
@@ -2003,7 +2003,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
     List<SimpleRecord> actualRecords =
         resultDF.as(Encoders.bean(SimpleRecord.class)).collectAsList();
 
-    assertThat(records).as("Rows must match").isEqualTo(actualRecords);
+    assertThat(actualRecords).as("Rows must match").isEqualTo(records);
   }
 
   @Test
@@ -2298,14 +2298,14 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
 
   private void assertDataFilePartitions(
       List<DataFile> dataFiles, List<Integer> expectedPartitionIds) {
-    assertThat(expectedPartitionIds)
+    assertThat(dataFiles)
         .as("Table should have " + expectedPartitionIds.size() + " data files")
-        .hasSameSizeAs(dataFiles);
+        .hasSameSizeAs(expectedPartitionIds);
 
     for (int i = 0; i < dataFiles.size(); ++i) {
-      assertThat(expectedPartitionIds.get(i).intValue())
+      assertThat(dataFiles.get(i).partition().get(0, Integer.class).intValue())
           .as("Data file should have partition of id " + expectedPartitionIds.get(i))
-          .isEqualTo(dataFiles.get(i).partition().get(0, Integer.class).intValue());
+          .isEqualTo(expectedPartitionIds.get(i).intValue());
     }
   }
 }

@@ -127,8 +127,8 @@ public class TestStructuredStreaming {
       List<SimpleRecord> actual =
           result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
 
-      assertThat(expected).as("Number of rows should match").hasSameSizeAs(actual);
-      assertThat(expected).as("Result rows should match").isEqualTo(actual);
+      assertThat(actual).as("Number of rows should match").hasSameSizeAs(expected);
+      assertThat(actual).as("Result rows should match").isEqualTo(expected);
       assertThat(table.snapshots()).as("Number of snapshots should match").hasSize(2);
     } finally {
       for (StreamingQuery query : spark.streams().active()) {
@@ -188,8 +188,8 @@ public class TestStructuredStreaming {
       List<SimpleRecord> actual =
           result.orderBy("data").as(Encoders.bean(SimpleRecord.class)).collectAsList();
 
-      assertThat(expected).as("Number of rows should match").hasSameSizeAs(actual);
-      assertThat(expected).as("Result rows should match").isEqualTo(actual);
+      assertThat(actual).as("Number of rows should match").hasSameSizeAs(expected);
+      assertThat(actual).as("Result rows should match").isEqualTo(expected);
       assertThat(table.snapshots()).as("Number of snapshots should match").hasSize(2);
     } finally {
       for (StreamingQuery query : spark.streams().active()) {
@@ -249,8 +249,8 @@ public class TestStructuredStreaming {
       List<SimpleRecord> actual =
           result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
 
-      assertThat(expected).as("Number of rows should match").hasSameSizeAs(actual);
-      assertThat(expected).as("Result rows should match").isEqualTo(actual);
+      assertThat(actual).as("Number of rows should match").hasSameSizeAs(expected);
+      assertThat(actual).as("Result rows should match").isEqualTo(expected);
       assertThat(table.snapshots()).as("Number of snapshots should match").hasSize(2);
     } finally {
       for (StreamingQuery query : spark.streams().active()) {

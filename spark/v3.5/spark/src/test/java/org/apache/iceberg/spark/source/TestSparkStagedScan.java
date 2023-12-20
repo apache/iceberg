@@ -111,9 +111,9 @@ public class TestSparkStagedScan extends CatalogTestBase {
               .option(SparkReadOptions.SCAN_TASK_SET_ID, setID)
               .option(SparkReadOptions.SPLIT_SIZE, tasks.get(0).file().fileSizeInBytes())
               .load(tableName);
-      assertThat(2)
+      assertThat(scanDF.javaRDD().getNumPartitions())
           .as("Num partitions should match")
-          .isEqualTo(scanDF.javaRDD().getNumPartitions());
+          .isEqualTo(2);
 
       // load the staged file set and make sure we combine both files into a single split
       scanDF =
@@ -123,9 +123,9 @@ public class TestSparkStagedScan extends CatalogTestBase {
               .option(SparkReadOptions.SCAN_TASK_SET_ID, setID)
               .option(SparkReadOptions.SPLIT_SIZE, Long.MAX_VALUE)
               .load(tableName);
-      assertThat(1)
+      assertThat(scanDF.javaRDD().getNumPartitions())
           .as("Num partitions should match")
-          .isEqualTo(scanDF.javaRDD().getNumPartitions());
+          .isEqualTo(1);
     }
   }
 }

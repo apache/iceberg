@@ -36,10 +36,9 @@ public class TestStreamingOffset {
           new StreamingOffset(System.currentTimeMillis(), 3L, false),
           new StreamingOffset(System.currentTimeMillis(), 4L, true)
         };
-    assertThat(expected)
+    assertThat(Arrays.stream(expected).map(elem -> StreamingOffset.fromJson(elem.json())).toArray())
         .as("StreamingOffsets should match")
-        .isEqualTo(
-            Arrays.stream(expected).map(elem -> StreamingOffset.fromJson(elem.json())).toArray());
+        .isEqualTo(expected);
   }
 
   @Test
@@ -52,6 +51,6 @@ public class TestStreamingOffset {
     actual.put("scan_all_files", false);
     String expectedJson = expected.json();
     String actualJson = JsonUtil.mapper().writeValueAsString(actual);
-    assertThat(expectedJson).isEqualTo(actualJson);
+    assertThat(actualJson).isEqualTo(expectedJson);
   }
 }

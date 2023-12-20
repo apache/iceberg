@@ -74,11 +74,11 @@ public class TestPathIdentifier extends TestBase {
             sparkCatalog.createTable(
                 identifier, SparkSchemaUtil.convert(SCHEMA), new Transform[0], ImmutableMap.of());
 
-    assertThat(table.table().location()).isEqualTo(tableLocation.getAbsolutePath());
+    assertThat(tableLocation.getAbsolutePath()).isEqualTo(table.table().location());
     assertThat(table.table()).isInstanceOf(BaseTable.class);
     assertThat(((BaseTable) table.table()).operations()).isInstanceOf(HadoopTableOperations.class);
 
-    assertThat(sparkCatalog.loadTable(identifier)).isEqualTo(table);
+    assertThat(table).isEqualTo(sparkCatalog.loadTable(identifier));
     assertThat(sparkCatalog.dropTable(identifier)).isTrue();
   }
 }
