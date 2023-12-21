@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.FileFormat;
@@ -26,11 +27,15 @@ import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.encryption.EncryptedFiles;
+import org.apache.iceberg.encryption.EncryptedInputFile;
+import org.apache.iceberg.encryption.StandardKeyMetadata;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
@@ -53,6 +58,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
 
   protected CloseableIterable<ColumnarBatch> newBatchIterable(
       InputFile inputFile,
+      ByteBuffer keyMetadata,
       FileFormat format,
       long start,
       long length,
@@ -61,9 +67,17 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       SparkDeleteFilter deleteFilter) {
     switch (format) {
       case PARQUET:
-        return newParquetIterable(inputFile, start, length, residual, idToConstant, deleteFilter);
+        return newParquetIterable(
+            EncryptedFiles.encryptedInput(inputFile, keyMetadata),
+            start,
+            length,
+            residual,
+            idToConstant,
+            deleteFilter);
 
       case ORC:
+        Preconditions.checkState(
+            keyMetadata == null, "Encryption currently not supported with ORC format");
         return newOrcIterable(inputFile, start, length, residual, idToConstant);
 
       default:
@@ -73,7 +87,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
   }
 
   private CloseableIterable<ColumnarBatch> newParquetIterable(
-      InputFile inputFile,
+      EncryptedInputFile inputFile,
       long start,
       long length,
       Expression residual,
@@ -82,7 +96,15 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
     // get required schema if there are deletes
     Schema requiredSchema = deleteFilter != null ? deleteFilter.requiredSchema() : expectedSchema();
 
-    return Parquet.read(inputFile)
+    ByteBuffer fileEncryptionKey = null;
+    ByteBuffer aadPrefix = null;
+    if (inputFile.keyMetadata() != null && inputFile.keyMetadata().buffer() != null) {
+      StandardKeyMetadata keyMetadata = StandardKeyMetadata.parse(inputFile.keyMetadata().buffer());
+      fileEncryptionKey = keyMetadata.encryptionKey();
+      aadPrefix = keyMetadata.aadPrefix();
+    }
+
+    return Parquet.read(inputFile.encryptedInputFile())
         .project(requiredSchema)
         .split(start, length)
         .createBatchedReaderFunc(
@@ -97,6 +119,8 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
         // read performance as every batch read doesn't have to pay the cost of allocating memory.
         .reuseContainers()
         .withNameMapping(nameMapping())
+        .withFileEncryptionKey(fileEncryptionKey)
+        .withAADPrefix(aadPrefix)
         .build();
   }
 

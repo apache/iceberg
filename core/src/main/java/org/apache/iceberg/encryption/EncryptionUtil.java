@@ -23,6 +23,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.common.DynConstructors;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.PropertyUtil;
 
@@ -86,10 +87,7 @@ public class EncryptionUtil {
             TableProperties.DEFAULT_FILE_FORMAT,
             TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
 
-    if (FileFormat.fromString(fileFormat) != FileFormat.PARQUET) {
-      throw new UnsupportedOperationException(
-          "Iceberg encryption currently supports only parquet format for data files");
-    }
+    boolean nativeDataEncryption = (FileFormat.fromString(fileFormat) == FileFormat.PARQUET);
 
     int dataKeyLength =
         PropertyUtil.propertyAsInt(
@@ -102,6 +100,11 @@ public class EncryptionUtil {
         "Invalid data key length: %s (must be 16, 24, or 32)",
         dataKeyLength);
 
-    return new StandardEncryptionManager(tableKeyId, dataKeyLength, kmsClient);
+    return new StandardEncryptionManager(
+        tableKeyId, dataKeyLength, kmsClient, nativeDataEncryption);
+  }
+
+  public static EncryptedOutputFile plainAsEncryptedOutput(OutputFile encryptingOutputFile) {
+    return new BaseEncryptedOutputFile(encryptingOutputFile, EncryptionKeyMetadata.empty());
   }
 }

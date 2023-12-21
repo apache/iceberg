@@ -105,6 +105,7 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
           inputFile, "Could not find InputFile associated with FileScanTask");
       return newIterable(
           inputFile,
+          task.file().keyMetadata(),
           task.file().format(),
           task.start(),
           task.length(),

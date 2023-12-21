@@ -133,6 +133,7 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
     Preconditions.checkNotNull(location, "Could not find InputFile");
     return newIterable(
         location,
+        task.file().keyMetadata(),
         task.file().format(),
         task.start(),
         task.length(),

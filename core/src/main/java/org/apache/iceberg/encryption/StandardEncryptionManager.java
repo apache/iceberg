@@ -32,6 +32,7 @@ public class StandardEncryptionManager implements EncryptionManager {
   private final transient KeyManagementClient kmsClient;
   private final String tableKeyId;
   private final int dataKeyLength;
+  private final boolean nativeDataEncryption;
 
   private transient volatile SecureRandom lazyRNG = null;
 
@@ -41,7 +42,10 @@ public class StandardEncryptionManager implements EncryptionManager {
    * @param kmsClient Client of KMS used to wrap/unwrap keys in envelope encryption
    */
   public StandardEncryptionManager(
-      String tableKeyId, int dataKeyLength, KeyManagementClient kmsClient) {
+      String tableKeyId,
+      int dataKeyLength,
+      KeyManagementClient kmsClient,
+      boolean nativeDataEncryption) {
     Preconditions.checkNotNull(tableKeyId, "Invalid encryption key ID: null");
     Preconditions.checkArgument(
         dataKeyLength == 16 || dataKeyLength == 24 || dataKeyLength == 32,
@@ -51,6 +55,7 @@ public class StandardEncryptionManager implements EncryptionManager {
     this.tableKeyId = tableKeyId;
     this.kmsClient = kmsClient;
     this.dataKeyLength = dataKeyLength;
+    this.nativeDataEncryption = nativeDataEncryption;
   }
 
   @Override
@@ -67,7 +72,15 @@ public class StandardEncryptionManager implements EncryptionManager {
   @Override
   public Iterable<InputFile> decrypt(Iterable<EncryptedInputFile> encrypted) {
     // Bulk decrypt is only applied to data files. Returning source input files for parquet.
-    return Iterables.transform(encrypted, this::decrypt);
+    if (nativeDataEncryption) {
+      return Iterables.transform(encrypted, this::getSourceFile);
+    } else {
+      return Iterables.transform(encrypted, this::decrypt);
+    }
+  }
+
+  private InputFile getSourceFile(EncryptedInputFile encryptedFile) {
+    return encryptedFile.encryptedInputFile();
   }
 
   private SecureRandom workerRNG() {

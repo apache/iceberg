@@ -31,7 +31,7 @@ import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 
-class StandardKeyMetadata implements EncryptionKeyMetadata, IndexedRecord {
+public class StandardKeyMetadata implements EncryptionKeyMetadata, IndexedRecord {
   private static final byte V1 = 1;
   private static final Schema SCHEMA_V1 =
       new Schema(
@@ -73,11 +73,11 @@ class StandardKeyMetadata implements EncryptionKeyMetadata, IndexedRecord {
     return avroSchemaVersions;
   }
 
-  ByteBuffer encryptionKey() {
+  public ByteBuffer encryptionKey() {
     return encryptionKey;
   }
 
-  ByteBuffer aadPrefix() {
+  public ByteBuffer aadPrefix() {
     return aadPrefix;
   }
 
@@ -95,7 +95,7 @@ class StandardKeyMetadata implements EncryptionKeyMetadata, IndexedRecord {
     return parse(kmBuffer);
   }
 
-  static StandardKeyMetadata parse(ByteBuffer buffer) {
+  public static StandardKeyMetadata parse(ByteBuffer buffer) {
     try {
       return KEY_METADATA_DECODER.decode(buffer);
     } catch (IOException e) {

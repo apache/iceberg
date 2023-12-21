@@ -35,7 +35,6 @@ import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.FileWriterFactory;
-import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 
@@ -93,7 +92,6 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
   @Override
   public DataWriter<T> newDataWriter(
       EncryptedOutputFile file, PartitionSpec spec, StructLike partition) {
-    OutputFile outputFile = file.encryptingOutputFile();
     EncryptionKeyMetadata keyMetadata = file.keyMetadata();
     Map<String, String> properties = table.properties();
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
@@ -102,7 +100,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
       switch (dataFileFormat) {
         case AVRO:
           Avro.DataWriteBuilder avroBuilder =
-              Avro.writeData(outputFile)
+              Avro.writeData(file)
                   .schema(dataSchema)
                   .setAll(properties)
                   .metricsConfig(metricsConfig)
@@ -118,7 +116,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
 
         case PARQUET:
           Parquet.DataWriteBuilder parquetBuilder =
-              Parquet.writeData(outputFile)
+              Parquet.writeData(file)
                   .schema(dataSchema)
                   .setAll(properties)
                   .metricsConfig(metricsConfig)
@@ -134,7 +132,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
 
         case ORC:
           ORC.DataWriteBuilder orcBuilder =
-              ORC.writeData(outputFile)
+              ORC.writeData(file)
                   .schema(dataSchema)
                   .setAll(properties)
                   .metricsConfig(metricsConfig)
@@ -160,7 +158,6 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
   @Override
   public EqualityDeleteWriter<T> newEqualityDeleteWriter(
       EncryptedOutputFile file, PartitionSpec spec, StructLike partition) {
-    OutputFile outputFile = file.encryptingOutputFile();
     EncryptionKeyMetadata keyMetadata = file.keyMetadata();
     Map<String, String> properties = table.properties();
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
@@ -169,7 +166,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
       switch (deleteFileFormat) {
         case AVRO:
           Avro.DeleteWriteBuilder avroBuilder =
-              Avro.writeDeletes(outputFile)
+              Avro.writeDeletes(file)
                   .setAll(properties)
                   .metricsConfig(metricsConfig)
                   .rowSchema(equalityDeleteRowSchema)
@@ -186,7 +183,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
 
         case PARQUET:
           Parquet.DeleteWriteBuilder parquetBuilder =
-              Parquet.writeDeletes(outputFile)
+              Parquet.writeDeletes(file)
                   .setAll(properties)
                   .metricsConfig(metricsConfig)
                   .rowSchema(equalityDeleteRowSchema)
@@ -203,7 +200,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
 
         case ORC:
           ORC.DeleteWriteBuilder orcBuilder =
-              ORC.writeDeletes(outputFile)
+              ORC.writeDeletes(file)
                   .setAll(properties)
                   .metricsConfig(metricsConfig)
                   .rowSchema(equalityDeleteRowSchema)
@@ -230,7 +227,6 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
   @Override
   public PositionDeleteWriter<T> newPositionDeleteWriter(
       EncryptedOutputFile file, PartitionSpec spec, StructLike partition) {
-    OutputFile outputFile = file.encryptingOutputFile();
     EncryptionKeyMetadata keyMetadata = file.keyMetadata();
     Map<String, String> properties = table.properties();
     MetricsConfig metricsConfig = MetricsConfig.forPositionDelete(table);
@@ -239,7 +235,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
       switch (deleteFileFormat) {
         case AVRO:
           Avro.DeleteWriteBuilder avroBuilder =
-              Avro.writeDeletes(outputFile)
+              Avro.writeDeletes(file)
                   .setAll(properties)
                   .metricsConfig(metricsConfig)
                   .rowSchema(positionDeleteRowSchema)
@@ -254,7 +250,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
 
         case PARQUET:
           Parquet.DeleteWriteBuilder parquetBuilder =
-              Parquet.writeDeletes(outputFile)
+              Parquet.writeDeletes(file)
                   .setAll(properties)
                   .metricsConfig(metricsConfig)
                   .rowSchema(positionDeleteRowSchema)
@@ -269,7 +265,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
 
         case ORC:
           ORC.DeleteWriteBuilder orcBuilder =
-              ORC.writeDeletes(outputFile)
+              ORC.writeDeletes(file)
                   .setAll(properties)
                   .metricsConfig(metricsConfig)
                   .rowSchema(positionDeleteRowSchema)

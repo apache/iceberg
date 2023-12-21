@@ -71,7 +71,9 @@ import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.encryption.StandardKeyMetadata;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopInputFile;
@@ -123,6 +125,17 @@ public class Parquet {
 
   public static WriteBuilder write(OutputFile file) {
     return new WriteBuilder(file);
+  }
+
+  public static WriteBuilder write(EncryptedOutputFile file) {
+    if (file.keyMetadata() instanceof StandardKeyMetadata) {
+      StandardKeyMetadata keyMetadata = (StandardKeyMetadata) file.keyMetadata();
+      return write(file.plainOutputFile())
+          .withFileEncryptionKey(keyMetadata.encryptionKey())
+          .withAADPrefix(keyMetadata.aadPrefix());
+    } else {
+      return write(file.encryptingOutputFile());
+    }
   }
 
   public static class WriteBuilder {
@@ -608,6 +621,17 @@ public class Parquet {
     return new DataWriteBuilder(file);
   }
 
+  public static DataWriteBuilder writeData(EncryptedOutputFile file) {
+    if (file.keyMetadata() instanceof StandardKeyMetadata) {
+      StandardKeyMetadata keyMetadata = (StandardKeyMetadata) file.keyMetadata();
+      return writeData(file.plainOutputFile())
+          .withFileEncryptionKey(keyMetadata.encryptionKey())
+          .withAADPrefix(keyMetadata.aadPrefix());
+    } else {
+      return writeData(file.encryptingOutputFile());
+    }
+  }
+
   public static class DataWriteBuilder {
     private final WriteBuilder appenderBuilder;
     private final String location;
@@ -713,6 +737,17 @@ public class Parquet {
 
   public static DeleteWriteBuilder writeDeletes(OutputFile file) {
     return new DeleteWriteBuilder(file);
+  }
+
+  public static DeleteWriteBuilder writeDeletes(EncryptedOutputFile file) {
+    if (file.keyMetadata() instanceof StandardKeyMetadata) {
+      StandardKeyMetadata keyMetadata = (StandardKeyMetadata) file.keyMetadata();
+      return writeDeletes(file.plainOutputFile())
+          .withFileEncryptionKey(keyMetadata.encryptionKey())
+          .withAADPrefix(keyMetadata.aadPrefix());
+    } else {
+      return writeDeletes(file.encryptingOutputFile());
+    }
   }
 
   public static class DeleteWriteBuilder {

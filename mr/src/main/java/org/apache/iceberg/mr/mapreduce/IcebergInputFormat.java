@@ -56,8 +56,8 @@ import org.apache.iceberg.data.InternalRecordWrapper;
 import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
-import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.StandardKeyMetadata;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -302,10 +302,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     private CloseableIterable<T> openTask(FileScanTask currentTask, Schema readSchema) {
       DataFile file = currentTask.file();
-      InputFile inputFile =
-          encryptionManager.decrypt(
-              EncryptedFiles.encryptedInput(
-                  io.newInputFile(file.path().toString()), file.keyMetadata()));
+      InputFile inputFile = io.newInputFile(file.path().toString());
 
       CloseableIterable<T> iterable;
       switch (file.format()) {
@@ -419,6 +416,13 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           if (nameMapping != null) {
             parquetReadBuilder.withNameMapping(NameMappingParser.fromJson(nameMapping));
           }
+
+          if (task.file().keyMetadata() != null) {
+            StandardKeyMetadata keyMetadata = StandardKeyMetadata.parse(task.file().keyMetadata());
+            parquetReadBuilder.withFileEncryptionKey(keyMetadata.encryptionKey());
+            parquetReadBuilder.withAADPrefix(keyMetadata.aadPrefix());
+          }
+
           parquetReadBuilder.createReaderFunc(
               fileSchema ->
                   GenericParquetReaders.buildReader(

@@ -55,6 +55,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
@@ -89,6 +90,13 @@ public class Avro {
 
   public static WriteBuilder write(OutputFile file) {
     return new WriteBuilder(file);
+  }
+
+  public static WriteBuilder write(EncryptedOutputFile file) {
+    Preconditions.checkState(
+        file.keyMetadata() == null || file.keyMetadata() == EncryptionKeyMetadata.EMPTY,
+        "Currenty, encryption of data files in Avro format is not supported");
+    return new WriteBuilder(file.encryptingOutputFile());
   }
 
   public static class WriteBuilder {
@@ -272,6 +280,13 @@ public class Avro {
     return new DataWriteBuilder(file);
   }
 
+  public static DataWriteBuilder writeData(EncryptedOutputFile file) {
+    Preconditions.checkState(
+        file.keyMetadata() == null || file.keyMetadata() == EncryptionKeyMetadata.EMPTY,
+        "Currenty, encryption of data files in Avro format is not supported");
+    return new DataWriteBuilder(file.encryptingOutputFile());
+  }
+
   public static class DataWriteBuilder {
     private final WriteBuilder appenderBuilder;
     private final String location;
@@ -366,6 +381,13 @@ public class Avro {
 
   public static DeleteWriteBuilder writeDeletes(OutputFile file) {
     return new DeleteWriteBuilder(file);
+  }
+
+  public static DeleteWriteBuilder writeDeletes(EncryptedOutputFile file) {
+    Preconditions.checkState(
+        file.keyMetadata() == null || file.keyMetadata() == EncryptionKeyMetadata.EMPTY,
+        "Currenty, encryption of delete files in Avro format is not supported");
+    return new DeleteWriteBuilder(file.encryptingOutputFile());
   }
 
   public static class DeleteWriteBuilder {
