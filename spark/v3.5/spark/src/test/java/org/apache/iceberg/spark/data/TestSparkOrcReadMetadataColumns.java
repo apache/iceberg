@@ -57,7 +57,7 @@ import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -126,18 +126,18 @@ public class TestSparkOrcReadMetadataColumns {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testReadRowNumbers() throws IOException {
     readAndValidate(null, null, null, EXPECTED_ROWS);
   }
 
-  @Test
+  @TestTemplate
   public void testReadRowNumbersWithFilter() throws IOException {
     readAndValidate(
         Expressions.greaterThanOrEqual("id", 500), null, null, EXPECTED_ROWS.subList(500, 1000));
   }
 
-  @Test
+  @TestTemplate
   public void testReadRowNumbersWithSplits() throws IOException {
     Reader reader;
     try {

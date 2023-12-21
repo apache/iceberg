@@ -54,7 +54,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
-import org.apache.iceberg.spark.data.AvroDataTest;
+import org.apache.iceberg.spark.data.ParameterizedAvroDataTest;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.SparkAvroReader;
 import org.apache.iceberg.types.Types;
@@ -76,7 +76,7 @@ import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
-public class TestDataFrameWrites extends AvroDataTest {
+public class TestDataFrameWrites extends ParameterizedAvroDataTest {
   private static final Configuration CONF = new Configuration();
 
   @Parameters(name = "format = {0}")
@@ -84,7 +84,7 @@ public class TestDataFrameWrites extends AvroDataTest {
     return Arrays.asList("parquet", "avro", "orc");
   }
 
-  @Parameter private String format = "parquet";
+  @Parameter private String format;
 
   private static SparkSession spark = null;
   private static JavaSparkContext sc = null;

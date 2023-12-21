@@ -47,7 +47,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.spark.data.AvroDataTest;
+import org.apache.iceberg.spark.data.ParameterizedAvroDataTest;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.TypeUtil;
@@ -62,7 +62,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
 @ExtendWith(ParameterizedTestExtension.class)
-public class TestParquetScan extends AvroDataTest {
+public class TestParquetScan extends ParameterizedAvroDataTest {
   private static final Configuration CONF = new Configuration();
 
   private static SparkSession spark = null;
