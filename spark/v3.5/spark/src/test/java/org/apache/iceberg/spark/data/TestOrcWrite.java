@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.UUID;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileAppender;
@@ -42,7 +43,7 @@ public class TestOrcWrite {
 
   @Test
   public void splitOffsets() throws IOException {
-    File testFile = temp.toFile();
+    File testFile = File.createTempFile(UUID.randomUUID().toString(), null, temp.toFile());
     assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     Iterable<InternalRow> rows = RandomData.generateSpark(SCHEMA, 1, 0L);

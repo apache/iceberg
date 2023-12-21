@@ -23,13 +23,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
@@ -53,11 +59,10 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestSparkOrcReadMetadataColumns {
   private static final Schema DATA_SCHEMA =
       new Schema(
@@ -94,23 +99,19 @@ public class TestSparkOrcReadMetadataColumns {
     }
   }
 
-  @Parameterized.Parameters(name = "vectorized = {0}")
-  public static Object[] parameters() {
-    return new Object[] {false, true};
+  @Parameters(name = "vectorized = {0}")
+  public static Collection<Boolean> parameters() {
+    return Arrays.asList(false, true);
   }
 
-  @TempDir public java.nio.file.Path temp;
+  @TempDir private java.nio.file.Path temp;
 
-  private boolean vectorized;
+  @Parameter private boolean vectorized;
   private File testFile;
-
-  public TestSparkOrcReadMetadataColumns(boolean vectorized) {
-    this.vectorized = vectorized;
-  }
 
   @BeforeEach
   public void writeFile() throws IOException {
-    testFile = temp.toFile();
+    testFile = File.createTempFile(UUID.randomUUID().toString(), null, temp.toFile());
     assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     try (FileAppender<InternalRow> writer =

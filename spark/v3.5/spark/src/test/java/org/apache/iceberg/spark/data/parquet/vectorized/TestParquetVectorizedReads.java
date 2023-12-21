@@ -27,6 +27,7 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.UUID;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
@@ -91,7 +92,7 @@ public class TestParquetVectorizedReads extends AvroDataTest {
         generateData(schema, numRecords, seed, nullPercentage, transform);
 
     // write a test parquet file using iceberg writer
-    File testFile = temp.toFile();
+    File testFile = File.createTempFile(UUID.randomUUID().toString(), null, temp.toFile());
     assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     try (FileAppender<GenericData.Record> writer = getParquetWriter(schema, testFile)) {
@@ -274,7 +275,7 @@ public class TestParquetVectorizedReads extends AvroDataTest {
             optional(102, "float_data", Types.FloatType.get()),
             optional(103, "decimal_data", Types.DecimalType.of(10, 5)));
 
-    File dataFile = temp.toFile();
+    File dataFile = File.createTempFile(UUID.randomUUID().toString(), null, temp.toFile());
     assertThat(dataFile.delete()).as("Delete should succeed").isTrue();
     Iterable<GenericData.Record> data =
         generateData(writeSchema, 30000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE, IDENTITY);
@@ -303,7 +304,7 @@ public class TestParquetVectorizedReads extends AvroDataTest {
             optional(103, "double_data", Types.DoubleType.get()),
             optional(104, "decimal_data", Types.DecimalType.of(25, 5)));
 
-    File dataFile = temp.toFile();
+    File dataFile = File.createTempFile(UUID.randomUUID().toString(), null, temp.toFile());
     assertThat(dataFile.delete()).as("Delete should succeed").isTrue();
     Iterable<GenericData.Record> data =
         generateData(schema, 30000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE, IDENTITY);
@@ -318,7 +319,7 @@ public class TestParquetVectorizedReads extends AvroDataTest {
     // Longs, ints, string types etc use delta encoding and which are not supported for vectorized
     // reads
     Schema schema = new Schema(SUPPORTED_PRIMITIVES.fields());
-    File dataFile = temp.toFile();
+    File dataFile = File.createTempFile(UUID.randomUUID().toString(), null, temp.toFile());
     assertThat(dataFile.delete()).as("Delete should succeed").isTrue();
     Iterable<GenericData.Record> data =
         generateData(schema, 30000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE, IDENTITY);

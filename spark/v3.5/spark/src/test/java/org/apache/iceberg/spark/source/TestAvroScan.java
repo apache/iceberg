@@ -19,9 +19,11 @@
 package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.Files.localOutput;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
 import org.apache.avro.generic.GenericData.Record;
@@ -41,25 +43,23 @@ import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestAvroScan extends AvroDataTest {
   private static final Configuration CONF = new Configuration();
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
   private static SparkSession spark = null;
 
-  @BeforeClass
+  @BeforeAll
   public static void startSpark() {
     TestAvroScan.spark = SparkSession.builder().master("local[2]").getOrCreate();
   }
 
-  @AfterClass
+  @AfterAll
   public static void stopSpark() {
     SparkSession currentSpark = TestAvroScan.spark;
     TestAvroScan.spark = null;
@@ -68,10 +68,11 @@ public class TestAvroScan extends AvroDataTest {
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    File parent = temp.newFolder("avro");
+    File parent = new File(temp.toFile(), "avro");
     File location = new File(parent, "test");
     File dataFolder = new File(location, "data");
     dataFolder.mkdirs();
+    //    assertThat(dataFolder.mkdirs()).as("Mkdir should succeed").isTrue();
 
     File avroFile =
         new File(dataFolder, FileFormat.AVRO.addExtension(UUID.randomUUID().toString()));
@@ -102,7 +103,7 @@ public class TestAvroScan extends AvroDataTest {
     Dataset<Row> df = spark.read().format("iceberg").load(location.toString());
 
     List<Row> rows = df.collectAsList();
-    Assert.assertEquals("Should contain 100 rows", 100, rows.size());
+    assertThat(rows).as("Should contain 100 rows").hasSize(100);
 
     for (int i = 0; i < expected.size(); i += 1) {
       TestHelpers.assertEqualsSafe(tableSchema.asStruct(), expected.get(i), rows.get(i));

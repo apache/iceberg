@@ -23,9 +23,13 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.apache.spark.sql.functions.monotonically_increasing_id;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import org.apache.avro.generic.GenericData;
@@ -33,6 +37,9 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -48,56 +55,49 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestParquetScan extends AvroDataTest {
   private static final Configuration CONF = new Configuration();
 
   private static SparkSession spark = null;
 
-  @BeforeClass
+  @BeforeAll
   public static void startSpark() {
     TestParquetScan.spark = SparkSession.builder().master("local[2]").getOrCreate();
   }
 
-  @AfterClass
+  @AfterAll
   public static void stopSpark() {
     SparkSession currentSpark = TestParquetScan.spark;
     TestParquetScan.spark = null;
     currentSpark.stop();
   }
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
-  @Parameterized.Parameters(name = "vectorized = {0}")
-  public static Object[] parameters() {
-    return new Object[] {false, true};
-  }
+  @Parameter private boolean vectorized;
 
-  private final boolean vectorized;
-
-  public TestParquetScan(boolean vectorized) {
-    this.vectorized = vectorized;
+  @Parameters(name = "vectorized = {0}")
+  public static Collection<Boolean> parameters() {
+    return Arrays.asList(false, true);
   }
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    Assume.assumeTrue(
-        "Cannot handle non-string map keys in parquet-avro",
-        null
-            == TypeUtil.find(
+    assumeThat(
+            TypeUtil.find(
                 schema,
-                type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()));
-
+                type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()))
+        .as("Cannot handle non-string map keys in parquet-avro")
+        .isNull();
+    ;
+    assertThat(vectorized).as("should not be null").isNotNull();
     Table table = createTable(schema);
 
     // Important: use the table's schema for the rest of the test
@@ -110,14 +110,14 @@ public class TestParquetScan extends AvroDataTest {
     Dataset<Row> df = spark.read().format("iceberg").load(table.location());
 
     List<Row> rows = df.collectAsList();
-    Assert.assertEquals("Should contain 100 rows", 100, rows.size());
+    assertThat(rows).as("Should contain 100 rows").hasSize(100);
 
     for (int i = 0; i < expected.size(); i += 1) {
       TestHelpers.assertEqualsSafe(table.schema().asStruct(), expected.get(i), rows.get(i));
     }
   }
 
-  @Test
+  @TestTemplate
   public void testEmptyTableProjection() throws IOException {
     Types.StructType structType =
         Types.StructType.of(
@@ -143,7 +143,7 @@ public class TestParquetScan extends AvroDataTest {
   }
 
   private Table createTable(Schema schema) throws IOException {
-    File parent = temp.newFolder("parquet");
+    File parent = new File(temp.toFile(), "parquet");
     File location = new File(parent, "test");
     HadoopTables tables = new HadoopTables(CONF);
     return tables.create(schema, PartitionSpec.unpartitioned(), location.toString());
