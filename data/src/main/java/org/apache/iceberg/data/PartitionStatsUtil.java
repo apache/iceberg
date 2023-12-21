@@ -23,6 +23,7 @@ import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.UUID;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionData;
@@ -49,10 +50,12 @@ public final class PartitionStatsUtil {
 
   public static OutputFile newPartitionStatsFile(
       TableOperations ops, long snapshotId, FileFormat format) {
+    // TODO: UUID is temp, remove it.
     return ops.io()
         .newOutputFile(
             ops.metadataFileLocation(
-                format.addExtension(String.format("partition-stats-%d", snapshotId))));
+                format.addExtension(
+                    String.format("partition-stats-%s-%d", UUID.randomUUID(), snapshotId))));
   }
 
   public static void writePartitionStatsFile(

@@ -70,4 +70,10 @@ public interface ActionsProvider {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " does not implement rewritePositionDeletes");
   }
+
+  /** Instantiates an action to compute partition statistics and register it to table metadata. */
+  default ComputePartitionStats computePartitionStatistics(Table table) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement computePartitionStatistics");
+  }
 }

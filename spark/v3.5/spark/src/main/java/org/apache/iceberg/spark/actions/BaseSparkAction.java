@@ -19,8 +19,13 @@
 package org.apache.iceberg.spark.actions;
 
 import static org.apache.iceberg.MetadataTableType.ALL_MANIFESTS;
+import static org.apache.iceberg.MetadataTableType.ENTRIES;
 import static org.apache.spark.sql.functions.col;
+import static org.apache.spark.sql.functions.first;
 import static org.apache.spark.sql.functions.lit;
+import static org.apache.spark.sql.functions.max;
+import static org.apache.spark.sql.functions.sum;
+import static org.apache.spark.sql.functions.when;
 
 import java.util.Collection;
 import java.util.Iterator;
@@ -42,6 +47,7 @@ import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReachableFileUtil;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
@@ -72,6 +78,8 @@ import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.functions;
+import org.apache.spark.sql.types.DataTypes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -162,6 +170,66 @@ abstract class BaseSparkAction<ThisT> {
             .as(ManifestFileBean.ENCODER);
 
     return manifestBeanDS.flatMap(new ReadManifest(tableBroadcast), FileInfo.ENCODER);
+  }
+
+  protected Dataset<Row> partitionEntryDS(Table table) {
+    Dataset<Row> dataset =
+        loadMetadataTable(table, ENTRIES)
+            .filter(col("status").$less(2))
+            .select(
+                col("data_file.spec_id").as("SPEC_ID"),
+                col("data_file.partition").as("PARTITION_DATA"),
+                when(col("data_file.content").equalTo(0), col("data_file.record_count"))
+                    .otherwise(lit(0))
+                    .as("DATA_RECORD_COUNT"),
+                when(col("data_file.content").equalTo(0), lit(1))
+                    .otherwise(lit(0))
+                    .as("DATA_FILE_COUNT"),
+                when(col("data_file.content").equalTo(0), col("data_file.file_size_in_bytes"))
+                    .otherwise(lit(0))
+                    .as("DATA_FILE_SIZE_IN_BYTES"),
+                when(col("data_file.content").equalTo(1), col("data_file.record_count"))
+                    .otherwise(lit(0))
+                    .as("POSITION_DELETE_RECORD_COUNT"),
+                when(col("data_file.content").equalTo(1), lit(1))
+                    .otherwise(lit(0))
+                    .as("POSITION_DELETE_FILE_COUNT"),
+                when(col("data_file.content").equalTo(2), col("data_file.record_count"))
+                    .otherwise(lit(0))
+                    .as("EQUALITY_DELETE_RECORD_COUNT"),
+                when(col("data_file.content").equalTo(2), lit(1))
+                    .otherwise(lit(0))
+                    .as("EQUALITY_DELETE_FILE_COUNT"),
+                functions
+                    .udf(
+                        (Long snapshotId) -> lastUpdatedTime(snapshotId, table), DataTypes.LongType)
+                    .apply(col("snapshot_id"))
+                    .as("LAST_UPDATED_AT"),
+                col("snapshot_id").as("LAST_UPDATED_SNAPSHOT_ID"),
+                lit(0)
+                    .alias("TOTAL_RECORD_COUNT")); // TODO: not sure if this can be computed by this
+    // distributed algorithm. This was meant to be
+    // effective count after applying deletes.
+
+    return dataset
+        .groupBy(col("PARTITION_DATA"))
+        .agg(
+            max(col("LAST_UPDATED_SNAPSHOT_ID")).as("LAST_UPDATED_SNAPSHOT_ID"),
+            first(col("LAST_UPDATED_AT")).as("LAST_UPDATED_AT"),
+            max(col("SPEC_ID")).as("SPEC_ID"),
+            sum(col("DATA_FILE_COUNT")).as("DATA_FILE_COUNT"),
+            sum(col("DATA_RECORD_COUNT")).as("DATA_RECORD_COUNT"),
+            sum(col("DATA_FILE_SIZE_IN_BYTES")).as("DATA_FILE_SIZE_IN_BYTES"),
+            sum(col("POSITION_DELETE_FILE_COUNT")).as("POSITION_DELETE_FILE_COUNT"),
+            sum(col("POSITION_DELETE_RECORD_COUNT")).as("POSITION_DELETE_RECORD_COUNT"),
+            sum(col("EQUALITY_DELETE_FILE_COUNT")).as("EQUALITY_DELETE_FILE_COUNT"),
+            sum(col("EQUALITY_DELETE_RECORD_COUNT")).as("EQUALITY_DELETE_RECORD_COUNT"),
+            sum(col("TOTAL_RECORD_COUNT")).as("TOTAL_RECORD_COUNT"));
+  }
+
+  public static long lastUpdatedTime(long snapshotId, Table table) {
+    Snapshot snapshot = table.snapshot(snapshotId);
+    return snapshot == null ? 0 : snapshot.timestampMillis();
   }
 
   protected Dataset<FileInfo> manifestDS(Table table) {

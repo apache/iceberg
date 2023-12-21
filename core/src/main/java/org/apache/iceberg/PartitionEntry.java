@@ -18,11 +18,15 @@
  */
 package org.apache.iceberg;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PartitionUtil;
 
 public class PartitionEntry implements IndexedRecord {
   private PartitionData partitionData;
@@ -261,6 +265,24 @@ public class PartitionEntry implements IndexedRecord {
     return AvroSchemaUtil.convert(icebergSchema(partitionType), "partitionEntry");
   }
 
+  public synchronized PartitionEntry update(PartitionEntry entry) {
+    this.specId = Math.max(this.specId, entry.specId);
+    this.dataRecordCount += entry.dataRecordCount;
+    this.dataFileCount += entry.dataFileCount;
+    this.dataFileSizeInBytes += entry.dataFileSizeInBytes;
+    this.posDeleteRecordCount += entry.posDeleteRecordCount;
+    this.posDeleteFileCount += entry.posDeleteFileCount;
+    this.eqDeleteRecordCount += entry.eqDeleteRecordCount;
+    this.eqDeleteFileCount += entry.eqDeleteFileCount;
+    this.totalRecordCount += entry.totalRecordCount;
+    if (this.lastUpdatedAt < entry.lastUpdatedAt) {
+      this.lastUpdatedAt = entry.lastUpdatedAt();
+      this.lastUpdatedSnapshotId = entry.lastUpdatedSnapshotId;
+    }
+
+    return this;
+  }
+
   public static class Builder {
     private PartitionData partitionData;
     private int specId;
@@ -356,6 +378,83 @@ public class PartitionEntry implements IndexedRecord {
       partition.lastUpdatedAt = lastUpdatedAt;
       partition.lastUpdatedSnapshotId = lastUpdatedSnapshotId;
       return partition;
+    }
+  }
+
+  public static CloseableIterable<PartitionEntry> fromManifest(Table table, ManifestFile manifest) {
+    CloseableIterable<? extends ManifestEntry<? extends ContentFile<?>>> entries =
+        CloseableIterable.transform(
+            ManifestFiles.open(manifest, table.io(), table.specs())
+                .select(scanColumns(manifest.content())) // don't select stats columns
+                .liveEntries(),
+            t ->
+                (ManifestEntry<? extends ContentFile<?>>)
+                    // defensive copy of manifest entry without stats columns
+                    t.copyWithoutStats());
+
+    Types.StructType partitionType = Partitioning.partitionType(table);
+    return CloseableIterable.transform(
+        entries, entry -> fromManifestEntry(entry, table, partitionType));
+  }
+
+  private static PartitionEntry fromManifestEntry(
+      ManifestEntry<?> entry, Table table, Types.StructType partitionType) {
+    PartitionEntry.Builder builder = PartitionEntry.builder();
+    builder
+        .withSpecId(entry.file().specId())
+        .withPartitionData(coercedPartitionData(entry.file(), table.specs(), partitionType));
+    Snapshot snapshot = table.snapshot(entry.snapshotId());
+    if (snapshot != null) {
+      builder
+          .withLastUpdatedSnapshotId(snapshot.snapshotId())
+          .withLastUpdatedAt(snapshot.timestampMillis());
+    }
+
+    switch (entry.file().content()) {
+      case DATA:
+        builder
+            .withDataFileCount(1)
+            .withDataRecordCount(entry.file().recordCount())
+            .withDataFileSizeInBytes(entry.file().fileSizeInBytes());
+        break;
+      case POSITION_DELETES:
+        builder.withPosDeleteFileCount(1).withPosDeleteRecordCount(entry.file().recordCount());
+        break;
+      case EQUALITY_DELETES:
+        builder.withEqDeleteFileCount(1).withEqDeleteRecordCount(entry.file().recordCount());
+        break;
+      default:
+        throw new UnsupportedOperationException(
+            "Unsupported file content type: " + entry.file().content());
+    }
+
+    // TODO: optionally compute TOTAL_RECORD_COUNT based on the flag
+    return builder.build();
+  }
+
+  private static PartitionData coercedPartitionData(
+      ContentFile<?> file, Map<Integer, PartitionSpec> specs, Types.StructType partitionType) {
+    // keep the partition data as per the unified spec by coercing
+    StructLike partition =
+        PartitionUtil.coercePartition(partitionType, specs.get(file.specId()), file.partition());
+    PartitionData data = new PartitionData(partitionType);
+    for (int i = 0; i < partitionType.fields().size(); i++) {
+      Object val = partition.get(i, partitionType.fields().get(i).type().typeId().javaClass());
+      if (val != null) {
+        data.set(i, val);
+      }
+    }
+    return data;
+  }
+
+  private static List<String> scanColumns(ManifestContent content) {
+    switch (content) {
+      case DATA:
+        return BaseScan.SCAN_COLUMNS;
+      case DELETES:
+        return BaseScan.DELETE_SCAN_COLUMNS;
+      default:
+        throw new UnsupportedOperationException("Cannot read unknown manifest type: " + content);
     }
   }
 }
