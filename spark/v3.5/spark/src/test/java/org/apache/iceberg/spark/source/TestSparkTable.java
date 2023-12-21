@@ -28,7 +28,7 @@ import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
 
 public class TestSparkTable extends CatalogTestBase {
 
@@ -46,7 +46,7 @@ public class TestSparkTable extends CatalogTestBase {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testTableEquality() throws NoSuchTableException {
     CatalogManager catalogManager = spark.sessionState().catalogManager();
     TableCatalog catalog = (TableCatalog) catalogManager.catalog(catalogName);
