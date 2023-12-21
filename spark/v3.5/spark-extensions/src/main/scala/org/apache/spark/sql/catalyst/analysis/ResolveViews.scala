@@ -19,7 +19,6 @@
 
 package org.apache.spark.sql.catalyst.analysis
 
-import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.parser.ParseException
 import org.apache.spark.sql.catalyst.plans.logical.IcebergView
@@ -42,18 +41,20 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
   protected lazy val catalogManager: CatalogManager = spark.sessionState.catalogManager
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
-    case u@UnresolvedRelation(nameParts, _, _) if catalogManager.v1SessionCatalog.isTempView(nameParts) =>
+    case u@UnresolvedRelation(nameParts, _, _)
+      if catalogManager.v1SessionCatalog.isTempView(Seq(nameParts.asIdentifier.name())) =>
       u
 
-    case u@UnresolvedRelation(
-    parts@NonSessionCatalogAndIdentifier(catalog, ident), _, _) if !isSQLOnFile(parts) =>
+    case u@UnresolvedRelation(parts@CatalogAndIdentifier(catalog, ident), _, _) =>
       loadView(catalog, ident)
         .map(createViewRelation(parts.quoted, _))
         .getOrElse(u)
 
+    case p@SubqueryAlias(ident, view: IcebergView) if !p.child.resolved =>
+      p.copy(child = qualifyTableIdentifiers(p.child, ident.qualifier))
+
     case p@SubqueryAlias(_, view: IcebergView) =>
       p.copy(child = view)
-
   }
 
   def loadView(catalog: CatalogPlugin, ident: Identifier): Option[View] = catalog match {
@@ -64,11 +65,6 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
         case _: NoSuchViewException => None
       }
     case _ => None
-  }
-
-  private def isSQLOnFile(parts: Seq[String]): Boolean = parts match {
-    case Seq(_, path) if path.contains("/") => true
-    case _ => false
   }
 
   private def createViewRelation(name: String, view: V2View): LogicalPlan = {
@@ -111,5 +107,9 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
       case u@UnresolvedRelation(parts, _, _)
         if !SparkSession.active.sessionState.catalogManager.isCatalogRegistered(parts.head) =>
         u.copy(multipartIdentifier = catalogAndNamespace.head +: parts)
+      case u@UnresolvedRelation(parts, _, _)
+        if catalogManager.v1SessionCatalog.isTempView(Seq(parts.asIdentifier.name())) =>
+        catalogManager.v1SessionCatalog.getRawLocalOrGlobalTempView(Seq(parts.asIdentifier.name()))
+          .map(v => catalogManager.v1SessionCatalog.getTempViewRelation(v)).getOrElse(u)
     }
 }

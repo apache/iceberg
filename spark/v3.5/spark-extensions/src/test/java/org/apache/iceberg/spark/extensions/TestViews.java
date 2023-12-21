@@ -231,9 +231,9 @@ public class TestViews extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void readFromViewHiddenByGlobalTempView() throws NoSuchTableException {
+  public void readFromViewWithGlobalTempView() throws NoSuchTableException {
     insertRows(10);
-    String viewName = "viewHiddenByGlobalTempView";
+    String viewName = "viewWithGlobalTempView";
 
     ViewCatalog viewCatalog = viewCatalog();
     Schema schema = tableCatalog().loadTable(TableIdentifier.of(NAMESPACE, tableName)).schema();
@@ -248,13 +248,15 @@ public class TestViews extends SparkExtensionsTestBase {
         .withSchema(schema)
         .create();
 
-    List<Object[]> expected =
-        IntStream.rangeClosed(1, 5).mapToObj(this::row).collect(Collectors.toList());
+    assertThat(sql("SELECT * FROM global_temp.%s", viewName))
+        .hasSize(5)
+        .containsExactlyInAnyOrderElementsOf(
+            IntStream.rangeClosed(1, 5).mapToObj(this::row).collect(Collectors.toList()));
 
-    // FIXME: this should return the ids from the global temp view
     assertThat(sql("SELECT * FROM %s", viewName))
         .hasSize(5)
-        .containsExactlyInAnyOrderElementsOf(expected);
+        .containsExactlyInAnyOrderElementsOf(
+            IntStream.rangeClosed(6, 10).mapToObj(this::row).collect(Collectors.toList()));
   }
 
   @Test
@@ -316,7 +318,6 @@ public class TestViews extends SparkExtensionsTestBase {
         .hasSize(5)
         .containsExactlyInAnyOrderElementsOf(expected);
 
-    // FIXME: this should work
     assertThat(sql("SELECT * FROM %s", viewReferencingTempView))
         .hasSize(5)
         .containsExactlyInAnyOrderElementsOf(expected);
