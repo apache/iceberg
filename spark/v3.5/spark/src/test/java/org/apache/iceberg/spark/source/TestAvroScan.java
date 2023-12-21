@@ -68,7 +68,7 @@ public class TestAvroScan extends AvroDataTest {
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    File parent = new File(temp.toFile(), "avro");
+    File parent = temp.resolve("avro").toFile();
     File location = new File(parent, "test");
     File dataFolder = new File(location, "data");
     dataFolder.mkdirs();

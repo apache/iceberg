@@ -146,7 +146,7 @@ public class TestDataFrameWrites extends AvroDataTest {
   @TestTemplate
   public void testWriteWithCustomDataLocation() throws IOException {
     File location = createTableFolder();
-    File tablePropertyDataLocation = new File(temp.toFile(), "test-table-property-data-dir");
+    File tablePropertyDataLocation = temp.resolve("test-table-property-data-dir").toFile();
     Table table = createTable(new Schema(SUPPORTED_PRIMITIVES.fields()), location);
     table
         .updateProperties()
@@ -156,7 +156,7 @@ public class TestDataFrameWrites extends AvroDataTest {
   }
 
   private File createTableFolder() throws IOException {
-    File parent = new File(temp.toFile(), "parquet");
+    File parent = temp.resolve("parquet").toFile();
     File location = new File(parent, "test");
     assertThat(location.mkdirs()).as("Mkdir should succeed").isTrue();
     return location;
@@ -289,7 +289,7 @@ public class TestDataFrameWrites extends AvroDataTest {
         .as("Spark 3 rejects writing nulls to a required column")
         .startsWith("2");
 
-    File location = new File(new File(temp.toFile(), "parquet"), "test");
+    File location = new File(temp.resolve("parquet").toFile(), "test");
     String sourcePath = String.format("%s/nullable_poc/sourceFolder/", location.toString());
     String targetPath = String.format("%s/nullable_poc/targetFolder/", location.toString());
 
@@ -343,7 +343,7 @@ public class TestDataFrameWrites extends AvroDataTest {
         .as("Spark 3 rejects writing nulls to a required column")
         .startsWith("2");
 
-    File location = new File(new File(temp.toFile(), "parquet"), "test");
+    File location = new File(temp.resolve("parquet").toFile(), "test");
     String sourcePath = String.format("%s/nullable_poc/sourceFolder/", location.toString());
     String targetPath = String.format("%s/nullable_poc/targetFolder/", location.toString());
 

@@ -143,7 +143,7 @@ public class TestParquetScan extends AvroDataTest {
   }
 
   private Table createTable(Schema schema) throws IOException {
-    File parent = new File(temp.toFile(), "parquet");
+    File parent = temp.resolve("parquet").toFile();
     File location = new File(parent, "test");
     HadoopTables tables = new HadoopTables(CONF);
     return tables.create(schema, PartitionSpec.unpartitioned(), location.toString());
