@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.Iterator;
 import java.util.List;
-import java.util.UUID;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
@@ -46,8 +45,7 @@ public class TestSparkRecordOrcReaderWriter extends AvroDataTest {
   private static final int NUM_RECORDS = 200;
 
   private void writeAndValidate(Schema schema, List<Record> expectedRecords) throws IOException {
-    final File originalFile =
-        File.createTempFile(UUID.randomUUID().toString(), null, temp.toFile());
+    final File originalFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(originalFile.delete()).as("Delete should succeed").isTrue();
 
     // Write few generic records into the original test file.
@@ -70,7 +68,7 @@ public class TestSparkRecordOrcReaderWriter extends AvroDataTest {
       assertEqualsUnsafe(schema.asStruct(), expectedRecords, reader, expectedRecords.size());
     }
 
-    final File anotherFile = File.createTempFile(UUID.randomUUID().toString(), null, temp.toFile());
+    final File anotherFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(anotherFile.delete()).as("Delete should succeed").isTrue();
 
     // Write those spark InternalRows into a new file again.

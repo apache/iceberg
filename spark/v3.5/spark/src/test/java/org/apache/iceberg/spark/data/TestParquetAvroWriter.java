@@ -91,7 +91,7 @@ public class TestParquetAvroWriter {
   public void testCorrectness() throws IOException {
     Iterable<Record> records = RandomData.generate(COMPLEX_SCHEMA, 50_000, 34139);
 
-    File testFile = File.createTempFile(UUID.randomUUID().toString(), null, temp.toFile());
+    File testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     try (FileAppender<Record> writer =

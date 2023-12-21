@@ -27,7 +27,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.UUID;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.CloseableIterable;
@@ -63,7 +62,7 @@ public class TestSparkOrcReader extends AvroDataTest {
 
   private void writeAndValidateRecords(Schema schema, Iterable<InternalRow> expected)
       throws IOException {
-    File testFile = File.createTempFile(UUID.randomUUID().toString(), null, temp.toFile());
+    File testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     try (FileAppender<InternalRow> writer =

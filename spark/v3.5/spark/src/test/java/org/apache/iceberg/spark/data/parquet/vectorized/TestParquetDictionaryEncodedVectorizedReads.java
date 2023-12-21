@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.UUID;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileAppender;
@@ -59,8 +58,7 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
   @Test
   public void testMixedDictionaryNonDictionaryReads() throws IOException {
     Schema schema = new Schema(SUPPORTED_PRIMITIVES.fields());
-    File dictionaryEncodedFile =
-        File.createTempFile(UUID.randomUUID().toString(), null, temp.toFile());
+    File dictionaryEncodedFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(dictionaryEncodedFile.delete()).as("Delete should succeed").isTrue();
     Iterable<GenericData.Record> dictionaryEncodableData =
         RandomData.generateDictionaryEncodableData(
@@ -70,7 +68,7 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
       writer.addAll(dictionaryEncodableData);
     }
 
-    File plainEncodingFile = File.createTempFile(UUID.randomUUID().toString(), null, temp.toFile());
+    File plainEncodingFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(plainEncodingFile.delete()).as("Delete should succeed").isTrue();
     Iterable<GenericData.Record> nonDictionaryData =
         RandomData.generate(schema, 10000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE);
@@ -79,7 +77,7 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
     }
 
     int rowGroupSize = PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT;
-    File mixedFile = File.createTempFile(UUID.randomUUID().toString(), null, temp.toFile());
+    File mixedFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(mixedFile.delete()).as("Delete should succeed").isTrue();
     Parquet.concat(
         ImmutableList.of(dictionaryEncodedFile, plainEncodingFile, dictionaryEncodedFile),

@@ -27,7 +27,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
-import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -111,7 +110,7 @@ public class TestSparkOrcReadMetadataColumns {
 
   @BeforeEach
   public void writeFile() throws IOException {
-    testFile = File.createTempFile(UUID.randomUUID().toString(), null, temp.toFile());
+    testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     try (FileAppender<InternalRow> writer =

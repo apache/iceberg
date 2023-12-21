@@ -29,7 +29,6 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
-import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Files;
@@ -132,7 +131,7 @@ public class TestSparkParquetReadMetadataColumns {
     StructType struct = SparkSchemaUtil.convert(DATA_SCHEMA);
     Configuration conf = new Configuration();
 
-    testFile = File.createTempFile(UUID.randomUUID().toString(), null, temp.toFile());
+    testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).as("Delete should succeed").isTrue();
     ParquetFileWriter parquetFileWriter =
         new ParquetFileWriter(
@@ -142,7 +141,7 @@ public class TestSparkParquetReadMetadataColumns {
 
     parquetFileWriter.start();
     for (int i = 0; i < NUM_ROW_GROUPS; i += 1) {
-      File split = File.createTempFile(UUID.randomUUID().toString(), null, temp.toFile());
+      File split = File.createTempFile("junit", null, temp.toFile());
       assertThat(split.delete()).as("Delete should succeed").isTrue();
       fileSplits.add(new Path(split.getAbsolutePath()));
       try (FileAppender<InternalRow> writer =

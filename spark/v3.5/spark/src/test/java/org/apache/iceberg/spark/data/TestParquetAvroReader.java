@@ -26,7 +26,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Iterator;
-import java.util.UUID;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
@@ -195,7 +194,7 @@ public class TestParquetAvroReader {
   public void testCorrectness() throws IOException {
     Iterable<Record> records = RandomData.generate(COMPLEX_SCHEMA, 50_000, 34139);
 
-    File testFile = File.createTempFile(UUID.randomUUID().toString(), null, temp.toFile());
+    File testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     try (FileAppender<Record> writer =
@@ -225,7 +224,7 @@ public class TestParquetAvroReader {
   }
 
   private File writeTestData(Schema schema, int numRecords, int seed) throws IOException {
-    File testFile = File.createTempFile(UUID.randomUUID().toString(), null, temp.toFile());
+    File testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     try (FileAppender<Record> writer =

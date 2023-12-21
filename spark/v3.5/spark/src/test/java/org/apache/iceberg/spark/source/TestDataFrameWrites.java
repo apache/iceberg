@@ -34,7 +34,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.UUID;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Files;
@@ -250,7 +249,7 @@ public class TestDataFrameWrites extends AvroDataTest {
   private Dataset<Row> createDataset(Iterable<Record> records, Schema schema) throws IOException {
     // this uses the SparkAvroReader to create a DataFrame from the list of records
     // it assumes that SparkAvroReader is correct
-    File testFile = File.createTempFile(UUID.randomUUID().toString(), null, temp.toFile());
+    File testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     try (FileAppender<Record> writer =

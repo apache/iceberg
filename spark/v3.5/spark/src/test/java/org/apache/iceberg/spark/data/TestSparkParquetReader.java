@@ -28,7 +28,6 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import org.apache.avro.generic.GenericData;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFiles;
@@ -73,7 +72,7 @@ public class TestSparkParquetReader extends AvroDataTest {
 
     List<GenericData.Record> expected = RandomData.generateList(schema, 100, 0L);
 
-    File testFile = File.createTempFile(UUID.randomUUID().toString(), null, temp.toFile());
+    File testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     try (FileAppender<GenericData.Record> writer =

@@ -66,7 +66,7 @@ public class TestSparkAvroEnums {
     Record enumRecord3 = new GenericData.Record(avroSchema); // null enum
     List<Record> expected = ImmutableList.of(enumRecord1, enumRecord2, enumRecord3);
 
-    File testFile = File.createTempFile(UUID.randomUUID().toString(), null, temp.toFile());
+    File testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     try (DataFileWriter<Record> writer = new DataFileWriter<>(new GenericDatumWriter<>())) {

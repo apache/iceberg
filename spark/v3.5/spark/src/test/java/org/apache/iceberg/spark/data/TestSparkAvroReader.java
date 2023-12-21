@@ -39,7 +39,7 @@ public class TestSparkAvroReader extends AvroDataTest {
   protected void writeAndValidate(Schema schema) throws IOException {
     List<Record> expected = RandomData.generateList(schema, 100, 0L);
 
-    File testFile = File.createTempFile(UUID.randomUUID().toString(), null, temp.toFile());
+    File testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     try (FileAppender<Record> writer =
