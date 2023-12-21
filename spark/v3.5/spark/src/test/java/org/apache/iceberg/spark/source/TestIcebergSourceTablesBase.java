@@ -1556,7 +1556,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .load(loadLocation(tableIdentifier, "partitions"))
             .filter("partition.id < 2")
             .collectAsList();
-    assertThat(filtered).as("Actual results should have one row").hasSize(2);
+    assertThat(filtered).as("Actual results should have one row").hasSize(1);
     TestHelpers.assertEqualsSafe(
         partitionsTable.schema().asStruct(), expected.get(0), filtered.get(0));
 

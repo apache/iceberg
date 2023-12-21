@@ -36,7 +36,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -73,8 +72,7 @@ public abstract class TestReadProjection {
     int cmp =
         Comparators.charSequences().compare("test", (CharSequence) projected.getField("data"));
 
-    // TODO: update this Assert with AssertJ
-    Assert.assertEquals("Should contain the correct data value", 0, cmp);
+    assertThat(cmp).as("Should contain the correct data value").isEqualTo(0);
   }
 
   @Test
