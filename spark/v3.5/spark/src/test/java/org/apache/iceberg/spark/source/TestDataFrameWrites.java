@@ -194,15 +194,12 @@ public class TestDataFrameWrites extends AvroDataTest {
         .addedDataFiles(table.io())
         .forEach(
             dataFile ->
-                assertThat(
-                        URI.create(dataFile.path().toString())
-                            .getPath()
-                            .startsWith(expectedDataDir.getAbsolutePath()))
+                assertThat(URI.create(dataFile.path().toString()).getPath())
                     .as(
                         String.format(
                             "File should have the parent directory %s, but has: %s.",
                             expectedDataDir.getAbsolutePath(), dataFile.path()))
-                    .isTrue());
+                    .startsWith(expectedDataDir.getAbsolutePath()));
   }
 
   private List<Row> readTable(String location) {
