@@ -65,7 +65,7 @@ public class TestPartitionEntry {
     Assertions.assertEquals(456789L, partition.get(11));
 
     // Verify the put method
-    PartitionEntry newPartition = new PartitionEntry();
+    PartitionEntry newPartition = PartitionEntry.builder().newInstance();
     int size = partition.getSchema().getFields().size();
     for (int i = 0; i < size; i++) {
       newPartition.put(i, partition.get(i));

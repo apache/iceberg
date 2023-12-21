@@ -24,12 +24,14 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import org.apache.avro.generic.GenericData;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionEntry;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.InputFile;
@@ -44,6 +46,13 @@ public final class PartitionStatsUtil {
   private PartitionStatsUtil() {}
 
   private static final String PARQUET_SUFFIX = ".parquet";
+
+  public static OutputFile newPartitionStatsFile(TableOperations ops, long snapshotId) {
+    return ops.io()
+        .newOutputFile(
+            ops.metadataFileLocation(
+                FileFormat.PARQUET.addExtension(String.format("partition-stats-%d", snapshotId))));
+  }
 
   public static void writePartitionStatsFile(
       Iterator<PartitionEntry> partitions, OutputFile outputFile, Collection<PartitionSpec> specs) {
@@ -74,7 +83,7 @@ public final class PartitionStatsUtil {
   }
 
   private static PartitionEntry toPartition(Schema schema, GenericData.Record record) {
-    PartitionEntry partition = new PartitionEntry();
+    PartitionEntry partition = PartitionEntry.builder().newInstance();
     partition.put(
         PartitionEntry.Column.PARTITION_DATA.ordinal(),
         extractPartitionDataFromRecord(schema, record));

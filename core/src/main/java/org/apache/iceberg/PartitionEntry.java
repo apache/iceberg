@@ -18,10 +18,12 @@
  */
 package org.apache.iceberg;
 
+import java.util.List;
 import java.util.Objects;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.types.Types;
 
 public class PartitionEntry implements IndexedRecord {
@@ -56,7 +58,7 @@ public class PartitionEntry implements IndexedRecord {
     LAST_UPDATED_SNAPSHOT_ID
   }
 
-  public PartitionEntry() {}
+  private PartitionEntry() {}
 
   public static Builder builder() {
     return new Builder();
@@ -82,31 +84,31 @@ public class PartitionEntry implements IndexedRecord {
     return dataFileSizeInBytes;
   }
 
-  public Long posDeleteRecordCount() {
+  public long posDeleteRecordCount() {
     return posDeleteRecordCount;
   }
 
-  public Integer posDeleteFileCount() {
+  public int posDeleteFileCount() {
     return posDeleteFileCount;
   }
 
-  public Long eqDeleteRecordCount() {
+  public long eqDeleteRecordCount() {
     return eqDeleteRecordCount;
   }
 
-  public Integer eqDeleteFileCount() {
+  public int eqDeleteFileCount() {
     return eqDeleteFileCount;
   }
 
-  public Long totalRecordCount() {
+  public long totalRecordCount() {
     return totalRecordCount;
   }
 
-  public Long lastUpdatedAt() {
+  public long lastUpdatedAt() {
     return lastUpdatedAt;
   }
 
-  public Long lastUpdatedSnapshotId() {
+  public long lastUpdatedSnapshotId() {
     return lastUpdatedSnapshotId;
   }
 
@@ -261,6 +263,50 @@ public class PartitionEntry implements IndexedRecord {
     return AvroSchemaUtil.convert(icebergSchema(partitionType), "partitionEntry");
   }
 
+  public static CloseableIterable<ContentFileEntry> fromManifest(
+      Table table, ManifestFile manifest) {
+    CloseableIterable<? extends ManifestEntry<? extends ContentFile<?>>> entries =
+        CloseableIterable.transform(
+            ManifestFiles.open(manifest, table.io(), table.specs())
+                .select(scanColumns(manifest.content())) // don't select stats columns
+                .liveEntries(),
+            t ->
+                (ManifestEntry<? extends ContentFile<?>>)
+                    // defensive copy of manifest entry without stats columns
+                    t.copyWithoutStats());
+
+    return CloseableIterable.transform(
+        entries, entry -> new ContentFileEntry(entry.file(), entry.snapshotId()));
+  }
+
+  public PartitionEntry update(PartitionEntry entry) {
+    this.specId = Math.max(this.specId, entry.specId);
+    this.dataRecordCount += entry.dataRecordCount;
+    this.dataFileCount += entry.dataFileCount;
+    this.dataFileSizeInBytes += entry.dataFileSizeInBytes;
+    this.posDeleteRecordCount += entry.posDeleteRecordCount;
+    this.posDeleteFileCount += entry.posDeleteFileCount;
+    this.eqDeleteRecordCount += entry.eqDeleteRecordCount;
+    this.eqDeleteFileCount += entry.eqDeleteFileCount;
+    this.totalRecordCount += entry.totalRecordCount;
+    if (this.lastUpdatedAt < entry.lastUpdatedAt) {
+      this.lastUpdatedAt = entry.lastUpdatedAt();
+      this.lastUpdatedSnapshotId = entry.lastUpdatedSnapshotId;
+    }
+    return this;
+  }
+
+  private static List<String> scanColumns(ManifestContent content) {
+    switch (content) {
+      case DATA:
+        return BaseScan.SCAN_COLUMNS;
+      case DELETES:
+        return BaseScan.DELETE_SCAN_COLUMNS;
+      default:
+        throw new UnsupportedOperationException("Cannot read unknown manifest type: " + content);
+    }
+  }
+
   public static class Builder {
     private PartitionData partitionData;
     private int specId;
@@ -274,6 +320,8 @@ public class PartitionEntry implements IndexedRecord {
     private long totalRecordCount;
     private long lastUpdatedAt;
     private long lastUpdatedSnapshotId;
+
+    private Builder() {}
 
     public Builder withPartitionData(PartitionData newPartitionData) {
       this.partitionData = newPartitionData;
@@ -335,6 +383,10 @@ public class PartitionEntry implements IndexedRecord {
       return this;
     }
 
+    public PartitionEntry newInstance() {
+      return new PartitionEntry();
+    }
+
     public PartitionEntry build() {
       PartitionEntry partition = new PartitionEntry();
       partition.partitionData = partitionData;
@@ -350,6 +402,25 @@ public class PartitionEntry implements IndexedRecord {
       partition.lastUpdatedAt = lastUpdatedAt;
       partition.lastUpdatedSnapshotId = lastUpdatedSnapshotId;
       return partition;
+    }
+  }
+
+  public static class ContentFileEntry {
+
+    private final ContentFile<?> file;
+    private final long snapshotId;
+
+    public ContentFileEntry(ContentFile<?> file, long snapshotId) {
+      this.file = file;
+      this.snapshotId = snapshotId;
+    }
+
+    public ContentFile<?> file() {
+      return file;
+    }
+
+    public long snapshotId() {
+      return snapshotId;
     }
   }
 }

@@ -41,8 +41,10 @@ import org.apache.iceberg.FileContent;
 import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.PartitionEntry;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReachableFileUtil;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.Table;
@@ -50,6 +52,7 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.BulkDeletionFailureException;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.ClosingIterator;
 import org.apache.iceberg.io.FileIO;
@@ -94,7 +97,6 @@ abstract class BaseSparkAction<ThisT> {
   private static final AtomicInteger JOB_COUNTER = new AtomicInteger();
   private static final int DELETE_NUM_RETRIES = 3;
   private static final int DELETE_GROUP_SIZE = 100000;
-
   private final SparkSession spark;
   private final JavaSparkContext sparkContext;
   private final Map<String, String> options = Maps.newHashMap();
@@ -150,6 +152,21 @@ abstract class BaseSparkAction<ThisT> {
     Broadcast<Table> tableBroadcast = sparkContext.broadcast(serializableTable);
     int numShufflePartitions = spark.sessionState().conf().numShufflePartitions();
 
+    return manifestBeanDS(table, snapshotIds, numShufflePartitions)
+        .flatMap(new ReadManifest(tableBroadcast), FileInfo.ENCODER);
+  }
+
+  protected Dataset<PartitionEntryBean> partitionEntryDS(Table table) {
+    Table serializableTable = SerializableTableWithSize.copyOf(table);
+    Broadcast<Table> tableBroadcast = sparkContext.broadcast(serializableTable);
+    int numShufflePartitions = spark.sessionState().conf().numShufflePartitions();
+
+    return manifestBeanDS(table, null, numShufflePartitions)
+        .flatMap(new ReadManifestForPartitionStats(tableBroadcast), PartitionEntryBean.ENCODER);
+  }
+
+  private Dataset<ManifestFileBean> manifestBeanDS(
+      Table table, Set<Long> snapshotIds, int numShufflePartitions) {
     Dataset<ManifestFileBean> manifestBeanDS =
         manifestDF(table, snapshotIds)
             .selectExpr(
@@ -162,8 +179,7 @@ abstract class BaseSparkAction<ThisT> {
             .dropDuplicates("path")
             .repartition(numShufflePartitions) // avoid adaptive execution combining tasks
             .as(ManifestFileBean.ENCODER);
-
-    return manifestBeanDS.flatMap(new ReadManifest(tableBroadcast), FileInfo.ENCODER);
+    return manifestBeanDS;
   }
 
   protected Dataset<FileInfo> manifestDS(Table table) {
@@ -441,6 +457,44 @@ abstract class BaseSparkAction<ThisT> {
 
     static FileInfo toFileInfo(ContentFile<?> file) {
       return new FileInfo(file.path().toString(), file.content().toString());
+    }
+  }
+
+  private static class ReadManifestForPartitionStats
+      implements FlatMapFunction<ManifestFileBean, PartitionEntryBean> {
+    private final Broadcast<Table> table;
+
+    ReadManifestForPartitionStats(Broadcast<Table> table) {
+      this.table = table;
+    }
+
+    @Override
+    public Iterator<PartitionEntryBean> call(ManifestFileBean manifest) {
+      CloseableIterable<PartitionEntryBean> beanIterator =
+          CloseableIterable.transform(
+              PartitionEntry.fromManifest(table.getValue(), manifest),
+              entry -> {
+                ContentFile<?> file = entry.file();
+
+                long lastUpdatedAt = 0;
+                long lastUpdatedSnapshotId = 0;
+                Snapshot snapshot = table.getValue().snapshot(entry.snapshotId());
+                if (snapshot != null) {
+                  lastUpdatedAt = snapshot.timestampMillis();
+                  lastUpdatedSnapshotId = snapshot.snapshotId();
+                }
+
+                return new PartitionEntryBean(
+                    file.content(),
+                    file.specId(),
+                    file.partition(),
+                    file.recordCount(),
+                    file.fileSizeInBytes(),
+                    lastUpdatedSnapshotId,
+                    lastUpdatedAt);
+              });
+
+      return new ClosingIterator<>(beanIterator.iterator());
     }
   }
 }
