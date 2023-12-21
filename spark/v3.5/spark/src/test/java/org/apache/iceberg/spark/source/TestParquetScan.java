@@ -96,7 +96,7 @@ public class TestParquetScan extends ParameterizedAvroDataTest {
                 type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()))
         .as("Cannot handle non-string map keys in parquet-avro")
         .isNull();
-    ;
+
     assertThat(vectorized).as("should not be null").isNotNull();
     Table table = createTable(schema);
 
