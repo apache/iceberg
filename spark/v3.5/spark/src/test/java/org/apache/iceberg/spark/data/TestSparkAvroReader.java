@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
-import java.util.UUID;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
