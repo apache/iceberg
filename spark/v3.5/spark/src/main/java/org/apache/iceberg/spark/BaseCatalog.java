@@ -25,7 +25,6 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
 import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
-import org.apache.spark.sql.connector.catalog.ViewCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.Procedure;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureCatalog;
 
@@ -34,8 +33,7 @@ abstract class BaseCatalog
         ProcedureCatalog,
         SupportsNamespaces,
         HasIcebergCatalog,
-        SupportsFunctions,
-        ViewCatalog {
+        SupportsFunctions {
 
   @Override
   public Procedure loadProcedure(Identifier ident) throws NoSuchProcedureException {

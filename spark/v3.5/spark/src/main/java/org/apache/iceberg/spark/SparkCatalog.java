@@ -119,7 +119,8 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  *
  * <p>
  */
-public class SparkCatalog extends BaseCatalog {
+public class SparkCatalog extends BaseCatalog
+    implements org.apache.spark.sql.connector.catalog.ViewCatalog {
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
   private static final Splitter COMMA = Splitter.on(",");
   private static final Pattern AT_TIMESTAMP = Pattern.compile("at_timestamp_(\\d+)");
