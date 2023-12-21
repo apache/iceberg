@@ -72,7 +72,6 @@ public class TestAvroScan extends AvroDataTest {
     File location = new File(parent, "test");
     File dataFolder = new File(location, "data");
     dataFolder.mkdirs();
-    //    assertThat(dataFolder.mkdirs()).as("Mkdir should succeed").isTrue();
 
     File avroFile =
         new File(dataFolder, FileFormat.AVRO.addExtension(UUID.randomUUID().toString()));
