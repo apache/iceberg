@@ -20,8 +20,10 @@
 package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.catalyst.plans.logical.CreateView
 import org.apache.spark.sql.catalyst.plans.logical.DropView
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.views.CreateIcebergView
 import org.apache.spark.sql.catalyst.plans.logical.views.DropIcebergView
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.connector.catalog.CatalogManager
@@ -40,6 +42,11 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
   override def apply(plan: LogicalPlan): LogicalPlan = plan.resolveOperatorsUp {
     case DropView(ResolvedView(resolved), ifExists) =>
       DropIcebergView(resolved, ifExists)
+
+    case CreateView(r@ResolvedView(_), userSpecifiedColumns, comment, properties,
+    originalText, query, allowExisting, replace) =>
+      CreateIcebergView(r, userSpecifiedColumns, comment, properties, originalText,
+        query, allowExisting, replace)
   }
 
   private def isTempView(nameParts: Seq[String]): Boolean = {

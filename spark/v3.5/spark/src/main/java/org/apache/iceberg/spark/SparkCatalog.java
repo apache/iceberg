@@ -568,6 +568,33 @@ public class SparkCatalog extends BaseCatalog
       String[] columnComments,
       Map<String, String> properties)
       throws ViewAlreadyExistsException, NoSuchNamespaceException {
+    if (null != asViewCatalog) {
+      Schema icebergSchema = SparkSchemaUtil.convert(schema);
+
+      try {
+        Map<String, String> props =
+            ImmutableMap.<String, String>builder()
+                .putAll(Spark3Util.rebuildCreateProperties(properties))
+                .put("queryColumnNames", Arrays.toString(queryColumnNames))
+                .build();
+        org.apache.iceberg.view.View view =
+            asViewCatalog
+                .buildView(buildIdentifier(ident))
+                .withDefaultCatalog(currentCatalog)
+                .withDefaultNamespace(Namespace.of(currentNamespace))
+                .withQuery("spark", sql)
+                .withSchema(icebergSchema)
+                .withLocation(properties.get("location"))
+                .withProperties(props)
+                .create();
+        return new SparkView(catalogName, view);
+      } catch (org.apache.iceberg.exceptions.NoSuchNamespaceException e) {
+        throw new NoSuchNamespaceException(currentNamespace);
+      } catch (AlreadyExistsException e) {
+        throw new ViewAlreadyExistsException(ident);
+      }
+    }
+
     throw new UnsupportedOperationException(
         "Creating a view is not supported by catalog: " + catalogName);
   }
