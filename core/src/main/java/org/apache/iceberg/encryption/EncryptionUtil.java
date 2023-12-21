@@ -18,22 +18,32 @@
  */
 package org.apache.iceberg.encryption;
 
-import java.nio.ByteBuffer;
+import java.util.Map;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.common.DynConstructors;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.PropertyUtil;
 
 public class EncryptionUtil {
 
   private EncryptionUtil() {}
 
-  public static KeyMetadata parseKeyMetadata(ByteBuffer metadataBuffer) {
-    return KeyMetadata.parse(metadataBuffer);
-  }
+  public static KeyManagementClient createKmsClient(Map<String, String> catalogProperties) {
+    String kmsType = catalogProperties.get(CatalogProperties.ENCRYPTION_KMS_TYPE);
+    String kmsImpl = catalogProperties.get(CatalogProperties.ENCRYPTION_KMS_IMPL);
 
-  public static EncryptionKeyMetadata createKeyMetadata(ByteBuffer key, ByteBuffer aadPrefix) {
-    return new KeyMetadata(key, aadPrefix);
-  }
+    Preconditions.checkArgument(
+        kmsType == null || kmsImpl == null,
+        "Cannot set both KMS type (%s) and KMS impl (%s)",
+        kmsType,
+        kmsImpl);
 
-  static KeyManagementClient createKmsClient(String kmsImpl) {
+    // TODO: Add KMS implementations
+    Preconditions.checkArgument(kmsType == null, "Unsupported KMS type: %s", kmsType);
+
+    KeyManagementClient kmsClient;
     DynConstructors.Ctor<KeyManagementClient> ctor;
     try {
       ctor = DynConstructors.builder(KeyManagementClient.class).impl(kmsImpl).buildChecked();
@@ -46,7 +56,7 @@ public class EncryptionUtil {
     }
 
     try {
-      return ctor.newInstance();
+      kmsClient = ctor.newInstance();
     } catch (ClassCastException e) {
       throw new IllegalArgumentException(
           String.format(
@@ -54,9 +64,44 @@ public class EncryptionUtil {
               kmsImpl),
           e);
     }
+
+    kmsClient.initialize(catalogProperties);
+
+    return kmsClient;
   }
 
-  public static boolean useNativeEncryption(EncryptionKeyMetadata keyMetadata) {
-    return keyMetadata != null && keyMetadata instanceof KeyMetadata;
+  public static EncryptionManager createEncryptionManager(
+      Map<String, String> tableProperties, KeyManagementClient kmsClient) {
+    Preconditions.checkArgument(kmsClient != null, "Invalid KMS client: null");
+    String tableKeyId = tableProperties.get(TableProperties.ENCRYPTION_TABLE_KEY);
+
+    if (null == tableKeyId) {
+      // Unencrypted table
+      return PlaintextEncryptionManager.instance();
+    }
+
+    String fileFormat =
+        PropertyUtil.propertyAsString(
+            tableProperties,
+            TableProperties.DEFAULT_FILE_FORMAT,
+            TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
+
+    if (FileFormat.fromString(fileFormat) != FileFormat.PARQUET) {
+      throw new UnsupportedOperationException(
+          "Iceberg encryption currently supports only parquet format for data files");
+    }
+
+    int dataKeyLength =
+        PropertyUtil.propertyAsInt(
+            tableProperties,
+            TableProperties.ENCRYPTION_DEK_LENGTH,
+            TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT);
+
+    Preconditions.checkState(
+        dataKeyLength == 16 || dataKeyLength == 24 || dataKeyLength == 32,
+        "Invalid data key length: %s (must be 16, 24, or 32)",
+        dataKeyLength);
+
+    return new StandardEncryptionManager(tableKeyId, dataKeyLength, kmsClient);
   }
 }
