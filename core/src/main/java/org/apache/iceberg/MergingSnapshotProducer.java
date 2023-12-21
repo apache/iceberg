@@ -29,7 +29,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.ListIterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -884,6 +883,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     return new CreateSnapshotEvent(tableName, operation(), snapshotId, sequenceNumber, summary);
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private void cleanUncommittedAppends(Set<ManifestFile> committed) {
     if (cachedNewDataManifests != null) {
       boolean hasDeletes = false;
@@ -899,13 +899,16 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       }
     }
 
-    ListIterator<ManifestFile> deleteManifestsIterator = cachedNewDeleteManifests.listIterator();
-    while (deleteManifestsIterator.hasNext()) {
-      ManifestFile deleteManifest = deleteManifestsIterator.next();
-      if (!committed.contains(deleteManifest)) {
-        deleteFile(deleteManifest.path());
-        deleteManifestsIterator.remove();
+    boolean hasDeleteDeletes = false;
+    for (ManifestFile cachedNewDeleteManifest : cachedNewDeleteManifests) {
+      if (!committed.contains(cachedNewDeleteManifest)) {
+        deleteFile(cachedNewDeleteManifest.path());
+        hasDeleteDeletes = true;
       }
+    }
+
+    if (hasDeleteDeletes) {
+      this.cachedNewDeleteManifests.clear();
     }
 
     // rewritten manifests are always owned by the table
