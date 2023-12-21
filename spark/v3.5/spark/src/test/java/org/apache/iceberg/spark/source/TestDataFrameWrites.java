@@ -289,7 +289,7 @@ public class TestDataFrameWrites extends AvroDataTest {
         .as("Spark 3 rejects writing nulls to a required column")
         .startsWith("2");
 
-    File location = new File(temp.resolve("parquet").toFile(), "test");
+    File location = temp.resolve("parquet").resolve("test").toFile();
     String sourcePath = String.format("%s/nullable_poc/sourceFolder/", location.toString());
     String targetPath = String.format("%s/nullable_poc/targetFolder/", location.toString());
 
@@ -343,7 +343,7 @@ public class TestDataFrameWrites extends AvroDataTest {
         .as("Spark 3 rejects writing nulls to a required column")
         .startsWith("2");
 
-    File location = new File(temp.resolve("parquet").toFile(), "test");
+    File location = temp.resolve("parquet").resolve("test").toFile();
     String sourcePath = String.format("%s/nullable_poc/sourceFolder/", location.toString());
     String targetPath = String.format("%s/nullable_poc/targetFolder/", location.toString());
 
