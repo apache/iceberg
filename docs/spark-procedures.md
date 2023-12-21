@@ -151,7 +151,7 @@ CALL catalog_name.system.set_current_snapshot('db.sample', 1);
 
 Set the current snapshot for `db.sample` to tag `s1`:
 ```sql
-CALL catalog_name.system.set_current_snapshot(table => 'db.sample', tag => 's1');
+CALL catalog_name.system.set_current_snapshot(table => 'db.sample', ref => 's1');
 ```
 
 ### `cherrypick_snapshot`
