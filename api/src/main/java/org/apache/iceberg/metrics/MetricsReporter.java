@@ -42,5 +42,6 @@ public interface MetricsReporter extends Closeable {
    */
   void report(MetricsReport report);
 
+  @Override
   default void close() {}
 }
