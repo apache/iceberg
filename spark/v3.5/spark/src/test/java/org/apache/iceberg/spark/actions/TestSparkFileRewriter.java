@@ -109,7 +109,7 @@ public class TestSparkFileRewriter extends TestBase {
     rewriter.init(options);
 
     Iterable<List<FileScanTask>> groups = rewriter.planFileGroups(tasks);
-    Assertions.assertThat(groups).as("Must have 1 group").hasSize(1);
+    Assertions.assertThat(groups).as("Must have 1 group").size().isOne();
     List<FileScanTask> group = Iterables.getOnlyElement(groups);
     Assertions.assertThat(group).as("Must rewrite 2 files").hasSize(2);
   }
@@ -128,9 +128,9 @@ public class TestSparkFileRewriter extends TestBase {
     rewriter.init(options);
 
     Iterable<List<FileScanTask>> groups = rewriter.planFileGroups(tasks);
-    Assertions.assertThat(groups).as("Must have 1 group").hasSize(1);
+    Assertions.assertThat(groups).as("Must have 1 group").size().isOne();
     List<FileScanTask> group = Iterables.getOnlyElement(groups);
-    Assertions.assertThat(group).as("Must rewrite 1 file").hasSize(1);
+    Assertions.assertThat(group).as("Must rewrite 1 file").size().isOne();
   }
 
   private void checkDataFileGroupWithEnoughFiles(SizeBasedDataRewriter rewriter) {
@@ -151,7 +151,7 @@ public class TestSparkFileRewriter extends TestBase {
     rewriter.init(options);
 
     Iterable<List<FileScanTask>> groups = rewriter.planFileGroups(tasks);
-    Assertions.assertThat(groups).as("Must have 1 group").hasSize(1);
+    Assertions.assertThat(groups).as("Must have 1 group").size().isOne();
     List<FileScanTask> group = Iterables.getOnlyElement(groups);
     Assertions.assertThat(group).as("Must rewrite 4 files").hasSize(4);
   }
@@ -171,7 +171,7 @@ public class TestSparkFileRewriter extends TestBase {
     rewriter.init(options);
 
     Iterable<List<FileScanTask>> groups = rewriter.planFileGroups(tasks);
-    Assertions.assertThat(groups).as("Must have 1 group").hasSize(1);
+    Assertions.assertThat(groups).as("Must have 1 group").size().isOne();
     List<FileScanTask> group = Iterables.getOnlyElement(groups);
     Assertions.assertThat(group).as("Must rewrite 3 files").hasSize(3);
   }
@@ -189,9 +189,9 @@ public class TestSparkFileRewriter extends TestBase {
     rewriter.init(options);
 
     Iterable<List<FileScanTask>> groups = rewriter.planFileGroups(tasks);
-    Assertions.assertThat(groups).as("Must have 1 group").hasSize(1);
+    Assertions.assertThat(groups).as("Must have 1 group").size().isOne();
     List<FileScanTask> group = Iterables.getOnlyElement(groups);
-    Assertions.assertThat(group).as("Must rewrite big file").hasSize(1);
+    Assertions.assertThat(group).as("Must rewrite big file").size().isOne();
   }
 
   @Test
