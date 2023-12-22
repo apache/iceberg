@@ -111,54 +111,48 @@ public class GenericAvroReader<T>
 
     @Override
     public ValueReader<?> record(Type partner, Schema record, List<ValueReader<?>> fieldResults) {
-      if (partner != null) {
-        Types.StructType expected = partner.asStructType();
-        Map<Integer, Integer> idToPos = idToPos(expected);
+      Types.StructType expected = partner != null ? partner.asStructType() : null;
+      Map<Integer, Integer> idToPos = idToPos(expected);
 
-        List<Pair<Integer, ValueReader<?>>> readPlan = Lists.newArrayList();
-        List<Schema.Field> fileFields = record.getFields();
-        for (int pos = 0; pos < fileFields.size(); pos += 1) {
-          Schema.Field field = fileFields.get(pos);
-          ValueReader<?> reader = fieldResults.get(pos);
-          Integer fieldId = AvroSchemaUtil.fieldId(field);
-          Integer projectionPos = idToPos.remove(fieldId);
+      List<Pair<Integer, ValueReader<?>>> readPlan = Lists.newArrayList();
+      List<Schema.Field> fileFields = record.getFields();
+      for (int pos = 0; pos < fileFields.size(); pos += 1) {
+        Schema.Field field = fileFields.get(pos);
+        ValueReader<?> reader = fieldResults.get(pos);
+        Integer fieldId = AvroSchemaUtil.fieldId(field);
+        Integer projectionPos = idToPos.remove(fieldId);
 
-          Object constant = idToConstant.get(fieldId);
-          if (projectionPos != null && constant != null) {
-            readPlan.add(
-                Pair.of(projectionPos, ValueReaders.replaceWithConstant(reader, constant)));
-          } else {
-            readPlan.add(Pair.of(projectionPos, reader));
-          }
+        Object constant = idToConstant.get(fieldId);
+        if (projectionPos != null && constant != null) {
+          readPlan.add(
+              Pair.of(projectionPos, ValueReaders.replaceWithConstant(reader, constant)));
+        } else {
+          readPlan.add(Pair.of(projectionPos, reader));
         }
-
-        // handle any expected columns that are not in the data file
-        for (Map.Entry<Integer, Integer> idAndPos : idToPos.entrySet()) {
-          int fieldId = idAndPos.getKey();
-          int pos = idAndPos.getValue();
-
-          Object constant = idToConstant.get(fieldId);
-          Types.NestedField field = expected.field(fieldId);
-          if (constant != null) {
-            readPlan.add(Pair.of(pos, ValueReaders.constant(constant)));
-          } else if (fieldId == MetadataColumns.IS_DELETED.fieldId()) {
-            readPlan.add(Pair.of(pos, ValueReaders.constant(false)));
-          } else if (fieldId == MetadataColumns.ROW_POSITION.fieldId()) {
-            readPlan.add(Pair.of(pos, ValueReaders.positions()));
-          } else if (field.isOptional()) {
-            readPlan.add(Pair.of(pos, ValueReaders.nulls()));
-          } else {
-            throw new IllegalArgumentException(
-                String.format("Missing required field: %s", field.name()));
-          }
-        }
-
-        return recordReader(readPlan, avroSchemas.get(partner), record.getFullName());
       }
 
-      // no partner indicates that the field is not projected. create a basic record reader as a
-      // placeholder.
-      return ValueReaders.record(fieldResults, record);
+      // handle any expected columns that are not in the data file
+      for (Map.Entry<Integer, Integer> idAndPos : idToPos.entrySet()) {
+        int fieldId = idAndPos.getKey();
+        int pos = idAndPos.getValue();
+
+        Object constant = idToConstant.get(fieldId);
+        Types.NestedField field = expected.field(fieldId);
+        if (constant != null) {
+          readPlan.add(Pair.of(pos, ValueReaders.constant(constant)));
+        } else if (fieldId == MetadataColumns.IS_DELETED.fieldId()) {
+          readPlan.add(Pair.of(pos, ValueReaders.constant(false)));
+        } else if (fieldId == MetadataColumns.ROW_POSITION.fieldId()) {
+          readPlan.add(Pair.of(pos, ValueReaders.positions()));
+        } else if (field.isOptional()) {
+          readPlan.add(Pair.of(pos, ValueReaders.constant(null)));
+        } else {
+          throw new IllegalArgumentException(
+              String.format("Missing required field: %s", field.name()));
+        }
+      }
+
+      return recordReader(readPlan, avroSchemas.get(partner), record.getFullName());
     }
 
     @SuppressWarnings("unchecked")
@@ -274,10 +268,12 @@ public class GenericAvroReader<T>
     private Map<Integer, Integer> idToPos(Types.StructType struct) {
       Map<Integer, Integer> idToPos = Maps.newHashMap();
 
-      List<Types.NestedField> fields = struct.fields();
-      for (int pos = 0; pos < fields.size(); pos += 1) {
-        Types.NestedField field = fields.get(pos);
-        idToPos.put(field.fieldId(), pos);
+      if (struct != null) {
+        List<Types.NestedField> fields = struct.fields();
+        for (int pos = 0; pos < fields.size(); pos += 1) {
+          Types.NestedField field = fields.get(pos);
+          idToPos.put(field.fieldId(), pos);
+        }
       }
 
       return idToPos;
