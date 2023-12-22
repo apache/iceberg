@@ -19,15 +19,17 @@
 package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
+import java.nio.file.Path;
 import java.util.List;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.HadoopTables;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
@@ -40,13 +42,10 @@ import org.apache.spark.sql.execution.streaming.MemoryStream;
 import org.apache.spark.sql.streaming.DataStreamWriter;
 import org.apache.spark.sql.streaming.StreamingQuery;
 import org.apache.spark.sql.streaming.StreamingQueryException;
-import org.assertj.core.api.Assertions;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import scala.Option;
 import scala.collection.JavaConverters;
 
@@ -58,9 +57,9 @@ public class TestStructuredStreaming {
           optional(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
   private static SparkSession spark = null;
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
-  @BeforeClass
+  @BeforeAll
   public static void startSpark() {
     TestStructuredStreaming.spark =
         SparkSession.builder()
@@ -69,7 +68,7 @@ public class TestStructuredStreaming {
             .getOrCreate();
   }
 
-  @AfterClass
+  @AfterAll
   public static void stopSpark() {
     SparkSession currentSpark = TestStructuredStreaming.spark;
     TestStructuredStreaming.spark = null;
@@ -78,7 +77,7 @@ public class TestStructuredStreaming {
 
   @Test
   public void testStreamingWriteAppendMode() throws Exception {
-    File parent = temp.newFolder("parquet");
+    File parent = temp.resolve("parquet").toFile();
     File location = new File(parent, "test-table");
     File checkpoint = new File(parent, "checkpoint");
 
@@ -117,7 +116,7 @@ public class TestStructuredStreaming {
 
       // remove the last commit to force Spark to reprocess batch #1
       File lastCommitFile = new File(checkpoint.toString() + "/commits/1");
-      Assert.assertTrue("The commit file must be deleted", lastCommitFile.delete());
+      assertThat(lastCommitFile.delete()).as("The commit file must be deleted").isTrue();
 
       // restart the query from the checkpoint
       StreamingQuery restartedQuery = streamWriter.start();
@@ -127,9 +126,10 @@ public class TestStructuredStreaming {
       Dataset<Row> result = spark.read().format("iceberg").load(location.toString());
       List<SimpleRecord> actual =
           result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-      Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
-      Assert.assertEquals("Result rows should match", expected, actual);
-      Assert.assertEquals("Number of snapshots should match", 2, Iterables.size(table.snapshots()));
+
+      assertThat(actual).as("Number of rows should match").hasSameSizeAs(expected);
+      assertThat(actual).as("Result rows should match").isEqualTo(expected);
+      assertThat(table.snapshots()).as("Number of snapshots should match").hasSize(2);
     } finally {
       for (StreamingQuery query : spark.streams().active()) {
         query.stop();
@@ -139,7 +139,7 @@ public class TestStructuredStreaming {
 
   @Test
   public void testStreamingWriteCompleteMode() throws Exception {
-    File parent = temp.newFolder("parquet");
+    File parent = temp.resolve("parquet").toFile();
     File location = new File(parent, "test-table");
     File checkpoint = new File(parent, "checkpoint");
 
@@ -177,7 +177,7 @@ public class TestStructuredStreaming {
 
       // remove the last commit to force Spark to reprocess batch #1
       File lastCommitFile = new File(checkpoint.toString() + "/commits/1");
-      Assert.assertTrue("The commit file must be deleted", lastCommitFile.delete());
+      assertThat(lastCommitFile.delete()).as("The commit file must be deleted").isTrue();
 
       // restart the query from the checkpoint
       StreamingQuery restartedQuery = streamWriter.start();
@@ -187,9 +187,10 @@ public class TestStructuredStreaming {
       Dataset<Row> result = spark.read().format("iceberg").load(location.toString());
       List<SimpleRecord> actual =
           result.orderBy("data").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-      Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
-      Assert.assertEquals("Result rows should match", expected, actual);
-      Assert.assertEquals("Number of snapshots should match", 2, Iterables.size(table.snapshots()));
+
+      assertThat(actual).as("Number of rows should match").hasSameSizeAs(expected);
+      assertThat(actual).as("Result rows should match").isEqualTo(expected);
+      assertThat(table.snapshots()).as("Number of snapshots should match").hasSize(2);
     } finally {
       for (StreamingQuery query : spark.streams().active()) {
         query.stop();
@@ -199,7 +200,7 @@ public class TestStructuredStreaming {
 
   @Test
   public void testStreamingWriteCompleteModeWithProjection() throws Exception {
-    File parent = temp.newFolder("parquet");
+    File parent = temp.resolve("parquet").toFile();
     File location = new File(parent, "test-table");
     File checkpoint = new File(parent, "checkpoint");
 
@@ -237,7 +238,7 @@ public class TestStructuredStreaming {
 
       // remove the last commit to force Spark to reprocess batch #1
       File lastCommitFile = new File(checkpoint.toString() + "/commits/1");
-      Assert.assertTrue("The commit file must be deleted", lastCommitFile.delete());
+      assertThat(lastCommitFile.delete()).as("The commit file must be deleted").isTrue();
 
       // restart the query from the checkpoint
       StreamingQuery restartedQuery = streamWriter.start();
@@ -247,9 +248,10 @@ public class TestStructuredStreaming {
       Dataset<Row> result = spark.read().format("iceberg").load(location.toString());
       List<SimpleRecord> actual =
           result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-      Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
-      Assert.assertEquals("Result rows should match", expected, actual);
-      Assert.assertEquals("Number of snapshots should match", 2, Iterables.size(table.snapshots()));
+
+      assertThat(actual).as("Number of rows should match").hasSameSizeAs(expected);
+      assertThat(actual).as("Result rows should match").isEqualTo(expected);
+      assertThat(table.snapshots()).as("Number of snapshots should match").hasSize(2);
     } finally {
       for (StreamingQuery query : spark.streams().active()) {
         query.stop();
@@ -259,7 +261,7 @@ public class TestStructuredStreaming {
 
   @Test
   public void testStreamingWriteUpdateMode() throws Exception {
-    File parent = temp.newFolder("parquet");
+    File parent = temp.resolve("parquet").toFile();
     File location = new File(parent, "test-table");
     File checkpoint = new File(parent, "checkpoint");
 
@@ -283,7 +285,7 @@ public class TestStructuredStreaming {
       List<Integer> batch1 = Lists.newArrayList(1, 2);
       send(batch1, inputStream);
 
-      Assertions.assertThatThrownBy(query::processAllAvailable)
+      assertThatThrownBy(query::processAllAvailable)
           .isInstanceOf(StreamingQueryException.class)
           .hasMessageContaining("does not support Update mode");
     } finally {

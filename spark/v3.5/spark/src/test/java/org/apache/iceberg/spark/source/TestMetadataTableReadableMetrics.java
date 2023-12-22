@@ -24,6 +24,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -41,19 +42,18 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkCatalogConfig;
-import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
+import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.junit.After;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
-public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
+public class TestMetadataTableReadableMetrics extends TestBaseWithCatalog {
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
   private static final Types.StructType LEAF_STRUCT_TYPE =
       Types.StructType.of(
@@ -124,8 +124,7 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
             createPrimitiveRecord(
                 false, 2, 2L, Float.NaN, 2.0D, new BigDecimal("2.00"), "2", null, null));
 
-    DataFile dataFile =
-        FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), records);
+    DataFile dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.toFile()), records);
     table.newAppend().appendFile(dataFile).commit();
     return table;
   }
@@ -143,13 +142,12 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
             createNestedRecord(0L, 0.0),
             createNestedRecord(1L, Double.NaN),
             createNestedRecord(null, null));
-    DataFile dataFile =
-        FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), records);
+    DataFile dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.toFile()), records);
     table.newAppend().appendFile(dataFile).commit();
     return Pair.of(table, dataFile);
   }
 
-  @After
+  @AfterEach
   public void dropTable() {
     sql("DROP TABLE %s", tableName);
   }
