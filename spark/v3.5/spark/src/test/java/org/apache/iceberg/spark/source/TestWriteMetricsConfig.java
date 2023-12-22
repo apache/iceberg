@@ -215,10 +215,8 @@ public class TestWriteMetricsConfig {
       DataFile file = task.file();
       assertThat(file.nullValueCounts()).hasSize(2);
       assertThat(file.valueCounts()).hasSize(2);
-      assertThat(file.lowerBounds()).hasSize(1);
-      assertThat(file.lowerBounds()).containsKey(id.fieldId());
-      assertThat(file.upperBounds()).hasSize(1);
-      assertThat(file.upperBounds()).containsKey(id.fieldId());
+      assertThat(file.lowerBounds()).hasSize(1).containsKey(id.fieldId());
+      assertThat(file.upperBounds()).hasSize(1).containsKey(id.fieldId());
     }
   }
 
@@ -271,27 +269,27 @@ public class TestWriteMetricsConfig {
       DataFile file = task.file();
 
       Map<Integer, Long> nullValueCounts = file.nullValueCounts();
-      assertThat(nullValueCounts).hasSize(3);
-      assertThat(nullValueCounts).containsKey(longCol.fieldId());
-      assertThat(nullValueCounts).containsKey(recordId.fieldId());
-      assertThat(nullValueCounts).containsKey(recordData.fieldId());
+      assertThat(nullValueCounts)
+          .hasSize(3)
+          .containsKey(longCol.fieldId())
+          .containsKey(recordId.fieldId())
+          .containsKey(recordData.fieldId());
 
       Map<Integer, Long> valueCounts = file.valueCounts();
-      assertThat(valueCounts).hasSize(3);
-      assertThat(valueCounts).containsKey(longCol.fieldId());
-      assertThat(valueCounts).containsKey(recordId.fieldId());
-      assertThat(valueCounts).containsKey(recordData.fieldId());
+      assertThat(valueCounts)
+          .hasSize(3)
+          .containsKey(longCol.fieldId())
+          .containsKey(recordId.fieldId())
+          .containsKey(recordData.fieldId());
 
       Map<Integer, ByteBuffer> lowerBounds = file.lowerBounds();
-      assertThat(lowerBounds).hasSize(2);
-      assertThat(lowerBounds).containsKey(recordId.fieldId());
+      assertThat(lowerBounds).hasSize(2).containsKey(recordId.fieldId());
 
       ByteBuffer recordDataLowerBound = lowerBounds.get(recordData.fieldId());
       assertThat(ByteBuffers.toByteArray(recordDataLowerBound)).hasSize(2);
 
       Map<Integer, ByteBuffer> upperBounds = file.upperBounds();
-      assertThat(upperBounds).hasSize(2);
-      assertThat(upperBounds).containsKey(recordId.fieldId());
+      assertThat(upperBounds).hasSize(2).containsKey(recordId.fieldId());
 
       ByteBuffer recordDataUpperBound = upperBounds.get(recordData.fieldId());
       assertThat(ByteBuffers.toByteArray(recordDataUpperBound)).hasSize(2);
