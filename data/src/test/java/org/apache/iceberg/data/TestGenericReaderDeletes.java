@@ -26,6 +26,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TestTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.Assert;
 
@@ -46,12 +47,13 @@ public class TestGenericReaderDeletes extends DeleteReadTests {
 
   @Override
   public StructLikeSet rowSet(String name, Table table, String... columns) throws IOException {
-    StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
+    Types.StructType recordSchema = table.schema().select(columns).asStruct();
+    StructLikeSet set = StructLikeSet.create(recordSchema);
     try (CloseableIterable<Record> reader = IcebergGenerics.read(table).select(columns).build()) {
       Iterables.addAll(
           set,
           CloseableIterable.transform(
-              reader, record -> new InternalRecordWrapper(table.schema().asStruct()).wrap(record)));
+              reader, record -> new InternalRecordWrapper(recordSchema).wrap(record)));
     }
     return set;
   }
