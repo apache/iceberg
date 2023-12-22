@@ -118,15 +118,15 @@ public class GenericAvroReader<T>
       List<Schema.Field> fileFields = record.getFields();
       for (int pos = 0; pos < fileFields.size(); pos += 1) {
         Schema.Field field = fileFields.get(pos);
-        ValueReader<?> reader = fieldResults.get(pos);
+        ValueReader<?> fieldReader = fieldResults.get(pos);
         Integer fieldId = AvroSchemaUtil.fieldId(field);
         Integer projectionPos = idToPos.remove(fieldId);
 
         Object constant = idToConstant.get(fieldId);
         if (projectionPos != null && constant != null) {
-          readPlan.add(Pair.of(projectionPos, ValueReaders.replaceWithConstant(reader, constant)));
+          readPlan.add(Pair.of(projectionPos, ValueReaders.replaceWithConstant(fieldReader, constant)));
         } else {
-          readPlan.add(Pair.of(projectionPos, reader));
+          readPlan.add(Pair.of(projectionPos, fieldReader));
         }
       }
 
