@@ -262,7 +262,11 @@ public class FlinkParquetReaders {
       switch (primitive.getPrimitiveTypeName()) {
         case FIXED_LEN_BYTE_ARRAY:
         case BINARY:
-          return new ParquetValueReaders.ByteArrayReader(desc);
+          if (expected.typeId() == Types.StringType.get().typeId()) {
+            return new StringReader(desc);
+          } else {
+            return new ParquetValueReaders.ByteArrayReader(desc);
+          }
         case INT32:
           if (expected.typeId() == org.apache.iceberg.types.Type.TypeID.LONG) {
             return new ParquetValueReaders.IntAsLongReader(desc);

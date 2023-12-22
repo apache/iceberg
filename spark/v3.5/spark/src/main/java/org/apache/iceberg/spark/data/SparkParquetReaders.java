@@ -284,8 +284,13 @@ public class SparkParquetReaders {
       switch (primitive.getPrimitiveTypeName()) {
         case FIXED_LEN_BYTE_ARRAY:
         case BINARY:
-          if (expected != null && expected.typeId() == TypeID.UUID) {
-            return new UUIDReader(desc);
+          if (expected != null) {
+            switch (expected.typeId()) {
+              case UUID:
+                return new UUIDReader(desc);
+              case STRING:
+                return new StringReader(desc);
+            }
           }
           return new ParquetValueReaders.ByteArrayReader(desc);
         case INT32:
