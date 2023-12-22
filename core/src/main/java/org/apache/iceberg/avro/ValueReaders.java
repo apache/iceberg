@@ -195,6 +195,11 @@ public class ValueReaders {
       decoder.readNull();
       return null;
     }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      decoder.readNull();
+    }
   }
 
   private static class ConstantReader<T> implements ValueReader<T> {
@@ -208,6 +213,9 @@ public class ValueReaders {
     public T read(Decoder decoder, Object reuse) throws IOException {
       return constant;
     }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {}
   }
 
   private static class ReplaceWithConstantReader<T> extends ConstantReader<T> {
@@ -223,6 +231,11 @@ public class ValueReaders {
       replaced.read(decoder, reuse);
       return super.read(decoder, reuse);
     }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      replaced.skip(decoder);
+    }
   }
 
   private static class BooleanReader implements ValueReader<Boolean> {
@@ -233,6 +246,11 @@ public class ValueReaders {
     @Override
     public Boolean read(Decoder decoder, Object ignored) throws IOException {
       return decoder.readBoolean();
+    }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      decoder.readBoolean();
     }
   }
 
@@ -245,6 +263,11 @@ public class ValueReaders {
     public Integer read(Decoder decoder, Object ignored) throws IOException {
       return decoder.readInt();
     }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      decoder.readInt();
+    }
   }
 
   private static class IntegerAsLongReader implements ValueReader<Long> {
@@ -255,6 +278,11 @@ public class ValueReaders {
     @Override
     public Long read(Decoder decoder, Object ignored) throws IOException {
       return (long) decoder.readInt();
+    }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      decoder.readInt();
     }
   }
 
@@ -267,6 +295,11 @@ public class ValueReaders {
     public Long read(Decoder decoder, Object ignored) throws IOException {
       return decoder.readLong();
     }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      decoder.readLong();
+    }
   }
 
   private static class FloatReader implements ValueReader<Float> {
@@ -277,6 +310,11 @@ public class ValueReaders {
     @Override
     public Float read(Decoder decoder, Object ignored) throws IOException {
       return decoder.readFloat();
+    }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      decoder.skipFixed(4);
     }
   }
 
@@ -289,6 +327,11 @@ public class ValueReaders {
     public Double read(Decoder decoder, Object ignored) throws IOException {
       return (double) decoder.readFloat();
     }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      decoder.skipFixed(4);
+    }
   }
 
   private static class DoubleReader implements ValueReader<Double> {
@@ -299,6 +342,11 @@ public class ValueReaders {
     @Override
     public Double read(Decoder decoder, Object ignored) throws IOException {
       return decoder.readDouble();
+    }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      decoder.skipFixed(8);
     }
   }
 
@@ -316,6 +364,11 @@ public class ValueReaders {
       //      int length = decoder.readInt();
       //      byte[] bytes = new byte[length];
       //      decoder.readFixed(bytes, 0, length);
+    }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      decoder.skipString();
     }
   }
 
@@ -335,6 +388,11 @@ public class ValueReaders {
       //      int length = decoder.readInt();
       //      byte[] bytes = new byte[length];
       //      decoder.readFixed(bytes, 0, length);
+    }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      decoder.skipString();
     }
   }
 
@@ -361,6 +419,11 @@ public class ValueReaders {
 
       return UUIDUtil.convert(buffer);
     }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      decoder.skipFixed(16);
+    }
   }
 
   private static class FixedReader implements ValueReader<byte[]> {
@@ -383,6 +446,11 @@ public class ValueReaders {
       byte[] bytes = new byte[length];
       decoder.readFixed(bytes, 0, length);
       return bytes;
+    }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      decoder.skipFixed(length);
     }
   }
 
@@ -409,6 +477,11 @@ public class ValueReaders {
       decoder.readFixed(bytes, 0, length);
       return new GenericData.Fixed(schema, bytes);
     }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      decoder.skipFixed(length);
+    }
   }
 
   private static class BytesReader implements ValueReader<byte[]> {
@@ -430,6 +503,11 @@ public class ValueReaders {
       //      decoder.readFixed(bytes, 0, length);
       //      return bytes;
     }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      decoder.skipBytes();
+    }
   }
 
   private static class ByteBufferReader implements ValueReader<ByteBuffer> {
@@ -450,6 +528,11 @@ public class ValueReaders {
       //      decoder.readFixed(bytes, 0, length);
       //      return bytes;
     }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      decoder.skipBytes();
+    }
   }
 
   private static class DecimalReader implements ValueReader<BigDecimal> {
@@ -466,6 +549,11 @@ public class ValueReaders {
       // there isn't a way to get the backing buffer out of a BigInteger, so this can't reuse.
       byte[] bytes = bytesReader.read(decoder, null);
       return new BigDecimal(new BigInteger(bytes), scale);
+    }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      bytesReader.skip(decoder);
     }
   }
 
@@ -485,6 +573,12 @@ public class ValueReaders {
     public Object read(Decoder decoder, Object reuse) throws IOException {
       int index = decoder.readIndex();
       return checkNonNull(readers[index].read(decoder, reuse));
+    }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      int index = decoder.readIndex();
+      readers[index].skip(decoder);
     }
 
     private Object checkNonNull(Object value) {
@@ -512,6 +606,12 @@ public class ValueReaders {
       int index = decoder.readIndex();
       return readers[index].read(decoder, reuse);
     }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      int index = decoder.readIndex();
+      readers[index].skip(decoder);
+    }
   }
 
   private static class EnumReader implements ValueReader<String> {
@@ -528,6 +628,11 @@ public class ValueReaders {
     public String read(Decoder decoder, Object ignored) throws IOException {
       int index = decoder.readEnum();
       return symbols[index];
+    }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      decoder.readEnum();
     }
   }
 
@@ -569,6 +674,16 @@ public class ValueReaders {
       }
 
       return resultList;
+    }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      long itemsToSkip;
+      while ((itemsToSkip = decoder.skipArray()) != 0) {
+        for (int i = 0; i < itemsToSkip; i += 1) {
+          elementReader.skip(decoder);
+        }
+      }
     }
   }
 
@@ -623,6 +738,17 @@ public class ValueReaders {
 
       return resultMap;
     }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      long itemsToSkip;
+      while ((itemsToSkip = decoder.skipArray()) != 0) {
+        for (int i = 0; i < itemsToSkip; i += 1) {
+          keyReader.skip(decoder);
+          valueReader.skip(decoder);
+        }
+      }
+    }
   }
 
   private static class MapReader<K, V> implements ValueReader<Map<K, V>> {
@@ -676,6 +802,17 @@ public class ValueReaders {
 
       return resultMap;
     }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      long itemsToSkip;
+      while ((itemsToSkip = decoder.skipMap()) != 0) {
+        for (int i = 0; i < itemsToSkip; i += 1) {
+          keyReader.skip(decoder);
+          valueReader.skip(decoder);
+        }
+      }
+    }
   }
 
   public abstract static class PlannedStructReader<S>
@@ -718,6 +855,13 @@ public class ValueReaders {
       }
 
       return struct;
+    }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      for (int i = 0; i < readers.length; i += 1) {
+        readers[i].skip(decoder);
+      }
     }
   }
 
@@ -964,6 +1108,9 @@ public class ValueReaders {
       this.currentPosition += 1;
       return currentPosition;
     }
+
+    @Override
+    public void skip(Decoder ignored) throws IOException {}
 
     @Override
     public void setRowPositionSupplier(Supplier<Long> posSupplier) {
