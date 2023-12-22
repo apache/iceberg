@@ -19,7 +19,9 @@
 package org.apache.iceberg.parquet;
 
 import java.util.List;
+import java.util.Optional;
 import org.apache.parquet.column.page.PageReadStore;
+import org.apache.parquet.internal.filter2.columnindex.RowRanges;
 
 public interface ParquetValueReader<T> {
   T read(T reuse);
@@ -29,4 +31,10 @@ public interface ParquetValueReader<T> {
   List<TripleIterator<?>> columns();
 
   void setPageSource(PageReadStore pageStore, long rowPosition);
+
+  default void setPageSource(
+      PageReadStore pageStore, long rowPosition, Optional<RowRanges> rowRanges) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement setPageSource");
+  }
 }

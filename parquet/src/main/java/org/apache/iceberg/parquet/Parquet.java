@@ -978,6 +978,7 @@ public class Parquet {
     private NameMapping nameMapping = null;
     private ByteBuffer fileEncryptionKey = null;
     private ByteBuffer fileAADPrefix = null;
+    private boolean useColumnIndexFilter = false;
 
     private ReadBuilder(InputFile file) {
       this.file = file;
@@ -1017,6 +1018,11 @@ public class Parquet {
 
     public ReadBuilder filter(Expression newFilter) {
       this.filter = newFilter;
+      return this;
+    }
+
+    public ReadBuilder useColumnIndexFilter(boolean newUseColumnIndexFilter) {
+      this.useColumnIndexFilter = newUseColumnIndexFilter;
       return this;
     }
 
@@ -1139,7 +1145,8 @@ public class Parquet {
               nameMapping,
               filter,
               reuseContainers,
-              caseSensitive);
+              caseSensitive,
+              useColumnIndexFilter);
         }
       }
 

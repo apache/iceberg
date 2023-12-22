@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.arrow.vectorized.parquet;
 
+import java.util.Optional;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
@@ -55,7 +56,7 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     // setPageSource can result in a data page read. If that happens, we need
     // to know in advance whether all the pages in the row group are dictionary encoded or not
     this.vectorizedPageIterator.setAllPagesDictEncoded(allPagesDictEncoded);
-    super.setPageSource(store);
+    super.setPageSource(store, Optional.empty());
     return dictionary;
   }
 

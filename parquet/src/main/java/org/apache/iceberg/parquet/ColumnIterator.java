@@ -18,7 +18,11 @@
  */
 package org.apache.iceberg.parquet;
 
+import java.util.Optional;
+import java.util.PrimitiveIterator;
 import org.apache.parquet.column.ColumnDescriptor;
+import org.apache.parquet.column.page.PageReader;
+import org.apache.parquet.internal.filter2.columnindex.RowRanges;
 import org.apache.parquet.io.api.Binary;
 
 public abstract class ColumnIterator<T> extends BaseColumnIterator implements TripleIterator<T> {
@@ -89,6 +93,8 @@ public abstract class ColumnIterator<T> extends BaseColumnIterator implements Tr
   }
 
   private final PageIterator<T> pageIterator;
+  private PrimitiveIterator.OfLong rowIndexes;
+  private long targetRowIndex = Long.MIN_VALUE;
 
   private ColumnIterator(ColumnDescriptor desc, String writerVersion) {
     super(desc);
@@ -159,5 +165,51 @@ public abstract class ColumnIterator<T> extends BaseColumnIterator implements Tr
   @Override
   protected BasePageIterator pageIterator() {
     return pageIterator;
+  }
+
+  @Override
+  public void setPageSource(PageReader source) {
+    setPageSource(source, Optional.empty());
+  }
+
+  @Override
+  public void setPageSource(PageReader source, Optional<RowRanges> rowRanges) {
+    super.setPageSource(source, rowRanges);
+    if (rowRanges.isPresent()) {
+      this.rowIndexes = rowRanges.get().iterator();
+      this.targetRowIndex = Long.MIN_VALUE;
+    }
+  }
+
+  @Override
+  public boolean needsSynchronize() {
+    return needsSynchronize;
+  }
+
+  @Override
+  public void synchronize() {
+    skipValues = 0;
+    while (hasNext()) {
+      advance();
+      if (pageIterator.currentRepetitionLevel() == 0) {
+        currentRowIndex += 1;
+        if (currentRowIndex > targetRowIndex) {
+          targetRowIndex = rowIndexes.hasNext() ? rowIndexes.nextLong() : Long.MAX_VALUE;
+        }
+      }
+
+      if (currentRowIndex < targetRowIndex) {
+        triplesRead += 1;
+        if (pageIterator.currentDefinitionLevel() > definitionLevel) {
+          skipValues += 1;
+        }
+
+        pageIterator.advance();
+      } else {
+        break;
+      }
+    }
+
+    pageIterator.skip(skipValues);
   }
 }

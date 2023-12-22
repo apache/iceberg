@@ -18,14 +18,17 @@
  */
 package org.apache.iceberg.parquet;
 
+import java.util.Optional;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.column.page.DataPage;
 import org.apache.parquet.column.page.PageReader;
+import org.apache.parquet.internal.filter2.columnindex.RowRanges;
 
 @SuppressWarnings("checkstyle:VisibilityModifier")
 public abstract class BaseColumnIterator {
   protected final ColumnDescriptor desc;
+  protected final int definitionLevel;
 
   // state reset for each row group
   protected PageReader pageSource = null;
@@ -34,15 +37,28 @@ public abstract class BaseColumnIterator {
   protected long advanceNextPageCount = 0L;
   protected Dictionary dictionary;
 
+  // state for page skipping
+  protected boolean needsSynchronize;
+  protected long currentRowIndex;
+  protected int skipValues;
+
   protected BaseColumnIterator(ColumnDescriptor descriptor) {
     this.desc = descriptor;
+    this.definitionLevel = desc.getMaxDefinitionLevel() - 1;
   }
 
+  @Deprecated
   public void setPageSource(PageReader source) {
+    setPageSource(source, Optional.empty());
+  }
+
+  public void setPageSource(PageReader source, Optional<RowRanges> rowRanges) {
     this.pageSource = source;
     this.triplesCount = source.getTotalValueCount();
     this.triplesRead = 0L;
     this.advanceNextPageCount = 0L;
+    this.needsSynchronize = rowRanges.isPresent();
+
     BasePageIterator pageIterator = pageIterator();
     pageIterator.reset();
     dictionary = ParquetUtil.readDictionary(desc, pageSource);
@@ -60,6 +76,17 @@ public abstract class BaseColumnIterator {
         if (page != null) {
           pageIterator.setPage(page);
           this.advanceNextPageCount += pageIterator.currentPageCount();
+
+          if (needsSynchronize) {
+            long firstRowIndex =
+                page.getFirstRowIndex()
+                    .orElseThrow(
+                        () ->
+                            new IllegalArgumentException(
+                                "Missing page first row index for synchronizing values"));
+            this.skipValues = 0;
+            this.currentRowIndex = firstRowIndex - 1;
+          }
         } else {
           return;
         }
