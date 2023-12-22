@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.flink;
 
-import java.io.File;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -29,18 +29,13 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.TestTemplate;
 
-public class TestFlinkCatalogDatabase extends FlinkCatalogTestBase {
+public class TestFlinkCatalogDatabase extends CatalogTestBase {
 
-  public TestFlinkCatalogDatabase(String catalogName, Namespace baseNamespace) {
-    super(catalogName, baseNamespace);
-  }
-
-  @After
+  @AfterEach
   @Override
   public void clean() {
     sql("DROP TABLE IF EXISTS %s.tl", flinkDatabase);
@@ -48,57 +43,65 @@ public class TestFlinkCatalogDatabase extends FlinkCatalogTestBase {
     super.clean();
   }
 
-  @Test
+  @TestTemplate
   public void testCreateNamespace() {
-    Assert.assertFalse(
-        "Database should not already exist",
-        validationNamespaceCatalog.namespaceExists(icebergNamespace));
-
+    Assertions.assertThat(validationNamespaceCatalog.namespaceExists(icebergNamespace))
+        .as("Database should not already exist")
+        .isFalse();
     sql("CREATE DATABASE %s", flinkDatabase);
 
-    Assert.assertTrue(
-        "Database should exist", validationNamespaceCatalog.namespaceExists(icebergNamespace));
+    Assertions.assertThat(validationNamespaceCatalog.namespaceExists(icebergNamespace))
+        .as("Database should exist")
+        .isTrue();
 
     sql("CREATE DATABASE IF NOT EXISTS %s", flinkDatabase);
-    Assert.assertTrue(
-        "Database should still exist",
-        validationNamespaceCatalog.namespaceExists(icebergNamespace));
+
+    Assertions.assertThat(validationNamespaceCatalog.namespaceExists(icebergNamespace))
+        .as("Database should still exist")
+        .isTrue();
 
     sql("DROP DATABASE IF EXISTS %s", flinkDatabase);
-    Assert.assertFalse(
-        "Database should be dropped", validationNamespaceCatalog.namespaceExists(icebergNamespace));
+
+    Assertions.assertThat(validationNamespaceCatalog.namespaceExists(icebergNamespace))
+        .as("Database should be dropped")
+        .isFalse();
 
     sql("CREATE DATABASE IF NOT EXISTS %s", flinkDatabase);
-    Assert.assertTrue(
-        "Database should be created", validationNamespaceCatalog.namespaceExists(icebergNamespace));
+
+    Assertions.assertThat(validationNamespaceCatalog.namespaceExists(icebergNamespace))
+        .as("Database should be created")
+        .isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testDropEmptyDatabase() {
-    Assert.assertFalse(
-        "Namespace should not already exist",
-        validationNamespaceCatalog.namespaceExists(icebergNamespace));
+
+    Assertions.assertThat(validationNamespaceCatalog.namespaceExists(icebergNamespace))
+        .as("Namespace should not already exist")
+        .isFalse();
 
     sql("CREATE DATABASE %s", flinkDatabase);
 
-    Assert.assertTrue(
-        "Namespace should exist", validationNamespaceCatalog.namespaceExists(icebergNamespace));
+    Assertions.assertThat(validationNamespaceCatalog.namespaceExists(icebergNamespace))
+        .as("Namespace should exist")
+        .isTrue();
 
     sql("DROP DATABASE %s", flinkDatabase);
 
-    Assert.assertFalse(
-        "Namespace should have been dropped",
-        validationNamespaceCatalog.namespaceExists(icebergNamespace));
+    Assertions.assertThat(validationNamespaceCatalog.namespaceExists(icebergNamespace))
+        .as("Namespace should have been dropped")
+        .isFalse();
   }
 
-  @Test
+  @TestTemplate
   public void testDropNonEmptyNamespace() {
-    Assume.assumeFalse(
-        "Hadoop catalog throws IOException: Directory is not empty.", isHadoopCatalog);
 
-    Assert.assertFalse(
-        "Namespace should not already exist",
-        validationNamespaceCatalog.namespaceExists(icebergNamespace));
+    Assumptions.assumeFalse(
+        isHadoopCatalog, "Hadoop catalog throws IOException: Directory is not empty.");
+
+    Assertions.assertThat(validationNamespaceCatalog.namespaceExists(icebergNamespace))
+        .as("Namespace should not already exist")
+        .isFalse();
 
     sql("CREATE DATABASE %s", flinkDatabase);
 
@@ -106,11 +109,13 @@ public class TestFlinkCatalogDatabase extends FlinkCatalogTestBase {
         TableIdentifier.of(icebergNamespace, "tl"),
         new Schema(Types.NestedField.optional(0, "id", Types.LongType.get())));
 
-    Assert.assertTrue(
-        "Namespace should exist", validationNamespaceCatalog.namespaceExists(icebergNamespace));
-    Assert.assertTrue(
-        "Table should exist",
-        validationCatalog.tableExists(TableIdentifier.of(icebergNamespace, "tl")));
+    Assertions.assertThat(validationNamespaceCatalog.namespaceExists(icebergNamespace))
+        .as("Namespace should exist")
+        .isTrue();
+
+    Assertions.assertThat(validationCatalog.tableExists(TableIdentifier.of(icebergNamespace, "tl")))
+        .as("Table should exist")
+        .isTrue();
 
     Assertions.assertThatThrownBy(() -> sql("DROP DATABASE %s", flinkDatabase))
         .cause()
@@ -121,166 +126,194 @@ public class TestFlinkCatalogDatabase extends FlinkCatalogTestBase {
     sql("DROP TABLE %s.tl", flinkDatabase);
   }
 
-  @Test
+  @TestTemplate
   public void testListTables() {
-    Assert.assertFalse(
-        "Namespace should not already exist",
-        validationNamespaceCatalog.namespaceExists(icebergNamespace));
+
+    Assertions.assertThat(validationNamespaceCatalog.namespaceExists(icebergNamespace))
+        .as("Namespace should not already exist")
+        .isFalse();
 
     sql("CREATE DATABASE %s", flinkDatabase);
     sql("USE CATALOG %s", catalogName);
     sql("USE %s", DATABASE);
 
-    Assert.assertTrue(
-        "Namespace should exist", validationNamespaceCatalog.namespaceExists(icebergNamespace));
+    Assertions.assertThat(validationNamespaceCatalog.namespaceExists(icebergNamespace))
+        .as("Namespace should exist")
+        .isTrue();
 
-    Assert.assertEquals("Should not list any tables", 0, sql("SHOW TABLES").size());
+    Assertions.assertThat(sql("SHOW TABLES").size()).as("Should not list any tables").isEqualTo(0);
 
     validationCatalog.createTable(
         TableIdentifier.of(icebergNamespace, "tl"),
         new Schema(Types.NestedField.optional(0, "id", Types.LongType.get())));
 
     List<Row> tables = sql("SHOW TABLES");
-    Assert.assertEquals("Only 1 table", 1, tables.size());
-    Assert.assertEquals("Table name should match", "tl", tables.get(0).getField(0));
+    Assertions.assertThat(tables.size()).as("Only 1 table").isEqualTo(1);
+    Assertions.assertThat("tl").as("Table name should match").isEqualTo(tables.get(0).getField(0));
   }
 
-  @Test
+  @TestTemplate
   public void testListNamespace() {
-    Assert.assertFalse(
-        "Namespace should not already exist",
-        validationNamespaceCatalog.namespaceExists(icebergNamespace));
+    Assertions.assertThat(validationNamespaceCatalog.namespaceExists(icebergNamespace))
+        .as("Namespace should not already exist")
+        .isFalse();
 
     sql("CREATE DATABASE %s", flinkDatabase);
     sql("USE CATALOG %s", catalogName);
 
-    Assert.assertTrue(
-        "Namespace should exist", validationNamespaceCatalog.namespaceExists(icebergNamespace));
+    Assertions.assertThat(validationNamespaceCatalog.namespaceExists(icebergNamespace))
+        .as("Namespace should exist")
+        .isTrue();
 
     List<Row> databases = sql("SHOW DATABASES");
 
     if (isHadoopCatalog) {
-      Assert.assertEquals("Should have 1 database", 1, databases.size());
-      Assert.assertEquals("Should have db database", "db", databases.get(0).getField(0));
-
+      Assertions.assertThat(databases.size()).as("Should have 1 database").isEqualTo(1);
+      Assertions.assertThat(databases.get(0).getField(0))
+          .as("Should have db database")
+          .isEqualTo("db");
       if (!baseNamespace.isEmpty()) {
         // test namespace not belongs to this catalog
         validationNamespaceCatalog.createNamespace(
             Namespace.of(baseNamespace.level(0), "UNKNOWN_NAMESPACE"));
         databases = sql("SHOW DATABASES");
-        Assert.assertEquals("Should have 1 database", 1, databases.size());
-        Assert.assertEquals(
-            "Should have db and default database", "db", databases.get(0).getField(0));
+        Assertions.assertThat(databases.size()).as("Should have 1 database").isEqualTo(1);
+        Assertions.assertThat(databases.get(0).getField(0))
+            .as("Should have db database")
+            .isEqualTo("db");
       }
     } else {
       // If there are multiple classes extends FlinkTestBase, TestHiveMetastore may loose the
       // creation for default
       // database. See HiveMetaStore.HMSHandler.init.
-      Assert.assertTrue(
-          "Should have db database",
-          databases.stream().anyMatch(d -> Objects.equals(d.getField(0), "db")));
+      Assertions.assertThat(databases.stream().anyMatch(d -> Objects.equals(d.getField(0), "db")))
+          .as("Should have db database")
+          .isTrue();
     }
   }
 
-  @Test
+  @TestTemplate
   public void testCreateNamespaceWithMetadata() {
-    Assume.assumeFalse("HadoopCatalog does not support namespace metadata", isHadoopCatalog);
-
-    Assert.assertFalse(
-        "Namespace should not already exist",
-        validationNamespaceCatalog.namespaceExists(icebergNamespace));
+    Assumptions.assumeFalse(isHadoopCatalog, "HadoopCatalog does not support namespace metadata");
+    Assertions.assertThat(validationNamespaceCatalog.namespaceExists(icebergNamespace))
+        .as("Namespace should not already exist")
+        .isFalse();
 
     sql("CREATE DATABASE %s WITH ('prop'='value')", flinkDatabase);
 
-    Assert.assertTrue(
-        "Namespace should exist", validationNamespaceCatalog.namespaceExists(icebergNamespace));
+    Assertions.assertThat(validationNamespaceCatalog.namespaceExists(icebergNamespace))
+        .as("Namespace should exist")
+        .isTrue();
 
     Map<String, String> nsMetadata =
         validationNamespaceCatalog.loadNamespaceMetadata(icebergNamespace);
-
-    Assert.assertEquals(
-        "Namespace should have expected prop value", "value", nsMetadata.get("prop"));
+    Assertions.assertThat(nsMetadata.get("prop"))
+        .as("Namespace should have expected prop value")
+        .isEqualTo("value");
   }
 
-  @Test
+  @TestTemplate
   public void testCreateNamespaceWithComment() {
-    Assume.assumeFalse("HadoopCatalog does not support namespace metadata", isHadoopCatalog);
-
-    Assert.assertFalse(
-        "Namespace should not already exist",
-        validationNamespaceCatalog.namespaceExists(icebergNamespace));
+    Assumptions.assumeFalse(isHadoopCatalog, "HadoopCatalog does not support namespace metadata");
+    Assertions.assertThat(validationNamespaceCatalog.namespaceExists(icebergNamespace))
+        .as("Namespace should not already exist")
+        .isFalse();
 
     sql("CREATE DATABASE %s COMMENT 'namespace doc'", flinkDatabase);
-
-    Assert.assertTrue(
-        "Namespace should exist", validationNamespaceCatalog.namespaceExists(icebergNamespace));
+    Assertions.assertThat(validationNamespaceCatalog.namespaceExists(icebergNamespace))
+        .as("Namespace should exist")
+        .isTrue();
 
     Map<String, String> nsMetadata =
         validationNamespaceCatalog.loadNamespaceMetadata(icebergNamespace);
 
-    Assert.assertEquals(
-        "Namespace should have expected comment", "namespace doc", nsMetadata.get("comment"));
+    Assertions.assertThat(nsMetadata.get("comment"))
+        .as("Namespace should have expected comment")
+        .isEqualTo("namespace doc");
   }
 
-  @Test
+  @TestTemplate
   public void testCreateNamespaceWithLocation() throws Exception {
-    Assume.assumeFalse("HadoopCatalog does not support namespace metadata", isHadoopCatalog);
+    Assumptions.assumeFalse(isHadoopCatalog, "HadoopCatalog does not support namespace metadata");
 
-    Assert.assertFalse(
-        "Namespace should not already exist",
-        validationNamespaceCatalog.namespaceExists(icebergNamespace));
+    Assertions.assertThat(validationNamespaceCatalog.namespaceExists(icebergNamespace))
+        .as("Namespace should not already exist")
+        .isFalse();
 
-    File location = TEMPORARY_FOLDER.newFile();
-    Assert.assertTrue(location.delete());
+    Path location = temporaryDirectory.getRoot();
 
     sql("CREATE DATABASE %s WITH ('location'='%s')", flinkDatabase, location);
 
-    Assert.assertTrue(
-        "Namespace should exist", validationNamespaceCatalog.namespaceExists(icebergNamespace));
+    Assertions.assertThat(validationNamespaceCatalog.namespaceExists(icebergNamespace))
+        .as("Namespace should exist")
+        .isTrue();
 
     Map<String, String> nsMetadata =
         validationNamespaceCatalog.loadNamespaceMetadata(icebergNamespace);
 
-    Assert.assertEquals(
-        "Namespace should have expected location",
-        "file:" + location.getPath(),
-        nsMetadata.get("location"));
+    Assertions.assertThat(nsMetadata.get("location"))
+        .as("Namespace should have expected location")
+        .isEqualTo("file:" + location.getRoot());
   }
 
-  @Test
+  @TestTemplate
   public void testSetProperties() {
-    Assume.assumeFalse("HadoopCatalog does not support namespace metadata", isHadoopCatalog);
+    // Assume.assumeFalse("HadoopCatalog does not support namespace metadata", isHadoopCatalog);
+    Assumptions.assumeFalse(isHadoopCatalog, "HadoopCatalog does not support namespace metadata");
 
-    Assert.assertFalse(
-        "Namespace should not already exist",
-        validationNamespaceCatalog.namespaceExists(icebergNamespace));
+    //      Assert.assertFalse(
+    //          "Namespace should not already exist",
+    //          validationNamespaceCatalog.namespaceExists(icebergNamespace));
+
+    Assertions.assertThat(validationNamespaceCatalog.namespaceExists(icebergNamespace))
+        .as("Namespace should not already exist")
+        .isFalse();
 
     sql("CREATE DATABASE %s", flinkDatabase);
 
-    Assert.assertTrue(
-        "Namespace should exist", validationNamespaceCatalog.namespaceExists(icebergNamespace));
+    //      Assert.assertTrue(
+    //          "Namespace should exist",
+    // validationNamespaceCatalog.namespaceExists(icebergNamespace));
+
+    Assertions.assertThat(validationNamespaceCatalog.namespaceExists(icebergNamespace))
+        .as("Namespace should exist")
+        .isTrue();
 
     Map<String, String> defaultMetadata =
         validationNamespaceCatalog.loadNamespaceMetadata(icebergNamespace);
-    Assert.assertFalse(
-        "Default metadata should not have custom property", defaultMetadata.containsKey("prop"));
+
+    //      Assert.assertFalse(
+    //          "Default metadata should not have custom property",
+    //   defaultMetadata.containsKey("prop"));
+
+    Assertions.assertThat(defaultMetadata.containsKey("prop"))
+        .as("Default metadata should not have custom property")
+        .isFalse();
 
     sql("ALTER DATABASE %s SET ('prop'='value')", flinkDatabase);
 
     Map<String, String> nsMetadata =
         validationNamespaceCatalog.loadNamespaceMetadata(icebergNamespace);
 
-    Assert.assertEquals(
-        "Namespace should have expected prop value", "value", nsMetadata.get("prop"));
+    //      Assert.assertEquals(
+    //          "Namespace should have expected prop value", "value", nsMetadata.get("prop"));
+
+    Assertions.assertThat(nsMetadata.get("prop"))
+        .as("Namespace should have expected prop value")
+        .isEqualTo("value");
   }
 
-  @Test
+  @TestTemplate
   public void testHadoopNotSupportMeta() {
-    Assume.assumeTrue("HadoopCatalog does not support namespace metadata", isHadoopCatalog);
 
-    Assert.assertFalse(
-        "Namespace should not already exist",
-        validationNamespaceCatalog.namespaceExists(icebergNamespace));
+    Assumptions.assumeTrue(isHadoopCatalog, "HadoopCatalog does not support namespace metadata");
+    Assertions.assertThat(isHadoopCatalog)
+        .as("HadoopCatalog does not support namespace metadata")
+        .isTrue();
+
+    Assertions.assertThat(validationNamespaceCatalog.namespaceExists(icebergNamespace))
+        .as("Namespace should not already exist")
+        .isFalse();
 
     Assertions.assertThatThrownBy(
             () -> sql("CREATE DATABASE %s WITH ('prop'='value')", flinkDatabase))

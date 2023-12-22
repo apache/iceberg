@@ -41,7 +41,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
 @ExtendWith(ParameterizedTestExtension.class)
-public abstract class FlinkCatalogTestBaseJU5 extends TestBase {
+public abstract class CatalogTestBase extends TestBase {
 
   protected static final String DATABASE = "db";
   @TempDir protected File hiveWarehouse;
