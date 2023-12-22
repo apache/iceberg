@@ -25,16 +25,12 @@ import java.util.Optional;
 import org.apache.flink.table.api.TableColumn;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.types.Row;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public abstract class TestFlinkSource extends TestFlinkScan {
-  TestFlinkSource(FileFormat fileFormat) {
-    super(fileFormat);
-  }
 
   @Override
   protected List<Row> runWithProjection(String... projected) throws Exception {

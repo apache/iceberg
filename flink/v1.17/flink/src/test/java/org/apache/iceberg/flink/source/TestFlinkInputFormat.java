@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.source;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -33,7 +34,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.data.GenAppenderHelper;
+import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
@@ -41,14 +42,10 @@ import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.TestTemplate;
 
 /** Test {@link FlinkInputFormat}. */
 public class TestFlinkInputFormat extends TestFlinkSource {
-  public TestFlinkInputFormat(FileFormat fileFormat) {
-    super(fileFormat);
-  }
 
   @Override
   protected List<Row> run(
@@ -78,7 +75,7 @@ public class TestFlinkInputFormat extends TestFlinkSource {
         catalogExtension.catalog().createTable(TableIdentifier.of("default", "t"), schema);
 
     List<Record> writeRecords = RandomGenericData.generate(schema, 2, 0L);
-    new GenAppenderHelper(table, fileFormat, temporaryDirectory).appendToTable(writeRecords);
+    new GenericAppenderHelper(table, fileFormat, temporaryDirectory).appendToTable(writeRecords);
 
     // Schema: [data, nested[f1, f2, f3], id]
     // Projection: [nested.f2, data]
@@ -118,7 +115,7 @@ public class TestFlinkInputFormat extends TestFlinkSource {
         catalogExtension.catalog().createTable(TableIdentifier.of("default", "t"), writeSchema);
 
     List<Record> writeRecords = RandomGenericData.generate(writeSchema, 2, 0L);
-    new GenAppenderHelper(table, fileFormat, temporaryDirectory).appendToTable(writeRecords);
+    new GenericAppenderHelper(table, fileFormat, temporaryDirectory).appendToTable(writeRecords);
 
     TableSchema projectedSchema =
         TableSchema.builder()
@@ -142,7 +139,7 @@ public class TestFlinkInputFormat extends TestFlinkSource {
 
   @TestTemplate
   public void testReadPartitionColumn() throws Exception {
-    Assumptions.assumeTrue(FileFormat.ORC != fileFormat, "Temporary skip ORC");
+    assumeThat(fileFormat).as("Temporary skip ORC").isNotEqualTo(FileFormat.ORC);
 
     Schema nestedSchema =
         new Schema(
@@ -159,7 +156,8 @@ public class TestFlinkInputFormat extends TestFlinkSource {
     Table table =
         catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, nestedSchema, spec);
     List<Record> records = RandomGenericData.generate(nestedSchema, 10, 0L);
-    GenAppenderHelper appender = new GenAppenderHelper(table, fileFormat, temporaryDirectory);
+    GenericAppenderHelper appender =
+        new GenericAppenderHelper(table, fileFormat, temporaryDirectory);
     for (Record record : records) {
       org.apache.iceberg.TestHelpers.Row partition =
           org.apache.iceberg.TestHelpers.Row.of(record.get(1, Record.class).get(1));
