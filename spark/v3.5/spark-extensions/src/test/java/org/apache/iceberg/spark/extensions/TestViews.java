@@ -328,6 +328,8 @@ public class TestViews extends SparkExtensionsTestBase {
 
     sql("CREATE TEMPORARY VIEW %s AS SELECT id FROM %s WHERE id <= 5", tempView, tableName);
 
+    // if the view had been created via SQL, then it wouldn't be possible to reference a TEMP VIEW
+    // but this can't be prevented here, because we're using the API directly
     viewCatalog
         .buildView(TableIdentifier.of(NAMESPACE, viewReferencingTempView))
         .withQuery("spark", String.format("SELECT id FROM %s", tempView))
@@ -343,9 +345,12 @@ public class TestViews extends SparkExtensionsTestBase {
         .hasSize(5)
         .containsExactlyInAnyOrderElementsOf(expected);
 
-    assertThat(sql("SELECT * FROM %s", viewReferencingTempView))
-        .hasSize(5)
-        .containsExactlyInAnyOrderElementsOf(expected);
+    // reading from a view that references a TEMP VIEW shouldn't be possible
+    assertThatThrownBy(() -> sql("SELECT * FROM %s", viewReferencingTempView))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("The table or view")
+        .hasMessageContaining(tempView)
+        .hasMessageContaining("cannot be found");
   }
 
   @Test

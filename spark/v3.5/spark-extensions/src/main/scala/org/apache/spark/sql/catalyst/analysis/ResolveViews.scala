@@ -49,12 +49,6 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
       loadView(catalog, ident)
         .map(createViewRelation(parts.quoted, _))
         .getOrElse(u)
-
-    case p@SubqueryAlias(ident, view: IcebergView) if !p.child.resolved =>
-      p.copy(child = qualifyTableIdentifiers(p.child, ident.qualifier))
-
-    case p@SubqueryAlias(_, view: IcebergView) =>
-      p.copy(child = view)
   }
 
   def loadView(catalog: CatalogPlugin, ident: Identifier): Option[View] = catalog match {
@@ -107,9 +101,5 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
       case u@UnresolvedRelation(parts, _, _)
         if !SparkSession.active.sessionState.catalogManager.isCatalogRegistered(parts.head) =>
         u.copy(multipartIdentifier = catalogAndNamespace.head +: parts)
-      case u@UnresolvedRelation(parts, _, _)
-        if catalogManager.v1SessionCatalog.isTempView(Seq(parts.asIdentifier.name())) =>
-        catalogManager.v1SessionCatalog.getRawLocalOrGlobalTempView(Seq(parts.asIdentifier.name()))
-          .map(v => catalogManager.v1SessionCatalog.getTempViewRelation(v)).getOrElse(u)
     }
 }
