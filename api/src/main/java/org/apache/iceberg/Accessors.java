@@ -51,6 +51,10 @@ public class Accessors {
     throw new IllegalArgumentException("Cannot convert nested accessor to position");
   }
 
+  public static Map<Integer, Accessor<StructLike>> forStruct(Types.StructType struct) {
+    return TypeUtil.visit(struct, new BuildPositionAccessors());
+  }
+
   static Map<Integer, Accessor<StructLike>> forSchema(Schema schema) {
     return TypeUtil.visit(schema, new BuildPositionAccessors());
   }

@@ -26,6 +26,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.apache.iceberg.Accessor;
+import org.apache.iceberg.Accessors;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -541,6 +544,7 @@ public class Types {
     private transient Map<String, NestedField> fieldsByName = null;
     private transient Map<String, NestedField> fieldsByLowerCaseName = null;
     private transient Map<Integer, NestedField> fieldsById = null;
+    private transient Map<Integer, Accessor<StructLike>> idToAccessor = null;
 
     private StructType(List<NestedField> fields) {
       Preconditions.checkNotNull(fields, "Field list cannot be null");
@@ -548,6 +552,18 @@ public class Types {
       for (int i = 0; i < this.fields.length; i += 1) {
         this.fields[i] = fields.get(i);
       }
+    }
+
+    /**
+     * Returns an accessor for retrieving the data from {@link StructLike}.
+     *
+     * <p>Accessors do not retrieve data contained in lists or maps.
+     *
+     * @param id the field id in this struct
+     * @return an {@link Accessor} to retrieve values from a {@link StructLike} row
+     */
+    public Accessor<StructLike> accessorForField(int id) {
+      return lazyIdToAccessor().get(id);
     }
 
     @Override
@@ -614,6 +630,14 @@ public class Types {
       return Objects.hash(NestedField.class, Arrays.hashCode(fields));
     }
 
+    private Map<Integer, Accessor<StructLike>> lazyIdToAccessor() {
+      if (idToAccessor == null) {
+        idToAccessor = Accessors.forStruct(this);
+      }
+
+      return idToAccessor;
+    }
+
     private List<NestedField> lazyFieldList() {
       if (fieldList == null) {
         this.fieldList = ImmutableList.copyOf(fields);
@@ -623,9 +647,10 @@ public class Types {
 
     private Map<String, NestedField> lazyFieldsByName() {
       if (fieldsByName == null) {
+        Map<String, Integer> nameToId = TypeUtil.indexByName(this);
         ImmutableMap.Builder<String, NestedField> byNameBuilder = ImmutableMap.builder();
-        for (NestedField field : fields) {
-          byNameBuilder.put(field.name(), field);
+        for (Map.Entry<String, Integer> entry : nameToId.entrySet()) {
+          byNameBuilder.put(entry.getKey(), field(entry.getValue()));
         }
         fieldsByName = byNameBuilder.build();
       }
@@ -634,9 +659,10 @@ public class Types {
 
     private Map<String, NestedField> lazyFieldsByLowerCaseName() {
       if (fieldsByLowerCaseName == null) {
+        Map<String, Integer> nameToId = TypeUtil.indexByLowerCaseName(this);
         ImmutableMap.Builder<String, NestedField> byLowerCaseNameBuilder = ImmutableMap.builder();
-        for (NestedField field : fields) {
-          byLowerCaseNameBuilder.put(field.name().toLowerCase(Locale.ROOT), field);
+        for (Map.Entry<String, Integer> entry : nameToId.entrySet()) {
+          byLowerCaseNameBuilder.put(entry.getKey(), field(entry.getValue()));
         }
         fieldsByLowerCaseName = byLowerCaseNameBuilder.build();
       }
@@ -645,11 +671,7 @@ public class Types {
 
     private Map<Integer, NestedField> lazyFieldsById() {
       if (fieldsById == null) {
-        ImmutableMap.Builder<Integer, NestedField> byIdBuilder = ImmutableMap.builder();
-        for (NestedField field : fields) {
-          byIdBuilder.put(field.fieldId(), field);
-        }
-        this.fieldsById = byIdBuilder.build();
+        this.fieldsById = ImmutableMap.copyOf(TypeUtil.indexById(this));
       }
       return fieldsById;
     }
