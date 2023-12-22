@@ -67,7 +67,6 @@ import org.apache.iceberg.spark.source.StagedSparkTable;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
-import org.apache.iceberg.view.UpdateViewProperties;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NamespaceAlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
@@ -826,13 +825,8 @@ public class SparkCatalog extends BaseCatalog
 
   @Override
   public Identifier[] listViews(String... namespace) {
-    if (null != asViewCatalog) {
-      return asViewCatalog.listViews(Namespace.of(namespace)).stream()
-          .map(ident -> Identifier.of(ident.namespace().levels(), ident.name()))
-          .toArray(Identifier[]::new);
-    }
-
-    return new Identifier[0];
+    throw new UnsupportedOperationException(
+        "Listing views is not supported by catalog: " + catalogName);
   }
 
   @Override
@@ -861,85 +855,27 @@ public class SparkCatalog extends BaseCatalog
       String[] columnComments,
       Map<String, String> properties)
       throws ViewAlreadyExistsException, NoSuchNamespaceException {
-    if (null != asViewCatalog) {
-      Schema icebergSchema = SparkSchemaUtil.convert(schema);
-
-      try {
-        org.apache.iceberg.view.View view =
-            asViewCatalog
-                .buildView(buildIdentifier(ident))
-                .withDefaultCatalog(currentCatalog)
-                .withDefaultNamespace(Namespace.of(currentNamespace))
-                .withQuery("spark", sql)
-                .withSchema(icebergSchema)
-                .withLocation(properties.get("location"))
-                .withProperties(Spark3Util.rebuildCreateProperties(properties))
-                .create();
-        return new SparkView(catalogName, view);
-      } catch (org.apache.iceberg.exceptions.NoSuchNamespaceException e) {
-        throw new NoSuchNamespaceException(currentNamespace);
-      } catch (AlreadyExistsException e) {
-        throw new ViewAlreadyExistsException(ident);
-      }
-    }
-
     throw new UnsupportedOperationException(
-        "Creating view is not supported by catalog: " + catalogName);
+        "Creating a view is not supported by catalog: " + catalogName);
   }
 
   @Override
   public View alterView(Identifier ident, ViewChange... changes)
       throws NoSuchViewException, IllegalArgumentException {
-    if (null != asViewCatalog) {
-      try {
-        org.apache.iceberg.view.View view = asViewCatalog.loadView(buildIdentifier(ident));
-        UpdateViewProperties updateViewProperties = view.updateProperties();
-
-        for (ViewChange change : changes) {
-          if (change instanceof ViewChange.SetProperty) {
-            ViewChange.SetProperty property = (ViewChange.SetProperty) change;
-            updateViewProperties.set(property.property(), property.value());
-          } else if (change instanceof ViewChange.RemoveProperty) {
-            ViewChange.RemoveProperty remove = (ViewChange.RemoveProperty) change;
-            updateViewProperties.remove(remove.property());
-          }
-        }
-
-        updateViewProperties.commit();
-
-        return new SparkView(catalogName, view);
-      } catch (org.apache.iceberg.exceptions.NoSuchViewException e) {
-        throw new NoSuchViewException(ident);
-      }
-    }
-
     throw new UnsupportedOperationException(
-        "Altering view is not supported by catalog: " + catalogName);
+        "Altering a view is not supported by catalog: " + catalogName);
   }
 
   @Override
   public boolean dropView(Identifier ident) {
-    if (null != asViewCatalog) {
-      return asViewCatalog.dropView(buildIdentifier(ident));
-    }
-
-    return false;
+    throw new UnsupportedOperationException(
+        "Dropping a view is not supported by catalog: " + catalogName);
   }
 
   @Override
   public void renameView(Identifier fromIdentifier, Identifier toIdentifier)
       throws NoSuchViewException, ViewAlreadyExistsException {
-    if (null != asViewCatalog) {
-      try {
-        asViewCatalog.renameView(buildIdentifier(fromIdentifier), buildIdentifier(toIdentifier));
-      } catch (org.apache.iceberg.exceptions.NoSuchViewException e) {
-        throw new NoSuchViewException(fromIdentifier);
-      } catch (org.apache.iceberg.exceptions.AlreadyExistsException e) {
-        throw new ViewAlreadyExistsException(toIdentifier);
-      }
-    } else {
-      throw new UnsupportedOperationException(
-          "Renaming view is not supported by catalog: " + catalogName);
-    }
+    throw new UnsupportedOperationException(
+        "Renaming a view is not supported by catalog: " + catalogName);
   }
 }
