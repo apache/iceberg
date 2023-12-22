@@ -31,6 +31,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Supplier;
 import org.apache.avro.Schema;
@@ -44,6 +45,7 @@ import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.UUIDUtil;
 
 public class ValueReaders {
@@ -51,6 +53,14 @@ public class ValueReaders {
 
   public static ValueReader<Object> nulls() {
     return NullReader.INSTANCE;
+  }
+
+  public static <T> ValueReader<T> constant(T value) {
+    return new ConstantReader<>(value);
+  }
+
+  public static <T> ValueReader<T> replaceWithConstant(ValueReader<?> reader, T value) {
+    return new ReplaceWithConstantReader<>(reader, value);
   }
 
   public static ValueReader<Boolean> booleans() {
@@ -61,12 +71,20 @@ public class ValueReaders {
     return IntegerReader.INSTANCE;
   }
 
+  public static ValueReader<Long> intsAsLongs() {
+    return IntegerAsLongReader.INSTANCE;
+  }
+
   public static ValueReader<Long> longs() {
     return LongReader.INSTANCE;
   }
 
   public static ValueReader<Float> floats() {
     return FloatReader.INSTANCE;
+  }
+
+  public static ValueReader<Double> floatsAsDoubles() {
+    return FloatAsDoubleReader.INSTANCE;
   }
 
   public static ValueReader<Double> doubles() {
@@ -125,6 +143,14 @@ public class ValueReaders {
     return new UnionReader(readers);
   }
 
+  public static ValueReader<Object> optionalAsRequired(List<ValueReader<?>> readers, String name) {
+    return new RequiredOptionReader(name, readers);
+  }
+
+  public static ValueReader<Long> positions() {
+    return new PositionReader();
+  }
+
   public static <T> ValueReader<Collection<T>> array(ValueReader<T> elementReader) {
     return new ArrayReader<>(elementReader);
   }
@@ -149,6 +175,16 @@ public class ValueReaders {
     return new IndexedRecordReader<>(readers, recordClass, recordSchema);
   }
 
+  public static ValueReader<?> record(
+      Schema recordSchema, List<Pair<Integer, ValueReader<?>>> readPlan) {
+    return new PlannedRecordReader(recordSchema, readPlan);
+  }
+
+  public static <R extends IndexedRecord> ValueReader<R> record(
+      Schema recordSchema, Class<R> recordClass, List<Pair<Integer, ValueReader<?>>> readPlan) {
+    return new PlannedIndexedReader<>(recordSchema, recordClass, readPlan);
+  }
+
   private static class NullReader implements ValueReader<Object> {
     private static final NullReader INSTANCE = new NullReader();
 
@@ -158,6 +194,34 @@ public class ValueReaders {
     public Object read(Decoder decoder, Object ignored) throws IOException {
       decoder.readNull();
       return null;
+    }
+  }
+
+  private static class ConstantReader<T> implements ValueReader<T> {
+    private final T constant;
+
+    private ConstantReader(T constant) {
+      this.constant = constant;
+    }
+
+    @Override
+    public T read(Decoder decoder, Object reuse) throws IOException {
+      return constant;
+    }
+  }
+
+  private static class ReplaceWithConstantReader<T> extends ConstantReader<T> {
+    private final ValueReader<?> replaced;
+
+    private ReplaceWithConstantReader(ValueReader<?> replaced, T constant) {
+      super(constant);
+      this.replaced = replaced;
+    }
+
+    @Override
+    public T read(Decoder decoder, Object reuse) throws IOException {
+      replaced.read(decoder, reuse);
+      return super.read(decoder, reuse);
     }
   }
 
@@ -183,6 +247,17 @@ public class ValueReaders {
     }
   }
 
+  private static class IntegerAsLongReader implements ValueReader<Long> {
+    private static final IntegerAsLongReader INSTANCE = new IntegerAsLongReader();
+
+    private IntegerAsLongReader() {}
+
+    @Override
+    public Long read(Decoder decoder, Object ignored) throws IOException {
+      return (long) decoder.readInt();
+    }
+  }
+
   private static class LongReader implements ValueReader<Long> {
     private static final LongReader INSTANCE = new LongReader();
 
@@ -202,6 +277,17 @@ public class ValueReaders {
     @Override
     public Float read(Decoder decoder, Object ignored) throws IOException {
       return decoder.readFloat();
+    }
+  }
+
+  private static class FloatAsDoubleReader implements ValueReader<Double> {
+    private static final FloatAsDoubleReader INSTANCE = new FloatAsDoubleReader();
+
+    private FloatAsDoubleReader() {}
+
+    @Override
+    public Double read(Decoder decoder, Object ignored) throws IOException {
+      return (double) decoder.readFloat();
     }
   }
 
@@ -380,6 +466,34 @@ public class ValueReaders {
       // there isn't a way to get the backing buffer out of a BigInteger, so this can't reuse.
       byte[] bytes = bytesReader.read(decoder, null);
       return new BigDecimal(new BigInteger(bytes), scale);
+    }
+  }
+
+  private static class RequiredOptionReader implements ValueReader<Object> {
+    private final String name;
+    private final ValueReader<?>[] readers;
+
+    private RequiredOptionReader(String name, List<ValueReader<?>> readers) {
+      this.name = name;
+      this.readers = new ValueReader[readers.size()];
+      for (int i = 0; i < this.readers.length; i += 1) {
+        this.readers[i] = readers.get(i);
+      }
+    }
+
+    @Override
+    public Object read(Decoder decoder, Object reuse) throws IOException {
+      int index = decoder.readIndex();
+      return checkNonNull(readers[index].read(decoder, reuse));
+    }
+
+    private Object checkNonNull(Object value) {
+      if (null == value) {
+        throw new NullPointerException(
+            String.format("Read a null value in required field: %s", name));
+      }
+
+      return value;
     }
   }
 
@@ -564,6 +678,114 @@ public class ValueReaders {
     }
   }
 
+  public abstract static class PlannedStructReader<S>
+      implements ValueReader<S>, SupportsRowPosition {
+    private final ValueReader<?>[] readers;
+    private final Integer[] positions;
+
+    protected PlannedStructReader(List<Pair<Integer, ValueReader<?>>> readPlan) {
+      this.readers = readPlan.stream().map(Pair::second).toArray(ValueReader[]::new);
+      this.positions = readPlan.stream().map(Pair::first).toArray(Integer[]::new);
+    }
+
+    @Override
+    public void setRowPositionSupplier(Supplier<Long> posSupplier) {
+      for (ValueReader<?> reader : readers) {
+        if (reader instanceof SupportsRowPosition) {
+          ((SupportsRowPosition) reader).setRowPositionSupplier(posSupplier);
+        }
+      }
+    }
+
+    protected abstract S reuseOrCreate(Object reuse);
+
+    protected abstract Object get(S struct, int pos);
+
+    protected abstract void set(S struct, int pos, Object value);
+
+    @Override
+    public S read(Decoder decoder, Object reuse) throws IOException {
+      S struct = reuseOrCreate(reuse);
+
+      for (int i = 0; i < readers.length; i += 1) {
+        if (positions[i] != null) {
+          Object reusedValue = get(struct, positions[i]);
+          set(struct, positions[i], readers[i].read(decoder, reusedValue));
+        } else {
+          // if pos is null, the value is not projected
+          readers[i].skip(decoder);
+        }
+      }
+
+      return struct;
+    }
+  }
+
+  private static class PlannedRecordReader extends PlannedStructReader<GenericData.Record> {
+    private final Schema recordSchema;
+
+    private PlannedRecordReader(
+        Schema recordSchema, List<Pair<Integer, ValueReader<?>>> readPlan) {
+      super(readPlan);
+      this.recordSchema = recordSchema;
+    }
+
+    @Override
+    protected GenericData.Record reuseOrCreate(Object reuse) {
+      if (reuse instanceof GenericData.Record) {
+        return (GenericData.Record) reuse;
+      } else {
+        return new GenericData.Record(recordSchema);
+      }
+    }
+
+    @Override
+    protected Object get(GenericData.Record struct, int pos) {
+      return struct.get(pos);
+    }
+
+    @Override
+    protected void set(GenericData.Record struct, int pos, Object value) {
+      struct.put(pos, value);
+    }
+  }
+
+  private static class PlannedIndexedReader<R extends IndexedRecord> extends PlannedStructReader<R> {
+    private final Class<R> recordClass;
+    private final DynConstructors.Ctor<R> ctor;
+    private final Schema schema;
+
+    PlannedIndexedReader(Schema recordSchema, Class<R> recordClass, List<Pair<Integer, ValueReader<?>>> readPlan) {
+      super(readPlan);
+      this.recordClass = recordClass;
+      this.ctor =
+          DynConstructors.builder(IndexedRecord.class)
+              .hiddenImpl(recordClass, Schema.class)
+              .hiddenImpl(recordClass)
+              .build();
+      this.schema = recordSchema;
+    }
+
+    @Override
+    protected R reuseOrCreate(Object reuse) {
+      if (recordClass.isInstance(reuse)) {
+        return recordClass.cast(reuse);
+      } else {
+        return ctor.newInstance(schema);
+      }
+    }
+
+    @Override
+    protected Object get(R struct, int pos) {
+      return struct.get(pos);
+    }
+
+    @Override
+    protected void set(R struct, int pos, Object value) {
+      struct.put(pos, value);
+    }
+  }
+
   public abstract static class StructReader<S> implements ValueReader<S>, SupportsRowPosition {
     private final ValueReader<?>[] readers;
     private final int[] positions;
@@ -577,10 +799,10 @@ public class ValueReaders {
       List<Schema.Field> fields = schema.getFields();
       for (int pos = 0; pos < fields.size(); pos += 1) {
         Schema.Field field = fields.get(pos);
-        if (AvroSchemaUtil.getFieldId(field) == MetadataColumns.ROW_POSITION.fieldId()) {
+        if (Objects.equals(AvroSchemaUtil.fieldId(field), MetadataColumns.ROW_POSITION.fieldId())) {
           // track where the _pos field is located for setRowPositionSupplier
           this.posField = pos;
-        } else if (AvroSchemaUtil.getFieldId(field) == MetadataColumns.IS_DELETED.fieldId()) {
+        } else if (Objects.equals(AvroSchemaUtil.fieldId(field), MetadataColumns.IS_DELETED.fieldId())) {
           isDeletedColumnPos = pos;
         }
       }
@@ -622,19 +844,12 @@ public class ValueReaders {
     @Override
     public void setRowPositionSupplier(Supplier<Long> posSupplier) {
       if (posField >= 0) {
-        long startingPos = posSupplier.get();
-        this.readers[posField] = new PositionReader(startingPos);
-        for (ValueReader<?> reader : readers) {
-          if (reader instanceof SupportsRowPosition) {
-            ((SupportsRowPosition) reader).setRowPositionSupplier(() -> startingPos);
-          }
-        }
+        this.readers[posField] = new PositionReader();
+      }
 
-      } else {
-        for (ValueReader<?> reader : readers) {
-          if (reader instanceof SupportsRowPosition) {
-            ((SupportsRowPosition) reader).setRowPositionSupplier(posSupplier);
-          }
+      for (ValueReader<?> reader : readers) {
+        if (reader instanceof SupportsRowPosition) {
+          ((SupportsRowPosition) reader).setRowPositionSupplier(posSupplier);
         }
       }
     }
@@ -739,17 +954,18 @@ public class ValueReaders {
     }
   }
 
-  static class PositionReader implements ValueReader<Long> {
-    private long currentPosition;
-
-    PositionReader(long rowPosition) {
-      this.currentPosition = rowPosition - 1;
-    }
+  static class PositionReader implements ValueReader<Long>, SupportsRowPosition {
+    private long currentPosition = 0;
 
     @Override
     public Long read(Decoder ignored, Object reuse) throws IOException {
-      currentPosition += 1;
+      this.currentPosition += 1;
       return currentPosition;
+    }
+
+    @Override
+    public void setRowPositionSupplier(Supplier<Long> posSupplier) {
+      this.currentPosition = posSupplier.get() - 1;
     }
   }
 }

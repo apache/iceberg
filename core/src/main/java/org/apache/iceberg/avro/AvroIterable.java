@@ -31,6 +31,7 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.base.Suppliers;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class AvroIterable<D> extends CloseableGroup implements CloseableIterable<D> {
@@ -78,7 +79,7 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
     if (start != null) {
       if (reader instanceof SupportsRowPosition) {
         ((SupportsRowPosition) reader)
-            .setRowPositionSupplier(() -> AvroIO.findStartingRowPos(file::newStream, start));
+            .setRowPositionSupplier(Suppliers.memoize(() -> AvroIO.findStartingRowPos(file::newStream, start)));
       }
       fileReader = new AvroRangeIterator<>(fileReader, start, end);
     } else if (reader instanceof SupportsRowPosition) {
