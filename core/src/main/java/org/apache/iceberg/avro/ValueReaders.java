@@ -724,8 +724,7 @@ public class ValueReaders {
   private static class PlannedRecordReader extends PlannedStructReader<GenericData.Record> {
     private final Schema recordSchema;
 
-    private PlannedRecordReader(
-        Schema recordSchema, List<Pair<Integer, ValueReader<?>>> readPlan) {
+    private PlannedRecordReader(Schema recordSchema, List<Pair<Integer, ValueReader<?>>> readPlan) {
       super(readPlan);
       this.recordSchema = recordSchema;
     }
@@ -750,12 +749,14 @@ public class ValueReaders {
     }
   }
 
-  private static class PlannedIndexedReader<R extends IndexedRecord> extends PlannedStructReader<R> {
+  private static class PlannedIndexedReader<R extends IndexedRecord>
+      extends PlannedStructReader<R> {
     private final Class<R> recordClass;
     private final DynConstructors.Ctor<R> ctor;
     private final Schema schema;
 
-    PlannedIndexedReader(Schema recordSchema, Class<R> recordClass, List<Pair<Integer, ValueReader<?>>> readPlan) {
+    PlannedIndexedReader(
+        Schema recordSchema, Class<R> recordClass, List<Pair<Integer, ValueReader<?>>> readPlan) {
       super(readPlan);
       this.recordClass = recordClass;
       this.ctor =
@@ -802,7 +803,8 @@ public class ValueReaders {
         if (Objects.equals(AvroSchemaUtil.fieldId(field), MetadataColumns.ROW_POSITION.fieldId())) {
           // track where the _pos field is located for setRowPositionSupplier
           this.posField = pos;
-        } else if (Objects.equals(AvroSchemaUtil.fieldId(field), MetadataColumns.IS_DELETED.fieldId())) {
+        } else if (Objects.equals(
+            AvroSchemaUtil.fieldId(field), MetadataColumns.IS_DELETED.fieldId())) {
           isDeletedColumnPos = pos;
         }
       }
