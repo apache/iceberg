@@ -124,8 +124,7 @@ public class GenericAvroReader<T>
 
         Object constant = idToConstant.get(fieldId);
         if (projectionPos != null && constant != null) {
-          readPlan.add(
-              Pair.of(projectionPos, ValueReaders.replaceWithConstant(reader, constant)));
+          readPlan.add(Pair.of(projectionPos, ValueReaders.replaceWithConstant(reader, constant)));
         } else {
           readPlan.add(Pair.of(projectionPos, reader));
         }
