@@ -205,6 +205,28 @@ public class TestViews extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void readFromViewUsingInvalidSQL() throws NoSuchTableException {
+    insertRows(10);
+    String viewName = "viewWithInvalidSQL";
+
+    ViewCatalog viewCatalog = viewCatalog();
+    Schema schema = tableCatalog().loadTable(TableIdentifier.of(NAMESPACE, tableName)).schema();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("spark", "invalid SQL")
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema)
+        .create();
+
+    assertThatThrownBy(() -> sql("SELECT * FROM %s", viewName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            String.format("The view `%s` cannot be displayed due to invalid view text", viewName));
+  }
+
+  @Test
   public void readFromViewWithStaleSchema() throws NoSuchTableException {
     insertRows(10);
     String viewName = "staleView";
@@ -250,6 +272,7 @@ public class TestViews extends SparkExtensionsTestBase {
     List<Object[]> expected =
         IntStream.rangeClosed(1, 5).mapToObj(this::row).collect(Collectors.toList());
 
+    // returns the results from the TEMP VIEW
     assertThat(sql("SELECT * FROM %s", viewName))
         .hasSize(5)
         .containsExactlyInAnyOrderElementsOf(expected);
@@ -273,6 +296,7 @@ public class TestViews extends SparkExtensionsTestBase {
         .withSchema(schema)
         .create();
 
+    // GLOBAL TEMP VIEWS are stored in a global_temp namespace
     assertThat(sql("SELECT * FROM global_temp.%s", viewName))
         .hasSize(5)
         .containsExactlyInAnyOrderElementsOf(
@@ -328,8 +352,8 @@ public class TestViews extends SparkExtensionsTestBase {
 
     sql("CREATE TEMPORARY VIEW %s AS SELECT id FROM %s WHERE id <= 5", tempView, tableName);
 
-    // if the view had been created via SQL, then it wouldn't be possible to reference a TEMP VIEW
-    // but this can't be prevented here, because we're using the API directly
+    // it wouldn't be possible to reference a TEMP VIEW if the view had been created via SQL,
+    // but this can't be prevented when using the API directly
     viewCatalog
         .buildView(TableIdentifier.of(NAMESPACE, viewReferencingTempView))
         .withQuery("spark", String.format("SELECT id FROM %s", tempView))
@@ -350,6 +374,44 @@ public class TestViews extends SparkExtensionsTestBase {
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("The table or view")
         .hasMessageContaining(tempView)
+        .hasMessageContaining("cannot be found");
+  }
+
+  @Test
+  public void readFromViewReferencingGlobalTempView() throws NoSuchTableException {
+    insertRows(10);
+    String globalTempView = "globalTempViewBeingReferenced";
+    String viewReferencingTempView = "viewReferencingGlobalTempView";
+
+    ViewCatalog viewCatalog = viewCatalog();
+    Schema schema = tableCatalog().loadTable(TableIdentifier.of(NAMESPACE, tableName)).schema();
+
+    sql(
+        "CREATE GLOBAL TEMPORARY VIEW %s AS SELECT id FROM %s WHERE id <= 5",
+        globalTempView, tableName);
+
+    // it wouldn't be possible to reference a GLOBAL TEMP VIEW if the view had been created via SQL,
+    // but this can't be prevented when using the API directly
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewReferencingTempView))
+        .withQuery("spark", String.format("SELECT id FROM global_temp.%s", globalTempView))
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema)
+        .create();
+
+    List<Object[]> expected =
+        IntStream.rangeClosed(1, 5).mapToObj(this::row).collect(Collectors.toList());
+
+    assertThat(sql("SELECT * FROM global_temp.%s", globalTempView))
+        .hasSize(5)
+        .containsExactlyInAnyOrderElementsOf(expected);
+
+    // reading from a view that references a GLOBAL TEMP VIEW shouldn't be possible
+    assertThatThrownBy(() -> sql("SELECT * FROM %s", viewReferencingTempView))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("The table or view")
+        .hasMessageContaining(globalTempView)
         .hasMessageContaining("cannot be found");
   }
 
