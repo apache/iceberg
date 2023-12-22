@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 /** Represents a mapping from external schema names to Iceberg type IDs. */
 public class NameMapping implements Serializable {
@@ -43,6 +44,7 @@ public class NameMapping implements Serializable {
   private final MappedFields mapping;
   private transient Map<Integer, MappedField> fieldsById;
   private transient Map<String, MappedField> fieldsByName;
+  private transient Map<String, MappedField> fieldsByLowerCaseName;
 
   NameMapping(MappedFields mapping) {
     this.mapping = mapping;
@@ -56,6 +58,14 @@ public class NameMapping implements Serializable {
 
   public MappedField find(String... names) {
     return lazyFieldsByName().get(DOT.join(names));
+  }
+
+  public MappedField find(boolean caseSensitive, String... names) {
+    if (caseSensitive) {
+      return find(names);
+    } else {
+      return lazyFieldsByLowerCaseName().get(DOT.join(names).toLowerCase());
+    }
   }
 
   public MappedField find(List<String> names) {
@@ -78,6 +88,18 @@ public class NameMapping implements Serializable {
       this.fieldsByName = MappingUtil.indexByName(mapping);
     }
     return fieldsByName;
+  }
+
+  private Map<String, MappedField> lazyFieldsByLowerCaseName() {
+    if (fieldsByLowerCaseName == null) {
+      Map<String, MappedField> fields = lazyFieldsByName();
+      ImmutableMap.Builder<String, MappedField> builder = ImmutableMap.builder();
+      for (String fieldName : fields.keySet()) {
+        builder.put(fieldName.toLowerCase(), fields.get(fieldName));
+      }
+      this.fieldsByLowerCaseName = builder.build();
+    }
+    return fieldsByLowerCaseName;
   }
 
   @Override
