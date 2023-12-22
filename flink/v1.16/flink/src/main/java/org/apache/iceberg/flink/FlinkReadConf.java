@@ -77,6 +77,13 @@ public class FlinkReadConf {
         .parse();
   }
 
+  public Boolean exposeLocality() {
+    return confParser
+        .booleanConf()
+        .flinkConfig(FlinkConfigOptions.TABLE_EXEC_ICEBERG_EXPOSE_SPLIT_LOCALITY_INFO)
+        .parseOptional();
+  }
+
   public Long startSnapshotTimestamp() {
     return confParser
         .longConf()

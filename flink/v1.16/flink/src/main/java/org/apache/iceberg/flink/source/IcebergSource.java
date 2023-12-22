@@ -50,7 +50,6 @@ import org.apache.iceberg.flink.FlinkReadOptions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.source.assigner.OrderedSplitAssignerFactory;
-import org.apache.iceberg.flink.source.assigner.SimpleSplitAssignerFactory;
 import org.apache.iceberg.flink.source.assigner.SplitAssigner;
 import org.apache.iceberg.flink.source.assigner.SplitAssignerFactory;
 import org.apache.iceberg.flink.source.enumerator.ContinuousIcebergEnumerator;
@@ -408,7 +407,9 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     }
 
     public Builder<T> exposeLocality(boolean newExposeLocality) {
-      this.exposeLocality = newExposeLocality;
+      readOptions.put(
+          FlinkConfigOptions.TABLE_EXEC_ICEBERG_EXPOSE_SPLIT_LOCALITY_INFO.key(),
+          Boolean.toString(newExposeLocality));
       return this;
     }
 
@@ -524,7 +525,9 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
 
       if (splitAssignerFactory == null) {
         if (splitComparator == null) {
-          splitAssignerFactory = new SimpleSplitAssignerFactory();
+          splitAssignerFactory =
+              SourceUtil.createAssignerFactory(flinkConfig, context.exposeLocality());
+
         } else {
           splitAssignerFactory = new OrderedSplitAssignerFactory(splitComparator);
         }

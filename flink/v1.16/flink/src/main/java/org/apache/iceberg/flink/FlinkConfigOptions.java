@@ -94,7 +94,7 @@ public class FlinkConfigOptions {
   public static final ConfigOption<SplitAssignerType> TABLE_EXEC_SPLIT_ASSIGNER_TYPE =
       ConfigOptions.key("table.exec.iceberg.split-assigner-type")
           .enumType(SplitAssignerType.class)
-          .defaultValue(SplitAssignerType.SIMPLE)
+          .noDefaultValue()
           .withDescription(
               Description.builder()
                   .text("Split assigner type that determine how splits are assigned to readers.")
@@ -102,6 +102,9 @@ public class FlinkConfigOptions {
                   .list(
                       TextElement.text(
                           SplitAssignerType.SIMPLE
-                              + ": simple assigner that doesn't provide any guarantee on order or locality."))
+                              + ": simple assigner that doesn't provide any guarantee on order or locality."),
+                      TextElement.text(
+                          SplitAssignerType.LOCALITY
+                              + ": locality assigner that assign splits with locality affinity preference."))
                   .build());
 }
