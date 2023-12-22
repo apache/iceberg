@@ -53,7 +53,7 @@ public class SparkView implements org.apache.spark.sql.connector.catalog.View {
 
   @Override
   public String name() {
-    return icebergView.toString();
+    return icebergView.name();
   }
 
   @Override
@@ -65,7 +65,7 @@ public class SparkView implements org.apache.spark.sql.connector.catalog.View {
 
   @Override
   public String currentCatalog() {
-    return null != icebergView.currentVersion().defaultCatalog()
+    return icebergView.currentVersion().defaultCatalog() != null
         ? icebergView.currentVersion().defaultCatalog()
         : catalogName;
   }

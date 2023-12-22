@@ -21,7 +21,6 @@ package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.parser.ParseException
-import org.apache.spark.sql.catalyst.plans.logical.IcebergView
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.SubqueryAlias
 import org.apache.spark.sql.catalyst.rules.Rule
@@ -63,21 +62,10 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
 
   private def createViewRelation(name: String, view: V2View): LogicalPlan = {
     val child = parseViewText(name, view.query)
-    val desc = V2ViewDescription(name, view)
-    val qualifiedChild = desc.viewCatalogAndNamespace match {
-      case Seq() =>
-        // Views from Spark 2.2 or prior do not store catalog or namespace,
-        // however its sql text should already be fully qualified.
-        child
-      case catalogAndNamespace =>
-        // Substitute CTEs within the view before qualifying table identifiers
-        qualifyTableIdentifiers(CTESubstitution.apply(child), catalogAndNamespace)
-    }
 
-    // The relation is a view, so we wrap the relation by:
-    // 1. Add a [[View]] operator over the relation to keep track of the view desc;
-    // 2. Wrap the logical plan in a [[SubqueryAlias]] which tracks the name of the view.
-    SubqueryAlias(name, IcebergView(desc, qualifiedChild))
+    val viewCatalogAndNamespace: Seq[String] = view.currentCatalog +: view.currentNamespace.toSeq
+    // Substitute CTEs within the view before qualifying table identifiers
+    SubqueryAlias(name, qualifyTableIdentifiers(CTESubstitution.apply(child), viewCatalogAndNamespace))
   }
 
   private def parseViewText(name: String, viewText: String): LogicalPlan = {
