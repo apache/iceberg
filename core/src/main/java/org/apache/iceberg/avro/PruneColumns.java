@@ -39,10 +39,20 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
   private final Set<Integer> selectedIds;
   private final NameMapping nameMapping;
 
+  private Map<String, Integer> avroSchemaFieldNameToIcebergFieldId;
+
   PruneColumns(Set<Integer> selectedIds, NameMapping nameMapping) {
     Preconditions.checkNotNull(selectedIds, "Selected field ids cannot be null");
     this.selectedIds = selectedIds;
     this.nameMapping = nameMapping;
+  }
+
+  PruneColumns(
+      Set<Integer> selectedIds,
+      NameMapping nameMapping,
+      Map<String, Integer> avroSchemaFieldNameToIcebergFieldId) {
+    this(selectedIds, nameMapping);
+    this.avroSchemaFieldNameToIcebergFieldId = avroSchemaFieldNameToIcebergFieldId;
   }
 
   Schema rootSchema(Schema record) {
@@ -118,27 +128,27 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
 
   @Override
   public Schema union(Schema union, List<Schema> options) {
-    Preconditions.checkState(
-        AvroSchemaUtil.isOptionSchema(union),
-        "Invalid schema: non-option unions are not supported: %s",
-        union);
-
-    // only unions with null are allowed, and a null schema results in null
-    Schema pruned = null;
-    if (options.get(0) != null) {
-      pruned = options.get(0);
-    } else if (options.get(1) != null) {
-      pruned = options.get(1);
-    }
-
-    if (pruned != null) {
-      if (!Objects.equals(pruned, AvroSchemaUtil.fromOption(union))) {
-        return AvroSchemaUtil.toOption(pruned);
+    if (AvroSchemaUtil.isOptionSchema(union)) {
+      // case option union
+      Schema pruned = null;
+      if (options.get(0) != null) {
+        pruned = options.get(0);
+      } else if (options.get(1) != null) {
+        pruned = options.get(1);
       }
-      return union;
-    }
 
-    return null;
+      if (pruned != null) {
+        if (!Objects.equals(pruned, AvroSchemaUtil.fromOption(union))) {
+          return AvroSchemaUtil.toOption(pruned);
+        }
+        return union;
+      }
+
+      return null;
+    } else {
+      // Complex union case
+      return pruneComplexUnion(union, options);
+    }
   }
 
   @Override
@@ -344,5 +354,33 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
   private static boolean isOptionSchemaWithNonNullFirstOption(Schema schema) {
     return AvroSchemaUtil.isOptionSchema(schema)
         && schema.getTypes().get(0).getType() != Schema.Type.NULL;
+  }
+
+  /**
+   * For primitive types, the visitResult will be null, we want to reuse the primitive types from
+   * the original schema, while for nested types, we want to use the visitResult because they have
+   * content from the previous recursive calls. Also the id of the field in the Iceberg schema
+   * corresponding to each branch schema of the union is assigned as the property named "branch-id"
+   * of the branch schema.
+   */
+  private Schema pruneComplexUnion(Schema union, List<Schema> visitResults) {
+    List<Schema> branches = Lists.newArrayListWithExpectedSize(visitResults.size());
+
+    List<Schema> unionTypes = union.getTypes();
+    for (int i = 0; i < visitResults.size(); ++i) {
+      Schema branchSchema = visitResults.get(i);
+      if (branchSchema == null) {
+        branchSchema = unionTypes.get(i);
+      }
+      Integer branchId =
+          AvroSchemaUtil.getBranchId(
+              branchSchema, avroSchemaFieldNameToIcebergFieldId, fieldNames());
+      if (branchId != null) {
+        branchSchema.addProp(AvroSchemaUtil.BRANCH_ID_PROP, String.valueOf(branchId));
+      }
+
+      branches.add(branchSchema);
+    }
+    return Schema.createUnion(branches);
   }
 }

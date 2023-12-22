@@ -31,6 +31,7 @@ import org.apache.avro.util.Utf8;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.avro.ValueReaders;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.UUIDUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -77,6 +78,16 @@ public class SparkValueReaders {
   static ValueReader<InternalRow> struct(
       List<ValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
     return new StructReader(readers, struct, idToConstant);
+  }
+
+  /**
+   * In case of complex union, table schema (i.e. Iceberg schema) can possibly be pruned because of
+   * the column projection, while file schema (i.e. Avro schema) can not be pruned to make the data
+   * read from the file successfully. Therefore, table schema needs to be passed to
+   * ComplexUnionReader to help it only return the data of the projected type in the union.
+   */
+  static ValueReader<InternalRow> complexUnion(List<ValueReader<?>> readers, Type expected) {
+    return new ComplexUnionReader(readers, expected);
   }
 
   private static class StringReader implements ValueReader<UTF8String> {
@@ -279,6 +290,48 @@ public class SparkValueReaders {
       } else {
         struct.setNullAt(pos);
       }
+    }
+  }
+
+  static class ComplexUnionReader extends ValueReaders.ComplexUnionReader<InternalRow> {
+    protected ComplexUnionReader(List<ValueReader<?>> readers, Type expected) {
+      super(readers, expected);
+    }
+
+    @Override
+    public InternalRow read(Decoder decoder, Object reuse) throws IOException {
+      InternalRow row = reuseOrCreate(reuse);
+
+      int index = decoder.readIndex();
+      if (index != super.getNullTypeIndex()) {
+        int fieldIndex =
+            (super.getNullTypeIndex() < 0 || index < super.getNullTypeIndex()) ? index : index - 1;
+        if (super.isTagFieldProjected()) {
+          row.setInt(0, fieldIndex);
+        }
+
+        Object value = super.getReaders()[index].read(decoder, reuse);
+        if (super.getProjectedFieldIdsToIdxInReturnedRow()[fieldIndex] != -1) {
+          row.update(super.getProjectedFieldIdsToIdxInReturnedRow()[fieldIndex], value);
+        }
+      } else {
+        super.getReaders()[index].read(decoder, reuse);
+      }
+
+      return row;
+    }
+
+    private InternalRow reuseOrCreate(Object reuse) {
+      InternalRow row;
+      if (reuse instanceof InternalRow) {
+        row = (InternalRow) reuse;
+      } else {
+        row = new GenericInternalRow(super.getNumOfFieldsInReturnedRow());
+      }
+      for (int i = 0; i < row.numFields(); ++i) {
+        row.setNullAt(i);
+      }
+      return row;
     }
   }
 }

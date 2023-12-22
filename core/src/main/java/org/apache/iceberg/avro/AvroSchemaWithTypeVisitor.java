@@ -82,11 +82,38 @@ public abstract class AvroSchemaWithTypeVisitor<T> {
   private static <T> T visitUnion(Type type, Schema union, AvroSchemaWithTypeVisitor<T> visitor) {
     List<Schema> types = union.getTypes();
     List<T> options = Lists.newArrayListWithExpectedSize(types.size());
-    for (Schema branch : types) {
-      if (branch.getType() == Schema.Type.NULL) {
-        options.add(visit((Type) null, branch, visitor));
-      } else {
-        options.add(visit(type, branch, visitor));
+
+    // simple union case
+    if (AvroSchemaUtil.isOptionSchema(union)) {
+      for (Schema branch : types) {
+        if (branch.getType() == Schema.Type.NULL) {
+          options.add(visit((Type) null, branch, visitor));
+        } else {
+          options.add(visit(type, branch, visitor));
+        }
+      }
+    } else { // complex union case
+      Preconditions.checkArgument(
+          type instanceof Types.StructType,
+          "Cannot visit invalid Iceberg type: %s for Avro complex union type: %s",
+          type,
+          union);
+      for (Schema branch : types) {
+        if (branch.getType() == Schema.Type.NULL) {
+          options.add(visit((Type) null, branch, visitor));
+        } else {
+          Types.NestedField expectedSchemaField = null;
+          String branchId = branch.getProp(AvroSchemaUtil.BRANCH_ID_PROP);
+          if (branchId != null) {
+            expectedSchemaField = type.asStructType().field(Integer.parseInt(branchId));
+          }
+          if (expectedSchemaField != null) {
+            options.add(visit(expectedSchemaField.type(), branch, visitor));
+          } else {
+            Type pseudoExpectedSchemaField = AvroSchemaUtil.convert(branch);
+            options.add(visit(pseudoExpectedSchemaField, branch, visitor));
+          }
+        }
       }
     }
     return visitor.union(type, union, options);

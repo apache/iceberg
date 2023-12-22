@@ -52,6 +52,9 @@ public class MappingUtil {
     return new NameMapping(TypeUtil.visit(schema, CreateMapping.INSTANCE));
   }
 
+  public static NameMapping createWithTypeNameForUnionBranch(Schema schema) {
+    return new NameMapping(TypeUtil.visit(schema, CreateMappingWithTypeNameForUnion.INSTANCE));
+  }
   /**
    * Update a name-based mapping using changes to a schema.
    *
@@ -305,6 +308,32 @@ public class MappingUtil {
     @Override
     public MappedFields primitive(Type.PrimitiveType primitive) {
       return null; // no mapping because primitives have no nested fields
+    }
+  }
+
+  private static class CreateMappingWithTypeNameForUnion extends CreateMapping {
+    private static final CreateMappingWithTypeNameForUnion INSTANCE =
+        new CreateMappingWithTypeNameForUnion();
+
+    private CreateMappingWithTypeNameForUnion() {}
+
+    @Override
+    public MappedFields struct(Types.StructType struct, List<MappedFields> fieldResults) {
+      List<MappedField> fields = Lists.newArrayListWithExpectedSize(fieldResults.size());
+      boolean isUnion = struct.fields().stream().anyMatch(a -> "tag".equals(a.name()));
+
+      for (int i = 0; i < fieldResults.size(); i += 1) {
+        Types.NestedField field = struct.fields().get(i);
+        MappedFields result = fieldResults.get(i);
+
+        fields.add(
+            MappedField.of(
+                field.fieldId(),
+                !isUnion | "tag".equals(field.name()) ? field.name() : field.type().toString(),
+                result));
+      }
+
+      return MappedFields.of(fields);
     }
   }
 }

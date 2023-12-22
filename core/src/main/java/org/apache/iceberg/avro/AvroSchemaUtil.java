@@ -27,6 +27,7 @@ import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.iceberg.mapping.MappedField;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -47,11 +48,15 @@ public class AvroSchemaUtil {
   public static final String ELEMENT_ID_PROP = "element-id";
   public static final String ADJUST_TO_UTC_PROP = "adjust-to-utc";
 
+  public static final String BRANCH_ID_PROP = "branch-id";
+
   private static final Schema NULL = Schema.create(Schema.Type.NULL);
   private static final Schema.Type MAP = Schema.Type.MAP;
   private static final Schema.Type ARRAY = Schema.Type.ARRAY;
   private static final Schema.Type UNION = Schema.Type.UNION;
   private static final Schema.Type RECORD = Schema.Type.RECORD;
+
+  private static final Joiner DOT = Joiner.on('.');
 
   public static Schema convert(org.apache.iceberg.Schema schema, String tableName) {
     return convert(schema, ImmutableMap.of(schema.asStruct(), tableName));
@@ -121,6 +126,15 @@ public class AvroSchemaUtil {
     return new PruneColumns(selectedIds, nameMapping).rootSchema(schema);
   }
 
+  public static Schema pruneColumns(
+      Schema schema,
+      Set<Integer> selectedIds,
+      NameMapping nameMapping,
+      Map<String, Integer> avroSchemaFieldNameToIcebergFieldId) {
+    return new PruneColumns(selectedIds, nameMapping, avroSchemaFieldNameToIcebergFieldId)
+        .rootSchema(schema);
+  }
+
   public static Schema buildAvroProjection(
       Schema schema, org.apache.iceberg.Schema expected, Map<String, String> renames) {
     return AvroCustomOrderSchemaVisitor.visit(schema, new BuildAvroProjection(expected, renames));
@@ -158,11 +172,44 @@ public class AvroSchemaUtil {
     return false;
   }
 
+  /**
+   * This method decides whether a schema is of type union and is complex union and is optional
+   *
+   * <p>Complex union: the number of options in union larger than 2 Optional: null is present in
+   * union
+   *
+   * @param schema input schema
+   * @return true if schema is complex union and it is optional
+   */
+  public static boolean isOptionalComplexUnion(Schema schema) {
+    if (schema.getType() == UNION && schema.getTypes().size() > 2) {
+      for (Schema type : schema.getTypes()) {
+        if (type.getType() == Schema.Type.NULL) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
   static Schema toOption(Schema schema) {
     if (schema.getType() == UNION) {
       Preconditions.checkArgument(
           isOptionSchema(schema), "Union schemas are not supported: %s", schema);
       return schema;
+    } else {
+      return Schema.createUnion(NULL, schema);
+    }
+  }
+
+  public static Schema toOption(Schema schema, boolean nullIsSecondElement) {
+    if (schema.getType() == UNION) {
+      Preconditions.checkArgument(
+          isOptionSchema(schema), "Union schemas are not supported: %s", schema);
+      return schema;
+    } else if (nullIsSecondElement) {
+      return Schema.createUnion(schema, NULL);
     } else {
       return Schema.createUnion(NULL, schema);
     }
@@ -476,5 +523,18 @@ public class AvroSchemaUtil {
       return "_" + character;
     }
     return "_x" + Integer.toHexString(character).toUpperCase();
+  }
+
+  public static Integer getBranchId(
+      Schema branch, Map<String, Integer> nameToIdMap, Iterable<String> parentFieldNames) {
+    Object id = branch.getObjectProp(BRANCH_ID_PROP);
+    if (id != null) {
+      return toInt(id);
+    } else if (nameToIdMap != null && nameToIdMap.isEmpty()) {
+      List<String> names = Lists.newArrayList(parentFieldNames);
+      names.add(branch.getName());
+      return nameToIdMap.get(DOT.join(names));
+    }
+    return null;
   }
 }
