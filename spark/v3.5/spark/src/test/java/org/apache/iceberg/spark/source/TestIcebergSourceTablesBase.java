@@ -361,9 +361,14 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .format("iceberg")
         .mode("append")
         .save(loadLocation(tableIdentifier));
+    long firstSnapshotId = table.currentSnapshot().snapshotId();
+    long firstSnapshotTimestamp = table.currentSnapshot().timestampMillis();
 
     // delete the first file to test that not only live files are listed
     table.newDelete().deleteFromRowFilter(Expressions.equal("id", 1)).commit();
+
+    long secondSnapshotId = table.currentSnapshot().snapshotId();
+    long secondSnapshotTimestamp = table.currentSnapshot().timestampMillis();
 
     // add a second file
     df2.select("id", "data")
@@ -374,6 +379,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     // ensure table data isn't stale
     table.refresh();
+
+    long thirdSnapshotId = table.currentSnapshot().snapshotId();
+    long thirdSnapshotTimestamp = table.currentSnapshot().timestampMillis();
 
     Dataset<Row> entriesTableDs =
         spark
@@ -392,12 +400,21 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         // each row must inherit snapshot_id and sequence_number
         rows.forEach(
             row -> {
-              if (row.get("snapshot_id").equals(table.currentSnapshot().snapshotId())) {
+              if (row.get("snapshot_id").equals(thirdSnapshotId)) {
                 row.put(2, 3L); // data sequence number
                 row.put(3, 3L); // file sequence number
+                row.put(5, thirdSnapshotId);
+                row.put(6, thirdSnapshotTimestamp);
+              } else if (row.get("status").equals(2)) {
+                row.put(2, 1L); // data sequence number
+                row.put(3, 1L); // file sequence number
+                row.put(5, secondSnapshotId);
+                row.put(6, secondSnapshotTimestamp);
               } else {
                 row.put(2, 1L); // data sequence number
                 row.put(3, 1L); // file sequence number
+                row.put(5, firstSnapshotId);
+                row.put(6, firstSnapshotTimestamp);
               }
               GenericData.Record file = (GenericData.Record) row.get("data_file");
               TestHelpers.asMetadataRecord(file);
@@ -1201,12 +1218,12 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();
 
-    Stream<Pair<Long, ManifestFile>> snapshotIdToManifests =
+    Stream<Pair<Snapshot, ManifestFile>> snapshotIdToManifests =
         StreamSupport.stream(table.snapshots().spliterator(), false)
             .flatMap(
                 snapshot ->
                     snapshot.allManifests(table.io()).stream()
-                        .map(manifest -> Pair.of(snapshot.snapshotId(), manifest)));
+                        .map(manifest -> Pair.of(snapshot, manifest)));
 
     List<Row> actual =
         spark
@@ -2027,7 +2044,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     Dataset<Row> df =
         spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
 
-    List<Pair<Long, ManifestFile>> snapshotIdToManifests = Lists.newArrayList();
+    List<Pair<Snapshot, ManifestFile>> snapshotToManifests = Lists.newArrayList();
 
     df.select("id", "data")
         .write()
@@ -2037,9 +2054,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     table.refresh();
     Snapshot snapshot1 = table.currentSnapshot();
-    snapshotIdToManifests.addAll(
+    snapshotToManifests.addAll(
         snapshot1.allManifests(table.io()).stream()
-            .map(manifest -> Pair.of(snapshot1.snapshotId(), manifest))
+            .map(manifest -> Pair.of(snapshot1, manifest))
             .collect(Collectors.toList()));
 
     df.select("id", "data")
@@ -2051,9 +2068,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     table.refresh();
     Snapshot snapshot2 = table.currentSnapshot();
     Assert.assertEquals("Should have two manifests", 2, snapshot2.allManifests(table.io()).size());
-    snapshotIdToManifests.addAll(
+    snapshotToManifests.addAll(
         snapshot2.allManifests(table.io()).stream()
-            .map(manifest -> Pair.of(snapshot2.snapshotId(), manifest))
+            .map(manifest -> Pair.of(snapshot2, manifest))
             .collect(Collectors.toList()));
 
     // Add manifests that will not be selected
@@ -2084,7 +2101,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     table.refresh();
 
     List<GenericData.Record> expected =
-        snapshotIdToManifests.stream()
+        snapshotToManifests.stream()
             .map(
                 snapshotManifest ->
                     manifestRecord(
@@ -2163,7 +2180,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   }
 
   private GenericData.Record manifestRecord(
-      Table manifestTable, Long referenceSnapshotId, ManifestFile manifest) {
+      Table manifestTable, Snapshot referenceSnapshot, ManifestFile manifest) {
     GenericRecordBuilder builder =
         new GenericRecordBuilder(AvroSchemaUtil.convert(manifestTable.schema(), "manifests"));
     GenericRecordBuilder summaryBuilder =
@@ -2204,7 +2221,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
                         .set("lower_bound", "1")
                         .set("upper_bound", "1")
                         .build()))
-        .set("reference_snapshot_id", referenceSnapshotId)
+        .set("reference_snapshot_id", referenceSnapshot.snapshotId())
+        .set("reference_snapshot_timestamp_millis", referenceSnapshot.timestampMillis())
         .build();
   }
 

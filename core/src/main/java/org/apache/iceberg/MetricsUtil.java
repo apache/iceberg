@@ -23,6 +23,7 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -174,6 +175,8 @@ public class MetricsUtil {
                           field.type(), file.upperBounds().get(field.fieldId()))));
 
   public static final String READABLE_METRICS = "readable_metrics";
+  public static final String REF_SNAPSHOT_ID = "reference_snapshot_id";
+  public static final String REF_SNAPSHOT_TIMESTAMP_MILLIS = "reference_snapshot_timestamp_millis";
 
   /**
    * Fixed definition of a readable metric column, ie a mapping of a raw metric to a readable metric
@@ -454,6 +457,56 @@ public class MetricsUtil {
     @Override
     public <T> void set(int pos, T value) {
       throw new UnsupportedOperationException("StructWithReadableMetrics is read only");
+    }
+  }
+
+  static class StructWithRefSnapshot implements StructLike {
+    private final StructLike struct;
+    private final Schema projectedSchema;
+    private final Snapshot snapshot;
+
+    private final int refSnapshotIdPosition;
+    private final int refSnapshotTimestampMillisPosition;
+
+    StructWithRefSnapshot(
+        StructLike struct,
+        Schema projectedSchema,
+        Snapshot snapshot,
+        Types.NestedField refSnapshotIdField,
+        Types.NestedField refSnapshotTimestampMillisField) {
+      this.struct = struct;
+      this.projectedSchema = projectedSchema;
+      this.snapshot = snapshot;
+      this.refSnapshotIdPosition =
+          Optional.ofNullable(refSnapshotIdField)
+              .map(f -> projectedSchema.columns().indexOf(refSnapshotIdField))
+              .orElse(-1);
+
+      this.refSnapshotTimestampMillisPosition =
+          Optional.ofNullable(refSnapshotIdField)
+              .map(f -> projectedSchema.columns().indexOf(refSnapshotTimestampMillisField))
+              .orElse(-1);
+    }
+
+    @Override
+    public int size() {
+      return projectedSchema.columns().size();
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      if (pos == refSnapshotIdPosition) {
+        return javaClass.cast(snapshot.snapshotId());
+      } else if (pos == refSnapshotTimestampMillisPosition) {
+        return javaClass.cast(snapshot.timestampMillis());
+      } else {
+        return struct.get(pos, javaClass);
+      }
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("StructWithRefSnapshot is read only");
     }
   }
 }

@@ -310,45 +310,79 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
     sql("INSERT INTO TABLE %s VALUES (1, 'a1', 'b1')", tableName);
 
     // verify the metadata tables after adding the first partition column
-    for (MetadataTableType tableType : Arrays.asList(ENTRIES, ALL_ENTRIES)) {
-      assertPartitions(
-          ImmutableList.of(row(new Object[] {null}), row("b1")), "STRUCT<data:STRING>", tableType);
-    }
+    assertPartitions(
+        ImmutableList.of(row(new Object[] {null}), row("b1")), "STRUCT<data:STRING>", ENTRIES);
+    assertPartitions(
+        ImmutableList.of(row(new Object[] {null}), row(new Object[] {null}), row("b1")),
+        "STRUCT<data:STRING>",
+        ALL_ENTRIES);
 
     table.updateSpec().addField(Expressions.bucket("category", 8)).commit();
     sql("REFRESH TABLE %s", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a1', 'b1')", tableName);
 
     // verify the metadata tables after adding the second partition column
-    for (MetadataTableType tableType : Arrays.asList(ENTRIES, ALL_ENTRIES)) {
-      assertPartitions(
-          ImmutableList.of(row(null, null), row("b1", null), row("b1", 2)),
-          "STRUCT<data:STRING,category_bucket_8:INT>",
-          tableType);
-    }
+    assertPartitions(
+        ImmutableList.of(row(null, null), row("b1", null), row("b1", 2)),
+        "STRUCT<data:STRING,category_bucket_8:INT>",
+        ENTRIES);
+    assertPartitions(
+        ImmutableList.of(
+            row(null, null),
+            row(null, null),
+            row(null, null),
+            row("b1", null),
+            row("b1", null),
+            row("b1", 2)),
+        "STRUCT<data:STRING,category_bucket_8:INT>",
+        ALL_ENTRIES);
 
     table.updateSpec().removeField("data").commit();
     sql("REFRESH TABLE %s", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a1', 'b1')", tableName);
 
     // verify the metadata tables after dropping the first partition column
-    for (MetadataTableType tableType : Arrays.asList(ENTRIES, ALL_ENTRIES)) {
-      assertPartitions(
-          ImmutableList.of(row(null, null), row(null, 2), row("b1", null), row("b1", 2)),
-          "STRUCT<data:STRING,category_bucket_8:INT>",
-          tableType);
-    }
+    assertPartitions(
+        ImmutableList.of(row(null, null), row(null, 2), row("b1", null), row("b1", 2)),
+        "STRUCT<data:STRING,category_bucket_8:INT>",
+        ENTRIES);
+    assertPartitions(
+        ImmutableList.of(
+            row(null, null),
+            row(null, null),
+            row(null, null),
+            row(null, null),
+            row(null, 2),
+            row("b1", null),
+            row("b1", null),
+            row("b1", null),
+            row("b1", 2),
+            row("b1", 2)),
+        "STRUCT<data:STRING,category_bucket_8:INT>",
+        ALL_ENTRIES);
 
     table.updateSpec().renameField("category_bucket_8", "category_bucket_8_another_name").commit();
     sql("REFRESH TABLE %s", tableName);
 
     // verify the metadata tables after renaming the second partition column
-    for (MetadataTableType tableType : Arrays.asList(ENTRIES, ALL_ENTRIES)) {
-      assertPartitions(
-          ImmutableList.of(row(null, null), row(null, 2), row("b1", null), row("b1", 2)),
-          "STRUCT<data:STRING,category_bucket_8_another_name:INT>",
-          tableType);
-    }
+    assertPartitions(
+        ImmutableList.of(row(null, null), row(null, 2), row("b1", null), row("b1", 2)),
+        "STRUCT<data:STRING,category_bucket_8_another_name:INT>",
+        ENTRIES);
+    assertPartitions(
+        ImmutableList.of(
+            row(null, null),
+            row(null, null),
+            row(null, null),
+            row(null, null),
+            row(null, 2),
+            row("b1", null),
+            row("b1", null),
+            row("b1", null),
+            row("b1", 2),
+            row("b1", 2)),
+        "STRUCT<data:STRING,category_bucket_8_another_name:INT>",
+        ALL_ENTRIES);
   }
 
   @Test
