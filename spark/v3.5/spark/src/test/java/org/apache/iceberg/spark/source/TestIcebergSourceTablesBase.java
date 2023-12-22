@@ -2281,7 +2281,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
     try {
       return FileHelpers.writeDeleteFile(
           table,
-          Files.localOutput(temp.toFile()),
+          Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
           org.apache.iceberg.TestHelpers.Row.of(1),
           deletes,
           deleteRowSchema);

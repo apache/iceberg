@@ -22,6 +22,7 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
@@ -254,6 +255,9 @@ public class TestChangelogReader extends TestBase {
   private DataFile writeDataFile(List<Record> records) throws IOException {
     // records all use IDs that are in bucket id_bucket=0
     return FileHelpers.writeDataFile(
-        table, Files.localOutput(temp.resolve("junit").toFile()), TestHelpers.Row.of(0), records);
+        table,
+        Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+        TestHelpers.Row.of(0),
+        records);
   }
 }
