@@ -45,16 +45,22 @@ public class ApplyNameMapping extends AvroSchemaVisitor<Schema> {
     List<Schema.Field> originalFields = record.getFields();
 
     List<Schema.Field> newFields = Lists.newArrayList();
+    boolean hasChange = false;
     for (int i = 0; i < originalFields.size(); i += 1) {
       Schema newSchema = fields.get(i);
-      if (newSchema != null) {
-        Schema.Field field = originalFields.get(i);
-        Integer fieldId = AvroSchemaUtil.getFieldId(field, nameMapping, fieldNames());
-        if (fieldId != null) {
-          // always copy because fields can't be reused
-          newFields.add(copyField(field, newSchema, fieldId));
-        }
+      Schema.Field field = originalFields.get(i);
+      Integer fieldId = AvroSchemaUtil.getFieldId(field, nameMapping, fieldNames());
+      // always copy because fields can't be reused
+      if (newSchema != null && fieldId != null) {
+        newFields.add(copyField(field, newSchema, fieldId));
+        hasChange = true;
+      } else {
+        newFields.add(copyField(field, field.schema(), null));
       }
+    }
+
+    if (!hasChange) {
+      return record;
     }
 
     return copyRecord(record, newFields);
@@ -94,7 +100,7 @@ public class ApplyNameMapping extends AvroSchemaVisitor<Schema> {
       return copyProps(array, createArray(element, mapping.id()));
     }
 
-    return null;
+    return array;
   }
 
   private boolean isKeyValueMapping(Iterable<String> names) {
@@ -119,7 +125,7 @@ public class ApplyNameMapping extends AvroSchemaVisitor<Schema> {
       return copyProps(map, createMap(value, keyMapping.id(), valueMapping.id()));
     }
 
-    return null;
+    return map;
   }
 
   @Override
@@ -137,7 +143,7 @@ public class ApplyNameMapping extends AvroSchemaVisitor<Schema> {
     return copy;
   }
 
-  static Schema.Field copyField(Schema.Field field, Schema newSchema, int fieldId) {
+  static Schema.Field copyField(Schema.Field field, Schema newSchema, Integer fieldId) {
     Schema.Field copy =
         new Schema.Field(field.name(), newSchema, field.doc(), field.defaultVal(), field.order());
 
@@ -145,7 +151,9 @@ public class ApplyNameMapping extends AvroSchemaVisitor<Schema> {
       copy.addProp(prop.getKey(), prop.getValue());
     }
 
-    copy.addProp(AvroSchemaUtil.FIELD_ID_PROP, fieldId);
+    if (fieldId != null) {
+      copy.addProp(AvroSchemaUtil.FIELD_ID_PROP, fieldId);
+    }
 
     for (String alias : field.aliases()) {
       copy.addAlias(alias);

@@ -379,6 +379,10 @@ public class AvroSchemaUtil {
     return id;
   }
 
+  static Integer fieldId(Schema.Field field) {
+    return getFieldId(field, null, null);
+  }
+
   static Integer getFieldId(
       Schema.Field field, NameMapping nameMapping, Iterable<String> parentFieldNames) {
     Object id = field.getObjectProp(FIELD_ID_PROP);
