@@ -247,10 +247,10 @@ public class TestHelpers {
         }
         break;
       case BINARY:
-        assertThat(expected)
+        assertThat(ByteBuffer.wrap((byte[]) actual))
             .as("Should expect a ByteBuffer")
             .isInstanceOf(ByteBuffer.class)
-            .isEqualTo(ByteBuffer.wrap((byte[]) actual));
+            .isEqualTo(expected);
         break;
       case DECIMAL:
         assertThat(expected).as("Should expect a BigDecimal").isInstanceOf(BigDecimal.class);
@@ -288,10 +288,10 @@ public class TestHelpers {
             .isEqualTo(expected.toString());
         break;
       case FIXED:
-        assertThat(expected)
+        assertThat(actual)
             .as("Should expect byte[]")
             .isInstanceOf(byte[].class)
-            .isEqualTo(actual);
+            .isEqualTo(expected);
         break;
       default:
         throw new IllegalArgumentException("Not a supported type: " + type);
@@ -386,10 +386,10 @@ public class TestHelpers {
         }
         break;
       case BINARY:
-        assertThat(expected)
+        assertThat(ByteBuffer.wrap((byte[]) actual))
             .as("Should expect a ByteBuffer")
             .isInstanceOf(ByteBuffer.class)
-            .isEqualTo(ByteBuffer.wrap((byte[]) actual));
+            .isEqualTo(expected);
         break;
       case DECIMAL:
         assertThat(expected).as("Should expect a BigDecimal").isInstanceOf(BigDecimal.class);
@@ -439,10 +439,10 @@ public class TestHelpers {
             .isEqualTo(expected.toString());
         break;
       case FIXED:
-        assertThat(expected)
+        assertThat(actual)
             .as("Should expect byte[]")
             .isInstanceOf(byte[].class)
-            .isEqualTo(actual);
+            .isEqualTo(expected);
         break;
       default:
         throw new IllegalArgumentException("Not a supported type: " + type);
