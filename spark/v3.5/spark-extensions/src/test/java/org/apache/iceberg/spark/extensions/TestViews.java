@@ -183,7 +183,7 @@ public class TestViews extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void readFromViewUsingNonExistingColumn() throws NoSuchTableException {
+  public void readFromViewUsingNonExistingTableColumn() throws NoSuchTableException {
     insertRows(10);
     String viewName = "viewWithNonExistingColumn";
 
@@ -202,6 +202,31 @@ public class TestViews extends SparkExtensionsTestBase {
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
             "A column or function parameter with name `non_existing` cannot be resolved");
+  }
+
+  @Test
+  public void readFromViewWithStaleSchema() throws NoSuchTableException {
+    insertRows(10);
+    String viewName = "staleView";
+
+    ViewCatalog viewCatalog = viewCatalog();
+    Schema schema = tableCatalog().loadTable(TableIdentifier.of(NAMESPACE, tableName)).schema();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("spark", String.format("SELECT id FROM %s", tableName))
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema)
+        .create();
+
+    // drop the column the view depends on
+    sql("ALTER TABLE %s DROP COLUMN id", tableName);
+
+    // reading from the view should now fail
+    assertThatThrownBy(() -> sql("SELECT * FROM %s", viewName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("A column or function parameter with name `id` cannot be resolved");
   }
 
   @Test
