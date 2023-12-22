@@ -36,9 +36,14 @@ import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.spark.sql.internal.SQLConf;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.io.TempDir;
 
-public abstract class AvroDataTest {
+/**
+ * Copy of {@link AvroDataTest} that marks tests with @{@link org.junit.jupiter.api.TestTemplate}
+ * instead of @{@link Test} to make the tests work in a parameterized environment.
+ */
+public abstract class ParameterizedAvroDataTest {
 
   protected abstract void writeAndValidate(Schema schema) throws IOException;
 
@@ -65,12 +70,12 @@ public abstract class AvroDataTest {
 
   @TempDir protected Path temp;
 
-  @Test
+  @TestTemplate
   public void testSimpleStruct() throws IOException {
     writeAndValidate(TypeUtil.assignIncreasingFreshIds(new Schema(SUPPORTED_PRIMITIVES.fields())));
   }
 
-  @Test
+  @TestTemplate
   public void testStructWithRequiredFields() throws IOException {
     writeAndValidate(
         TypeUtil.assignIncreasingFreshIds(
@@ -78,7 +83,7 @@ public abstract class AvroDataTest {
                 Lists.transform(SUPPORTED_PRIMITIVES.fields(), Types.NestedField::asRequired))));
   }
 
-  @Test
+  @TestTemplate
   public void testStructWithOptionalFields() throws IOException {
     writeAndValidate(
         TypeUtil.assignIncreasingFreshIds(
@@ -86,13 +91,13 @@ public abstract class AvroDataTest {
                 Lists.transform(SUPPORTED_PRIMITIVES.fields(), Types.NestedField::asOptional))));
   }
 
-  @Test
+  @TestTemplate
   public void testNestedStruct() throws IOException {
     writeAndValidate(
         TypeUtil.assignIncreasingFreshIds(new Schema(required(1, "struct", SUPPORTED_PRIMITIVES))));
   }
 
-  @Test
+  @TestTemplate
   public void testArray() throws IOException {
     Schema schema =
         new Schema(
@@ -102,7 +107,7 @@ public abstract class AvroDataTest {
     writeAndValidate(schema);
   }
 
-  @Test
+  @TestTemplate
   public void testArrayOfStructs() throws IOException {
     Schema schema =
         TypeUtil.assignIncreasingFreshIds(
@@ -113,7 +118,7 @@ public abstract class AvroDataTest {
     writeAndValidate(schema);
   }
 
-  @Test
+  @TestTemplate
   public void testMap() throws IOException {
     Schema schema =
         new Schema(
@@ -126,18 +131,17 @@ public abstract class AvroDataTest {
     writeAndValidate(schema);
   }
 
-  @Test
+  @TestTemplate
   public void testNumericMapKey() throws IOException {
     Schema schema =
         new Schema(
             required(0, "id", LongType.get()),
-            optional(
-                1, "data", MapType.ofOptional(2, 3, Types.LongType.get(), Types.StringType.get())));
+            optional(1, "data", MapType.ofOptional(2, 3, LongType.get(), Types.StringType.get())));
 
     writeAndValidate(schema);
   }
 
-  @Test
+  @TestTemplate
   public void testComplexMapKey() throws IOException {
     Schema schema =
         new Schema(
@@ -148,7 +152,7 @@ public abstract class AvroDataTest {
                 MapType.ofOptional(
                     2,
                     3,
-                    Types.StructType.of(
+                    StructType.of(
                         required(4, "i", Types.IntegerType.get()),
                         optional(5, "s", Types.StringType.get())),
                     Types.StringType.get())));
@@ -156,7 +160,7 @@ public abstract class AvroDataTest {
     writeAndValidate(schema);
   }
 
-  @Test
+  @TestTemplate
   public void testMapOfStructs() throws IOException {
     Schema schema =
         TypeUtil.assignIncreasingFreshIds(
@@ -170,7 +174,7 @@ public abstract class AvroDataTest {
     writeAndValidate(schema);
   }
 
-  @Test
+  @TestTemplate
   public void testMixedTypes() throws IOException {
     StructType structType =
         StructType.of(
@@ -227,7 +231,7 @@ public abstract class AvroDataTest {
     writeAndValidate(schema);
   }
 
-  @Test
+  @TestTemplate
   public void testTimestampWithoutZone() throws IOException {
     Schema schema =
         TypeUtil.assignIncreasingFreshIds(
