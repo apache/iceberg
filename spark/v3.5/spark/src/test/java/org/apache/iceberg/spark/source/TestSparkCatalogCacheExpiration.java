@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.Map;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkCatalog;
@@ -30,12 +31,10 @@ import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
 
 public class TestSparkCatalogCacheExpiration extends TestBaseWithCatalog {
 
-  private static final String sessionCatalogName = "spark_catalog";
-  private static final String sessionCatalogImpl = SparkSessionCatalog.class.getName();
   private static final Map<String, String> sessionCatalogConfig =
       ImmutableMap.of(
           "type",
@@ -46,6 +45,13 @@ public class TestSparkCatalogCacheExpiration extends TestBaseWithCatalog {
           "true",
           CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS,
           "3000");
+
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
+  public static Object[][] parameters() {
+    return new Object[][] {
+      {"spark_catalog", SparkSessionCatalog.class.getName(), sessionCatalogConfig},
+    };
+  }
 
   private static String asSqlConfCatalogKeyFor(String catalog, String configKey) {
     // configKey is empty when the catalog's class is being defined
@@ -87,11 +93,7 @@ public class TestSparkCatalogCacheExpiration extends TestBaseWithCatalog {
             (k, v) -> spark.conf().set(asSqlConfCatalogKeyFor("cache_disabled_implicitly", k), v));
   }
 
-  public TestSparkCatalogCacheExpiration() {
-    super(sessionCatalogName, sessionCatalogImpl, sessionCatalogConfig);
-  }
-
-  @Test
+  @TestTemplate
   public void testSparkSessionCatalogWithExpirationEnabled() {
     SparkSessionCatalog<?> sparkCatalog = sparkSessionCatalog();
     assertThat(sparkCatalog)
@@ -112,7 +114,7 @@ public class TestSparkCatalogCacheExpiration extends TestBaseWithCatalog {
             });
   }
 
-  @Test
+  @TestTemplate
   public void testCacheEnabledAndExpirationDisabled() {
     SparkCatalog sparkCatalog = getSparkCatalog("expiration_disabled");
     assertThat(sparkCatalog).extracting("cacheEnabled").isEqualTo(true);
@@ -126,7 +128,7 @@ public class TestSparkCatalogCacheExpiration extends TestBaseWithCatalog {
             });
   }
 
-  @Test
+  @TestTemplate
   public void testCacheDisabledImplicitly() {
     SparkCatalog sparkCatalog = getSparkCatalog("cache_disabled_implicitly");
     assertThat(sparkCatalog).extracting("cacheEnabled").isEqualTo(false);

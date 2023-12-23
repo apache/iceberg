@@ -20,7 +20,6 @@ package org.apache.iceberg.spark.source;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.Map;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
@@ -31,10 +30,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 
 public class TestSparkTable extends CatalogTestBase {
-
-  public TestSparkTable(String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
 
   @BeforeEach
   public void createTable() {

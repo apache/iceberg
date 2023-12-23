@@ -22,7 +22,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
@@ -38,11 +37,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 
 public class TestSparkStagedScan extends CatalogTestBase {
-
-  public TestSparkStagedScan(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
 
   @AfterEach
   public void removeTables() {

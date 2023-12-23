@@ -59,7 +59,7 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.io.TempDir;
 
 public class TestDataSourceOptions extends TestBaseWithCatalog {
@@ -84,7 +84,7 @@ public class TestDataSourceOptions extends TestBaseWithCatalog {
     currentSpark.stop();
   }
 
-  @Test
+  @TestTemplate
   public void testWriteFormatOptionOverridesTableProperties() throws IOException {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
@@ -114,7 +114,7 @@ public class TestDataSourceOptions extends TestBaseWithCatalog {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testNoWriteFormatOption() throws IOException {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
@@ -139,7 +139,7 @@ public class TestDataSourceOptions extends TestBaseWithCatalog {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testHadoopOptions() throws IOException {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
     Configuration sparkHadoopConf = spark.sessionState().newHadoopConf();
@@ -181,7 +181,7 @@ public class TestDataSourceOptions extends TestBaseWithCatalog {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testSplitOptionsOverridesTableProperties() throws IOException {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
@@ -224,7 +224,7 @@ public class TestDataSourceOptions extends TestBaseWithCatalog {
         .isEqualTo(2);
   }
 
-  @Test
+  @TestTemplate
   public void testIncrementalScanOptions() throws IOException {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
@@ -315,7 +315,7 @@ public class TestDataSourceOptions extends TestBaseWithCatalog {
     assertThat(resultDf.count()).as("Unprocessed count should match record count").isEqualTo(1);
   }
 
-  @Test
+  @TestTemplate
   public void testMetadataSplitSizeOptionOverrideTableProperties() throws IOException {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
@@ -355,7 +355,7 @@ public class TestDataSourceOptions extends TestBaseWithCatalog {
     assertThat(entriesDf.javaRDD().getNumPartitions()).as("Num partitions must match").isEqualTo(1);
   }
 
-  @Test
+  @TestTemplate
   public void testDefaultMetadataSplitSize() throws IOException {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
@@ -389,7 +389,7 @@ public class TestDataSourceOptions extends TestBaseWithCatalog {
     assertThat(partitionNum).as("Spark partitions should match").isEqualTo(expectedSplits);
   }
 
-  @Test
+  @TestTemplate
   public void testExtraSnapshotMetadata() throws IOException {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
     HadoopTables tables = new HadoopTables(CONF);
@@ -414,7 +414,7 @@ public class TestDataSourceOptions extends TestBaseWithCatalog {
         .containsEntry("another-key", "anotherValue");
   }
 
-  @Test
+  @TestTemplate
   public void testExtraSnapshotMetadataWithSQL() throws InterruptedException, IOException {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
     HadoopTables tables = new HadoopTables(CONF);
@@ -459,7 +459,7 @@ public class TestDataSourceOptions extends TestBaseWithCatalog {
         .containsEntry("another-key", "anotherValue");
   }
 
-  @Test
+  @TestTemplate
   public void testExtraSnapshotMetadataWithDelete()
       throws InterruptedException, NoSuchTableException {
     spark.sessionState().conf().setConfString("spark.sql.shuffle.partitions", "1");

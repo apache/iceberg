@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -48,7 +49,7 @@ import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.io.TempDir;
 
 public class TestMetadataTableReadableMetrics extends TestBaseWithCatalog {
@@ -78,9 +79,16 @@ public class TestMetadataTableReadableMetrics extends TestBaseWithCatalog {
           optional(8, "fixedCol", Types.FixedType.ofLength(3)),
           optional(9, "binaryCol", Types.BinaryType.get()));
 
-  public TestMetadataTableReadableMetrics() {
-    // only SparkCatalog supports metadata table sql queries
-    super(SparkCatalogConfig.HIVE);
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
+  protected static Object[][] parameters() {
+    return new Object[][] {
+      {
+        // only SparkCatalog supports metadata table sql queries
+        SparkCatalogConfig.HIVE.catalogName(),
+        SparkCatalogConfig.HIVE.implementation(),
+        SparkCatalogConfig.HIVE.properties()
+      },
+    };
   }
 
   protected String tableName() {
@@ -190,7 +198,7 @@ public class TestMetadataTableReadableMetrics extends TestBaseWithCatalog {
     return record;
   }
 
-  @Test
+  @TestTemplate
   public void testPrimitiveColumns() throws Exception {
     Table table = createPrimitiveTable();
     DataFile dataFile = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
@@ -289,7 +297,7 @@ public class TestMetadataTableReadableMetrics extends TestBaseWithCatalog {
     assertEquals("Row should match for entries table", expected, entriesReadableMetrics);
   }
 
-  @Test
+  @TestTemplate
   public void testSelectPrimitiveValues() throws Exception {
     createPrimitiveTable();
 
@@ -328,7 +336,7 @@ public class TestMetadataTableReadableMetrics extends TestBaseWithCatalog {
         sql("SELECT readable_metrics.longCol.value_count, status FROM %s.entries", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testSelectNestedValues() throws Exception {
     createNestedTable();
 
@@ -349,7 +357,7 @@ public class TestMetadataTableReadableMetrics extends TestBaseWithCatalog {
         entriesReadableMetrics);
   }
 
-  @Test
+  @TestTemplate
   public void testNestedValues() throws Exception {
     Pair<Table, DataFile> table = createNestedTable();
     int longColId =
