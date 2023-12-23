@@ -40,6 +40,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
+import org.apache.iceberg.Parameter;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionSpec;
@@ -109,13 +110,9 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
   }
 
   @TempDir private Path temp;
-  private final FileFormat format;
 
-  public TestRewritePositionDeleteFilesAction(
-      String catalogName, String implementation, Map<String, String> config, FileFormat format) {
-    super(catalogName, implementation, config);
-    this.format = format;
-  }
+  @Parameter(index = 3)
+  private FileFormat format;
 
   @AfterEach
   public void cleanup() {

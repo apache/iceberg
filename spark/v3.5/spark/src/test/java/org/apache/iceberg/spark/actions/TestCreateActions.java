@@ -35,6 +35,7 @@ import java.util.stream.Collectors;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.TrueFileFilter;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.Parameter;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -106,7 +107,8 @@ public class TestCreateActions extends CatalogTestBase {
             "parquet-enabled", "true",
             "cache-enabled",
                 "false" // Spark will delete tables using v1, leaving the cache out of sync
-            )
+            ),
+        "hive"
       },
       new Object[] {
         "spark_catalog",
@@ -117,21 +119,24 @@ public class TestCreateActions extends CatalogTestBase {
             "parquet-enabled", "true",
             "cache-enabled",
                 "false" // Spark will delete tables using v1, leaving the cache out of sync
-            )
+            ),
+        "hadoop"
       },
       new Object[] {
         "testhive",
         SparkCatalog.class.getName(),
         ImmutableMap.of(
             "type", "hive",
-            "default-namespace", "default")
+            "default-namespace", "default"),
+        "hive"
       },
       new Object[] {
         "testhadoop",
         SparkCatalog.class.getName(),
         ImmutableMap.of(
             "type", "hadoop",
-            "default-namespace", "default")
+            "default-namespace", "default"),
+        "hadoop"
       }
     };
   }
@@ -139,14 +144,11 @@ public class TestCreateActions extends CatalogTestBase {
   private String baseTableName = "baseTable";
   private File tableDir;
   private String tableLocation;
-  private final String type;
-  private final TableCatalog catalog;
 
-  public TestCreateActions(String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-    this.catalog = (TableCatalog) spark.sessionState().catalogManager().catalog(catalogName);
-    this.type = config.get("type");
-  }
+  @Parameter(index = 3)
+  private String type;
+
+  private TableCatalog catalog;
 
   @BeforeEach
   public void before() {
@@ -156,6 +158,7 @@ public class TestCreateActions extends CatalogTestBase {
       throw new RuntimeException(e);
     }
     this.tableLocation = tableDir.toURI().toString();
+    this.catalog = (TableCatalog) spark.sessionState().catalogManager().catalog(catalogName);
 
     spark.conf().set("hive.exec.dynamic.partition", "true");
     spark.conf().set("hive.exec.dynamic.partition.mode", "nonstrict");
