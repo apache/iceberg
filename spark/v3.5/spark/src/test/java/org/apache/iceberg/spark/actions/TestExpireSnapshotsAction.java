@@ -329,7 +329,7 @@ public class TestExpireSnapshotsAction extends TestBase {
             .expireSnapshotId(secondSnapshotID)
             .execute();
 
-    assertThat(table.snapshots()).as("Should have one snapshots.").hasSize(1);
+    assertThat(table.snapshots()).as("Should have one snapshot.").hasSize(1);
     assertThat(table.snapshot(firstSnapshotId)).as("First snapshot should not present.").isNull();
     assertThat(table.snapshot(secondSnapshotID)).as("Second snapshot should not present.").isNull();
 
@@ -474,7 +474,7 @@ public class TestExpireSnapshotsAction extends TestBase {
             .expireOlderThan(thirdSnapshot.timestampMillis())
             .execute();
 
-    assertThat(table.snapshots()).as("Should have one snapshots.").hasSize(1);
+    assertThat(table.snapshots()).as("Should have one snapshot.").hasSize(1);
     assertThat(table.snapshot(secondSnapshot.snapshotId()))
         .as("Second snapshot should not present.")
         .isNull();
@@ -511,7 +511,7 @@ public class TestExpireSnapshotsAction extends TestBase {
             .retainLast(1)
             .execute();
 
-    assertThat(table.snapshots()).as("Should have one snapshots.").hasSize(1);
+    assertThat(table.snapshots()).as("Should have one snapshot.").hasSize(1);
     assertThat(table.snapshot(secondSnapshot.snapshotId()))
         .as("Second snapshot should not present.")
         .isNull();
