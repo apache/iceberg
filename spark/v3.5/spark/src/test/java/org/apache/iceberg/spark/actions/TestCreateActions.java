@@ -151,7 +151,7 @@ public class TestCreateActions extends CatalogTestBase {
   private TableCatalog catalog;
 
   @BeforeEach
-  public void before() {
+  public void beforeEach() {
     try {
       this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
     } catch (IOException e) {
