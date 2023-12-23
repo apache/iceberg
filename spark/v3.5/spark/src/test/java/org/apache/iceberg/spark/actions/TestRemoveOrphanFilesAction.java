@@ -142,7 +142,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
     List<String> invalidFiles = Lists.newArrayList(allFiles);
     invalidFiles.removeAll(validFiles);
-    assertThat(invalidFiles).as("Should be 1 invalid files").size().isOne();
+    assertThat(invalidFiles).as("Should be 1 invalid files").hasSize(1);
 
     waitUntilAfter(System.currentTimeMillis());
 
@@ -210,10 +210,10 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     List<Snapshot> snapshots = Lists.newArrayList(table.snapshots());
 
     List<String> snapshotFiles1 = snapshotFiles(snapshots.get(0).snapshotId());
-    assertThat(snapshotFiles1).size().isOne();
+    assertThat(snapshotFiles1).hasSize(1);
 
     List<String> snapshotFiles2 = snapshotFiles(snapshots.get(1).snapshotId());
-    assertThat(snapshotFiles2).size().isOne();
+    assertThat(snapshotFiles2).hasSize(1);
 
     List<String> snapshotFiles3 = snapshotFiles(snapshots.get(2).snapshotId());
     assertThat(snapshotFiles3).hasSize(2);
@@ -369,7 +369,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     DeleteOrphanFiles.Result result =
         actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
 
-    assertThat(result.orphanFileLocations()).as("Should delete 1 file").size().isOne();
+    assertThat(result.orphanFileLocations()).as("Should delete 1 file").hasSize(1);
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
     List<ThreeColumnRecord> actualRecords =
@@ -428,7 +428,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     DeleteOrphanFiles.Result result =
         actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
 
-    assertThat(result.orphanFileLocations()).as("Should delete 1 file").size().isOne();
+    assertThat(result.orphanFileLocations()).as("Should delete 1 file").hasSize(1);
     assertThat(StreamSupport.stream(result.orphanFileLocations().spliterator(), false))
         .as("Should remove v1 file")
         .anyMatch(file -> file.contains("v1.metadata.json"));
@@ -637,7 +637,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
             .select("file_path")
             .as(Encoders.STRING())
             .collectAsList();
-    assertThat(validFiles).as("Should be 1 valid files").size().isOne();
+    assertThat(validFiles).as("Should be 1 valid files").hasSize(1);
     String validFile = validFiles.get(0);
 
     df.write().mode("append").parquet(tableLocation + "/data");
@@ -653,7 +653,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
     List<String> invalidFiles = Lists.newArrayList(allFiles);
     invalidFiles.removeIf(file -> file.contains(validFile));
-    assertThat(invalidFiles).as("Should be 1 invalid file").size().isOne();
+    assertThat(invalidFiles).as("Should be 1 invalid file").hasSize(1);
 
     waitUntilAfter(System.currentTimeMillis());
 
@@ -699,7 +699,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     DeleteOrphanFiles.Result result =
         SparkActions.get().deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
 
-    assertThat(result.orphanFileLocations()).as("Should delete only 1 files").size().isOne();
+    assertThat(result.orphanFileLocations()).as("Should delete only 1 files").hasSize(1);
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(table.location());
     List<ThreeColumnRecord> actualRecords =
@@ -807,7 +807,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
         invalidFiles.stream()
             .map(FilePathLastModifiedRecord::getFilePath)
             .collect(Collectors.toList());
-    assertThat(invalidFiles).as("Should be 1 invalid file").size().isOne();
+    assertThat(invalidFiles).as("Should be 1 invalid file").hasSize(1);
 
     // sleep for 1 second to ensure files will be old enough
     waitUntilAfter(System.currentTimeMillis());
@@ -961,7 +961,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
             .olderThan(System.currentTimeMillis() + 1000)
             .execute();
     Iterable<String> orphanFileLocations = result.orphanFileLocations();
-    assertThat(orphanFileLocations).as("Should be orphan files").size().isOne();
+    assertThat(orphanFileLocations).as("Should be orphan files").hasSize(1);
     assertThat(Iterables.getOnlyElement(orphanFileLocations))
         .as("Deleted file")
         .isEqualTo(statsLocation.toURI().toString());

@@ -187,10 +187,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     ExpireSnapshots.Result results =
         SparkActions.get().expireSnapshots(table).expireOlderThan(end).execute();
 
-    assertThat(table.snapshots())
-        .as("Table does not have 1 snapshot after expiration")
-        .size()
-        .isOne();
+    assertThat(table.snapshots()).as("Table does not have 1 snapshot after expiration").hasSize(1);
 
     checkExpirationResults(1L, 0L, 0L, 1L, 2L, results);
   }
@@ -332,7 +329,7 @@ public class TestExpireSnapshotsAction extends TestBase {
             .expireSnapshotId(secondSnapshotID)
             .execute();
 
-    assertThat(table.snapshots()).as("Should have one snapshots.").size().isOne();
+    assertThat(table.snapshots()).as("Should have one snapshots.").hasSize(1);
     assertThat(table.snapshot(firstSnapshotId)).as("First snapshot should not present.").isNull();
     assertThat(table.snapshot(secondSnapshotID)).as("Second snapshot should not present.").isNull();
 
@@ -477,7 +474,7 @@ public class TestExpireSnapshotsAction extends TestBase {
             .expireOlderThan(thirdSnapshot.timestampMillis())
             .execute();
 
-    assertThat(table.snapshots()).as("Should have one snapshots.").size().isOne();
+    assertThat(table.snapshots()).as("Should have one snapshots.").hasSize(1);
     assertThat(table.snapshot(secondSnapshot.snapshotId()))
         .as("Second snapshot should not present.")
         .isNull();
@@ -514,7 +511,7 @@ public class TestExpireSnapshotsAction extends TestBase {
             .retainLast(1)
             .execute();
 
-    assertThat(table.snapshots()).as("Should have one snapshots.").size().isOne();
+    assertThat(table.snapshots()).as("Should have one snapshots.").hasSize(1);
     assertThat(table.snapshot(secondSnapshot.snapshotId()))
         .as("Second snapshot should not present.")
         .isNull();
@@ -805,10 +802,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     table.newAppend().appendFile(FILE_A).commit();
 
     Snapshot firstSnapshot = table.currentSnapshot();
-    assertThat(firstSnapshot.allManifests(table.io()))
-        .as("Should create one manifest")
-        .size()
-        .isOne();
+    assertThat(firstSnapshot.allManifests(table.io())).as("Should create one manifest").hasSize(1);
 
     rightAfterSnapshot();
 
@@ -817,8 +811,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     Snapshot secondSnapshot = table.currentSnapshot();
     assertThat(secondSnapshot.allManifests(table.io()))
         .as("Should create replace manifest with a rewritten manifest")
-        .size()
-        .isOne();
+        .hasSize(1);
 
     table.newAppend().appendFile(FILE_B).commit();
 
@@ -874,10 +867,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     Snapshot firstSnapshot = table.currentSnapshot();
-    assertThat(firstSnapshot.allManifests(table.io()))
-        .as("Should create one manifest")
-        .size()
-        .isOne();
+    assertThat(firstSnapshot.allManifests(table.io())).as("Should create one manifest").hasSize(1);
 
     rightAfterSnapshot();
 
@@ -889,8 +879,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     Snapshot secondSnapshot = table.currentSnapshot();
     assertThat(secondSnapshot.allManifests(table.io()))
         .as("Should replace manifest with a rewritten manifest")
-        .size()
-        .isOne();
+        .hasSize(1);
     table
         .newFastAppend() // do not merge to keep the last snapshot's manifest valid
         .appendFile(FILE_C)
@@ -944,10 +933,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     Snapshot firstSnapshot = table.currentSnapshot();
-    assertThat(firstSnapshot.allManifests(table.io()))
-        .as("Should create one manifest")
-        .size()
-        .isOne();
+    assertThat(firstSnapshot.allManifests(table.io())).as("Should create one manifest").hasSize(1);
 
     rightAfterSnapshot();
 
@@ -957,7 +943,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     Set<ManifestFile> secondSnapshotManifests =
         Sets.newHashSet(secondSnapshot.allManifests(table.io()));
     secondSnapshotManifests.removeAll(firstSnapshot.allManifests(table.io()));
-    assertThat(secondSnapshotManifests).as("Should add one new manifest for append").size().isOne();
+    assertThat(secondSnapshotManifests).as("Should add one new manifest for append").hasSize(1);
 
     table.manageSnapshots().rollbackTo(firstSnapshot.snapshotId()).commit();
 
@@ -1002,10 +988,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     table.newAppend().appendFile(FILE_A).commit();
 
     Snapshot firstSnapshot = table.currentSnapshot();
-    assertThat(firstSnapshot.allManifests(table.io()))
-        .as("Should create one manifest")
-        .size()
-        .isOne();
+    assertThat(firstSnapshot.allManifests(table.io())).as("Should create one manifest").hasSize(1);
     rightAfterSnapshot();
 
     table.newAppend().appendFile(FILE_B).commit();
@@ -1014,7 +997,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     Set<ManifestFile> secondSnapshotManifests =
         Sets.newHashSet(secondSnapshot.allManifests(table.io()));
     secondSnapshotManifests.removeAll(firstSnapshot.allManifests(table.io()));
-    assertThat(secondSnapshotManifests).as("Should add one new manifest for append").size().isOne();
+    assertThat(secondSnapshotManifests).as("Should add one new manifest for append").hasSize(1);
 
     table.manageSnapshots().rollbackTo(firstSnapshot.snapshotId()).commit();
 
@@ -1168,7 +1151,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     assertThat(table.snapshot(firstSnapshot.snapshotId()))
         .as("Should remove the oldest snapshot")
         .isNull();
-    assertThat(pending).as("Pending deletes should contain one row").size().isOne();
+    assertThat(pending).as("Pending deletes should contain one row").hasSize(1);
 
     assertThat(pending.get(0).getPath())
         .as("Pending delete should be the expired manifest list location")
@@ -1248,10 +1231,10 @@ public class TestExpireSnapshotsAction extends TestBase {
     checkExpirationResults(0L, 0L, 0L, 0L, 1L, result);
 
     List<FileInfo> typedExpiredFiles = action.expireFiles().collectAsList();
-    assertThat(typedExpiredFiles).as("Expired results must match").size().isOne();
+    assertThat(typedExpiredFiles).as("Expired results must match").hasSize(1);
 
     List<FileInfo> untypedExpiredFiles = action.expireFiles().collectAsList();
-    assertThat(untypedExpiredFiles).as("Expired results must match").size().isOne();
+    assertThat(untypedExpiredFiles).as("Expired results must match").hasSize(1);
   }
 
   @Test

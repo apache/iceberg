@@ -184,13 +184,13 @@ public class TestRewriteManifestsAction extends TestBase {
             .execute();
 
     assertThat(result.rewrittenManifests()).as("Action should rewrite 2 manifests").hasSize(2);
-    assertThat(result.addedManifests()).as("Action should add 1 manifests").size().isOne();
+    assertThat(result.addedManifests()).as("Action should add 1 manifests").hasSize(1);
     assertManifestsLocation(result.addedManifests());
 
     table.refresh();
 
     List<ManifestFile> newManifests = table.currentSnapshot().allManifests(table.io());
-    assertThat(newManifests).as("Should have 1 manifests after rewrite").size().isOne();
+    assertThat(newManifests).as("Should have 1 manifests after rewrite").hasSize(1);
 
     assertThat(newManifests.get(0).existingFilesCount()).isEqualTo(4);
     assertThat(newManifests.get(0).hasAddedFiles()).isFalse();
@@ -257,7 +257,7 @@ public class TestRewriteManifestsAction extends TestBase {
 
     // table should reflect the changes, since the commit was successful
     List<ManifestFile> newManifests = table.currentSnapshot().allManifests(table.io());
-    assertThat(newManifests).as("Should have 1 manifests after rewrite").size().isOne();
+    assertThat(newManifests).as("Should have 1 manifests after rewrite").hasSize(1);
 
     assertThat(newManifests.get(0).existingFilesCount()).isEqualTo(4);
     assertThat(newManifests.get(0).hasAddedFiles()).isFalse();
@@ -410,7 +410,7 @@ public class TestRewriteManifestsAction extends TestBase {
       assertThat(result.rewrittenManifests())
           .as("Action should rewrite all manifests")
           .isEqualTo(snapshot.allManifests(table.io()));
-      assertThat(result.addedManifests()).as("Action should add 1 manifest").size().isOne();
+      assertThat(result.addedManifests()).as("Action should add 1 manifest").hasSize(1);
       assertManifestsLocation(result.addedManifests(), rewriteStagingLocation);
 
     } finally {
@@ -434,7 +434,7 @@ public class TestRewriteManifestsAction extends TestBase {
     table.newFastAppend().appendManifest(appendManifest).commit();
 
     List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
-    assertThat(manifests).as("Should have 1 manifests before rewrite").size().isOne();
+    assertThat(manifests).as("Should have 1 manifests before rewrite").hasSize(1);
 
     // set the target manifest size to a small value to force splitting records into multiple files
     table
@@ -456,7 +456,7 @@ public class TestRewriteManifestsAction extends TestBase {
             .stagingLocation(stagingLocation)
             .execute();
 
-    assertThat(result.rewrittenManifests()).size().isOne();
+    assertThat(result.rewrittenManifests()).hasSize(1);
     assertThat(result.addedManifests()).hasSizeGreaterThanOrEqualTo(2);
     assertManifestsLocation(result.addedManifests(), stagingLocation);
 
@@ -509,7 +509,7 @@ public class TestRewriteManifestsAction extends TestBase {
             .execute();
 
     assertThat(result.rewrittenManifests()).as("Action should rewrite 2 manifest").hasSize(2);
-    assertThat(result.addedManifests()).as("Action should add 1 manifests").size().isOne();
+    assertThat(result.addedManifests()).as("Action should add 1 manifests").hasSize(1);
     assertManifestsLocation(result.addedManifests(), stagingLocation);
 
     table.refresh();
@@ -573,13 +573,13 @@ public class TestRewriteManifestsAction extends TestBase {
             .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
             .execute();
     assertThat(result.rewrittenManifests()).as("Action should rewrite 2 manifests").hasSize(2);
-    assertThat(result.addedManifests()).as("Action should add 1 manifests").size().isOne();
+    assertThat(result.addedManifests()).as("Action should add 1 manifests").hasSize(1);
     assertManifestsLocation(result.addedManifests());
 
     table.refresh();
 
     List<ManifestFile> newManifests = table.currentSnapshot().allManifests(table.io());
-    assertThat(newManifests).as("Should have 1 manifests after rewrite").size().isOne();
+    assertThat(newManifests).as("Should have 1 manifests after rewrite").hasSize(1);
 
     ManifestFile newManifest = Iterables.getOnlyElement(newManifests);
     assertThat(newManifest.existingFilesCount()).isEqualTo(2);
@@ -646,7 +646,7 @@ public class TestRewriteManifestsAction extends TestBase {
             .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
             .execute();
 
-    assertThat(result.rewrittenManifests()).size().isOne();
+    assertThat(result.rewrittenManifests()).hasSize(1);
     assertThat(result.addedManifests()).hasSizeGreaterThanOrEqualTo(2);
     assertManifestsLocation(result.addedManifests());
 

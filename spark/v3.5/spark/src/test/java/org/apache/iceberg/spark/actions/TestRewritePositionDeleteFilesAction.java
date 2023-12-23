@@ -155,7 +155,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
             .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
             .execute();
     List<DeleteFile> newDeleteFiles = deleteFiles(table);
-    assertThat(newDeleteFiles).as("Expected 1 new delete file").size().isOne();
+    assertThat(newDeleteFiles).as("Expected 1 new delete file").hasSize(1);
     assertLocallySorted(newDeleteFiles);
     assertNotContains(deleteFiles, newDeleteFiles);
     checkResult(result, deleteFiles, newDeleteFiles, 1);
@@ -318,7 +318,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
             .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
             .execute();
     List<DeleteFile> newDeleteFiles = deleteFiles(table);
-    assertThat(newDeleteFiles).as("Should have 0 new delete files").size().isZero();
+    assertThat(newDeleteFiles).as("Should have 0 new delete files").hasSize(0);
     assertNotContains(deleteFiles, newDeleteFiles);
     assertLocallySorted(newDeleteFiles);
     checkResult(result, deleteFiles, newDeleteFiles, 4);
@@ -327,7 +327,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     List<Object[]> actualRecords = records(table);
     List<Object[]> actualDeletes = deleteRecords(table);
     assertEquals("Rows must match", expectedRecords, actualRecords);
-    assertThat(actualDeletes).as("Should be no new position deletes").size().isZero();
+    assertThat(actualDeletes).as("Should be no new position deletes").hasSize(0);
   }
 
   @TestTemplate
@@ -416,7 +416,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
             .execute();
 
     List<DeleteFile> newDeleteFiles = except(deleteFiles(table), deleteFiles);
-    assertThat(newDeleteFiles).as("Should have 2 new delete files").size().isZero();
+    assertThat(newDeleteFiles).as("Should have 2 new delete files").hasSize(0);
 
     List<DeleteFile> expectedRewrittenFiles =
         filterFiles(table, deleteFiles, ImmutableList.of(0), ImmutableList.of(1));
@@ -798,7 +798,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     Set<String> rewrittenPaths =
         rewritten.stream().map(f -> f.path().toString()).collect(Collectors.toSet());
     rewrittenPaths.retainAll(originalPaths);
-    assertThat(rewrittenPaths).size().isZero();
+    assertThat(rewrittenPaths).hasSize(0);
   }
 
   private void assertLocallySorted(List<DeleteFile> deleteFiles) {

@@ -132,7 +132,6 @@ public class TestDeleteReachableFilesAction extends TestBase {
       long expectedManifestListsDeleted,
       long expectedOtherFilesDeleted,
       DeleteReachableFiles.Result results) {
-
     assertThat(results.deletedManifestsCount())
         .as("Incorrect number of manifest files deleted")
         .isEqualTo(expectedManifestsDeleted);
@@ -345,7 +344,7 @@ public class TestDeleteReachableFilesAction extends TestBase {
     DeleteOrphanFiles.Result result =
         sparkActions().deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
 
-    assertThat(result.orphanFileLocations()).as("Should delete 1 file").size().isOne();
+    assertThat(result.orphanFileLocations()).as("Should delete 1 file").hasSize(1);
     assertThat(StreamSupport.stream(result.orphanFileLocations().spliterator(), false))
         .as("Should remove v1 file")
         .anyMatch(file -> file.contains("v1.metadata.json"));

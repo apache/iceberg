@@ -277,8 +277,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     assertThat(result.rewriteResults())
         .as("Should have 1 fileGroup because all files were not correctly partitioned")
-        .size()
-        .isOne();
+        .hasSize(1);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
 
     List<Object[]> postRewriteData = currentData();
@@ -1002,7 +1001,7 @@ public class TestRewriteDataFilesAction extends TestBase {
                 RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(averageFileSize(table)))
             .execute();
 
-    assertThat(result.rewriteResults()).as("Should have 1 fileGroups").size().isOne();
+    assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
 
     table.refresh();
@@ -1038,8 +1037,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     assertThat(result.rewriteResults())
         .as("Should have 1 fileGroups because all files were not correctly partitioned")
-        .size()
-        .isOne();
+        .hasSize(1);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
 
     table.refresh();
@@ -1070,7 +1068,7 @@ public class TestRewriteDataFilesAction extends TestBase {
                 RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(averageFileSize(table)))
             .execute();
 
-    assertThat(result.rewriteResults()).as("Should have 1 fileGroups").size().isOne();
+    assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
 
     table.refresh();
@@ -1109,7 +1107,7 @@ public class TestRewriteDataFilesAction extends TestBase {
                 Integer.toString(averageFileSize(table) / partitions))
             .execute();
 
-    assertThat(result.rewriteResults()).as("Should have 1 fileGroups").size().isOne();
+    assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
 
     table.refresh();
@@ -1146,9 +1144,9 @@ public class TestRewriteDataFilesAction extends TestBase {
             .option(SizeBasedFileRewriter.MIN_INPUT_FILES, "1")
             .execute();
 
-    assertThat(result.rewriteResults()).as("Should have 1 fileGroups").size().isOne();
+    assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
-    assertThat(result.rewriteResults()).as("Should have 1 fileGroups").size().isOne();
+    assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
     assertThat(table.currentSnapshot().addedDataFiles(table.io()))
         .as("Should have written 40+ files")
         .hasSizeGreaterThanOrEqualTo(40);
@@ -1226,12 +1224,11 @@ public class TestRewriteDataFilesAction extends TestBase {
             .option(SizeBasedFileRewriter.MIN_INPUT_FILES, "1")
             .execute();
 
-    assertThat(result.rewriteResults()).as("Should have 1 fileGroups").size().isOne();
+    assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
     assertThat(table.currentSnapshot().addedDataFiles(table.io()))
         .as("Should have written 40+ files")
-        .size()
-        .isGreaterThanOrEqualTo(40);
+        .hasSizeGreaterThanOrEqualTo(40);
 
     table.refresh();
 
@@ -1284,12 +1281,11 @@ public class TestRewriteDataFilesAction extends TestBase {
             .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
             .execute();
 
-    assertThat(result.rewriteResults()).as("Should have 1 fileGroups").size().isOne();
+    assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
     assertThat(table.currentSnapshot().addedDataFiles(table.io()))
         .as("Should have written 1 file")
-        .size()
-        .isOne();
+        .hasSize(1);
 
     table.refresh();
 
