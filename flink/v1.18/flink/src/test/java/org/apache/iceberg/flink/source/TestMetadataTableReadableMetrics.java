@@ -24,6 +24,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
 import java.util.Base64;
 import java.util.List;
 import org.apache.flink.configuration.Configuration;
@@ -32,6 +33,7 @@ import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -40,28 +42,22 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.flink.FlinkCatalogTestBase;
+import org.apache.iceberg.flink.CatalogTestBase;
 import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.io.TempDir;
 
-public class TestMetadataTableReadableMetrics extends FlinkCatalogTestBase {
+public class TestMetadataTableReadableMetrics extends CatalogTestBase {
   private static final String TABLE_NAME = "test_table";
 
-  public TestMetadataTableReadableMetrics(String catalogName, Namespace baseNamespace) {
-    super(catalogName, baseNamespace);
-  }
-
-  @Parameterized.Parameters(name = "catalogName={0}, baseNamespace={1}")
-  public static Iterable<Object[]> parameters() {
+  @Parameters(name = "catalogName={0}, baseNamespace={1}")
+  static List<Object[]> parameters() {
     List<Object[]> parameters = Lists.newArrayList();
     String catalogName = "testhive";
     Namespace baseNamespace = Namespace.empty();
@@ -76,7 +72,7 @@ public class TestMetadataTableReadableMetrics extends FlinkCatalogTestBase {
     return super.getTableEnv();
   }
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir Path temp;
 
   private static final Types.StructType LEAF_STRUCT_TYPE =
       Types.StructType.of(
@@ -134,8 +130,7 @@ public class TestMetadataTableReadableMetrics extends FlinkCatalogTestBase {
             createPrimitiveRecord(
                 false, 2, 2L, Float.NaN, 2.0D, new BigDecimal("2.00"), "2", null, null));
 
-    DataFile dataFile =
-        FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), records);
+    DataFile dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.toFile()), records);
     table.newAppend().appendFile(dataFile).commit();
     return table;
   }
@@ -153,12 +148,11 @@ public class TestMetadataTableReadableMetrics extends FlinkCatalogTestBase {
             createNestedRecord(0L, 0.0),
             createNestedRecord(1L, Double.NaN),
             createNestedRecord(null, null));
-    DataFile dataFile =
-        FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), records);
+    DataFile dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.toFile()), records);
     table.newAppend().appendFile(dataFile).commit();
   }
 
-  @Before
+  @BeforeEach
   public void before() {
     super.before();
     sql("USE CATALOG %s", catalogName);
@@ -167,7 +161,7 @@ public class TestMetadataTableReadableMetrics extends FlinkCatalogTestBase {
   }
 
   @Override
-  @After
+  @AfterEach
   public void clean() {
     sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, TABLE_NAME);
     sql("DROP DATABASE IF EXISTS %s", flinkDatabase);
@@ -212,7 +206,7 @@ public class TestMetadataTableReadableMetrics extends FlinkCatalogTestBase {
     return values;
   }
 
-  @Test
+  @TestTemplate
   public void testPrimitiveColumns() throws Exception {
     createPrimitiveTable();
     List<Row> result = sql("SELECT readable_metrics FROM %s$files", TABLE_NAME);
@@ -257,7 +251,7 @@ public class TestMetadataTableReadableMetrics extends FlinkCatalogTestBase {
     TestHelpers.assertRows(result, expected);
   }
 
-  @Test
+  @TestTemplate
   public void testSelectPrimitiveValues() throws Exception {
     createPrimitiveTable();
 
@@ -276,7 +270,7 @@ public class TestMetadataTableReadableMetrics extends FlinkCatalogTestBase {
         ImmutableList.of(Row.of(4L, 0)));
   }
 
-  @Test
+  @TestTemplate
   public void testSelectNestedValues() throws Exception {
     createNestedTable();
     TestHelpers.assertRows(
@@ -287,7 +281,7 @@ public class TestMetadataTableReadableMetrics extends FlinkCatalogTestBase {
         ImmutableList.of(Row.of(0L, 3L)));
   }
 
-  @Test
+  @TestTemplate
   public void testNestedValues() throws Exception {
     createNestedTable();
 

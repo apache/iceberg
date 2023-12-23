@@ -22,11 +22,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.apache.flink.table.catalog.exceptions.DatabaseNotEmptyException;
 import org.apache.flink.types.Row;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -36,6 +38,14 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 
 public class TestFlinkCatalogDatabase extends CatalogTestBase {
+
+  @Parameters(name = "catalogName={0}, baseNamespace={1}")
+  static List<Object[]> parameters() {
+    return Arrays.asList(
+        new Object[] {"testhive", Namespace.empty()},
+        new Object[] {"testhadoop", Namespace.empty()},
+        new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1")});
+  }
 
   @AfterEach
   @Override
@@ -180,9 +190,7 @@ public class TestFlinkCatalogDatabase extends CatalogTestBase {
         .isTrue();
     Map<String, String> nsMetadata =
         validationNamespaceCatalog.loadNamespaceMetadata(icebergNamespace);
-    assertThat(nsMetadata.get("prop"))
-        .as("Namespace should have expected prop value")
-        .isEqualTo("value");
+    assertThat(nsMetadata).containsEntry("prop", "value");
   }
 
   @TestTemplate
@@ -198,9 +206,7 @@ public class TestFlinkCatalogDatabase extends CatalogTestBase {
         .isTrue();
     Map<String, String> nsMetadata =
         validationNamespaceCatalog.loadNamespaceMetadata(icebergNamespace);
-    assertThat(nsMetadata.get("comment"))
-        .as("Namespace should have expected comment")
-        .isEqualTo("namespace doc");
+    assertThat(nsMetadata).containsEntry("comment", "namespace doc");
   }
 
   @TestTemplate
@@ -217,9 +223,7 @@ public class TestFlinkCatalogDatabase extends CatalogTestBase {
         .isTrue();
     Map<String, String> nsMetadata =
         validationNamespaceCatalog.loadNamespaceMetadata(icebergNamespace);
-    assertThat(nsMetadata.get("location"))
-        .as("Namespace should have expected location")
-        .isEqualTo("file:" + location.getRoot());
+    assertThat(nsMetadata).containsEntry("location", "file:" + location.getRoot());
   }
 
   @TestTemplate
@@ -236,15 +240,11 @@ public class TestFlinkCatalogDatabase extends CatalogTestBase {
 
     Map<String, String> defaultMetadata =
         validationNamespaceCatalog.loadNamespaceMetadata(icebergNamespace);
-    assertThat(defaultMetadata.containsKey("prop"))
-        .as("Default metadata should not have custom property")
-        .isFalse();
+    assertThat(defaultMetadata).doesNotContainKey("prop");
     sql("ALTER DATABASE %s SET ('prop'='value')", flinkDatabase);
     Map<String, String> nsMetadata =
         validationNamespaceCatalog.loadNamespaceMetadata(icebergNamespace);
-    assertThat(nsMetadata.get("prop"))
-        .as("Namespace should have expected prop value")
-        .isEqualTo("value");
+    assertThat(nsMetadata).containsEntry("prop", "value");
   }
 
   @TestTemplate

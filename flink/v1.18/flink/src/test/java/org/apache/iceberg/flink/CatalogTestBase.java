@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink;
 
 import java.io.File;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.util.ArrayUtils;
@@ -27,7 +26,6 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
-import org.apache.iceberg.Parameters;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -60,14 +58,6 @@ public abstract class CatalogTestBase extends TestBase {
   protected String flinkDatabase;
   protected Namespace icebergNamespace;
   protected boolean isHadoopCatalog;
-
-  @Parameters(name = "catalogName={0} baseNamespace={1}")
-  static List<Object[]> parametrs() {
-    return Arrays.asList(
-        new Object[] {"testhive", Namespace.empty()},
-        new Object[] {"testhadoop", Namespace.empty()},
-        new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1")});
-  }
 
   @BeforeEach
   public void before() {

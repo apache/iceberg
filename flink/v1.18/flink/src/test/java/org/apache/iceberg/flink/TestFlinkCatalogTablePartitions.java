@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.List;
 import org.apache.flink.table.catalog.CatalogPartitionSpec;
 import org.apache.flink.table.catalog.ObjectPath;
@@ -25,25 +27,28 @@ import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.flink.table.catalog.exceptions.TableNotPartitionedException;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
 
-public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
+public class TestFlinkCatalogTablePartitions extends CatalogTestBase {
 
   private String tableName = "test_table";
 
-  private final FileFormat format;
+  @Parameter(index = 2)
+  private FileFormat format;
 
-  @Parameterized.Parameters(
-      name = "catalogName={0}, baseNamespace={1}, format={2}, cacheEnabled={3}")
-  public static Iterable<Object[]> parameters() {
+  @Parameter(index = 3)
+  private Boolean cacheEnabled;
+
+  @Parameters(name = "catalogName={0}, baseNamespace={1}, format={2}, cacheEnabled={3}")
+  static Iterable<Object[]> parameters() {
     List<Object[]> parameters = Lists.newArrayList();
     for (FileFormat format :
         new FileFormat[] {FileFormat.ORC, FileFormat.AVRO, FileFormat.PARQUET}) {
@@ -58,30 +63,24 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
     return parameters;
   }
 
-  public TestFlinkCatalogTablePartitions(
-      String catalogName, Namespace baseNamespace, FileFormat format, boolean cacheEnabled) {
-    super(catalogName, baseNamespace);
-    this.format = format;
-    config.put(CatalogProperties.CACHE_ENABLED, String.valueOf(cacheEnabled));
-  }
-
   @Override
-  @Before
+  @BeforeEach
   public void before() {
     super.before();
+    config.put(CatalogProperties.CACHE_ENABLED, String.valueOf(cacheEnabled));
     sql("CREATE DATABASE %s", flinkDatabase);
     sql("USE CATALOG %s", catalogName);
     sql("USE %s", DATABASE);
   }
 
-  @After
+  @AfterEach
   public void cleanNamespaces() {
     sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
     sql("DROP DATABASE IF EXISTS %s", flinkDatabase);
     super.clean();
   }
 
-  @Test
+  @TestTemplate
   public void testListPartitionsWithUnpartitionedTable() {
     sql(
         "CREATE TABLE %s (id INT, data VARCHAR) with ('write.format.default'='%s')",
@@ -96,7 +95,7 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
         .hasMessageEndingWith("is not partitioned.");
   }
 
-  @Test
+  @TestTemplate
   public void testListPartitionsWithPartitionedTable()
       throws TableNotExistException, TableNotPartitionedException {
     sql(
@@ -109,13 +108,12 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
     ObjectPath objectPath = new ObjectPath(DATABASE, tableName);
     FlinkCatalog flinkCatalog = (FlinkCatalog) getTableEnv().getCatalog(catalogName).get();
     List<CatalogPartitionSpec> list = flinkCatalog.listPartitions(objectPath);
-    Assert.assertEquals("Should have 2 partition", 2, list.size());
-
+    assertThat(list).hasSize(2);
     List<CatalogPartitionSpec> expected = Lists.newArrayList();
     CatalogPartitionSpec partitionSpec1 = new CatalogPartitionSpec(ImmutableMap.of("data", "a"));
     CatalogPartitionSpec partitionSpec2 = new CatalogPartitionSpec(ImmutableMap.of("data", "b"));
     expected.add(partitionSpec1);
     expected.add(partitionSpec2);
-    Assert.assertEquals("Should produce the expected catalog partition specs.", list, expected);
+    assertThat(list).as("Should produce the expected catalog partition specs.").isEqualTo(expected);
   }
 }
