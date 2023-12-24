@@ -20,13 +20,11 @@ package org.apache.iceberg.deletes;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import org.apache.iceberg.io.DeleteWriteResult;
 import org.apache.iceberg.io.FileWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
-import org.apache.iceberg.util.CharSequenceWrapper;
+import org.apache.iceberg.util.CharSequenceMap;
 import org.roaringbitmap.longlong.PeekableLongIterator;
 import org.roaringbitmap.longlong.Roaring64Bitmap;
 
@@ -44,28 +42,20 @@ public class SortingPositionOnlyDeleteWriter<T>
     implements FileWriter<PositionDelete<T>, DeleteWriteResult> {
 
   private final FileWriter<PositionDelete<T>, DeleteWriteResult> writer;
-  private final Map<CharSequenceWrapper, Roaring64Bitmap> positionsByPath;
-  private final CharSequenceWrapper pathWrapper;
+  private final CharSequenceMap<Roaring64Bitmap> positionsByPath;
   private DeleteWriteResult result = null;
 
   public SortingPositionOnlyDeleteWriter(FileWriter<PositionDelete<T>, DeleteWriteResult> writer) {
     this.writer = writer;
-    this.positionsByPath = Maps.newHashMap();
-    this.pathWrapper = CharSequenceWrapper.wrap(null);
+    this.positionsByPath = CharSequenceMap.create();
   }
 
   @Override
   public void write(PositionDelete<T> positionDelete) {
     CharSequence path = positionDelete.path();
     long position = positionDelete.pos();
-    Roaring64Bitmap positions = positionsByPath.get(pathWrapper.set(path));
-    if (positions != null) {
-      positions.add(position);
-    } else {
-      positions = new Roaring64Bitmap();
-      positions.add(position);
-      positionsByPath.put(CharSequenceWrapper.wrap(path), positions);
-    }
+    Roaring64Bitmap positions = positionsByPath.computeIfAbsent(path, Roaring64Bitmap::new);
+    positions.add(position);
   }
 
   @Override
@@ -88,12 +78,12 @@ public class SortingPositionOnlyDeleteWriter<T>
   private DeleteWriteResult writeDeletes() throws IOException {
     try {
       PositionDelete<T> positionDelete = PositionDelete.create();
-      for (CharSequenceWrapper path : sortedPaths()) {
+      for (CharSequence path : sortedPaths()) {
         // the iterator provides values in ascending sorted order
         PeekableLongIterator positions = positionsByPath.get(path).getLongIterator();
         while (positions.hasNext()) {
           long position = positions.next();
-          writer.write(positionDelete.set(path.get(), position, null /* no row */));
+          writer.write(positionDelete.set(path, position, null /* no row */));
         }
       }
     } finally {
@@ -103,8 +93,8 @@ public class SortingPositionOnlyDeleteWriter<T>
     return writer.result();
   }
 
-  private List<CharSequenceWrapper> sortedPaths() {
-    List<CharSequenceWrapper> paths = Lists.newArrayList(positionsByPath.keySet());
+  private List<CharSequence> sortedPaths() {
+    List<CharSequence> paths = Lists.newArrayList(positionsByPath.keySet());
     paths.sort(Comparators.charSequences());
     return paths;
   }
