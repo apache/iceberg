@@ -124,7 +124,7 @@ public class TestFlinkCatalogDatabase extends CatalogTestBase {
     assertThat(validationNamespaceCatalog.namespaceExists(icebergNamespace))
         .as("Namespace should exist")
         .isTrue();
-    assertThat(sql("SHOW TABLES").size()).as("Should not list any tables").isEqualTo(0);
+    assertThat(sql("SHOW TABLES")).isEmpty();
     validationCatalog.createTable(
         TableIdentifier.of(icebergNamespace, "tl"),
         new Schema(Types.NestedField.optional(0, "id", Types.LongType.get())));
@@ -163,8 +163,8 @@ public class TestFlinkCatalogDatabase extends CatalogTestBase {
       // creation for default
       // database. See HiveMetaStore.HMSHandler.init.
       assertThat(databases)
-          .anyMatch(d -> Objects.equals(d.getField(0), "db"))
-          .as("Should have db database");
+          .as("Should have db database")
+          .anyMatch(d -> Objects.equals(d.getField(0), "db"));
     }
   }
 

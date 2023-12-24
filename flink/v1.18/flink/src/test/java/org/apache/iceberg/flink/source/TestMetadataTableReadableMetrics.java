@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.source;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
+import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -72,7 +73,7 @@ public class TestMetadataTableReadableMetrics extends CatalogTestBase {
     return super.getTableEnv();
   }
 
-  @TempDir Path temp;
+  private @TempDir Path temp;
 
   private static final Types.StructType LEAF_STRUCT_TYPE =
       Types.StructType.of(
@@ -130,7 +131,8 @@ public class TestMetadataTableReadableMetrics extends CatalogTestBase {
             createPrimitiveRecord(
                 false, 2, 2L, Float.NaN, 2.0D, new BigDecimal("2.00"), "2", null, null));
 
-    DataFile dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.toFile()), records);
+    File testFile = File.createTempFile("junit", null, temp.toFile());
+    DataFile dataFile = FileHelpers.writeDataFile(table, Files.localOutput(testFile), records);
     table.newAppend().appendFile(dataFile).commit();
     return table;
   }
@@ -148,7 +150,9 @@ public class TestMetadataTableReadableMetrics extends CatalogTestBase {
             createNestedRecord(0L, 0.0),
             createNestedRecord(1L, Double.NaN),
             createNestedRecord(null, null));
-    DataFile dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.toFile()), records);
+
+    File testFile = File.createTempFile("junit", null, temp.toFile());
+    DataFile dataFile = FileHelpers.writeDataFile(table, Files.localOutput(testFile), records);
     table.newAppend().appendFile(dataFile).commit();
   }
 
