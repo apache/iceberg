@@ -57,7 +57,7 @@ public class TestMetadataTableReadableMetrics extends CatalogTestBase {
   private static final String TABLE_NAME = "test_table";
 
   @Parameters(name = "catalogName={0}, baseNamespace={1}")
-  static List<Object[]> parameters() {
+  protected static List<Object[]> parameters() {
     List<Object[]> parameters = Lists.newArrayList();
     String catalogName = "testhive";
     Namespace baseNamespace = Namespace.empty();

@@ -22,13 +22,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.apache.flink.table.catalog.exceptions.DatabaseNotEmptyException;
 import org.apache.flink.types.Row;
-import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -38,14 +36,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 
 public class TestFlinkCatalogDatabase extends CatalogTestBase {
-
-  @Parameters(name = "catalogName={0}, baseNamespace={1}")
-  static List<Object[]> parameters() {
-    return Arrays.asList(
-        new Object[] {"testhive", Namespace.empty()},
-        new Object[] {"testhadoop", Namespace.empty()},
-        new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1")});
-  }
 
   @AfterEach
   @Override

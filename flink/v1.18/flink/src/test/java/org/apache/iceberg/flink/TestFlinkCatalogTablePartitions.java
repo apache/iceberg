@@ -48,7 +48,7 @@ public class TestFlinkCatalogTablePartitions extends CatalogTestBase {
   private Boolean cacheEnabled;
 
   @Parameters(name = "catalogName={0}, baseNamespace={1}, format={2}, cacheEnabled={3}")
-  static Iterable<Object[]> parameters() {
+  protected static List<Object[]> parameters() {
     List<Object[]> parameters = Lists.newArrayList();
     for (FileFormat format :
         new FileFormat[] {FileFormat.ORC, FileFormat.AVRO, FileFormat.PARQUET}) {
