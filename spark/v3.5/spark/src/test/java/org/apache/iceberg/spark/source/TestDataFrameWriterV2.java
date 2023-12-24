@@ -37,7 +37,7 @@ import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.internal.SQLConf;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
 
 public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
   @BeforeEach
@@ -50,7 +50,7 @@ public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testMergeSchemaFailsWithoutWriterOption() throws Exception {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
@@ -82,7 +82,7 @@ public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
         .hasMessage("Field new_col not found in source schema");
   }
 
-  @Test
+  @TestTemplate
   public void testMergeSchemaWithoutAcceptAnySchema() throws Exception {
     Dataset<Row> twoColDF =
         jsonToDF(
@@ -109,7 +109,7 @@ public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
             "Cannot write to `testhadoop`.`default`.`table`, the reason is too many data columns");
   }
 
-  @Test
+  @TestTemplate
   public void testMergeSchemaSparkProperty() throws Exception {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
@@ -143,7 +143,7 @@ public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
         sql("select * from %s order by id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeSchemaIcebergProperty() throws Exception {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
@@ -177,7 +177,7 @@ public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
         sql("select * from %s order by id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testWriteWithCaseSensitiveOption() throws NoSuchTableException, ParseException {
     SparkSession sparkSession = spark.cloneSession();
     sparkSession

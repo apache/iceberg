@@ -24,6 +24,9 @@ import java.util.Map;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Catalog;
@@ -35,10 +38,24 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public abstract class TestBaseWithCatalog extends TestBase {
   protected static File warehouse = null;
+
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
+  protected static Object[][] parameters() {
+    return new Object[][] {
+      {
+        SparkCatalogConfig.HADOOP.catalogName(),
+        SparkCatalogConfig.HADOOP.implementation(),
+        SparkCatalogConfig.HADOOP.properties()
+      },
+    };
+  }
 
   @BeforeAll
   public static void createWarehouse() throws IOException {
@@ -59,25 +76,22 @@ public abstract class TestBaseWithCatalog extends TestBase {
 
   @TempDir protected File temp;
 
-  protected final String catalogName;
-  protected final Map<String, String> catalogConfig;
-  protected final Catalog validationCatalog;
-  protected final SupportsNamespaces validationNamespaceCatalog;
-  protected final TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("default"), "table");
-  protected final String tableName;
+  @Parameter(index = 0)
+  protected String catalogName;
 
-  public TestBaseWithCatalog() {
-    this(SparkCatalogConfig.HADOOP);
-  }
+  @Parameter(index = 1)
+  protected String implementation;
 
-  public TestBaseWithCatalog(SparkCatalogConfig config) {
-    this(config.catalogName(), config.implementation(), config.properties());
-  }
+  @Parameter(index = 2)
+  protected Map<String, String> catalogConfig;
 
-  public TestBaseWithCatalog(
-      String catalogName, String implementation, Map<String, String> config) {
-    this.catalogName = catalogName;
-    this.catalogConfig = config;
+  protected Catalog validationCatalog;
+  protected SupportsNamespaces validationNamespaceCatalog;
+  protected TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("default"), "table");
+  protected String tableName;
+
+  @BeforeEach
+  public void before() {
     this.validationCatalog =
         catalogName.equals("testhadoop")
             ? new HadoopCatalog(spark.sessionState().newHadoopConf(), "file:" + warehouse)
@@ -85,10 +99,10 @@ public abstract class TestBaseWithCatalog extends TestBase {
     this.validationNamespaceCatalog = (SupportsNamespaces) validationCatalog;
 
     spark.conf().set("spark.sql.catalog." + catalogName, implementation);
-    config.forEach(
+    catalogConfig.forEach(
         (key, value) -> spark.conf().set("spark.sql.catalog." + catalogName + "." + key, value));
 
-    if (config.get("type").equalsIgnoreCase("hadoop")) {
+    if (catalogConfig.get("type").equalsIgnoreCase("hadoop")) {
       spark.conf().set("spark.sql.catalog." + catalogName + ".warehouse", "file:" + warehouse);
     }
 

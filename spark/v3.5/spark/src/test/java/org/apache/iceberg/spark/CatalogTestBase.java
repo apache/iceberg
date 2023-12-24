@@ -19,7 +19,6 @@
 package org.apache.iceberg.spark;
 
 import java.nio.file.Path;
-import java.util.Map;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,7 +29,7 @@ public abstract class CatalogTestBase extends TestBaseWithCatalog {
 
   // these parameters are broken out to avoid changes that need to modify lots of test suites
   @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
-  public static Object[][] parameters() {
+  protected static Object[][] parameters() {
     return new Object[][] {
       {
         SparkCatalogConfig.HIVE.catalogName(),
@@ -51,12 +50,4 @@ public abstract class CatalogTestBase extends TestBaseWithCatalog {
   }
 
   @TempDir protected Path temp;
-
-  public CatalogTestBase(SparkCatalogConfig config) {
-    super(config);
-  }
-
-  public CatalogTestBase(String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
 }

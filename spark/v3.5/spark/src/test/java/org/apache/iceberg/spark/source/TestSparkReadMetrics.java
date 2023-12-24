@@ -30,7 +30,7 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.execution.metric.SQLMetric;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
 import scala.collection.JavaConverters;
 
 public class TestSparkReadMetrics extends TestBaseWithCatalog {
@@ -40,7 +40,7 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testReadMetricsForV1Table() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (id BIGINT) USING iceberg TBLPROPERTIES ('format-version'='1')",
@@ -83,7 +83,7 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
     assertThat(metricsMap.get("skippedDeleteFiles").value()).isEqualTo(0);
   }
 
-  @Test
+  @TestTemplate
   public void testReadMetricsForV2Table() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (id BIGINT) USING iceberg TBLPROPERTIES ('format-version'='2')",
@@ -127,7 +127,7 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
     assertThat(metricsMap.get("skippedDeleteFiles").value()).isEqualTo(0);
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteMetrics() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (id BIGINT)"
