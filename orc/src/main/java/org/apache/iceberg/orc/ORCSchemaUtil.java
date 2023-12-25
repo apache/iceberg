@@ -22,12 +22,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMultimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -441,5 +444,24 @@ public final class ORCSchemaUtil {
    */
   public static Map<Integer, String> idToOrcName(Schema schema) {
     return TypeUtil.visit(schema, new IdToOrcName());
+  }
+
+  /**
+   * Returns a {@link Schema} which has constant fields and metadata fields removed from the
+   * provided schema. This utility can be used to create a "read schema" which can be passed to the
+   * ORC file reader and hence avoiding deserialization and memory costs associated with column
+   * values already available through Iceberg metadata.
+   *
+   * <p>NOTE: This method, unlike {@link TypeUtil#selectNot(Schema, Set)}, preserves empty structs
+   * (caused due to a struct having all constant fields) so that Iceberg ORC readers can later add
+   * constant fields in these structs
+   */
+  public static Schema removeConstantsAndMetadataFields(
+      Schema schema, Set<Integer> constantFieldIds) {
+    Set<Integer> projectedIds = TypeUtil.getProjectedIds(schema.asStruct());
+    return TypeUtil.project(
+        schema,
+        Sets.difference(
+            projectedIds, Sets.union(constantFieldIds, MetadataColumns.metadataFieldIds())));
   }
 }
