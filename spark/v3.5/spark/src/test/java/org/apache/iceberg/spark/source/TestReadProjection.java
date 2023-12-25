@@ -24,8 +24,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
@@ -36,23 +38,19 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public abstract class TestReadProjection {
-  final String format;
-
-  TestReadProjection(String format) {
-    this.format = format;
-  }
 
   protected abstract Record writeAndRead(
       String desc, Schema writeSchema, Schema readSchema, Record record) throws IOException;
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir protected Path temp;
 
-  @Test
+  @TestTemplate
   public void testFullProjection() throws Exception {
     Schema schema =
         new Schema(
@@ -75,7 +73,7 @@ public abstract class TestReadProjection {
     assertThat(cmp).as("Should contain the correct data value").isEqualTo(0);
   }
 
-  @Test
+  @TestTemplate
   public void testReorderedFullProjection() throws Exception {
     //    Assume.assumeTrue(
     //        "Spark's Parquet read support does not support reordered columns",
@@ -103,7 +101,7 @@ public abstract class TestReadProjection {
     assertThat(projected.get(1)).as("Should contain the correct 1 value").isEqualTo(34L);
   }
 
-  @Test
+  @TestTemplate
   public void testReorderedProjection() throws Exception {
     //    Assume.assumeTrue(
     //        "Spark's Parquet read support does not support reordered columns",
@@ -133,7 +131,7 @@ public abstract class TestReadProjection {
     assertThat(projected.get(2)).as("Should contain the correct 2 value").isNull();
   }
 
-  @Test
+  @TestTemplate
   public void testEmptyProjection() throws Exception {
     Schema schema =
         new Schema(
@@ -151,7 +149,7 @@ public abstract class TestReadProjection {
     assertThatThrownBy(() -> projected.get(0)).isInstanceOf(ArrayIndexOutOfBoundsException.class);
   }
 
-  @Test
+  @TestTemplate
   public void testBasicProjection() throws Exception {
     Schema writeSchema =
         new Schema(
@@ -180,7 +178,7 @@ public abstract class TestReadProjection {
     assertThat(cmp).as("Should contain the correct data value").isEqualTo(0);
   }
 
-  @Test
+  @TestTemplate
   public void testRename() throws Exception {
     Schema writeSchema =
         new Schema(
@@ -206,7 +204,7 @@ public abstract class TestReadProjection {
     assertThat(cmp).as("Should contain the correct data/renamed value").isEqualTo(0);
   }
 
-  @Test
+  @TestTemplate
   public void testNestedStructProjection() throws Exception {
     Schema writeSchema =
         new Schema(
@@ -281,7 +279,7 @@ public abstract class TestReadProjection {
         .isCloseTo(-1.539054f, within(0.000001f));
   }
 
-  @Test
+  @TestTemplate
   public void testMapProjection() throws IOException {
     Schema writeSchema =
         new Schema(
@@ -339,7 +337,7 @@ public abstract class TestReadProjection {
     return stringMap;
   }
 
-  @Test
+  @TestTemplate
   public void testMapOfStructsProjection() throws IOException {
     Schema writeSchema =
         new Schema(
@@ -463,7 +461,7 @@ public abstract class TestReadProjection {
     assertThat(projectedL2.getField("long")).as("L2 should not contain long").isNull();
   }
 
-  @Test
+  @TestTemplate
   public void testListProjection() throws IOException {
     Schema writeSchema =
         new Schema(
@@ -496,7 +494,7 @@ public abstract class TestReadProjection {
     assertThat(projected.getField("values")).as("Should project entire list").isEqualTo(values);
   }
 
-  @Test
+  @TestTemplate
   @SuppressWarnings("unchecked")
   public void testListOfStructsProjection() throws IOException {
     Schema writeSchema =

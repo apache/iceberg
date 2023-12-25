@@ -21,20 +21,24 @@ package org.apache.iceberg.spark.source;
 import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
 import static org.apache.iceberg.PlanningMode.LOCAL;
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -44,22 +48,29 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.SparkSession;
-import org.assertj.core.api.Assertions;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestSnapshotSelection {
 
-  @Parameterized.Parameters(name = "planningMode = {0}")
+  @Parameters(name = "properties = {0}")
   public static Object[] parameters() {
-    return new Object[] {LOCAL, DISTRIBUTED};
+    return new Object[][] {
+      {
+        ImmutableMap.of(
+            TableProperties.DATA_PLANNING_MODE, LOCAL.modeName(),
+            TableProperties.DELETE_PLANNING_MODE, LOCAL.modeName())
+      },
+      {
+        ImmutableMap.of(
+            TableProperties.DATA_PLANNING_MODE, DISTRIBUTED.modeName(),
+            TableProperties.DELETE_PLANNING_MODE, DISTRIBUTED.modeName())
+      }
+    };
   }
 
   private static final Configuration CONF = new Configuration();
@@ -67,34 +78,28 @@ public class TestSnapshotSelection {
       new Schema(
           optional(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
   private static SparkSession spark = null;
 
-  private final Map<String, String> properties;
+  @Parameter(index = 0)
+  private Map<String, String> properties;
 
-  public TestSnapshotSelection(PlanningMode planningMode) {
-    this.properties =
-        ImmutableMap.of(
-            TableProperties.DATA_PLANNING_MODE, planningMode.modeName(),
-            TableProperties.DELETE_PLANNING_MODE, planningMode.modeName());
-  }
-
-  @BeforeClass
-  public static void startSpark() {
+  @BeforeEach
+  public void startSpark() {
     TestSnapshotSelection.spark = SparkSession.builder().master("local[2]").getOrCreate();
   }
 
-  @AfterClass
-  public static void stopSpark() {
+  @AfterEach
+  public void stopSpark() {
     SparkSession currentSpark = TestSnapshotSelection.spark;
     TestSnapshotSelection.spark = null;
     currentSpark.stop();
   }
 
-  @Test
+  @TestTemplate
   public void testSnapshotSelectionById() throws IOException {
-    String tableLocation = temp.newFolder("iceberg-table").toString();
+    String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -114,7 +119,7 @@ public class TestSnapshotSelection {
     Dataset<Row> secondDf = spark.createDataFrame(secondBatchRecords, SimpleRecord.class);
     secondDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
 
-    Assert.assertEquals("Expected 2 snapshots", 2, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).as("Expected 2 snapshots").hasSize(2);
 
     // verify records in the current snapshot
     Dataset<Row> currentSnapshotResult = spark.read().format("iceberg").load(tableLocation);
@@ -123,8 +128,9 @@ public class TestSnapshotSelection {
     List<SimpleRecord> expectedRecords = Lists.newArrayList();
     expectedRecords.addAll(firstBatchRecords);
     expectedRecords.addAll(secondBatchRecords);
-    Assert.assertEquals(
-        "Current snapshot rows should match", expectedRecords, currentSnapshotRecords);
+    assertThat(currentSnapshotRecords)
+        .as("Current snapshot rows should match")
+        .isEqualTo(expectedRecords);
 
     // verify records in the previous snapshot
     Snapshot currentSnapshot = table.currentSnapshot();
@@ -133,13 +139,14 @@ public class TestSnapshotSelection {
         spark.read().format("iceberg").option("snapshot-id", parentSnapshotId).load(tableLocation);
     List<SimpleRecord> previousSnapshotRecords =
         previousSnapshotResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    Assert.assertEquals(
-        "Previous snapshot rows should match", firstBatchRecords, previousSnapshotRecords);
+    assertThat(previousSnapshotRecords)
+        .as("Previous snapshot rows should match")
+        .isEqualTo(firstBatchRecords);
   }
 
-  @Test
+  @TestTemplate
   public void testSnapshotSelectionByTimestamp() throws IOException {
-    String tableLocation = temp.newFolder("iceberg-table").toString();
+    String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -162,7 +169,7 @@ public class TestSnapshotSelection {
     Dataset<Row> secondDf = spark.createDataFrame(secondBatchRecords, SimpleRecord.class);
     secondDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
 
-    Assert.assertEquals("Expected 2 snapshots", 2, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).as("Expected 2 snapshots").hasSize(2);
 
     // verify records in the current snapshot
     Dataset<Row> currentSnapshotResult = spark.read().format("iceberg").load(tableLocation);
@@ -171,8 +178,9 @@ public class TestSnapshotSelection {
     List<SimpleRecord> expectedRecords = Lists.newArrayList();
     expectedRecords.addAll(firstBatchRecords);
     expectedRecords.addAll(secondBatchRecords);
-    Assert.assertEquals(
-        "Current snapshot rows should match", expectedRecords, currentSnapshotRecords);
+    assertThat(currentSnapshotRecords)
+        .as("Current snapshot rows should match")
+        .isEqualTo(expectedRecords);
 
     // verify records in the previous snapshot
     Dataset<Row> previousSnapshotResult =
@@ -183,13 +191,14 @@ public class TestSnapshotSelection {
             .load(tableLocation);
     List<SimpleRecord> previousSnapshotRecords =
         previousSnapshotResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    Assert.assertEquals(
-        "Previous snapshot rows should match", firstBatchRecords, previousSnapshotRecords);
+    assertThat(previousSnapshotRecords)
+        .as("Previous snapshot rows should match")
+        .isEqualTo(firstBatchRecords);
   }
 
-  @Test
+  @TestTemplate
   public void testSnapshotSelectionByInvalidSnapshotId() throws IOException {
-    String tableLocation = temp.newFolder("iceberg-table").toString();
+    String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -197,21 +206,21 @@ public class TestSnapshotSelection {
 
     Dataset<Row> df = spark.read().format("iceberg").option("snapshot-id", -10).load(tableLocation);
 
-    Assertions.assertThatThrownBy(df::collectAsList)
+    assertThatThrownBy(df::collectAsList)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot find snapshot with ID -10");
   }
 
-  @Test
+  @TestTemplate
   public void testSnapshotSelectionByInvalidTimestamp() throws IOException {
     long timestamp = System.currentTimeMillis();
 
-    String tableLocation = temp.newFolder("iceberg-table").toString();
+    String tableLocation = temp.resolve("iceberg-table").toFile().toString();
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
     tables.create(SCHEMA, spec, properties, tableLocation);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 spark
                     .read()
@@ -222,9 +231,9 @@ public class TestSnapshotSelection {
         .hasMessageContaining("Cannot find a snapshot older than");
   }
 
-  @Test
+  @TestTemplate
   public void testSnapshotSelectionBySnapshotIdAndTimestamp() throws IOException {
-    String tableLocation = temp.newFolder("iceberg-table").toString();
+    String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -239,7 +248,7 @@ public class TestSnapshotSelection {
     long timestamp = System.currentTimeMillis();
     long snapshotId = table.currentSnapshot().snapshotId();
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 spark
                     .read()
@@ -254,9 +263,9 @@ public class TestSnapshotSelection {
         .hasMessageContaining("tag");
   }
 
-  @Test
+  @TestTemplate
   public void testSnapshotSelectionByTag() throws IOException {
-    String tableLocation = temp.newFolder("iceberg-table").toString();
+    String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -285,13 +294,14 @@ public class TestSnapshotSelection {
         currentSnapshotResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     List<SimpleRecord> expectedRecords = Lists.newArrayList();
     expectedRecords.addAll(firstBatchRecords);
-    Assert.assertEquals(
-        "Current snapshot rows should match", expectedRecords, currentSnapshotRecords);
+    assertThat(currentSnapshotRecords)
+        .as("Current snapshot rows should match")
+        .isEqualTo(expectedRecords);
   }
 
-  @Test
+  @TestTemplate
   public void testSnapshotSelectionByBranch() throws IOException {
-    String tableLocation = temp.newFolder("iceberg-table").toString();
+    String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -320,13 +330,14 @@ public class TestSnapshotSelection {
         currentSnapshotResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     List<SimpleRecord> expectedRecords = Lists.newArrayList();
     expectedRecords.addAll(firstBatchRecords);
-    Assert.assertEquals(
-        "Current snapshot rows should match", expectedRecords, currentSnapshotRecords);
+    assertThat(currentSnapshotRecords)
+        .as("Current snapshot rows should match")
+        .isEqualTo(expectedRecords);
   }
 
-  @Test
+  @TestTemplate
   public void testSnapshotSelectionByBranchAndTagFails() throws IOException {
-    String tableLocation = temp.newFolder("iceberg-table").toString();
+    String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -342,7 +353,7 @@ public class TestSnapshotSelection {
     table.manageSnapshots().createBranch("branch", table.currentSnapshot().snapshotId()).commit();
     table.manageSnapshots().createTag("tag", table.currentSnapshot().snapshotId()).commit();
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 spark
                     .read()
@@ -355,9 +366,9 @@ public class TestSnapshotSelection {
         .hasMessageStartingWith("Can specify only one of snapshot-id");
   }
 
-  @Test
+  @TestTemplate
   public void testSnapshotSelectionByTimestampAndBranchOrTagFails() throws IOException {
-    String tableLocation = temp.newFolder("iceberg-table").toString();
+    String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -373,7 +384,7 @@ public class TestSnapshotSelection {
     table.manageSnapshots().createBranch("branch", table.currentSnapshot().snapshotId()).commit();
     table.manageSnapshots().createTag("tag", table.currentSnapshot().snapshotId()).commit();
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 spark
                     .read()
@@ -385,7 +396,7 @@ public class TestSnapshotSelection {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Can specify only one of snapshot-id");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 spark
                     .read()
@@ -398,9 +409,9 @@ public class TestSnapshotSelection {
         .hasMessageStartingWith("Can specify only one of snapshot-id");
   }
 
-  @Test
+  @TestTemplate
   public void testSnapshotSelectionByBranchWithSchemaChange() throws IOException {
-    String tableLocation = temp.newFolder("iceberg-table").toString();
+    String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -421,14 +432,15 @@ public class TestSnapshotSelection {
         branchSnapshotResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     List<SimpleRecord> expectedRecords = Lists.newArrayList();
     expectedRecords.addAll(firstBatchRecords);
-    Assert.assertEquals(
-        "Current snapshot rows should match", expectedRecords, branchSnapshotRecords);
+    assertThat(branchSnapshotRecords)
+        .as("Current snapshot rows should match")
+        .isEqualTo(expectedRecords);
 
     // Deleting a column to indicate schema change
     table.updateSchema().deleteColumn("data").commit();
 
     // The data should not have the deleted column
-    Assertions.assertThat(
+    assertThat(
             spark
                 .read()
                 .format("iceberg")
@@ -441,7 +453,7 @@ public class TestSnapshotSelection {
     // re-introducing the column should not let the data re-appear
     table.updateSchema().addColumn("data", Types.StringType.get()).commit();
 
-    Assertions.assertThat(
+    assertThat(
             spark
                 .read()
                 .format("iceberg")
@@ -454,9 +466,9 @@ public class TestSnapshotSelection {
             new SimpleRecord(1, null), new SimpleRecord(2, null), new SimpleRecord(3, null));
   }
 
-  @Test
+  @TestTemplate
   public void testWritingToBranchAfterSchemaChange() throws IOException {
-    String tableLocation = temp.newFolder("iceberg-table").toString();
+    String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -477,13 +489,14 @@ public class TestSnapshotSelection {
         branchSnapshotResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     List<SimpleRecord> expectedRecords = Lists.newArrayList();
     expectedRecords.addAll(firstBatchRecords);
-    Assert.assertEquals(
-        "Current snapshot rows should match", expectedRecords, branchSnapshotRecords);
+    assertThat(branchSnapshotRecords)
+        .as("Current snapshot rows should match")
+        .isEqualTo(expectedRecords);
 
     // Deleting and add a new column of the same type to indicate schema change
     table.updateSchema().deleteColumn("data").addColumn("zip", Types.IntegerType.get()).commit();
 
-    Assertions.assertThat(
+    assertThat(
             spark
                 .read()
                 .format("iceberg")
@@ -514,7 +527,7 @@ public class TestSnapshotSelection {
         .mode("append")
         .save(tableLocation);
 
-    Assertions.assertThat(
+    assertThat(
             spark
                 .read()
                 .format("iceberg")
@@ -527,9 +540,9 @@ public class TestSnapshotSelection {
         .containsAll(records);
   }
 
-  @Test
+  @TestTemplate
   public void testSnapshotSelectionByTagWithSchemaChange() throws IOException {
-    String tableLocation = temp.newFolder("iceberg-table").toString();
+    String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -551,7 +564,9 @@ public class TestSnapshotSelection {
         spark.read().format("iceberg").option("tag", "tag").load(tableLocation);
     List<SimpleRecord> tagSnapshotRecords =
         tagSnapshotResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    Assert.assertEquals("Current snapshot rows should match", expectedRecords, tagSnapshotRecords);
+    assertThat(tagSnapshotRecords)
+        .as("Current snapshot rows should match")
+        .isEqualTo(expectedRecords);
 
     // Deleting a column to indicate schema change
     table.updateSchema().deleteColumn("data").commit();
@@ -564,7 +579,8 @@ public class TestSnapshotSelection {
             .orderBy("id")
             .as(Encoders.bean(SimpleRecord.class))
             .collectAsList();
-    Assert.assertEquals(
-        "Current snapshot rows should match", expectedRecords, deletedColumnTagSnapshotRecords);
+    assertThat(deletedColumnTagSnapshotRecords)
+        .as("Current snapshot rows should match")
+        .isEqualTo(expectedRecords);
   }
 }
