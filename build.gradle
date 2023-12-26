@@ -463,8 +463,10 @@ project(':iceberg-aws') {
     implementation platform(libs.jackson.bom)
     implementation "com.fasterxml.jackson.core:jackson-databind"
     implementation "com.fasterxml.jackson.core:jackson-core"
+    implementation "software.amazon.s3.accessgrants:aws-s3-accessgrants-java-plugin:1.0"
 
     compileOnly(platform(libs.awssdk.bom))
+    compileOnly(platform(libs.awssdk.s3accessgrants))
     compileOnly("software.amazon.awssdk:url-connection-client")
     compileOnly("software.amazon.awssdk:apache-client")
     compileOnly("software.amazon.awssdk:auth")
@@ -487,6 +489,7 @@ project(':iceberg-aws') {
     testImplementation(platform(libs.awssdk.bom))
     testImplementation("software.amazon.awssdk:iam")
     testImplementation("software.amazon.awssdk:s3control")
+    testImplementation("software.amazon.s3.accessgrants:aws-s3-accessgrants-java-plugin")
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation(libs.s3mock.junit5) {
       exclude module: "spring-boot-starter-logging"

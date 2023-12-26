@@ -112,6 +112,7 @@ public class AwsClientFactories {
           .applyMutation(
               b -> s3FileIOProperties.applyCredentialConfigurations(awsClientProperties, b))
           .applyMutation(s3FileIOProperties::applySignerConfiguration)
+          .applyMutation(s3FileIOProperties::applyS3AccessGrantsConfigurations)
           .build();
     }
 
