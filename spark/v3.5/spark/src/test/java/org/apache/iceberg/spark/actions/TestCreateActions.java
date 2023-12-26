@@ -95,7 +95,7 @@ public class TestCreateActions extends CatalogTestBase {
 
   private static final String NAMESPACE = "default";
 
-  @Parameters(name = "Catalog Name {0} - Options {2}")
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}, type = {3}")
   public static Object[][] parameters() {
     return new Object[][] {
       new Object[] {
