@@ -528,11 +528,8 @@ public class TestCreateActions extends CatalogTestBase {
 
     for (Map.Entry<String, String> entry : expectedProps.entrySet()) {
       assertThat(table.properties())
-          .as("Created table missing property " + entry.getKey())
-          .containsKey(entry.getKey());
-      assertThat(table.properties().get(entry.getKey()))
           .as("Property value is not the expected value")
-          .isEqualTo(entry.getValue());
+          .containsEntry(entry.getKey(), entry.getValue());
     }
   }
 
