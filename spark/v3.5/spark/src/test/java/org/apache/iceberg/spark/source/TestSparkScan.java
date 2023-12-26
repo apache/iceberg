@@ -73,7 +73,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
   @Parameter(index = 3)
   private String format;
 
-  @Parameters(name = "format = {0}")
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}, format = {3}")
   public static Object[][] parameters() {
     return new Object[][] {
       {
