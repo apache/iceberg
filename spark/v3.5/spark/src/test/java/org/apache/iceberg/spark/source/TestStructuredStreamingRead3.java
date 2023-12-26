@@ -349,7 +349,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   public void testResumingStreamReadFromCheckpoint() throws Exception {
     File writerCheckpointFolder = temp.resolve("writer-checkpoint-folder").toFile();
     File writerCheckpoint = new File(writerCheckpointFolder, "writer-checkpoint");
-    File output = java.nio.file.Files.createTempDirectory(temp, "junit").toFile();
+    File output = temp.resolve("junit").toFile();
 
     DataStreamWriter querySource =
         spark
@@ -389,7 +389,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   public void testFailReadingCheckpointInvalidSnapshot() throws IOException, TimeoutException {
     File writerCheckpointFolder = temp.resolve("writer-checkpoint-folder").toFile();
     File writerCheckpoint = new File(writerCheckpointFolder, "writer-checkpoint");
-    File output = java.nio.file.Files.createTempDirectory(temp, "junit").toFile();
+    File output = temp.resolve("junit").toFile();
 
     DataStreamWriter querySource =
         spark
