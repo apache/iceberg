@@ -19,6 +19,8 @@
 package org.apache.iceberg.flink;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -46,7 +48,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
-import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -56,20 +57,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
 
-public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
-
-  public TestFlinkCatalogTable(String catalogName, Namespace baseNamespace) {
-    super(catalogName, baseNamespace);
-  }
+public class TestFlinkCatalogTable extends CatalogTestBase {
 
   @Override
-  @Before
+  @BeforeEach
   public void before() {
     super.before();
     sql("CREATE DATABASE %s", flinkDatabase);
@@ -77,7 +72,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     sql("USE %s", DATABASE);
   }
 
-  @After
+  @AfterEach
   public void cleanNamespaces() {
     sql("DROP TABLE IF EXISTS %s.tl", flinkDatabase);
     sql("DROP TABLE IF EXISTS %s.tl2", flinkDatabase);
@@ -85,7 +80,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     super.clean();
   }
 
-  @Test
+  @TestTemplate
   public void testGetTable() {
     sql("CREATE TABLE tl(id BIGINT, strV STRING)");
 
@@ -94,84 +89,77 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         new Schema(
             Types.NestedField.optional(1, "id", Types.LongType.get()),
             Types.NestedField.optional(2, "strV", Types.StringType.get()));
-    Assert.assertEquals(
-        "Should load the expected iceberg schema", iSchema.toString(), table.schema().toString());
+    assertThat(table.schema().toString())
+        .as("Should load the expected iceberg schema")
+        .isEqualTo(iSchema.toString());
   }
 
-  @Test
+  @TestTemplate
   public void testRenameTable() {
-    Assume.assumeFalse("HadoopCatalog does not support rename table", isHadoopCatalog);
-
+    assumeThat(isHadoopCatalog).as("HadoopCatalog does not support rename table").isFalse();
     final Schema tableSchema =
         new Schema(Types.NestedField.optional(0, "id", Types.LongType.get()));
     validationCatalog.createTable(TableIdentifier.of(icebergNamespace, "tl"), tableSchema);
     sql("ALTER TABLE tl RENAME TO tl2");
 
-    Assertions.assertThatThrownBy(() -> getTableEnv().from("tl"))
+    assertThatThrownBy(() -> getTableEnv().from("tl"))
         .isInstanceOf(ValidationException.class)
         .hasMessage("Table `tl` was not found.");
 
     Schema actualSchema = FlinkSchemaUtil.convert(getTableEnv().from("tl2").getSchema());
-    Assert.assertEquals(tableSchema.asStruct(), actualSchema.asStruct());
+    assertThat(tableSchema.asStruct()).isEqualTo(actualSchema.asStruct());
   }
 
-  @Test
+  @TestTemplate
   public void testCreateTable() throws TableNotExistException {
     sql("CREATE TABLE tl(id BIGINT)");
 
     Table table = table("tl");
-    Assert.assertEquals(
-        new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct(),
-        table.schema().asStruct());
-
+    assertThat(table.schema().asStruct())
+        .isEqualTo(
+            new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct());
     CatalogTable catalogTable = catalogTable("tl");
-    Assert.assertEquals(
-        TableSchema.builder().field("id", DataTypes.BIGINT()).build(), catalogTable.getSchema());
+    assertThat(catalogTable.getSchema())
+        .isEqualTo(TableSchema.builder().field("id", DataTypes.BIGINT()).build());
   }
 
-  @Test
+  @TestTemplate
   public void testCreateTableWithPrimaryKey() throws Exception {
     sql("CREATE TABLE tl(id BIGINT, data STRING, key STRING PRIMARY KEY NOT ENFORCED)");
 
     Table table = table("tl");
-    Assert.assertEquals(
-        "Should have the expected row key.",
-        Sets.newHashSet(table.schema().findField("key").fieldId()),
-        table.schema().identifierFieldIds());
-
+    assertThat(table.schema().identifierFieldIds())
+        .as("Should have the expected row key.")
+        .isEqualTo(Sets.newHashSet(table.schema().findField("key").fieldId()));
     CatalogTable catalogTable = catalogTable("tl");
     Optional<UniqueConstraint> uniqueConstraintOptional = catalogTable.getSchema().getPrimaryKey();
-    Assert.assertTrue(
-        "Should have the expected unique constraint", uniqueConstraintOptional.isPresent());
-    Assert.assertEquals(
-        "Should have the expected columns",
-        ImmutableList.of("key"),
-        uniqueConstraintOptional.get().getColumns());
+    assertThat(uniqueConstraintOptional.isPresent()).isTrue();
+    assertThat(uniqueConstraintOptional.get().getColumns())
+        .as("Should have the expected columns")
+        .isEqualTo(ImmutableList.of("key"));
   }
 
-  @Test
+  @TestTemplate
   public void testCreateTableWithMultiColumnsInPrimaryKey() throws Exception {
     sql(
         "CREATE TABLE tl(id BIGINT, data STRING, CONSTRAINT pk_constraint PRIMARY KEY(data, id) NOT ENFORCED)");
 
     Table table = table("tl");
-    Assert.assertEquals(
-        "Should have the expected RowKey",
-        Sets.newHashSet(
-            table.schema().findField("id").fieldId(), table.schema().findField("data").fieldId()),
-        table.schema().identifierFieldIds());
-
+    assertThat(table.schema().identifierFieldIds())
+        .as("Should have the expected RowKey")
+        .isEqualTo(
+            Sets.newHashSet(
+                table.schema().findField("id").fieldId(),
+                table.schema().findField("data").fieldId()));
     CatalogTable catalogTable = catalogTable("tl");
     Optional<UniqueConstraint> uniqueConstraintOptional = catalogTable.getSchema().getPrimaryKey();
-    Assert.assertTrue(
-        "Should have the expected unique constraint", uniqueConstraintOptional.isPresent());
-    Assert.assertEquals(
-        "Should have the expected columns",
-        ImmutableSet.of("data", "id"),
-        ImmutableSet.copyOf(uniqueConstraintOptional.get().getColumns()));
+    assertThat(uniqueConstraintOptional.isPresent()).isTrue();
+    assertThat(ImmutableSet.copyOf(uniqueConstraintOptional.get().getColumns()))
+        .as("Should have the expected columns")
+        .isEqualTo(ImmutableSet.of("data", "id"));
   }
 
-  @Test
+  @TestTemplate
   public void testCreateTableIfNotExists() {
     sql("CREATE TABLE tl(id BIGINT)");
 
@@ -193,97 +181,96 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     assertThat(table("tl").properties()).containsEntry("key", "value");
   }
 
-  @Test
+  @TestTemplate
   public void testCreateTableLike() throws TableNotExistException {
     sql("CREATE TABLE tl(id BIGINT)");
     sql("CREATE TABLE tl2 LIKE tl");
 
     Table table = table("tl2");
-    Assert.assertEquals(
-        new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct(),
-        table.schema().asStruct());
-
+    assertThat(table.schema().asStruct())
+        .isEqualTo(
+            new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct());
     CatalogTable catalogTable = catalogTable("tl2");
-    Assert.assertEquals(
-        TableSchema.builder().field("id", DataTypes.BIGINT()).build(), catalogTable.getSchema());
+    assertThat(catalogTable.getSchema())
+        .isEqualTo(TableSchema.builder().field("id", DataTypes.BIGINT()).build());
   }
 
-  @Test
+  @TestTemplate
   public void testCreateTableLocation() {
-    Assume.assumeFalse(
-        "HadoopCatalog does not support creating table with location", isHadoopCatalog);
-
+    assumeThat(isHadoopCatalog)
+        .as("HadoopCatalog does not support creating table with location")
+        .isFalse();
     sql("CREATE TABLE tl(id BIGINT) WITH ('location'='file:///tmp/location')");
 
     Table table = table("tl");
-    Assert.assertEquals(
-        new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct(),
-        table.schema().asStruct());
-    Assert.assertEquals("file:///tmp/location", table.location());
+    assertThat(table.schema().asStruct())
+        .isEqualTo(
+            new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct());
+    assertThat(table.location()).isEqualTo("file:///tmp/location");
   }
 
-  @Test
+  @TestTemplate
   public void testCreatePartitionTable() throws TableNotExistException {
     sql("CREATE TABLE tl(id BIGINT, dt STRING) PARTITIONED BY(dt)");
 
     Table table = table("tl");
-    Assert.assertEquals(
-        new Schema(
-                Types.NestedField.optional(1, "id", Types.LongType.get()),
-                Types.NestedField.optional(2, "dt", Types.StringType.get()))
-            .asStruct(),
-        table.schema().asStruct());
-    Assert.assertEquals(
-        PartitionSpec.builderFor(table.schema()).identity("dt").build(), table.spec());
-
+    assertThat(table.schema().asStruct())
+        .isEqualTo(
+            new Schema(
+                    Types.NestedField.optional(1, "id", Types.LongType.get()),
+                    Types.NestedField.optional(2, "dt", Types.StringType.get()))
+                .asStruct());
+    assertThat(table.spec())
+        .isEqualTo(PartitionSpec.builderFor(table.schema()).identity("dt").build());
     CatalogTable catalogTable = catalogTable("tl");
-    Assert.assertEquals(
-        TableSchema.builder()
-            .field("id", DataTypes.BIGINT())
-            .field("dt", DataTypes.STRING())
-            .build(),
-        catalogTable.getSchema());
-    Assert.assertEquals(Collections.singletonList("dt"), catalogTable.getPartitionKeys());
+    assertThat(catalogTable.getSchema())
+        .isEqualTo(
+            TableSchema.builder()
+                .field("id", DataTypes.BIGINT())
+                .field("dt", DataTypes.STRING())
+                .build());
+    assertThat(catalogTable.getPartitionKeys()).isEqualTo(Collections.singletonList("dt"));
   }
 
-  @Test
+  @TestTemplate
   public void testCreateTableWithFormatV2ThroughTableProperty() throws Exception {
     sql("CREATE TABLE tl(id BIGINT) WITH ('format-version'='2')");
 
     Table table = table("tl");
-    Assert.assertEquals(
-        "should create table using format v2",
-        2,
-        ((BaseTable) table).operations().current().formatVersion());
+    assertThat(((BaseTable) table).operations().current().formatVersion()).isEqualTo(2);
   }
 
-  @Test
+  @TestTemplate
   public void testUpgradeTableWithFormatV2ThroughTableProperty() throws Exception {
     sql("CREATE TABLE tl(id BIGINT) WITH ('format-version'='1')");
 
     Table table = table("tl");
     TableOperations ops = ((BaseTable) table).operations();
-    Assert.assertEquals("should create table using format v1", 1, ops.refresh().formatVersion());
-
+    assertThat(ops.refresh().formatVersion())
+        .as("should create table using format v1")
+        .isEqualTo(1);
     sql("ALTER TABLE tl SET('format-version'='2')");
-    Assert.assertEquals("should update table to use format v2", 2, ops.refresh().formatVersion());
+    assertThat(ops.refresh().formatVersion())
+        .as("should update table to use format v2")
+        .isEqualTo(2);
   }
 
-  @Test
+  @TestTemplate
   public void testDowngradeTableToFormatV1ThroughTablePropertyFails() throws Exception {
     sql("CREATE TABLE tl(id BIGINT) WITH ('format-version'='2')");
 
     Table table = table("tl");
     TableOperations ops = ((BaseTable) table).operations();
-    Assert.assertEquals("should create table using format v2", 2, ops.refresh().formatVersion());
-
+    assertThat(ops.refresh().formatVersion())
+        .as("should create table using format v2")
+        .isEqualTo(2);
     Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl SET('format-version'='1')"))
         .rootCause()
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot downgrade v2 table to v1");
   }
 
-  @Test
+  @TestTemplate
   public void testLoadTransformPartitionTable() throws TableNotExistException {
     Schema schema = new Schema(Types.NestedField.optional(0, "id", Types.LongType.get()));
     validationCatalog.createTable(
@@ -292,12 +279,12 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         PartitionSpec.builderFor(schema).bucket("id", 100).build());
 
     CatalogTable catalogTable = catalogTable("tl");
-    Assert.assertEquals(
-        TableSchema.builder().field("id", DataTypes.BIGINT()).build(), catalogTable.getSchema());
-    Assert.assertEquals(Collections.emptyList(), catalogTable.getPartitionKeys());
+    assertThat(catalogTable.getSchema())
+        .isEqualTo(TableSchema.builder().field("id", DataTypes.BIGINT()).build());
+    assertThat(catalogTable.getPartitionKeys()).isEmpty();
   }
 
-  @Test
+  @TestTemplate
   public void testAlterTableProperties() throws TableNotExistException {
     sql("CREATE TABLE tl(id BIGINT) WITH ('oldK'='oldV')");
     Map<String, String> properties = Maps.newHashMap();
@@ -319,35 +306,32 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     assertThat(table("tl").properties()).containsAllEntriesOf(properties);
   }
 
-  @Test
+  @TestTemplate
   public void testAlterTableAddColumn() {
     sql("CREATE TABLE tl(id BIGINT)");
     Schema schemaBefore = table("tl").schema();
-    Assert.assertEquals(
-        new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct(),
-        schemaBefore.asStruct());
-
+    assertThat(schemaBefore.asStruct())
+        .isEqualTo(
+            new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct());
     sql("ALTER TABLE tl ADD (dt STRING)");
     Schema schemaAfter1 = table("tl").schema();
-    Assert.assertEquals(
-        new Schema(
-                Types.NestedField.optional(1, "id", Types.LongType.get()),
-                Types.NestedField.optional(2, "dt", Types.StringType.get()))
-            .asStruct(),
-        schemaAfter1.asStruct());
-
+    assertThat(schemaAfter1.asStruct())
+        .isEqualTo(
+            new Schema(
+                    Types.NestedField.optional(1, "id", Types.LongType.get()),
+                    Types.NestedField.optional(2, "dt", Types.StringType.get()))
+                .asStruct());
     // Add multiple columns
     sql("ALTER TABLE tl ADD (col1 STRING, col2 BIGINT)");
     Schema schemaAfter2 = table("tl").schema();
-    Assert.assertEquals(
-        new Schema(
-                Types.NestedField.optional(1, "id", Types.LongType.get()),
-                Types.NestedField.optional(2, "dt", Types.StringType.get()),
-                Types.NestedField.optional(3, "col1", Types.StringType.get()),
-                Types.NestedField.optional(4, "col2", Types.LongType.get()))
-            .asStruct(),
-        schemaAfter2.asStruct());
-
+    assertThat(schemaAfter2.asStruct())
+        .isEqualTo(
+            new Schema(
+                    Types.NestedField.optional(1, "id", Types.LongType.get()),
+                    Types.NestedField.optional(2, "dt", Types.StringType.get()),
+                    Types.NestedField.optional(3, "col1", Types.StringType.get()),
+                    Types.NestedField.optional(4, "col2", Types.LongType.get()))
+                .asStruct());
     // Adding a required field should fail because Iceberg's SchemaUpdate does not allow
     // incompatible changes.
     Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl ADD (pk STRING NOT NULL)"))
@@ -360,36 +344,33 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         .hasMessageContaining("Try to add a column `id` which already exists in the table.");
   }
 
-  @Test
+  @TestTemplate
   public void testAlterTableDropColumn() {
     sql("CREATE TABLE tl(id BIGINT, dt STRING, col1 STRING, col2 BIGINT)");
     Schema schemaBefore = table("tl").schema();
-    Assert.assertEquals(
-        new Schema(
-                Types.NestedField.optional(1, "id", Types.LongType.get()),
-                Types.NestedField.optional(2, "dt", Types.StringType.get()),
-                Types.NestedField.optional(3, "col1", Types.StringType.get()),
-                Types.NestedField.optional(4, "col2", Types.LongType.get()))
-            .asStruct(),
-        schemaBefore.asStruct());
-
+    assertThat(schemaBefore.asStruct())
+        .isEqualTo(
+            new Schema(
+                    Types.NestedField.optional(1, "id", Types.LongType.get()),
+                    Types.NestedField.optional(2, "dt", Types.StringType.get()),
+                    Types.NestedField.optional(3, "col1", Types.StringType.get()),
+                    Types.NestedField.optional(4, "col2", Types.LongType.get()))
+                .asStruct());
     sql("ALTER TABLE tl DROP (dt)");
     Schema schemaAfter1 = table("tl").schema();
-    Assert.assertEquals(
-        new Schema(
-                Types.NestedField.optional(1, "id", Types.LongType.get()),
-                Types.NestedField.optional(3, "col1", Types.StringType.get()),
-                Types.NestedField.optional(4, "col2", Types.LongType.get()))
-            .asStruct(),
-        schemaAfter1.asStruct());
-
+    assertThat(schemaAfter1.asStruct())
+        .isEqualTo(
+            new Schema(
+                    Types.NestedField.optional(1, "id", Types.LongType.get()),
+                    Types.NestedField.optional(3, "col1", Types.StringType.get()),
+                    Types.NestedField.optional(4, "col2", Types.LongType.get()))
+                .asStruct());
     // Drop multiple columns
     sql("ALTER TABLE tl DROP (col1, col2)");
     Schema schemaAfter2 = table("tl").schema();
-    Assert.assertEquals(
-        new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct(),
-        schemaAfter2.asStruct());
-
+    assertThat(schemaAfter2.asStruct())
+        .isEqualTo(
+            new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct());
     // Dropping an non-existing field should fail due to Flink's internal validation.
     Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl DROP (foo)"))
         .isInstanceOf(ValidationException.class)
@@ -401,48 +382,45 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         .hasMessageContaining("The column `dt` does not exist in the base table.");
   }
 
-  @Test
+  @TestTemplate
   public void testAlterTableModifyColumnName() {
     sql("CREATE TABLE tl(id BIGINT, dt STRING)");
     Schema schemaBefore = table("tl").schema();
-    Assert.assertEquals(
-        new Schema(
-                Types.NestedField.optional(1, "id", Types.LongType.get()),
-                Types.NestedField.optional(2, "dt", Types.StringType.get()))
-            .asStruct(),
-        schemaBefore.asStruct());
-
+    assertThat(schemaBefore.asStruct())
+        .isEqualTo(
+            new Schema(
+                    Types.NestedField.optional(1, "id", Types.LongType.get()),
+                    Types.NestedField.optional(2, "dt", Types.StringType.get()))
+                .asStruct());
     sql("ALTER TABLE tl RENAME dt TO data");
     Schema schemaAfter = table("tl").schema();
-    Assert.assertEquals(
-        new Schema(
-                Types.NestedField.optional(1, "id", Types.LongType.get()),
-                Types.NestedField.optional(2, "data", Types.StringType.get()))
-            .asStruct(),
-        schemaAfter.asStruct());
+    assertThat(schemaAfter.asStruct())
+        .isEqualTo(
+            new Schema(
+                    Types.NestedField.optional(1, "id", Types.LongType.get()),
+                    Types.NestedField.optional(2, "data", Types.StringType.get()))
+                .asStruct());
   }
 
-  @Test
+  @TestTemplate
   public void testAlterTableModifyColumnType() {
     sql("CREATE TABLE tl(id INTEGER, dt STRING)");
     Schema schemaBefore = table("tl").schema();
-    Assert.assertEquals(
-        new Schema(
-                Types.NestedField.optional(1, "id", Types.IntegerType.get()),
-                Types.NestedField.optional(2, "dt", Types.StringType.get()))
-            .asStruct(),
-        schemaBefore.asStruct());
-
+    assertThat(schemaBefore.asStruct())
+        .isEqualTo(
+            new Schema(
+                    Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+                    Types.NestedField.optional(2, "dt", Types.StringType.get()))
+                .asStruct());
     // Promote type from Integer to Long
     sql("ALTER TABLE tl MODIFY (id BIGINT)");
     Schema schemaAfter = table("tl").schema();
-    Assert.assertEquals(
-        new Schema(
-                Types.NestedField.optional(1, "id", Types.LongType.get()),
-                Types.NestedField.optional(2, "dt", Types.StringType.get()))
-            .asStruct(),
-        schemaAfter.asStruct());
-
+    assertThat(schemaAfter.asStruct())
+        .isEqualTo(
+            new Schema(
+                    Types.NestedField.optional(1, "id", Types.LongType.get()),
+                    Types.NestedField.optional(2, "dt", Types.StringType.get()))
+                .asStruct());
     // Type change that doesn't follow the type-promotion rule should fail due to Iceberg's
     // validation.
     Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl MODIFY (dt INTEGER)"))
@@ -451,17 +429,16 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         .hasRootCauseMessage("Cannot change column type: dt: string -> int");
   }
 
-  @Test
+  @TestTemplate
   public void testAlterTableModifyColumnNullability() {
     sql("CREATE TABLE tl(id INTEGER NOT NULL, dt STRING)");
     Schema schemaBefore = table("tl").schema();
-    Assert.assertEquals(
-        new Schema(
-                Types.NestedField.required(1, "id", Types.IntegerType.get()),
-                Types.NestedField.optional(2, "dt", Types.StringType.get()))
-            .asStruct(),
-        schemaBefore.asStruct());
-
+    assertThat(schemaBefore.asStruct())
+        .isEqualTo(
+            new Schema(
+                    Types.NestedField.required(1, "id", Types.IntegerType.get()),
+                    Types.NestedField.optional(2, "dt", Types.StringType.get()))
+                .asStruct());
     // Changing nullability from optional to required should fail
     // because Iceberg's SchemaUpdate does not allow incompatible changes.
     Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl MODIFY (dt STRING NOT NULL)"))
@@ -472,43 +449,42 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     // Set nullability from required to optional
     sql("ALTER TABLE tl MODIFY (id INTEGER)");
     Schema schemaAfter = table("tl").schema();
-    Assert.assertEquals(
-        new Schema(
-                Types.NestedField.optional(1, "id", Types.IntegerType.get()),
-                Types.NestedField.optional(2, "dt", Types.StringType.get()))
-            .asStruct(),
-        schemaAfter.asStruct());
+    assertThat(schemaAfter.asStruct())
+        .isEqualTo(
+            new Schema(
+                    Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+                    Types.NestedField.optional(2, "dt", Types.StringType.get()))
+                .asStruct());
   }
 
-  @Test
+  @TestTemplate
   public void testAlterTableModifyColumnPosition() {
     sql("CREATE TABLE tl(id BIGINT, dt STRING)");
     Schema schemaBefore = table("tl").schema();
-    Assert.assertEquals(
-        new Schema(
-                Types.NestedField.optional(1, "id", Types.LongType.get()),
-                Types.NestedField.optional(2, "dt", Types.StringType.get()))
-            .asStruct(),
-        schemaBefore.asStruct());
+    assertThat(schemaBefore.asStruct())
+        .isEqualTo(
+            new Schema(
+                    Types.NestedField.optional(1, "id", Types.LongType.get()),
+                    Types.NestedField.optional(2, "dt", Types.StringType.get()))
+                .asStruct());
 
     sql("ALTER TABLE tl MODIFY (dt STRING FIRST)");
     Schema schemaAfter = table("tl").schema();
-    Assert.assertEquals(
-        new Schema(
-                Types.NestedField.optional(2, "dt", Types.StringType.get()),
-                Types.NestedField.optional(1, "id", Types.LongType.get()))
-            .asStruct(),
-        schemaAfter.asStruct());
+    assertThat(schemaAfter.asStruct())
+        .isEqualTo(
+            new Schema(
+                    Types.NestedField.optional(2, "dt", Types.StringType.get()),
+                    Types.NestedField.optional(1, "id", Types.LongType.get()))
+                .asStruct());
 
     sql("ALTER TABLE tl MODIFY (dt STRING AFTER id)");
     Schema schemaAfterAfter = table("tl").schema();
-    Assert.assertEquals(
-        new Schema(
-                Types.NestedField.optional(1, "id", Types.LongType.get()),
-                Types.NestedField.optional(2, "dt", Types.StringType.get()))
-            .asStruct(),
-        schemaAfterAfter.asStruct());
-
+    assertThat(schemaAfterAfter.asStruct())
+        .isEqualTo(
+            new Schema(
+                    Types.NestedField.optional(1, "id", Types.LongType.get()),
+                    Types.NestedField.optional(2, "dt", Types.StringType.get()))
+                .asStruct());
     // Modifying the position of a non-existing column should fail due to Flink's internal
     // validation.
     Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl MODIFY (non_existing STRING FIRST)"))
@@ -523,67 +499,65 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
             "Referenced column `non_existing` by 'AFTER' does not exist in the table.");
   }
 
-  @Test
+  @TestTemplate
   public void testAlterTableModifyColumnComment() {
     sql("CREATE TABLE tl(id BIGINT, dt STRING)");
     Schema schemaBefore = table("tl").schema();
-    Assert.assertEquals(
-        new Schema(
-                Types.NestedField.optional(1, "id", Types.LongType.get()),
-                Types.NestedField.optional(2, "dt", Types.StringType.get()))
-            .asStruct(),
-        schemaBefore.asStruct());
+    assertThat(schemaBefore.asStruct())
+        .isEqualTo(
+            new Schema(
+                    Types.NestedField.optional(1, "id", Types.LongType.get()),
+                    Types.NestedField.optional(2, "dt", Types.StringType.get()))
+                .asStruct());
 
     sql("ALTER TABLE tl MODIFY (dt STRING COMMENT 'comment for dt field')");
     Schema schemaAfter = table("tl").schema();
-    Assert.assertEquals(
-        new Schema(
-                Types.NestedField.optional(1, "id", Types.LongType.get()),
-                Types.NestedField.optional(2, "dt", Types.StringType.get(), "comment for dt field"))
-            .asStruct(),
-        schemaAfter.asStruct());
+    assertThat(schemaAfter.asStruct())
+        .isEqualTo(
+            new Schema(
+                    Types.NestedField.optional(1, "id", Types.LongType.get()),
+                    Types.NestedField.optional(
+                        2, "dt", Types.StringType.get(), "comment for dt field"))
+                .asStruct());
   }
 
-  @Test
+  @TestTemplate
   public void testAlterTableConstraint() {
     sql("CREATE TABLE tl(id BIGINT NOT NULL, dt STRING NOT NULL, col1 STRING)");
     Schema schemaBefore = table("tl").schema();
-    Assert.assertEquals(
-        new Schema(
-                Types.NestedField.required(1, "id", Types.LongType.get()),
-                Types.NestedField.required(2, "dt", Types.StringType.get()),
-                Types.NestedField.optional(3, "col1", Types.StringType.get()))
-            .asStruct(),
-        schemaBefore.asStruct());
-    Assert.assertEquals(ImmutableSet.of(), schemaBefore.identifierFieldNames());
-
+    assertThat(schemaBefore.asStruct())
+        .isEqualTo(
+            new Schema(
+                    Types.NestedField.required(1, "id", Types.LongType.get()),
+                    Types.NestedField.required(2, "dt", Types.StringType.get()),
+                    Types.NestedField.optional(3, "col1", Types.StringType.get()))
+                .asStruct());
+    // Assert.assertEquals(ImmutableSet.of(), schemaBefore.identifierFieldNames());
+    assertThat(schemaBefore.identifierFieldNames()).isEmpty();
     sql("ALTER TABLE tl ADD (PRIMARY KEY (id) NOT ENFORCED)");
     Schema schemaAfterAdd = table("tl").schema();
-    Assert.assertEquals(ImmutableSet.of("id"), schemaAfterAdd.identifierFieldNames());
-
+    assertThat(schemaAfterAdd.identifierFieldNames()).isEqualTo(ImmutableSet.of("id"));
     sql("ALTER TABLE tl MODIFY (PRIMARY KEY (dt) NOT ENFORCED)");
     Schema schemaAfterModify = table("tl").schema();
-    Assert.assertEquals(
-        new Schema(
-                Types.NestedField.required(1, "id", Types.LongType.get()),
-                Types.NestedField.required(2, "dt", Types.StringType.get()),
-                Types.NestedField.optional(3, "col1", Types.StringType.get()))
-            .asStruct(),
-        schemaAfterModify.asStruct());
-    Assert.assertEquals(ImmutableSet.of("dt"), schemaAfterModify.identifierFieldNames());
-
+    assertThat(schemaAfterModify.asStruct())
+        .isEqualTo(
+            new Schema(
+                    Types.NestedField.required(1, "id", Types.LongType.get()),
+                    Types.NestedField.required(2, "dt", Types.StringType.get()),
+                    Types.NestedField.optional(3, "col1", Types.StringType.get()))
+                .asStruct());
+    assertThat(schemaAfterModify.identifierFieldNames()).isEqualTo(ImmutableSet.of("dt"));
     // Composite primary key
     sql("ALTER TABLE tl MODIFY (PRIMARY KEY (id, dt) NOT ENFORCED)");
     Schema schemaAfterComposite = table("tl").schema();
-    Assert.assertEquals(
-        new Schema(
-                Types.NestedField.required(1, "id", Types.LongType.get()),
-                Types.NestedField.required(2, "dt", Types.StringType.get()),
-                Types.NestedField.optional(3, "col1", Types.StringType.get()))
-            .asStruct(),
-        schemaAfterComposite.asStruct());
-    Assert.assertEquals(ImmutableSet.of("id", "dt"), schemaAfterComposite.identifierFieldNames());
-
+    assertThat(schemaAfterComposite.asStruct())
+        .isEqualTo(
+            new Schema(
+                    Types.NestedField.required(1, "id", Types.LongType.get()),
+                    Types.NestedField.required(2, "dt", Types.StringType.get()),
+                    Types.NestedField.optional(3, "col1", Types.StringType.get()))
+                .asStruct());
+    assertThat(schemaAfterComposite.identifierFieldNames()).isEqualTo(ImmutableSet.of("id", "dt"));
     // Setting an optional field as primary key should fail
     // because Iceberg's SchemaUpdate does not allow incompatible changes.
     Assertions.assertThatThrownBy(
@@ -607,16 +581,15 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         .hasRootCauseMessage("Unsupported table change: DropConstraint.");
   }
 
-  @Test
+  @TestTemplate
   public void testRelocateTable() {
-    Assume.assumeFalse("HadoopCatalog does not support relocate table", isHadoopCatalog);
-
+    assumeThat(isHadoopCatalog).as("HadoopCatalog does not support relocate table").isFalse();
     sql("CREATE TABLE tl(id BIGINT)");
     sql("ALTER TABLE tl SET('location'='file:///tmp/location')");
-    Assert.assertEquals("file:///tmp/location", table("tl").location());
+    assertThat(table("tl").location()).isEqualTo("file:///tmp/location");
   }
 
-  @Test
+  @TestTemplate
   public void testSetCurrentAndCherryPickSnapshotId() {
     sql("CREATE TABLE tl(c1 INT, c2 STRING, c3 STRING) PARTITIONED BY (c1)");
 
@@ -651,9 +624,9 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     table.newReplacePartitions().addFile(replacementFile).stageOnly().commit();
 
     Snapshot staged = Iterables.getLast(table.snapshots());
-    Assert.assertEquals(
-        "Should find the staged overwrite snapshot", DataOperations.OVERWRITE, staged.operation());
-
+    assertThat(staged.operation())
+        .as("Should find the staged overwrite snapshot")
+        .isEqualTo(DataOperations.OVERWRITE);
     // add another append so that the original commit can't be fast-forwarded
     table.newAppend().appendFile(fileB).commit();
 
@@ -675,7 +648,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
             .map(FileScanTask::file)
             .map(ContentFile::path)
             .collect(Collectors.toSet());
-    Assert.assertEquals("Files should match", expectedFilePaths, actualFilePaths);
+    assertThat(actualFilePaths).as("Files should match").isEqualTo(expectedFilePaths);
   }
 
   private Table table(String name) {
