@@ -18,8 +18,11 @@
  */
 package org.apache.iceberg.data;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -27,14 +30,13 @@ import org.apache.iceberg.TestTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.util.StructLikeSet;
-import org.junit.Assert;
 
 public class TestGenericReaderDeletes extends DeleteReadTests {
 
   @Override
   protected Table createTable(String name, Schema schema, PartitionSpec spec) throws IOException {
-    File tableDir = temp.newFolder();
-    Assert.assertTrue(tableDir.delete());
+    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
+    assertThat(tableDir.delete()).isTrue();
 
     return TestTables.create(tableDir, name, schema, spec, 2);
   }

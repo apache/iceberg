@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.mr;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
@@ -26,6 +28,9 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -35,22 +40,23 @@ import org.apache.iceberg.data.DeleteReadTests;
 import org.apache.iceberg.data.InternalRecordWrapper;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.util.StructLikeSet;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestInputFormatReaderDeletes extends DeleteReadTests {
   private final Configuration conf = new Configuration();
   private final HadoopTables tables = new HadoopTables(conf);
   private TestHelper helper;
 
   // parametrized variables
-  private final String inputFormat;
-  private final FileFormat fileFormat;
+  @Parameter(index = 0)
+  private String inputFormat;
 
-  @Parameterized.Parameters(name = "inputFormat = {0}, fileFormat={1}")
+  @Parameter(index = 1)
+  private FileFormat fileFormat;
+
+  @Parameters(name = "inputFormat = {0}, fileFormat = {1}")
   public static Object[][] parameters() {
     return new Object[][] {
       {"IcebergInputFormat", FileFormat.PARQUET},
@@ -62,24 +68,20 @@ public class TestInputFormatReaderDeletes extends DeleteReadTests {
     };
   }
 
-  @Before
+  @BeforeEach
   @Override
   public void writeTestDataFile() throws IOException {
     conf.set(CatalogUtil.ICEBERG_CATALOG_TYPE, Catalogs.LOCATION);
     super.writeTestDataFile();
   }
 
-  public TestInputFormatReaderDeletes(String inputFormat, FileFormat fileFormat) {
-    this.inputFormat = inputFormat;
-    this.fileFormat = fileFormat;
-  }
-
   @Override
   protected Table createTable(String name, Schema schema, PartitionSpec spec) throws IOException {
     Table table;
 
-    File location = temp.newFolder(inputFormat, fileFormat.name());
-    Assert.assertTrue(location.delete());
+    File location = temp.resolve(inputFormat).resolve(fileFormat.name()).toFile();
+    location.mkdirs();
+    assertThat(location.delete()).isTrue();
     helper = new TestHelper(conf, tables, location.toString(), schema, spec, fileFormat, temp);
     table = helper.createTable();
 

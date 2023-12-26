@@ -32,7 +32,6 @@ import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.apache.flink.util.CloseableIterator;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -44,26 +43,17 @@ import org.apache.iceberg.flink.source.assigner.SimpleSplitAssignerFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.StructLikeSet;
-import org.junit.ClassRule;
-import org.junit.rules.TemporaryFolder;
 
 public class TestIcebergSourceReaderDeletes extends TestFlinkReaderDeletesBase {
 
   private static final int PARALLELISM = 4;
 
-  @ClassRule public static final TemporaryFolder TMP_FOLDER = new TemporaryFolder();
-
-  @ClassRule
   public static final MiniClusterWithClientResource MINI_CLUSTER =
       new MiniClusterWithClientResource(
           new MiniClusterResourceConfiguration.Builder()
               .setNumberTaskManagers(1)
               .setNumberSlotsPerTaskManager(PARALLELISM)
               .build());
-
-  public TestIcebergSourceReaderDeletes(FileFormat inputFormat) {
-    super(inputFormat);
-  }
 
   @Override
   protected StructLikeSet rowSet(String tableName, Table testTable, String... columns)
