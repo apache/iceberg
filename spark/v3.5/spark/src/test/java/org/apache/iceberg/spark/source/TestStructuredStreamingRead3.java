@@ -88,7 +88,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
               new SimpleRecord(1, "one"), new SimpleRecord(2, "two"), new SimpleRecord(3, "three")),
           Lists.newArrayList(new SimpleRecord(4, "four"), new SimpleRecord(5, "five")),
           Lists.newArrayList(new SimpleRecord(6, "six"), new SimpleRecord(7, "seven")));
-
+    
   /**
    * test data - to be used for multiple write batches each batch inturn will have multiple
    * snapshots
@@ -126,7 +126,8 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
         "CREATE TABLE %s "
             + "(id INT, data STRING) "
             + "USING iceberg "
-            + "PARTITIONED BY (bucket(3, id))",
+            + "PARTITIONED BY (bucket(3, id)) "
+            + "TBLPROPERTIES ('commit.manifest.min-count-to-merge'='3', 'commit.manifest-merge.enabled'='true')",
         tableName);
     this.table = validationCatalog.loadTable(tableIdent);
     microBatches.set(0);
@@ -560,8 +561,8 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     Assertions.assertThat(
             microBatchCount(
                 ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1")))
-        .isEqualTo(6);
-  }
+                .isEqualTo(6);
+      }
 
   @Test
   public void testReadStreamWithSnapshotTypeRewriteDataFilesIgnoresReplaceFollowedByAppend()
@@ -734,8 +735,8 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
 
   private int microBatchCount(Map<String, String> options) throws TimeoutException {
     Dataset<Row> ds = spark.readStream().options(options).format("iceberg").load(tableName);
-
-    ds.writeStream()
+    
+        ds.writeStream()
         .options(options)
         .foreachBatch(
             (VoidFunction2<Dataset<Row>, Long>)
