@@ -30,6 +30,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.io.Files;
+import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -82,21 +83,27 @@ public class ManifestWriteBenchmark {
     manifestListFile = null;
   }
 
+  @State(Scope.Benchmark)
+  public static class BenchmarkState {
+    @Param({"1", "2"})
+    public int formatVersion;
+  }
+
   @Benchmark
   @Threads(1)
-  public void writeManifestFile() throws IOException {
-    baseDir = Files.createTempDir().getAbsolutePath();
-    manifestListFile = String.format("%s/%s.avro", baseDir, UUID.randomUUID());
+  public void writeManifestFile(BenchmarkState state) throws IOException {
+    this.baseDir = Files.createTempDir().getAbsolutePath();
+    this.manifestListFile = String.format("%s/%s.avro", baseDir, UUID.randomUUID());
 
     try (ManifestListWriter listWriter =
-        ManifestLists.write(1, org.apache.iceberg.Files.localOutput(manifestListFile), 0, 1L, 0)) {
+        ManifestLists.write(state.formatVersion, org.apache.iceberg.Files.localOutput(manifestListFile), 0, 1L, 0)) {
       for (int i = 0; i < NUM_FILES; i++) {
         OutputFile manifestFile =
             org.apache.iceberg.Files.localOutput(
                 String.format("%s/%s.avro", baseDir, UUID.randomUUID()));
 
         ManifestWriter<DataFile> writer =
-            ManifestFiles.write(1, PartitionSpec.unpartitioned(), manifestFile, 1L);
+            ManifestFiles.write(state.formatVersion, PartitionSpec.unpartitioned(), manifestFile, 1L);
         try (ManifestWriter<DataFile> finalWriter = writer) {
           for (int j = 0; j < NUM_ROWS; j++) {
             DataFile dataFile =
