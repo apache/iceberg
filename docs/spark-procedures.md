@@ -640,6 +640,7 @@ Keep in mind the `add_files` procedure will fetch the Parquet metadata from each
 | `source_table`          | ✔️        | string              | Table where files should come from, paths are also possible in the form of \`file_format\`.\`path\` |
 | `partition_filter`      | ️         | map<string, string> | A map of partitions in the source table to import from                                              |
 | `check_duplicate_files` | ️         | boolean             | Whether to prevent files existing in the table from being added (defaults to true)                  |
+| `parallelism`           |           | int                 | number of threads to use for file reading (defaults to 1)                                         |
 
 Warning : Schema is not validated, adding files with different schema to the Iceberg table will cause issues.
 
