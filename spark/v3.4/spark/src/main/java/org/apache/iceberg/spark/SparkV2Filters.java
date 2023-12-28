@@ -64,6 +64,7 @@ import org.apache.spark.sql.connector.expressions.filter.And;
 import org.apache.spark.sql.connector.expressions.filter.Not;
 import org.apache.spark.sql.connector.expressions.filter.Or;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
+import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.UTF8String;
 
 public class SparkV2Filters {
@@ -378,6 +379,8 @@ public class SparkV2Filters {
   private static Object convertLiteral(Literal<?> literal) {
     if (literal.value() instanceof UTF8String) {
       return ((UTF8String) literal.value()).toString();
+    } else if (literal.value() instanceof Decimal) {
+      return ((Decimal) literal.value()).toJavaBigDecimal();
     }
     return literal.value();
   }

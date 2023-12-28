@@ -170,7 +170,7 @@ public class SparkCatalog extends BaseCatalog {
       SparkTable sparkTable = (SparkTable) table;
 
       Preconditions.checkArgument(
-          sparkTable.snapshotId() == null,
+          sparkTable.snapshotId() == null && sparkTable.branch() == null,
           "Cannot do time-travel based on both table identifier and AS OF");
 
       try {
@@ -569,8 +569,6 @@ public class SparkCatalog extends BaseCatalog {
             Splitter.on('.').splitToList(options.get("default-namespace")).toArray(new String[0]);
       }
     }
-
-    SparkUtil.validateTimestampWithoutTimezoneConfig(sparkSession.conf());
 
     EnvironmentContext.put(EnvironmentContext.ENGINE_NAME, "spark");
     EnvironmentContext.put(

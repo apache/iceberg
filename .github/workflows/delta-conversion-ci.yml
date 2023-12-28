@@ -21,14 +21,13 @@ name: "Delta Conversion CI"
 on:
   push:
     branches:
-      - 'master'
+      - 'main'
       - '0.**'
     tags:
       - 'apache-iceberg-**'
   pull_request:
     paths-ignore:
-      - '.github/ISSUE_TEMPLATE/iceberg_bug_report.yml'
-      - '.github/workflows/python-ci.yml'
+      - '.github/ISSUE_TEMPLATE/**'
       - '.github/workflows/flink-ci.yml'
       - '.github/workflows/hive-ci.yml'
       - '.gitignore'
@@ -40,7 +39,6 @@ on:
       - 'hive-runtime/**'
       - 'flink/**'
       - 'pig/**'
-      - 'python/**'
       - 'docs/**'
       - 'open-api/**'
       - 'format/**'
@@ -64,7 +62,7 @@ jobs:
       SPARK_LOCAL_IP: localhost
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v3
+      - uses: actions/setup-java@v4
         with:
           distribution: zulu
           java-version: ${{ matrix.jvm }}
@@ -76,7 +74,7 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: ${{ runner.os }}-gradle-
       - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
-      - run: ./gradlew -DsparkVersions=3.3 -DscalaVersion=2.12 -DhiveVersions= -DflinkVersions= :iceberg-delta-lake:check -Pquick=true -x javadoc
+      - run: ./gradlew -DsparkVersions=3.5 -DscalaVersion=2.12 -DhiveVersions= -DflinkVersions= :iceberg-delta-lake:check -Pquick=true -x javadoc
       - uses: actions/upload-artifact@v3
         if: failure()
         with:
@@ -93,7 +91,7 @@ jobs:
       SPARK_LOCAL_IP: localhost
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v3
+      - uses: actions/setup-java@v4
         with:
           distribution: zulu
           java-version: ${{ matrix.jvm }}
@@ -105,7 +103,7 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: ${{ runner.os }}-gradle-
       - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
-      - run: ./gradlew -DsparkVersions=3.3 -DscalaVersion=2.13 -DhiveVersions= -DflinkVersions= :iceberg-delta-lake:check -Pquick=true -x javadoc
+      - run: ./gradlew -DsparkVersions=3.5 -DscalaVersion=2.13 -DhiveVersions= -DflinkVersions= :iceberg-delta-lake:check -Pquick=true -x javadoc
       - uses: actions/upload-artifact@v3
         if: failure()
         with:

@@ -137,9 +137,8 @@ abstract class BaseSparkAction<ThisT> {
   }
 
   protected Table newStaticTable(TableMetadata metadata, FileIO io) {
-    String metadataFileLocation = metadata.metadataFileLocation();
-    StaticTableOperations ops = new StaticTableOperations(metadataFileLocation, io);
-    return new BaseTable(ops, metadataFileLocation);
+    StaticTableOperations ops = new StaticTableOperations(metadata, io);
+    return new BaseTable(ops, metadata.metadataFileLocation());
   }
 
   protected Dataset<FileInfo> contentFileDS(Table table) {

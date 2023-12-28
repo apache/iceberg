@@ -31,14 +31,10 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
-import org.apache.iceberg.spark.SparkReadOptions;
-import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkSessionCatalog;
-import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
-import org.assertj.core.api.Assertions;
 import org.joda.time.DateTime;
 import org.junit.After;
 import org.junit.Assert;
@@ -93,97 +89,6 @@ public class TestTimestampWithoutZone extends SparkCatalogTestBase {
   public void removeTables() {
     validationCatalog.dropTable(tableIdent, true);
     sql("DROP TABLE IF EXISTS %s", newTableName);
-  }
-
-  @Test
-  public void testDeprecatedTimezoneProperty() {
-    withSQLConf(
-        ImmutableMap.of(SparkSQLProperties.USE_TIMESTAMP_WITHOUT_TIME_ZONE_IN_NEW_TABLES, "true"),
-        () -> {
-          Assertions.assertThatThrownBy(
-                  () -> {
-                    spark
-                        .sessionState()
-                        .catalogManager()
-                        .currentCatalog()
-                        .initialize(catalog.name(), new CaseInsensitiveStringMap(config));
-                  })
-              .isInstanceOf(UnsupportedOperationException.class)
-              .hasMessage(
-                  "Spark configuration spark.sql.iceberg.use-timestamp-without-timezone-in-new-tables is not supported in Spark 3.4 due to the introduction of native support for timestamp without timezone.");
-        });
-  }
-
-  @Test
-  public void testReadWithDeprecatedTimezoneProperty() {
-    withSQLConf(
-        ImmutableMap.of(SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true"),
-        () -> {
-          Assertions.assertThatThrownBy(
-                  () -> {
-                    sql("SELECT count(*) FROM %s", tableName);
-                  })
-              .isInstanceOf(UnsupportedOperationException.class)
-              .hasMessage(
-                  "Spark configuration spark.sql.iceberg.handle-timestamp-without-timezone is not supported in Spark 3.4 due to the introduction of native support for timestamp without timezone.");
-        });
-  }
-
-  @Test
-  public void testReadWithDeprecatedTimezonePropertyReadOption() {
-    Assertions.assertThatThrownBy(
-            () -> {
-              spark
-                  .read()
-                  .option(SparkReadOptions.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true")
-                  .table(tableName)
-                  .count();
-            })
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage(
-            "Option handle-timestamp-without-timezone is not supported in Spark 3.4 due to the introduction of native support for timestamp without timezone.");
-  }
-
-  @Test
-  public void testWriteWithDeprecatedTimezoneProperty() {
-    withSQLConf(
-        ImmutableMap.of(
-            SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE,
-            "true",
-            "spark.sql.legacy.createHiveTableByDefault",
-            "false"),
-        () -> {
-          Assertions.assertThatThrownBy(
-                  () -> {
-                    sql(
-                        "CREATE OR REPLACE TABLE %s USING ICEBERG AS SELECT * FROM %s",
-                        newTableName, tableName);
-                  })
-              .isInstanceOf(UnsupportedOperationException.class)
-              .hasMessage(
-                  "Spark configuration spark.sql.iceberg.handle-timestamp-without-timezone is not supported in Spark 3.4 due to the introduction of native support for timestamp without timezone.");
-        });
-  }
-
-  @Test
-  public void testWriteWithDeprecatedTimezonePropertyReadOption() {
-    Assertions.assertThatThrownBy(
-            () -> {
-              withSQLConf(
-                  ImmutableMap.of("spark.sql.legacy.createHiveTableByDefault", "false"),
-                  () -> {
-                    spark
-                        .read()
-                        .table(tableName)
-                        .writeTo(newTableName)
-                        .option(SparkWriteOptions.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true")
-                        .using("iceberg")
-                        .createOrReplace();
-                  });
-            })
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage(
-            "Option handle-timestamp-without-timezone is not supported in Spark 3.4 due to the introduction of native support for timestamp without timezone.");
   }
 
   /*

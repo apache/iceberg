@@ -19,8 +19,6 @@
 package org.apache.iceberg.view;
 
 import org.immutables.value.Value;
-import org.immutables.value.Value.Style.BuilderVisibility;
-import org.immutables.value.Value.Style.ImplementationVisibility;
 
 /**
  * View history entry.
@@ -32,6 +30,6 @@ import org.immutables.value.Value.Style.ImplementationVisibility;
 @SuppressWarnings("ImmutablesStyle")
 @Value.Style(
     typeImmutable = "ImmutableViewHistoryEntry",
-    visibility = ImplementationVisibility.PUBLIC,
-    builderVisibility = BuilderVisibility.PUBLIC)
+    visibilityString = "PUBLIC",
+    builderVisibilityString = "PUBLIC")
 interface BaseViewHistoryEntry extends ViewHistoryEntry {}

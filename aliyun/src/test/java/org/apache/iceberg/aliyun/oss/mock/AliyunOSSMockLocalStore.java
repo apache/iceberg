@@ -110,7 +110,7 @@ public class AliyunOSSMockLocalStore {
         findBucketsByFilter(
             file -> Files.isDirectory(file) && file.getFileName().endsWith(bucketName));
 
-    return buckets.size() > 0 ? buckets.get(0) : null;
+    return !buckets.isEmpty() ? buckets.get(0) : null;
   }
 
   void deleteBucket(String bucketName) throws IOException {

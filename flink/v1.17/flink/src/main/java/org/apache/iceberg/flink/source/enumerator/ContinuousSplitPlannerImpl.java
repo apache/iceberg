@@ -56,9 +56,9 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
    */
   public ContinuousSplitPlannerImpl(
       TableLoader tableLoader, ScanContext scanContext, String threadName) {
-    this.tableLoader = tableLoader;
+    this.tableLoader = tableLoader.clone();
     this.tableLoader.open();
-    this.table = tableLoader.loadTable();
+    this.table = this.tableLoader.loadTable();
     this.scanContext = scanContext;
     this.isSharedPool = threadName == null;
     this.workerPool =

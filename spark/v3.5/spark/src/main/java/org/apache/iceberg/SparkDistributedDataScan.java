@@ -29,6 +29,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.ClosingIterator;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -81,7 +82,7 @@ public class SparkDistributedDataScan extends BaseDistributedDataScan {
   private Broadcast<Table> tableBroadcast = null;
 
   public SparkDistributedDataScan(SparkSession spark, Table table, SparkReadConf readConf) {
-    this(spark, table, readConf, table.schema(), TableScanContext.empty());
+    this(spark, table, readConf, table.schema(), newTableScanContext(table));
   }
 
   private SparkDistributedDataScan(
@@ -134,6 +135,10 @@ public class SparkDistributedDataScan extends BaseDistributedDataScan {
             .flatMap(new ReadDataManifest(tableBroadcast(), context(), withColumnStats));
     List<List<DataFile>> dataFileGroups = collectPartitions(dataFileRDD);
 
+    int matchingFilesCount = dataFileGroups.stream().mapToInt(List::size).sum();
+    int skippedFilesCount = liveFilesCount(dataManifests) - matchingFilesCount;
+    scanMetrics().skippedDataFiles().increment(skippedFilesCount);
+
     return Iterables.transform(dataFileGroups, CloseableIterable::withNoopClose);
   }
 
@@ -156,6 +161,9 @@ public class SparkDistributedDataScan extends BaseDistributedDataScan {
             .parallelize(toBeans(deleteManifests), deleteManifests.size())
             .flatMap(new ReadDeleteManifest(tableBroadcast(), context()))
             .collect();
+
+    int skippedFilesCount = liveFilesCount(deleteManifests) - deleteFiles.size();
+    scanMetrics().skippedDeleteFiles().increment(skippedFilesCount);
 
     return DeleteFileIndex.builderFor(deleteFiles)
         .specsById(table().specs())
@@ -191,6 +199,23 @@ public class SparkDistributedDataScan extends BaseDistributedDataScan {
   private <T> List<List<T>> collectPartitions(JavaRDD<T> rdd) {
     int[] partitionIds = IntStream.range(0, rdd.getNumPartitions()).toArray();
     return Arrays.asList(rdd.collectPartitions(partitionIds));
+  }
+
+  private int liveFilesCount(List<ManifestFile> manifests) {
+    return manifests.stream().mapToInt(this::liveFilesCount).sum();
+  }
+
+  private int liveFilesCount(ManifestFile manifest) {
+    return manifest.existingFilesCount() + manifest.addedFilesCount();
+  }
+
+  private static TableScanContext newTableScanContext(Table table) {
+    if (table instanceof BaseTable) {
+      MetricsReporter reporter = ((BaseTable) table).reporter();
+      return ImmutableTableScanContext.builder().metricsReporter(reporter).build();
+    } else {
+      return TableScanContext.empty();
+    }
   }
 
   private static class ReadDataManifest implements FlatMapFunction<ManifestFileBean, DataFile> {

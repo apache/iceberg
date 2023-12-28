@@ -25,16 +25,6 @@ public class SparkSQLProperties {
   // Controls whether vectorized reads are enabled
   public static final String VECTORIZATION_ENABLED = "spark.sql.iceberg.vectorization.enabled";
 
-  // Controls whether reading/writing timestamps without timezones is allowed
-  @Deprecated
-  public static final String HANDLE_TIMESTAMP_WITHOUT_TIMEZONE =
-      "spark.sql.iceberg.handle-timestamp-without-timezone";
-
-  // Controls whether timestamp types for new tables should be stored with timezone info
-  @Deprecated
-  public static final String USE_TIMESTAMP_WITHOUT_TIME_ZONE_IN_NEW_TABLES =
-      "spark.sql.iceberg.use-timestamp-without-timezone-in-new-tables";
-
   // Controls whether to perform the nullability check during writes
   public static final String CHECK_NULLABILITY = "spark.sql.iceberg.check-nullability";
   public static final boolean CHECK_NULLABILITY_DEFAULT = true;
@@ -74,4 +64,10 @@ public class SparkSQLProperties {
 
   // Overrides the delete planning mode
   public static final String DELETE_PLANNING_MODE = "spark.sql.iceberg.delete-planning-mode";
+
+  // Overrides the advisory partition size
+  public static final String ADVISORY_PARTITION_SIZE = "spark.sql.iceberg.advisory-partition-size";
+
+  // Controls whether to report locality information to Spark while allocating input partitions
+  public static final String LOCALITY = "spark.sql.iceberg.locality.enabled";
 }

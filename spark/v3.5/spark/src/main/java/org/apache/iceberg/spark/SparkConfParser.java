@@ -106,7 +106,7 @@ class SparkConfParser {
     }
 
     public Integer parseOptional() {
-      return parse(Integer::parseInt, null);
+      return parse(Integer::parseInt, defaultValue);
     }
   }
 
@@ -129,7 +129,7 @@ class SparkConfParser {
     }
 
     public Long parseOptional() {
-      return parse(Long::parseLong, null);
+      return parse(Long::parseLong, defaultValue);
     }
   }
 
@@ -152,7 +152,7 @@ class SparkConfParser {
     }
 
     public String parseOptional() {
-      return parse(Function.identity(), null);
+      return parse(Function.identity(), defaultValue);
     }
   }
 

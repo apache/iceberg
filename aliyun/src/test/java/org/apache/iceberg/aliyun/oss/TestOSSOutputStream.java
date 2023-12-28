@@ -38,8 +38,8 @@ import org.apache.iceberg.aliyun.AliyunProperties;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
-import org.junit.Assert;
-import org.junit.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -88,30 +88,30 @@ public class TestOSSOutputStream extends AliyunOSSTestBase {
         new OSSOutputStream(mock, uri, props, MetricsContext.nullMetrics())) {
       if (arrayWrite) {
         out.write(data);
-        Assert.assertEquals("OSSOutputStream position", data.length, out.getPos());
+        Assertions.assertThat(out.getPos()).as("OSSOutputStream position").isEqualTo(data.length);
       } else {
         for (int i = 0; i < data.length; i++) {
           out.write(data[i]);
-          Assert.assertEquals("OSSOutputStream position", i + 1, out.getPos());
+          Assertions.assertThat(out.getPos()).as("OSSOutputStream position").isEqualTo(i + 1);
         }
       }
     }
 
-    Assert.assertTrue(
-        "OSS object should exist", ossClient.doesObjectExist(uri.bucket(), uri.key()));
-    Assert.assertEquals(
-        "Object length",
-        ossClient.getObject(uri.bucket(), uri.key()).getObjectMetadata().getContentLength(),
-        data.length);
+    Assertions.assertThat(ossClient.doesObjectExist(uri.bucket(), uri.key()))
+        .as("OSS object should exist")
+        .isTrue();
+    Assertions.assertThat(
+            ossClient.getObject(uri.bucket(), uri.key()).getObjectMetadata().getContentLength())
+        .as("Object length")
+        .isEqualTo(data.length);
 
     byte[] actual = ossDataContent(uri, data.length);
-    Assert.assertArrayEquals("Object content", data, actual);
+    Assertions.assertThat(actual).as("Object content").isEqualTo(data);
 
     // Verify all staging files are cleaned up.
-    Assert.assertEquals(
-        "Staging files should clean up",
-        0,
-        Files.list(Paths.get(props.ossStagingDirectory())).count());
+    Assertions.assertThat(Files.list(Paths.get(props.ossStagingDirectory())).count())
+        .as("Staging files should clean up")
+        .isEqualTo(0);
   }
 
   private OSSURI randomURI() {

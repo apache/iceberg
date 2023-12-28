@@ -27,12 +27,12 @@ import java.nio.charset.StandardCharsets;
 import org.apache.iceberg.dell.mock.ecs.EcsS3MockRule;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
-import org.junit.ClassRule;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 public class TestEcsAppendOutputStream {
 
-  @ClassRule public static EcsS3MockRule rule = EcsS3MockRule.create();
+  @RegisterExtension public static EcsS3MockRule rule = EcsS3MockRule.create();
 
   @Test
   public void testBaseObjectWrite() throws IOException {

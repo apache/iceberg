@@ -807,7 +807,7 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
           spark.read().format("iceberg").load("default." + TABLE_NAME + ".position_deletes");
       deletes.filter(deletes.col("delete_file_path").equalTo(deleteFile.path().toString()));
       List<Row> rows = deletes.collectAsList();
-      Assert.assertTrue("Empty delete file found", rows.size() > 0);
+      Assert.assertFalse("Empty delete file found", rows.isEmpty());
       int lastPos = 0;
       String lastPath = "";
       for (Row row : rows) {

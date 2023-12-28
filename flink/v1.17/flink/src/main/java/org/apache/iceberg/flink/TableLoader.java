@@ -38,6 +38,8 @@ public interface TableLoader extends Closeable, Serializable, Cloneable {
 
   void open();
 
+  boolean isOpen();
+
   Table loadTable();
 
   /** Clone a TableLoader */
@@ -73,6 +75,11 @@ public interface TableLoader extends Closeable, Serializable, Cloneable {
     @Override
     public void open() {
       tables = new HadoopTables(hadoopConf.get());
+    }
+
+    @Override
+    public boolean isOpen() {
+      return tables != null;
     }
 
     @Override
@@ -116,6 +123,11 @@ public interface TableLoader extends Closeable, Serializable, Cloneable {
     }
 
     @Override
+    public boolean isOpen() {
+      return catalog != null;
+    }
+
+    @Override
     public Table loadTable() {
       FlinkEnvironmentContext.init();
       return catalog.loadTable(TableIdentifier.parse(identifier));
@@ -126,6 +138,8 @@ public interface TableLoader extends Closeable, Serializable, Cloneable {
       if (catalog instanceof Closeable) {
         ((Closeable) catalog).close();
       }
+
+      catalog = null;
     }
 
     @Override

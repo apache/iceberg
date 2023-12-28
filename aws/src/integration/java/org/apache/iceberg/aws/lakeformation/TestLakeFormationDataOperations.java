@@ -18,13 +18,13 @@
  */
 package org.apache.iceberg.aws.lakeformation;
 
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ForbiddenException;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -53,13 +53,13 @@ public class TestLakeFormationDataOperations extends LakeFormationTestBase {
 
   @Test
   public void testLoadTableWithNoTableAccess() {
-    AssertHelpers.assertThrows(
-        "attempt to load a table without SELECT permission should fail",
-        AccessDeniedException.class,
-        "Insufficient Lake Formation permission(s)",
-        () ->
-            glueCatalogPrivilegedRole.loadTable(
-                TableIdentifier.of(Namespace.of(testDbName), testTableName)));
+    Assertions.assertThatThrownBy(
+            () ->
+                glueCatalogPrivilegedRole.loadTable(
+                    TableIdentifier.of(Namespace.of(testDbName), testTableName)))
+        .as("attempt to load a table without SELECT permission should fail")
+        .isInstanceOf(AccessDeniedException.class)
+        .hasMessageContaining("Insufficient Lake Formation permission(s)");
   }
 
   @Test
@@ -81,11 +81,10 @@ public class TestLakeFormationDataOperations extends LakeFormationTestBase {
             .withFileSizeInBytes(10)
             .withRecordCount(1)
             .build();
-    AssertHelpers.assertThrows(
-        "attempt to insert to a table without INSERT permission should fail",
-        S3Exception.class,
-        "Access Denied",
-        () -> table.newAppend().appendFile(dataFile).commit());
+    Assertions.assertThatThrownBy(() -> table.newAppend().appendFile(dataFile).commit())
+        .as("attempt to insert to a table without INSERT permission should fail")
+        .isInstanceOf(S3Exception.class)
+        .hasMessageContaining("Access Denied");
   }
 
   @Test
@@ -118,11 +117,10 @@ public class TestLakeFormationDataOperations extends LakeFormationTestBase {
             .withFileSizeInBytes(10)
             .withRecordCount(1)
             .build();
-    AssertHelpers.assertThrows(
-        "attempt to delete without DATA_LOCATION_ACCESS permission should fail",
-        ForbiddenException.class,
-        "Glue cannot access the requested resources",
-        () -> table.newDelete().deleteFile(dataFile).commit());
+    Assertions.assertThatThrownBy(() -> table.newDelete().deleteFile(dataFile).commit())
+        .as("attempt to delete without DATA_LOCATION_ACCESS permission should fail")
+        .isInstanceOf(ForbiddenException.class)
+        .hasMessageContaining("Glue cannot access the requested resources");
   }
 
   @Test

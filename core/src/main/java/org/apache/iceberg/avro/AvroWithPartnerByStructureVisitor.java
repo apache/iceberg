@@ -93,14 +93,33 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
   private static <P, T> T visitUnion(
       P type, Schema union, AvroWithPartnerByStructureVisitor<P, T> visitor) {
     List<Schema> types = union.getTypes();
-    Preconditions.checkArgument(
-        AvroSchemaUtil.isOptionSchema(union), "Cannot visit non-option union: %s", union);
     List<T> options = Lists.newArrayListWithExpectedSize(types.size());
-    for (Schema branch : types) {
-      if (branch.getType() == Schema.Type.NULL) {
-        options.add(visit(visitor.nullType(), branch, visitor));
-      } else {
-        options.add(visit(type, branch, visitor));
+    if (AvroSchemaUtil.isOptionSchema(union)) {
+      for (Schema branch : types) {
+        if (branch.getType() == Schema.Type.NULL) {
+          options.add(visit(visitor.nullType(), branch, visitor));
+        } else {
+          options.add(visit(type, branch, visitor));
+        }
+      }
+    } else {
+      boolean encounteredNull = false;
+      for (int i = 0; i < types.size(); i++) {
+        // For a union-type (a, b, NULL, c) and the corresponding struct type (tag, a, b, c), the
+        // types match according to the following pattern:
+        // Before NULL, branch type i in the union maps to struct field i + 1.
+        // After NULL, branch type i in the union maps to struct field i.
+        int structFieldIndex = (encounteredNull) ? i : i + 1;
+        if (types.get(i).getType() == Schema.Type.NULL) {
+          visit(visitor.nullType(), types.get(i), visitor);
+          encounteredNull = true;
+        } else {
+          options.add(
+              visit(
+                  visitor.fieldNameAndType(type, structFieldIndex).second(),
+                  types.get(i),
+                  visitor));
+        }
       }
     }
     return visitor.union(type, union, options);

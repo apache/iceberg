@@ -29,6 +29,7 @@ import static org.apache.iceberg.TableMetadataParser.PROPERTIES;
 import static org.apache.iceberg.TableMetadataParser.SCHEMA;
 import static org.apache.iceberg.TableMetadataParser.SNAPSHOTS;
 import static org.apache.iceberg.TestHelpers.assertSameSchemaList;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import java.io.File;
@@ -91,6 +92,7 @@ public class TestTableMetadata {
   public TableOperations ops = new LocalTableOperations(temp);
 
   @Test
+  @SuppressWarnings("MethodLength")
   public void testJsonConversion() throws Exception {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
 
@@ -144,6 +146,14 @@ public class TestTableMetadata {
                     new GenericBlobMetadata(
                         "some-stats", 11L, 2, ImmutableList.of(4), ImmutableMap.of()))));
 
+    List<PartitionStatisticsFile> partitionStatisticsFiles =
+        ImmutableList.of(
+            ImmutableGenericPartitionStatisticsFile.builder()
+                .snapshotId(11L)
+                .path("/some/partition/stats/file.parquet")
+                .fileSizeInBytes(42L)
+                .build());
+
     TableMetadata expected =
         new TableMetadata(
             null,
@@ -168,6 +178,7 @@ public class TestTableMetadata {
             ImmutableList.of(),
             refs,
             statisticsFiles,
+            partitionStatisticsFiles,
             ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(expected);
@@ -234,6 +245,10 @@ public class TestTableMetadata {
         metadata.snapshot(previousSnapshotId).schemaId());
     Assert.assertEquals(
         "Statistics files should match", statisticsFiles, metadata.statisticsFiles());
+    Assert.assertEquals(
+        "Partition statistics files should match",
+        partitionStatisticsFiles,
+        metadata.partitionStatisticsFiles());
     Assert.assertEquals("Refs map should match", refs, metadata.refs());
   }
 
@@ -289,6 +304,7 @@ public class TestTableMetadata {
             ImmutableList.of(),
             ImmutableList.of(),
             ImmutableMap.of(),
+            ImmutableList.of(),
             ImmutableList.of(),
             ImmutableList.of());
 
@@ -431,6 +447,7 @@ public class TestTableMetadata {
                     ImmutableList.of(),
                     refs,
                     ImmutableList.of(),
+                    ImmutableList.of(),
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Current snapshot ID does not match main branch");
@@ -475,6 +492,7 @@ public class TestTableMetadata {
                     ImmutableList.of(),
                     refs,
                     ImmutableList.of(),
+                    ImmutableList.of(),
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Current snapshot is not set, but main branch exists");
@@ -513,6 +531,7 @@ public class TestTableMetadata {
                     ImmutableList.of(),
                     ImmutableList.of(),
                     refs,
+                    ImmutableList.of(),
                     ImmutableList.of(),
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
@@ -617,6 +636,7 @@ public class TestTableMetadata {
             ImmutableList.copyOf(previousMetadataLog),
             ImmutableMap.of(),
             ImmutableList.of(),
+            ImmutableList.of(),
             ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(base);
@@ -695,6 +715,7 @@ public class TestTableMetadata {
             reversedSnapshotLog,
             ImmutableList.copyOf(previousMetadataLog),
             ImmutableMap.of(),
+            ImmutableList.of(),
             ImmutableList.of(),
             ImmutableList.of());
 
@@ -792,6 +813,7 @@ public class TestTableMetadata {
             reversedSnapshotLog,
             ImmutableList.copyOf(previousMetadataLog),
             ImmutableMap.of(),
+            ImmutableList.of(),
             ImmutableList.of(),
             ImmutableList.of());
 
@@ -896,6 +918,7 @@ public class TestTableMetadata {
             ImmutableList.copyOf(previousMetadataLog),
             ImmutableMap.of(),
             ImmutableList.of(),
+            ImmutableList.of(),
             ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
@@ -944,6 +967,7 @@ public class TestTableMetadata {
                     ImmutableList.of(),
                     ImmutableMap.of(),
                     ImmutableList.of(),
+                    ImmutableList.of(),
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("UUID is required in format v2");
@@ -976,6 +1000,7 @@ public class TestTableMetadata {
                     ImmutableList.of(),
                     ImmutableList.of(),
                     ImmutableMap.of(),
+                    ImmutableList.of(),
                     ImmutableList.of(),
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
@@ -1322,6 +1347,118 @@ public class TestTableMetadata {
   }
 
   @Test
+  public void testPartitionStatistics() {
+    Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
+
+    TableMetadata meta =
+        TableMetadata.newTableMetadata(
+            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+    Assert.assertEquals(
+        "Should default to no partition statistics files",
+        ImmutableList.of(),
+        meta.partitionStatisticsFiles());
+  }
+
+  @Test
+  public void testSetPartitionStatistics() {
+    Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
+
+    TableMetadata meta =
+        TableMetadata.newTableMetadata(
+            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+
+    TableMetadata withPartitionStatistics =
+        TableMetadata.buildFrom(meta)
+            .setPartitionStatistics(
+                ImmutableGenericPartitionStatisticsFile.builder()
+                    .snapshotId(43)
+                    .path("/some/path/to/partition/stats/file" + ".parquet")
+                    .fileSizeInBytes(42L)
+                    .build())
+            .build();
+
+    Assertions.assertThat(withPartitionStatistics.partitionStatisticsFiles())
+        .as("There should be one partition statistics file registered")
+        .hasSize(1);
+    PartitionStatisticsFile partitionStatisticsFile =
+        Iterables.getOnlyElement(withPartitionStatistics.partitionStatisticsFiles());
+    Assert.assertEquals("Statistics file snapshot", 43L, partitionStatisticsFile.snapshotId());
+    Assert.assertEquals(
+        "Statistics file path",
+        "/some/path/to/partition/stats/file.parquet",
+        partitionStatisticsFile.path());
+    Assert.assertEquals(
+        "Statistics file size in bytes", 42L, partitionStatisticsFile.fileSizeInBytes());
+
+    TableMetadata withStatisticsReplaced =
+        TableMetadata.buildFrom(withPartitionStatistics)
+            .setPartitionStatistics(
+                ImmutableGenericPartitionStatisticsFile.builder()
+                    .snapshotId(43)
+                    .path("/some/path/to/partition/stats/file2" + ".parquet")
+                    .fileSizeInBytes(48L)
+                    .build())
+            .build();
+
+    Assertions.assertThat(withStatisticsReplaced.partitionStatisticsFiles())
+        .as("There should be one statistics file registered")
+        .hasSize(1);
+    partitionStatisticsFile =
+        Iterables.getOnlyElement(withStatisticsReplaced.partitionStatisticsFiles());
+    Assert.assertEquals("Statistics file snapshot", 43L, partitionStatisticsFile.snapshotId());
+    Assert.assertEquals(
+        "Statistics file path",
+        "/some/path/to/partition/stats/file2.parquet",
+        partitionStatisticsFile.path());
+    Assert.assertEquals(
+        "Statistics file size in bytes", 48L, partitionStatisticsFile.fileSizeInBytes());
+  }
+
+  @Test
+  public void testRemovePartitionStatistics() {
+    Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
+
+    TableMetadata meta =
+        TableMetadata.buildFrom(
+                TableMetadata.newTableMetadata(
+                    schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of()))
+            .setPartitionStatistics(
+                ImmutableGenericPartitionStatisticsFile.builder()
+                    .snapshotId(43)
+                    .path("/some/path/to/partition/stats/file1" + ".parquet")
+                    .fileSizeInBytes(48L)
+                    .build())
+            .setPartitionStatistics(
+                ImmutableGenericPartitionStatisticsFile.builder()
+                    .snapshotId(44)
+                    .path("/some/path/to/partition/stats/file2" + ".parquet")
+                    .fileSizeInBytes(49L)
+                    .build())
+            .build();
+
+    Assert.assertSame(
+        "Should detect no partition statistics to remove",
+        meta,
+        TableMetadata.buildFrom(meta).removePartitionStatistics(42L).build());
+
+    TableMetadata withOneRemoved =
+        TableMetadata.buildFrom(meta).removePartitionStatistics(43).build();
+
+    Assertions.assertThat(withOneRemoved.partitionStatisticsFiles())
+        .as("There should be one partition statistics file retained")
+        .hasSize(1);
+    PartitionStatisticsFile partitionStatisticsFile =
+        Iterables.getOnlyElement(withOneRemoved.partitionStatisticsFiles());
+    Assert.assertEquals("Statistics file snapshot", 44L, partitionStatisticsFile.snapshotId());
+    Assert.assertEquals(
+        "Statistics file path",
+        "/some/path/to/partition/stats/file2.parquet",
+        partitionStatisticsFile.path());
+    Assert.assertEquals(
+        "Statistics file size in bytes", 49L, partitionStatisticsFile.fileSizeInBytes());
+  }
+
+  @Test
   public void testParseSchemaIdentifierFields() throws Exception {
     String data = readTableMetadataInputFile("TableMetadataV2Valid.json");
     TableMetadata parsed = TableMetadataParser.fromJson(data);
@@ -1457,14 +1594,10 @@ public class TestTableMetadata {
             null,
             ImmutableMap.of(TableProperties.FORMAT_VERSION, "2", "key", "val"));
 
-    Assert.assertEquals(
-        "format version should be configured based on the format-version key",
-        2,
-        meta.formatVersion());
-    Assert.assertEquals(
-        "should not contain format-version in properties",
-        ImmutableMap.of("key", "val"),
-        meta.properties());
+    assertThat(meta.formatVersion()).isEqualTo(2);
+    assertThat(meta.properties())
+        .containsEntry("key", "val")
+        .doesNotContainKey(TableProperties.FORMAT_VERSION);
   }
 
   @Test
@@ -1486,14 +1619,11 @@ public class TestTableMetadata {
             meta.location(),
             ImmutableMap.of(TableProperties.FORMAT_VERSION, "2", "key2", "val2"));
 
-    Assert.assertEquals(
-        "format version should be configured based on the format-version key",
-        2,
-        meta.formatVersion());
-    Assert.assertEquals(
-        "should not contain format-version but should contain old and new properties",
-        ImmutableMap.of("key", "val", "key2", "val2"),
-        meta.properties());
+    assertThat(meta.formatVersion()).isEqualTo(2);
+    assertThat(meta.properties())
+        .containsEntry("key", "val")
+        .containsEntry("key2", "val2")
+        .doesNotContainKey(TableProperties.FORMAT_VERSION);
   }
 
   @Test
@@ -1537,6 +1667,23 @@ public class TestTableMetadata {
                 new GenericBlobMetadata(
                     "ndv", 3055729675574597004L, 1, ImmutableList.of(1), ImmutableMap.of()))),
         Iterables.getOnlyElement(parsed.statisticsFiles()));
+  }
+
+  @Test
+  public void testParsePartitionStatisticsFiles() throws Exception {
+    String data = readTableMetadataInputFile("TableMetadataPartitionStatisticsFiles.json");
+    TableMetadata parsed = TableMetadataParser.fromJson(data);
+    Assertions.assertThat(parsed.partitionStatisticsFiles())
+        .as("parsed partition statistics files")
+        .hasSize(1);
+    Assert.assertEquals(
+        "parsed partition statistics file",
+        ImmutableGenericPartitionStatisticsFile.builder()
+            .snapshotId(3055729675574597004L)
+            .path("s3://a/b/partition-stats.parquet")
+            .fileSizeInBytes(43L)
+            .build(),
+        Iterables.getOnlyElement(parsed.partitionStatisticsFiles()));
   }
 
   @Test

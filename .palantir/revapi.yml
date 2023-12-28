@@ -801,11 +801,10 @@ acceptedBreaks:
     - code: "java.method.removed"
       old: "method org.apache.iceberg.view.ViewBuilder org.apache.iceberg.view.ViewBuilder::withQueryColumnNames(java.util.List<java.lang.String>)"
       justification: "Acceptable break due to updating View APIs and the View Spec"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.view.ViewVersion::check()"
+      justification: "Acceptable break due to updating View APIs"
     org.apache.iceberg:iceberg-core:
-    - code: "java.method.visibilityReduced"
-      old: "method void org.apache.iceberg.encryption.Ciphers::<init>()"
-      new: "method void org.apache.iceberg.encryption.Ciphers::<init>()"
-      justification: "Static utility class - should not have public constructor"
     - code: "java.class.removed"
       old: "class org.apache.iceberg.actions.BaseDeleteOrphanFilesActionResult"
       justification: "Removing deprecated code"
@@ -833,6 +832,12 @@ acceptedBreaks:
     - code: "java.class.removed"
       old: "interface org.apache.iceberg.actions.RewritePositionDeleteStrategy"
       justification: "Removing deprecated code"
+    - code: "java.field.removedWithConstant"
+      old: "field org.apache.iceberg.TableProperties.MERGE_CARDINALITY_CHECK_ENABLED"
+      justification: "Spark 3.1 has been dropped"
+    - code: "java.field.removedWithConstant"
+      old: "field org.apache.iceberg.TableProperties.MERGE_CARDINALITY_CHECK_ENABLED_DEFAULT"
+      justification: "Spark 3.1 has been dropped"
     - code: "java.method.removed"
       old: "method java.util.List<org.apache.iceberg.DataFile> org.apache.iceberg.MergingSnapshotProducer<ThisT>::addedFiles()\
         \ @ org.apache.iceberg.BaseOverwriteFiles"
@@ -857,6 +862,34 @@ acceptedBreaks:
       old: "method void org.apache.iceberg.MergingSnapshotProducer<ThisT>::setNewFilesSequenceNumber(long)\
         \ @ org.apache.iceberg.StreamingDelete"
       justification: "Removing deprecated code"
+    - code: "java.method.returnTypeTypeParametersChanged"
+      old: "method org.apache.avro.generic.GenericEnumSymbol org.apache.avro.Conversion<T>::toEnumSymbol(T,\
+        \ org.apache.avro.Schema, org.apache.avro.LogicalType) @ org.apache.iceberg.avro.UUIDConversion"
+      new: "method org.apache.avro.generic.GenericEnumSymbol<?> org.apache.avro.Conversion<T>::toEnumSymbol(T,\
+        \ org.apache.avro.Schema, org.apache.avro.LogicalType) @ org.apache.iceberg.avro.UUIDConversion"
+      justification: "Generic has been added"
+    - code: "java.method.visibilityReduced"
+      old: "method void org.apache.iceberg.encryption.Ciphers::<init>()"
+      new: "method void org.apache.iceberg.encryption.Ciphers::<init>()"
+      justification: "Static utility class - should not have public constructor"
+  "1.4.0":
+    org.apache.iceberg:iceberg-core:
+    - code: "java.class.defaultSerializationChanged"
+      old: "class org.apache.iceberg.mapping.NameMapping"
+      new: "class org.apache.iceberg.mapping.NameMapping"
+      justification: "Serialization across versions is not guaranteed"
+    - code: "java.class.removed"
+      old: "class org.apache.iceberg.actions.BinPackStrategy"
+      justification: "Removing deprecated code"
+    - code: "java.class.removed"
+      old: "class org.apache.iceberg.actions.SortStrategy"
+      justification: "Removing deprecated code"
+    - code: "java.class.removed"
+      old: "interface org.apache.iceberg.actions.RewriteStrategy"
+      justification: "Removing deprecated code"
+    - code: "java.field.serialVersionUIDChanged"
+      new: "field org.apache.iceberg.util.SerializableMap<K, V>.serialVersionUID"
+      justification: "Serialization is not be used"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"

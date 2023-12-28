@@ -36,7 +36,7 @@ For example, queries for log entries from a `logs` table would usually include a
 
 ```sql
 SELECT level, message FROM logs
-WHERE event_time BETWEEN '2018-12-01 10:00:00' AND '2018-12-01 12:00:00'
+WHERE event_time BETWEEN '2018-12-01 10:00:00' AND '2018-12-01 12:00:00';
 ```
 
 Configuring the `logs` table to partition by the date of `event_time` will group log events into files with the same event date. Iceberg keeps track of that date and will use it to skip files for other dates that don't have useful data.
@@ -61,7 +61,7 @@ In Hive, partitions are explicit and appear as a column, so the `logs` table wou
 ```sql
 INSERT INTO logs PARTITION (event_date)
   SELECT level, message, event_time, format_time(event_time, 'YYYY-MM-dd')
-  FROM unstructured_log_source
+  FROM unstructured_log_source;
 ```
 
 Similarly, queries that search through the `logs` table must have an `event_date` filter in addition to an `event_time` filter.
@@ -69,7 +69,7 @@ Similarly, queries that search through the `logs` table must have an `event_date
 ```sql
 SELECT level, count(1) as count FROM logs
 WHERE event_time BETWEEN '2018-12-01 10:00:00' AND '2018-12-01 12:00:00'
-  AND event_date = '2018-12-01'
+  AND event_date = '2018-12-01';
 ```
 
 If the `event_date` filter were missing, Hive would scan through every file in the table because it doesn't know that the `event_time` column is related to the `event_date` column.

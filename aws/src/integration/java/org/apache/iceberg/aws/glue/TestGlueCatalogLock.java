@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.aws.glue;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -33,10 +34,12 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.dynamodb.DynamoDbLockManager;
+import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.util.Tasks;
+import org.awaitility.Awaitility;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -56,11 +59,13 @@ public class TestGlueCatalogLock extends GlueTestBase {
     lockTableName = getRandomName();
     glueCatalog = new GlueCatalog();
     AwsProperties awsProperties = new AwsProperties();
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties();
     dynamo = clientFactory.dynamo();
     glueCatalog.initialize(
         catalogName,
         testBucketPath,
         awsProperties,
+        s3FileIOProperties,
         glue,
         new DynamoDbLockManager(dynamo, lockTableName),
         ImmutableMap.of());
@@ -129,21 +134,19 @@ public class TestGlueCatalogLock extends GlueTestBase {
             (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
 
     AtomicInteger barrier = new AtomicInteger(0);
-    Tasks.range(2)
+    int threadsCount = 2;
+    Tasks.range(threadsCount)
         .stopOnFailure()
         .throwFailureWhenFinished()
         .executeWith(executorService)
         .run(
             index -> {
               for (int numCommittedFiles = 0; numCommittedFiles < 10; numCommittedFiles++) {
-                while (barrier.get() < numCommittedFiles * 2) {
-                  try {
-                    Thread.sleep(10);
-                  } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                  }
-                }
-
+                final int currentFilesCount = numCommittedFiles;
+                Awaitility.await()
+                    .pollInterval(Duration.ofMillis(10))
+                    .atMost(Duration.ofSeconds(10))
+                    .until(() -> barrier.get() >= currentFilesCount * threadsCount);
                 table.newFastAppend().appendFile(file).commit();
                 barrier.incrementAndGet();
               }

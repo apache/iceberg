@@ -20,20 +20,24 @@ package org.apache.iceberg.spark;
 
 import org.apache.spark.sql.connector.distributions.Distribution;
 import org.apache.spark.sql.connector.distributions.Distributions;
+import org.apache.spark.sql.connector.distributions.UnspecifiedDistribution;
 import org.apache.spark.sql.connector.expressions.SortOrder;
 
 /** A set of requirements such as distribution and ordering reported to Spark during writes. */
 public class SparkWriteRequirements {
 
   public static final SparkWriteRequirements EMPTY =
-      new SparkWriteRequirements(Distributions.unspecified(), new SortOrder[0]);
+      new SparkWriteRequirements(Distributions.unspecified(), new SortOrder[0], 0);
 
   private final Distribution distribution;
   private final SortOrder[] ordering;
+  private final long advisoryPartitionSize;
 
-  SparkWriteRequirements(Distribution distribution, SortOrder[] ordering) {
+  SparkWriteRequirements(
+      Distribution distribution, SortOrder[] ordering, long advisoryPartitionSize) {
     this.distribution = distribution;
     this.ordering = ordering;
+    this.advisoryPartitionSize = advisoryPartitionSize;
   }
 
   public Distribution distribution() {
@@ -46,5 +50,10 @@ public class SparkWriteRequirements {
 
   public boolean hasOrdering() {
     return ordering.length != 0;
+  }
+
+  public long advisoryPartitionSize() {
+    // Spark prohibits requesting a particular advisory partition size without distribution
+    return distribution instanceof UnspecifiedDistribution ? 0 : advisoryPartitionSize;
   }
 }

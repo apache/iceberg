@@ -117,9 +117,9 @@ abstract class BaseCommitService<T> implements Closeable {
     LOG.info("Starting commit service for {}", table);
     committerService.execute(
         () -> {
-          while (running.get() || completedRewrites.size() > 0 || inProgressCommits.size() > 0) {
+          while (running.get() || !completedRewrites.isEmpty() || !inProgressCommits.isEmpty()) {
             try {
-              if (completedRewrites.size() == 0 && inProgressCommits.size() == 0) {
+              if (completedRewrites.isEmpty() && inProgressCommits.isEmpty()) {
                 // give other threads a chance to make progress
                 Thread.sleep(100);
               }
@@ -129,7 +129,7 @@ abstract class BaseCommitService<T> implements Closeable {
             }
 
             // commit whatever is left once done with writing.
-            if (!running.get() && completedRewrites.size() > 0) {
+            if (!running.get() && !completedRewrites.isEmpty()) {
               commitReadyCommitGroups();
             }
           }
@@ -239,7 +239,7 @@ abstract class BaseCommitService<T> implements Closeable {
     // Either we have a full commit group, or we have completed writing and need to commit
     // what is left over
     boolean fullCommitGroup = completedRewrites.size() >= rewritesPerCommit;
-    boolean writingComplete = !running.get() && completedRewrites.size() > 0;
+    boolean writingComplete = !running.get() && !completedRewrites.isEmpty();
     return fullCommitGroup || writingComplete;
   }
 

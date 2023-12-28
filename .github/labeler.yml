@@ -35,6 +35,8 @@ DOCS:
   - "**/*CHANGELOG.md"
   - "**/*README.md"
   - "**/*CONTRIBUTING.md"
+SPECIFICATION:
+  - "format/*"
 EXAMPLES:
   - examples/**/*
 COMMON:
@@ -43,8 +45,6 @@ API:
   - api/**/*
 CORE:
   - core/**/*
-PYTHON:
-  - python/**/*
 PARQUET:
   - parquet/**/*
 ARROW:
@@ -55,16 +55,12 @@ HIVE:
   - hive3/**/*
   - hive-metastore/**/*
   - hive-runtime/**/*
+  - hive3-orc-bundle/**/*
 DATA:
   - data/**/*
 SPARK:
-  - spark-runtime/**/*
   - spark/**/*
-  - spark2/**/*
-  - spark3/**/*
-  - spark3-extensions/**/*
 FLINK:
-  - flink-runtime/**/*
   - flink/**/*
 MR:
   - mr/**/*

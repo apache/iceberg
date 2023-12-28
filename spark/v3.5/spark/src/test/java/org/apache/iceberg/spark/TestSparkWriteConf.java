@@ -44,6 +44,7 @@ import static org.apache.iceberg.spark.SparkSQLProperties.COMPRESSION_LEVEL;
 import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.DELETE;
 import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.MERGE;
 import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.UPDATE;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.Map;
@@ -53,6 +54,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.spark.sql.internal.SQLConf;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -72,6 +74,24 @@ public class TestSparkWriteConf extends SparkTestBaseWithCatalog {
   @After
   public void after() {
     sql("DROP TABLE IF EXISTS %s", tableName);
+  }
+
+  @Test
+  public void testAdvisoryPartitionSize() {
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
+
+    long value1 = writeConf.writeRequirements().advisoryPartitionSize();
+    assertThat(value1).isGreaterThan(64L * 1024 * 1024).isLessThan(2L * 1024 * 1024 * 1024);
+
+    spark.conf().set(SQLConf.ADVISORY_PARTITION_SIZE_IN_BYTES().key(), "2GB");
+    long value2 = writeConf.writeRequirements().advisoryPartitionSize();
+    assertThat(value2).isEqualTo(2L * 1024 * 1024 * 1024);
+
+    spark.conf().set(SQLConf.ADVISORY_PARTITION_SIZE_IN_BYTES().key(), "10MB");
+    long value3 = writeConf.writeRequirements().advisoryPartitionSize();
+    assertThat(value3).isGreaterThan(10L * 1024 * 1024);
   }
 
   @Test

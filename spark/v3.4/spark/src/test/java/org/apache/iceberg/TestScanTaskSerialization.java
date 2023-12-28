@@ -117,7 +117,7 @@ public class TestScanTaskSerialization extends SparkTestBase {
   public void testBaseScanTaskGroupKryoSerialization() throws Exception {
     BaseScanTaskGroup<FileScanTask> taskGroup = prepareBaseScanTaskGroupForSerDeTest();
 
-    Assert.assertTrue("Task group can't be empty", taskGroup.tasks().size() > 0);
+    Assert.assertFalse("Task group can't be empty", taskGroup.tasks().isEmpty());
 
     File data = temp.newFile();
     Assert.assertTrue(data.delete());
@@ -141,7 +141,7 @@ public class TestScanTaskSerialization extends SparkTestBase {
   public void testBaseScanTaskGroupJavaSerialization() throws Exception {
     BaseScanTaskGroup<FileScanTask> taskGroup = prepareBaseScanTaskGroupForSerDeTest();
 
-    Assert.assertTrue("Task group can't be empty", taskGroup.tasks().size() > 0);
+    Assert.assertFalse("Task group can't be empty", taskGroup.tasks().isEmpty());
 
     ByteArrayOutputStream bytes = new ByteArrayOutputStream();
     try (ObjectOutputStream out = new ObjectOutputStream(bytes)) {

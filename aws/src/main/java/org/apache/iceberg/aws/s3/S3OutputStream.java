@@ -22,10 +22,9 @@ import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.SequenceInputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -228,6 +227,7 @@ class S3OutputStream extends PositionOutputStream {
     }
 
     stagingFiles.add(new FileAndDigest(currentStagingFile, currentPartMessageDigest));
+    OutputStream outputStream = Files.newOutputStream(currentStagingFile.toPath());
 
     if (isChecksumEnabled) {
       DigestOutputStream digestOutputStream;
@@ -236,22 +236,18 @@ class S3OutputStream extends PositionOutputStream {
       if (multipartUploadId != null) {
         digestOutputStream =
             new DigestOutputStream(
-                new BufferedOutputStream(new FileOutputStream(currentStagingFile)),
-                currentPartMessageDigest);
+                new BufferedOutputStream(outputStream), currentPartMessageDigest);
       } else {
         digestOutputStream =
             new DigestOutputStream(
                 new DigestOutputStream(
-                    new BufferedOutputStream(new FileOutputStream(currentStagingFile)),
-                    currentPartMessageDigest),
+                    new BufferedOutputStream(outputStream), currentPartMessageDigest),
                 completeMessageDigest);
       }
 
       stream = new CountingOutputStream(digestOutputStream);
     } else {
-      stream =
-          new CountingOutputStream(
-              new BufferedOutputStream(new FileOutputStream(currentStagingFile)));
+      stream = new CountingOutputStream(new BufferedOutputStream(outputStream));
     }
   }
 
@@ -451,7 +447,7 @@ class S3OutputStream extends PositionOutputStream {
 
   private static InputStream uncheckedInputStream(File file) {
     try {
-      return new FileInputStream(file);
+      return Files.newInputStream(file.toPath());
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

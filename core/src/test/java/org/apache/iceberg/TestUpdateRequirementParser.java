@@ -59,6 +59,25 @@ public class TestUpdateRequirementParser {
   }
 
   @Test
+  public void testAssertViewUUIDFromJson() {
+    String requirementType = UpdateRequirementParser.ASSERT_VIEW_UUID;
+    String uuid = "2cc52516-5e73-41f2-b139-545d41a4e151";
+    String json = String.format("{\"type\":\"assert-view-uuid\",\"uuid\":\"%s\"}", uuid);
+    UpdateRequirement expected = new UpdateRequirement.AssertViewUUID(uuid);
+    assertEquals(requirementType, expected, UpdateRequirementParser.fromJson(json));
+  }
+
+  @Test
+  public void testAssertViewUUIDToJson() {
+    String uuid = "2cc52516-5e73-41f2-b139-545d41a4e151";
+    String expected = String.format("{\"type\":\"assert-view-uuid\",\"uuid\":\"%s\"}", uuid);
+    UpdateRequirement actual = new UpdateRequirement.AssertViewUUID(uuid);
+    Assertions.assertThat(UpdateRequirementParser.toJson(actual))
+        .as("AssertViewUUID should convert to the correct JSON value")
+        .isEqualTo(expected);
+  }
+
+  @Test
   public void testAssertTableDoesNotExistFromJson() {
     String requirementType = UpdateRequirementParser.ASSERT_TABLE_DOES_NOT_EXIST;
     String json = "{\"type\":\"assert-create\"}";
@@ -262,6 +281,10 @@ public class TestUpdateRequirementParser {
             (UpdateRequirement.AssertTableUUID) expected,
             (UpdateRequirement.AssertTableUUID) actual);
         break;
+      case UpdateRequirementParser.ASSERT_VIEW_UUID:
+        compareAssertViewUUID(
+            (UpdateRequirement.AssertViewUUID) expected, (UpdateRequirement.AssertViewUUID) actual);
+        break;
       case UpdateRequirementParser.ASSERT_TABLE_DOES_NOT_EXIST:
         // Don't cast here as the function explicitly tests that the types are correct, given that
         // the generated JSON
@@ -305,6 +328,15 @@ public class TestUpdateRequirementParser {
 
   private static void compareAssertTableUUID(
       UpdateRequirement.AssertTableUUID expected, UpdateRequirement.AssertTableUUID actual) {
+    Assertions.assertThat(actual.uuid())
+        .as("UUID from JSON should not be null")
+        .isNotNull()
+        .as("UUID should parse correctly from JSON")
+        .isEqualTo(expected.uuid());
+  }
+
+  private static void compareAssertViewUUID(
+      UpdateRequirement.AssertViewUUID expected, UpdateRequirement.AssertViewUUID actual) {
     Assertions.assertThat(actual.uuid())
         .as("UUID from JSON should not be null")
         .isNotNull()

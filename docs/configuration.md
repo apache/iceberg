@@ -55,7 +55,7 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.parquet.page-size-bytes                        | 1048576 (1 MB)              | Parquet page size                                                                                                                                                                                 |
 | write.parquet.page-row-limit                         | 20000                       | Parquet page row limit                                                                                                                                                                            |
 | write.parquet.dict-size-bytes                        | 2097152 (2 MB)              | Parquet dictionary page size                                                                                                                                                                      |
-| write.parquet.compression-codec                      | gzip                        | Parquet compression codec: zstd, brotli, lz4, gzip, snappy, uncompressed                                                                                                                          |
+| write.parquet.compression-codec                      | zstd                        | Parquet compression codec: zstd, brotli, lz4, gzip, snappy, uncompressed                                                                                                                          |
 | write.parquet.compression-level                      | null                        | Parquet compression level                                                                                                                                                                         |
 | write.parquet.bloom-filter-enabled.column.col1       | (not set)                   | Hint to parquet to write a bloom filter for the column: col1                                                                                                                                      |
 | write.parquet.bloom-filter-max-bytes                 | 1048576 (1 MB)              | The maximum number of bytes for a bloom filter bitset                                                                                                                                             |
@@ -118,13 +118,13 @@ The value of these properties are not persisted as a part of the table metadata.
 
 | Property       | Default  | Description                                                   |
 | -------------- | -------- | ------------------------------------------------------------- |
-| format-version | 1        | Table's format version (can be 1 or 2) as defined in the [Spec](../../../spec/#format-versioning). |
+| format-version | 2        | Table's format version (can be 1 or 2) as defined in the [Spec](../../../spec/#format-versioning). Defaults to 2 since version 1.4.0. |
 
 ### Compatibility flags
 
 | Property                                      | Default  | Description                                                   |
 | --------------------------------------------- | -------- | ------------------------------------------------------------- |
-| compatibility.snapshot-id-inheritance.enabled | false    | Enables committing snapshots without explicit snapshot IDs    |
+| compatibility.snapshot-id-inheritance.enabled | false    | Enables committing snapshots without explicit snapshot IDs (always true if the format version is > 1) |
 
 ## Catalog properties
 

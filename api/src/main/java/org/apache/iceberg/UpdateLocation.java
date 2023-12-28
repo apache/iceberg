@@ -18,10 +18,10 @@
  */
 package org.apache.iceberg;
 
-/** API for setting a table's base location. */
+/** API for setting a table's or view's base location. */
 public interface UpdateLocation extends PendingUpdate<String> {
   /**
-   * Set the table's location.
+   * Set the table's or view's location.
    *
    * @param location a String location
    * @return this for method chaining

@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -97,29 +96,26 @@ public class TestTagDDL extends SparkExtensionsTestBase {
     }
 
     String tagName = "t1";
-    AssertHelpers.assertThrows(
-        "Illegal statement",
-        IcebergParseException.class,
-        "mismatched input",
-        () ->
-            sql(
-                "ALTER TABLE %s CREATE TAG %s AS OF VERSION %d RETAIN",
-                tableName, tagName, firstSnapshotId, maxRefAge));
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "ALTER TABLE %s CREATE TAG %s AS OF VERSION %d RETAIN",
+                    tableName, tagName, firstSnapshotId, maxRefAge))
+        .isInstanceOf(IcebergParseException.class)
+        .hasMessageContaining("mismatched input");
 
-    AssertHelpers.assertThrows(
-        "Illegal statement",
-        IcebergParseException.class,
-        "mismatched input",
-        () -> sql("ALTER TABLE %s CREATE TAG %s RETAIN %s DAYS", tableName, tagName, "abc"));
+    Assertions.assertThatThrownBy(
+            () -> sql("ALTER TABLE %s CREATE TAG %s RETAIN %s DAYS", tableName, tagName, "abc"))
+        .isInstanceOf(IcebergParseException.class)
+        .hasMessageContaining("mismatched input");
 
-    AssertHelpers.assertThrows(
-        "Illegal statement",
-        IcebergParseException.class,
-        "mismatched input 'SECONDS' expecting {'DAYS', 'HOURS', 'MINUTES'}",
-        () ->
-            sql(
-                "ALTER TABLE %s CREATE TAG %s AS OF VERSION %d RETAIN %d SECONDS",
-                tableName, tagName, firstSnapshotId, maxRefAge));
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "ALTER TABLE %s CREATE TAG %s AS OF VERSION %d RETAIN %d SECONDS",
+                    tableName, tagName, firstSnapshotId, maxRefAge))
+        .isInstanceOf(IcebergParseException.class)
+        .hasMessageContaining("mismatched input 'SECONDS' expecting {'DAYS', 'HOURS', 'MINUTES'}");
   }
 
   @Test
@@ -137,11 +133,10 @@ public class TestTagDDL extends SparkExtensionsTestBase {
     long snapshotId = table.currentSnapshot().snapshotId();
     String tagName = "t1";
 
-    AssertHelpers.assertThrows(
-        "unknown snapshot",
-        ValidationException.class,
-        "unknown snapshot: -1",
-        () -> sql("ALTER TABLE %s CREATE TAG %s AS OF VERSION %d", tableName, tagName, -1));
+    Assertions.assertThatThrownBy(
+            () -> sql("ALTER TABLE %s CREATE TAG %s AS OF VERSION %d", tableName, tagName, -1))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Cannot set " + tagName + " to unknown snapshot: -1");
 
     sql("ALTER TABLE %s CREATE TAG %s", tableName, tagName);
     table.refresh();
@@ -151,17 +146,13 @@ public class TestTagDDL extends SparkExtensionsTestBase {
     Assert.assertNull(
         "The tag needs to have the default max ref age, which is null.", ref.maxRefAgeMs());
 
-    AssertHelpers.assertThrows(
-        "Cannot create an exist tag",
-        IllegalArgumentException.class,
-        "already exists",
-        () -> sql("ALTER TABLE %s CREATE TAG %s", tableName, tagName));
+    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE TAG %s", tableName, tagName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("already exists");
 
-    AssertHelpers.assertThrows(
-        "Non-conforming tag name",
-        IcebergParseException.class,
-        "mismatched input '123'",
-        () -> sql("ALTER TABLE %s CREATE TAG %s", tableName, "123"));
+    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE TAG %s", tableName, "123"))
+        .isInstanceOf(IcebergParseException.class)
+        .hasMessageContaining("mismatched input '123'");
 
     table.manageSnapshots().removeTag(tagName).commit();
     List<SimpleRecord> records =
@@ -207,11 +198,10 @@ public class TestTagDDL extends SparkExtensionsTestBase {
     insertRows();
     long second = table.currentSnapshot().snapshotId();
 
-    AssertHelpers.assertThrows(
-        "Cannot perform replace tag on branches",
-        IllegalArgumentException.class,
-        "Ref branch1 is a branch not a tag",
-        () -> sql("ALTER TABLE %s REPLACE Tag %s", tableName, branchName, second));
+    Assertions.assertThatThrownBy(
+            () -> sql("ALTER TABLE %s REPLACE Tag %s", tableName, branchName, second))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Ref branch1 is a branch not a tag");
   }
 
   @Test
@@ -244,14 +234,13 @@ public class TestTagDDL extends SparkExtensionsTestBase {
   public void testReplaceTagDoesNotExist() throws NoSuchTableException {
     Table table = insertRows();
 
-    AssertHelpers.assertThrows(
-        "Cannot perform replace tag on tag which does not exist",
-        IllegalArgumentException.class,
-        "Tag does not exist",
-        () ->
-            sql(
-                "ALTER TABLE %s REPLACE Tag %s AS OF VERSION %d",
-                tableName, "someTag", table.currentSnapshot().snapshotId()));
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "ALTER TABLE %s REPLACE Tag %s AS OF VERSION %d",
+                    tableName, "someTag", table.currentSnapshot().snapshotId()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Tag does not exist");
   }
 
   @Test
@@ -316,20 +305,17 @@ public class TestTagDDL extends SparkExtensionsTestBase {
 
   @Test
   public void testDropTagNonConformingName() {
-    AssertHelpers.assertThrows(
-        "Non-conforming tag name",
-        IcebergParseException.class,
-        "mismatched input '123'",
-        () -> sql("ALTER TABLE %s DROP TAG %s", tableName, "123"));
+    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s DROP TAG %s", tableName, "123"))
+        .isInstanceOf(IcebergParseException.class)
+        .hasMessageContaining("mismatched input '123'");
   }
 
   @Test
   public void testDropTagDoesNotExist() {
-    AssertHelpers.assertThrows(
-        "Cannot perform drop tag on tag which does not exist",
-        IllegalArgumentException.class,
-        "Tag does not exist: nonExistingTag",
-        () -> sql("ALTER TABLE %s DROP TAG %s", tableName, "nonExistingTag"));
+    Assertions.assertThatThrownBy(
+            () -> sql("ALTER TABLE %s DROP TAG %s", tableName, "nonExistingTag"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Tag does not exist: nonExistingTag");
   }
 
   @Test
@@ -338,11 +324,9 @@ public class TestTagDDL extends SparkExtensionsTestBase {
     Table table = insertRows();
     table.manageSnapshots().createBranch(branchName, table.currentSnapshot().snapshotId()).commit();
 
-    AssertHelpers.assertThrows(
-        "Cannot perform drop tag on branch",
-        IllegalArgumentException.class,
-        "Ref b1 is a branch not a tag",
-        () -> sql("ALTER TABLE %s DROP TAG %s", tableName, branchName));
+    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s DROP TAG %s", tableName, branchName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Ref b1 is a branch not a tag");
   }
 
   @Test

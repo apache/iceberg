@@ -30,10 +30,10 @@ public class TestHttpClientConfigurations {
   @Test
   public void testUrlConnectionOverrideConfigurations() {
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(AwsProperties.HTTP_CLIENT_URLCONNECTION_SOCKET_TIMEOUT_MS, "90");
-    properties.put(AwsProperties.HTTP_CLIENT_URLCONNECTION_CONNECTION_TIMEOUT_MS, "80");
-    properties.put(AwsProperties.HTTP_CLIENT_APACHE_SOCKET_TIMEOUT_MS, "100");
-    properties.put(AwsProperties.HTTP_CLIENT_APACHE_CONNECTION_TIMEOUT_MS, "200");
+    properties.put(HttpClientProperties.URLCONNECTION_SOCKET_TIMEOUT_MS, "90");
+    properties.put(HttpClientProperties.URLCONNECTION_CONNECTION_TIMEOUT_MS, "80");
+    properties.put(HttpClientProperties.APACHE_SOCKET_TIMEOUT_MS, "100");
+    properties.put(HttpClientProperties.APACHE_CONNECTION_TIMEOUT_MS, "200");
     AwsProperties awsProperties = new AwsProperties(properties);
     UrlConnectionHttpClientConfigurations urlConnectionHttpClientConfigurations =
         UrlConnectionHttpClientConfigurations.create(awsProperties.httpClientProperties());
@@ -72,17 +72,17 @@ public class TestHttpClientConfigurations {
   @Test
   public void testApacheOverrideConfigurations() {
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(AwsProperties.HTTP_CLIENT_URLCONNECTION_SOCKET_TIMEOUT_MS, "90");
-    properties.put(AwsProperties.HTTP_CLIENT_URLCONNECTION_CONNECTION_TIMEOUT_MS, "80");
-    properties.put(AwsProperties.HTTP_CLIENT_APACHE_SOCKET_TIMEOUT_MS, "100");
-    properties.put(AwsProperties.HTTP_CLIENT_APACHE_CONNECTION_TIMEOUT_MS, "200");
-    properties.put(AwsProperties.HTTP_CLIENT_APACHE_CONNECTION_ACQUISITION_TIMEOUT_MS, "101");
-    properties.put(AwsProperties.HTTP_CLIENT_APACHE_CONNECTION_MAX_IDLE_TIME_MS, "102");
-    properties.put(AwsProperties.HTTP_CLIENT_APACHE_CONNECTION_TIME_TO_LIVE_MS, "103");
-    properties.put(AwsProperties.HTTP_CLIENT_APACHE_EXPECT_CONTINUE_ENABLED, "true");
-    properties.put(AwsProperties.HTTP_CLIENT_APACHE_MAX_CONNECTIONS, "104");
-    properties.put(AwsProperties.HTTP_CLIENT_APACHE_TCP_KEEP_ALIVE_ENABLED, "true");
-    properties.put(AwsProperties.HTTP_CLIENT_APACHE_USE_IDLE_CONNECTION_REAPER_ENABLED, "false");
+    properties.put(HttpClientProperties.URLCONNECTION_SOCKET_TIMEOUT_MS, "90");
+    properties.put(HttpClientProperties.URLCONNECTION_CONNECTION_TIMEOUT_MS, "80");
+    properties.put(HttpClientProperties.APACHE_SOCKET_TIMEOUT_MS, "100");
+    properties.put(HttpClientProperties.APACHE_CONNECTION_TIMEOUT_MS, "200");
+    properties.put(HttpClientProperties.APACHE_CONNECTION_ACQUISITION_TIMEOUT_MS, "101");
+    properties.put(HttpClientProperties.APACHE_CONNECTION_MAX_IDLE_TIME_MS, "102");
+    properties.put(HttpClientProperties.APACHE_CONNECTION_TIME_TO_LIVE_MS, "103");
+    properties.put(HttpClientProperties.APACHE_EXPECT_CONTINUE_ENABLED, "true");
+    properties.put(HttpClientProperties.APACHE_MAX_CONNECTIONS, "104");
+    properties.put(HttpClientProperties.APACHE_TCP_KEEP_ALIVE_ENABLED, "true");
+    properties.put(HttpClientProperties.APACHE_USE_IDLE_CONNECTION_REAPER_ENABLED, "false");
     AwsProperties awsProperties = new AwsProperties(properties);
     ApacheHttpClientConfigurations apacheHttpClientConfigurations =
         ApacheHttpClientConfigurations.create(awsProperties.httpClientProperties());

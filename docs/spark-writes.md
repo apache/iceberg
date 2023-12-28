@@ -184,8 +184,6 @@ If the delete filter matches entire partitions of the table, Iceberg will perfor
 
 ### `UPDATE`
 
-Spark 3.1 added support for `UPDATE` queries that update matching rows in tables.
-
 Update queries accept a filter to match rows to update.
 
 ```sql

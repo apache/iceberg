@@ -78,9 +78,9 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
   public S3Client s3() {
     if (isTableRegisteredWithLakeFormation()) {
       return S3Client.builder()
-          .applyMutation(awsProperties()::applyHttpClientConfigurations)
-          .applyMutation(awsProperties()::applyS3EndpointConfigurations)
-          .applyMutation(awsProperties()::applyS3ServiceConfigurations)
+          .applyMutation(httpClientProperties()::applyHttpClientConfigurations)
+          .applyMutation(s3FileIOProperties()::applyEndpointConfigurations)
+          .applyMutation(s3FileIOProperties()::applyServiceConfigurations)
           .credentialsProvider(
               new LakeFormationCredentialsProvider(lakeFormation(), buildTableArn()))
           .region(Region.of(region()))
@@ -94,7 +94,7 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
   public KmsClient kms() {
     if (isTableRegisteredWithLakeFormation()) {
       return KmsClient.builder()
-          .applyMutation(awsProperties()::applyHttpClientConfigurations)
+          .applyMutation(httpClientProperties()::applyHttpClientConfigurations)
           .credentialsProvider(
               new LakeFormationCredentialsProvider(lakeFormation(), buildTableArn()))
           .region(Region.of(region()))
@@ -134,7 +134,7 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
   private LakeFormationClient lakeFormation() {
     return LakeFormationClient.builder()
         .applyMutation(this::applyAssumeRoleConfigurations)
-        .applyMutation(awsProperties()::applyHttpClientConfigurations)
+        .applyMutation(httpClientProperties()::applyHttpClientConfigurations)
         .build();
   }
 

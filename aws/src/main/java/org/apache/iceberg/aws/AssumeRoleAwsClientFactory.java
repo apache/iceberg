@@ -20,6 +20,7 @@ package org.apache.iceberg.aws;
 
 import java.util.Map;
 import java.util.UUID;
+import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
@@ -34,16 +35,18 @@ import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
 
 public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   private AwsProperties awsProperties;
+  private HttpClientProperties httpClientProperties;
+  private S3FileIOProperties s3FileIOProperties;
   private String roleSessionName;
 
   @Override
   public S3Client s3() {
     return S3Client.builder()
         .applyMutation(this::applyAssumeRoleConfigurations)
-        .applyMutation(awsProperties::applyHttpClientConfigurations)
-        .applyMutation(awsProperties::applyS3EndpointConfigurations)
-        .applyMutation(awsProperties::applyS3ServiceConfigurations)
-        .applyMutation(awsProperties::applyS3SignerConfiguration)
+        .applyMutation(httpClientProperties::applyHttpClientConfigurations)
+        .applyMutation(s3FileIOProperties::applyEndpointConfigurations)
+        .applyMutation(s3FileIOProperties::applyServiceConfigurations)
+        .applyMutation(s3FileIOProperties::applySignerConfiguration)
         .build();
   }
 
@@ -51,7 +54,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   public GlueClient glue() {
     return GlueClient.builder()
         .applyMutation(this::applyAssumeRoleConfigurations)
-        .applyMutation(awsProperties::applyHttpClientConfigurations)
+        .applyMutation(httpClientProperties::applyHttpClientConfigurations)
         .build();
   }
 
@@ -59,7 +62,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   public KmsClient kms() {
     return KmsClient.builder()
         .applyMutation(this::applyAssumeRoleConfigurations)
-        .applyMutation(awsProperties::applyHttpClientConfigurations)
+        .applyMutation(httpClientProperties::applyHttpClientConfigurations)
         .build();
   }
 
@@ -67,7 +70,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   public DynamoDbClient dynamo() {
     return DynamoDbClient.builder()
         .applyMutation(this::applyAssumeRoleConfigurations)
-        .applyMutation(awsProperties::applyHttpClientConfigurations)
+        .applyMutation(httpClientProperties::applyHttpClientConfigurations)
         .applyMutation(awsProperties::applyDynamoDbEndpointConfigurations)
         .build();
   }
@@ -75,6 +78,8 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   @Override
   public void initialize(Map<String, String> properties) {
     this.awsProperties = new AwsProperties(properties);
+    this.s3FileIOProperties = new S3FileIOProperties(properties);
+    this.httpClientProperties = new HttpClientProperties(properties);
     this.roleSessionName = genSessionName();
     Preconditions.checkNotNull(
         awsProperties.clientAssumeRoleArn(),
@@ -112,8 +117,18 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
     return awsProperties;
   }
 
+  protected HttpClientProperties httpClientProperties() {
+    return httpClientProperties;
+  }
+
+  protected S3FileIOProperties s3FileIOProperties() {
+    return s3FileIOProperties;
+  }
+
   private StsClient sts() {
-    return StsClient.builder().applyMutation(awsProperties::applyHttpClientConfigurations).build();
+    return StsClient.builder()
+        .applyMutation(httpClientProperties::applyHttpClientConfigurations)
+        .build();
   }
 
   private String genSessionName() {

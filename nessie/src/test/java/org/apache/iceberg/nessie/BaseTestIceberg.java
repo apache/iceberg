@@ -18,14 +18,19 @@
  */
 package org.apache.iceberg.nessie;
 
+import static org.apache.iceberg.TableMetadataParser.getFileExtension;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
@@ -35,6 +40,7 @@ import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.catalog.Namespace;
@@ -45,7 +51,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.LongType;
-import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.view.BaseView;
+import org.apache.iceberg.view.View;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -171,13 +178,39 @@ public abstract class BaseTestIceberg {
 
   protected void createTable(TableIdentifier tableIdentifier) {
     createMissingNamespaces(tableIdentifier);
-    Schema schema = new Schema(StructType.of(required(1, "id", LongType.get())).fields());
+    Schema schema = new Schema(required(1, "id", LongType.get()));
     catalog.createTable(tableIdentifier, schema).location();
   }
 
   protected Table createTable(TableIdentifier tableIdentifier, Schema schema) {
     createMissingNamespaces(tableIdentifier);
     return catalog.createTable(tableIdentifier, schema);
+  }
+
+  protected View createView(NessieCatalog nessieCatalog, TableIdentifier tableIdentifier) {
+    Schema schema = new Schema(required(1, "id", LongType.get()));
+    return createView(nessieCatalog, tableIdentifier, schema);
+  }
+
+  protected View createView(
+      NessieCatalog nessieCatalog, TableIdentifier tableIdentifier, Schema schema) {
+    createMissingNamespaces(tableIdentifier);
+    return nessieCatalog
+        .buildView(tableIdentifier)
+        .withSchema(schema)
+        .withDefaultNamespace(tableIdentifier.namespace())
+        .withQuery("spark", "select * from ns.tbl")
+        .create();
+  }
+
+  protected View replaceView(NessieCatalog nessieCatalog, TableIdentifier identifier) {
+    Schema schema = new Schema(required(2, "age", Types.IntegerType.get()));
+    return nessieCatalog
+        .buildView(identifier)
+        .withSchema(schema)
+        .withDefaultNamespace(identifier.namespace())
+        .withQuery("trino", "select age from ns.tbl")
+        .replace();
   }
 
   protected void createMissingNamespaces(TableIdentifier tableIdentifier) {
@@ -247,6 +280,10 @@ public abstract class BaseTestIceberg {
     return icebergOps.currentMetadataLocation();
   }
 
+  static String viewMetadataLocation(NessieCatalog catalog, TableIdentifier identifier) {
+    return ((BaseView) catalog.loadView(identifier)).operations().current().metadataFileLocation();
+  }
+
   static String writeRecordsToFile(
       Table table, Schema schema, String filename, List<Record> records) throws IOException {
     String fileLocation =
@@ -266,5 +303,24 @@ public abstract class BaseTestIceberg {
         .withPath(fileLocation)
         .withFileSizeInBytes(Files.localInput(fileLocation).getLength())
         .build();
+  }
+
+  protected static List<String> metadataVersionFiles(String tablePath) {
+    return filterByExtension(tablePath, getFileExtension(TableMetadataParser.Codec.NONE));
+  }
+
+  protected static List<String> filterByExtension(String tablePath, String extension) {
+    return metadataFiles(tablePath).stream()
+        .filter(f -> f.endsWith(extension))
+        .collect(Collectors.toList());
+  }
+
+  @SuppressWarnings(
+      "RegexpSinglelineJava") // respecting this rule requires a lot more lines of code
+  private static List<String> metadataFiles(String tablePath) {
+    return Arrays.stream(
+            Objects.requireNonNull(new File((tablePath + "/" + "metadata")).listFiles()))
+        .map(File::getAbsolutePath)
+        .collect(Collectors.toList());
   }
 }

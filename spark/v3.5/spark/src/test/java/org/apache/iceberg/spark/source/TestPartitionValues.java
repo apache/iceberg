@@ -296,11 +296,13 @@ public class TestPartitionValues {
       Table table = tables.create(SUPPORTED_PRIMITIVES, spec, location.toString());
       table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
 
+      // disable distribution/ordering and fanout writers to preserve the original ordering
       sourceDF
           .write()
           .format("iceberg")
           .mode(SaveMode.Append)
           .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING, "false")
+          .option(SparkWriteOptions.FANOUT_ENABLED, "false")
           .save(location.toString());
 
       List<Row> actual =
@@ -374,11 +376,13 @@ public class TestPartitionValues {
       Table table = tables.create(nestedSchema, spec, location.toString());
       table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
 
+      // disable distribution/ordering and fanout writers to preserve the original ordering
       sourceDF
           .write()
           .format("iceberg")
           .mode(SaveMode.Append)
           .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING, "false")
+          .option(SparkWriteOptions.FANOUT_ENABLED, "false")
           .save(location.toString());
 
       List<Row> actual =

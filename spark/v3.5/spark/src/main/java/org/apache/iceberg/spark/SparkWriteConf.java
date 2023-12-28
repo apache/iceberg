@@ -33,6 +33,7 @@ import static org.apache.iceberg.TableProperties.ORC_COMPRESSION;
 import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_STRATEGY;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
+import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.DELETE;
 
 import java.util.Locale;
 import java.util.Map;
@@ -75,6 +76,10 @@ public class SparkWriteConf {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkWriteConf.class);
 
+  private static final long DATA_FILE_SIZE = 128 * 1024 * 1024; // 128 MB
+  private static final long DELETE_FILE_SIZE = 32 * 1024 * 1024; // 32 MB
+
+  private final SparkSession spark;
   private final Table table;
   private final String branch;
   private final RuntimeConfig sessionConf;
@@ -87,13 +92,12 @@ public class SparkWriteConf {
 
   public SparkWriteConf(
       SparkSession spark, Table table, String branch, Map<String, String> writeOptions) {
+    this.spark = spark;
     this.table = table;
     this.branch = branch;
     this.sessionConf = spark.conf();
     this.writeOptions = writeOptions;
     this.confParser = new SparkConfParser(spark, table, writeOptions);
-
-    SparkUtil.validateTimestampWithoutTimezoneConfig(spark.conf(), writeOptions);
   }
 
   public boolean checkNullability() {
@@ -165,6 +169,19 @@ public class SparkWriteConf {
     return FileFormat.fromString(valueAsString);
   }
 
+  private String dataCompressionCodec() {
+    switch (dataFileFormat()) {
+      case PARQUET:
+        return parquetCompressionCodec();
+      case AVRO:
+        return avroCompressionCodec();
+      case ORC:
+        return orcCompressionCodec();
+      default:
+        return null;
+    }
+  }
+
   public long targetDataFileSize() {
     return confParser
         .longConf()
@@ -174,12 +191,21 @@ public class SparkWriteConf {
         .parse();
   }
 
-  public boolean fanoutWriterEnabled() {
+  public boolean useFanoutWriter(SparkWriteRequirements writeRequirements) {
+    boolean defaultValue = !writeRequirements.hasOrdering();
+    return fanoutWriterEnabled(defaultValue);
+  }
+
+  private boolean fanoutWriterEnabled() {
+    return fanoutWriterEnabled(true /* enabled by default */);
+  }
+
+  private boolean fanoutWriterEnabled(boolean defaultValue) {
     return confParser
         .booleanConf()
         .option(SparkWriteOptions.FANOUT_ENABLED)
         .tableProperty(TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED)
-        .defaultValue(TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT)
+        .defaultValue(defaultValue)
         .parse();
   }
 
@@ -191,6 +217,19 @@ public class SparkWriteConf {
             .tableProperty(TableProperties.DELETE_DEFAULT_FILE_FORMAT)
             .parseOptional();
     return valueAsString != null ? FileFormat.fromString(valueAsString) : dataFileFormat();
+  }
+
+  private String deleteCompressionCodec() {
+    switch (deleteFileFormat()) {
+      case PARQUET:
+        return deleteParquetCompressionCodec();
+      case AVRO:
+        return deleteAvroCompressionCodec();
+      case ORC:
+        return deleteOrcCompressionCodec();
+      default:
+        return null;
+    }
   }
 
   public long targetDeleteFileSize() {
@@ -229,7 +268,8 @@ public class SparkWriteConf {
       return SparkWriteRequirements.EMPTY;
     }
 
-    return SparkWriteUtil.writeRequirements(table, distributionMode(), fanoutWriterEnabled());
+    return SparkWriteUtil.writeRequirements(
+        table, distributionMode(), fanoutWriterEnabled(), dataAdvisoryPartitionSize());
   }
 
   @VisibleForTesting
@@ -277,7 +317,11 @@ public class SparkWriteConf {
     }
 
     return SparkWriteUtil.copyOnWriteRequirements(
-        table, command, copyOnWriteDistributionMode(command), fanoutWriterEnabled());
+        table,
+        command,
+        copyOnWriteDistributionMode(command),
+        fanoutWriterEnabled(),
+        dataAdvisoryPartitionSize());
   }
 
   @VisibleForTesting
@@ -301,7 +345,11 @@ public class SparkWriteConf {
     }
 
     return SparkWriteUtil.positionDeltaRequirements(
-        table, command, positionDeltaDistributionMode(command), fanoutWriterEnabled());
+        table,
+        command,
+        positionDeltaDistributionMode(command),
+        fanoutWriterEnabled(),
+        command == DELETE ? deleteAdvisoryPartitionSize() : dataAdvisoryPartitionSize());
   }
 
   @VisibleForTesting
@@ -477,42 +525,24 @@ public class SparkWriteConf {
 
     switch (deleteFormat) {
       case PARQUET:
-        setWritePropertyWithFallback(
-            writeProperties,
-            DELETE_PARQUET_COMPRESSION,
-            deleteParquetCompressionCodec(),
-            parquetCompressionCodec());
-        setWritePropertyWithFallback(
-            writeProperties,
-            DELETE_PARQUET_COMPRESSION_LEVEL,
-            deleteParquetCompressionLevel(),
-            parquetCompressionLevel());
+        writeProperties.put(DELETE_PARQUET_COMPRESSION, deleteParquetCompressionCodec());
+        String deleteParquetCompressionLevel = deleteParquetCompressionLevel();
+        if (deleteParquetCompressionLevel != null) {
+          writeProperties.put(DELETE_PARQUET_COMPRESSION_LEVEL, deleteParquetCompressionLevel);
+        }
         break;
 
       case AVRO:
-        setWritePropertyWithFallback(
-            writeProperties,
-            DELETE_AVRO_COMPRESSION,
-            deleteAvroCompressionCodec(),
-            avroCompressionCodec());
-        setWritePropertyWithFallback(
-            writeProperties,
-            DELETE_AVRO_COMPRESSION_LEVEL,
-            deleteAvroCompressionLevel(),
-            avroCompressionLevel());
+        writeProperties.put(DELETE_AVRO_COMPRESSION, deleteAvroCompressionCodec());
+        String deleteAvroCompressionLevel = deleteAvroCompressionLevel();
+        if (deleteAvroCompressionLevel != null) {
+          writeProperties.put(DELETE_AVRO_COMPRESSION_LEVEL, deleteAvroCompressionLevel);
+        }
         break;
 
       case ORC:
-        setWritePropertyWithFallback(
-            writeProperties,
-            DELETE_ORC_COMPRESSION,
-            deleteOrcCompressionCodec(),
-            orcCompressionCodec());
-        setWritePropertyWithFallback(
-            writeProperties,
-            DELETE_ORC_COMPRESSION_STRATEGY,
-            deleteOrcCompressionStrategy(),
-            orcCompressionStrategy());
+        writeProperties.put(DELETE_ORC_COMPRESSION, deleteOrcCompressionCodec());
+        writeProperties.put(DELETE_ORC_COMPRESSION_STRATEGY, deleteOrcCompressionStrategy());
         break;
 
       default:
@@ -520,15 +550,6 @@ public class SparkWriteConf {
     }
 
     return writeProperties;
-  }
-
-  private void setWritePropertyWithFallback(
-      Map<String, String> writeProperties, String key, String value, String fallbackValue) {
-    if (value != null) {
-      writeProperties.put(key, value);
-    } else if (fallbackValue != null) {
-      writeProperties.put(key, fallbackValue);
-    }
   }
 
   private String parquetCompressionCodec() {
@@ -547,7 +568,8 @@ public class SparkWriteConf {
         .option(SparkWriteOptions.COMPRESSION_CODEC)
         .sessionConf(SparkSQLProperties.COMPRESSION_CODEC)
         .tableProperty(DELETE_PARQUET_COMPRESSION)
-        .parseOptional();
+        .defaultValue(parquetCompressionCodec())
+        .parse();
   }
 
   private String parquetCompressionLevel() {
@@ -566,6 +588,7 @@ public class SparkWriteConf {
         .option(SparkWriteOptions.COMPRESSION_LEVEL)
         .sessionConf(SparkSQLProperties.COMPRESSION_LEVEL)
         .tableProperty(DELETE_PARQUET_COMPRESSION_LEVEL)
+        .defaultValue(parquetCompressionLevel())
         .parseOptional();
   }
 
@@ -585,7 +608,8 @@ public class SparkWriteConf {
         .option(SparkWriteOptions.COMPRESSION_CODEC)
         .sessionConf(SparkSQLProperties.COMPRESSION_CODEC)
         .tableProperty(DELETE_AVRO_COMPRESSION)
-        .parseOptional();
+        .defaultValue(avroCompressionCodec())
+        .parse();
   }
 
   private String avroCompressionLevel() {
@@ -604,6 +628,7 @@ public class SparkWriteConf {
         .option(SparkWriteOptions.COMPRESSION_LEVEL)
         .sessionConf(SparkSQLProperties.COMPRESSION_LEVEL)
         .tableProperty(DELETE_AVRO_COMPRESSION_LEVEL)
+        .defaultValue(avroCompressionLevel())
         .parseOptional();
   }
 
@@ -623,7 +648,8 @@ public class SparkWriteConf {
         .option(SparkWriteOptions.COMPRESSION_CODEC)
         .sessionConf(SparkSQLProperties.COMPRESSION_CODEC)
         .tableProperty(DELETE_ORC_COMPRESSION)
-        .parseOptional();
+        .defaultValue(orcCompressionCodec())
+        .parse();
   }
 
   private String orcCompressionStrategy() {
@@ -642,6 +668,44 @@ public class SparkWriteConf {
         .option(SparkWriteOptions.COMPRESSION_STRATEGY)
         .sessionConf(SparkSQLProperties.COMPRESSION_STRATEGY)
         .tableProperty(DELETE_ORC_COMPRESSION_STRATEGY)
-        .parseOptional();
+        .defaultValue(orcCompressionStrategy())
+        .parse();
+  }
+
+  private long dataAdvisoryPartitionSize() {
+    long defaultValue =
+        advisoryPartitionSize(DATA_FILE_SIZE, dataFileFormat(), dataCompressionCodec());
+    return advisoryPartitionSize(defaultValue);
+  }
+
+  private long deleteAdvisoryPartitionSize() {
+    long defaultValue =
+        advisoryPartitionSize(DELETE_FILE_SIZE, deleteFileFormat(), deleteCompressionCodec());
+    return advisoryPartitionSize(defaultValue);
+  }
+
+  private long advisoryPartitionSize(long defaultValue) {
+    return confParser
+        .longConf()
+        .option(SparkWriteOptions.ADVISORY_PARTITION_SIZE)
+        .sessionConf(SparkSQLProperties.ADVISORY_PARTITION_SIZE)
+        .tableProperty(TableProperties.SPARK_WRITE_ADVISORY_PARTITION_SIZE_BYTES)
+        .defaultValue(defaultValue)
+        .parse();
+  }
+
+  private long advisoryPartitionSize(
+      long expectedFileSize, FileFormat outputFileFormat, String outputCodec) {
+    double shuffleCompressionRatio = shuffleCompressionRatio(outputFileFormat, outputCodec);
+    long suggestedAdvisoryPartitionSize = (long) (expectedFileSize * shuffleCompressionRatio);
+    return Math.max(suggestedAdvisoryPartitionSize, sparkAdvisoryPartitionSize());
+  }
+
+  private long sparkAdvisoryPartitionSize() {
+    return (long) spark.sessionState().conf().getConf(SQLConf.ADVISORY_PARTITION_SIZE_IN_BYTES());
+  }
+
+  private double shuffleCompressionRatio(FileFormat outputFileFormat, String outputCodec) {
+    return SparkCompressionUtil.shuffleCompressionRatio(spark, outputFileFormat, outputCodec);
   }
 }

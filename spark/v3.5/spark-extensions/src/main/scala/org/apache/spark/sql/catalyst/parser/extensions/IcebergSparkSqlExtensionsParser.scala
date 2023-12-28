@@ -126,36 +126,6 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
     }
   }
 
-  object UnresolvedIcebergTable {
-
-    def unapply(plan: LogicalPlan): Option[LogicalPlan] = {
-      EliminateSubqueryAliases(plan) match {
-        case UnresolvedRelation(multipartIdentifier, _, _) if isIcebergTable(multipartIdentifier) =>
-          Some(plan)
-        case _ =>
-          None
-      }
-    }
-
-    private def isIcebergTable(multipartIdent: Seq[String]): Boolean = {
-      val catalogAndIdentifier = Spark3Util.catalogAndIdentifier(SparkSession.active, multipartIdent.asJava)
-      catalogAndIdentifier.catalog match {
-        case tableCatalog: TableCatalog =>
-          Try(tableCatalog.loadTable(catalogAndIdentifier.identifier))
-            .map(isIcebergTable)
-            .getOrElse(false)
-
-        case _ =>
-          false
-      }
-    }
-
-    private def isIcebergTable(table: Table): Boolean = table match {
-      case _: SparkTable => true
-      case _ => false
-    }
-  }
-
   private def isIcebergCommand(sqlText: String): Boolean = {
     val normalized = sqlText.toLowerCase(Locale.ROOT).trim()
       // Strip simple SQL comments that terminate a line, e.g. comments starting with `--` .

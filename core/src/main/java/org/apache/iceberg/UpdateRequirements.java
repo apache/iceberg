@@ -23,6 +23,7 @@ import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.view.ViewMetadata;
 
 public class UpdateRequirements {
 
@@ -52,6 +53,16 @@ public class UpdateRequirements {
     Preconditions.checkArgument(null != metadataUpdates, "Invalid metadata updates: null");
     Builder builder = new Builder(base, false);
     builder.require(new UpdateRequirement.AssertTableUUID(base.uuid()));
+    metadataUpdates.forEach(builder::update);
+    return builder.build();
+  }
+
+  public static List<UpdateRequirement> forReplaceView(
+      ViewMetadata base, List<MetadataUpdate> metadataUpdates) {
+    Preconditions.checkArgument(null != base, "Invalid view metadata: null");
+    Preconditions.checkArgument(null != metadataUpdates, "Invalid metadata updates: null");
+    Builder builder = new Builder(null, false);
+    builder.require(new UpdateRequirement.AssertViewUUID(base.uuid()));
     metadataUpdates.forEach(builder::update);
     return builder.build();
   }

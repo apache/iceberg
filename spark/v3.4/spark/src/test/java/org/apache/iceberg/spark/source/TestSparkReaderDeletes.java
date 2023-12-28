@@ -38,6 +38,7 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
@@ -97,19 +98,21 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   protected static HiveCatalog catalog = null;
   private final String format;
   private final boolean vectorized;
+  private final PlanningMode planningMode;
 
-  public TestSparkReaderDeletes(String format, boolean vectorized) {
+  public TestSparkReaderDeletes(String format, boolean vectorized, PlanningMode planningMode) {
     this.format = format;
     this.vectorized = vectorized;
+    this.planningMode = planningMode;
   }
 
-  @Parameterized.Parameters(name = "format = {0}, vectorized = {1}")
+  @Parameterized.Parameters(name = "format = {0}, vectorized = {1}, planningMode = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
-      new Object[] {"parquet", false},
-      new Object[] {"parquet", true},
-      new Object[] {"orc", false},
-      new Object[] {"avro", false}
+      new Object[] {"parquet", false, PlanningMode.DISTRIBUTED},
+      new Object[] {"parquet", true, PlanningMode.LOCAL},
+      new Object[] {"orc", false, PlanningMode.DISTRIBUTED},
+      new Object[] {"avro", false, PlanningMode.LOCAL}
     };
   }
 
@@ -162,7 +165,12 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     TableOperations ops = ((BaseTable) table).operations();
     TableMetadata meta = ops.current();
     ops.commit(meta, meta.upgradeToFormatVersion(2));
-    table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
+    table
+        .updateProperties()
+        .set(TableProperties.DEFAULT_FILE_FORMAT, format)
+        .set(TableProperties.DATA_PLANNING_MODE, planningMode.modeName())
+        .set(TableProperties.DELETE_PLANNING_MODE, planningMode.modeName())
+        .commit();
     if (format.equals("parquet") || format.equals("orc")) {
       String vectorizationEnabled =
           format.equals("parquet")

@@ -19,11 +19,21 @@
 package org.apache.iceberg;
 
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.view.ViewMetadata;
 
 /** Represents a requirement for a {@link MetadataUpdate} */
 public interface UpdateRequirement {
-  void validate(TableMetadata base);
+  default void validate(TableMetadata base) {
+    throw new ValidationException(
+        "Cannot validate %s against a table", this.getClass().getSimpleName());
+  }
+
+  default void validate(ViewMetadata base) {
+    throw new ValidationException(
+        "Cannot validate %s against a view", this.getClass().getSimpleName());
+  }
 
   class AssertTableDoesNotExist implements UpdateRequirement {
     public AssertTableDoesNotExist() {}
@@ -53,6 +63,27 @@ public interface UpdateRequirement {
       if (!uuid.equalsIgnoreCase(base.uuid())) {
         throw new CommitFailedException(
             "Requirement failed: UUID does not match: expected %s != %s", base.uuid(), uuid);
+      }
+    }
+  }
+
+  class AssertViewUUID implements UpdateRequirement {
+    private final String uuid;
+
+    public AssertViewUUID(String uuid) {
+      Preconditions.checkArgument(uuid != null, "Invalid required UUID: null");
+      this.uuid = uuid;
+    }
+
+    public String uuid() {
+      return uuid;
+    }
+
+    @Override
+    public void validate(ViewMetadata base) {
+      if (!uuid.equalsIgnoreCase(base.uuid())) {
+        throw new CommitFailedException(
+            "Requirement failed: view UUID does not match: expected %s != %s", base.uuid(), uuid);
       }
     }
   }

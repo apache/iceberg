@@ -19,39 +19,39 @@
 package org.apache.iceberg.flink.sink.shuffle;
 
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /**
  * DataStatisticsEvent is sent between data statistics coordinator and operator to transmit data
- * statistics
+ * statistics in bytes
  */
 @Internal
 class DataStatisticsEvent<D extends DataStatistics<D, S>, S> implements OperatorEvent {
 
   private static final long serialVersionUID = 1L;
-
   private final long checkpointId;
-  private final DataStatistics<D, S> dataStatistics;
+  private final byte[] statisticsBytes;
 
-  DataStatisticsEvent(long checkpointId, DataStatistics<D, S> dataStatistics) {
+  private DataStatisticsEvent(long checkpointId, byte[] statisticsBytes) {
     this.checkpointId = checkpointId;
-    this.dataStatistics = dataStatistics;
+    this.statisticsBytes = statisticsBytes;
+  }
+
+  static <D extends DataStatistics<D, S>, S> DataStatisticsEvent<D, S> create(
+      long checkpointId,
+      DataStatistics<D, S> dataStatistics,
+      TypeSerializer<DataStatistics<D, S>> statisticsSerializer) {
+    return new DataStatisticsEvent<>(
+        checkpointId,
+        DataStatisticsUtil.serializeDataStatistics(dataStatistics, statisticsSerializer));
   }
 
   long checkpointId() {
     return checkpointId;
   }
 
-  DataStatistics<D, S> dataStatistics() {
-    return dataStatistics;
-  }
-
-  @Override
-  public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("checkpointId", checkpointId)
-        .add("dataStatistics", dataStatistics)
-        .toString();
+  byte[] statisticsBytes() {
+    return statisticsBytes;
   }
 }

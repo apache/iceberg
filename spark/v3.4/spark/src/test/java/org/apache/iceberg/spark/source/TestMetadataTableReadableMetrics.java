@@ -43,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.junit.After;
@@ -129,7 +130,7 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
     return table;
   }
 
-  private void createNestedTable() throws IOException {
+  private Pair<Table, DataFile> createNestedTable() throws IOException {
     Table table =
         catalog.createTable(
             TableIdentifier.of(Namespace.of(database()), tableName()),
@@ -145,6 +146,7 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
     DataFile dataFile =
         FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), records);
     table.newAppend().appendFile(dataFile).commit();
+    return Pair.of(table, dataFile);
   }
 
   @After
@@ -351,10 +353,15 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
 
   @Test
   public void testNestedValues() throws Exception {
-    createNestedTable();
+    Pair<Table, DataFile> table = createNestedTable();
+    int longColId =
+        table.first().schema().findField("nestedStructCol.leafStructCol.leafLongCol").fieldId();
+    int doubleColId =
+        table.first().schema().findField("nestedStructCol.leafStructCol.leafDoubleCol").fieldId();
 
-    Object[] leafDoubleCol = row(53L, 3L, 1L, 1L, 0.0D, 0.0D);
-    Object[] leafLongCol = row(54L, 3L, 1L, null, 0L, 1L);
+    Object[] leafDoubleCol =
+        row(table.second().columnSizes().get(doubleColId), 3L, 1L, 1L, 0.0D, 0.0D);
+    Object[] leafLongCol = row(table.second().columnSizes().get(longColId), 3L, 1L, null, 0L, 1L);
     Object[] metrics = row(leafDoubleCol, leafLongCol);
 
     List<Object[]> expected = ImmutableList.of(new Object[] {metrics});
