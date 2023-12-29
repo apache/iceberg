@@ -1643,7 +1643,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .load(loadLocation(tableIdentifier, "partitions"))
             .orderBy("partition.id")
             .collectAsList();
-    assertThat(actual).as("Actual results should have two rows").hasSize(2);
+    Assert.assertEquals("Actual results should have two rows", 2, actual.size());
 
     GenericRecordBuilder builder =
         new GenericRecordBuilder(AvroSchemaUtil.convert(partitionsTable.schema(), "partitions"));
@@ -1703,7 +1703,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .load(loadLocation(tableIdentifier, "partitions"))
             .orderBy("partition.id")
             .collectAsList();
-    assertThat(actual).as("Actual results should have two rows").hasSize(2);
+    Assert.assertEquals("Actual results should have two rows", 2, actual.size());
     expected.remove(0);
     expected.add(
         0,
@@ -2270,7 +2270,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     try {
       return FileHelpers.writeDeleteFile(
           table,
-          Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+          Files.localOutput(temp.newFile()),
           org.apache.iceberg.TestHelpers.Row.of(1),
           deletes,
           deleteRowSchema);
