@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 import java.util.Map;
 import java.util.stream.StreamSupport;
@@ -29,9 +31,8 @@ import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.expressions.Transform;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
 
 public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
   @Test
@@ -58,10 +59,9 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
             .deleteOrphanFiles(table.table())
             .olderThan(System.currentTimeMillis() + 1000)
             .execute();
-    Assert.assertTrue(
-        "trash file should be removed",
-        StreamSupport.stream(results.orphanFileLocations().spliterator(), false)
-            .anyMatch(file -> file.contains("file:" + location + "/data/trashfile")));
+    assertThat(StreamSupport.stream(results.orphanFileLocations().spliterator(), false))
+        .as("trash file should be removed")
+        .anyMatch(file -> file.contains("file:" + location + "/data/trashfile"));
   }
 
   @Test
@@ -88,10 +88,9 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
             .deleteOrphanFiles(table.table())
             .olderThan(System.currentTimeMillis() + 1000)
             .execute();
-    Assert.assertTrue(
-        "trash file should be removed",
-        StreamSupport.stream(results.orphanFileLocations().spliterator(), false)
-            .anyMatch(file -> file.contains("file:" + location + "/data/trashfile")));
+    assertThat(StreamSupport.stream(results.orphanFileLocations().spliterator(), false))
+        .as("trash file should be removed")
+        .anyMatch(file -> file.contains("file:" + location + "/data/trashfile"));
   }
 
   @Test
@@ -118,10 +117,10 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
             .deleteOrphanFiles(table.table())
             .olderThan(System.currentTimeMillis() + 1000)
             .execute();
-    Assert.assertTrue(
-        "trash file should be removed",
-        StreamSupport.stream(results.orphanFileLocations().spliterator(), false)
-            .anyMatch(file -> file.contains("file:" + location + "/data/trashfile")));
+
+    assertThat(StreamSupport.stream(results.orphanFileLocations().spliterator(), false))
+        .as("trash file should be removed")
+        .anyMatch(file -> file.contains("file:" + location + "/data/trashfile"));
   }
 
   @Test
@@ -151,10 +150,9 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
             .deleteOrphanFiles(table.table())
             .olderThan(System.currentTimeMillis() + 1000)
             .execute();
-    Assert.assertTrue(
-        "trash file should be removed",
-        StreamSupport.stream(results.orphanFileLocations().spliterator(), false)
-            .anyMatch(file -> file.contains("file:" + location + "/data/trashfile")));
+    assertThat(StreamSupport.stream(results.orphanFileLocations().spliterator(), false))
+        .as("trash file should be removed")
+        .anyMatch(file -> file.contains("file:" + location + "/data/trashfile"));
   }
 
   @Test
@@ -184,13 +182,12 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
             .deleteOrphanFiles(table.table())
             .olderThan(System.currentTimeMillis() + 1000)
             .execute();
-    Assert.assertTrue(
-        "trash file should be removed",
-        StreamSupport.stream(results.orphanFileLocations().spliterator(), false)
-            .anyMatch(file -> file.contains("file:" + location + "/data/trashfile")));
+    assertThat(StreamSupport.stream(results.orphanFileLocations().spliterator(), false))
+        .as("trash file should be removed")
+        .anyMatch(file -> file.contains("file:" + location + "/data/trashfile"));
   }
 
-  @After
+  @AfterEach
   public void resetSparkSessionCatalog() throws Exception {
     spark.conf().unset("spark.sql.catalog.spark_catalog");
     spark.conf().unset("spark.sql.catalog.spark_catalog.type");
