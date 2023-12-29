@@ -414,27 +414,48 @@ public class Types {
 
   public static class NestedField implements Serializable {
     public static NestedField optional(int id, String name, Type type) {
-      return new NestedField(true, id, name, type, null);
+      return new NestedField(true, id, name, type, null, null, null);
     }
 
     public static NestedField optional(int id, String name, Type type, String doc) {
-      return new NestedField(true, id, name, type, doc);
+      return new NestedField(true, id, name, type, doc, null, null);
+    }
+
+    public static NestedField optional(
+        int id, String name, Type type, String doc, Object initialDefault, Object writeDefault) {
+      return new NestedField(true, id, name, type, doc, initialDefault, writeDefault);
     }
 
     public static NestedField required(int id, String name, Type type) {
-      return new NestedField(false, id, name, type, null);
+      return new NestedField(false, id, name, type, null, null, null);
     }
 
     public static NestedField required(int id, String name, Type type, String doc) {
-      return new NestedField(false, id, name, type, doc);
+      return new NestedField(false, id, name, type, doc, null, null);
+    }
+
+    public static NestedField required(
+        int id, String name, Type type, String doc, Object initialDefault, Object writeDefault) {
+      return new NestedField(false, id, name, type, doc, initialDefault, writeDefault);
     }
 
     public static NestedField of(int id, boolean isOptional, String name, Type type) {
-      return new NestedField(isOptional, id, name, type, null);
+      return new NestedField(isOptional, id, name, type, null, null, null);
     }
 
     public static NestedField of(int id, boolean isOptional, String name, Type type, String doc) {
-      return new NestedField(isOptional, id, name, type, doc);
+      return new NestedField(isOptional, id, name, type, doc, null, null);
+    }
+
+    public static NestedField of(
+        int id,
+        boolean isOptional,
+        String name,
+        Type type,
+        String doc,
+        Object initialDefault,
+        Object writeDefault) {
+      return new NestedField(isOptional, id, name, type, doc, initialDefault, writeDefault);
     }
 
     private final boolean isOptional;
@@ -442,8 +463,17 @@ public class Types {
     private final String name;
     private final Type type;
     private final String doc;
+    private final Object initialDefault;
+    private final Object writeDefault;
 
-    private NestedField(boolean isOptional, int id, String name, Type type, String doc) {
+    public NestedField(
+        boolean isOptional,
+        int id,
+        String name,
+        Type type,
+        String doc,
+        Object initialDefault,
+        Object writeDefault) {
       Preconditions.checkNotNull(name, "Name cannot be null");
       Preconditions.checkNotNull(type, "Type cannot be null");
       this.isOptional = isOptional;
@@ -451,6 +481,8 @@ public class Types {
       this.name = name;
       this.type = type;
       this.doc = doc;
+      this.initialDefault = initialDefault;
+      this.writeDefault = writeDefault;
     }
 
     public boolean isOptional() {
@@ -461,7 +493,7 @@ public class Types {
       if (isOptional) {
         return this;
       }
-      return new NestedField(true, id, name, type, doc);
+      return new NestedField(true, id, name, type, doc, initialDefault, writeDefault);
     }
 
     public boolean isRequired() {
@@ -472,7 +504,11 @@ public class Types {
       if (!isOptional) {
         return this;
       }
-      return new NestedField(false, id, name, type, doc);
+      return new NestedField(false, id, name, type, doc, initialDefault, writeDefault);
+    }
+
+    public NestedField withWriteDefault(Object newWriteDefault) {
+      return new NestedField(isOptional, id, name, type, doc, initialDefault, newWriteDefault);
     }
 
     public int fieldId() {
@@ -489,6 +525,14 @@ public class Types {
 
     public String doc() {
       return doc;
+    }
+
+    public Object initialDefault() {
+      return initialDefault;
+    }
+
+    public Object writeDefault() {
+      return writeDefault;
     }
 
     @Override

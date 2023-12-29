@@ -18,9 +18,11 @@
  */
 package org.apache.iceberg.data;
 
+import java.nio.ByteBuffer;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.DateTimeUtil;
 
 public class IdentityPartitionConverters {
@@ -46,7 +48,9 @@ public class IdentityPartitionConverters {
           return DateTimeUtil.timestampFromMicros((Long) value);
         }
       case FIXED:
-        if (value instanceof GenericData.Fixed) {
+        if (value instanceof ByteBuffer) {
+          return ByteBuffers.toByteArray((ByteBuffer) value);
+        } else if (value instanceof GenericData.Fixed) {
           return ((GenericData.Fixed) value).bytes();
         }
         return value;

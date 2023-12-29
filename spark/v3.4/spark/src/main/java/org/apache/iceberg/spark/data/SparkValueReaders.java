@@ -254,6 +254,7 @@ public class SparkValueReaders {
 
     protected StructReader(
         List<ValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
+      // TODO: Support passing default value map
       super(readers, struct, idToConstant);
       this.numFields = readers.size();
     }
