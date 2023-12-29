@@ -50,8 +50,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -133,10 +131,8 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
         .isEqualTo(Sets.newHashSet(table.schema().findField("key").fieldId()));
     CatalogTable catalogTable = catalogTable("tl");
     Optional<UniqueConstraint> uniqueConstraintOptional = catalogTable.getSchema().getPrimaryKey();
-    assertThat(uniqueConstraintOptional.isPresent()).isTrue();
-    assertThat(uniqueConstraintOptional.get().getColumns())
-        .as("Should have the expected columns")
-        .isEqualTo(ImmutableList.of("key"));
+    assertThat(uniqueConstraintOptional).isPresent();
+    assertThat(uniqueConstraintOptional.get().getColumns()).containsExactly("key");
   }
 
   @TestTemplate
@@ -153,10 +149,8 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
                 table.schema().findField("data").fieldId()));
     CatalogTable catalogTable = catalogTable("tl");
     Optional<UniqueConstraint> uniqueConstraintOptional = catalogTable.getSchema().getPrimaryKey();
-    assertThat(uniqueConstraintOptional.isPresent()).isTrue();
-    assertThat(ImmutableSet.copyOf(uniqueConstraintOptional.get().getColumns()))
-        .as("Should have the expected columns")
-        .isEqualTo(ImmutableSet.of("data", "id"));
+    assertThat(uniqueConstraintOptional).isPresent();
+    assertThat(uniqueConstraintOptional.get().getColumns()).containsExactly("id", "data");
   }
 
   @TestTemplate
@@ -532,11 +526,10 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
                     Types.NestedField.required(2, "dt", Types.StringType.get()),
                     Types.NestedField.optional(3, "col1", Types.StringType.get()))
                 .asStruct());
-    // Assert.assertEquals(ImmutableSet.of(), schemaBefore.identifierFieldNames());
     assertThat(schemaBefore.identifierFieldNames()).isEmpty();
     sql("ALTER TABLE tl ADD (PRIMARY KEY (id) NOT ENFORCED)");
     Schema schemaAfterAdd = table("tl").schema();
-    assertThat(schemaAfterAdd.identifierFieldNames()).isEqualTo(ImmutableSet.of("id"));
+    assertThat(schemaAfterAdd.identifierFieldNames()).containsExactly("id");
     sql("ALTER TABLE tl MODIFY (PRIMARY KEY (dt) NOT ENFORCED)");
     Schema schemaAfterModify = table("tl").schema();
     assertThat(schemaAfterModify.asStruct())
@@ -546,7 +539,7 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
                     Types.NestedField.required(2, "dt", Types.StringType.get()),
                     Types.NestedField.optional(3, "col1", Types.StringType.get()))
                 .asStruct());
-    assertThat(schemaAfterModify.identifierFieldNames()).isEqualTo(ImmutableSet.of("dt"));
+    assertThat(schemaAfterModify.identifierFieldNames()).containsExactly("dt");
     // Composite primary key
     sql("ALTER TABLE tl MODIFY (PRIMARY KEY (id, dt) NOT ENFORCED)");
     Schema schemaAfterComposite = table("tl").schema();
@@ -557,7 +550,7 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
                     Types.NestedField.required(2, "dt", Types.StringType.get()),
                     Types.NestedField.optional(3, "col1", Types.StringType.get()))
                 .asStruct());
-    assertThat(schemaAfterComposite.identifierFieldNames()).isEqualTo(ImmutableSet.of("id", "dt"));
+    assertThat(schemaAfterComposite.identifierFieldNames()).containsExactlyInAnyOrder("id", "dt");
     // Setting an optional field as primary key should fail
     // because Iceberg's SchemaUpdate does not allow incompatible changes.
     Assertions.assertThatThrownBy(

@@ -144,13 +144,13 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
           .isEqualTo(next.timestampMillis());
       assertThat(next.snapshotId())
           .as("Should have expected snapshot id")
-          .isEqualTo(row.getField(1));
-      assertThat(next.parentId()).as("Should have expected parent id").isEqualTo(row.getField(2));
-      assertThat(next.operation()).as("Should have expected operation").isEqualTo(row.getField(3));
-      assertThat(next.manifestListLocation())
+          .isEqualTo(next.snapshotId());
+      assertThat(row.getField(2)).as("Should have expected parent id").isEqualTo(next.parentId());
+      assertThat(row.getField(3)).as("Should have expected operation").isEqualTo(next.operation());
+      assertThat(row.getField(4))
           .as("Should have expected manifest list location")
-          .isEqualTo(row.getField(4));
-      assertThat(next.summary()).as("Should have expected summary").isEqualTo(row.getField(5));
+          .isEqualTo(next.manifestListLocation());
+      assertThat(row.getField(5)).as("Should have expected summary").isEqualTo(next.summary());
     }
   }
 
@@ -166,15 +166,15 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
       assertThat(((Instant) row.getField(0)).toEpochMilli())
           .as("Should have expected made_current_at")
           .isEqualTo(next.timestampMillis());
-      assertThat(next.snapshotId())
+      assertThat(row.getField(1))
           .as("Should have expected snapshot id")
-          .isEqualTo(row.getField(1));
-      assertThat(next.parentId()).as("Should have expected parent id").isEqualTo(row.getField(2));
-      assertThat(
-              SnapshotUtil.isAncestorOf(
-                  table, table.currentSnapshot().snapshotId(), next.snapshotId()))
+          .isEqualTo(next.snapshotId());
+      assertThat(row.getField(2)).as("Should have expected parent id").isEqualTo(next.parentId());
+      assertThat(row.getField(3))
           .as("Should have expected is current ancestor")
-          .isEqualTo(row.getField(3));
+          .isEqualTo(
+              SnapshotUtil.isAncestorOf(
+                  table, table.currentSnapshot().snapshotId(), next.snapshotId()));
     }
   }
 
@@ -189,28 +189,28 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
     for (int i = 0; i < result.size(); i++) {
       Row row = result.get(i);
       ManifestFile manifestFile = expectedDataManifests.get(i);
-      assertThat(manifestFile.content().id())
+      assertThat(row.getField(0))
           .as("Should have expected content")
-          .isEqualTo(row.getField(0));
-      assertThat(manifestFile.path()).as("Should have expected path").isEqualTo(row.getField(1));
-      assertThat(manifestFile.length())
+          .isEqualTo(manifestFile.content().id());
+      assertThat(row.getField(1)).as("Should have expected path").isEqualTo(manifestFile.path());
+      assertThat(row.getField(2))
           .as("Should have expected length")
-          .isEqualTo(row.getField(2));
-      assertThat(manifestFile.partitionSpecId())
+          .isEqualTo(manifestFile.length());
+      assertThat(row.getField(3))
           .as("Should have expected partition_spec_id")
-          .isEqualTo(row.getField(3));
-      assertThat(manifestFile.snapshotId())
+          .isEqualTo(manifestFile.partitionSpecId());
+      assertThat(row.getField(4))
           .as("Should have expected added_snapshot_id")
-          .isEqualTo(row.getField(4));
-      assertThat(manifestFile.addedFilesCount())
+          .isEqualTo(manifestFile.snapshotId());
+      assertThat(row.getField(5))
           .as("Should have expected added_data_files_count")
-          .isEqualTo(row.getField(5));
-      assertThat(manifestFile.existingFilesCount())
+          .isEqualTo(manifestFile.addedFilesCount());
+      assertThat(row.getField(6))
           .as("Should have expected existing_data_files_count")
-          .isEqualTo(row.getField(6));
-      assertThat(manifestFile.deletedFilesCount())
+          .isEqualTo(manifestFile.existingFilesCount());
+      assertThat(row.getField(7))
           .as("Should have expected deleted_data_files_count")
-          .isEqualTo(row.getField(7));
+          .isEqualTo(manifestFile.deletedFilesCount());
     }
   }
 
@@ -227,28 +227,28 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
     for (int i = 0; i < result.size(); i++) {
       Row row = result.get(i);
       ManifestFile manifestFile = expectedDataManifests.get(i);
-      assertThat(manifestFile.content().id())
+      assertThat(row.getField(0))
           .as("Should have expected content")
-          .isEqualTo(row.getField(0));
-      assertThat(manifestFile.path()).as("Should have expected path").isEqualTo(row.getField(1));
-      assertThat(manifestFile.length())
+          .isEqualTo(manifestFile.content().id());
+      assertThat(row.getField(1)).as("Should have expected path").isEqualTo(manifestFile.path());
+      assertThat(row.getField(2))
           .as("Should have expected length")
-          .isEqualTo(row.getField(2));
-      assertThat(manifestFile.partitionSpecId())
+          .isEqualTo(manifestFile.length());
+      assertThat(row.getField(3))
           .as("Should have expected partition_spec_id")
-          .isEqualTo(row.getField(3));
-      assertThat(manifestFile.snapshotId())
+          .isEqualTo(manifestFile.partitionSpecId());
+      assertThat(row.getField(4))
           .as("Should have expected added_snapshot_id")
-          .isEqualTo(row.getField(4));
-      assertThat(manifestFile.addedFilesCount())
+          .isEqualTo(manifestFile.snapshotId());
+      assertThat(row.getField(5))
           .as("Should have expected added_data_files_count")
-          .isEqualTo(row.getField(5));
-      assertThat(manifestFile.existingFilesCount())
+          .isEqualTo(manifestFile.addedFilesCount());
+      assertThat(row.getField(6))
           .as("Should have expected existing_data_files_count")
-          .isEqualTo(row.getField(6));
-      assertThat(manifestFile.deletedFilesCount())
+          .isEqualTo(manifestFile.existingFilesCount());
+      assertThat(row.getField(7))
           .as("Should have expected deleted_data_files_count")
-          .isEqualTo(row.getField(7));
+          .isEqualTo(manifestFile.deletedFilesCount());
     }
   }
 
@@ -337,7 +337,7 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
 
   @TestTemplate
   public void testPartitionedTable() throws Exception {
-    assumeThat(!isPartition).isFalse();
+    assumeThat(isPartition).isTrue();
     Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE_NAME));
 
     Schema deleteRowSchema = table.schema().select("id", "data");
@@ -607,31 +607,32 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
 
     assertThat(metadataLogs).hasSize(3);
     Row metadataLog = metadataLogs.get(0);
-    assertThat(Instant.ofEpochMilli(metadataLogEntries.get(0).timestampMillis()))
-        .isEqualTo(metadataLog.getField("timestamp"));
-    assertThat(metadataLogEntries.get(0).file()).isEqualTo(metadataLog.getField("file"));
+    assertThat(metadataLog.getField("timestamp"))
+        .isEqualTo(Instant.ofEpochMilli(metadataLogEntries.get(0).timestampMillis()));
+    assertThat(metadataLog.getField("file")).isEqualTo(metadataLogEntries.get(0).file());
     assertThat(metadataLog.getField("latest_snapshot_id")).isNull();
     assertThat(metadataLog.getField("latest_schema_id")).isNull();
     assertThat(metadataLog.getField("latest_sequence_number")).isNull();
 
     metadataLog = metadataLogs.get(1);
-    assertThat(Instant.ofEpochMilli(metadataLogEntries.get(1).timestampMillis()))
-        .isEqualTo(metadataLog.getField("timestamp"));
-    assertThat(metadataLogEntries.get(1).file()).isEqualTo(metadataLog.getField("file"));
-    assertThat(parentSnapshot.snapshotId()).isEqualTo(metadataLog.getField("latest_snapshot_id"));
-    assertThat(parentSnapshot.schemaId()).isEqualTo(metadataLog.getField("latest_schema_id"));
-    assertThat(parentSnapshot.sequenceNumber())
-        .isEqualTo(metadataLog.getField("latest_sequence_number"));
-    assertThat(parentSnapshot.snapshotId()).isEqualTo(metadataLog.getField("latest_snapshot_id"));
+    assertThat(metadataLog.getField("timestamp"))
+        .isEqualTo(Instant.ofEpochMilli(metadataLogEntries.get(1).timestampMillis()));
+    assertThat(metadataLog.getField("file")).isEqualTo(metadataLogEntries.get(1).file());
+    assertThat(metadataLog.getField("latest_snapshot_id")).isEqualTo(parentSnapshot.snapshotId());
+    assertThat(metadataLog.getField("latest_schema_id")).isEqualTo(parentSnapshot.schemaId());
+    assertThat(metadataLog.getField("latest_sequence_number"))
+        .isEqualTo(parentSnapshot.sequenceNumber());
+    assertThat(metadataLog.getField("latest_snapshot_id")).isEqualTo(parentSnapshot.snapshotId());
 
     metadataLog = metadataLogs.get(2);
-    assertThat(Instant.ofEpochMilli(currentSnapshot.timestampMillis()))
-        .isEqualTo(metadataLog.getField("timestamp"));
-    assertThat(tableMetadata.metadataFileLocation()).isEqualTo(metadataLog.getField("file"));
-    assertThat(currentSnapshot.snapshotId()).isEqualTo(metadataLog.getField("latest_snapshot_id"));
-    assertThat(currentSnapshot.schemaId()).isEqualTo(metadataLog.getField("latest_schema_id"));
-    assertThat(currentSnapshot.sequenceNumber())
-        .isEqualTo(metadataLog.getField("latest_sequence_number"));
+    assertThat(metadataLog.getField("timestamp"))
+        .isEqualTo(Instant.ofEpochMilli(currentSnapshot.timestampMillis()));
+    assertThat(metadataLog.getField("file")).isEqualTo(tableMetadata.metadataFileLocation());
+    assertThat(metadataLog.getField("latest_snapshot_id")).isEqualTo(currentSnapshot.snapshotId());
+    assertThat(metadataLog.getField("latest_schema_id")).isEqualTo(currentSnapshot.schemaId());
+    assertThat(metadataLog.getField("latest_sequence_number"))
+        .isEqualTo(currentSnapshot.sequenceNumber());
+
     // test filtering
     List<Row> metadataLogWithFilters =
         sql(
@@ -641,13 +642,14 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
     metadataLog = metadataLogWithFilters.get(0);
     assertThat(Instant.ofEpochMilli(tableMetadata.currentSnapshot().timestampMillis()))
         .isEqualTo(metadataLog.getField("timestamp"));
-    assertThat(tableMetadata.metadataFileLocation()).isEqualTo(metadataLog.getField("file"));
-    assertThat(tableMetadata.currentSnapshot().snapshotId())
-        .isEqualTo(metadataLog.getField("latest_snapshot_id"));
-    assertThat(tableMetadata.currentSnapshot().schemaId())
-        .isEqualTo(metadataLog.getField("latest_schema_id"));
-    assertThat(tableMetadata.currentSnapshot().sequenceNumber())
-        .isEqualTo(metadataLog.getField("latest_sequence_number"));
+
+    assertThat(metadataLog.getField("file")).isEqualTo(tableMetadata.metadataFileLocation());
+    assertThat(metadataLog.getField("latest_snapshot_id"))
+        .isEqualTo(tableMetadata.currentSnapshot().snapshotId());
+    assertThat(metadataLog.getField("latest_schema_id"))
+        .isEqualTo(tableMetadata.currentSnapshot().schemaId());
+    assertThat(metadataLog.getField("latest_sequence_number"))
+        .isEqualTo(tableMetadata.currentSnapshot().sequenceNumber());
 
     // test projection
     List<String> metadataFiles =
@@ -659,7 +661,7 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
         sql("SELECT file FROM %s$metadata_log_entries", TABLE_NAME);
     assertThat(metadataLogWithProjection).hasSize(3);
     for (int i = 0; i < metadataFiles.size(); i++) {
-      assertThat(metadataFiles.get(i)).isEqualTo(metadataLogWithProjection.get(i).getField("file"));
+      assertThat(metadataLogWithProjection.get(i).getField("file")).isEqualTo(metadataFiles.get(i));
     }
   }
 
