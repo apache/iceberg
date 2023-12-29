@@ -54,7 +54,7 @@ import org.openjdk.jmh.annotations.Timeout;
 @State(Scope.Benchmark)
 @Measurement(iterations = 5)
 @BenchmarkMode(Mode.SingleShotTime)
-@Timeout(time = 1000, timeUnit = TimeUnit.HOURS)
+@Timeout(time = 5, timeUnit = TimeUnit.MINUTES)
 public class ManifestWriteBenchmark {
 
   private static final int NUM_FILES = 10;
