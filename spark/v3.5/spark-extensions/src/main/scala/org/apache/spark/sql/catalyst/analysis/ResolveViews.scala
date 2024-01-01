@@ -19,12 +19,17 @@
 
 package org.apache.spark.sql.catalyst.analysis
 
+import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.catalyst.expressions.Alias
+import org.apache.spark.sql.catalyst.expressions.UpCast
 import org.apache.spark.sql.catalyst.parser.ParseException
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.catalyst.plans.logical.SubqueryAlias
 import org.apache.spark.sql.catalyst.rules.Rule
-import org.apache.spark.sql.connector.catalog.{View => V2View}
+import org.apache.spark.sql.catalyst.trees.CurrentOrigin
+import org.apache.spark.sql.catalyst.trees.Origin
 import org.apache.spark.sql.connector.catalog.CatalogManager
 import org.apache.spark.sql.connector.catalog.CatalogPlugin
 import org.apache.spark.sql.connector.catalog.Identifier
@@ -41,12 +46,12 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
     case u@UnresolvedRelation(nameParts, _, _)
-      if catalogManager.v1SessionCatalog.isTempView(Seq(nameParts.asIdentifier.name())) =>
+      if catalogManager.v1SessionCatalog.isTempView(nameParts) =>
       u
 
     case u@UnresolvedRelation(parts@CatalogAndIdentifier(catalog, ident), _, _) =>
       loadView(catalog, ident)
-        .map(createViewRelation(parts.quoted, _))
+        .map(createViewRelation(parts, _))
         .getOrElse(u)
   }
 
@@ -60,17 +65,44 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
     case _ => None
   }
 
-  private def createViewRelation(name: String, view: V2View): LogicalPlan = {
-    val child = parseViewText(name, view.query)
+  private def createViewRelation(nameParts: Seq[String], view: View): LogicalPlan = {
+    val parsed = parseViewText(nameParts.quoted, view.query)
+
+    // Apply the field aliases and column comments if necessary
+    val child: LogicalPlan = if (!parsed.schema.sameType(view.schema)) {
+      // This logic differs from how Spark handles views in SessionCatalog.fromCatalogTable.
+      // This is more strict because it doesn't allow resolution by name.
+      if (parsed.schema.fieldNames.length != view.schema.fieldNames.length) {
+        throw new AnalysisException(
+          "Cannot resolve view ${nameParts.quoted} with incompatible parsed schema:" +
+            s" ${parsed.schema.fieldNames.mkString(", ")} (expected ${view.schema.fieldNames.mkString(", ")})")
+      }
+
+      val aliases = parsed.output.zip(view.schema.fields).map { case (attr, expected) =>
+        Alias(UpCast(attr, expected.dataType), expected.name)(explicitMetadata = Some(expected.metadata))
+      }
+
+      Project(aliases, parsed)
+    } else {
+      parsed
+    }
 
     val viewCatalogAndNamespace: Seq[String] = view.currentCatalog +: view.currentNamespace.toSeq
+
     // Substitute CTEs within the view before qualifying table identifiers
-    SubqueryAlias(name, qualifyTableIdentifiers(CTESubstitution.apply(child), viewCatalogAndNamespace))
+    SubqueryAlias(nameParts, qualifyTableIdentifiers(CTESubstitution.apply(child), viewCatalogAndNamespace))
   }
 
   private def parseViewText(name: String, viewText: String): LogicalPlan = {
+    val origin = Origin(
+      objectType = Some("VIEW"),
+      objectName = Some(name)
+    )
+
     try {
-      SparkSession.active.sessionState.sqlParser.parsePlan(viewText)
+      CurrentOrigin.withOrigin(origin) {
+        spark.sessionState.sqlParser.parseQuery(viewText)
+      }
     } catch {
       case _: ParseException =>
         throw QueryCompilationErrors.invalidViewText(viewText, name)
@@ -87,7 +119,7 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
       case u@UnresolvedRelation(Seq(table), _, _) =>
         u.copy(multipartIdentifier = catalogAndNamespace :+ table)
       case u@UnresolvedRelation(parts, _, _)
-        if !SparkSession.active.sessionState.catalogManager.isCatalogRegistered(parts.head) =>
+        if !spark.sessionState.catalogManager.isCatalogRegistered(parts.head) =>
         u.copy(multipartIdentifier = catalogAndNamespace.head +: parts)
     }
 }

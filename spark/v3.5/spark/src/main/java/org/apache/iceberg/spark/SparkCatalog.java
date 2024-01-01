@@ -537,6 +537,62 @@ public class SparkCatalog extends BaseCatalog
   }
 
   @Override
+  public Identifier[] listViews(String... namespace) {
+    throw new UnsupportedOperationException(
+        "Listing views is not supported by catalog: " + catalogName);
+  }
+
+  @Override
+  public View loadView(Identifier ident) throws NoSuchViewException {
+    if (null != asViewCatalog) {
+      try {
+        org.apache.iceberg.view.View view = asViewCatalog.loadView(buildIdentifier(ident));
+        return new SparkView(catalogName, view);
+      } catch (org.apache.iceberg.exceptions.NoSuchViewException e) {
+        throw new NoSuchViewException(ident);
+      }
+    }
+
+    throw new NoSuchViewException(ident);
+  }
+
+  @Override
+  public View createView(
+      Identifier ident,
+      String sql,
+      String currentCatalog,
+      String[] currentNamespace,
+      StructType schema,
+      String[] queryColumnNames,
+      String[] columnAliases,
+      String[] columnComments,
+      Map<String, String> properties)
+      throws ViewAlreadyExistsException, NoSuchNamespaceException {
+    throw new UnsupportedOperationException(
+        "Creating a view is not supported by catalog: " + catalogName);
+  }
+
+  @Override
+  public View alterView(Identifier ident, ViewChange... changes)
+      throws NoSuchViewException, IllegalArgumentException {
+    throw new UnsupportedOperationException(
+        "Altering a view is not supported by catalog: " + catalogName);
+  }
+
+  @Override
+  public boolean dropView(Identifier ident) {
+    throw new UnsupportedOperationException(
+        "Dropping a view is not supported by catalog: " + catalogName);
+  }
+
+  @Override
+  public void renameView(Identifier fromIdentifier, Identifier toIdentifier)
+      throws NoSuchViewException, ViewAlreadyExistsException {
+    throw new UnsupportedOperationException(
+        "Renaming a view is not supported by catalog: " + catalogName);
+  }
+
+  @Override
   public final void initialize(String name, CaseInsensitiveStringMap options) {
     this.cacheEnabled =
         PropertyUtil.propertyAsBoolean(
@@ -821,61 +877,5 @@ public class SparkCatalog extends BaseCatalog
   @Override
   public Catalog icebergCatalog() {
     return icebergCatalog;
-  }
-
-  @Override
-  public Identifier[] listViews(String... namespace) {
-    throw new UnsupportedOperationException(
-        "Listing views is not supported by catalog: " + catalogName);
-  }
-
-  @Override
-  public View loadView(Identifier ident) throws NoSuchViewException {
-    if (null != asViewCatalog) {
-      try {
-        org.apache.iceberg.view.View view = asViewCatalog.loadView(buildIdentifier(ident));
-        return new SparkView(catalogName, view);
-      } catch (org.apache.iceberg.exceptions.NoSuchViewException e) {
-        throw new NoSuchViewException(ident);
-      }
-    }
-
-    throw new NoSuchViewException(ident);
-  }
-
-  @Override
-  public View createView(
-      Identifier ident,
-      String sql,
-      String currentCatalog,
-      String[] currentNamespace,
-      StructType schema,
-      String[] queryColumnNames,
-      String[] columnAliases,
-      String[] columnComments,
-      Map<String, String> properties)
-      throws ViewAlreadyExistsException, NoSuchNamespaceException {
-    throw new UnsupportedOperationException(
-        "Creating a view is not supported by catalog: " + catalogName);
-  }
-
-  @Override
-  public View alterView(Identifier ident, ViewChange... changes)
-      throws NoSuchViewException, IllegalArgumentException {
-    throw new UnsupportedOperationException(
-        "Altering a view is not supported by catalog: " + catalogName);
-  }
-
-  @Override
-  public boolean dropView(Identifier ident) {
-    throw new UnsupportedOperationException(
-        "Dropping a view is not supported by catalog: " + catalogName);
-  }
-
-  @Override
-  public void renameView(Identifier fromIdentifier, Identifier toIdentifier)
-      throws NoSuchViewException, ViewAlreadyExistsException {
-    throw new UnsupportedOperationException(
-        "Renaming a view is not supported by catalog: " + catalogName);
   }
 }
