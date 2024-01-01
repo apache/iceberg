@@ -61,6 +61,7 @@ import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -610,11 +611,12 @@ public class Avro {
     private org.apache.iceberg.Schema schema = null;
     private Function<Schema, DatumReader<?>> createReaderFunc = null;
     private BiFunction<org.apache.iceberg.Schema, Schema, DatumReader<?>> createReaderBiFunc = null;
+    private Function<org.apache.iceberg.Schema, DatumReader<?>> createResolvingReaderFunc = null;
 
     @SuppressWarnings("UnnecessaryLambda")
-    private final Function<Schema, DatumReader<?>> defaultCreateReaderFunc =
+    private final Function<org.apache.iceberg.Schema, DatumReader<?>> defaultCreateReaderFunc =
         readSchema -> {
-          GenericAvroReader<?> reader = new GenericAvroReader<>(readSchema);
+          GenericAvroReader<?> reader = GenericAvroReader.create(readSchema);
           reader.setClassLoader(loader);
           return reader;
         };
@@ -627,15 +629,28 @@ public class Avro {
       this.file = file;
     }
 
+    public ReadBuilder createResolvingReader(
+        Function<org.apache.iceberg.Schema, DatumReader<?>> readerFunction) {
+      Preconditions.checkState(
+          createReaderBiFunc == null && createReaderFunc == null,
+          "Cannot set multiple read builder functions");
+      this.createResolvingReaderFunc = readerFunction;
+      return this;
+    }
+
     public ReadBuilder createReaderFunc(Function<Schema, DatumReader<?>> readerFunction) {
-      Preconditions.checkState(createReaderBiFunc == null, "Cannot set multiple createReaderFunc");
+      Preconditions.checkState(
+          createReaderBiFunc == null && createResolvingReaderFunc == null,
+          "Cannot set multiple read builder functions");
       this.createReaderFunc = readerFunction;
       return this;
     }
 
     public ReadBuilder createReaderFunc(
         BiFunction<org.apache.iceberg.Schema, Schema, DatumReader<?>> readerFunction) {
-      Preconditions.checkState(createReaderFunc == null, "Cannot set multiple createReaderFunc");
+      Preconditions.checkState(
+          createReaderFunc == null && createResolvingReaderFunc == null,
+          "Cannot set multiple read builder functions");
       this.createReaderBiFunc = readerFunction;
       return this;
     }
@@ -683,23 +698,34 @@ public class Avro {
       return this;
     }
 
+    @SuppressWarnings("unchecked")
     public <D> AvroIterable<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
-      Function<Schema, DatumReader<?>> readerFunc;
+
+      if (null == nameMapping) {
+        this.nameMapping = MappingUtil.create(schema);
+      }
+
+      DatumReader<D> reader;
       if (createReaderBiFunc != null) {
-        readerFunc = avroSchema -> createReaderBiFunc.apply(schema, avroSchema);
+        reader =
+            new ProjectionDatumReader<>(
+                avroSchema -> createReaderBiFunc.apply(schema, avroSchema), schema, renames, null);
       } else if (createReaderFunc != null) {
-        readerFunc = createReaderFunc;
+        reader = new ProjectionDatumReader<>(createReaderFunc, schema, renames, null);
+      } else if (createResolvingReaderFunc != null) {
+        reader = (DatumReader<D>) createResolvingReaderFunc.apply(schema);
       } else {
-        readerFunc = defaultCreateReaderFunc;
+        reader = (DatumReader<D>) defaultCreateReaderFunc.apply(schema);
+      }
+
+      if (reader instanceof SupportsCustomRecords) {
+        ((SupportsCustomRecords) reader).setClassLoader(loader);
+        ((SupportsCustomRecords) reader).setRenames(renames);
       }
 
       return new AvroIterable<>(
-          file,
-          new ProjectionDatumReader<>(readerFunc, schema, renames, nameMapping),
-          start,
-          length,
-          reuseContainers);
+          file, new NameMappingDatumReader<>(nameMapping, reader), start, length, reuseContainers);
     }
   }
 

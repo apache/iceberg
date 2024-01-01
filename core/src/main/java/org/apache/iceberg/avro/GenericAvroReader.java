@@ -20,6 +20,7 @@ package org.apache.iceberg.avro;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
@@ -27,37 +28,66 @@ import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.Decoder;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.common.DynClasses;
-import org.apache.iceberg.data.avro.DecoderResolver;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
 
-public class GenericAvroReader<T> implements DatumReader<T>, SupportsRowPosition {
+public class GenericAvroReader<T>
+    implements DatumReader<T>, SupportsRowPosition, SupportsCustomRecords {
 
-  private final Schema readSchema;
+  private final Types.StructType expectedType;
   private ClassLoader loader = Thread.currentThread().getContextClassLoader();
+  private Map<String, String> renames = ImmutableMap.of();
+  private Map<Integer, ?> idToConstant = ImmutableMap.of();
   private Schema fileSchema = null;
   private ValueReader<T> reader = null;
+
+  public static <D> GenericAvroReader<D> create(org.apache.iceberg.Schema schema) {
+    return new GenericAvroReader<>(schema);
+  }
 
   public static <D> GenericAvroReader<D> create(Schema schema) {
     return new GenericAvroReader<>(schema);
   }
 
+  GenericAvroReader(org.apache.iceberg.Schema readSchema) {
+    this.expectedType = readSchema.asStruct();
+  }
+
   GenericAvroReader(Schema readSchema) {
-    this.readSchema = readSchema;
+    this.expectedType = AvroSchemaUtil.convert(readSchema).asStructType();
   }
 
   @SuppressWarnings("unchecked")
   private void initReader() {
-    this.reader = (ValueReader<T>) AvroSchemaVisitor.visit(readSchema, new ReadBuilder(loader));
+    this.reader =
+        (ValueReader<T>)
+            AvroWithPartnerVisitor.visit(
+                expectedType,
+                fileSchema,
+                new ResolvingReadBuilder(expectedType, fileSchema.getFullName()),
+                AvroWithPartnerVisitor.FieldIDAccessors.get());
   }
 
   @Override
   public void setSchema(Schema schema) {
-    this.fileSchema = Schema.applyAliases(schema, readSchema);
+    this.fileSchema = schema;
     initReader();
   }
 
+  @Override
   public void setClassLoader(ClassLoader newClassLoader) {
     this.loader = newClassLoader;
+  }
+
+  @Override
+  public void setRenames(Map<String, String> renames) {
+    this.renames = renames;
   }
 
   @Override
@@ -69,62 +99,108 @@ public class GenericAvroReader<T> implements DatumReader<T>, SupportsRowPosition
 
   @Override
   public T read(T reuse, Decoder decoder) throws IOException {
-    return DecoderResolver.resolveAndRead(decoder, readSchema, fileSchema, reader, reuse);
+    return reader.read(decoder, reuse);
   }
 
-  private static class ReadBuilder extends AvroSchemaVisitor<ValueReader<?>> {
-    private final ClassLoader loader;
+  private class ResolvingReadBuilder extends AvroWithPartnerVisitor<Type, ValueReader<?>> {
+    private final Map<Type, Schema> avroSchemas;
 
-    private ReadBuilder(ClassLoader loader) {
-      this.loader = loader;
+    private ResolvingReadBuilder(Types.StructType expectedType, String rootName) {
+      this.avroSchemas = AvroSchemaUtil.convertTypes(expectedType, rootName);
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public ValueReader<?> record(Schema record, List<String> names, List<ValueReader<?>> fields) {
-      try {
-        Class<?> recordClass =
-            DynClasses.builder().loader(loader).impl(record.getFullName()).buildChecked();
-        if (IndexedRecord.class.isAssignableFrom(recordClass)) {
-          return ValueReaders.record(fields, (Class<? extends IndexedRecord>) recordClass, record);
+    public ValueReader<?> record(Type partner, Schema record, List<ValueReader<?>> fieldResults) {
+      Types.StructType expected = partner != null ? partner.asStructType() : null;
+      Map<Integer, Integer> idToPos = idToPos(expected);
+
+      List<Pair<Integer, ValueReader<?>>> readPlan = Lists.newArrayList();
+      List<Schema.Field> fileFields = record.getFields();
+      for (int pos = 0; pos < fileFields.size(); pos += 1) {
+        Schema.Field field = fileFields.get(pos);
+        ValueReader<?> fieldReader = fieldResults.get(pos);
+        Integer fieldId = AvroSchemaUtil.fieldId(field);
+        Integer projectionPos = idToPos.remove(fieldId);
+
+        Object constant = idToConstant.get(fieldId);
+        if (projectionPos != null && constant != null) {
+          readPlan.add(
+              Pair.of(projectionPos, ValueReaders.replaceWithConstant(fieldReader, constant)));
+        } else {
+          readPlan.add(Pair.of(projectionPos, fieldReader));
         }
-
-        return ValueReaders.record(fields, record);
-
-      } catch (ClassNotFoundException e) {
-        return ValueReaders.record(fields, record);
       }
+
+      // handle any expected columns that are not in the data file
+      for (Map.Entry<Integer, Integer> idAndPos : idToPos.entrySet()) {
+        int fieldId = idAndPos.getKey();
+        int pos = idAndPos.getValue();
+
+        Object constant = idToConstant.get(fieldId);
+        Types.NestedField field = expected.field(fieldId);
+        if (constant != null) {
+          readPlan.add(Pair.of(pos, ValueReaders.constant(constant)));
+        } else if (fieldId == MetadataColumns.IS_DELETED.fieldId()) {
+          readPlan.add(Pair.of(pos, ValueReaders.constant(false)));
+        } else if (fieldId == MetadataColumns.ROW_POSITION.fieldId()) {
+          readPlan.add(Pair.of(pos, ValueReaders.positions()));
+        } else if (field.isOptional()) {
+          readPlan.add(Pair.of(pos, ValueReaders.constant(null)));
+        } else {
+          throw new IllegalArgumentException(
+              String.format("Missing required field: %s", field.name()));
+        }
+      }
+
+      return recordReader(readPlan, avroSchemas.get(partner), record.getFullName());
+    }
+
+    @SuppressWarnings("unchecked")
+    private ValueReader<?> recordReader(
+        List<Pair<Integer, ValueReader<?>>> readPlan, Schema avroSchema, String recordName) {
+      String className = renames.getOrDefault(recordName, recordName);
+      if (className != null) {
+        try {
+          Class<?> recordClass = DynClasses.builder().loader(loader).impl(className).buildChecked();
+          if (IndexedRecord.class.isAssignableFrom(recordClass)) {
+            return ValueReaders.record(
+                avroSchema, (Class<? extends IndexedRecord>) recordClass, readPlan);
+          }
+        } catch (ClassNotFoundException e) {
+          // use a generic record reader below
+        }
+      }
+
+      return ValueReaders.record(avroSchema, readPlan);
     }
 
     @Override
-    public ValueReader<?> union(Schema union, List<ValueReader<?>> options) {
+    public ValueReader<?> union(Type partner, Schema union, List<ValueReader<?>> options) {
       return ValueReaders.union(options);
     }
 
     @Override
-    public ValueReader<?> array(Schema array, ValueReader<?> elementReader) {
-      if (array.getLogicalType() instanceof LogicalMap) {
-        ValueReaders.StructReader<?> keyValueReader = (ValueReaders.StructReader) elementReader;
-        ValueReader<?> keyReader = keyValueReader.reader(0);
-        ValueReader<?> valueReader = keyValueReader.reader(1);
-
-        if (keyReader == ValueReaders.utf8s()) {
-          return ValueReaders.arrayMap(ValueReaders.strings(), valueReader);
-        }
-
-        return ValueReaders.arrayMap(keyReader, valueReader);
+    public ValueReader<?> arrayMap(
+        Type partner, Schema map, ValueReader<?> keyReader, ValueReader<?> valueReader) {
+      if (keyReader == ValueReaders.utf8s()) {
+        return ValueReaders.arrayMap(ValueReaders.strings(), valueReader);
       }
 
+      return ValueReaders.arrayMap(keyReader, valueReader);
+    }
+
+    @Override
+    public ValueReader<?> array(Type partner, Schema array, ValueReader<?> elementReader) {
       return ValueReaders.array(elementReader);
     }
 
     @Override
-    public ValueReader<?> map(Schema map, ValueReader<?> valueReader) {
+    public ValueReader<?> map(Type partner, Schema map, ValueReader<?> valueReader) {
       return ValueReaders.map(ValueReaders.strings(), valueReader);
     }
 
     @Override
-    public ValueReader<?> primitive(Schema primitive) {
+    public ValueReader<?> primitive(Type partner, Schema primitive) {
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
         switch (logicalType.getName()) {
@@ -163,10 +239,16 @@ public class GenericAvroReader<T> implements DatumReader<T>, SupportsRowPosition
         case BOOLEAN:
           return ValueReaders.booleans();
         case INT:
+          if (partner != null && partner.typeId() == Type.TypeID.LONG) {
+            return ValueReaders.intsAsLongs();
+          }
           return ValueReaders.ints();
         case LONG:
           return ValueReaders.longs();
         case FLOAT:
+          if (partner != null && partner.typeId() == Type.TypeID.DOUBLE) {
+            return ValueReaders.floatsAsDoubles();
+          }
           return ValueReaders.floats();
         case DOUBLE:
           return ValueReaders.doubles();
@@ -181,6 +263,20 @@ public class GenericAvroReader<T> implements DatumReader<T>, SupportsRowPosition
         default:
           throw new IllegalArgumentException("Unsupported type: " + primitive);
       }
+    }
+
+    private Map<Integer, Integer> idToPos(Types.StructType struct) {
+      Map<Integer, Integer> idToPos = Maps.newHashMap();
+
+      if (struct != null) {
+        List<Types.NestedField> fields = struct.fields();
+        for (int pos = 0; pos < fields.size(); pos += 1) {
+          Types.NestedField field = fields.get(pos);
+          idToPos.put(field.fieldId(), pos);
+        }
+      }
+
+      return idToPos;
     }
   }
 }

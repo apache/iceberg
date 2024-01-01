@@ -18,13 +18,11 @@
  */
 package org.apache.iceberg.avro;
 
-import java.io.IOException;
-import org.apache.avro.io.Decoder;
+import java.util.Map;
 
-public interface ValueReader<T> {
-  T read(Decoder decoder, Object reuse) throws IOException;
+/** An interface for Avro DatumReaders to support custom record classes. */
+interface SupportsCustomRecords {
+  void setClassLoader(ClassLoader loader);
 
-  default void skip(Decoder decoder) throws IOException {
-    read(decoder, null);
-  }
+  void setRenames(Map<String, String> renames);
 }
