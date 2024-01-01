@@ -34,7 +34,9 @@ import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogConfig;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.source.SimpleRecord;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -79,18 +81,18 @@ public class TestViews extends SparkExtensionsTestBase {
   public void readFromView() throws NoSuchTableException {
     insertRows(10);
     String viewName = "simpleView";
+    String sql = String.format("SELECT id FROM %s", tableName);
 
     ViewCatalog viewCatalog = viewCatalog();
-    Schema schema = tableCatalog().loadTable(TableIdentifier.of(NAMESPACE, tableName)).schema();
 
     viewCatalog
         .buildView(TableIdentifier.of(NAMESPACE, viewName))
-        .withQuery("spark", String.format("SELECT id FROM %s", tableName))
+        .withQuery("spark", sql)
         // use non-existing column name to make sure only the SQL definition for spark is loaded
         .withQuery("trino", String.format("SELECT non_existing FROM %s", tableName))
         .withDefaultNamespace(NAMESPACE)
         .withDefaultCatalog(catalogName)
-        .withSchema(schema)
+        .withSchema(schema(sql))
         .create();
 
     List<Object[]> expected =
@@ -105,16 +107,16 @@ public class TestViews extends SparkExtensionsTestBase {
   public void readFromTrinoView() throws NoSuchTableException {
     insertRows(10);
     String viewName = "trinoView";
+    String sql = String.format("SELECT id FROM %s", tableName);
 
     ViewCatalog viewCatalog = viewCatalog();
-    Schema schema = tableCatalog().loadTable(TableIdentifier.of(NAMESPACE, tableName)).schema();
 
     viewCatalog
         .buildView(TableIdentifier.of(NAMESPACE, viewName))
-        .withQuery("trino", String.format("SELECT id FROM %s", tableName))
+        .withQuery("trino", sql)
         .withDefaultNamespace(NAMESPACE)
         .withDefaultCatalog(catalogName)
-        .withSchema(schema)
+        .withSchema(schema(sql))
         .create();
 
     List<Object[]> expected =
@@ -131,22 +133,23 @@ public class TestViews extends SparkExtensionsTestBase {
     insertRows(6);
     String viewName = "firstView";
     String secondView = "secondView";
+    String viewSQL = String.format("SELECT id FROM %s WHERE id <= 3", tableName);
+    String secondViewSQL = String.format("SELECT id FROM %s WHERE id > 3", tableName);
 
     ViewCatalog viewCatalog = viewCatalog();
-    Schema schema = tableCatalog().loadTable(TableIdentifier.of(NAMESPACE, tableName)).schema();
 
     viewCatalog
         .buildView(TableIdentifier.of(NAMESPACE, viewName))
-        .withQuery("spark", String.format("SELECT id FROM %s WHERE id <= 3", tableName))
+        .withQuery("spark", viewSQL)
         .withDefaultNamespace(NAMESPACE)
-        .withSchema(schema)
+        .withSchema(schema(viewSQL))
         .create();
 
     viewCatalog
         .buildView(TableIdentifier.of(NAMESPACE, secondView))
-        .withQuery("spark", String.format("SELECT id FROM %s WHERE id > 3", tableName))
+        .withQuery("spark", secondViewSQL)
         .withDefaultNamespace(NAMESPACE)
-        .withSchema(schema)
+        .withSchema(schema(secondViewSQL))
         .create();
 
     assertThat(sql("SELECT * FROM %s", viewName))
@@ -164,7 +167,7 @@ public class TestViews extends SparkExtensionsTestBase {
     String viewName = "viewWithNonExistingTable";
 
     ViewCatalog viewCatalog = viewCatalog();
-    Schema schema = tableCatalog().loadTable(TableIdentifier.of(NAMESPACE, tableName)).schema();
+    Schema schema = new Schema(Types.NestedField.required(1, "id", Types.LongType.get()));
 
     viewCatalog
         .buildView(TableIdentifier.of(NAMESPACE, viewName))
@@ -188,7 +191,7 @@ public class TestViews extends SparkExtensionsTestBase {
     String viewName = "viewWithNonExistingColumn";
 
     ViewCatalog viewCatalog = viewCatalog();
-    Schema schema = tableCatalog().loadTable(TableIdentifier.of(NAMESPACE, tableName)).schema();
+    Schema schema = new Schema(Types.NestedField.required(1, "non_existing", Types.LongType.get()));
 
     viewCatalog
         .buildView(TableIdentifier.of(NAMESPACE, viewName))
@@ -230,25 +233,26 @@ public class TestViews extends SparkExtensionsTestBase {
   public void readFromViewWithStaleSchema() throws NoSuchTableException {
     insertRows(10);
     String viewName = "staleView";
+    String sql = String.format("SELECT id, data FROM %s", tableName);
 
     ViewCatalog viewCatalog = viewCatalog();
-    Schema schema = tableCatalog().loadTable(TableIdentifier.of(NAMESPACE, tableName)).schema();
 
     viewCatalog
         .buildView(TableIdentifier.of(NAMESPACE, viewName))
-        .withQuery("spark", String.format("SELECT id FROM %s", tableName))
+        .withQuery("spark", sql)
         .withDefaultNamespace(NAMESPACE)
         .withDefaultCatalog(catalogName)
-        .withSchema(schema)
+        .withSchema(schema(sql))
         .create();
 
-    // drop the column the view depends on
-    sql("ALTER TABLE %s DROP COLUMN id", tableName);
+    // drop a column the view depends on
+    // note that this tests `data` because it has an invalid ordinal
+    sql("ALTER TABLE %s DROP COLUMN data", tableName);
 
     // reading from the view should now fail
     assertThatThrownBy(() -> sql("SELECT * FROM %s", viewName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("A column or function parameter with name `id` cannot be resolved");
+        .hasMessageContaining("A column or function parameter with name `data` cannot be resolved");
   }
 
   @Test
@@ -282,18 +286,18 @@ public class TestViews extends SparkExtensionsTestBase {
   public void readFromViewWithGlobalTempView() throws NoSuchTableException {
     insertRows(10);
     String viewName = "viewWithGlobalTempView";
+    String sql = String.format("SELECT id FROM %s WHERE id > 5", tableName);
 
     ViewCatalog viewCatalog = viewCatalog();
-    Schema schema = tableCatalog().loadTable(TableIdentifier.of(NAMESPACE, tableName)).schema();
 
     sql("CREATE GLOBAL TEMPORARY VIEW %s AS SELECT id FROM %s WHERE id <= 5", viewName, tableName);
 
     viewCatalog
         .buildView(TableIdentifier.of(NAMESPACE, viewName))
-        .withQuery("spark", String.format("SELECT id FROM %s WHERE id > 5", tableName))
+        .withQuery("spark", sql)
         .withDefaultNamespace(NAMESPACE)
         .withDefaultCatalog(catalogName)
-        .withSchema(schema)
+        .withSchema(schema(sql))
         .create();
 
     // GLOBAL TEMP VIEWS are stored in a global_temp namespace
@@ -313,32 +317,30 @@ public class TestViews extends SparkExtensionsTestBase {
     insertRows(10);
     String firstView = "viewBeingReferencedInAnotherView";
     String viewReferencingOtherView = "viewReferencingOtherView";
+    String firstSQL = String.format("SELECT id FROM %s WHERE id <= 5", tableName);
+    String secondSQL = String.format("SELECT id FROM %s WHERE id > 4", firstView);
 
     ViewCatalog viewCatalog = viewCatalog();
-    Schema schema = tableCatalog().loadTable(TableIdentifier.of(NAMESPACE, tableName)).schema();
 
     viewCatalog
         .buildView(TableIdentifier.of(NAMESPACE, firstView))
-        .withQuery("spark", String.format("SELECT id FROM %s", tableName))
+        .withQuery("spark", firstSQL)
         .withDefaultNamespace(NAMESPACE)
         .withDefaultCatalog(catalogName)
-        .withSchema(schema)
+        .withSchema(schema(firstSQL))
         .create();
 
     viewCatalog
         .buildView(TableIdentifier.of(NAMESPACE, viewReferencingOtherView))
-        .withQuery("spark", String.format("SELECT id FROM %s", firstView))
+        .withQuery("spark", secondSQL)
         .withDefaultNamespace(NAMESPACE)
         .withDefaultCatalog(catalogName)
-        .withSchema(schema)
+        .withSchema(schema(secondSQL))
         .create();
 
-    List<Object[]> expected =
-        IntStream.rangeClosed(1, 10).mapToObj(this::row).collect(Collectors.toList());
-
     assertThat(sql("SELECT * FROM %s", viewReferencingOtherView))
-        .hasSize(10)
-        .containsExactlyInAnyOrderElementsOf(expected);
+        .hasSize(1)
+        .containsExactly(row(5));
   }
 
   @Test
@@ -346,9 +348,9 @@ public class TestViews extends SparkExtensionsTestBase {
     insertRows(10);
     String tempView = "tempViewBeingReferencedInAnotherView";
     String viewReferencingTempView = "viewReferencingTempView";
+    String sql = String.format("SELECT id FROM %s", tempView);
 
     ViewCatalog viewCatalog = viewCatalog();
-    Schema schema = tableCatalog().loadTable(TableIdentifier.of(NAMESPACE, tableName)).schema();
 
     sql("CREATE TEMPORARY VIEW %s AS SELECT id FROM %s WHERE id <= 5", tempView, tableName);
 
@@ -356,10 +358,10 @@ public class TestViews extends SparkExtensionsTestBase {
     // but this can't be prevented when using the API directly
     viewCatalog
         .buildView(TableIdentifier.of(NAMESPACE, viewReferencingTempView))
-        .withQuery("spark", String.format("SELECT id FROM %s", tempView))
+        .withQuery("spark", sql)
         .withDefaultNamespace(NAMESPACE)
         .withDefaultCatalog(catalogName)
-        .withSchema(schema)
+        .withSchema(schema(sql))
         .create();
 
     List<Object[]> expected =
@@ -375,6 +377,51 @@ public class TestViews extends SparkExtensionsTestBase {
         .hasMessageContaining("The table or view")
         .hasMessageContaining(tempView)
         .hasMessageContaining("cannot be found");
+  }
+
+  @Test
+  public void readFromViewReferencingAnotherViewHiddenByTempView() throws NoSuchTableException {
+    insertRows(10);
+    String innerViewName = "inner_view";
+    String outerViewName = "outer_view";
+    String innerViewSQL = String.format("SELECT * FROM %s WHERE id > 5", tableName);
+    String outerViewSQL = String.format("SELECT id FROM %s", innerViewName);
+
+    ViewCatalog viewCatalog = viewCatalog();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, innerViewName))
+        .withQuery("spark", innerViewSQL)
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema(innerViewSQL))
+        .create();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, outerViewName))
+        .withQuery("spark", outerViewSQL)
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema(outerViewSQL))
+        .create();
+
+    // create a temporary view that conflicts with the inner view to verify the inner name is
+    // resolved using the catalog and namespace defaults from the outer view
+    sql("CREATE TEMPORARY VIEW %s AS SELECT id FROM %s WHERE id <= 5", innerViewName, tableName);
+
+    List<Object[]> tempViewRows =
+        IntStream.rangeClosed(1, 5).mapToObj(this::row).collect(Collectors.toList());
+
+    assertThat(sql("SELECT * FROM %s", innerViewName))
+        .hasSize(5)
+        .containsExactlyInAnyOrderElementsOf(tempViewRows);
+
+    List<Object[]> expectedViewRows =
+        IntStream.rangeClosed(6, 10).mapToObj(this::row).collect(Collectors.toList());
+
+    assertThat(sql("SELECT * FROM %s", outerViewName))
+        .hasSize(5)
+        .containsExactlyInAnyOrderElementsOf(expectedViewRows);
   }
 
   @Test
@@ -419,19 +466,27 @@ public class TestViews extends SparkExtensionsTestBase {
   public void readFromViewWithCTE() throws NoSuchTableException {
     insertRows(10);
     String viewName = "viewWithCTE";
+    String sql =
+        String.format(
+            "WITH max_by_data AS (SELECT max(id) as max FROM %s) "
+                + "SELECT max, count(1) AS count FROM max_by_data GROUP BY max",
+            tableName);
 
     ViewCatalog viewCatalog = viewCatalog();
-    Schema schema = tableCatalog().loadTable(TableIdentifier.of(NAMESPACE, tableName)).schema();
 
     viewCatalog
         .buildView(TableIdentifier.of(NAMESPACE, viewName))
-        .withQuery("spark", String.format("SELECT * FROM (SELECT max(id) FROM %s)", tableName))
+        .withQuery("spark", sql)
         .withDefaultNamespace(NAMESPACE)
         .withDefaultCatalog(catalogName)
-        .withSchema(schema)
+        .withSchema(schema(sql))
         .create();
 
-    assertThat(sql("SELECT * FROM %s", viewName)).hasSize(1).containsExactly(row(10));
+    assertThat(sql("SELECT * FROM %s", viewName)).hasSize(1).containsExactly(row(10, 1L));
+  }
+
+  private Schema schema(String sql) {
+    return SparkSchemaUtil.convert(spark.sql(sql).schema());
   }
 
   private ViewCatalog viewCatalog() {

@@ -68,24 +68,15 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
   private def createViewRelation(nameParts: Seq[String], view: View): LogicalPlan = {
     val parsed = parseViewText(nameParts.quoted, view.query)
 
-    // Apply the field aliases and column comments if necessary
-    val child: LogicalPlan = if (!parsed.schema.sameType(view.schema)) {
-      // This logic differs from how Spark handles views in SessionCatalog.fromCatalogTable.
-      // This is more strict because it doesn't allow resolution by name.
-      if (parsed.schema.fieldNames.length != view.schema.fieldNames.length) {
-        throw new AnalysisException(
-          "Cannot resolve view ${nameParts.quoted} with incompatible parsed schema:" +
-            s" ${parsed.schema.fieldNames.mkString(", ")} (expected ${view.schema.fieldNames.mkString(", ")})")
-      }
-
-      val aliases = parsed.output.zip(view.schema.fields).map { case (attr, expected) =>
-        Alias(UpCast(attr, expected.dataType), expected.name)(explicitMetadata = Some(expected.metadata))
-      }
-
-      Project(aliases, parsed)
-    } else {
-      parsed
+    // Apply the field aliases and column comments
+    // This logic differs from how Spark handles views in SessionCatalog.fromCatalogTable.
+    // This is more strict because it doesn't allow resolution by field name.
+    val aliases = view.schema.fields.zipWithIndex.map { case (expected, pos) =>
+      val attr = GetColumnByOrdinal(pos, expected.dataType)
+      Alias(UpCast(attr, expected.dataType), expected.name)(explicitMetadata = Some(expected.metadata))
     }
+
+    val child = Project(aliases, parsed)
 
     val viewCatalogAndNamespace: Seq[String] = view.currentCatalog +: view.currentNamespace.toSeq
 
