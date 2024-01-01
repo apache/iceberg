@@ -143,10 +143,6 @@ public class ValueReaders {
     return new UnionReader(readers);
   }
 
-  public static ValueReader<Object> optionalAsRequired(List<ValueReader<?>> readers, String name) {
-    return new RequiredOptionReader(name, readers);
-  }
-
   public static ValueReader<Long> positions() {
     return new PositionReader();
   }
@@ -554,40 +550,6 @@ public class ValueReaders {
     @Override
     public void skip(Decoder decoder) throws IOException {
       bytesReader.skip(decoder);
-    }
-  }
-
-  private static class RequiredOptionReader implements ValueReader<Object> {
-    private final String name;
-    private final ValueReader<?>[] readers;
-
-    private RequiredOptionReader(String name, List<ValueReader<?>> readers) {
-      this.name = name;
-      this.readers = new ValueReader[readers.size()];
-      for (int i = 0; i < this.readers.length; i += 1) {
-        this.readers[i] = readers.get(i);
-      }
-    }
-
-    @Override
-    public Object read(Decoder decoder, Object reuse) throws IOException {
-      int index = decoder.readIndex();
-      return checkNonNull(readers[index].read(decoder, reuse));
-    }
-
-    @Override
-    public void skip(Decoder decoder) throws IOException {
-      int index = decoder.readIndex();
-      readers[index].skip(decoder);
-    }
-
-    private Object checkNonNull(Object value) {
-      if (null == value) {
-        throw new NullPointerException(
-            String.format("Read a null value in required field: %s", name));
-      }
-
-      return value;
     }
   }
 
