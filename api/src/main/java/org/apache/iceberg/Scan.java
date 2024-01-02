@@ -127,6 +127,10 @@ public interface Scan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>> {
    */
   Expression filter();
 
+  ThisT partitionFilter(Expression expr);
+
+  Expression partitionFilter();
+
   /**
    * Create a new scan from this that applies data filtering to files but not to rows in those
    * files.

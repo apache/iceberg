@@ -104,6 +104,16 @@ class BatchScanAdapter implements BatchScan {
   }
 
   @Override
+  public BatchScan partitionFilter(Expression expr) {
+    return new BatchScanAdapter(scan.partitionFilter(expr));
+  }
+
+  @Override
+  public Expression partitionFilter() {
+    return scan.partitionFilter();
+  }
+
+  @Override
   public BatchScan ignoreResiduals() {
     return new BatchScanAdapter(scan.ignoreResiduals());
   }

@@ -171,6 +171,10 @@ public interface RewriteDataFiles
    */
   RewriteDataFiles filter(Expression expression);
 
+  default RewriteDataFiles partitionFilter(Expression expression) {
+    throw new UnsupportedOperationException("Partition Filter not implemented for this framework");
+  }
+
   /**
    * A map of file group information to the results of rewriting that file group. If the results are
    * null then that particular file group failed. We should only have failed groups if partial

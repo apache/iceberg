@@ -201,6 +201,17 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
   }
 
   @Override
+  public ThisT partitionFilter(Expression expr) {
+    return newRefinedScan(
+        table, schema, context.filterPartitions(Expressions.and(context.partitionFilter(), expr)));
+  }
+
+  @Override
+  public Expression partitionFilter() {
+    return context().partitionFilter();
+  }
+
+  @Override
   public ThisT ignoreResiduals() {
     return newRefinedScan(table, schema, context.ignoreResiduals(true));
   }

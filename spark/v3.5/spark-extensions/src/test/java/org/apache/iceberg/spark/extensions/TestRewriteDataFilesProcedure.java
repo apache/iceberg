@@ -457,6 +457,35 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void testRewriteDataFilesWithPartitionFilterOnBucketTable() {
+    createBucketTable();
+    // create 5 files for each partition (c2_bucket = 0 and c2_bucket = 1)
+    insertData(10);
+    List<Object[]> expectedRecords = currentData();
+
+    // select only 5 files for compaction (files in the partition c2 in ('bar'))
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_data_files(table => '%s',"
+                + " buckets => map('c2_bucket', '1'))",
+            catalogName, tableIdent);
+
+    assertEquals(
+        "Action should rewrite 5 data files from single matching partition"
+            + "(containing c2_bucket = 1) and add 1 data files",
+        row(5, 1),
+        Arrays.copyOf(output.get(0), 2));
+    // verify rewritten bytes separately
+    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)[2])
+        .isInstanceOf(Long.class)
+        .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
+
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
+  }
+
+  @Test
   public void testRewriteDataFilesWithAllPossibleFilters() {
     createPartitionTable();
     // create 5 files for each partition (c2 = 'foo' and c2 = 'bar')
@@ -864,6 +893,17 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
   }
 
   private void createBucketPartitionTable() {
+    sql(
+        "CREATE TABLE %s (c1 int, c2 string, c3 string) "
+            + "USING iceberg "
+            + "PARTITIONED BY (bucket(2, c2)) "
+            + "TBLPROPERTIES ('%s' '%s')",
+        tableName,
+        TableProperties.WRITE_DISTRIBUTION_MODE,
+        TableProperties.WRITE_DISTRIBUTION_MODE_NONE);
+  }
+
+  private void createBucketTable() {
     sql(
         "CREATE TABLE %s (c1 int, c2 string, c3 string) "
             + "USING iceberg "

@@ -25,6 +25,7 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.NamedReference;
 import org.apache.iceberg.expressions.Zorder;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -54,7 +55,8 @@ class RewriteDataFilesProcedure extends BaseProcedure {
         ProcedureParameter.optional("strategy", DataTypes.StringType),
         ProcedureParameter.optional("sort_order", DataTypes.StringType),
         ProcedureParameter.optional("options", STRING_MAP),
-        ProcedureParameter.optional("where", DataTypes.StringType)
+        ProcedureParameter.optional("where", DataTypes.StringType),
+        ProcedureParameter.optional("buckets", STRING_MAP)
       };
 
   // counts are not nullable since the action result is never null
@@ -117,6 +119,10 @@ class RewriteDataFilesProcedure extends BaseProcedure {
 
           action = checkAndApplyFilter(action, where, tableIdent);
 
+          if (!args.isNullAt(5)) {
+            action = checkAndApplyBuckets(args, action);
+          }
+
           RewriteDataFiles.Result result = action.execute();
 
           return toOutputRows(result);
@@ -130,6 +136,25 @@ class RewriteDataFilesProcedure extends BaseProcedure {
       return action.filter(expression);
     }
     return action;
+  }
+
+  private RewriteDataFiles checkAndApplyBuckets(InternalRow args, RewriteDataFiles action) {
+    Map<String, String> buckets = Maps.newHashMap();
+    args.getMap(5)
+        .foreach(
+            DataTypes.StringType,
+            DataTypes.StringType,
+            (k, v) -> {
+              buckets.put(k.toString(), v.toString());
+              return BoxedUnit.UNIT;
+            });
+    org.apache.iceberg.expressions.Expression expression = Expressions.alwaysTrue();
+    for (Map.Entry<String, String> bucket : buckets.entrySet()) {
+      expression =
+          Expressions.and(
+              expression, Expressions.equal(bucket.getKey(), Integer.parseInt(bucket.getValue())));
+    }
+    return action.partitionFilter(expression);
   }
 
   private RewriteDataFiles checkAndApplyOptions(InternalRow args, RewriteDataFiles action) {
