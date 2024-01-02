@@ -890,7 +890,9 @@ project(':iceberg-nessie') {
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-    implementation libs.nessie.client
+    implementation(libs.nessie.client) {
+      exclude group: 'com.fasterxml.jackson'
+    }
     implementation platform(libs.jackson.bom)
     implementation "com.fasterxml.jackson.core:jackson-databind"
     implementation "com.fasterxml.jackson.core:jackson-core"
