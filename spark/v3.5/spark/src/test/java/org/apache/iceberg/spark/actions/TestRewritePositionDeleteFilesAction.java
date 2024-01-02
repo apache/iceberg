@@ -57,6 +57,7 @@ import org.apache.iceberg.actions.RewritePositionDeleteFiles.Result;
 import org.apache.iceberg.actions.SizeBasedFileRewriter;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.FileHelpers;
+import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -129,6 +130,42 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     Result result = SparkActions.get(spark).rewritePositionDeletes(table).execute();
     assertThat(result.rewrittenDeleteFilesCount()).as("No rewritten delete files").isZero();
     assertThat(result.addedDeleteFilesCount()).as("No added delete files").isZero();
+  }
+
+  @TestTemplate
+  public void testFileGranularity() throws Exception {
+    checkDeleteGranularity(DeleteGranularity.FILE);
+  }
+
+  @TestTemplate
+  public void testPartitionGranularity() throws Exception {
+    checkDeleteGranularity(DeleteGranularity.PARTITION);
+  }
+
+  private void checkDeleteGranularity(DeleteGranularity deleteGranularity) throws Exception {
+    Table table = createTableUnpartitioned(2, SCALE);
+
+    table
+        .updateProperties()
+        .set(TableProperties.DELETE_GRANULARITY, deleteGranularity.toString())
+        .commit();
+
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
+    assertThat(dataFiles).hasSize(2);
+
+    writePosDeletesForFiles(table, 2, DELETES_SCALE, dataFiles);
+
+    List<DeleteFile> deleteFiles = deleteFiles(table);
+    assertThat(deleteFiles).hasSize(2);
+
+    Result result =
+        SparkActions.get(spark)
+            .rewritePositionDeletes(table)
+            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .execute();
+
+    int expectedDeleteFilesCount = deleteGranularity == DeleteGranularity.FILE ? 2 : 1;
+    assertThat(result.addedDeleteFilesCount()).isEqualTo(expectedDeleteFilesCount);
   }
 
   @TestTemplate

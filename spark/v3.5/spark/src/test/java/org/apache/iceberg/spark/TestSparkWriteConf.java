@@ -45,6 +45,7 @@ import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.DEL
 import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.MERGE;
 import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.UPDATE;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Map;
@@ -52,6 +53,7 @@ import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateProperties;
+import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.internal.SQLConf;
@@ -74,6 +76,61 @@ public class TestSparkWriteConf extends SparkTestBaseWithCatalog {
   @After
   public void after() {
     sql("DROP TABLE IF EXISTS %s", tableName);
+  }
+
+  @Test
+  public void testDeleteGranularityDefault() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
+
+    DeleteGranularity value = writeConf.deleteGranularity();
+    assertThat(value).isEqualTo(DeleteGranularity.PARTITION);
+  }
+
+  @Test
+  public void testDeleteGranularityTableProperty() {
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table
+        .updateProperties()
+        .set(TableProperties.DELETE_GRANULARITY, DeleteGranularity.FILE.toString())
+        .commit();
+
+    SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
+
+    DeleteGranularity value = writeConf.deleteGranularity();
+    assertThat(value).isEqualTo(DeleteGranularity.FILE);
+  }
+
+  @Test
+  public void testDeleteGranularityWriteOption() {
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table
+        .updateProperties()
+        .set(TableProperties.DELETE_GRANULARITY, DeleteGranularity.PARTITION.toString())
+        .commit();
+
+    Map<String, String> options =
+        ImmutableMap.of(SparkWriteOptions.DELETE_GRANULARITY, DeleteGranularity.FILE.toString());
+
+    SparkWriteConf writeConf = new SparkWriteConf(spark, table, options);
+
+    DeleteGranularity value = writeConf.deleteGranularity();
+    assertThat(value).isEqualTo(DeleteGranularity.FILE);
+  }
+
+  @Test
+  public void testDeleteGranularityInvalidValue() {
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.updateProperties().set(TableProperties.DELETE_GRANULARITY, "invalid").commit();
+
+    SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
+
+    assertThatThrownBy(writeConf::deleteGranularity)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Unknown delete granularity");
   }
 
   @Test

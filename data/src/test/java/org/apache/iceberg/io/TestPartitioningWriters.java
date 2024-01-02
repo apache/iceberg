@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.io;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
@@ -26,6 +28,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -278,11 +281,21 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
   }
 
   @Test
-  public void testClusteredPositionDeleteWriterNoRecords() throws IOException {
+  public void testClusteredPositionDeleteWriterNoRecordsPartitionGranularity() throws IOException {
+    checkClusteredPositionDeleteWriterNoRecords(DeleteGranularity.PARTITION);
+  }
+
+  @Test
+  public void testClusteredPositionDeleteWriterNoRecordsFileGranularity() throws IOException {
+    checkClusteredPositionDeleteWriterNoRecords(DeleteGranularity.FILE);
+  }
+
+  private void checkClusteredPositionDeleteWriterNoRecords(DeleteGranularity deleteGranularity)
+      throws IOException {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
     ClusteredPositionDeleteWriter<T> writer =
         new ClusteredPositionDeleteWriter<>(
-            writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
+            writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE, deleteGranularity);
 
     writer.close();
     Assert.assertEquals(0, writer.result().deleteFiles().size());
@@ -296,7 +309,18 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
   }
 
   @Test
-  public void testClusteredPositionDeleteWriterMultipleSpecs() throws IOException {
+  public void testClusteredPositionDeleteWriterMultipleSpecsPartitionGranularity()
+      throws IOException {
+    checkClusteredPositionDeleteWriterMultipleSpecs(DeleteGranularity.PARTITION);
+  }
+
+  @Test
+  public void testClusteredPositionDeleteWriterMultipleSpecsFileGranularity() throws IOException {
+    checkClusteredPositionDeleteWriterMultipleSpecs(DeleteGranularity.FILE);
+  }
+
+  private void checkClusteredPositionDeleteWriterMultipleSpecs(DeleteGranularity deleteGranularity)
+      throws IOException {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
 
     // add an unpartitioned data file
@@ -330,7 +354,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
     ClusteredPositionDeleteWriter<T> writer =
         new ClusteredPositionDeleteWriter<>(
-            writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
+            writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE, deleteGranularity);
 
     PartitionSpec unpartitionedSpec = table.specs().get(0);
     PartitionSpec bucketSpec = table.specs().get(1);
@@ -364,7 +388,19 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
   }
 
   @Test
-  public void testClusteredPositionDeleteWriterOutOfOrderSpecsAndPartitions() throws IOException {
+  public void testClusteredPositionDeleteWriterOutOfOrderSpecsAndPartitionsPartitionGranularity()
+      throws IOException {
+    checkClusteredPositionDeleteWriterOutOfOrderSpecsAndPartitions(DeleteGranularity.PARTITION);
+  }
+
+  @Test
+  public void testClusteredPositionDeleteWriterOutOfOrderSpecsAndPartitionsFileGranularity()
+      throws IOException {
+    checkClusteredPositionDeleteWriterOutOfOrderSpecsAndPartitions(DeleteGranularity.FILE);
+  }
+
+  private void checkClusteredPositionDeleteWriterOutOfOrderSpecsAndPartitions(
+      DeleteGranularity deleteGranularity) throws IOException {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
 
     table.updateSpec().addField(Expressions.bucket("data", 16)).commit();
@@ -377,7 +413,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
     ClusteredPositionDeleteWriter<T> writer =
         new ClusteredPositionDeleteWriter<>(
-            writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
+            writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE, deleteGranularity);
 
     PartitionSpec unpartitionedSpec = table.specs().get(0);
     PartitionSpec bucketSpec = table.specs().get(1);
@@ -417,6 +453,61 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
         .hasMessageEndingWith("spec []");
 
     writer.close();
+  }
+
+  @Test
+  public void testClusteredPositionDeleteWriterPartitionGranularity() throws IOException {
+    checkClusteredPositionDeleteWriterGranularity(DeleteGranularity.PARTITION);
+  }
+
+  @Test
+  public void testClusteredPositionDeleteWriterFileGranularity() throws IOException {
+    checkClusteredPositionDeleteWriterGranularity(DeleteGranularity.FILE);
+  }
+
+  private void checkClusteredPositionDeleteWriterGranularity(DeleteGranularity deleteGranularity)
+      throws IOException {
+    FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
+
+    // add the first data file
+    List<T> rows1 = ImmutableList.of(toRow(1, "aaa"), toRow(2, "aaa"), toRow(11, "aaa"));
+    DataFile dataFile1 = writeData(writerFactory, fileFactory, rows1, table.spec(), null);
+    table.newFastAppend().appendFile(dataFile1).commit();
+
+    // add the second data file
+    List<T> rows2 = ImmutableList.of(toRow(3, "aaa"), toRow(4, "aaa"), toRow(12, "aaa"));
+    DataFile dataFile2 = writeData(writerFactory, fileFactory, rows2, table.spec(), null);
+    table.newFastAppend().appendFile(dataFile2).commit();
+
+    // init the delete writer
+    ClusteredPositionDeleteWriter<T> writer =
+        new ClusteredPositionDeleteWriter<>(
+            writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE, deleteGranularity);
+
+    PartitionSpec spec = table.spec();
+
+    // write deletes for both data files
+    writer.write(positionDelete(dataFile1.path(), 0L, null), spec, null);
+    writer.write(positionDelete(dataFile1.path(), 1L, null), spec, null);
+    writer.write(positionDelete(dataFile2.path(), 0L, null), spec, null);
+    writer.write(positionDelete(dataFile2.path(), 1L, null), spec, null);
+    writer.close();
+
+    // verify the writer result
+    DeleteWriteResult result = writer.result();
+    int expectedNumDeleteFiles = deleteGranularity == DeleteGranularity.FILE ? 2 : 1;
+    assertThat(result.deleteFiles()).hasSize(expectedNumDeleteFiles);
+    assertThat(result.referencedDataFiles()).hasSize(2);
+    assertThat(result.referencesDataFiles()).isTrue();
+
+    // commit the deletes
+    RowDelta rowDelta = table.newRowDelta();
+    result.deleteFiles().forEach(rowDelta::addDeletes);
+    rowDelta.commit();
+
+    // verify correctness
+    List<T> expectedRows = ImmutableList.of(toRow(11, "aaa"), toRow(12, "aaa"));
+    assertThat(actualRowSet("*")).isEqualTo(toSet(expectedRows));
   }
 
   @Test
@@ -464,11 +555,21 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
   }
 
   @Test
-  public void testFanoutPositionOnlyDeleteWriterNoRecords() throws IOException {
+  public void testFanoutPositionOnlyDeleteWriterNoRecordsPartitionGranularity() throws IOException {
+    checkFanoutPositionOnlyDeleteWriterNoRecords(DeleteGranularity.PARTITION);
+  }
+
+  @Test
+  public void testFanoutPositionOnlyDeleteWriterNoRecordsFileGranularity() throws IOException {
+    checkFanoutPositionOnlyDeleteWriterNoRecords(DeleteGranularity.FILE);
+  }
+
+  private void checkFanoutPositionOnlyDeleteWriterNoRecords(DeleteGranularity deleteGranularity)
+      throws IOException {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
     FanoutPositionOnlyDeleteWriter<T> writer =
         new FanoutPositionOnlyDeleteWriter<>(
-            writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
+            writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE, deleteGranularity);
 
     writer.close();
     Assert.assertEquals(0, writer.result().deleteFiles().size());
@@ -482,7 +583,19 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
   }
 
   @Test
-  public void testFanoutPositionOnlyDeleteWriterOutOfOrderRecords() throws IOException {
+  public void testFanoutPositionOnlyDeleteWriterOutOfOrderRecordsPartitionGranularity()
+      throws IOException {
+    checkFanoutPositionOnlyDeleteWriterOutOfOrderRecords(DeleteGranularity.PARTITION);
+  }
+
+  @Test
+  public void testFanoutPositionOnlyDeleteWriterOutOfOrderRecordsFileGranularity()
+      throws IOException {
+    checkFanoutPositionOnlyDeleteWriterOutOfOrderRecords(DeleteGranularity.FILE);
+  }
+
+  private void checkFanoutPositionOnlyDeleteWriterOutOfOrderRecords(
+      DeleteGranularity deleteGranularity) throws IOException {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
 
     // add an unpartitioned data file
@@ -516,7 +629,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
     FanoutPositionOnlyDeleteWriter<T> writer =
         new FanoutPositionOnlyDeleteWriter<>(
-            writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
+            writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE, deleteGranularity);
 
     PartitionSpec unpartitionedSpec = table.specs().get(0);
     PartitionSpec bucketSpec = table.specs().get(1);
@@ -556,5 +669,60 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
     List<T> expectedRows = ImmutableList.of(toRow(12, "bbb"));
     Assert.assertEquals("Records should match", toSet(expectedRows), actualRowSet("*"));
+  }
+
+  @Test
+  public void testFanoutPositionOnlyDeleteWriterPartitionGranularity() throws IOException {
+    checkFanoutPositionOnlyDeleteWriterGranularity(DeleteGranularity.PARTITION);
+  }
+
+  @Test
+  public void testFanoutPositionOnlyDeleteWriterFileGranularity() throws IOException {
+    checkFanoutPositionOnlyDeleteWriterGranularity(DeleteGranularity.FILE);
+  }
+
+  private void checkFanoutPositionOnlyDeleteWriterGranularity(DeleteGranularity deleteGranularity)
+      throws IOException {
+    FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
+
+    // add the first data file
+    List<T> rows1 = ImmutableList.of(toRow(1, "aaa"), toRow(2, "aaa"), toRow(11, "aaa"));
+    DataFile dataFile1 = writeData(writerFactory, fileFactory, rows1, table.spec(), null);
+    table.newFastAppend().appendFile(dataFile1).commit();
+
+    // add the second data file
+    List<T> rows2 = ImmutableList.of(toRow(3, "aaa"), toRow(4, "aaa"), toRow(12, "aaa"));
+    DataFile dataFile2 = writeData(writerFactory, fileFactory, rows2, table.spec(), null);
+    table.newFastAppend().appendFile(dataFile2).commit();
+
+    // init the delete writer
+    FanoutPositionOnlyDeleteWriter<T> writer =
+        new FanoutPositionOnlyDeleteWriter<>(
+            writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE, deleteGranularity);
+
+    PartitionSpec spec = table.spec();
+
+    // write deletes for both data files (the order of records is mixed)
+    writer.write(positionDelete(dataFile1.path(), 1L, null), spec, null);
+    writer.write(positionDelete(dataFile2.path(), 0L, null), spec, null);
+    writer.write(positionDelete(dataFile1.path(), 0L, null), spec, null);
+    writer.write(positionDelete(dataFile2.path(), 1L, null), spec, null);
+    writer.close();
+
+    // verify the writer result
+    DeleteWriteResult result = writer.result();
+    int expectedNumDeleteFiles = deleteGranularity == DeleteGranularity.FILE ? 2 : 1;
+    assertThat(result.deleteFiles()).hasSize(expectedNumDeleteFiles);
+    assertThat(result.referencedDataFiles()).hasSize(2);
+    assertThat(result.referencesDataFiles()).isTrue();
+
+    // commit the deletes
+    RowDelta rowDelta = table.newRowDelta();
+    result.deleteFiles().forEach(rowDelta::addDeletes);
+    rowDelta.commit();
+
+    // verify correctness
+    List<T> expectedRows = ImmutableList.of(toRow(11, "aaa"), toRow(12, "aaa"));
+    assertThat(actualRowSet("*")).isEqualTo(toSet(expectedRows));
   }
 }
