@@ -66,4 +66,8 @@ public class SparkSQLProperties {
 
   // Controls whether to report locality information to Spark while allocating input partitions
   public static final String LOCALITY = "spark.sql.iceberg.locality.enabled";
+
+  // Controls whether to merge schema
+  public static final String MERGE_SCHEMA = "spark.sql.iceberg.merge-schema";
+  public static final Boolean MERGE_SCHEMA_DEFAULT = false;
 }
