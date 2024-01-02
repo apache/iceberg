@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
@@ -53,12 +54,14 @@ public class TestViews extends SparkExtensionsTestBase {
   @Before
   public void before() {
     spark.conf().set("spark.sql.defaultCatalog", catalogName);
+    sql("USE %s", catalogName);
     sql("CREATE NAMESPACE IF NOT EXISTS %s", NAMESPACE);
     sql("CREATE TABLE %s (id INT, data STRING)", tableName);
   }
 
   @After
   public void removeTable() {
+    sql("USE %s", catalogName);
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
@@ -409,6 +412,9 @@ public class TestViews extends SparkExtensionsTestBase {
     // resolved using the catalog and namespace defaults from the outer view
     sql("CREATE TEMPORARY VIEW %s AS SELECT id FROM %s WHERE id <= 5", innerViewName, tableName);
 
+    // ensure that the inner view resolution uses the view namespace and catalog
+    sql("USE spark_catalog");
+
     List<Object[]> tempViewRows =
         IntStream.rangeClosed(1, 5).mapToObj(this::row).collect(Collectors.toList());
 
@@ -419,7 +425,7 @@ public class TestViews extends SparkExtensionsTestBase {
     List<Object[]> expectedViewRows =
         IntStream.rangeClosed(6, 10).mapToObj(this::row).collect(Collectors.toList());
 
-    assertThat(sql("SELECT * FROM %s", outerViewName))
+    assertThat(sql("SELECT * FROM %s.%s.%s", catalogName, NAMESPACE, outerViewName))
         .hasSize(5)
         .containsExactlyInAnyOrderElementsOf(expectedViewRows);
   }
@@ -483,6 +489,136 @@ public class TestViews extends SparkExtensionsTestBase {
         .create();
 
     assertThat(sql("SELECT * FROM %s", viewName)).hasSize(1).containsExactly(row(10, 1L));
+  }
+
+  @Test
+  public void rewriteFunctionIdentifier() {
+    String viewName = "rewriteFunctionIdentifier";
+    String sql = "SELECT iceberg_version() AS version";
+
+    assertThatThrownBy(() -> sql(sql))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Cannot resolve function")
+        .hasMessageContaining("iceberg_version");
+
+    ViewCatalog viewCatalog = viewCatalog();
+    Schema schema = new Schema(Types.NestedField.required(1, "version", Types.StringType.get()));
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("spark", sql)
+        .withDefaultNamespace(Namespace.of("system"))
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema)
+        .create();
+
+    assertThat(sql("SELECT * FROM %s", viewName))
+        .hasSize(1)
+        .containsExactly(row(IcebergBuild.version()));
+  }
+
+  @Test
+  public void builtinFunctionIdentifierNotRewritten() {
+    String viewName = "builtinFunctionIdentifierNotRewritten";
+    String sql = "SELECT trim('  abc   ') AS result";
+
+    ViewCatalog viewCatalog = viewCatalog();
+    Schema schema = new Schema(Types.NestedField.required(1, "result", Types.StringType.get()));
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("spark", sql)
+        .withDefaultNamespace(Namespace.of("system"))
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema)
+        .create();
+
+    assertThat(sql("SELECT * FROM %s", viewName)).hasSize(1).containsExactly(row("abc"));
+  }
+
+  @Test
+  public void rewriteFunctionIdentifierWithNamespace() {
+    String viewName = "rewriteFunctionIdentifierWithNamespace";
+    String sql = "SELECT system.bucket(100, 'a') AS bucket_result, 'a' AS value";
+
+    ViewCatalog viewCatalog = viewCatalog();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("spark", sql)
+        .withDefaultNamespace(Namespace.of("system"))
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema(sql))
+        .create();
+
+    sql("USE spark_catalog");
+
+    assertThatThrownBy(() -> sql(sql))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Cannot resolve function")
+        .hasMessageContaining("`system`.`bucket`");
+
+    assertThat(sql("SELECT * FROM %s.%s.%s", catalogName, NAMESPACE, viewName))
+        .hasSize(1)
+        .containsExactly(row(50, "a"));
+  }
+
+  @Test
+  public void fullFunctionIdentifier() {
+    String viewName = "fullFunctionIdentifier";
+    String sql =
+        String.format(
+            "SELECT %s.system.bucket(100, 'a') AS bucket_result, 'a' AS value", catalogName);
+
+    sql("USE spark_catalog");
+
+    ViewCatalog viewCatalog = viewCatalog();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("spark", sql)
+        .withDefaultNamespace(Namespace.of("system"))
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema(sql))
+        .create();
+
+    assertThat(sql("SELECT * FROM %s.%s.%s", catalogName, NAMESPACE, viewName))
+        .hasSize(1)
+        .containsExactly(row(50, "a"));
+  }
+
+  @Test
+  public void fullFunctionIdentifierNotRewrittenLoadFailure() {
+    String viewName = "fullFunctionIdentifierNotRewrittenLoadFailure";
+    String sql =
+        String.format(
+            "SELECT spark_catalog.system.bucket(100, 'a') AS bucket_result, 'a' AS value",
+            catalogName);
+
+    // avoid namespace failures
+    sql("USE spark_catalog");
+    sql("CREATE NAMESPACE IF NOT EXISTS system");
+    sql("USE %s", catalogName);
+
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "bucket_result", Types.IntegerType.get()),
+            Types.NestedField.required(2, "value", Types.StringType.get()));
+
+    ViewCatalog viewCatalog = viewCatalog();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("spark", sql)
+        .withDefaultNamespace(Namespace.of("system"))
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema)
+        .create();
+
+    // verify the v1 error message
+    assertThatThrownBy(() -> sql("SELECT * FROM %s", viewName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("The function `system`.`bucket` cannot be found");
   }
 
   private Schema schema(String sql) {

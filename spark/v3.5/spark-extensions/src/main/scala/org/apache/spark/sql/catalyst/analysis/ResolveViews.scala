@@ -19,8 +19,8 @@
 
 package org.apache.spark.sql.catalyst.analysis
 
-import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.catalyst.FunctionIdentifier
 import org.apache.spark.sql.catalyst.expressions.Alias
 import org.apache.spark.sql.catalyst.expressions.UpCast
 import org.apache.spark.sql.catalyst.parser.ParseException
@@ -68,6 +68,10 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
   private def createViewRelation(nameParts: Seq[String], view: View): LogicalPlan = {
     val parsed = parseViewText(nameParts.quoted, view.query)
 
+    // Apply any necessary rewrites to preserve correct resolution
+    val viewCatalogAndNamespace: Seq[String] = view.currentCatalog +: view.currentNamespace.toSeq
+    val rewritten = rewriteIdentifiers(parsed, viewCatalogAndNamespace);
+
     // Apply the field aliases and column comments
     // This logic differs from how Spark handles views in SessionCatalog.fromCatalogTable.
     // This is more strict because it doesn't allow resolution by field name.
@@ -76,12 +80,7 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
       Alias(UpCast(attr, expected.dataType), expected.name)(explicitMetadata = Some(expected.metadata))
     }
 
-    val child = Project(aliases, parsed)
-
-    val viewCatalogAndNamespace: Seq[String] = view.currentCatalog +: view.currentNamespace.toSeq
-
-    // Substitute CTEs within the view before qualifying table identifiers
-    SubqueryAlias(nameParts, qualifyTableIdentifiers(CTESubstitution.apply(child), viewCatalogAndNamespace))
+    SubqueryAlias(nameParts, Project(aliases, rewritten))
   }
 
   private def parseViewText(name: String, viewText: String): LogicalPlan = {
@@ -100,6 +99,30 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
     }
   }
 
+  private def rewriteIdentifiers(
+    plan: LogicalPlan,
+    catalogAndNamespace: Seq[String]): LogicalPlan = {
+    // Substitute CTEs within the view, then rewrite unresolved functions and relations
+    qualifyTableIdentifiers(
+      qualifyFunctionIdentifiers(
+        CTESubstitution.apply(plan),
+        catalogAndNamespace),
+      catalogAndNamespace)
+  }
+
+  private def qualifyFunctionIdentifiers(
+      plan: LogicalPlan,
+      catalogAndNamespace: Seq[String]): LogicalPlan = plan transformExpressions {
+    case u@UnresolvedFunction(Seq(name), _, _, _, _) =>
+      if (!isBuiltinFunction(name)) {
+        u.copy(nameParts = catalogAndNamespace :+ name)
+      } else {
+        u
+      }
+    case u@UnresolvedFunction(parts, _, _, _, _) if !isCatalog(parts.head) =>
+      u.copy(nameParts = catalogAndNamespace.head +: parts)
+  }
+
   /**
    * Qualify table identifiers with default catalog and namespace if necessary.
    */
@@ -109,8 +132,15 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
     child transform {
       case u@UnresolvedRelation(Seq(table), _, _) =>
         u.copy(multipartIdentifier = catalogAndNamespace :+ table)
-      case u@UnresolvedRelation(parts, _, _)
-        if !spark.sessionState.catalogManager.isCatalogRegistered(parts.head) =>
+      case u@UnresolvedRelation(parts, _, _) if !isCatalog(parts.head) =>
         u.copy(multipartIdentifier = catalogAndNamespace.head +: parts)
     }
+
+  private def isCatalog(name: String): Boolean = {
+    spark.sessionState.catalogManager.isCatalogRegistered(name)
+  }
+
+  private def isBuiltinFunction(name: String): Boolean = {
+    spark.sessionState.catalogManager.v1SessionCatalog.isBuiltinFunction(FunctionIdentifier(name))
+  }
 }
