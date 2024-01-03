@@ -95,7 +95,7 @@ public class Avro {
   public static WriteBuilder write(EncryptedOutputFile file) {
     Preconditions.checkState(
         file.keyMetadata() == null || file.keyMetadata() == EncryptionKeyMetadata.EMPTY,
-        "Currenty, encryption of data files in Avro format is not supported");
+        "Avro encryption is not supported");
     return new WriteBuilder(file.encryptingOutputFile());
   }
 
@@ -283,7 +283,7 @@ public class Avro {
   public static DataWriteBuilder writeData(EncryptedOutputFile file) {
     Preconditions.checkState(
         file.keyMetadata() == null || file.keyMetadata() == EncryptionKeyMetadata.EMPTY,
-        "Currenty, encryption of data files in Avro format is not supported");
+        "Avro encryption is not supported");
     return new DataWriteBuilder(file.encryptingOutputFile());
   }
 
@@ -386,7 +386,7 @@ public class Avro {
   public static DeleteWriteBuilder writeDeletes(EncryptedOutputFile file) {
     Preconditions.checkState(
         file.keyMetadata() == null || file.keyMetadata() == EncryptionKeyMetadata.EMPTY,
-        "Currenty, encryption of delete files in Avro format is not supported");
+        "Avro encryption is not supported");
     return new DeleteWriteBuilder(file.encryptingOutputFile());
   }
 

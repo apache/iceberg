@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark.source;
 
-import java.nio.ByteBuffer;
 import java.util.Map;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
@@ -27,9 +26,6 @@ import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.encryption.EncryptedFiles;
-import org.apache.iceberg.encryption.EncryptedInputFile;
-import org.apache.iceberg.encryption.StandardKeyMetadata;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
@@ -54,7 +50,6 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
 
   protected CloseableIterable<InternalRow> newIterable(
       InputFile file,
-      ByteBuffer encryptionKeyMetadata,
       FileFormat format,
       long start,
       long length,
@@ -63,13 +58,7 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
       Map<Integer, ?> idToConstant) {
     switch (format) {
       case PARQUET:
-        return newParquetIterable(
-            EncryptedFiles.encryptedInput(file, encryptionKeyMetadata),
-            start,
-            length,
-            residual,
-            projection,
-            idToConstant);
+        return newParquetIterable(file, start, length, residual, projection, idToConstant);
 
       case AVRO:
         return newAvroIterable(file, start, length, projection, idToConstant);
@@ -94,21 +83,13 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
   }
 
   private CloseableIterable<InternalRow> newParquetIterable(
-      EncryptedInputFile inputFile,
+      InputFile file,
       long start,
       long length,
       Expression residual,
       Schema readSchema,
       Map<Integer, ?> idToConstant) {
-    ByteBuffer fileEncryptionKey = null;
-    ByteBuffer aadPrefix = null;
-    if (inputFile.keyMetadata() != null && inputFile.keyMetadata().buffer() != null) {
-      StandardKeyMetadata keyMetadata = StandardKeyMetadata.parse(inputFile.keyMetadata().buffer());
-      fileEncryptionKey = keyMetadata.encryptionKey();
-      aadPrefix = keyMetadata.aadPrefix();
-    }
-
-    return Parquet.read(inputFile.encryptedInputFile())
+    return Parquet.read(file)
         .reuseContainers()
         .split(start, length)
         .project(readSchema)
@@ -117,8 +98,6 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
         .filter(residual)
         .caseSensitive(caseSensitive())
         .withNameMapping(nameMapping())
-        .withFileEncryptionKey(fileEncryptionKey)
-        .withAADPrefix(aadPrefix)
         .build();
   }
 

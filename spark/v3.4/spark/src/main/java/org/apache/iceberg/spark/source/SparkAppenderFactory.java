@@ -162,8 +162,8 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
   }
 
   @Override
-  public FileAppender<InternalRow> newAppender(OutputFile outputFile, FileFormat format) {
-    return newAppender(EncryptionUtil.plainAsEncryptedOutput(outputFile), format);
+  public FileAppender<InternalRow> newAppender(OutputFile file, FileFormat fileFormat) {
+    return newAppender(EncryptionUtil.plainAsEncryptedOutput(file), fileFormat);
   }
 
   @Override

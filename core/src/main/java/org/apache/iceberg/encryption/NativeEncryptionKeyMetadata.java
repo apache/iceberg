@@ -18,23 +18,13 @@
  */
 package org.apache.iceberg.encryption;
 
-import org.apache.iceberg.io.OutputFile;
+import java.nio.ByteBuffer;
 
-/**
- * Thin wrapper around a {@link OutputFile} that is encrypting bytes written to the underlying file
- * system, via an encryption key that is symbolized by the enclosed {@link EncryptionKeyMetadata}.
- *
- * <p>The {@link EncryptionManager} returns instances of these when passed output files that should
- * be encrypted as they are being written to the backing file system.
- */
-public interface EncryptedOutputFile {
+/** {@link EncryptionKeyMetadata} for use with format-native encryption. */
+public interface NativeEncryptionKeyMetadata extends EncryptionKeyMetadata {
+  /** Encryption key as a {@link ByteBuffer} */
+  ByteBuffer encryptionKey();
 
-  /** An OutputFile instance that encrypts the bytes that are written to its output streams. */
-  OutputFile encryptingOutputFile();
-
-  /**
-   * Metadata about the encryption key that is being used to encrypt the associated {@link
-   * #encryptingOutputFile()}.
-   */
-  EncryptionKeyMetadata keyMetadata();
+  /** Additional authentication data as a {@link ByteBuffer} */
+  ByteBuffer aadPrefix();
 }
