@@ -380,7 +380,7 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
         .project(TestFixtures.TS_SCHEMA)
         .splitSize(100L)
         .streaming(true)
-        .monitorInterval(Duration.ofMillis(2))
+        .monitorInterval(Duration.ofMillis(10))
         .streamingStartingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
         .build();
   }
