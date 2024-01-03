@@ -27,15 +27,16 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.aws.AwsClientProperties;
 import org.apache.iceberg.aws.glue.GlueCatalog;
 import org.apache.iceberg.aws.s3.signer.S3V4RestSignerClient;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
-import software.amazon.awssdk.s3accessgrants.plugin.S3AccessGrantsPlugin;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
@@ -807,11 +808,35 @@ public class S3FileIOProperties implements Serializable {
    */
   public <T extends S3ClientBuilder> void applyS3AccessGrantsConfigurations(T builder) {
     if (isS3AccessGrantsEnabled) {
-      S3AccessGrantsPlugin s3AccessGrantsPlugin =
-          S3AccessGrantsPlugin.builder()
-              .enableFallback(isS3AccessGrantsFallbackToIAMEnabled)
-              .build();
-      builder.addPlugin(s3AccessGrantsPlugin);
+      Map<String, String> properties =
+          ImmutableMap.of(
+              S3_ACCESS_GRANTS_FALLBACK_TO_IAM_ENABLED,
+              String.valueOf(isS3AccessGrantsFallbackToIAMEnabled));
+      S3AccessGrantsPluginConfigurations s3AccessGrantsPluginConfigurations =
+          loadSdkPluginConfigurations(
+              S3AccessGrantsPluginConfigurations.class.getName(), properties);
+      s3AccessGrantsPluginConfigurations.configureSdkPlugin(builder);
+    }
+  }
+
+  /**
+   * Dynamically load the http client builder to avoid runtime deps requirements of any optional SDK
+   * Plugins
+   */
+  private <T> T loadSdkPluginConfigurations(String impl, Map<String, String> properties) {
+    Object sdkPluginConfigurations;
+    try {
+      sdkPluginConfigurations =
+          DynMethods.builder("create")
+              .hiddenImpl(impl, Map.class)
+              .buildStaticChecked()
+              .invoke(properties);
+      return (T) sdkPluginConfigurations;
+    } catch (NoSuchMethodException e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot create %s to generate and configure the client SDK Plugin builder", impl),
+          e);
     }
   }
 }

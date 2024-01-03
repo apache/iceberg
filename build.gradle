@@ -463,10 +463,9 @@ project(':iceberg-aws') {
     implementation platform(libs.jackson.bom)
     implementation "com.fasterxml.jackson.core:jackson-databind"
     implementation "com.fasterxml.jackson.core:jackson-core"
-    implementation "software.amazon.s3.accessgrants:aws-s3-accessgrants-java-plugin:1.0"
 
     compileOnly(platform(libs.awssdk.bom))
-    compileOnly(platform(libs.awssdk.s3accessgrants))
+    compileOnly(libs.awssdk.s3accessgrants)
     compileOnly("software.amazon.awssdk:url-connection-client")
     compileOnly("software.amazon.awssdk:apache-client")
     compileOnly("software.amazon.awssdk:auth")
