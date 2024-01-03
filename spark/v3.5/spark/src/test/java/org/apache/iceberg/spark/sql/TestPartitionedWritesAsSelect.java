@@ -18,34 +18,35 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.List;
 import java.util.stream.IntStream;
 import org.apache.iceberg.spark.IcebergSpark;
-import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
+import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.spark.sql.types.DataTypes;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
 
-public class TestPartitionedWritesAsSelect extends SparkTestBaseWithCatalog {
+public class TestPartitionedWritesAsSelect extends TestBaseWithCatalog {
 
-  private final String targetTable = tableName("target_table");
+  private final String targetTable = "testhadoop.default.target_table";
 
-  @Before
+  @BeforeEach
   public void createTables() {
     sql(
         "CREATE TABLE %s (id bigint, data string, category string, ts timestamp) USING iceberg",
         tableName);
   }
 
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS %s", targetTable);
   }
 
-  @Test
+  @TestTemplate
   public void testInsertAsSelectAppend() {
     insertData(3);
     List<Object[]> expected = currentData();
@@ -58,10 +59,9 @@ public class TestPartitionedWritesAsSelect extends SparkTestBaseWithCatalog {
     sql(
         "INSERT INTO %s SELECT id, data, category, ts FROM %s ORDER BY ts,category",
         targetTable, tableName);
-    Assert.assertEquals(
-        "Should have 15 rows after insert",
-        3 * 5L,
-        scalarSql("SELECT count(*) FROM %s", targetTable));
+    assertThat(scalarSql("SELECT count(*) FROM %s", targetTable))
+        .as("Should have 15 rows after insert")
+        .isEqualTo(3 * 5L);
 
     assertEquals(
         "Row data should match expected",
@@ -69,7 +69,7 @@ public class TestPartitionedWritesAsSelect extends SparkTestBaseWithCatalog {
         sql("SELECT * FROM %s ORDER BY id", targetTable));
   }
 
-  @Test
+  @TestTemplate
   public void testInsertAsSelectWithBucket() {
     insertData(3);
     List<Object[]> expected = currentData();
@@ -83,10 +83,9 @@ public class TestPartitionedWritesAsSelect extends SparkTestBaseWithCatalog {
     sql(
         "INSERT INTO %s SELECT id, data, category, ts FROM %s ORDER BY iceberg_bucket8(data)",
         targetTable, tableName);
-    Assert.assertEquals(
-        "Should have 15 rows after insert",
-        3 * 5L,
-        scalarSql("SELECT count(*) FROM %s", targetTable));
+    assertThat(scalarSql("SELECT count(*) FROM %s", targetTable))
+        .as("Should have 15 rows after insert")
+        .isEqualTo(3 * 5L);
 
     assertEquals(
         "Row data should match expected",
@@ -94,7 +93,7 @@ public class TestPartitionedWritesAsSelect extends SparkTestBaseWithCatalog {
         sql("SELECT * FROM %s ORDER BY id", targetTable));
   }
 
-  @Test
+  @TestTemplate
   public void testInsertAsSelectWithTruncate() {
     insertData(3);
     List<Object[]> expected = currentData();
@@ -110,10 +109,9 @@ public class TestPartitionedWritesAsSelect extends SparkTestBaseWithCatalog {
         "INSERT INTO %s SELECT id, data, category, ts FROM %s "
             + "ORDER BY iceberg_truncate_string4(data),iceberg_truncate_long4(id)",
         targetTable, tableName);
-    Assert.assertEquals(
-        "Should have 15 rows after insert",
-        3 * 5L,
-        scalarSql("SELECT count(*) FROM %s", targetTable));
+    assertThat(scalarSql("SELECT count(*) FROM %s", targetTable))
+        .as("Should have 15 rows after insert")
+        .isEqualTo(3 * 5L);
 
     assertEquals(
         "Row data should match expected",
