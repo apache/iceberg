@@ -18,10 +18,11 @@
  */
 package org.apache.iceberg;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.junit.Assert;
 
 public final class TaskCheckHelper {
   private TaskCheckHelper() {}
@@ -31,8 +32,9 @@ public final class TaskCheckHelper {
     List<FileScanTask> expectedTasks = getFileScanTasksInFilePathOrder(expected);
     List<FileScanTask> actualTasks = getFileScanTasksInFilePathOrder(actual);
 
-    Assert.assertEquals(
-        "The number of file scan tasks should match", expectedTasks.size(), actualTasks.size());
+    assertThat(actualTasks)
+        .as("The number of file scan tasks should match")
+        .hasSameSizeAs(expectedTasks);
 
     for (int i = 0; i < expectedTasks.size(); i++) {
       FileScanTask expectedTask = expectedTasks.get(i);
@@ -45,60 +47,57 @@ public final class TaskCheckHelper {
     assertEquals(expected.file(), actual.file());
 
     // PartitionSpec implements its own equals method
-    Assert.assertEquals("PartitionSpec doesn't match", expected.spec(), actual.spec());
+    assertThat(actual.spec()).as("PartitionSpec doesn't match").isEqualTo(expected.spec());
 
-    Assert.assertEquals("starting position doesn't match", expected.start(), actual.start());
+    assertThat(actual.start()).as("starting position doesn't match").isEqualTo(expected.start());
 
-    Assert.assertEquals(
-        "the number of bytes to scan doesn't match", expected.start(), actual.start());
+    assertThat(actual.start())
+        .as("the number of bytes to scan doesn't match")
+        .isEqualTo(expected.start());
 
     // simplify comparison on residual expression via comparing toString
-    Assert.assertEquals(
-        "Residual expression doesn't match",
-        expected.residual().toString(),
-        actual.residual().toString());
+    assertThat(actual.residual().toString())
+        .as("Residual expression doesn't match")
+        .isEqualTo(expected.residual().toString());
   }
 
   public static void assertEquals(DataFile expected, DataFile actual) {
-    Assert.assertEquals("Should match the serialized record path", expected.path(), actual.path());
-    Assert.assertEquals(
-        "Should match the serialized record format", expected.format(), actual.format());
-    Assert.assertEquals(
-        "Should match the serialized record partition",
-        expected.partition().get(0, Object.class),
-        actual.partition().get(0, Object.class));
-    Assert.assertEquals(
-        "Should match the serialized record count", expected.recordCount(), actual.recordCount());
-    Assert.assertEquals(
-        "Should match the serialized record size",
-        expected.fileSizeInBytes(),
-        actual.fileSizeInBytes());
-    Assert.assertEquals(
-        "Should match the serialized record value counts",
-        expected.valueCounts(),
-        actual.valueCounts());
-    Assert.assertEquals(
-        "Should match the serialized record null value counts",
-        expected.nullValueCounts(),
-        actual.nullValueCounts());
-    Assert.assertEquals(
-        "Should match the serialized record lower bounds",
-        expected.lowerBounds(),
-        actual.lowerBounds());
-    Assert.assertEquals(
-        "Should match the serialized record upper bounds",
-        expected.upperBounds(),
-        actual.upperBounds());
-    Assert.assertEquals(
-        "Should match the serialized record key metadata",
-        expected.keyMetadata(),
-        actual.keyMetadata());
-    Assert.assertEquals(
-        "Should match the serialized record offsets",
-        expected.splitOffsets(),
-        actual.splitOffsets());
-    Assert.assertEquals(
-        "Should match the serialized record offsets", expected.keyMetadata(), actual.keyMetadata());
+    assertThat(actual.path())
+        .as("Should match the serialized record path")
+        .isEqualTo(expected.path());
+    assertThat(actual.format())
+        .as("Should match the serialized record format")
+        .isEqualTo(expected.format());
+    assertThat(actual.partition().get(0, Object.class))
+        .as("Should match the serialized record partition")
+        .isEqualTo(expected.partition().get(0, Object.class));
+    assertThat(actual.recordCount())
+        .as("Should match the serialized record count")
+        .isEqualTo(expected.recordCount());
+    assertThat(actual.fileSizeInBytes())
+        .as("Should match the serialized record size")
+        .isEqualTo(expected.fileSizeInBytes());
+    assertThat(actual.valueCounts())
+        .as("Should match the serialized record value counts")
+        .isEqualTo(expected.valueCounts());
+    assertThat(actual.nullValueCounts())
+        .as("Should match the serialized record null value counts")
+        .isEqualTo(expected.nullValueCounts());
+    assertThat(actual.lowerBounds())
+        .as("Should match the serialized record lower bounds")
+        .isEqualTo(expected.lowerBounds());
+    assertThat(actual.upperBounds())
+        .as("Should match the serialized record upper bounds")
+        .isEqualTo(expected.upperBounds());
+    assertThat(actual.keyMetadata())
+        .as("Should match the serialized record key metadata")
+        .isEqualTo(expected.keyMetadata());
+    assertThat(actual.splitOffsets())
+        .as("Should match the serialized record offsets")
+        .isEqualTo(expected.splitOffsets());
+    assertThat(actual.keyMetadata())
+        .as("Should match the serialized record offsets")
+        .isEqualTo(expected.keyMetadata());
   }
 
   private static List<FileScanTask> getFileScanTasksInFilePathOrder(

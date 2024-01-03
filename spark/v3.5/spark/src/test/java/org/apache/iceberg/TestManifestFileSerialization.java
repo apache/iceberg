@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
@@ -34,6 +35,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.file.Path;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.ManifestFile.PartitionFieldSummary;
 import org.apache.iceberg.hadoop.HadoopFileIO;
@@ -43,11 +45,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.SparkConf;
 import org.apache.spark.serializer.KryoSerializer;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestManifestFileSerialization {
 
@@ -99,12 +98,12 @@ public class TestManifestFileSerialization {
 
   private static final FileIO FILE_IO = new HadoopFileIO(new Configuration());
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
   @Test
   public void testManifestFileKryoSerialization() throws IOException {
-    File data = temp.newFile();
-    Assert.assertTrue(data.delete());
+    File data = File.createTempFile("junit", null, temp.toFile());
+    assertThat(data.delete()).isTrue();
 
     Kryo kryo = new KryoSerializer(new SparkConf()).newKryo();
 
@@ -119,7 +118,7 @@ public class TestManifestFileSerialization {
     try (Input in = new Input(new FileInputStream(data))) {
       for (int i = 0; i < 3; i += 1) {
         Object obj = kryo.readClassAndObject(in);
-        Assertions.assertThat(obj).as("Should be a ManifestFile").isInstanceOf(ManifestFile.class);
+        assertThat(obj).as("Should be a ManifestFile").isInstanceOf(ManifestFile.class);
         checkManifestFile(manifest, (ManifestFile) obj);
       }
     }
@@ -141,62 +140,67 @@ public class TestManifestFileSerialization {
         new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
       for (int i = 0; i < 3; i += 1) {
         Object obj = in.readObject();
-        Assertions.assertThat(obj).as("Should be a ManifestFile").isInstanceOf(ManifestFile.class);
+        assertThat(obj).as("Should be a ManifestFile").isInstanceOf(ManifestFile.class);
         checkManifestFile(manifest, (ManifestFile) obj);
       }
     }
   }
 
   private void checkManifestFile(ManifestFile expected, ManifestFile actual) {
-    Assert.assertEquals("Path must match", expected.path(), actual.path());
-    Assert.assertEquals("Length must match", expected.length(), actual.length());
-    Assert.assertEquals("Spec id must match", expected.partitionSpecId(), actual.partitionSpecId());
-    Assert.assertEquals("Snapshot id must match", expected.snapshotId(), actual.snapshotId());
-    Assert.assertEquals(
-        "Added files flag must match", expected.hasAddedFiles(), actual.hasAddedFiles());
-    Assert.assertEquals(
-        "Added files count must match", expected.addedFilesCount(), actual.addedFilesCount());
-    Assert.assertEquals(
-        "Added rows count must match", expected.addedRowsCount(), actual.addedRowsCount());
-    Assert.assertEquals(
-        "Existing files flag must match", expected.hasExistingFiles(), actual.hasExistingFiles());
-    Assert.assertEquals(
-        "Existing files count must match",
-        expected.existingFilesCount(),
-        actual.existingFilesCount());
-    Assert.assertEquals(
-        "Existing rows count must match", expected.existingRowsCount(), actual.existingRowsCount());
-    Assert.assertEquals(
-        "Deleted files flag must match", expected.hasDeletedFiles(), actual.hasDeletedFiles());
-    Assert.assertEquals(
-        "Deleted files count must match", expected.deletedFilesCount(), actual.deletedFilesCount());
-    Assert.assertEquals(
-        "Deleted rows count must match", expected.deletedRowsCount(), actual.deletedRowsCount());
+    assertThat(actual.path()).as("Path must match").isEqualTo(expected.path());
+    assertThat(actual.length()).as("Length must match").isEqualTo(expected.length());
+    assertThat(actual.partitionSpecId())
+        .as("Spec id must match")
+        .isEqualTo(expected.partitionSpecId());
+    assertThat(actual.snapshotId()).as("Snapshot id must match").isEqualTo(expected.snapshotId());
+    assertThat(actual.hasAddedFiles())
+        .as("Added files flag must match")
+        .isEqualTo(expected.hasAddedFiles());
+    assertThat(actual.addedFilesCount())
+        .as("Added files count must match")
+        .isEqualTo(expected.addedFilesCount());
+    assertThat(actual.addedRowsCount())
+        .as("Added rows count must match")
+        .isEqualTo(expected.addedRowsCount());
+    assertThat(actual.hasExistingFiles())
+        .as("Existing files flag must match")
+        .isEqualTo(expected.hasExistingFiles());
+    assertThat(actual.existingFilesCount())
+        .as("Existing files count must match")
+        .isEqualTo(expected.existingFilesCount());
+    assertThat(actual.existingRowsCount())
+        .as("Existing rows count must match")
+        .isEqualTo(expected.existingRowsCount());
+    assertThat(actual.hasDeletedFiles())
+        .as("Deleted files flag must match")
+        .isEqualTo(expected.hasDeletedFiles());
+    assertThat(actual.deletedFilesCount())
+        .as("Deleted files count must match")
+        .isEqualTo(expected.deletedFilesCount());
+    assertThat(actual.deletedRowsCount())
+        .as("Deleted rows count must match")
+        .isEqualTo(expected.deletedRowsCount());
 
     PartitionFieldSummary expectedPartition = expected.partitions().get(0);
     PartitionFieldSummary actualPartition = actual.partitions().get(0);
 
-    Assert.assertEquals(
-        "Null flag in partition must match",
-        expectedPartition.containsNull(),
-        actualPartition.containsNull());
-    Assert.assertEquals(
-        "NaN flag in partition must match",
-        expectedPartition.containsNaN(),
-        actualPartition.containsNaN());
-    Assert.assertEquals(
-        "Lower bounds in partition must match",
-        expectedPartition.lowerBound(),
-        actualPartition.lowerBound());
-    Assert.assertEquals(
-        "Upper bounds in partition must match",
-        expectedPartition.upperBound(),
-        actualPartition.upperBound());
+    assertThat(actualPartition.containsNull())
+        .as("Null flag in partition must match")
+        .isEqualTo(expectedPartition.containsNull());
+    assertThat(actualPartition.containsNaN())
+        .as("NaN flag in partition must match")
+        .isEqualTo(expectedPartition.containsNaN());
+    assertThat(actualPartition.lowerBound())
+        .as("Lower bounds in partition must match")
+        .isEqualTo(expectedPartition.lowerBound());
+    assertThat(actualPartition.upperBound())
+        .as("Upper bounds in partition must match")
+        .isEqualTo(expectedPartition.upperBound());
   }
 
   private ManifestFile writeManifest(DataFile... files) throws IOException {
-    File manifestFile = temp.newFile("input.m0.avro");
-    Assert.assertTrue(manifestFile.delete());
+    File manifestFile = File.createTempFile("input.m0", ".avro", temp.toFile());
+    assertThat(manifestFile.delete()).isTrue();
     OutputFile outputFile = FILE_IO.newOutputFile(manifestFile.getCanonicalPath());
 
     ManifestWriter<DataFile> writer = ManifestFiles.write(SPEC, outputFile);

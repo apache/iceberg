@@ -20,9 +20,12 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.hadoop.HadoopFileIO;
@@ -32,11 +35,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.source.SerializableTableWithSize;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestFileIOSerialization {
 
@@ -60,15 +61,15 @@ public class TestFileIOSerialization {
     CONF.set("k2", "v2");
   }
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
   private Table table;
 
-  @Before
+  @BeforeEach
   public void initTable() throws IOException {
     Map<String, String> props = ImmutableMap.of("k1", "v1", "k2", "v2");
 
-    File tableLocation = temp.newFolder();
-    Assert.assertTrue(tableLocation.delete());
+    File tableLocation = Files.createTempDirectory(temp, "junit").toFile();
+    assertThat(tableLocation.delete()).isTrue();
 
     this.table = TABLES.create(SCHEMA, SPEC, SORT_ORDER, props, tableLocation.toString());
   }
@@ -82,9 +83,9 @@ public class TestFileIOSerialization {
     FileIO deserializedIO = KryoHelpers.roundTripSerialize(serializableTable.io());
     Configuration actualConf = ((HadoopFileIO) deserializedIO).conf();
 
-    Assert.assertEquals("Conf pairs must match", toMap(expectedConf), toMap(actualConf));
-    Assert.assertEquals("Conf values must be present", "v1", actualConf.get("k1"));
-    Assert.assertEquals("Conf values must be present", "v2", actualConf.get("k2"));
+    assertThat(toMap(actualConf)).as("Conf pairs must match").isEqualTo(toMap(expectedConf));
+    assertThat(actualConf.get("k1")).as("Conf values must be present").isEqualTo("v1");
+    assertThat(actualConf.get("k2")).as("Conf values must be present").isEqualTo("v2");
   }
 
   @Test
@@ -96,9 +97,9 @@ public class TestFileIOSerialization {
     FileIO deserializedIO = TestHelpers.roundTripSerialize(serializableTable.io());
     Configuration actualConf = ((HadoopFileIO) deserializedIO).conf();
 
-    Assert.assertEquals("Conf pairs must match", toMap(expectedConf), toMap(actualConf));
-    Assert.assertEquals("Conf values must be present", "v1", actualConf.get("k1"));
-    Assert.assertEquals("Conf values must be present", "v2", actualConf.get("k2"));
+    assertThat(toMap(actualConf)).as("Conf pairs must match").isEqualTo(toMap(expectedConf));
+    assertThat(actualConf.get("k1")).as("Conf values must be present").isEqualTo("v1");
+    assertThat(actualConf.get("k2")).as("Conf values must be present").isEqualTo("v2");
   }
 
   private Map<String, String> toMap(Configuration conf) {

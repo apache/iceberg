@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark;
 
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -53,7 +54,6 @@ import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanExec;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.util.QueryExecutionListener;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 
@@ -127,9 +127,9 @@ public abstract class TestBase extends SparkTestHelperBase {
 
   protected Object scalarSql(String query, Object... args) {
     List<Object[]> rows = sql(query, args);
-    Assertions.assertThat(rows.size()).as("Scalar SQL should return one row").isEqualTo(1);
+    assertThat(rows.size()).as("Scalar SQL should return one row").isEqualTo(1);
     Object[] row = Iterables.getOnlyElement(rows);
-    Assertions.assertThat(row.length).as("Scalar SQL should return one value").isEqualTo(1);
+    assertThat(row.length).as("Scalar SQL should return one value").isEqualTo(1);
     return row[0];
   }
 

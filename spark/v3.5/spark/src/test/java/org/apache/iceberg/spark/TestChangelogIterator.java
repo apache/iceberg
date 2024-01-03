@@ -18,7 +18,8 @@
  */
 package org.apache.iceberg.spark;
 
-import static org.junit.Assert.assertThrows;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -33,8 +34,7 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestChangelogIterator extends SparkTestHelperBase {
   private static final String DELETE = ChangelogOperation.DELETE.name();
@@ -78,7 +78,7 @@ public class TestChangelogIterator extends SparkTestHelperBase {
         Arrays.asList(RowType.DELETED, RowType.INSERTED, RowType.CARRY_OVER, RowType.UPDATED),
         0,
         permutations);
-    Assert.assertEquals(24, permutations.size());
+    assertThat(permutations).hasSize(24);
 
     for (Object[] permutation : permutations) {
       validate(permutation);
@@ -196,10 +196,10 @@ public class TestChangelogIterator extends SparkTestHelperBase {
     Iterator<Row> iterator =
         ChangelogIterator.computeUpdates(rowsWithDuplication.iterator(), SCHEMA, IDENTIFIER_FIELDS);
 
-    assertThrows(
-        "Cannot compute updates because there are multiple rows with the same identifier fields([id, name]). Please make sure the rows are unique.",
-        IllegalStateException.class,
-        () -> Lists.newArrayList(iterator));
+    assertThatThrownBy(() -> Lists.newArrayList(iterator))
+        .as(
+            "Cannot compute updates because there are multiple rows with the same identifier fields([id, name]). Please make sure the rows are unique.")
+        .isInstanceOf(IllegalStateException.class);
 
     // still allow extra insert rows
     rowsWithDuplication =
