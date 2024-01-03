@@ -303,7 +303,7 @@ public class RewritePositionDeleteFilesSparkAction
         .noRetry()
         .onFailure(
             (fileGroup, exception) ->
-                LOG.error("Failure during rewrite group {}", fileGroup.info(), exception))
+                LOG.warn("Failure during rewrite group {}", fileGroup.info(), exception))
         .run(fileGroup -> commitService.offer(rewriteDeleteFiles(ctx, fileGroup)));
     rewriteService.shutdown();
 

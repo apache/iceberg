@@ -345,7 +345,7 @@ public class RewriteDataFilesSparkAction
         .noRetry()
         .onFailure(
             (fileGroup, exception) -> {
-              LOG.error("Failure during rewrite group {}", fileGroup.info(), exception);
+              LOG.warn("Failure during rewrite group {}", fileGroup.info(), exception);
               rewriteFailures.add(
                   ImmutableRewriteDataFiles.FileGroupFailureResult.builder()
                       .info(fileGroup.info())
