@@ -20,21 +20,11 @@ package org.apache.iceberg.encryption;
 
 import org.apache.iceberg.io.OutputFile;
 
-/**
- * Thin wrapper around a {@link OutputFile} that is encrypting bytes written to the underlying file
- * system, via an encryption key that is symbolized by the enclosed {@link EncryptionKeyMetadata}.
- *
- * <p>The {@link EncryptionManager} returns instances of these when passed output files that should
- * be encrypted as they are being written to the backing file system.
- */
-public interface EncryptedOutputFile {
+/** An {@link EncryptedOutputFile} that can be used for format-native encryption. */
+public interface NativeEncryptionOutputFile extends EncryptedOutputFile {
+  @Override
+  NativeEncryptionKeyMetadata keyMetadata();
 
-  /** An OutputFile instance that encrypts the bytes that are written to its output streams. */
-  OutputFile encryptingOutputFile();
-
-  /**
-   * Metadata about the encryption key that is being used to encrypt the associated {@link
-   * #encryptingOutputFile()}.
-   */
-  EncryptionKeyMetadata keyMetadata();
+  /** An {@link OutputFile} instance for the underlying (plaintext) output stream. */
+  OutputFile plainOutputFile();
 }
