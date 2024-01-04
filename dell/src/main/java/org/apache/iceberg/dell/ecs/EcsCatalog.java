@@ -110,6 +110,7 @@ public class EcsCatalog extends BaseMetastoreCatalog
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(client::destroy);
     closeableGroup.addCloseable(fileIO);
+    closeableGroup.addCloseable(metricsReporter());
     closeableGroup.setSuppressCloseFailure(true);
   }
 
@@ -491,7 +492,6 @@ public class EcsCatalog extends BaseMetastoreCatalog
 
   @Override
   public void close() throws IOException {
-    super.close();
     closeableGroup.close();
   }
 

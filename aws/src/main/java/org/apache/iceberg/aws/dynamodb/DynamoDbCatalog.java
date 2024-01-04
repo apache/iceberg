@@ -142,6 +142,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(dynamo);
     closeableGroup.addCloseable(fileIO);
+    closeableGroup.addCloseable(metricsReporter());
     closeableGroup.setSuppressCloseFailure(true);
 
     ensureCatalogTableExistsOrCreate();
@@ -486,7 +487,6 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
 
   @Override
   public void close() throws IOException {
-    super.close();
     closeableGroup.close();
   }
 

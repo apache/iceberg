@@ -196,6 +196,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(glue);
     closeableGroup.addCloseable(lockManager);
+    closeableGroup.addCloseable(metricsReporter());
     closeableGroup.setSuppressCloseFailure(true);
     this.fileIOCloser = newFileIOCloser();
   }
@@ -632,7 +633,6 @@ public class GlueCatalog extends BaseMetastoreCatalog
 
   @Override
   public void close() throws IOException {
-    super.close();
     closeableGroup.close();
     if (fileIOCloser != null) {
       fileIOCloser.invalidateAll();

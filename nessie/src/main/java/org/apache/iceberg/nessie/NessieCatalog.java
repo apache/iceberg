@@ -151,6 +151,7 @@ public class NessieCatalog extends BaseMetastoreViewCatalog
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(client);
     closeableGroup.addCloseable(fileIO);
+    closeableGroup.addCloseable(metricsReporter());
     closeableGroup.setSuppressCloseFailure(true);
   }
 
@@ -188,7 +189,6 @@ public class NessieCatalog extends BaseMetastoreViewCatalog
 
   @Override
   public void close() throws IOException {
-    super.close();
     if (null != closeableGroup) {
       closeableGroup.close();
     }

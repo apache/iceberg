@@ -156,12 +156,12 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
     this.catalogProperties = properties;
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(snowflakeClient);
+    closeableGroup.addCloseable(metricsReporter());
     closeableGroup.setSuppressCloseFailure(true);
   }
 
   @Override
   public void close() throws IOException {
-    super.close();
     if (null != closeableGroup) {
       closeableGroup.close();
     }
