@@ -117,6 +117,11 @@ public class CatalogUtil {
         Iterables.transform(metadata.previousFiles(), TableMetadata.MetadataLogEntry::file),
         "previous metadata",
         true);
+    deleteFiles(
+        io,
+        Iterables.transform(metadata.statisticsFiles(), StatisticsFile::path),
+        "statistics",
+        true);
     deleteFile(io, metadata.metadataFileLocation(), "metadata");
   }
 
