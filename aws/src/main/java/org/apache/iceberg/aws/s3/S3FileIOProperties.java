@@ -30,7 +30,6 @@ import org.apache.iceberg.aws.s3.signer.S3V4RestSignerClient;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
@@ -55,18 +54,23 @@ public class S3FileIOProperties implements Serializable {
   /**
    * This property is used to enable using the S3 Access Grants product to control authorization to
    * S3 data. More information regarding this feature can be found at:
-   * https://aws.amazon.com/s3/features/access-grants/. The fallback-to-iam property allows users to
-   * customize whether or not they would like their jobs fall back to the Job Execution IAM role in
-   * case they get an Access Denied from the S3 Access Grants call. Further documentation regarding
-   * this flag can be found in the S3 Access Grants Plugin GitHub:
-   *
-   * <p>For more details, see: https://github.com/aws/aws-s3-accessgrants-plugin-java-v2
+   * https://aws.amazon.com/s3/features/access-grants/.
    */
   public static final String S3_ACCESS_GRANTS_ENABLED = "s3.access-grants.enabled";
 
   public static final boolean S3_ACCESS_GRANTS_ENABLED_DEFAULT = false;
+
+  /**
+   * The fallback-to-iam property allows users to customize whether or not they would like their
+   * jobs fall back to the Job Execution IAM role in case they get an Access Denied from the S3
+   * Access Grants call. Further documentation regarding this flag can be found in the S3 Access
+   * Grants Plugin GitHub:
+   *
+   * <p>For more details, see: https://github.com/aws/aws-s3-accessgrants-plugin-java-v2
+   */
   public static final String S3_ACCESS_GRANTS_FALLBACK_TO_IAM_ENABLED =
       "s3.access-grants.fallback-to-iam";
+
   public static final boolean S3_ACCESS_GRANTS_FALLBACK_TO_IAM_ENABLED_DEFAULT = false;
 
   /**
@@ -378,7 +382,7 @@ public class S3FileIOProperties implements Serializable {
   private String secretAccessKey;
   private String sessionToken;
   private boolean isS3AccessGrantsEnabled;
-  private boolean isS3AccessGrantsFallbackToIAMEnabled;
+  private boolean isS3AccessGrantsFallbackToIamEnabled;
   private int multipartUploadThreads;
   private int multiPartSize;
   private int deleteBatchSize;
@@ -432,7 +436,7 @@ public class S3FileIOProperties implements Serializable {
     this.isAccelerationEnabled = ACCELERATION_ENABLED_DEFAULT;
     this.isRemoteSigningEnabled = REMOTE_SIGNING_ENABLED_DEFAULT;
     this.isS3AccessGrantsEnabled = S3_ACCESS_GRANTS_ENABLED_DEFAULT;
-    this.isS3AccessGrantsFallbackToIAMEnabled = S3_ACCESS_GRANTS_FALLBACK_TO_IAM_ENABLED_DEFAULT;
+    this.isS3AccessGrantsFallbackToIamEnabled = S3_ACCESS_GRANTS_FALLBACK_TO_IAM_ENABLED_DEFAULT;
     this.allProperties = Maps.newHashMap();
 
     ValidationException.check(
@@ -526,7 +530,7 @@ public class S3FileIOProperties implements Serializable {
     this.isS3AccessGrantsEnabled =
         PropertyUtil.propertyAsBoolean(
             properties, S3_ACCESS_GRANTS_ENABLED, S3_ACCESS_GRANTS_ENABLED_DEFAULT);
-    this.isS3AccessGrantsFallbackToIAMEnabled =
+    this.isS3AccessGrantsFallbackToIamEnabled =
         PropertyUtil.propertyAsBoolean(
             properties,
             S3_ACCESS_GRANTS_FALLBACK_TO_IAM_ENABLED,
@@ -723,12 +727,12 @@ public class S3FileIOProperties implements Serializable {
     this.isS3AccessGrantsEnabled = s3AccessGrantsEnabled;
   }
 
-  public boolean isS3AccessGrantsFallbackToIAMEnabled() {
-    return isS3AccessGrantsFallbackToIAMEnabled;
+  public boolean isS3AccessGrantsFallbackToIamEnabled() {
+    return isS3AccessGrantsFallbackToIamEnabled;
   }
 
-  public void setS3AccessGrantsFallbackToIAMEnabled(boolean s3AccessGrantsFallbackToIAMEnabled) {
-    this.isS3AccessGrantsFallbackToIAMEnabled = s3AccessGrantsFallbackToIAMEnabled;
+  public void setS3AccessGrantsFallbackToIamEnabled(boolean s3AccessGrantsFallbackToIamEnabled) {
+    this.isS3AccessGrantsFallbackToIamEnabled = s3AccessGrantsFallbackToIamEnabled;
   }
 
   private boolean keyIdAccessKeyBothConfigured() {
@@ -808,14 +812,10 @@ public class S3FileIOProperties implements Serializable {
    */
   public <T extends S3ClientBuilder> void applyS3AccessGrantsConfigurations(T builder) {
     if (isS3AccessGrantsEnabled) {
-      Map<String, String> properties =
-          ImmutableMap.of(
-              S3_ACCESS_GRANTS_FALLBACK_TO_IAM_ENABLED,
-              String.valueOf(isS3AccessGrantsFallbackToIAMEnabled));
       S3AccessGrantsPluginConfigurations s3AccessGrantsPluginConfigurations =
           loadSdkPluginConfigurations(
-              S3AccessGrantsPluginConfigurations.class.getName(), properties);
-      s3AccessGrantsPluginConfigurations.configureSdkPlugin(builder);
+              S3AccessGrantsPluginConfigurations.class.getName(), allProperties);
+      s3AccessGrantsPluginConfigurations.configureS3ClientBuilder(builder);
     }
   }
 

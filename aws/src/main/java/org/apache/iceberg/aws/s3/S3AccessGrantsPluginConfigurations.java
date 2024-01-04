@@ -28,16 +28,16 @@ class S3AccessGrantsPluginConfigurations {
 
   private S3AccessGrantsPluginConfigurations() {}
 
-  public <T extends S3ClientBuilder> void configureSdkPlugin(T builder) {
+  public <T extends S3ClientBuilder> void configureS3ClientBuilder(T builder) {
     S3AccessGrantsPlugin s3AccessGrantsPlugin =
         S3AccessGrantsPlugin.builder().enableFallback(isS3AccessGrantsFallbackToIAMEnabled).build();
     builder.addPlugin(s3AccessGrantsPlugin);
   }
 
-  private void initialize(Map<String, String> sdkPluginProperties) {
+  private void initialize(Map<String, String> properties) {
     this.isS3AccessGrantsFallbackToIAMEnabled =
         PropertyUtil.propertyAsBoolean(
-            sdkPluginProperties,
+            properties,
             S3FileIOProperties.S3_ACCESS_GRANTS_FALLBACK_TO_IAM_ENABLED,
             S3FileIOProperties.S3_ACCESS_GRANTS_FALLBACK_TO_IAM_ENABLED_DEFAULT);
   }
