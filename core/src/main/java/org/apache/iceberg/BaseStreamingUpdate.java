@@ -30,7 +30,7 @@ class BaseStreamingUpdate extends MergingSnapshotProducer<StreamingUpdate>
     implements StreamingUpdate {
   private final List<Batch> batches = Lists.newArrayList();
 
-  private boolean requiresApply = true;
+  private Long appliedOnSequenceNumber = -1L;
   private Long startingSnapshotId = null; // check all versions by default
 
   private Expression conflictDetectionFilter = Expressions.alwaysTrue();
@@ -65,17 +65,24 @@ class BaseStreamingUpdate extends MergingSnapshotProducer<StreamingUpdate>
 
   @Override
   public List<ManifestFile> apply(TableMetadata base, Snapshot snapshot) {
-    if (requiresApply && !batches.isEmpty()) {
+    if (!batches.isEmpty()) {
       long startingSequenceNumber = base.nextSequenceNumber();
-      int batchIndex = 0;
-      while (batchIndex < batches.size()) {
-        Batch batch = batches.get(batchIndex);
-        long dataSequenceNumber = startingSequenceNumber + batchIndex;
-        batch.getNewDataFiles().forEach(f -> add(f, dataSequenceNumber));
-        batch.getNewDeleteFiles().forEach(f -> add(f, dataSequenceNumber));
-        batchIndex += 1;
+      if (appliedOnSequenceNumber != startingSequenceNumber) {
+        // The base sequence number has changed, so we need to re-apply to re-calculate the sequence
+        // numbers
+        super.cleanUncommitted(EMPTY_SET); // Clean the old manifest files
+        super.clearFiles(); // Reset the files since they will be added again with new sequence
+        // numbers
+        int batchIndex = 0;
+        while (batchIndex < batches.size()) {
+          Batch batch = batches.get(batchIndex);
+          long dataSequenceNumber = startingSequenceNumber + batchIndex;
+          batch.getNewDataFiles().forEach(f -> add(f, dataSequenceNumber));
+          batch.getNewDeleteFiles().forEach(f -> add(f, dataSequenceNumber));
+          batchIndex += 1;
+        }
+        appliedOnSequenceNumber = startingSequenceNumber;
       }
-      requiresApply = false;
     }
     return super.apply(base, snapshot);
   }
@@ -119,7 +126,7 @@ class BaseStreamingUpdate extends MergingSnapshotProducer<StreamingUpdate>
   protected void cleanUncommitted(Set<ManifestFile> committed) {
     // This is called when the commit fails and the caches are cleared, reset the state here so
     // calling apply again will re-add the files
-    requiresApply = true;
+    appliedOnSequenceNumber = -1L;
     super.cleanUncommitted(committed);
   }
 

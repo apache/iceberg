@@ -261,6 +261,14 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     hasNewDeleteFiles = true;
   }
 
+  protected void clearFiles() {
+    newDataFiles.clear();
+    newDeleteFilesBySpec.clear();
+    addedFilesSummary.clear();
+    hasNewDataFiles = false;
+    hasNewDeleteFiles = false;
+  }
+
   private void setDataSpec(DataFile file) {
     PartitionSpec fileSpec = ops.current().spec(file.specId());
     Preconditions.checkNotNull(

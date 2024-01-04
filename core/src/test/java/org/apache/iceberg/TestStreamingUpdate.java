@@ -94,6 +94,50 @@ public class TestStreamingUpdate extends TableTestBase {
   }
 
   @Test
+  public void testCommitConflict() {
+    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+
+    StreamingUpdate streamingUpdate =
+        table.newStreamingUpdate().addFile(FILE_A).newBatch().addFile(FILE_B);
+
+    Snapshot pending = apply(streamingUpdate, branch);
+
+    validateManifestEntries(
+        pending.allManifests(table.io()).get(0),
+        ids(pending.snapshotId(), pending.snapshotId()),
+        files(FILE_A, FILE_B),
+        statuses(ADDED, ADDED, ADDED, ADDED),
+        dataSeqs(1L, 2L)); // Data sequence numbers should start at 1
+
+    commit(table, table.newFastAppend().appendFile(FILE_C), branch);
+    Snapshot fastAppendSnapshot = latestSnapshot(readMetadata(), branch);
+    validateManifestEntries(
+        fastAppendSnapshot.allManifests(table.io()).get(0),
+        ids(fastAppendSnapshot.snapshotId()),
+        files(FILE_C),
+        statuses(ADDED),
+        dataSeqs(1L));
+
+    commit(table, streamingUpdate, branch);
+
+    Snapshot snapshot = latestSnapshot(readMetadata(), branch);
+    long snapshotId = snapshot.snapshotId();
+    long snapshotSequenceNumber = snapshot.sequenceNumber();
+
+    Assert.assertEquals(
+        "Should updated snpashot sequencer number to be after both batches",
+        3L,
+        snapshotSequenceNumber);
+    ManifestFile dataManifest = snapshot.allManifests(table.io()).get(0);
+    validateManifestEntries(
+        dataManifest,
+        ids(snapshotId, snapshotId, snapshotId, snapshotId),
+        files(FILE_A, FILE_B),
+        statuses(ADDED, ADDED, ADDED, ADDED),
+        dataSeqs(2L, 3L)); // Due to the conflict with the append we now start at 2
+  }
+
+  @Test
   public void testFailureCleanup() {
 
     table.ops().failCommits(5);
