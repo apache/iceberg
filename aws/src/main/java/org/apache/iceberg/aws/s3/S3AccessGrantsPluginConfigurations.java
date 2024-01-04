@@ -24,18 +24,18 @@ import software.amazon.awssdk.s3accessgrants.plugin.S3AccessGrantsPlugin;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 
 class S3AccessGrantsPluginConfigurations {
-  private boolean isS3AccessGrantsFallbackToIAMEnabled;
+  private boolean isS3AccessGrantsFallbackToIamEnabled;
 
   private S3AccessGrantsPluginConfigurations() {}
 
   public <T extends S3ClientBuilder> void configureS3ClientBuilder(T builder) {
     S3AccessGrantsPlugin s3AccessGrantsPlugin =
-        S3AccessGrantsPlugin.builder().enableFallback(isS3AccessGrantsFallbackToIAMEnabled).build();
+        S3AccessGrantsPlugin.builder().enableFallback(isS3AccessGrantsFallbackToIamEnabled).build();
     builder.addPlugin(s3AccessGrantsPlugin);
   }
 
   private void initialize(Map<String, String> properties) {
-    this.isS3AccessGrantsFallbackToIAMEnabled =
+    this.isS3AccessGrantsFallbackToIamEnabled =
         PropertyUtil.propertyAsBoolean(
             properties,
             S3FileIOProperties.S3_ACCESS_GRANTS_FALLBACK_TO_IAM_ENABLED,
