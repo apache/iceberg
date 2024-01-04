@@ -136,7 +136,7 @@ final class JdbcUtil {
           + TABLE_NAMESPACE
           + " = ? OR "
           + TABLE_NAMESPACE
-          + " LIKE ? ESCAPE '\\' "
+          + " LIKE ? ESCAPE '!' "
           + " ) "
           + " LIMIT 1";
   static final String LIST_NAMESPACES_SQL =
@@ -211,7 +211,7 @@ final class JdbcUtil {
           + NAMESPACE_NAME
           + " = ? OR "
           + NAMESPACE_NAME
-          + " LIKE ? ESCAPE '\\' "
+          + " LIKE ? ESCAPE '!' "
           + " ) ";
   static final String INSERT_NAMESPACE_PROPERTIES_SQL =
       "INSERT INTO "
@@ -357,7 +357,7 @@ final class JdbcUtil {
     // when namespace has sub-namespace then additionally checking it with LIKE statement.
     // catalog.db can exists as: catalog.db.ns1 or catalog.db.ns1.ns2
     String namespaceStartsWith =
-        namespaceEquals.replace("\\", "\\\\").replace("_", "\\_").replace("%", "\\%") + ".%";
+        namespaceEquals.replace("!", "!!").replace("_", "!_").replace("%", "!%") + ".%";
     if (exists(
         connections,
         JdbcUtil.GET_NAMESPACE_SQL,
