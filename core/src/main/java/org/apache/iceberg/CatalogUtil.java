@@ -122,6 +122,11 @@ public class CatalogUtil {
         Iterables.transform(metadata.statisticsFiles(), StatisticsFile::path),
         "statistics",
         true);
+    deleteFiles(
+        io,
+        Iterables.transform(metadata.partitionStatisticsFiles(), PartitionStatisticsFile::path),
+        "partition statistics",
+        true);
     deleteFile(io, metadata.metadataFileLocation(), "metadata");
   }
 
