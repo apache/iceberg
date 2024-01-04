@@ -236,7 +236,7 @@ public class TestBase {
 
   ManifestFile writeManifest(Long snapshotId, DataFile... files) throws IOException {
     File manifestFile = temp.resolve("input.m0.avro").toFile();
-    Assertions.assertThat(manifestFile.delete()).isTrue();
+    Assertions.assertThat(manifestFile).doesNotExist();
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
     ManifestWriter<DataFile> writer =
@@ -264,7 +264,7 @@ public class TestBase {
   <F extends ContentFile<F>> ManifestFile writeManifest(
       Long snapshotId, String fileName, ManifestEntry<?>... entries) throws IOException {
     File manifestFile = temp.resolve(fileName).toFile();
-    Assertions.assertThat(manifestFile.delete()).isTrue();
+    Assertions.assertThat(manifestFile).doesNotExist();
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
     ManifestWriter<F> writer;
@@ -309,7 +309,7 @@ public class TestBase {
 
   ManifestFile writeManifestWithName(String name, DataFile... files) throws IOException {
     File manifestFile = temp.resolve(name + ".avro").toFile();
-    Assertions.assertThat(manifestFile.delete()).isTrue();
+    Assertions.assertThat(manifestFile).doesNotExist();
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
     ManifestWriter<DataFile> writer =

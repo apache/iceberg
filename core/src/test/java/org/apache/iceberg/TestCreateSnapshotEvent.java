@@ -18,19 +18,20 @@
  */
 package org.apache.iceberg;
 
+import java.util.Arrays;
+import java.util.Collection;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.events.Listener;
 import org.apache.iceberg.events.Listeners;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public class TestCreateSnapshotEvent extends TableTestBase {
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestCreateSnapshotEvent extends TestBase {
+  @Parameters(name = "formatVersion={0}")
+  public static Collection<Integer> parameters() {
+    return Arrays.asList(1, 2);
   }
 
   private CreateSnapshotEvent currentEvent;
@@ -40,76 +41,76 @@ public class TestCreateSnapshotEvent extends TableTestBase {
     Listeners.register(new MyListener(), CreateSnapshotEvent.class);
   }
 
-  @Test
+  @TestTemplate
   public void testAppendCommitEvent() {
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    Assertions.assertThat(listManifestFiles()).as("Table should start empty").isEmpty();
 
     table.newAppend().appendFile(FILE_A).commit();
-    Assert.assertNotNull(currentEvent);
-    Assert.assertEquals(
-        "Added records in the table should be 1", "1", currentEvent.summary().get("added-records"));
-    Assert.assertEquals(
-        "Added files in the table should be 1",
-        "1",
-        currentEvent.summary().get("added-data-files"));
-    Assert.assertEquals(
-        "Total records in the table should be 1", "1", currentEvent.summary().get("total-records"));
-    Assert.assertEquals(
-        "Total data files in the table should be 1",
-        "1",
-        currentEvent.summary().get("total-data-files"));
+    Assertions.assertThat(currentEvent).isNotNull();
+    Assertions.assertThat(currentEvent.summary().get("added-records"))
+        .as("Added records in the table should be 1")
+        .isEqualTo("1");
+    Assertions.assertThat(currentEvent.summary().get("added-data-files"))
+        .as("Added files in the table should be 1")
+        .isEqualTo("1");
+    Assertions.assertThat(currentEvent.summary().get("total-records"))
+        .as("Total records in the table should be 1")
+        .isEqualTo("1");
+    Assertions.assertThat(currentEvent.summary().get("total-data-files"))
+        .as("Total data files in the table should be 1")
+        .isEqualTo("1");
 
     table.newAppend().appendFile(FILE_A).commit();
-    Assert.assertNotNull(currentEvent);
-    Assert.assertEquals(
-        "Added records in the table should be 1", "1", currentEvent.summary().get("added-records"));
-    Assert.assertEquals(
-        "Added files in the table should be 1",
-        "1",
-        currentEvent.summary().get("added-data-files"));
-    Assert.assertEquals(
-        "Total records in the table should be 2", "2", currentEvent.summary().get("total-records"));
-    Assert.assertEquals(
-        "Total data files in the table should be 2",
-        "2",
-        currentEvent.summary().get("total-data-files"));
+    Assertions.assertThat(currentEvent).isNotNull();
+    Assertions.assertThat(currentEvent.summary().get("added-records"))
+        .as("Added records in the table should be 1")
+        .isEqualTo("1");
+    Assertions.assertThat(currentEvent.summary().get("added-data-files"))
+        .as("Added files in the table should be 1")
+        .isEqualTo("1");
+    Assertions.assertThat(currentEvent.summary().get("total-records"))
+        .as("Total records in the table should be 2")
+        .isEqualTo("2");
+    Assertions.assertThat(currentEvent.summary().get("total-data-files"))
+        .as("Total data files in the table should be 2")
+        .isEqualTo("2");
   }
 
-  @Test
+  @TestTemplate
   public void testAppendAndDeleteCommitEvent() {
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    Assertions.assertThat(listManifestFiles()).as("Table should start empty").isEmpty();
 
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
-    Assert.assertNotNull(currentEvent);
-    Assert.assertEquals(
-        "Added records in the table should be 2", "2", currentEvent.summary().get("added-records"));
-    Assert.assertEquals(
-        "Added files in the table should be 2",
-        "2",
-        currentEvent.summary().get("added-data-files"));
-    Assert.assertEquals(
-        "Total records in the table should be 2", "2", currentEvent.summary().get("total-records"));
-    Assert.assertEquals(
-        "Total data files in the table should be 2",
-        "2",
-        currentEvent.summary().get("total-data-files"));
+    Assertions.assertThat(currentEvent).as("Current event should not be null").isNotNull();
+    Assertions.assertThat(currentEvent.summary().get("added-records"))
+        .as("Added records in the table should be 2")
+        .isEqualTo("2");
+    Assertions.assertThat(currentEvent.summary().get("added-data-files"))
+        .as("Added files in the table should be 2")
+        .isEqualTo("2");
+    Assertions.assertThat(currentEvent.summary().get("total-records"))
+        .as("Total records in the table should be 2")
+        .isEqualTo("2");
+    Assertions.assertThat(currentEvent.summary().get("total-data-files"))
+        .as("Total data files in the table should be 2")
+        .isEqualTo("2");
 
     table.newDelete().deleteFile(FILE_A).commit();
-    Assert.assertNotNull(currentEvent);
-    Assert.assertEquals(
-        "Deleted records in the table should be 1",
-        "1",
-        currentEvent.summary().get("deleted-records"));
-    Assert.assertEquals(
-        "Deleted files in the table should be 1",
-        "1",
-        currentEvent.summary().get("deleted-data-files"));
-    Assert.assertEquals(
-        "Total records in the table should be 1", "1", currentEvent.summary().get("total-records"));
-    Assert.assertEquals(
-        "Total data files in the table should be 1",
-        "1",
-        currentEvent.summary().get("total-data-files"));
+    Assertions.assertThat(currentEvent)
+        .as("Current event should not be null after delete")
+        .isNotNull();
+    Assertions.assertThat(currentEvent.summary().get("deleted-records"))
+        .as("Deleted records in the table should be 1")
+        .isEqualTo("1");
+    Assertions.assertThat(currentEvent.summary().get("deleted-data-files"))
+        .as("Deleted files in the table should be 1")
+        .isEqualTo("1");
+    Assertions.assertThat(currentEvent.summary().get("total-records"))
+        .as("Total records in the table should be 1")
+        .isEqualTo("1");
+    Assertions.assertThat(currentEvent.summary().get("total-data-files"))
+        .as("Total data files in the table should be 1")
+        .isEqualTo("1");
   }
 
   class MyListener implements Listener<CreateSnapshotEvent> {
