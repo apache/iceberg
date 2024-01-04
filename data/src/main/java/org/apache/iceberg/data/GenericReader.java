@@ -29,7 +29,6 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
-import org.apache.iceberg.encryption.StandardKeyMetadata;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -125,12 +124,6 @@ class GenericReader implements Serializable {
 
         if (reuseContainers) {
           parquet.reuseContainers();
-        }
-
-        if (task.file().keyMetadata() != null) {
-          StandardKeyMetadata keyMetadata = StandardKeyMetadata.parse(task.file().keyMetadata());
-          parquet.withFileEncryptionKey(keyMetadata.encryptionKey());
-          parquet.withAADPrefix(keyMetadata.aadPrefix());
         }
 
         return parquet.build();

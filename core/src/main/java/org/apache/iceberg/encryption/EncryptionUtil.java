@@ -20,7 +20,6 @@ package org.apache.iceberg.encryption;
 
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.OutputFile;
@@ -81,14 +80,6 @@ public class EncryptionUtil {
       return PlaintextEncryptionManager.instance();
     }
 
-    String fileFormat =
-        PropertyUtil.propertyAsString(
-            tableProperties,
-            TableProperties.DEFAULT_FILE_FORMAT,
-            TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
-
-    boolean nativeDataEncryption = (FileFormat.fromString(fileFormat) == FileFormat.PARQUET);
-
     int dataKeyLength =
         PropertyUtil.propertyAsInt(
             tableProperties,
@@ -100,8 +91,7 @@ public class EncryptionUtil {
         "Invalid data key length: %s (must be 16, 24, or 32)",
         dataKeyLength);
 
-    return new StandardEncryptionManager(
-        tableKeyId, dataKeyLength, kmsClient, nativeDataEncryption);
+    return new StandardEncryptionManager(tableKeyId, dataKeyLength, kmsClient);
   }
 
   public static EncryptedOutputFile plainAsEncryptedOutput(OutputFile encryptingOutputFile) {

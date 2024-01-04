@@ -65,6 +65,8 @@ import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.encryption.NativeEncryptionInputFile;
+import org.apache.iceberg.encryption.NativeEncryptionOutputFile;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopInputFile;
@@ -104,8 +106,7 @@ public class ORC {
 
   public static WriteBuilder write(EncryptedOutputFile file) {
     Preconditions.checkState(
-        file.keyMetadata() == null || file.keyMetadata() == EncryptionKeyMetadata.EMPTY,
-        "Currenty, encryption of data files in ORC format is not supported");
+        !(file instanceof NativeEncryptionOutputFile), "Native ORC encryption is not supported");
     return new WriteBuilder(file.encryptingOutputFile());
   }
 
@@ -392,8 +393,7 @@ public class ORC {
 
   public static DataWriteBuilder writeData(EncryptedOutputFile file) {
     Preconditions.checkState(
-        file.keyMetadata() == null || file.keyMetadata() == EncryptionKeyMetadata.EMPTY,
-        "Currenty, encryption of data files in ORC format is not supported");
+        !(file instanceof NativeEncryptionOutputFile), "Native ORC encryption is not supported");
     return new DataWriteBuilder(file.encryptingOutputFile());
   }
 
@@ -496,8 +496,7 @@ public class ORC {
 
   public static DeleteWriteBuilder writeDeletes(EncryptedOutputFile file) {
     Preconditions.checkState(
-        file.keyMetadata() == null || file.keyMetadata() == EncryptionKeyMetadata.EMPTY,
-        "Currenty, encryption of delete files in ORC format is not supported");
+        !(file instanceof NativeEncryptionOutputFile), "Native ORC encryption is not supported");
     return new DeleteWriteBuilder(file.encryptingOutputFile());
   }
 
@@ -679,6 +678,9 @@ public class ORC {
   }
 
   public static ReadBuilder read(InputFile file) {
+    Preconditions.checkState(
+        !(file instanceof NativeEncryptionInputFile), "Native ORC encryption is not supported");
+
     return new ReadBuilder(file);
   }
 

@@ -73,7 +73,8 @@ import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
-import org.apache.iceberg.encryption.StandardKeyMetadata;
+import org.apache.iceberg.encryption.NativeEncryptionInputFile;
+import org.apache.iceberg.encryption.NativeEncryptionOutputFile;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopInputFile;
@@ -128,11 +129,11 @@ public class Parquet {
   }
 
   public static WriteBuilder write(EncryptedOutputFile file) {
-    if (file.keyMetadata() instanceof StandardKeyMetadata) {
-      StandardKeyMetadata keyMetadata = (StandardKeyMetadata) file.keyMetadata();
-      return write(file.plainOutputFile())
-          .withFileEncryptionKey(keyMetadata.encryptionKey())
-          .withAADPrefix(keyMetadata.aadPrefix());
+    if (file instanceof NativeEncryptionOutputFile) {
+      NativeEncryptionOutputFile nativeFile = (NativeEncryptionOutputFile) file;
+      return write(nativeFile.plainOutputFile())
+          .withFileEncryptionKey(nativeFile.keyMetadata().encryptionKey())
+          .withAADPrefix(nativeFile.keyMetadata().aadPrefix());
     } else {
       return write(file.encryptingOutputFile());
     }
@@ -622,11 +623,11 @@ public class Parquet {
   }
 
   public static DataWriteBuilder writeData(EncryptedOutputFile file) {
-    if (file.keyMetadata() instanceof StandardKeyMetadata) {
-      StandardKeyMetadata keyMetadata = (StandardKeyMetadata) file.keyMetadata();
-      return writeData(file.plainOutputFile())
-          .withFileEncryptionKey(keyMetadata.encryptionKey())
-          .withAADPrefix(keyMetadata.aadPrefix());
+    if (file instanceof NativeEncryptionOutputFile) {
+      NativeEncryptionOutputFile nativeFile = (NativeEncryptionOutputFile) file;
+      return writeData(nativeFile.plainOutputFile())
+          .withFileEncryptionKey(nativeFile.keyMetadata().encryptionKey())
+          .withAADPrefix(nativeFile.keyMetadata().aadPrefix());
     } else {
       return writeData(file.encryptingOutputFile());
     }
@@ -740,11 +741,11 @@ public class Parquet {
   }
 
   public static DeleteWriteBuilder writeDeletes(EncryptedOutputFile file) {
-    if (file.keyMetadata() instanceof StandardKeyMetadata) {
-      StandardKeyMetadata keyMetadata = (StandardKeyMetadata) file.keyMetadata();
-      return writeDeletes(file.plainOutputFile())
-          .withFileEncryptionKey(keyMetadata.encryptionKey())
-          .withAADPrefix(keyMetadata.aadPrefix());
+    if (file instanceof NativeEncryptionOutputFile) {
+      NativeEncryptionOutputFile nativeFile = (NativeEncryptionOutputFile) file;
+      return writeDeletes(nativeFile.plainOutputFile())
+          .withFileEncryptionKey(nativeFile.keyMetadata().encryptionKey())
+          .withAADPrefix(nativeFile.keyMetadata().aadPrefix());
     } else {
       return writeDeletes(file.encryptingOutputFile());
     }
@@ -992,7 +993,14 @@ public class Parquet {
   }
 
   public static ReadBuilder read(InputFile file) {
-    return new ReadBuilder(file);
+    if (file instanceof NativeEncryptionInputFile) {
+      NativeEncryptionInputFile nativeFile = (NativeEncryptionInputFile) file;
+      return new ReadBuilder(nativeFile.encryptedInputFile())
+          .withFileEncryptionKey(nativeFile.keyMetadata().encryptionKey())
+          .withAADPrefix(nativeFile.keyMetadata().aadPrefix());
+    } else {
+      return new ReadBuilder(file);
+    }
   }
 
   public static class ReadBuilder {

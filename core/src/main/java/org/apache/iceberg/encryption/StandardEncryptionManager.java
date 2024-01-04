@@ -32,7 +32,6 @@ public class StandardEncryptionManager implements EncryptionManager {
   private final transient KeyManagementClient kmsClient;
   private final String tableKeyId;
   private final int dataKeyLength;
-  private final boolean nativeDataEncryption;
 
   private transient volatile SecureRandom lazyRNG = null;
 
@@ -42,10 +41,7 @@ public class StandardEncryptionManager implements EncryptionManager {
    * @param kmsClient Client of KMS used to wrap/unwrap keys in envelope encryption
    */
   public StandardEncryptionManager(
-      String tableKeyId,
-      int dataKeyLength,
-      KeyManagementClient kmsClient,
-      boolean nativeDataEncryption) {
+      String tableKeyId, int dataKeyLength, KeyManagementClient kmsClient) {
     Preconditions.checkNotNull(tableKeyId, "Invalid encryption key ID: null");
     Preconditions.checkArgument(
         dataKeyLength == 16 || dataKeyLength == 24 || dataKeyLength == 32,
@@ -55,32 +51,22 @@ public class StandardEncryptionManager implements EncryptionManager {
     this.tableKeyId = tableKeyId;
     this.kmsClient = kmsClient;
     this.dataKeyLength = dataKeyLength;
-    this.nativeDataEncryption = nativeDataEncryption;
   }
 
   @Override
-  public EncryptedOutputFile encrypt(OutputFile plainOutput) {
+  public NativeEncryptionOutputFile encrypt(OutputFile plainOutput) {
     return new StandardEncryptedOutputFile(plainOutput, dataKeyLength);
   }
 
   @Override
-  public InputFile decrypt(EncryptedInputFile encrypted) {
+  public NativeEncryptionInputFile decrypt(EncryptedInputFile encrypted) {
     // this input file will lazily parse key metadata in case the file is not an AES GCM stream.
     return new StandardDecryptedInputFile(encrypted);
   }
 
   @Override
   public Iterable<InputFile> decrypt(Iterable<EncryptedInputFile> encrypted) {
-    // Bulk decrypt is only applied to data files. Returning source input files for parquet.
-    if (nativeDataEncryption) {
-      return Iterables.transform(encrypted, this::getSourceFile);
-    } else {
-      return Iterables.transform(encrypted, this::decrypt);
-    }
-  }
-
-  private InputFile getSourceFile(EncryptedInputFile encryptedFile) {
-    return encryptedFile.encryptedInputFile();
+    return Iterables.transform(encrypted, this::decrypt);
   }
 
   private SecureRandom workerRNG() {
@@ -109,7 +95,7 @@ public class StandardEncryptionManager implements EncryptionManager {
     return kmsClient.unwrapKey(wrappedSecretKey, tableKeyId);
   }
 
-  private class StandardEncryptedOutputFile implements EncryptedOutputFile {
+  private class StandardEncryptedOutputFile implements NativeEncryptionOutputFile {
     private final OutputFile plainOutputFile;
     private final int dataKeyLength;
     private StandardKeyMetadata lazyKeyMetadata = null;
@@ -154,7 +140,7 @@ public class StandardEncryptionManager implements EncryptionManager {
     }
   }
 
-  private static class StandardDecryptedInputFile implements InputFile {
+  private static class StandardDecryptedInputFile implements NativeEncryptionInputFile {
     private final EncryptedInputFile encryptedInputFile;
     private StandardKeyMetadata lazyKeyMetadata = null;
     private AesGcmInputFile lazyDecryptedInputFile = null;
@@ -163,7 +149,13 @@ public class StandardEncryptionManager implements EncryptionManager {
       this.encryptedInputFile = encryptedInputFile;
     }
 
-    private StandardKeyMetadata keyMetadata() {
+    @Override
+    public InputFile encryptedInputFile() {
+      return encryptedInputFile.encryptedInputFile();
+    }
+
+    @Override
+    public StandardKeyMetadata keyMetadata() {
       if (null == lazyKeyMetadata) {
         this.lazyKeyMetadata = StandardKeyMetadata.castOrParse(encryptedInputFile.keyMetadata());
       }
