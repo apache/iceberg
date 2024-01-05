@@ -54,7 +54,7 @@ public class CharSequenceWrapper implements CharSequence, Serializable {
     CharSequenceWrapper that = (CharSequenceWrapper) other;
 
     if (wrapped instanceof String && that.wrapped instanceof String) {
-      return wrapped.equals(that.wrapped);
+      return wrapped.toString().contentEquals(that.wrapped);
     }
 
     if (length() != that.length()) {
