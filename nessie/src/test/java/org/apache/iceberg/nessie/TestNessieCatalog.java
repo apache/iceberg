@@ -25,6 +25,8 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.util.LocationUtil;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -159,5 +161,16 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
       "Nessie does not differentiate between table creates & updates, thus a concurrent transaction does not fail")
   public void testConcurrentCreateTransaction() {
     super.testConcurrentCreateTransaction();
+  }
+
+  @Test
+  public void testWarehouseLocationWithTrailingSlash() {
+    Assertions.assertThat(catalog.defaultWarehouseLocation(TABLE))
+        .startsWith(
+            LocationUtil.stripTrailingSlash(temp.toUri().toString())
+                + "/"
+                + TABLE.namespace()
+                + "/"
+                + TABLE.name());
   }
 }
