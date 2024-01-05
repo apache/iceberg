@@ -132,10 +132,8 @@ public class GlueCatalog extends BaseMetastoreCatalog
       }
       builder.put(
           AwsProperties.GLUE_WRITE_NON_CURRENT_COLUMNS,
-          PropertyUtil.propertyAsBoolean(
-              properties,
-              AwsProperties.GLUE_WRITE_NON_CURRENT_COLUMNS,
-              AwsProperties.GLUE_WRITE_NON_CURRENT_COLUMNS_DEFAULT));
+          String.valueOf(AwsProperties.GLUE_WRITE_NON_CURRENT_COLUMNS_DEFAULT)
+      );
       this.catalogProperties = builder.buildOrThrow();
       awsClientFactory = AwsClientFactories.from(catalogProperties);
       Preconditions.checkArgument(

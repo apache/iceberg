@@ -295,7 +295,11 @@ public class AwsProperties implements Serializable {
     this.glueLakeFormationEnabled =
         PropertyUtil.propertyAsBoolean(
             properties, GLUE_LAKEFORMATION_ENABLED, GLUE_LAKEFORMATION_ENABLED_DEFAULT);
-
+    this.glueCatalogWriteNonCurrentColumns =
+            PropertyUtil.propertyAsBoolean(
+                properties,
+                GLUE_WRITE_NON_CURRENT_COLUMNS,
+                GLUE_WRITE_NON_CURRENT_COLUMNS_DEFAULT);
     this.dynamoDbEndpoint = properties.get(DYNAMODB_ENDPOINT);
     this.dynamoDbTableName =
         PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME, DYNAMODB_TABLE_NAME_DEFAULT);

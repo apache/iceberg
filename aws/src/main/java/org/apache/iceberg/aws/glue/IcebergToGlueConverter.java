@@ -313,10 +313,6 @@ class IcebergToGlueConverter {
         for (NestedField field : schema.columns()) {
           if (addNonCurrentColumn) {
             addColumnWithDedupe(columns, addedNames, field, false /* is not current */);
-          } else {
-            for (int i = 0; i <= columns.size(); i++) {
-              LOG.info("Omitting column " + columns.get(i).name());
-            }
           }
         }
       }
