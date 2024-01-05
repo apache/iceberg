@@ -303,9 +303,10 @@ Thanks to everyone for contributing!
 
 Create a PR in the `iceberg` repo to make revapi run on the new release. For an example see [this PR](https://github.com/apache/iceberg/pull/6275).
 
-#### Update github issue template
+#### Update GitHub
 
-Create a PR in the `iceberg` repo to add the new version to the github issue template. For an example see [this PR](https://github.com/apache/iceberg/pull/6287).
+- Create a PR in the `iceberg` repo to add the new version to the github issue template. For an example see [this PR](https://github.com/apache/iceberg/pull/6287).
+- Draft [a new release to update Github](https://github.com/apache/iceberg/releases/new) to show the latest release. A changelog can be generated automatically using Github.
 
 ### Documentation Release
 

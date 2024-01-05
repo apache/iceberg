@@ -33,6 +33,7 @@ on:
     - '.gitignore'
     - '.asf.yml'
     - 'dev/**'
+    - 'site/**'
     - 'mr/**'
     - 'hive3/**'
     - 'hive3-orc-bundle/**'
