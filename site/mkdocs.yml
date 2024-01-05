@@ -22,10 +22,17 @@ copyright: |
 site_name: Apache Iceberg
 
 theme:
+  custom_dir: overrides
+  static_templates:
+    - home.html
   name: material
   language: en
-  logo: assets/images/iceberg-logo-icon.png
+  logo: assets/images/Iceberg-logo.svg
   favicon: assets/images/favicon-96x96.png
+  font:
+    text: Nunito Sans
+  palette:
+    scheme: iceberg  
   features:
     - navigation.tabs
     - navigation.tabs.sticky
@@ -86,6 +93,15 @@ extra:
       link: 'https://join.slack.com/t/apache-iceberg/shared_invite/zt-287g3akar-K9Oe_En5j1UL7Y_Ikpai3A'
       title: slack
 
+extra_css:
+  - assets/stylesheets/extra.css
+  - assets/stylesheets/bootstrap-grid.css
+  - assets/stylesheets/bootstrap-buttons.css
+  - assets/stylesheets/home.css
+  
+extra_javascript:
+  - assets/javascript/extra.js
+
 watch:
   - nav.yml
-
+  - overrides
