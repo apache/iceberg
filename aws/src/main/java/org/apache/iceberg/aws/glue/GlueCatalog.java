@@ -118,6 +118,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
   public void initialize(String name, Map<String, String> properties) {
     this.catalogProperties = ImmutableMap.copyOf(properties);
     AwsClientFactory awsClientFactory;
+
     if (PropertyUtil.propertyAsBoolean(
         properties,
         AwsProperties.GLUE_LAKEFORMATION_ENABLED,
@@ -129,7 +130,12 @@ public class GlueCatalog extends BaseMetastoreCatalog
       if (factoryImpl == null) {
         builder.put(AwsProperties.CLIENT_FACTORY, LakeFormationAwsClientFactory.class.getName());
       }
-
+      builder.put(
+          AwsProperties.GLUE_WRITE_NON_CURRENT_COLUMNS,
+          PropertyUtil.propertyAsBoolean(
+              properties,
+              AwsProperties.GLUE_WRITE_NON_CURRENT_COLUMNS,
+              AwsProperties.GLUE_WRITE_NON_CURRENT_COLUMNS_DEFAULT));
       this.catalogProperties = builder.buildOrThrow();
       awsClientFactory = AwsClientFactories.from(catalogProperties);
       Preconditions.checkArgument(

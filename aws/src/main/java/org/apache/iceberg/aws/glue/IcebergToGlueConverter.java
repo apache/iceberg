@@ -218,7 +218,7 @@ class IcebergToGlueConverter {
    * @param metadata Iceberg table metadata
    */
   static void setTableInputInformation(
-      TableInput.Builder tableInputBuilder, TableMetadata metadata) {
+      TableInput.Builder tableInputBuilder, TableMetadata metadata, Boolean addNonCurrentColumn) {
     try {
       Map<String, String> properties = metadata.properties();
       StorageDescriptor.Builder storageDescriptor = StorageDescriptor.builder();
@@ -235,7 +235,10 @@ class IcebergToGlueConverter {
           .ifPresent(tableInputBuilder::description);
 
       tableInputBuilder.storageDescriptor(
-          storageDescriptor.location(metadata.location()).columns(toColumns(metadata)).build());
+          storageDescriptor
+              .location(metadata.location())
+              .columns(toColumns(metadata, addNonCurrentColumn))
+              .build());
     } catch (RuntimeException e) {
       LOG.warn(
           "Encountered unexpected exception while converting Iceberg metadata to Glue table information",
@@ -297,7 +300,7 @@ class IcebergToGlueConverter {
     }
   }
 
-  private static List<Column> toColumns(TableMetadata metadata) {
+  private static List<Column> toColumns(TableMetadata metadata, Boolean addNonCurrentColumn) {
     List<Column> columns = Lists.newArrayList();
     Set<String> addedNames = Sets.newHashSet();
 
@@ -308,7 +311,13 @@ class IcebergToGlueConverter {
     for (Schema schema : metadata.schemas()) {
       if (schema.schemaId() != metadata.currentSchemaId()) {
         for (NestedField field : schema.columns()) {
-          addColumnWithDedupe(columns, addedNames, field, false /* is not current */);
+          if (addNonCurrentColumn) {
+            addColumnWithDedupe(columns, addedNames, field, false /* is not current */);
+          } else {
+            for (int i = 0; i <= columns.size(); i++) {
+              LOG.info("Omitting column " + columns.get(i).name());
+            }
+          }
         }
       }
     }

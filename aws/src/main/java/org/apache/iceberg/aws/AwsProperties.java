@@ -102,6 +102,11 @@ public class AwsProperties implements Serializable {
    */
   public static final String GLUE_CATALOG_ENDPOINT = "glue.endpoint";
 
+  /** Enable or disable writing non current columns in glue schema */
+  public static final String GLUE_WRITE_NON_CURRENT_COLUMNS = "glue.write-non-current-columns";
+
+  public static final boolean GLUE_WRITE_NON_CURRENT_COLUMNS_DEFAULT = false;
+
   /** Configure an alternative endpoint of the DynamoDB service to access. */
   public static final String DYNAMODB_ENDPOINT = "dynamodb.endpoint";
 
@@ -226,6 +231,7 @@ public class AwsProperties implements Serializable {
   private boolean glueCatalogSkipArchive;
   private boolean glueCatalogSkipNameValidation;
   private boolean glueLakeFormationEnabled;
+  private boolean glueCatalogWriteNonCurrentColumns;
 
   private String dynamoDbTableName;
   private String dynamoDbEndpoint;
@@ -252,6 +258,7 @@ public class AwsProperties implements Serializable {
     this.glueCatalogSkipArchive = GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT;
     this.glueCatalogSkipNameValidation = GLUE_CATALOG_SKIP_NAME_VALIDATION_DEFAULT;
     this.glueLakeFormationEnabled = GLUE_LAKEFORMATION_ENABLED_DEFAULT;
+    this.glueCatalogWriteNonCurrentColumns = GLUE_WRITE_NON_CURRENT_COLUMNS_DEFAULT;
 
     this.dynamoDbEndpoint = null;
     this.dynamoDbTableName = DYNAMODB_TABLE_NAME_DEFAULT;
@@ -336,6 +343,10 @@ public class AwsProperties implements Serializable {
     return glueCatalogSkipArchive;
   }
 
+  public boolean glueCatalogWriteNonCurrentColumns() {
+    return glueCatalogWriteNonCurrentColumns;
+  }
+
   public void setGlueCatalogSkipArchive(boolean skipArchive) {
     this.glueCatalogSkipArchive = skipArchive;
   }
@@ -354,6 +365,10 @@ public class AwsProperties implements Serializable {
 
   public void setGlueLakeFormationEnabled(boolean glueLakeFormationEnabled) {
     this.glueLakeFormationEnabled = glueLakeFormationEnabled;
+  }
+
+  public void setGlueCatalogWriteNonCurrentColumns(boolean glueCatalogWriteNonCurrentColumns) {
+    this.glueCatalogWriteNonCurrentColumns = glueCatalogWriteNonCurrentColumns;
   }
 
   public String dynamoDbTableName() {
