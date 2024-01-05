@@ -46,10 +46,10 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.types.Types;
-import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.Test;
 
 public class TestSpark3Util extends TestBase {
-  @TestTemplate
+  @Test
   public void testDescribeSortOrder() {
     Schema schema =
         new Schema(
@@ -96,7 +96,7 @@ public class TestSpark3Util extends TestBase {
         .isEqualTo("time ASC NULLS FIRST, data ASC NULLS LAST");
   }
 
-  @TestTemplate
+  @Test
   public void testDescribeSchema() {
     Schema schema =
         new Schema(
@@ -113,7 +113,7 @@ public class TestSpark3Util extends TestBase {
             "struct<data: list<string> not null,pairs: map<string, bigint>,time: timestamp not null>");
   }
 
-  @TestTemplate
+  @Test
   public void testLoadIcebergTable() throws Exception {
     spark.conf().set("spark.sql.catalog.hive", SparkCatalog.class.getName());
     spark.conf().set("spark.sql.catalog.hive.type", "hive");
@@ -126,7 +126,7 @@ public class TestSpark3Util extends TestBase {
     assertThat(table.name()).isEqualTo(tableFullName);
   }
 
-  @TestTemplate
+  @Test
   public void testLoadIcebergCatalog() throws Exception {
     spark.conf().set("spark.sql.catalog.test_cat", SparkCatalog.class.getName());
     spark.conf().set("spark.sql.catalog.test_cat.type", "hive");
@@ -136,7 +136,7 @@ public class TestSpark3Util extends TestBase {
         .isInstanceOf(CachingCatalog.class);
   }
 
-  @TestTemplate
+  @Test
   public void testDescribeExpression() {
     Expression refExpression = equal("id", 1);
     assertThat(Spark3Util.describe(refExpression)).isEqualTo("id = 1");
