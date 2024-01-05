@@ -31,6 +31,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.hadoop.HadoopTables;
@@ -48,14 +49,13 @@ import org.junit.jupiter.api.io.TempDir;
 public class TestTableSerialization {
 
   @Parameters(name = "isObjectStoreEnabled = {0}")
-  public static Object[][] parameters() {
-    return new Object[][] {{"true"}, {"false"}};
+  public static List<String> parameters() {
+    return Arrays.asList("true", "false");
   }
 
   private static final HadoopTables TABLES = new HadoopTables();
 
-  @Parameter
-  private String isObjectStoreEnabled;
+  @Parameter private String isObjectStoreEnabled;
 
   private static final Schema SCHEMA =
       new Schema(
