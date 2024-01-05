@@ -29,12 +29,13 @@ assertj-core = "3.24.2"
 awaitility = "4.2.0"
 awssdk-bom = "2.21.42"
 azuresdk-bom = "1.2.18"
+awssdk-s3accessgrants = "1.0.1"
 caffeine = "2.9.3"
 calcite = "1.10.0"
 delta-standalone = "0.6.0"
 delta-spark = "3.0.0"
 esotericsoftware-kryo = "4.0.2"
-errorprone-annotations = "2.23.0"
+errorprone-annotations = "2.24.0"
 findbugs-jsr305 = "3.0.2"
 flink116 = { strictly = "[1.16, 1.17[", prefer = "1.16.2"}
 flink117 = { strictly = "[1.17, 1.18[", prefer = "1.17.1"}
@@ -64,7 +65,7 @@ kryo-shaded = "4.0.3"
 microprofile-openapi-api = "3.1.1"
 mockito = "4.11.0"
 mockserver = "5.15.0"
-nessie = "0.75.0"
+nessie = "0.76.0"
 netty-buffer = "4.1.97.Final"
 netty-buffer-compat = "4.1.68.Final"
 object-client-bundle = "3.3.2"
@@ -96,6 +97,7 @@ arrow-memory-netty = { module = "org.apache.arrow:arrow-memory-netty", version.r
 arrow-vector = { module = "org.apache.arrow:arrow-vector", version.ref = "arrow" }
 avro-avro = { module = "org.apache.avro:avro", version.ref = "avro" }
 awssdk-bom = { module = "software.amazon.awssdk:bom", version.ref = "awssdk-bom" }
+awssdk-s3accessgrants = { module = "software.amazon.s3.accessgrants:aws-s3-accessgrants-java-plugin", version.ref = "awssdk-s3accessgrants" }
 azuresdk-bom = { module = "com.azure:azure-sdk-bom", version.ref = "azuresdk-bom" }
 caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "caffeine" }
 calcite-core = { module = "org.apache.calcite:calcite-core", version.ref = "calcite" }

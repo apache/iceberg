@@ -52,6 +52,8 @@ Table create commands, including CTAS and RTAS, support the full range of Spark 
 
 Create commands may also set the default format with the `USING` clause. This is only supported for `SparkCatalog` because Spark handles the `USING` clause differently for the built-in catalog.
 
+`CREATE TABLE ... LIKE ...` syntax is not supported.
+
 ### `PARTITIONED BY`
 
 To create a partitioned table, use `PARTITIONED BY`:

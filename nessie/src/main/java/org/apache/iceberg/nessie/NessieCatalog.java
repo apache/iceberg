@@ -41,6 +41,7 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.view.BaseMetastoreViewCatalog;
 import org.apache.iceberg.view.ViewOperations;
 import org.projectnessie.client.NessieClientBuilder;
@@ -147,7 +148,7 @@ public class NessieCatalog extends BaseMetastoreViewCatalog
             .putAll(DEFAULT_CATALOG_OPTIONS)
             .putAll(Preconditions.checkNotNull(catalogOptions, "catalogOptions must be non-null"))
             .buildKeepingLast();
-    this.warehouseLocation = validateWarehouseLocation(name, catalogOptions);
+    this.warehouseLocation = warehouseLocation(name, catalogOptions);
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(client);
     closeableGroup.addCloseable(fileIO);
@@ -155,7 +156,7 @@ public class NessieCatalog extends BaseMetastoreViewCatalog
   }
 
   @SuppressWarnings("checkstyle:HiddenField")
-  private String validateWarehouseLocation(String name, Map<String, String> catalogOptions) {
+  private String warehouseLocation(String name, Map<String, String> catalogOptions) {
     String warehouseLocation = catalogOptions.get(CatalogProperties.WAREHOUSE_LOCATION);
     if (warehouseLocation == null) {
       // Explicitly log a warning, otherwise the thrown exception can get list in the "silent-ish
@@ -183,7 +184,8 @@ public class NessieCatalog extends BaseMetastoreViewCatalog
           catalogOptions);
       throw new IllegalStateException("Parameter 'warehouse' not set, Nessie can't store data.");
     }
-    return warehouseLocation;
+
+    return LocationUtil.stripTrailingSlash(warehouseLocation);
   }
 
   @Override

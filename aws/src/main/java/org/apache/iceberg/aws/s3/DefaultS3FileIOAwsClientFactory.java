@@ -53,6 +53,7 @@ class DefaultS3FileIOAwsClientFactory implements S3FileIOAwsClientFactory {
                 s3FileIOProperties.applyCredentialConfigurations(
                     awsClientProperties, s3ClientBuilder))
         .applyMutation(s3FileIOProperties::applySignerConfiguration)
+        .applyMutation(s3FileIOProperties::applyS3AccessGrantsConfigurations)
         .build();
   }
 }

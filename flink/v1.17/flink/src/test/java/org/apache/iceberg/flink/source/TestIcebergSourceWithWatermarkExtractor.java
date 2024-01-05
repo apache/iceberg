@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.source;
 
 import static org.apache.flink.connector.testframe.utils.ConnectorTestConstants.DEFAULT_COLLECT_DATA_TIMEOUT;
+import static org.apache.iceberg.flink.MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
 import java.io.Serializable;
@@ -39,8 +40,6 @@ import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.configuration.Configuration;
-import org.apache.flink.configuration.PipelineOptions;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.metrics.Gauge;
 import org.apache.flink.runtime.metrics.MetricNames;
@@ -95,9 +94,7 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
               .setNumberTaskManagers(1)
               .setNumberSlotsPerTaskManager(PARALLELISM)
               .setRpcServiceSharing(RpcServiceSharing.DEDICATED)
-              .setConfiguration(
-                  reporter.addToConfiguration(
-                      new Configuration().set(PipelineOptions.ALLOW_UNALIGNED_SOURCE_SPLITS, true)))
+              .setConfiguration(reporter.addToConfiguration(DISABLE_CLASSLOADER_CHECK_CONFIG))
               .withHaLeadershipControl()
               .build());
 
@@ -383,7 +380,7 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
         .project(TestFixtures.TS_SCHEMA)
         .splitSize(100L)
         .streaming(true)
-        .monitorInterval(Duration.ofMillis(2))
+        .monitorInterval(Duration.ofMillis(10))
         .streamingStartingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
         .build();
   }
