@@ -35,7 +35,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 
-public abstract class /**/ PartitionedWritesTestBase extends CatalogTestBase {
+public abstract class PartitionedWritesTestBase extends CatalogTestBase {
 
   @BeforeEach
   public void createTables() {
