@@ -54,7 +54,7 @@ public class TestTableSerialization {
 
   private static final HadoopTables TABLES = new HadoopTables();
 
-  @Parameter(index = 0)
+  @Parameter
   private String isObjectStoreEnabled;
 
   private static final Schema SCHEMA =
