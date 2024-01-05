@@ -1739,4 +1739,99 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid dialect: (empty string)");
   }
+
+  @Test
+  public void testReplaceViewWithUpdatedColumnDoc() {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    View view =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withDefaultCatalog(catalog().name())
+            .withQuery("spark", "select * from ns.tbl")
+            .create();
+
+    view.replaceVersion().withColumnDoc("data", "some docs for data").commit();
+
+    assertThat(view.schemas().size()).isEqualTo(2);
+    assertThat(view.schema().findField("data").doc()).isEqualTo("some docs for data");
+  }
+
+  @Test
+  public void testReplaceViewColumnDocNonExistingFieldFails() {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    View view =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withDefaultCatalog(catalog().name())
+            .withQuery("spark", "select * from ns.tbl")
+            .create();
+
+    assertThatThrownBy(
+            () -> view.replaceVersion().withColumnDoc("non_existing", "non_existing").commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Field non_existing does not exist");
+  }
+
+  @Test
+  public void testReplaceViewColumnDocInvalidField() {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    View view =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withDefaultCatalog(catalog().name())
+            .withQuery("spark", "select * from ns.tbl")
+            .create();
+
+    assertThatThrownBy(() -> view.replaceVersion().withColumnDoc(null, "non_existing").commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Field name cannot be null");
+  }
+
+  @Test
+  public void testReplaceViewColumnDocMultipleTimesFails() {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    View view =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withDefaultCatalog(catalog().name())
+            .withQuery("spark", "select * from ns.tbl")
+            .create();
+
+    assertThatThrownBy(
+            () ->
+                view.replaceVersion()
+                    .withColumnDoc("data", "non_existing")
+                    .withColumnDoc("data", "another one")
+                    .commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change docs for column data multiple times in a single operation");
+  }
 }
