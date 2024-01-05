@@ -40,6 +40,7 @@ on:
     - 'spark/**'
     - 'pig/**'
     - 'docs/**'
+    - 'site/**'
     - 'open-api/**'
     - 'format/**'
     - '.gitattributes'
