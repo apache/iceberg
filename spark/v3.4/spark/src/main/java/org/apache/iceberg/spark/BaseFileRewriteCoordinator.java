@@ -70,12 +70,12 @@ abstract class BaseFileRewriteCoordinator<F extends ContentFile<F>> {
 
   public Set<String> fetchSetIds(Table table) {
     return resultMap.keySet().stream()
-        .filter(e -> e.first().equals(Spark3Util.tableUUID(table)))
+        .filter(e -> e.first().equals(Spark3Util.baseTableUUID(table)))
         .map(Pair::second)
         .collect(Collectors.toSet());
   }
 
   private Pair<String, String> toId(Table table, String setId) {
-    return Pair.of(Spark3Util.tableUUID(table), setId);
+    return Pair.of(Spark3Util.baseTableUUID(table), setId);
   }
 }

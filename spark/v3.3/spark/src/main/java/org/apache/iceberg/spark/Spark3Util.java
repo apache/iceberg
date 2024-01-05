@@ -947,14 +947,14 @@ public class Spark3Util {
     return org.apache.spark.sql.catalyst.TableIdentifier.apply(table, database);
   }
 
-  static String tableUUID(org.apache.iceberg.Table table) {
+  static String baseTableUUID(org.apache.iceberg.Table table) {
     if (table instanceof HasTableOperations) {
       TableOperations ops = ((HasTableOperations) table).operations();
       return ops.current().uuid();
     } else if (table instanceof BaseMetadataTable) {
       return ((BaseMetadataTable) table).table().operations().current().uuid();
     } else {
-      return null;
+      throw new UnsupportedOperationException("Cannot retrieve UUID for table " + table.name());
     }
   }
 
