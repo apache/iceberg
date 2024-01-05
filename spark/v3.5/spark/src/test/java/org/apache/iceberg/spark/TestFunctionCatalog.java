@@ -45,10 +45,6 @@ public class TestFunctionCatalog extends TestBaseWithCatalog {
   public void before() {
     super.before();
     this.asFunctionCatalog = castToFunctionCatalog(catalogName);
-    createDefaultNamespace();
-  }
-
-  public void createDefaultNamespace() {
     sql("CREATE NAMESPACE IF NOT EXISTS %s", catalogName + ".default");
   }
 
