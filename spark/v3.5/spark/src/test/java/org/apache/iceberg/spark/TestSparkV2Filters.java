@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.spark;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
@@ -49,9 +52,7 @@ import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestSparkV2Filters {
 
@@ -88,98 +89,114 @@ public class TestSparkV2Filters {
           Predicate isNull = new Predicate("IS_NULL", attrOnly);
           Expression expectedIsNull = Expressions.isNull(unquoted);
           Expression actualIsNull = SparkV2Filters.convert(isNull);
-          Assert.assertEquals(
-              "IsNull must match", expectedIsNull.toString(), actualIsNull.toString());
+          assertThat(actualIsNull.toString())
+              .as("IsNull must match")
+              .isEqualTo(expectedIsNull.toString());
 
           Predicate isNotNull = new Predicate("IS_NOT_NULL", attrOnly);
           Expression expectedIsNotNull = Expressions.notNull(unquoted);
           Expression actualIsNotNull = SparkV2Filters.convert(isNotNull);
-          Assert.assertEquals(
-              "IsNotNull must match", expectedIsNotNull.toString(), actualIsNotNull.toString());
+          assertThat(actualIsNotNull.toString())
+              .as("IsNotNull must match")
+              .isEqualTo(expectedIsNotNull.toString());
 
           Predicate lt1 = new Predicate("<", attrAndValue);
           Expression expectedLt1 = Expressions.lessThan(unquoted, 1);
           Expression actualLt1 = SparkV2Filters.convert(lt1);
-          Assert.assertEquals("LessThan must match", expectedLt1.toString(), actualLt1.toString());
+          assertThat(actualLt1.toString())
+              .as("LessThan must match")
+              .isEqualTo(expectedLt1.toString());
 
           Predicate lt2 = new Predicate("<", valueAndAttr);
           Expression expectedLt2 = Expressions.greaterThan(unquoted, 1);
           Expression actualLt2 = SparkV2Filters.convert(lt2);
-          Assert.assertEquals("LessThan must match", expectedLt2.toString(), actualLt2.toString());
+          assertThat(actualLt2.toString())
+              .as("LessThan must match")
+              .isEqualTo(expectedLt2.toString());
 
           Predicate ltEq1 = new Predicate("<=", attrAndValue);
           Expression expectedLtEq1 = Expressions.lessThanOrEqual(unquoted, 1);
           Expression actualLtEq1 = SparkV2Filters.convert(ltEq1);
-          Assert.assertEquals(
-              "LessThanOrEqual must match", expectedLtEq1.toString(), actualLtEq1.toString());
+          assertThat(actualLtEq1.toString())
+              .as("LessThanOrEqual must match")
+              .isEqualTo(expectedLtEq1.toString());
 
           Predicate ltEq2 = new Predicate("<=", valueAndAttr);
           Expression expectedLtEq2 = Expressions.greaterThanOrEqual(unquoted, 1);
           Expression actualLtEq2 = SparkV2Filters.convert(ltEq2);
-          Assert.assertEquals(
-              "LessThanOrEqual must match", expectedLtEq2.toString(), actualLtEq2.toString());
+          assertThat(actualLtEq2.toString())
+              .as("LessThanOrEqual must match")
+              .isEqualTo(expectedLtEq2.toString());
 
           Predicate gt1 = new Predicate(">", attrAndValue);
           Expression expectedGt1 = Expressions.greaterThan(unquoted, 1);
           Expression actualGt1 = SparkV2Filters.convert(gt1);
-          Assert.assertEquals(
-              "GreaterThan must match", expectedGt1.toString(), actualGt1.toString());
+          assertThat(actualGt1.toString())
+              .as("GreaterThan must match")
+              .isEqualTo(expectedGt1.toString());
 
           Predicate gt2 = new Predicate(">", valueAndAttr);
           Expression expectedGt2 = Expressions.lessThan(unquoted, 1);
           Expression actualGt2 = SparkV2Filters.convert(gt2);
-          Assert.assertEquals(
-              "GreaterThan must match", expectedGt2.toString(), actualGt2.toString());
+          assertThat(actualGt2.toString())
+              .as("GreaterThan must match")
+              .isEqualTo(expectedGt2.toString());
 
           Predicate gtEq1 = new Predicate(">=", attrAndValue);
           Expression expectedGtEq1 = Expressions.greaterThanOrEqual(unquoted, 1);
           Expression actualGtEq1 = SparkV2Filters.convert(gtEq1);
-          Assert.assertEquals(
-              "GreaterThanOrEqual must match", expectedGtEq1.toString(), actualGtEq1.toString());
+          assertThat(actualGtEq1.toString())
+              .as("GreaterThanOrEqual must match")
+              .isEqualTo(expectedGtEq1.toString());
 
           Predicate gtEq2 = new Predicate(">=", valueAndAttr);
           Expression expectedGtEq2 = Expressions.lessThanOrEqual(unquoted, 1);
           Expression actualGtEq2 = SparkV2Filters.convert(gtEq2);
-          Assert.assertEquals(
-              "GreaterThanOrEqual must match", expectedGtEq2.toString(), actualGtEq2.toString());
+          assertThat(actualGtEq2.toString())
+              .as("GreaterThanOrEqual must match")
+              .isEqualTo(expectedGtEq2.toString());
 
           Predicate eq1 = new Predicate("=", attrAndValue);
           Expression expectedEq1 = Expressions.equal(unquoted, 1);
           Expression actualEq1 = SparkV2Filters.convert(eq1);
-          Assert.assertEquals("EqualTo must match", expectedEq1.toString(), actualEq1.toString());
+          assertThat(actualEq1.toString())
+              .as("EqualTo must match")
+              .isEqualTo(expectedEq1.toString());
 
           Predicate eq2 = new Predicate("=", valueAndAttr);
           Expression expectedEq2 = Expressions.equal(unquoted, 1);
           Expression actualEq2 = SparkV2Filters.convert(eq2);
-          Assert.assertEquals("EqualTo must match", expectedEq2.toString(), actualEq2.toString());
+          assertThat(actualEq2.toString())
+              .as("EqualTo must match")
+              .isEqualTo(expectedEq2.toString());
 
           Predicate notEq1 = new Predicate("<>", attrAndValue);
           Expression expectedNotEq1 = Expressions.notEqual(unquoted, 1);
           Expression actualNotEq1 = SparkV2Filters.convert(notEq1);
-          Assert.assertEquals(
-              "NotEqualTo must match", expectedNotEq1.toString(), actualNotEq1.toString());
+          assertThat(actualNotEq1.toString())
+              .as("NotEqualTo must match")
+              .isEqualTo(expectedNotEq1.toString());
 
           Predicate notEq2 = new Predicate("<>", valueAndAttr);
           Expression expectedNotEq2 = Expressions.notEqual(unquoted, 1);
           Expression actualNotEq2 = SparkV2Filters.convert(notEq2);
-          Assert.assertEquals(
-              "NotEqualTo must match", expectedNotEq2.toString(), actualNotEq2.toString());
+          assertThat(actualNotEq2.toString())
+              .as("NotEqualTo must match")
+              .isEqualTo(expectedNotEq2.toString());
 
           Predicate eqNullSafe1 = new Predicate("<=>", attrAndValue);
           Expression expectedEqNullSafe1 = Expressions.equal(unquoted, 1);
           Expression actualEqNullSafe1 = SparkV2Filters.convert(eqNullSafe1);
-          Assert.assertEquals(
-              "EqualNullSafe must match",
-              expectedEqNullSafe1.toString(),
-              actualEqNullSafe1.toString());
+          assertThat(actualEqNullSafe1.toString())
+              .as("EqualNullSafe must match")
+              .isEqualTo(expectedEqNullSafe1.toString());
 
           Predicate eqNullSafe2 = new Predicate("<=>", valueAndAttr);
           Expression expectedEqNullSafe2 = Expressions.equal(unquoted, 1);
           Expression actualEqNullSafe2 = SparkV2Filters.convert(eqNullSafe2);
-          Assert.assertEquals(
-              "EqualNullSafe must match",
-              expectedEqNullSafe2.toString(),
-              actualEqNullSafe2.toString());
+          assertThat(actualEqNullSafe2.toString())
+              .as("EqualNullSafe must match")
+              .isEqualTo(expectedEqNullSafe2.toString());
 
           LiteralValue str =
               new LiteralValue(UTF8String.fromString("iceberg"), DataTypes.StringType);
@@ -188,18 +205,19 @@ public class TestSparkV2Filters {
           Predicate startsWith = new Predicate("STARTS_WITH", attrAndStr);
           Expression expectedStartsWith = Expressions.startsWith(unquoted, "iceberg");
           Expression actualStartsWith = SparkV2Filters.convert(startsWith);
-          Assert.assertEquals(
-              "StartsWith must match", expectedStartsWith.toString(), actualStartsWith.toString());
+          assertThat(actualStartsWith.toString())
+              .as("StartsWith must match")
+              .isEqualTo(expectedStartsWith.toString());
 
           Predicate in = new Predicate("IN", attrAndValue);
           Expression expectedIn = Expressions.in(unquoted, 1);
           Expression actualIn = SparkV2Filters.convert(in);
-          Assert.assertEquals("In must match", expectedIn.toString(), actualIn.toString());
+          assertThat(actualIn.toString()).as("In must match").isEqualTo(expectedIn.toString());
 
           Predicate and = new And(lt1, eq1);
           Expression expectedAnd = Expressions.and(expectedLt1, expectedEq1);
           Expression actualAnd = SparkV2Filters.convert(and);
-          Assert.assertEquals("And must match", expectedAnd.toString(), actualAnd.toString());
+          assertThat(actualAnd.toString()).as("And must match").isEqualTo(expectedAnd.toString());
 
           org.apache.spark.sql.connector.expressions.Expression[] attrAndAttr =
               new org.apache.spark.sql.connector.expressions.Expression[] {
@@ -208,21 +226,21 @@ public class TestSparkV2Filters {
           Predicate invalid = new Predicate("<", attrAndAttr);
           Predicate andWithInvalidLeft = new And(invalid, eq1);
           Expression convertedAnd = SparkV2Filters.convert(andWithInvalidLeft);
-          Assert.assertEquals("And must match", convertedAnd, null);
+          assertThat(convertedAnd).as("And must match").isNull();
 
           Predicate or = new Or(lt1, eq1);
           Expression expectedOr = Expressions.or(expectedLt1, expectedEq1);
           Expression actualOr = SparkV2Filters.convert(or);
-          Assert.assertEquals("Or must match", expectedOr.toString(), actualOr.toString());
+          assertThat(actualOr.toString()).as("Or must match").isEqualTo(expectedOr.toString());
 
           Predicate orWithInvalidLeft = new Or(invalid, eq1);
           Expression convertedOr = SparkV2Filters.convert(orWithInvalidLeft);
-          Assert.assertEquals("Or must match", convertedOr, null);
+          assertThat(convertedOr).as("Or must match").isNull();
 
           Predicate not = new Not(lt1);
           Expression expectedNot = Expressions.not(expectedLt1);
           Expression actualNot = SparkV2Filters.convert(not);
-          Assert.assertEquals("Not must match", expectedNot.toString(), actualNot.toString());
+          assertThat(actualNot.toString()).as("Not must match").isEqualTo(expectedNot.toString());
         });
   }
 
@@ -238,23 +256,23 @@ public class TestSparkV2Filters {
         new org.apache.spark.sql.connector.expressions.Expression[] {value, namedReference};
 
     Predicate eq1 = new Predicate("=", attrAndValue);
-    Assertions.assertThatThrownBy(() -> SparkV2Filters.convert(eq1))
+    assertThatThrownBy(() -> SparkV2Filters.convert(eq1))
         .isInstanceOf(NullPointerException.class)
         .hasMessageContaining("Expression is always false");
 
     Predicate eq2 = new Predicate("=", valueAndAttr);
-    Assertions.assertThatThrownBy(() -> SparkV2Filters.convert(eq2))
+    assertThatThrownBy(() -> SparkV2Filters.convert(eq2))
         .isInstanceOf(NullPointerException.class)
         .hasMessageContaining("Expression is always false");
 
     Predicate eqNullSafe1 = new Predicate("<=>", attrAndValue);
     Expression expectedEqNullSafe = Expressions.isNull(col);
     Expression actualEqNullSafe1 = SparkV2Filters.convert(eqNullSafe1);
-    Assertions.assertThat(actualEqNullSafe1.toString()).isEqualTo(expectedEqNullSafe.toString());
+    assertThat(actualEqNullSafe1.toString()).isEqualTo(expectedEqNullSafe.toString());
 
     Predicate eqNullSafe2 = new Predicate("<=>", valueAndAttr);
     Expression actualEqNullSafe2 = SparkV2Filters.convert(eqNullSafe2);
-    Assertions.assertThat(actualEqNullSafe2.toString()).isEqualTo(expectedEqNullSafe.toString());
+    assertThat(actualEqNullSafe2.toString()).isEqualTo(expectedEqNullSafe.toString());
   }
 
   @Test
@@ -271,11 +289,11 @@ public class TestSparkV2Filters {
     Predicate eqNaN1 = new Predicate("=", attrAndValue);
     Expression expectedEqNaN = Expressions.isNaN(col);
     Expression actualEqNaN1 = SparkV2Filters.convert(eqNaN1);
-    Assertions.assertThat(actualEqNaN1.toString()).isEqualTo(expectedEqNaN.toString());
+    assertThat(actualEqNaN1.toString()).isEqualTo(expectedEqNaN.toString());
 
     Predicate eqNaN2 = new Predicate("=", valueAndAttr);
     Expression actualEqNaN2 = SparkV2Filters.convert(eqNaN2);
-    Assertions.assertThat(actualEqNaN2.toString()).isEqualTo(expectedEqNaN.toString());
+    assertThat(actualEqNaN2.toString()).isEqualTo(expectedEqNaN.toString());
   }
 
   @Test
@@ -290,12 +308,12 @@ public class TestSparkV2Filters {
         new org.apache.spark.sql.connector.expressions.Expression[] {value, namedReference};
 
     Predicate notEq1 = new Predicate("<>", attrAndValue);
-    Assertions.assertThatThrownBy(() -> SparkV2Filters.convert(notEq1))
+    assertThatThrownBy(() -> SparkV2Filters.convert(notEq1))
         .isInstanceOf(NullPointerException.class)
         .hasMessageContaining("Expression is always false");
 
     Predicate notEq2 = new Predicate("<>", valueAndAttr);
-    Assertions.assertThatThrownBy(() -> SparkV2Filters.convert(notEq2))
+    assertThatThrownBy(() -> SparkV2Filters.convert(notEq2))
         .isInstanceOf(NullPointerException.class)
         .hasMessageContaining("Expression is always false");
   }
@@ -314,11 +332,11 @@ public class TestSparkV2Filters {
     Predicate notEqNaN1 = new Predicate("<>", attrAndValue);
     Expression expectedNotEqNaN = Expressions.notNaN(col);
     Expression actualNotEqNaN1 = SparkV2Filters.convert(notEqNaN1);
-    Assertions.assertThat(actualNotEqNaN1.toString()).isEqualTo(expectedNotEqNaN.toString());
+    assertThat(actualNotEqNaN1.toString()).isEqualTo(expectedNotEqNaN.toString());
 
     Predicate notEqNaN2 = new Predicate("<>", valueAndAttr);
     Expression actualNotEqNaN2 = SparkV2Filters.convert(notEqNaN2);
-    Assertions.assertThat(actualNotEqNaN2.toString()).isEqualTo(expectedNotEqNaN.toString());
+    assertThat(actualNotEqNaN2.toString()).isEqualTo(expectedNotEqNaN.toString());
   }
 
   @Test
@@ -378,10 +396,9 @@ public class TestSparkV2Filters {
     Expression tsExpression = SparkV2Filters.convert(predicate);
     Expression rawExpression = Expressions.greaterThan("x", epochMicros);
 
-    Assert.assertEquals(
-        "Generated Timestamp expression should be correct",
-        rawExpression.toString(),
-        tsExpression.toString());
+    assertThat(tsExpression.toString())
+        .as("Generated Timestamp expression should be correct")
+        .isEqualTo(rawExpression.toString());
   }
 
   @Test
@@ -398,10 +415,9 @@ public class TestSparkV2Filters {
     Expression dateExpression = SparkV2Filters.convert(predicate);
     Expression rawExpression = Expressions.greaterThan("x", epochDay);
 
-    Assert.assertEquals(
-        "Generated date expression should be correct",
-        rawExpression.toString(),
-        dateExpression.toString());
+    assertThat(dateExpression.toString())
+        .as("Generated date expression should be correct")
+        .isEqualTo(rawExpression.toString());
   }
 
   @Test
@@ -420,7 +436,7 @@ public class TestSparkV2Filters {
 
     Not filter = new Not(new And(equal, in));
     Expression converted = SparkV2Filters.convert(filter);
-    Assert.assertNull("Expression should not be converted", converted);
+    assertThat(converted).as("Expression should not be converted").isNull();
   }
 
   @Test
@@ -437,7 +453,7 @@ public class TestSparkV2Filters {
     Expression actual = SparkV2Filters.convert(not);
     Expression expected =
         Expressions.and(Expressions.notNull("col"), Expressions.notIn("col", 1, 2));
-    Assert.assertEquals("Expressions should match", expected.toString(), actual.toString());
+    assertThat(actual.toString()).as("Expressions should match").isEqualTo(expected.toString());
   }
 
   @Test
@@ -630,7 +646,7 @@ public class TestSparkV2Filters {
     Predicate predicate = new Predicate("=", expressions(udf, literalValue));
 
     Expression icebergExpr = SparkV2Filters.convert(predicate);
-    Assertions.assertThat(icebergExpr).isNull();
+    assertThat(icebergExpr).isNull();
   }
 
   private <T> void testUDF(
@@ -746,7 +762,7 @@ public class TestSparkV2Filters {
     Predicate invalid = new Predicate("<", attrAndAttr);
     Predicate andWithInvalidLeft = new And(invalid, eq1);
     Expression convertedAnd = SparkV2Filters.convert(andWithInvalidLeft);
-    Assertions.assertThat(convertedAnd).isNull();
+    assertThat(convertedAnd).isNull();
 
     Predicate or = new Or(lt1, eq1);
     Expression expectedOr = Expressions.or(expectedLt1, expectedEq1);
@@ -755,7 +771,7 @@ public class TestSparkV2Filters {
 
     Predicate orWithInvalidLeft = new Or(invalid, eq1);
     Expression convertedOr = SparkV2Filters.convert(orWithInvalidLeft);
-    Assertions.assertThat(convertedOr).isNull();
+    assertThat(convertedOr).isNull();
 
     Predicate not = new Not(lt1);
     Expression expectedNot = Expressions.not(expectedLt1);
@@ -764,7 +780,7 @@ public class TestSparkV2Filters {
   }
 
   private static void assertEquals(Expression expected, Expression actual) {
-    Assertions.assertThat(ExpressionUtil.equivalent(expected, actual, STRUCT, true)).isTrue();
+    assertThat(ExpressionUtil.equivalent(expected, actual, STRUCT, true)).isTrue();
   }
 
   private org.apache.spark.sql.connector.expressions.Expression[] expressions(
