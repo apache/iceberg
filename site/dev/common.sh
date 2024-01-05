@@ -205,7 +205,7 @@ clean () {
   rm -rf docs/docs/latest &> /dev/null
   git worktree remove docs/docs &> /dev/null
   git worktree remove docs/javadoc &> /dev/null
-  
+
   git restore docs/docs
 
   # Remove any additional temporary artifacts (e.g., 'site/' directory)
