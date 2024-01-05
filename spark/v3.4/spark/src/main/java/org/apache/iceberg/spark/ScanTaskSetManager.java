@@ -45,7 +45,7 @@ public class ScanTaskSetManager {
 
   public <T extends ScanTask> void stageTasks(Table table, String setId, List<T> tasks) {
     Preconditions.checkArgument(
-        tasks != null && tasks.size() > 0, "Cannot stage null or empty tasks");
+        tasks != null && !tasks.isEmpty(), "Cannot stage null or empty tasks");
     Pair<String, String> id = toId(table, setId);
     tasksMap.put(id, tasks);
   }

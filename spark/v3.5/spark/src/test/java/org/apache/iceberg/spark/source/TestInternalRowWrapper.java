@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.source;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.Iterator;
 import org.apache.iceberg.RecordWrapperTest;
 import org.apache.iceberg.Schema;
@@ -29,18 +31,17 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.util.StructLikeWrapper;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.junit.Assert;
-import org.junit.Ignore;
+import org.junit.jupiter.api.Disabled;
 
 public class TestInternalRowWrapper extends RecordWrapperTest {
 
-  @Ignore
+  @Disabled
   @Override
   public void testTimestampWithoutZone() {
     // Spark does not support timestamp without zone.
   }
 
-  @Ignore
+  @Disabled
   @Override
   public void testTime() {
     // Spark does not support time fields.
@@ -61,8 +62,8 @@ public class TestInternalRowWrapper extends RecordWrapperTest {
     StructLikeWrapper actualWrapper = StructLikeWrapper.forType(schema.asStruct());
     StructLikeWrapper expectedWrapper = StructLikeWrapper.forType(schema.asStruct());
     for (int i = 0; i < numRecords; i++) {
-      Assert.assertTrue("Should have more records", actual.hasNext());
-      Assert.assertTrue("Should have more InternalRow", expected.hasNext());
+      assertThat(actual).as("Should have more records").hasNext();
+      assertThat(expected).as("Should have more InternalRow").hasNext();
 
       StructLike recordStructLike = recordWrapper.wrap(actual.next());
       StructLike rowStructLike = rowWrapper.wrap(expected.next());
@@ -73,7 +74,7 @@ public class TestInternalRowWrapper extends RecordWrapperTest {
           expectedWrapper.set(rowStructLike));
     }
 
-    Assert.assertFalse("Shouldn't have more record", actual.hasNext());
-    Assert.assertFalse("Shouldn't have more InternalRow", expected.hasNext());
+    assertThat(actual).as("Shouldn't have more record").isExhausted();
+    assertThat(expected).as("Shouldn't have more InternalRow").isExhausted();
   }
 }

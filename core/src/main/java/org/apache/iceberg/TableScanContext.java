@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import javax.annotation.Nullable;
 import org.apache.iceberg.expressions.Expression;
@@ -58,6 +59,9 @@ abstract class TableScanContext {
   public boolean returnColumnStats() {
     return false;
   }
+
+  @Nullable
+  public abstract Set<Integer> columnsToKeepStats();
 
   @Nullable
   public abstract Collection<String> selectedColumns();
@@ -122,6 +126,16 @@ abstract class TableScanContext {
     return ImmutableTableScanContext.builder()
         .from(this)
         .returnColumnStats(returnColumnStats)
+        .build();
+  }
+
+  TableScanContext columnsToKeepStats(Set<Integer> columnsToKeepStats) {
+    Preconditions.checkState(
+        returnColumnStats(),
+        "Cannot select columns to keep stats when column stats are not returned");
+    return ImmutableTableScanContext.builder()
+        .from(this)
+        .columnsToKeepStats(columnsToKeepStats)
         .build();
   }
 

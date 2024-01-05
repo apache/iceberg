@@ -18,32 +18,40 @@
  */
 package org.apache.iceberg.spark;
 
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.TestTemplate;
 
-public class TestSparkCachedTableCatalog extends SparkTestBaseWithCatalog {
+public class TestSparkCachedTableCatalog extends TestBaseWithCatalog {
 
   private static final SparkTableCache TABLE_CACHE = SparkTableCache.get();
 
-  @BeforeClass
+  @BeforeAll
   public static void setupCachedTableCatalog() {
     spark.conf().set("spark.sql.catalog.testcache", SparkCachedTableCatalog.class.getName());
   }
 
-  @AfterClass
+  @AfterAll
   public static void unsetCachedTableCatalog() {
     spark.conf().unset("spark.sql.catalog.testcache");
   }
 
-  public TestSparkCachedTableCatalog() {
-    super(SparkCatalogConfig.HIVE);
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
+  protected static Object[][] parameters() {
+    return new Object[][] {
+      {
+        SparkCatalogConfig.HIVE.catalogName(),
+        SparkCatalogConfig.HIVE.implementation(),
+        SparkCatalogConfig.HIVE.properties()
+      },
+    };
   }
 
-  @Test
+  @TestTemplate
   public void testTimeTravel() {
     sql("CREATE TABLE %s (id INT, dep STRING) USING iceberg", tableName);
 

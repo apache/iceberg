@@ -20,6 +20,7 @@ package org.apache.iceberg.view;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.UpdateLocation;
 
@@ -110,5 +111,25 @@ public interface View {
    */
   default UpdateLocation updateLocation() {
     throw new UnsupportedOperationException("Updating a view's location is not supported");
+  }
+
+  /**
+   * Returns the view's UUID
+   *
+   * @return the view's UUID
+   */
+  default UUID uuid() {
+    throw new UnsupportedOperationException("Retrieving a view's uuid is not supported");
+  }
+
+  /**
+   * Returns the view representation for the given SQL dialect
+   *
+   * @return the view representation for the given SQL dialect, or null if no representation could
+   *     be resolved
+   */
+  default SQLViewRepresentation sqlFor(String dialect) {
+    throw new UnsupportedOperationException(
+        "Resolving a sql with a given dialect is not supported");
   }
 }

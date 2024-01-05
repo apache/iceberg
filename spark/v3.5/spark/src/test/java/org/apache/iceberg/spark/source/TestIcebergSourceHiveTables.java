@@ -27,14 +27,14 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.junit.After;
-import org.junit.BeforeClass;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 
 public class TestIcebergSourceHiveTables extends TestIcebergSourceTablesBase {
 
   private static TableIdentifier currentIdentifier;
 
-  @BeforeClass
+  @BeforeAll
   public static void start() {
     Namespace db = Namespace.of("db");
     if (!catalog.namespaceExists(db)) {
@@ -42,7 +42,7 @@ public class TestIcebergSourceHiveTables extends TestIcebergSourceTablesBase {
     }
   }
 
-  @After
+  @AfterEach
   public void dropTable() throws IOException {
     if (!catalog.tableExists(currentIdentifier)) {
       return;

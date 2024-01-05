@@ -62,6 +62,6 @@ public class DeleteWriteResult {
   }
 
   public boolean referencesDataFiles() {
-    return referencedDataFiles != null && referencedDataFiles.size() > 0;
+    return referencedDataFiles != null && !referencedDataFiles.isEmpty();
   }
 }

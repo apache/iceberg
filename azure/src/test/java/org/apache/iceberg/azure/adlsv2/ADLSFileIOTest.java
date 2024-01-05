@@ -101,6 +101,7 @@ public class ADLSFileIOTest extends BaseAzuriteTest {
   }
 
   /** Azurite does not support ADLSv2 directory operations yet so use mocks here. */
+  @SuppressWarnings("unchecked")
   @Test
   public void testListPrefixOperations() {
     String prefix = "abfs://container@account.dfs.core.windows.net/dir";
@@ -136,6 +137,7 @@ public class ADLSFileIOTest extends BaseAzuriteTest {
   }
 
   /** Azurite does not support ADLSv2 directory operations yet so use mocks here. */
+  @SuppressWarnings("unchecked")
   @Test
   public void testDeletePrefixOperations() {
     String prefix = "abfs://container@account.dfs.core.windows.net/dir";

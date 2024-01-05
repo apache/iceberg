@@ -211,7 +211,7 @@ For more details, refer to the [Flink `CREATE TABLE` documentation](https://nigh
 Iceberg only support altering table properties:
 
 ```sql
-ALTER TABLE `hive_catalog`.`default`.`sample` SET ('write.format.default'='avro')
+ALTER TABLE `hive_catalog`.`default`.`sample` SET ('write.format.default'='avro');
 ```
 
 ### `ALTER TABLE .. RENAME TO`

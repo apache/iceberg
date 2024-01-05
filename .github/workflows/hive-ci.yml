@@ -21,13 +21,13 @@ name: "Hive CI"
 on:
   push:
     branches:
-    - 'master'
+    - 'main'
     - '0.**'
     tags:
     - 'apache-iceberg-**'
   pull_request:
     paths-ignore:
-    - '.github/ISSUE_TEMPLATE/iceberg_bug_report.yml'
+    - '.github/ISSUE_TEMPLATE/**'
     - '.github/workflows/spark-ci.yml'
     - '.github/workflows/flink-ci.yml'
     - '.gitignore'
@@ -60,7 +60,7 @@ jobs:
       SPARK_LOCAL_IP: localhost
     steps:
     - uses: actions/checkout@v4
-    - uses: actions/setup-java@v3
+    - uses: actions/setup-java@v4
       with:
         distribution: zulu
         java-version: ${{ matrix.jvm }}
@@ -86,7 +86,7 @@ jobs:
       SPARK_LOCAL_IP: localhost
     steps:
     - uses: actions/checkout@v4
-    - uses: actions/setup-java@v3
+    - uses: actions/setup-java@v4
       with:
         distribution: zulu
         java-version: 8

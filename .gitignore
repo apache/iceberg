@@ -2,7 +2,6 @@
 .DS_Store
 .cache
 tmp/
-site
 
 # intellij files
 .idea
@@ -28,7 +27,6 @@ lib/
 site/site
 
 # benchmark output
-spark/v3.2/spark/benchmark/*
 spark/v3.3/spark/benchmark/*
 spark/v3.3/spark-extensions/benchmark/*
 spark/v3.4/spark/benchmark/*

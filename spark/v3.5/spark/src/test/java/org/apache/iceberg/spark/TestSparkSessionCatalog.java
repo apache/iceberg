@@ -19,18 +19,19 @@
 package org.apache.iceberg.spark;
 
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
-public class TestSparkSessionCatalog extends SparkTestBase {
+public class TestSparkSessionCatalog extends TestBase {
   private final String envHmsUriKey = "spark.hadoop." + METASTOREURIS.varname;
   private final String catalogHmsUriKey = "spark.sql.catalog.spark_catalog.uri";
   private final String hmsUri = hiveConf.get(METASTOREURIS.varname);
 
-  @BeforeClass
+  @BeforeAll
   public static void setUpCatalog() {
     spark
         .conf()
@@ -38,7 +39,7 @@ public class TestSparkSessionCatalog extends SparkTestBase {
     spark.conf().set("spark.sql.catalog.spark_catalog.type", "hive");
   }
 
-  @Before
+  @BeforeEach
   public void setupHmsUri() {
     spark.sessionState().catalogManager().reset();
     spark.conf().set(envHmsUriKey, hmsUri);
@@ -48,52 +49,35 @@ public class TestSparkSessionCatalog extends SparkTestBase {
   @Test
   public void testValidateHmsUri() {
     // HMS uris match
-    Assert.assertTrue(
-        spark
-            .sessionState()
-            .catalogManager()
-            .v2SessionCatalog()
-            .defaultNamespace()[0]
-            .equals("default"));
+    assertThat(spark.sessionState().catalogManager().v2SessionCatalog().defaultNamespace()[0])
+        .isEqualTo("default");
 
     // HMS uris doesn't match
     spark.sessionState().catalogManager().reset();
     String catalogHmsUri = "RandomString";
     spark.conf().set(envHmsUriKey, hmsUri);
     spark.conf().set(catalogHmsUriKey, catalogHmsUri);
-    IllegalArgumentException exception =
-        Assert.assertThrows(
-            IllegalArgumentException.class,
-            () -> spark.sessionState().catalogManager().v2SessionCatalog());
-    String errorMessage =
-        String.format(
-            "Inconsistent Hive metastore URIs: %s (Spark session) != %s (spark_catalog)",
-            hmsUri, catalogHmsUri);
-    Assert.assertEquals(errorMessage, exception.getMessage());
+
+    assertThatThrownBy(() -> spark.sessionState().catalogManager().v2SessionCatalog())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            String.format(
+                "Inconsistent Hive metastore URIs: %s (Spark session) != %s (spark_catalog)",
+                hmsUri, catalogHmsUri));
 
     // no env HMS uri, only catalog HMS uri
     spark.sessionState().catalogManager().reset();
     spark.conf().set(catalogHmsUriKey, hmsUri);
     spark.conf().unset(envHmsUriKey);
-    Assert.assertTrue(
-        spark
-            .sessionState()
-            .catalogManager()
-            .v2SessionCatalog()
-            .defaultNamespace()[0]
-            .equals("default"));
+    assertThat(spark.sessionState().catalogManager().v2SessionCatalog().defaultNamespace()[0])
+        .isEqualTo("default");
 
     // no catalog HMS uri, only env HMS uri
     spark.sessionState().catalogManager().reset();
     spark.conf().set(envHmsUriKey, hmsUri);
     spark.conf().unset(catalogHmsUriKey);
-    Assert.assertTrue(
-        spark
-            .sessionState()
-            .catalogManager()
-            .v2SessionCatalog()
-            .defaultNamespace()[0]
-            .equals("default"));
+    assertThat(spark.sessionState().catalogManager().v2SessionCatalog().defaultNamespace()[0])
+        .isEqualTo("default");
   }
 
   @Test
@@ -102,11 +86,15 @@ public class TestSparkSessionCatalog extends SparkTestBase {
 
     // load permanent UDF in Hive via FunctionCatalog
     spark.sql(String.format("CREATE FUNCTION perm_upper AS '%s'", functionClass));
-    Assert.assertEquals("Load permanent UDF in Hive", "XYZ", scalarSql("SELECT perm_upper('xyz')"));
+    assertThat(scalarSql("SELECT perm_upper('xyz')"))
+        .as("Load permanent UDF in Hive")
+        .isEqualTo("XYZ");
 
     // load temporary UDF in Hive via FunctionCatalog
     spark.sql(String.format("CREATE TEMPORARY FUNCTION temp_upper AS '%s'", functionClass));
-    Assert.assertEquals("Load temporary UDF in Hive", "XYZ", scalarSql("SELECT temp_upper('xyz')"));
+    assertThat(scalarSql("SELECT temp_upper('xyz')"))
+        .as("Load temporary UDF in Hive")
+        .isEqualTo("XYZ");
 
     // TODO: fix loading Iceberg built-in functions in SessionCatalog
   }

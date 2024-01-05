@@ -54,6 +54,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -104,18 +105,18 @@ public class HadoopCatalog extends BaseMetastoreCatalog
     this.catalogProperties = ImmutableMap.copyOf(properties);
     String inputWarehouseLocation = properties.get(CatalogProperties.WAREHOUSE_LOCATION);
     Preconditions.checkArgument(
-        inputWarehouseLocation != null && inputWarehouseLocation.length() > 0,
+        !Strings.isNullOrEmpty(inputWarehouseLocation),
         "Cannot initialize HadoopCatalog because warehousePath must not be null or empty");
 
     this.catalogName = name;
     this.warehouseLocation = LocationUtil.stripTrailingSlash(inputWarehouseLocation);
     this.fs = Util.getFs(new Path(warehouseLocation), conf);
 
-    String fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
-    this.fileIO =
-        fileIOImpl == null
-            ? new HadoopFileIO(conf)
-            : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
+    String fileIOImpl =
+        properties.getOrDefault(
+            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.hadoop.HadoopFileIO");
+
+    this.fileIO = CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
 
     this.lockManager = LockManagers.from(properties);
 

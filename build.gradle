@@ -35,7 +35,7 @@ buildscript {
 
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.13.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
-    classpath 'me.champeau.jmh:jmh-gradle-plugin:0.7.1'
+    classpath 'me.champeau.jmh:jmh-gradle-plugin:0.7.2'
     classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.0'
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.5.0"
     classpath 'com.palantir.gradle.revapi:gradle-revapi:1.7.0'
@@ -87,6 +87,11 @@ if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
                               "--add-opens", "java.base/sun.util.calendar=ALL-UNNAMED"]
 } else {
   throw new GradleException("This build must be run with JDK 8 or 11 or 17 but was executed with JDK " + JavaVersion.current())
+}
+
+tasks.withType(AbstractArchiveTask).configureEach {
+  preserveFileTimestamps = false
+  reproducibleFileOrder = true
 }
 
 apply plugin: 'com.gorylenko.gradle-git-properties'
@@ -142,7 +147,7 @@ subprojects {
                 "\nAPI/ABI breaks detected.\n" +
                 "Adding RevAPI breaks should only be done after going through a deprecation cycle." +
                 "\nPlease make sure to follow the deprecation rules defined in\n" +
-                "https://github.com/apache/iceberg/blob/master/CONTRIBUTING.md#semantic-versioning.\n" +
+                "https://github.com/apache/iceberg/blob/main/CONTRIBUTING.md#semantic-versioning.\n" +
                 "==================================================================================")
       }
       onlyIf {
@@ -293,6 +298,7 @@ project(':iceberg-api') {
     compileOnly libs.findbugs.jsr305
     testImplementation libs.avro.avro
     testImplementation libs.esotericsoftware.kryo
+    testImplementation libs.awaitility
   }
 
   tasks.processTestResources.dependsOn rootProject.tasks.buildInfo
@@ -407,6 +413,9 @@ project(':iceberg-data') {
 }
 
 project(':iceberg-aliyun') {
+  test {
+    useJUnitPlatform()
+  }
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
@@ -456,6 +465,7 @@ project(':iceberg-aws') {
     implementation "com.fasterxml.jackson.core:jackson-core"
 
     compileOnly(platform(libs.awssdk.bom))
+    compileOnly(libs.awssdk.s3accessgrants)
     compileOnly("software.amazon.awssdk:url-connection-client")
     compileOnly("software.amazon.awssdk:apache-client")
     compileOnly("software.amazon.awssdk:auth")
@@ -478,6 +488,7 @@ project(':iceberg-aws') {
     testImplementation(platform(libs.awssdk.bom))
     testImplementation("software.amazon.awssdk:iam")
     testImplementation("software.amazon.awssdk:s3control")
+    testImplementation("software.amazon.s3.accessgrants:aws-s3-accessgrants-java-plugin")
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation(libs.s3mock.junit5) {
       exclude module: "spring-boot-starter-logging"
@@ -492,6 +503,7 @@ project(':iceberg-aws') {
     testImplementation libs.mockserver.client.java
     testImplementation libs.jaxb.api
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+    testImplementation libs.awaitility
   }
 
   sourceSets {
@@ -567,11 +579,11 @@ project(':iceberg-delta-lake') {
       exclude group: 'com.google.code.gson', module: 'gson'
     }
 
-    // The newest version of delta-core uses Spark 3.3.*. Since its only for test, we do
+    // The newest version of delta-core uses Spark 3.5.*. Since its only for test, we do
     // not need to include older version of delta-core
-    if (sparkVersions.contains("3.3")) {
-      integrationImplementation "io.delta:delta-core_${scalaVersion}:${libs.versions.delta.core.get()}"
-      integrationImplementation project(path: ":iceberg-spark:iceberg-spark-3.3_${scalaVersion}")
+    if (sparkVersions.contains("3.5")) {
+      integrationImplementation "io.delta:delta-spark_${scalaVersion}:${libs.versions.delta.spark.get()}"
+      integrationImplementation project(path: ":iceberg-spark:iceberg-spark-3.5_${scalaVersion}")
       integrationImplementation(libs.hadoop2.minicluster) {
         exclude group: 'org.apache.avro', module: 'avro'
         // to make sure netty libs only come from project(':iceberg-arrow')
@@ -580,7 +592,7 @@ project(':iceberg-delta-lake') {
       }
       integrationImplementation project(path: ':iceberg-hive-metastore')
       integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
-      integrationImplementation("org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark.hive33.get()}") {
+      integrationImplementation("org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark.hive35.get()}") {
         exclude group: 'org.apache.avro', module: 'avro'
         exclude group: 'org.apache.arrow'
         exclude group: 'org.apache.parquet'
@@ -592,9 +604,9 @@ project(':iceberg-delta-lake') {
     }
   }
 
-  // The newest version of delta-core uses Spark 3.3.*. The integration test should only be built
-  // if iceberg-spark-3.3 is available
-  if (sparkVersions.contains("3.3")) {
+  // The newest version of delta-core uses Spark 3.5.*. The integration test should only be built
+  // if iceberg-spark-3.5 is available
+  if (sparkVersions.contains("3.5")) {
     sourceSets {
       integration {
         java.srcDir "$projectDir/src/integration/java"
@@ -605,6 +617,7 @@ project(':iceberg-delta-lake') {
     }
 
     task integrationTest(type: Test) {
+      useJUnitPlatform()
       testClassesDirs = sourceSets.integration.output.classesDirs
       classpath = sourceSets.integration.runtimeClasspath
       jvmArgs += project.property('extraJvmArgs')
@@ -712,6 +725,8 @@ project(':iceberg-hive-metastore') {
     }
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+    testImplementation libs.awaitility
   }
 }
 
@@ -774,6 +789,7 @@ project(':iceberg-parquet') {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 
+    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
   }
 }
@@ -876,7 +892,9 @@ project(':iceberg-nessie') {
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-    implementation libs.nessie.client
+    implementation(libs.nessie.client) {
+      exclude group: 'com.fasterxml.jackson'
+    }
     implementation platform(libs.jackson.bom)
     implementation "com.fasterxml.jackson.core:jackson-databind"
     implementation "com.fasterxml.jackson.core:jackson-core"

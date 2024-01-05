@@ -58,11 +58,11 @@ Even though the [Dell ECS client](https://github.com/EMCECS/ecs-object-client-ja
 
 ### Spark
 
-To use the Dell ECS catalog with Spark 3.2.1, you should create a Spark session like:
+To use the Dell ECS catalog with Spark 3.5.0, you should create a Spark session like:
 
 ```bash
-ICEBERG_VERSION=0.15.0
-SPARK_VERSION=3.2_2.12
+ICEBERG_VERSION=1.4.2
+SPARK_VERSION=3.5_2.12
 ECS_CLIENT_VERSION=3.3.2
 
 DEPENDENCIES="org.apache.iceberg:iceberg-spark-runtime-${SPARK_VERSION}:${ICEBERG_VERSION},\
@@ -122,7 +122,7 @@ CREATE CATALOG my_catalog WITH (
     'catalog-impl'='org.apache.iceberg.dell.ecs.EcsCatalog',
     'ecs.s3.endpoint' = 'http://10.x.x.x:9020',
     'ecs.s3.access-key-id' = '<Your-ecs-s3-access-key>',
-    'ecs.s3.secret-access-key' = '<Your-ecs-s3-secret-access-key>')
+    'ecs.s3.secret-access-key' = '<Your-ecs-s3-secret-access-key>');
 ```
 
 Then, you can run `USE CATALOG my_catalog`, `SHOW DATABASES`, and `SHOW TABLES` to fetch the namespaces and tables of the catalog.

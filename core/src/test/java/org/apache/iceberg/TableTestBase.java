@@ -97,6 +97,7 @@ public class TableTestBase {
           .withFileSizeInBytes(10)
           .withPartitionPath("data_bucket=1") // easy way to set partition data for now
           .withRecordCount(1)
+          .withSplitOffsets(ImmutableList.of(1L))
           .build();
   static final DeleteFile FILE_B_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
@@ -112,6 +113,7 @@ public class TableTestBase {
           .withFileSizeInBytes(10)
           .withPartitionPath("data_bucket=2") // easy way to set partition data for now
           .withRecordCount(1)
+          .withSplitOffsets(ImmutableList.of(2L, 8L))
           .build();
   static final DeleteFile FILE_C2_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
@@ -127,6 +129,7 @@ public class TableTestBase {
           .withFileSizeInBytes(10)
           .withPartitionPath("data_bucket=3") // easy way to set partition data for now
           .withRecordCount(1)
+          .withSplitOffsets(ImmutableList.of(0L, 3L, 6L))
           .build();
   static final DeleteFile FILE_D2_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
@@ -206,6 +209,15 @@ public class TableTestBase {
             .listFiles(
                 (dir, name) ->
                     !name.startsWith("snap")
+                        && Files.getFileExtension(name).equalsIgnoreCase("avro")));
+  }
+
+  List<File> listManifestLists(String tableDirToList) {
+    return Lists.newArrayList(
+        new File(tableDirToList, "metadata")
+            .listFiles(
+                (dir, name) ->
+                    name.startsWith("snap")
                         && Files.getFileExtension(name).equalsIgnoreCase("avro")));
   }
 
@@ -325,19 +337,19 @@ public class TableTestBase {
     return writer.toManifestFile();
   }
 
-  ManifestEntry<DataFile> manifestEntry(
-      ManifestEntry.Status status, Long snapshotId, DataFile file) {
+  <F extends ContentFile<F>> ManifestEntry<F> manifestEntry(
+      ManifestEntry.Status status, Long snapshotId, F file) {
     return manifestEntry(status, snapshotId, 0L, 0L, file);
   }
 
-  ManifestEntry<DataFile> manifestEntry(
+  <F extends ContentFile<F>> ManifestEntry<F> manifestEntry(
       ManifestEntry.Status status,
       Long snapshotId,
       Long dataSequenceNumber,
       Long fileSequenceNumber,
-      DataFile file) {
+      F file) {
 
-    GenericManifestEntry<DataFile> entry = new GenericManifestEntry<>(table.spec().partitionType());
+    GenericManifestEntry<F> entry = new GenericManifestEntry<>(table.spec().partitionType());
     switch (status) {
       case ADDED:
         if (dataSequenceNumber != null && dataSequenceNumber != 0) {

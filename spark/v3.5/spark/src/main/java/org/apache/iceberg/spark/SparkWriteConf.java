@@ -43,6 +43,7 @@ import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -707,5 +708,16 @@ public class SparkWriteConf {
 
   private double shuffleCompressionRatio(FileFormat outputFileFormat, String outputCodec) {
     return SparkCompressionUtil.shuffleCompressionRatio(spark, outputFileFormat, outputCodec);
+  }
+
+  public DeleteGranularity deleteGranularity() {
+    String valueAsString =
+        confParser
+            .stringConf()
+            .option(SparkWriteOptions.DELETE_GRANULARITY)
+            .tableProperty(TableProperties.DELETE_GRANULARITY)
+            .defaultValue(TableProperties.DELETE_GRANULARITY_DEFAULT)
+            .parse();
+    return DeleteGranularity.fromString(valueAsString);
   }
 }

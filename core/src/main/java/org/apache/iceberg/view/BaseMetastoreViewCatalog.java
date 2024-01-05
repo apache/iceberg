@@ -21,7 +21,9 @@ package org.apache.iceberg.view;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.BaseMetastoreCatalog;
+import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.ViewCatalog;
@@ -161,7 +163,7 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
               .defaultNamespace(defaultNamespace)
               .defaultCatalog(defaultCatalog)
               .timestampMillis(System.currentTimeMillis())
-              .putSummary("operation", "create")
+              .putAllSummary(EnvironmentContext.get())
               .build();
 
       ViewMetadata viewMetadata =
@@ -181,6 +183,10 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
     }
 
     private View replace(ViewOperations ops) {
+      if (tableExists(identifier)) {
+        throw new AlreadyExistsException("Table with same name already exists: %s", identifier);
+      }
+
       if (null == ops.current()) {
         throw new NoSuchViewException("View does not exist: %s", identifier);
       }
@@ -206,7 +212,7 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
               .defaultNamespace(defaultNamespace)
               .defaultCatalog(defaultCatalog)
               .timestampMillis(System.currentTimeMillis())
-              .putSummary("operation", "replace")
+              .putAllSummary(EnvironmentContext.get())
               .build();
 
       ViewMetadata.Builder builder =
@@ -227,6 +233,30 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
       }
 
       return new BaseView(ops, ViewUtil.fullViewName(name(), identifier));
+    }
+  }
+
+  @Override
+  public TableBuilder buildTable(TableIdentifier identifier, Schema schema) {
+    return new BaseMetastoreViewCatalogTableBuilder(identifier, schema);
+  }
+
+  /** The purpose of this class is to add view detection when replacing a table */
+  protected class BaseMetastoreViewCatalogTableBuilder extends BaseMetastoreCatalogTableBuilder {
+    private final TableIdentifier identifier;
+
+    public BaseMetastoreViewCatalogTableBuilder(TableIdentifier identifier, Schema schema) {
+      super(identifier, schema);
+      this.identifier = identifier;
+    }
+
+    @Override
+    public Transaction replaceTransaction() {
+      if (viewExists(identifier)) {
+        throw new AlreadyExistsException("View with same name already exists: %s", identifier);
+      }
+
+      return super.replaceTransaction();
     }
   }
 }

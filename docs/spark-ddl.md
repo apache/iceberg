@@ -38,7 +38,7 @@ Spark 3 can create tables in any Iceberg catalog with the clause `USING iceberg`
 CREATE TABLE prod.db.sample (
     id bigint COMMENT 'unique id',
     data string)
-USING iceberg
+USING iceberg;
 ```
 
 Iceberg will convert the column type in Spark to corresponding Iceberg type. Please check the section of [type compatibility on creating table](../spark-writes#spark-type-to-iceberg-type) for details.
@@ -52,6 +52,8 @@ Table create commands, including CTAS and RTAS, support the full range of Spark 
 
 Create commands may also set the default format with the `USING` clause. This is only supported for `SparkCatalog` because Spark handles the `USING` clause differently for the built-in catalog.
 
+`CREATE TABLE ... LIKE ...` syntax is not supported.
+
 ### `PARTITIONED BY`
 
 To create a partitioned table, use `PARTITIONED BY`:
@@ -62,7 +64,7 @@ CREATE TABLE prod.db.sample (
     data string,
     category string)
 USING iceberg
-PARTITIONED BY (category)
+PARTITIONED BY (category);
 ```
 
 The `PARTITIONED BY` clause supports transform expressions to create [hidden partitions](../partitioning).
@@ -74,7 +76,7 @@ CREATE TABLE prod.db.sample (
     category string,
     ts timestamp)
 USING iceberg
-PARTITIONED BY (bucket(16, id), days(ts), category)
+PARTITIONED BY (bucket(16, id), days(ts), category);
 ```
 
 Supported transformations are:
@@ -151,7 +153,7 @@ In order to delete the table contents `DROP TABLE PURGE` should be used.
 To drop the table from the catalog, run:
 
 ```sql
-DROP TABLE prod.db.sample
+DROP TABLE prod.db.sample;
 ```
 
 ### `DROP TABLE PURGE`
@@ -159,7 +161,7 @@ DROP TABLE prod.db.sample
 To drop the table from the catalog and delete the table's contents, run:
 
 ```sql
-DROP TABLE prod.db.sample PURGE
+DROP TABLE prod.db.sample PURGE;
 ```
 
 ## `ALTER TABLE`
@@ -179,7 +181,7 @@ In addition, [SQL extensions](../spark-configuration#sql-extensions) can be used
 ### `ALTER TABLE ... RENAME TO`
 
 ```sql
-ALTER TABLE prod.db.sample RENAME TO prod.db.new_name
+ALTER TABLE prod.db.sample RENAME TO prod.db.new_name;
 ```
 
 ### `ALTER TABLE ... SET TBLPROPERTIES`
@@ -187,7 +189,7 @@ ALTER TABLE prod.db.sample RENAME TO prod.db.new_name
 ```sql
 ALTER TABLE prod.db.sample SET TBLPROPERTIES (
     'read.split.target-size'='268435456'
-)
+);
 ```
 
 Iceberg uses table properties to control table behavior. For a list of available properties, see [Table configuration](../configuration).
@@ -195,7 +197,7 @@ Iceberg uses table properties to control table behavior. For a list of available
 `UNSET` is used to remove properties:
 
 ```sql
-ALTER TABLE prod.db.sample UNSET TBLPROPERTIES ('read.split.target-size')
+ALTER TABLE prod.db.sample UNSET TBLPROPERTIES ('read.split.target-size');
 ```
 
 `SET TBLPROPERTIES` can also be used to set the table comment (description):
@@ -203,7 +205,7 @@ ALTER TABLE prod.db.sample UNSET TBLPROPERTIES ('read.split.target-size')
 ```sql
 ALTER TABLE prod.db.sample SET TBLPROPERTIES (
     'comment' = 'A table comment.'
-)
+);
 ```
 
 ### `ALTER TABLE ... ADD COLUMN`
@@ -214,7 +216,7 @@ To add a column to Iceberg, use the `ADD COLUMNS` clause with `ALTER TABLE`:
 ALTER TABLE prod.db.sample
 ADD COLUMNS (
     new_column string comment 'new_column docs'
-  )
+);
 ```
 
 Multiple columns can be added at the same time, separated by commas.
@@ -228,7 +230,7 @@ ADD COLUMN point struct<x: double, y: double>;
 
 -- add a field to the struct
 ALTER TABLE prod.db.sample
-ADD COLUMN point.z double
+ADD COLUMN point.z double;
 ```
 
 ```sql
@@ -238,7 +240,7 @@ ADD COLUMN points array<struct<x: double, y: double>>;
 
 -- add a field to the struct within an array. Using keyword 'element' to access the array's element column.
 ALTER TABLE prod.db.sample
-ADD COLUMN points.element.z double
+ADD COLUMN points.element.z double;
 ```
 
 ```sql
@@ -248,7 +250,7 @@ ADD COLUMN points map<struct<x: int>, struct<a: int>>;
 
 -- add a field to the value struct in a map. Using keyword 'value' to access the map's value column.
 ALTER TABLE prod.db.sample
-ADD COLUMN points.value.b int
+ADD COLUMN points.value.b int;
 ```
 
 Note: Altering a map 'key' column by adding columns is not allowed. Only map values can be updated.
@@ -257,12 +259,12 @@ Add columns in any position by adding `FIRST` or `AFTER` clauses:
 
 ```sql
 ALTER TABLE prod.db.sample
-ADD COLUMN new_column bigint AFTER other_column
+ADD COLUMN new_column bigint AFTER other_column;
 ```
 
 ```sql
 ALTER TABLE prod.db.sample
-ADD COLUMN nested.new_column bigint FIRST
+ADD COLUMN nested.new_column bigint FIRST;
 ```
 
 ### `ALTER TABLE ... RENAME COLUMN`
@@ -270,8 +272,8 @@ ADD COLUMN nested.new_column bigint FIRST
 Iceberg allows any field to be renamed. To rename a field, use `RENAME COLUMN`:
 
 ```sql
-ALTER TABLE prod.db.sample RENAME COLUMN data TO payload
-ALTER TABLE prod.db.sample RENAME COLUMN location.lat TO latitude
+ALTER TABLE prod.db.sample RENAME COLUMN data TO payload;
+ALTER TABLE prod.db.sample RENAME COLUMN location.lat TO latitude;
 ```
 
 Note that nested rename commands only rename the leaf field. The above command renames `location.lat` to `location.latitude`
@@ -287,7 +289,7 @@ Iceberg allows updating column types if the update is safe. Safe updates are:
 * `decimal(P,S)` to `decimal(P2,S)` when P2 > P (scale cannot change)
 
 ```sql
-ALTER TABLE prod.db.sample ALTER COLUMN measurement TYPE double
+ALTER TABLE prod.db.sample ALTER COLUMN measurement TYPE double;
 ```
 
 To add or remove columns from a struct, use `ADD COLUMN` or `DROP COLUMN` with a nested column name.
@@ -295,23 +297,23 @@ To add or remove columns from a struct, use `ADD COLUMN` or `DROP COLUMN` with a
 Column comments can also be updated using `ALTER COLUMN`:
 
 ```sql
-ALTER TABLE prod.db.sample ALTER COLUMN measurement TYPE double COMMENT 'unit is bytes per second'
-ALTER TABLE prod.db.sample ALTER COLUMN measurement COMMENT 'unit is kilobytes per second'
+ALTER TABLE prod.db.sample ALTER COLUMN measurement TYPE double COMMENT 'unit is bytes per second';
+ALTER TABLE prod.db.sample ALTER COLUMN measurement COMMENT 'unit is kilobytes per second';
 ```
 
 Iceberg allows reordering top-level columns or columns in a struct using `FIRST` and `AFTER` clauses:
 
 ```sql
-ALTER TABLE prod.db.sample ALTER COLUMN col FIRST
+ALTER TABLE prod.db.sample ALTER COLUMN col FIRST;
 ```
 ```sql
-ALTER TABLE prod.db.sample ALTER COLUMN nested.col AFTER other_col
+ALTER TABLE prod.db.sample ALTER COLUMN nested.col AFTER other_col;
 ```
 
 Nullability for a non-nullable column can be changed using `DROP NOT NULL`:
 
 ```sql
-ALTER TABLE prod.db.sample ALTER COLUMN id DROP NOT NULL
+ALTER TABLE prod.db.sample ALTER COLUMN id DROP NOT NULL;
 ```
 
 {{< hint info >}}
@@ -329,8 +331,8 @@ It is not possible to change a nullable column to a non-nullable column with `SE
 To drop columns, use `ALTER TABLE ... DROP COLUMN`:
 
 ```sql
-ALTER TABLE prod.db.sample DROP COLUMN id
-ALTER TABLE prod.db.sample DROP COLUMN point.z
+ALTER TABLE prod.db.sample DROP COLUMN id;
+ALTER TABLE prod.db.sample DROP COLUMN point.z;
 ```
 
 ## `ALTER TABLE` SQL extensions
@@ -342,17 +344,17 @@ These commands are available in Spark 3 when using Iceberg [SQL extensions](../s
 Iceberg supports adding new partition fields to a spec using `ADD PARTITION FIELD`:
 
 ```sql
-ALTER TABLE prod.db.sample ADD PARTITION FIELD catalog -- identity transform
+ALTER TABLE prod.db.sample ADD PARTITION FIELD catalog; -- identity transform
 ```
 
 [Partition transforms](#partitioned-by) are also supported:
 
 ```sql
-ALTER TABLE prod.db.sample ADD PARTITION FIELD bucket(16, id)
-ALTER TABLE prod.db.sample ADD PARTITION FIELD truncate(4, data)
-ALTER TABLE prod.db.sample ADD PARTITION FIELD year(ts)
+ALTER TABLE prod.db.sample ADD PARTITION FIELD bucket(16, id);
+ALTER TABLE prod.db.sample ADD PARTITION FIELD truncate(4, data);
+ALTER TABLE prod.db.sample ADD PARTITION FIELD year(ts);
 -- use optional AS keyword to specify a custom name for the partition field 
-ALTER TABLE prod.db.sample ADD PARTITION FIELD bucket(16, id) AS shard
+ALTER TABLE prod.db.sample ADD PARTITION FIELD bucket(16, id) AS shard;
 ```
 
 Adding a partition field is a metadata operation and does not change any of the existing table data. New data will be written with the new partitioning, but existing data will remain in the old partition layout. Old data files will have null values for the new partition fields in metadata tables.
@@ -373,11 +375,11 @@ For example, if you partition by days and move to partitioning by hours, overwri
 Partition fields can be removed using `DROP PARTITION FIELD`:
 
 ```sql
-ALTER TABLE prod.db.sample DROP PARTITION FIELD catalog
-ALTER TABLE prod.db.sample DROP PARTITION FIELD bucket(16, id)
-ALTER TABLE prod.db.sample DROP PARTITION FIELD truncate(4, data)
-ALTER TABLE prod.db.sample DROP PARTITION FIELD year(ts)
-ALTER TABLE prod.db.sample DROP PARTITION FIELD shard
+ALTER TABLE prod.db.sample DROP PARTITION FIELD catalog;
+ALTER TABLE prod.db.sample DROP PARTITION FIELD bucket(16, id);
+ALTER TABLE prod.db.sample DROP PARTITION FIELD truncate(4, data);
+ALTER TABLE prod.db.sample DROP PARTITION FIELD year(ts);
+ALTER TABLE prod.db.sample DROP PARTITION FIELD shard;
 ```
 
 Note that although the partition is removed, the column will still exist in the table schema.
@@ -398,9 +400,9 @@ Be careful when dropping a partition field because it will change the schema of 
 A partition field can be replaced by a new partition field in a single metadata update by using `REPLACE PARTITION FIELD`:
 
 ```sql
-ALTER TABLE prod.db.sample REPLACE PARTITION FIELD ts_day WITH day(ts)
+ALTER TABLE prod.db.sample REPLACE PARTITION FIELD ts_day WITH day(ts);
 -- use optional AS keyword to specify a custom name for the new partition field 
-ALTER TABLE prod.db.sample REPLACE PARTITION FIELD ts_day WITH day(ts) AS day_of_ts
+ALTER TABLE prod.db.sample REPLACE PARTITION FIELD ts_day WITH day(ts) AS day_of_ts;
 ```
 
 ### `ALTER TABLE ... WRITE ORDERED BY`
@@ -433,6 +435,12 @@ To order within each task, not across tasks, use `LOCALLY ORDERED BY`:
 
 ```sql
 ALTER TABLE prod.db.sample WRITE LOCALLY ORDERED BY category, id
+```
+
+To unset the sort order of the table, use `UNORDERED`:
+
+```sql
+ALTER TABLE prod.db.sample WRITE UNORDERED
 ```
 
 ### `ALTER TABLE ... WRITE DISTRIBUTED BY PARTITION`

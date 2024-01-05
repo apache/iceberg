@@ -261,6 +261,11 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     }
 
     @Override
+    public boolean useCommitCoordinator() {
+      return false;
+    }
+
+    @Override
     public void abort(WriterCommitMessage[] messages) {
       SparkWrite.this.abort(messages);
     }
@@ -652,11 +657,11 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       Table table = tableBroadcast.value();
       PartitionSpec spec = table.specs().get(outputSpecId);
       FileIO io = table.io();
-
+      String operationId = queryId + "-" + epochId;
       OutputFileFactory fileFactory =
           OutputFileFactory.builderFor(table, partitionId, taskId)
               .format(format)
-              .operationId(queryId)
+              .operationId(operationId)
               .build();
       SparkFileWriterFactory writerFactory =
           SparkFileWriterFactory.builderFor(table)

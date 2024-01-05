@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.source.assigner;
 
 import java.util.List;
 import org.apache.iceberg.ContentFile;
-import org.apache.iceberg.flink.source.SplitHelpers;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.SerializableComparator;
 import org.apache.iceberg.flink.source.split.SplitComparators;
@@ -40,9 +39,7 @@ public class TestFileSequenceNumberBasedSplitAssigner extends SplitAssignerTestB
   public void testMultipleFilesInAnIcebergSplit() {
     SplitAssigner assigner = splitAssigner();
     Assertions.assertThatThrownBy(
-            () ->
-                assigner.onDiscoveredSplits(
-                    SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 4, 2, "2")),
+            () -> assigner.onDiscoveredSplits(createSplits(4, 2, "2")),
             "Multiple files in a split is not allowed")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Please use 'split-open-file-cost'");
@@ -52,8 +49,7 @@ public class TestFileSequenceNumberBasedSplitAssigner extends SplitAssignerTestB
   @Test
   public void testSplitSort() throws Exception {
     SplitAssigner assigner = splitAssigner();
-    List<IcebergSourceSplit> splits =
-        SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 5, 1, "2");
+    List<IcebergSourceSplit> splits = createSplits(5, 1, "2");
 
     assigner.onDiscoveredSplits(splits.subList(3, 5));
     assigner.onDiscoveredSplits(splits.subList(0, 1));
@@ -76,7 +72,7 @@ public class TestFileSequenceNumberBasedSplitAssigner extends SplitAssignerTestB
     Assert.assertNotNull(comparator);
   }
 
-  protected void assertGetNext(SplitAssigner assigner, Long expectedSequenceNumber) {
+  private void assertGetNext(SplitAssigner assigner, Long expectedSequenceNumber) {
     GetSplitResult result = assigner.getNext(null);
     ContentFile file = result.split().task().files().iterator().next().file();
     Assert.assertEquals(expectedSequenceNumber, file.fileSequenceNumber());

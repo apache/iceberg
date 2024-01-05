@@ -23,7 +23,7 @@ import static org.junit.Assert.assertEquals;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.expressions.Expression;
@@ -56,7 +56,7 @@ public abstract class ScanTestBase<
 
   @Test
   public void testTableScanHonorsSelect() {
-    ScanT scan = newScan().select(Arrays.asList("id"));
+    ScanT scan = newScan().select(Collections.singletonList("id"));
 
     Schema expectedSchema = new Schema(required(1, "id", Types.IntegerType.get()));
 
@@ -69,20 +69,20 @@ public abstract class ScanTestBase<
   @Test
   public void testTableBothProjectAndSelect() {
     Assertions.assertThatThrownBy(
-            () -> newScan().select(Arrays.asList("id")).project(SCHEMA.select("data")))
+            () -> newScan().select(Collections.singletonList("id")).project(SCHEMA.select("data")))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Cannot set projection schema when columns are selected");
     Assertions.assertThatThrownBy(
-            () -> newScan().project(SCHEMA.select("data")).select(Arrays.asList("id")))
+            () -> newScan().project(SCHEMA.select("data")).select(Collections.singletonList("id")))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Cannot select columns when projection schema is set");
   }
 
   @Test
   public void testTableScanHonorsSelectWithoutCaseSensitivity() {
-    ScanT scan1 = newScan().caseSensitive(false).select(Arrays.asList("ID"));
+    ScanT scan1 = newScan().caseSensitive(false).select(Collections.singletonList("ID"));
     // order of refinements shouldn't matter
-    ScanT scan2 = newScan().select(Arrays.asList("ID")).caseSensitive(false);
+    ScanT scan2 = newScan().select(Collections.singletonList("ID")).caseSensitive(false);
 
     Schema expectedSchema = new Schema(required(1, "id", Types.IntegerType.get()));
 
@@ -221,6 +221,36 @@ public abstract class ScanTestBase<
       for (CombinedScanTask combinedScanTask : tasks) {
         Assert.assertEquals(
             "a=2 and file without a in spec should match", 2, combinedScanTask.files().size());
+      }
+    }
+  }
+
+  @Test
+  public void testDataFileSorted() throws Exception {
+    Schema schema =
+        new Schema(
+            required(1, "a", Types.IntegerType.get()), required(2, "b", Types.StringType.get()));
+    File dir = temp.newFolder();
+    dir.delete();
+    this.table =
+        TestTables.create(
+            dir, "test_data_file_sorted", schema, PartitionSpec.unpartitioned(), formatVersion);
+    table
+        .newFastAppend()
+        .appendFile(
+            DataFiles.builder(PartitionSpec.unpartitioned())
+                .withPath("/path/to/data/a.parquet")
+                .withFileSizeInBytes(10)
+                .withRecordCount(1)
+                .withSortOrder(
+                    SortOrder.builderFor(table.schema()).asc("a", NullOrder.NULLS_FIRST).build())
+                .build())
+        .commit();
+
+    TableScan scan = table.newScan();
+    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
+      for (FileScanTask fileScanTask : tasks) {
+        Assertions.assertThat(fileScanTask.file().sortOrderId()).isEqualTo(1);
       }
     }
   }

@@ -49,7 +49,7 @@ Here are some examples.
 
 ### Spark
 
-For example, to use AWS features with Spark 3.4 (with scala 2.12) and AWS clients version 2.20.131 (which is packaged in the `iceberg-aws-bundle`), you can start the Spark SQL shell with:
+For example, to use AWS features with Spark 3.4 (with scala 2.12) and AWS clients (which is packaged in the `iceberg-aws-bundle`), you can start the Spark SQL shell with:
 
 ```sh
 # start Spark SQL client shell

@@ -93,7 +93,6 @@ Summary is a string to string map of metadata about a view version. Common metad
 
 | Requirement | Key              | Value |
 |-------------|------------------|-------|
-| _required_  | `operation`      | Operation that caused this metadata to be created; must be `create` or `replace` |
 | _optional_  | `engine-name`    | Name of the engine that created the view version |
 | _optional_  | `engine-version` | Version of the engine that created the view version |
 
@@ -207,7 +206,6 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00001-(uuid).metadata.json
     "default-catalog" : "prod",
     "default-namespace" : [ "default" ],
     "summary" : {
-      "operation" : "create",
       "engine-name" : "Spark",
       "engineVersion" : "3.3.2"
     },
@@ -241,12 +239,14 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00001-(uuid).metadata.json
 ```
 
 Each change creates a new metadata JSON file.
+In the below example, the underlying SQL is modified by specifying the fully-qualified table name.
 
 ```sql
 USE prod.other_db;
 CREATE OR REPLACE VIEW default.event_agg (
-    event_count,
+    event_count COMMENT 'Count of events',
     event_date)
+COMMENT 'Daily event counts'
 AS
 SELECT
     COUNT(1), CAST(event_ts AS DATE)
@@ -275,7 +275,6 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00002-(uuid).metadata.json
     "default-catalog" : "prod",
     "default-namespace" : [ "default" ],
     "summary" : {
-      "operation" : "create",
       "engine-name" : "Spark",
       "engineVersion" : "3.3.2"
     },
@@ -291,7 +290,6 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00002-(uuid).metadata.json
     "default-catalog" : "prod",
     "default-namespace" : [ "default" ],
     "summary" : {
-      "operation" : "create",
       "engine-name" : "Spark",
       "engineVersion" : "3.3.2"
     },

@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.source.reader;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.List;
 import java.util.Queue;
@@ -35,6 +34,7 @@ import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.SerializableComparator;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,9 +60,18 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
     this.openSplitFunction = openSplitFunction;
     this.splitComparator = splitComparator;
     this.indexOfSubtask = context.getIndexOfSubtask();
-    this.splits = new ArrayDeque<>();
+    this.splits = Queues.newArrayDeque();
   }
 
+  /**
+   * The method reads a batch of records from the assigned splits. If all the records from the
+   * current split are returned then it will emit a {@link ArrayBatchRecords#finishedSplit(String)}
+   * batch to signal this event. In the next fetch loop the reader will continue with the next split
+   * (if any).
+   *
+   * @return The fetched records
+   * @throws IOException If there is an error during reading
+   */
   @Override
   public RecordsWithSplitIds<RecordAndPosition<T>> fetch() throws IOException {
     metrics.incrementSplitReaderFetchCalls(1);

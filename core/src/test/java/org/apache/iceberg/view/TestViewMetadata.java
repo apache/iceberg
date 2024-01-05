@@ -28,6 +28,7 @@ import java.util.UUID;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -47,7 +48,7 @@ public class TestViewMetadata {
         .timestampMillis(System.currentTimeMillis())
         .defaultCatalog("prod")
         .defaultNamespace(Namespace.of("default"))
-        .summary(ImmutableMap.of("operation", "create"))
+        .putSummary("user", "some-user")
         .addRepresentations(
             ImmutableSQLViewRepresentation.builder().dialect("spark").sql(sql).build())
         .schemaId(schemaId)
@@ -127,7 +128,6 @@ public class TestViewMetadata {
                             .schemaId(0)
                             .versionId(1)
                             .timestampMillis(23L)
-                            .putSummary("operation", "op")
                             .defaultNamespace(Namespace.of("ns"))
                             .build())
                     .setCurrentVersionId(1)
@@ -165,7 +165,6 @@ public class TestViewMetadata {
                             .schemaId(1)
                             .versionId(1)
                             .timestampMillis(23L)
-                            .putSummary("operation", "op")
                             .defaultNamespace(Namespace.of("ns"))
                             .build())
                     .setCurrentVersionId(1)
@@ -186,7 +185,6 @@ public class TestViewMetadata {
                             .schemaId(0)
                             .versionId(1)
                             .timestampMillis(23L)
-                            .putSummary("operation", "op")
                             .defaultNamespace(Namespace.of("ns"))
                             .build())
                     .setCurrentVersionId(23)
@@ -209,7 +207,6 @@ public class TestViewMetadata {
                             .versionId(1)
                             .defaultNamespace(Namespace.of("ns"))
                             .timestampMillis(23L)
-                            .putSummary("operation", "op")
                             .build())
                     .setCurrentVersionId(1)
                     .build())
@@ -293,21 +290,21 @@ public class TestViewMetadata {
         .isInstanceOf(MetadataUpdate.AddViewVersion.class)
         .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddViewVersion.class))
         .extracting(MetadataUpdate.AddViewVersion::viewVersion)
-        .isEqualTo(viewVersionOne);
+        .isEqualTo(ImmutableViewVersion.builder().from(viewVersionOne).schemaId(-1).build());
 
     assertThat(changes)
         .element(4)
         .isInstanceOf(MetadataUpdate.AddViewVersion.class)
         .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddViewVersion.class))
         .extracting(MetadataUpdate.AddViewVersion::viewVersion)
-        .isEqualTo(viewVersionTwo);
+        .isEqualTo(ImmutableViewVersion.builder().from(viewVersionTwo).schemaId(-1).build());
 
     assertThat(changes)
         .element(5)
         .isInstanceOf(MetadataUpdate.AddViewVersion.class)
         .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddViewVersion.class))
         .extracting(MetadataUpdate.AddViewVersion::viewVersion)
-        .isEqualTo(viewVersionThree);
+        .isEqualTo(ImmutableViewVersion.builder().from(viewVersionThree).schemaId(-1).build());
 
     assertThat(changes)
         .element(6)
@@ -413,7 +410,7 @@ public class TestViewMetadata {
         .isInstanceOf(MetadataUpdate.AddViewVersion.class)
         .asInstanceOf(InstanceOfAssertFactories.type(MetadataUpdate.AddViewVersion.class))
         .extracting(MetadataUpdate.AddViewVersion::viewVersion)
-        .isEqualTo(viewVersionThree);
+        .isEqualTo(ImmutableViewVersion.builder().from(viewVersionThree).schemaId(-1).build());
 
     assertThat(changes)
         .element(8)
@@ -436,7 +433,6 @@ public class TestViewMetadata {
                     .schemaId(0)
                     .versionId(1)
                     .timestampMillis(23L)
-                    .putSummary("operation", "create")
                     .defaultNamespace(Namespace.of("ns"))
                     .build())
             .setCurrentVersionId(1)
@@ -472,7 +468,6 @@ public class TestViewMetadata {
             .schemaId(schema.schemaId())
             .versionId(1)
             .timestampMillis(23L)
-            .putSummary("operation", "a")
             .defaultNamespace(Namespace.of("ns"))
             .build();
 
@@ -535,23 +530,15 @@ public class TestViewMetadata {
   public void viewVersionDeduplication() {
     // all view versions have the same ID
     // additionally, there are duplicate view versions that only differ in their creation timestamp
-    // and/or the summary
     ViewVersion viewVersionOne = newViewVersion(1, "select * from ns.tbl");
     ViewVersion viewVersionTwo = newViewVersion(1, "select count(*) from ns.tbl");
     ViewVersion viewVersionThree = newViewVersion(1, "select count(*) as count from ns.tbl");
     ViewVersion viewVersionOneUpdated =
         ImmutableViewVersion.builder().from(viewVersionOne).timestampMillis(1000).build();
     ViewVersion viewVersionTwoUpdated =
-        ImmutableViewVersion.builder()
-            .from(viewVersionTwo)
-            .summary(ImmutableMap.of("operation", "replace"))
-            .build();
+        ImmutableViewVersion.builder().from(viewVersionTwo).timestampMillis(100).build();
     ViewVersion viewVersionThreeUpdated =
-        ImmutableViewVersion.builder()
-            .from(viewVersionThree)
-            .timestampMillis(1000)
-            .summary(ImmutableMap.of("operation", "replace"))
-            .build();
+        ImmutableViewVersion.builder().from(viewVersionThree).timestampMillis(10).build();
 
     ViewMetadata viewMetadata =
         ViewMetadata.builder()
@@ -576,6 +563,47 @@ public class TestViewMetadata {
             viewVersionOne,
             ImmutableViewVersion.builder().from(viewVersionTwo).versionId(2).build(),
             ImmutableViewVersion.builder().from(viewVersionThree).versionId(3).build());
+  }
+
+  @Test
+  public void viewVersionDeduplicationWithCustomSummary() {
+    // all view versions have the same ID
+    // additionally, there are duplicate view versions that only differ in the summary
+    ViewVersion viewVersionOne = newViewVersion(1, "select * from ns.tbl");
+    ViewVersion viewVersionTwo = newViewVersion(1, "select count(*) from ns.tbl");
+    ViewVersion viewVersionOneUpdated =
+        ImmutableViewVersion.builder()
+            .from(viewVersionOne)
+            .timestampMillis(1000)
+            .summary(ImmutableMap.of("user", "some-user"))
+            .build();
+    ViewVersion viewVersionTwoUpdated =
+        ImmutableViewVersion.builder()
+            .from(viewVersionTwo)
+            .summary(ImmutableMap.of("user", "some-user", "key", "val"))
+            .build();
+
+    ViewMetadata viewMetadata =
+        ViewMetadata.builder()
+            .setLocation("custom-location")
+            .addSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
+            .addVersion(viewVersionOne)
+            .addVersion(viewVersionTwo)
+            .addVersion(viewVersionOneUpdated)
+            .addVersion(viewVersionTwoUpdated)
+            .setCurrentVersionId(3)
+            .build();
+
+    assertThat(viewMetadata.currentVersion())
+        .isEqualTo(ImmutableViewVersion.builder().from(viewVersionTwoUpdated).versionId(3).build());
+
+    // IDs of the view versions should be re-assigned and view versions should be de-duplicated
+    assertThat(viewMetadata.versions())
+        .hasSize(3)
+        .containsExactly(
+            viewVersionOne,
+            ImmutableViewVersion.builder().from(viewVersionTwo).versionId(2).build(),
+            ImmutableViewVersion.builder().from(viewVersionTwoUpdated).versionId(3).build());
   }
 
   @Test
@@ -740,7 +768,6 @@ public class TestViewMetadata {
                             .schemaId(0)
                             .versionId(1)
                             .timestampMillis(23L)
-                            .putSummary("operation", "create")
                             .defaultNamespace(Namespace.of("ns"))
                             .addRepresentations(
                                 ImmutableSQLViewRepresentation.builder()
@@ -757,5 +784,19 @@ public class TestViewMetadata {
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid view version: Cannot add multiple queries for dialect spark");
+  }
+
+  @Test
+  public void lastAddedSchemaFailure() {
+    ViewVersion viewVersion = newViewVersion(1, -1, "select * from ns.tbl");
+    assertThatThrownBy(
+            () ->
+                ViewMetadata.builder()
+                    .setLocation("custom-location")
+                    .addVersion(viewVersion)
+                    .setCurrentVersionId(1)
+                    .build())
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Cannot set last added schema: no schema has been added");
   }
 }

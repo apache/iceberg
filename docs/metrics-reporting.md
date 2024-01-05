@@ -125,7 +125,7 @@ CommitReport{
 
 ### [`RESTMetricsReporter`](../../../javadoc/{{% icebergVersion %}}/org/apache/iceberg/rest/RESTMetricsReporter.html)
 
-This is the default when using the [`RESTCatalog`](../../../javadoc/{{% icebergVersion %}}/org/apache/iceberg/rest/RESTCatalog.html) and its purpose is to send metrics to a REST server at the `/v1/{prefix}/namespaces/{namespace}/tables/{table}/metrics` endpoint as defined in the [REST OpenAPI spec](https://github.com/apache/iceberg/blob/master/open-api/rest-catalog-open-api.yaml).
+This is the default when using the [`RESTCatalog`](../../../javadoc/{{% icebergVersion %}}/org/apache/iceberg/rest/RESTCatalog.html) and its purpose is to send metrics to a REST server at the `/v1/{prefix}/namespaces/{namespace}/tables/{table}/metrics` endpoint as defined in the [REST OpenAPI spec](https://github.com/apache/iceberg/blob/main/open-api/rest-catalog-open-api.yaml).
 
 Sending metrics via REST can be controlled with the `rest-metrics-reporting-enabled` (defaults to `true`) property.
 

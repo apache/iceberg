@@ -155,6 +155,7 @@ public interface ViewMetadata extends Serializable {
 
     // internal change tracking
     private Integer lastAddedVersionId = null;
+    private Integer lastAddedSchemaId = null;
 
     // indexes
     private final Map<Integer, ViewVersion> versionsById;
@@ -257,14 +258,26 @@ public interface ViewMetadata extends Serializable {
       return this;
     }
 
-    private int addVersionInternal(ViewVersion version) {
-      int newVersionId = reuseOrCreateNewViewVersionId(version);
+    private int addVersionInternal(ViewVersion newVersion) {
+      int newVersionId = reuseOrCreateNewViewVersionId(newVersion);
+      ViewVersion version = newVersion;
+      if (newVersionId != version.versionId()) {
+        version = ImmutableViewVersion.builder().from(version).versionId(newVersionId).build();
+      }
+
       if (versionsById.containsKey(newVersionId)) {
         boolean addedInBuilder =
             changes(MetadataUpdate.AddViewVersion.class)
                 .anyMatch(added -> added.viewVersion().versionId() == newVersionId);
         this.lastAddedVersionId = addedInBuilder ? newVersionId : null;
         return newVersionId;
+      }
+
+      if (newVersion.schemaId() == LAST_ADDED) {
+        ValidationException.check(
+            lastAddedSchemaId != null, "Cannot set last added schema: no schema has been added");
+        version =
+            ImmutableViewVersion.builder().from(newVersion).schemaId(lastAddedSchemaId).build();
       }
 
       Preconditions.checkArgument(
@@ -283,20 +296,21 @@ public interface ViewMetadata extends Serializable {
         }
       }
 
-      ViewVersion newVersion;
-      if (newVersionId != version.versionId()) {
-        newVersion = ImmutableViewVersion.builder().from(version).versionId(newVersionId).build();
+      versions.add(version);
+      versionsById.put(version.versionId(), version);
+
+      if (null != lastAddedSchemaId && version.schemaId() == lastAddedSchemaId) {
+        changes.add(
+            new MetadataUpdate.AddViewVersion(
+                ImmutableViewVersion.builder().from(version).schemaId(LAST_ADDED).build()));
       } else {
-        newVersion = version;
+        changes.add(new MetadataUpdate.AddViewVersion(version));
       }
 
-      versions.add(newVersion);
-      versionsById.put(newVersion.versionId(), newVersion);
-      changes.add(new MetadataUpdate.AddViewVersion(newVersion));
       history.add(
           ImmutableViewHistoryEntry.builder()
-              .timestampMillis(newVersion.timestampMillis())
-              .versionId(newVersion.versionId())
+              .timestampMillis(version.timestampMillis())
+              .versionId(version.versionId())
               .build());
 
       this.lastAddedVersionId = newVersionId;
@@ -320,14 +334,15 @@ public interface ViewMetadata extends Serializable {
 
     /**
      * Checks whether the given view versions would behave the same while ignoring the view version
-     * id, the creation timestamp, and the summary.
+     * id, the creation timestamp, and the operation.
      *
      * @param one the view version to compare
      * @param two the view version to compare
      * @return true if the given view versions would behave the same
      */
     private boolean sameViewVersion(ViewVersion one, ViewVersion two) {
-      return Objects.equals(one.representations(), two.representations())
+      return Objects.equals(one.summary(), two.summary())
+          && Objects.equals(one.representations(), two.representations())
           && Objects.equals(one.defaultCatalog(), two.defaultCatalog())
           && Objects.equals(one.defaultNamespace(), two.defaultNamespace())
           && one.schemaId() == two.schemaId();
@@ -356,6 +371,8 @@ public interface ViewMetadata extends Serializable {
       schemas.add(newSchema);
       schemasById.put(newSchema.schemaId(), newSchema);
       changes.add(new MetadataUpdate.AddSchema(newSchema, highestFieldId));
+
+      this.lastAddedSchemaId = newSchemaId;
 
       return newSchemaId;
     }
@@ -412,7 +429,7 @@ public interface ViewMetadata extends Serializable {
 
     public ViewMetadata build() {
       Preconditions.checkArgument(null != location, "Invalid location: null");
-      Preconditions.checkArgument(versions.size() > 0, "Invalid view: no versions were added");
+      Preconditions.checkArgument(!versions.isEmpty(), "Invalid view: no versions were added");
 
       // when associated with a metadata file, metadata must have no changes so that the metadata
       // matches exactly what is in the metadata file, which does not store changes. metadata

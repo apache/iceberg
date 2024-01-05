@@ -31,15 +31,17 @@ Background and documentation is available at <https://iceberg.apache.org>
 
 Iceberg is under active development at the Apache Software Foundation.
 
-The core Java library that tracks table snapshots and metadata is complete, but still evolving. Current work is focused on adding row-level deletes and upserts, and integration work with new engines like Flink and Hive.
+The [Iceberg format specification][iceberg-spec] is stable and new features are added with each version.
 
-The [Iceberg format specification][iceberg-spec] is being actively updated and is open for comment. Until the specification is complete and released, it carries no compatibility guarantees. The spec is currently evolving as the Java reference implementation changes.
+The core Java library is located in this repository and is the reference implementation for other libraries.
 
-[Java API javadocs][iceberg-javadocs] are available for the master.
+[Documentation][iceberg-docs] is available for all libraries and integrations.
 
-[iceberg-javadocs]: https://iceberg.apache.org/javadoc/master
+Current work is tracked in the [roadmap][roadmap].
+
+[iceberg-docs]: https://iceberg.apache.org/docs/latest/
 [iceberg-spec]: https://iceberg.apache.org/spec
-
+[roadmap]: https://iceberg.apache.org/roadmap/
 
 ## Collaboration
 
@@ -76,6 +78,16 @@ Iceberg also has modules for adding Iceberg support to processing engines:
 * `iceberg-flink` contains classes for integrating with Apache Flink (use iceberg-flink-runtime for a shaded version)
 * `iceberg-mr` contains an InputFormat and other classes for integrating with Apache Hive
 * `iceberg-pig` is an implementation of Pig's LoadFunc API for Iceberg
+
+---
+**NOTE**
+
+The tests require Docker to execute. On MacOS (with Docker Desktop), you might need to create a symbolic name to the docker socket in order to be detected by the tests:
+
+```
+sudo ln -s $HOME/.docker/run/docker.sock /var/run/docker.sock
+```
+---
 
 ### Engine Compatibility
 

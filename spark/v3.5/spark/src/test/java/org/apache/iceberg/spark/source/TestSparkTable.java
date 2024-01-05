@@ -18,34 +18,30 @@
  */
 package org.apache.iceberg.spark.source;
 
-import java.util.Map;
-import org.apache.iceberg.spark.SparkCatalogTestBase;
+import static org.assertj.core.api.Assertions.assertThat;
+
+import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
 
-public class TestSparkTable extends SparkCatalogTestBase {
+public class TestSparkTable extends CatalogTestBase {
 
-  public TestSparkTable(String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @Before
+  @BeforeEach
   public void createTable() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
   }
 
-  @After
+  @AfterEach
   public void removeTable() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testTableEquality() throws NoSuchTableException {
     CatalogManager catalogManager = spark.sessionState().catalogManager();
     TableCatalog catalog = (TableCatalog) catalogManager.catalog(catalogName);
@@ -54,7 +50,7 @@ public class TestSparkTable extends SparkCatalogTestBase {
     SparkTable table2 = (SparkTable) catalog.loadTable(identifier);
 
     // different instances pointing to the same table must be equivalent
-    Assert.assertNotSame("References must be different", table1, table2);
-    Assert.assertEquals("Tables must be equivalent", table1, table2);
+    assertThat(table1).as("References must be different").isNotSameAs(table2);
+    assertThat(table1).as("Tables must be equivalent").isEqualTo(table2);
   }
 }

@@ -17,75 +17,171 @@
 # under the License.
 #
 # Pull Request Labeler Github Action Configuration: https://github.com/marketplace/actions/labeler
+
 INFRA:
-  - .asf.yaml
-  - .gitattributes
-  - .gitignore
-  - baseline.gradle
-  - deploy.gradle
-  - jitpack.yml
-  - travis.yml
-  - .baseline/**/*
-  - .github/**/*
-  - dev/**/*
+  - changed-files:
+    - any-glob-to-any-file: [
+      '.asf.yaml',
+      '.gitattributes',
+      '.gitignore',
+      'baseline.gradle',
+      'deploy.gradle',
+      'jitpack.yml',
+      'travis.yml',
+      '.baseline/**/*',
+      '.github/**/*',
+      'dev/**/*'
+    ]
+
 BUILD:
-  - "**/*gradle*"
+  - changed-files:
+    - any-glob-to-any-file: [
+      '**/*gradle*'
+    ]
+
 DOCS:
-  - docs/**/*
-  - "**/*CHANGELOG.md"
-  - "**/*README.md"
-  - "**/*CONTRIBUTING.md"
+  - changed-files:
+    - any-glob-to-any-file: [
+      'docs/**/*',
+      '**/*CHANGELOG.md',
+      '**/*README.md',
+      '**/*CONTRIBUTING.md'
+    ]
+
 SPECIFICATION:
-  - "format/*"
+  - changed-files:
+    - any-glob-to-any-file: [
+      'format/*'
+    ]
+
 EXAMPLES:
-  - examples/**/*
+  - changed-files:
+    - any-glob-to-any-file: [
+      'examples/**/*'
+    ]
+
 COMMON:
-  - common/**/*
+  - changed-files:
+    - any-glob-to-any-file: [
+      'common/**/*'
+    ]
+
 API:
-  - api/**/*
+  - changed-files:
+    - any-glob-to-any-file: [
+      'api/**/*'
+    ]
+
 CORE:
-  - core/**/*
+  - changed-files:
+    - any-glob-to-any-file: [
+      'core/**/*'
+    ]
+
 PARQUET:
-  - parquet/**/*
+  - changed-files:
+    - any-glob-to-any-file: [
+      'parquet/**/*'
+    ]
+
 ARROW:
-  - arrow/**/*
+  - changed-files:
+    - any-glob-to-any-file: [
+      'arrow/**/*'
+    ]
+
 ORC:
-  - orc/**/*
+  - changed-files:
+    - any-glob-to-any-file: [
+      'orc/**/*'
+    ]
+
 HIVE:
-  - hive3/**/*
-  - hive-metastore/**/*
-  - hive-runtime/**/*
+  - changed-files:
+    - any-glob-to-any-file: [
+      'hive3/**/*',
+      'hive-metastore/**/*',
+      'hive-runtime/**/*',
+      'hive3-orc-bundle/**/*'
+    ]
+
 DATA:
-  - data/**/*
+  - changed-files:
+    - any-glob-to-any-file: [
+      'data/**/*'
+    ]
+
 SPARK:
-  - spark-runtime/**/*
-  - spark/**/*
-  - spark2/**/*
-  - spark3/**/*
-  - spark3-extensions/**/*
+  - changed-files:
+    - any-glob-to-any-file: [
+      'spark/**/*'
+    ]
+
 FLINK:
-  - flink-runtime/**/*
-  - flink/**/*
+  - changed-files:
+    - any-glob-to-any-file: [
+      'flink/**/*'
+    ]
+
 MR:
-  - mr/**/*
+  - changed-files:
+    - any-glob-to-any-file: [
+      'mr/**/*'
+    ]
+
 PIG:
-  - pig/**/*
+  - changed-files:
+    - any-glob-to-any-file: [
+      'pig/**/*'
+    ]
+
 AWS:
-  - aws/**/*
-  - aws-bundle/**/*
+  - changed-files:
+    - any-glob-to-any-file: [
+      'aws/**/*',
+      'aws-bundle/**/*'
+    ]
+
 NESSIE:
-  - nessie/**/*
+  - changed-files:
+    - any-glob-to-any-file: [
+      'nessie/**/*'
+    ]
+
 ALIYUN:
-  - aliyun/**/*
+  - changed-files:
+    - any-glob-to-any-file: [
+      'aliyun/**/*'
+    ]
+
 GCP:
-  - gcp/**/*
-  - gcp-bundle/**/*
+  - changed-files:
+    - any-glob-to-any-file: [
+      'gcp/**/*',
+      'gcp-bundle/**/*'
+    ]
+
 DELL:
-  - dell/**/*
+  - changed-files:
+    - any-glob-to-any-file: [
+      'dell/**/*'
+    ]
+
 SNOWFLAKE:
-  - snowflake/**/*
+  - changed-files:
+    - any-glob-to-any-file: [
+      'snowflake/**/*'
+    ]
+
 OPENAPI:
-  - open-api/**/*
+  - changed-files:
+    - any-glob-to-any-file: [
+      'open-api/**/*'
+    ]
+
 AZURE:
-  - azure/**/*
-  - azure-bundle/**/*
+  - changed-files:
+    - any-glob-to-any-file: [
+      'azure/**/*',
+      'azure-bundle/**/*'
+    ]

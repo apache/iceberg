@@ -29,5 +29,11 @@ updates:
     schedule:
       interval: "weekly"
       day: "sunday"
+    open-pull-requests-limit: 50
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
     open-pull-requests-limit: 5
 

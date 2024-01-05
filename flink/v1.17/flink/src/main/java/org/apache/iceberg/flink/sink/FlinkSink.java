@@ -386,7 +386,7 @@ public class FlinkSink {
     @VisibleForTesting
     List<Integer> checkAndGetEqualityFieldIds() {
       List<Integer> equalityFieldIds = Lists.newArrayList(table.schema().identifierFieldIds());
-      if (equalityFieldColumns != null && equalityFieldColumns.size() > 0) {
+      if (equalityFieldColumns != null && !equalityFieldColumns.isEmpty()) {
         Set<Integer> equalityFieldSet =
             Sets.newHashSetWithExpectedSize(equalityFieldColumns.size());
         for (String column : equalityFieldColumns) {
@@ -525,13 +525,7 @@ public class FlinkSink {
                       + "and table is unpartitioned");
               return input;
             } else {
-              if (BucketPartitionerUtil.hasOneBucketField(partitionSpec)) {
-                return input.partitionCustom(
-                    new BucketPartitioner(partitionSpec),
-                    new BucketPartitionKeySelector(partitionSpec, iSchema, flinkRowType));
-              } else {
-                return input.keyBy(new PartitionKeySelector(partitionSpec, iSchema, flinkRowType));
-              }
+              return input.keyBy(new PartitionKeySelector(partitionSpec, iSchema, flinkRowType));
             }
           } else {
             if (partitionSpec.isUnpartitioned()) {

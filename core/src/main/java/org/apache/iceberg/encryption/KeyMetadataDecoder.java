@@ -28,9 +28,9 @@ import org.apache.iceberg.avro.GenericAvroReader;
 import org.apache.iceberg.data.avro.RawDecoder;
 import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
 
-class KeyMetadataDecoder extends MessageDecoder.BaseDecoder<KeyMetadata> {
+class KeyMetadataDecoder extends MessageDecoder.BaseDecoder<StandardKeyMetadata> {
   private final org.apache.iceberg.Schema readSchema;
-  private final Map<Byte, RawDecoder<KeyMetadata>> decoders = new MapMaker().makeMap();
+  private final Map<Byte, RawDecoder<StandardKeyMetadata>> decoders = new MapMaker().makeMap();
 
   /**
    * Creates a new decoder that constructs key metadata instances described by schema version.
@@ -39,11 +39,11 @@ class KeyMetadataDecoder extends MessageDecoder.BaseDecoder<KeyMetadata> {
    * instances created by this class will are described by the expected schema.
    */
   KeyMetadataDecoder(byte readSchemaVersion) {
-    this.readSchema = KeyMetadata.supportedSchemaVersions().get(readSchemaVersion);
+    this.readSchema = StandardKeyMetadata.supportedSchemaVersions().get(readSchemaVersion);
   }
 
   @Override
-  public KeyMetadata decode(InputStream stream, KeyMetadata reuse) {
+  public StandardKeyMetadata decode(InputStream stream, StandardKeyMetadata reuse) {
     byte writeSchemaVersion;
 
     try {
@@ -56,14 +56,14 @@ class KeyMetadataDecoder extends MessageDecoder.BaseDecoder<KeyMetadata> {
       throw new RuntimeException("Version byte - end of stream reached");
     }
 
-    Schema writeSchema = KeyMetadata.supportedAvroSchemaVersions().get(writeSchemaVersion);
+    Schema writeSchema = StandardKeyMetadata.supportedAvroSchemaVersions().get(writeSchemaVersion);
 
     if (writeSchema == null) {
       throw new UnsupportedOperationException(
           "Cannot resolve schema for version: " + writeSchemaVersion);
     }
 
-    RawDecoder<KeyMetadata> decoder = decoders.get(writeSchemaVersion);
+    RawDecoder<StandardKeyMetadata> decoder = decoders.get(writeSchemaVersion);
 
     if (decoder == null) {
       decoder = new RawDecoder<>(readSchema, GenericAvroReader::create, writeSchema);

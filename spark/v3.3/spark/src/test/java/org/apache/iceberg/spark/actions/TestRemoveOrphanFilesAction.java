@@ -271,7 +271,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
     waitUntilAfter(System.currentTimeMillis());
 
-    Set<String> deletedFiles = Sets.newHashSet();
+    Set<String> deletedFiles = ConcurrentHashMap.newKeySet();
     Set<String> deleteThreads = ConcurrentHashMap.newKeySet();
     AtomicInteger deleteThreadsIndex = new AtomicInteger(0);
 
