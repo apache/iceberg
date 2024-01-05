@@ -1,3 +1,4 @@
+#
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,13 +15,23 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-extra:
-  icebergVersion: 1.4.0
-  social:
-    - icon: fontawesome/brands/github-alt
-      link: https://github.com/apache/iceberg
-    - icon: fontawesome/brands/youtube
-      link: https://www.youtube.com/@ApacheIceberg
-    - icon: fontawesome/brands/slack
-      link: https://join.slack.com/t/apache-iceberg/shared_invite/zt-1znkcg5zm-7_FE~pcox347XwZE3GNfPg
+#
+name: site-ci 
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - site/**
+  workflow_dispatch:
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: 3.x
+      - name: Deploy Iceberg documentation
+        run: make deploy
+        working-directory: ./site

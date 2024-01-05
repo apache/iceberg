@@ -38,6 +38,7 @@ on:
     - 'flink/**'
     - 'pig/**'
     - 'docs/**'
+    - 'site/**'
     - 'open-api/**'
     - 'format/**'
     - '.gitattributes'

@@ -1,0 +1,48 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+nav:
+  - Home: index.md
+  - Quickstart:
+    - Spark: spark-quickstart.md
+    - Hive: hive-quickstart.md
+  - Docs: 
+    - latest: '!include docs/docs/latest/mkdocs.yml'
+    - 1.4.2: '!include docs/docs/1.4.2/mkdocs.yml'
+    - 1.4.1: '!include docs/docs/1.4.1/mkdocs.yml'
+    - 1.4.0: '!include docs/docs/1.4.0/mkdocs.yml'
+  - Releases: releases.md
+  - Roadmap: roadmap.md
+  - Blogs: blogs.md
+  - Talks: talks.md
+  - Vendors: vendors.md
+  - Project: 
+    - Join: community.md
+    - Spec: spec.md
+    - View spec: view-spec.md
+    - Puffin spec: puffin-spec.md
+    - Multi-engine support: multi-engine-support.md
+    - How to release: how-to-release.md
+    - Terms: terms.md
+  - Concepts:
+    - Catalogs: catalog.md
+  - ASF:
+    - Sponsorship: https://www.apache.org/foundation/sponsorship.html
+    - Events: https://www.apache.org/events/current-event.html
+    - License: https://www.apache.org/licenses/
+    - Security: https://www.apache.org/security/
+    - Sponsors: https://www.apache.org/foundation/thanks.html

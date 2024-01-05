@@ -35,6 +35,7 @@ on:
     - '.asf.yml'
     - 'dev/**'
     - 'docs/**'
+    - 'site/**'
     - 'open-api/**'
     - 'format/**'
     - '.gitattributes'
