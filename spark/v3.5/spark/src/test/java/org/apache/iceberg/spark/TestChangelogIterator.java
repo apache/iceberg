@@ -197,9 +197,9 @@ public class TestChangelogIterator extends SparkTestHelperBase {
         ChangelogIterator.computeUpdates(rowsWithDuplication.iterator(), SCHEMA, IDENTIFIER_FIELDS);
 
     assertThatThrownBy(() -> Lists.newArrayList(iterator))
-        .as(
-            "Cannot compute updates because there are multiple rows with the same identifier fields([id, name]). Please make sure the rows are unique.")
-        .isInstanceOf(IllegalStateException.class);
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot compute updates because there are multiple rows with the same identifier fields([id,name]). Please make sure the rows are unique.");
 
     // still allow extra insert rows
     rowsWithDuplication =
