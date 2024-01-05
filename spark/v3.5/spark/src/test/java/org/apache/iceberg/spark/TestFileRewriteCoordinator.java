@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -30,30 +32,23 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
 
-public class TestFileRewriteCoordinator extends SparkCatalogTestBase {
+public class TestFileRewriteCoordinator extends CatalogTestBase {
 
-  public TestFileRewriteCoordinator(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testBinPackRewrite() throws NoSuchTableException, IOException {
     sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
 
@@ -64,7 +59,7 @@ public class TestFileRewriteCoordinator extends SparkCatalogTestBase {
     df.coalesce(1).writeTo(tableName).append();
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should produce 4 snapshots", 4, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).as("Should produce 4 snapshots").hasSize(4);
 
     Dataset<Row> fileDF =
         spark.read().format("iceberg").load(tableName(tableIdent.name() + ".files"));
@@ -106,14 +101,16 @@ public class TestFileRewriteCoordinator extends SparkCatalogTestBase {
     table.refresh();
 
     Map<String, String> summary = table.currentSnapshot().summary();
-    Assert.assertEquals("Deleted files count must match", "4", summary.get("deleted-data-files"));
-    Assert.assertEquals("Added files count must match", "2", summary.get("added-data-files"));
+    assertThat(summary.get("deleted-data-files"))
+        .as("Deleted files count must match")
+        .isEqualTo("4");
+    assertThat(summary.get("added-data-files")).as("Added files count must match").isEqualTo("2");
 
     Object rowCount = scalarSql("SELECT count(*) FROM %s", tableName);
-    Assert.assertEquals("Row count must match", 4000L, rowCount);
+    assertThat(rowCount).as("Row count must match").isEqualTo(4000L);
   }
 
-  @Test
+  @TestTemplate
   public void testSortRewrite() throws NoSuchTableException, IOException {
     sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
 
@@ -124,7 +121,7 @@ public class TestFileRewriteCoordinator extends SparkCatalogTestBase {
     df.coalesce(1).writeTo(tableName).append();
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should produce 4 snapshots", 4, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).as("Should produce 4 snapshots").hasSize(4);
 
     try (CloseableIterable<FileScanTask> fileScanTasks = table.newScan().planFiles()) {
       String fileSetID = UUID.randomUUID().toString();
@@ -176,14 +173,16 @@ public class TestFileRewriteCoordinator extends SparkCatalogTestBase {
     table.refresh();
 
     Map<String, String> summary = table.currentSnapshot().summary();
-    Assert.assertEquals("Deleted files count must match", "4", summary.get("deleted-data-files"));
-    Assert.assertEquals("Added files count must match", "2", summary.get("added-data-files"));
+    assertThat(summary.get("deleted-data-files"))
+        .as("Deleted files count must match")
+        .isEqualTo("4");
+    assertThat(summary.get("added-data-files")).as("Added files count must match").isEqualTo("2");
 
     Object rowCount = scalarSql("SELECT count(*) FROM %s", tableName);
-    Assert.assertEquals("Row count must match", 4000L, rowCount);
+    assertThat(rowCount).as("Row count must match").isEqualTo(4000L);
   }
 
-  @Test
+  @TestTemplate
   public void testCommitMultipleRewrites() throws NoSuchTableException, IOException {
     sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
 
@@ -253,14 +252,16 @@ public class TestFileRewriteCoordinator extends SparkCatalogTestBase {
 
     table.refresh();
 
-    Assert.assertEquals("Should produce 5 snapshots", 5, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).as("Should produce 5 snapshots").hasSize(5);
 
     Map<String, String> summary = table.currentSnapshot().summary();
-    Assert.assertEquals("Deleted files count must match", "4", summary.get("deleted-data-files"));
-    Assert.assertEquals("Added files count must match", "2", summary.get("added-data-files"));
+    assertThat(summary.get("deleted-data-files"))
+        .as("Deleted files count must match")
+        .isEqualTo("4");
+    assertThat(summary.get("added-data-files")).as("Added files count must match").isEqualTo("2");
 
     Object rowCount = scalarSql("SELECT count(*) FROM %s", tableName);
-    Assert.assertEquals("Row count must match", 4000L, rowCount);
+    assertThat(rowCount).as("Row count must match").isEqualTo(4000L);
   }
 
   private Dataset<Row> newDF(int numRecords) {

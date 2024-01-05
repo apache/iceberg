@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,8 +30,7 @@ import org.apache.spark.sql.catalyst.expressions.AttributeReference;
 import org.apache.spark.sql.catalyst.expressions.MetadataAttribute;
 import org.apache.spark.sql.catalyst.types.DataTypeUtils;
 import org.apache.spark.sql.types.StructType;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestSparkSchemaUtil {
   private static final Schema TEST_SCHEMA =
@@ -46,23 +46,22 @@ public class TestSparkSchemaUtil {
 
   @Test
   public void testEstimateSizeMaxValue() throws IOException {
-    Assert.assertEquals(
-        "estimateSize returns Long max value",
-        Long.MAX_VALUE,
-        SparkSchemaUtil.estimateSize(null, Long.MAX_VALUE));
+    assertThat(SparkSchemaUtil.estimateSize(null, Long.MAX_VALUE))
+        .as("estimateSize returns Long max value")
+        .isEqualTo(Long.MAX_VALUE);
   }
 
   @Test
   public void testEstimateSizeWithOverflow() throws IOException {
     long tableSize =
         SparkSchemaUtil.estimateSize(SparkSchemaUtil.convert(TEST_SCHEMA), Long.MAX_VALUE - 1);
-    Assert.assertEquals("estimateSize handles overflow", Long.MAX_VALUE, tableSize);
+    assertThat(tableSize).as("estimateSize handles overflow").isEqualTo(Long.MAX_VALUE);
   }
 
   @Test
   public void testEstimateSize() throws IOException {
     long tableSize = SparkSchemaUtil.estimateSize(SparkSchemaUtil.convert(TEST_SCHEMA), 1);
-    Assert.assertEquals("estimateSize matches with expected approximation", 24, tableSize);
+    assertThat(tableSize).as("estimateSize matches with expected approximation").isEqualTo(24);
   }
 
   @Test
@@ -72,13 +71,13 @@ public class TestSparkSchemaUtil {
         scala.collection.JavaConverters.seqAsJavaList(DataTypeUtils.toAttributes(structType));
     for (AttributeReference attrRef : attrRefs) {
       if (MetadataColumns.isMetadataColumn(attrRef.name())) {
-        Assert.assertTrue(
-            "metadata columns should have __metadata_col in attribute metadata",
-            MetadataAttribute.unapply(attrRef).isDefined());
+        assertThat(MetadataAttribute.unapply(attrRef).isDefined())
+            .as("metadata columns should have __metadata_col in attribute metadata")
+            .isTrue();
       } else {
-        Assert.assertFalse(
-            "non metadata columns should not have __metadata_col in attribute metadata",
-            MetadataAttribute.unapply(attrRef).isDefined());
+        assertThat(MetadataAttribute.unapply(attrRef).isDefined())
+            .as("non metadata columns should not have __metadata_col in attribute metadata")
+            .isFalse();
       }
     }
   }
