@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -66,8 +68,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
 
 public class TestHelpers {
   private TestHelpers() {}
@@ -143,7 +143,7 @@ public class TestHelpers {
   }
 
   public static void assertRows(List<Row> results, List<Row> expected) {
-    Assertions.assertThat(results).containsExactlyInAnyOrderElementsOf(expected);
+    assertThat(results).containsExactlyInAnyOrderElementsOf(expected);
   }
 
   public static void assertRowData(Schema schema, StructLike expected, RowData actual) {
@@ -159,9 +159,8 @@ public class TestHelpers {
       return;
     }
 
-    Assert.assertTrue(
-        "expected Record and actual RowData should be both null or not null",
-        expectedRecord != null && actualRowData != null);
+    assertThat(expectedRecord).isNotNull();
+    assertThat(actualRowData).isNotNull();
 
     List<Type> types = Lists.newArrayList();
     for (Types.NestedField field : structType.fields()) {
@@ -193,109 +192,106 @@ public class TestHelpers {
       return;
     }
 
-    Assert.assertTrue(
-        "expected and actual should be both null or not null", expected != null && actual != null);
+    assertThat(expected).isNotNull();
+    assertThat(actual).isNotNull();
 
     switch (type.typeId()) {
       case BOOLEAN:
-        Assert.assertEquals("boolean value should be equal", expected, actual);
+        assertThat(actual).as("boolean value should be equal").isEqualTo(expected);
         break;
       case INTEGER:
-        Assert.assertEquals("int value should be equal", expected, actual);
+        assertThat(actual).as("int value should be equal").isEqualTo(expected);
         break;
       case LONG:
-        Assert.assertEquals("long value should be equal", expected, actual);
+        assertThat(actual).as("long value should be equal").isEqualTo(expected);
         break;
       case FLOAT:
-        Assert.assertEquals("float value should be equal", expected, actual);
+        assertThat(actual).as("float value should be equal").isEqualTo(expected);
         break;
       case DOUBLE:
-        Assert.assertEquals("double value should be equal", expected, actual);
+        assertThat(actual).as("double value should be equal").isEqualTo(expected);
         break;
       case STRING:
-        Assertions.assertThat(expected)
-            .as("Should expect a CharSequence")
-            .isInstanceOf(CharSequence.class);
-        Assert.assertEquals("string should be equal", String.valueOf(expected), actual.toString());
+        assertThat(expected).as("Should expect a CharSequence").isInstanceOf(CharSequence.class);
+        assertThat(actual.toString())
+            .as("string should be equal")
+            .isEqualTo(String.valueOf(expected));
         break;
       case DATE:
-        Assertions.assertThat(expected).as("Should expect a Date").isInstanceOf(LocalDate.class);
+        assertThat(expected).as("Should expect a Date").isInstanceOf(LocalDate.class);
         LocalDate date = DateTimeUtil.dateFromDays((int) actual);
-        Assert.assertEquals("date should be equal", expected, date);
+        assertThat(date).as("date should be equal").isEqualTo(expected);
         break;
       case TIME:
-        Assertions.assertThat(expected)
-            .as("Should expect a LocalTime")
-            .isInstanceOf(LocalTime.class);
+        assertThat(expected).as("Should expect a LocalTime").isInstanceOf(LocalTime.class);
         int milliseconds = (int) (((LocalTime) expected).toNanoOfDay() / 1000_000);
-        Assert.assertEquals("time millis should be equal", milliseconds, actual);
+        assertThat(actual).as("time millis should be equal").isEqualTo(milliseconds);
         break;
       case TIMESTAMP:
         if (((Types.TimestampType) type).shouldAdjustToUTC()) {
-          Assertions.assertThat(expected)
+          assertThat(expected)
               .as("Should expect a OffsetDataTime")
               .isInstanceOf(OffsetDateTime.class);
           OffsetDateTime ts = (OffsetDateTime) expected;
-          Assert.assertEquals(
-              "OffsetDataTime should be equal",
-              ts.toLocalDateTime(),
-              ((TimestampData) actual).toLocalDateTime());
+          assertThat(((TimestampData) actual).toLocalDateTime())
+              .as("OffsetDataTime should be equal")
+              .isEqualTo(ts.toLocalDateTime());
         } else {
-          Assertions.assertThat(expected)
+          assertThat(expected)
               .as("Should expect a LocalDataTime")
               .isInstanceOf(LocalDateTime.class);
           LocalDateTime ts = (LocalDateTime) expected;
-          Assert.assertEquals(
-              "LocalDataTime should be equal", ts, ((TimestampData) actual).toLocalDateTime());
+          assertThat(((TimestampData) actual).toLocalDateTime())
+              .as("LocalDataTime should be equal")
+              .isEqualTo(ts);
         }
         break;
       case BINARY:
-        Assertions.assertThat(expected)
+        assertThat(ByteBuffer.wrap((byte[]) actual))
             .as("Should expect a ByteBuffer")
-            .isInstanceOf(ByteBuffer.class);
-        Assert.assertEquals("binary should be equal", expected, ByteBuffer.wrap((byte[]) actual));
+            .isInstanceOf(ByteBuffer.class)
+            .isEqualTo(expected);
         break;
       case DECIMAL:
-        Assertions.assertThat(expected)
-            .as("Should expect a BigDecimal")
-            .isInstanceOf(BigDecimal.class);
+        assertThat(expected).as("Should expect a BigDecimal").isInstanceOf(BigDecimal.class);
         BigDecimal bd = (BigDecimal) expected;
-        Assert.assertEquals(
-            "decimal value should be equal", bd, ((DecimalData) actual).toBigDecimal());
+        assertThat(((DecimalData) actual).toBigDecimal())
+            .as("decimal value should be equal")
+            .isEqualTo(bd);
         break;
       case LIST:
-        Assertions.assertThat(expected)
-            .as("Should expect a Collection")
-            .isInstanceOf(Collection.class);
+        assertThat(expected).as("Should expect a Collection").isInstanceOf(Collection.class);
         Collection<?> expectedArrayData = (Collection<?>) expected;
         ArrayData actualArrayData = (ArrayData) actual;
         LogicalType elementType = ((ArrayType) logicalType).getElementType();
-        Assert.assertEquals(
-            "array length should be equal", expectedArrayData.size(), actualArrayData.size());
+        assertThat(actualArrayData.size())
+            .as("array length should be equal")
+            .isEqualTo(expectedArrayData.size());
         assertArrayValues(
             type.asListType().elementType(), elementType, expectedArrayData, actualArrayData);
         break;
       case MAP:
-        Assertions.assertThat(expected).as("Should expect a Map").isInstanceOf(Map.class);
+        assertThat(expected).as("Should expect a Map").isInstanceOf(Map.class);
         assertMapValues(type.asMapType(), logicalType, (Map<?, ?>) expected, (MapData) actual);
         break;
       case STRUCT:
-        Assertions.assertThat(expected).as("Should expect a Record").isInstanceOf(StructLike.class);
+        assertThat(expected).as("Should expect a Record").isInstanceOf(StructLike.class);
         assertRowData(type.asStructType(), logicalType, (StructLike) expected, (RowData) actual);
         break;
       case UUID:
-        Assertions.assertThat(expected).as("Should expect a UUID").isInstanceOf(UUID.class);
+        assertThat(expected).as("Should expect a UUID").isInstanceOf(UUID.class);
         ByteBuffer bb = ByteBuffer.wrap((byte[]) actual);
         long firstLong = bb.getLong();
         long secondLong = bb.getLong();
-        Assert.assertEquals(
-            "UUID should be equal",
-            expected.toString(),
-            new UUID(firstLong, secondLong).toString());
+        assertThat(new UUID(firstLong, secondLong).toString())
+            .as("UUID should be equal")
+            .isEqualTo(expected.toString());
         break;
       case FIXED:
-        Assertions.assertThat(expected).as("Should expect byte[]").isInstanceOf(byte[].class);
-        Assert.assertArrayEquals("binary should be equal", (byte[]) expected, (byte[]) actual);
+        assertThat(actual)
+            .as("Should expect byte[]")
+            .isInstanceOf(byte[].class)
+            .isEqualTo(expected);
         break;
       default:
         throw new IllegalArgumentException("Not a supported type: " + type);
@@ -309,8 +305,9 @@ public class TestHelpers {
 
   public static void assertEquals(Schema schema, GenericData.Record record, Row row) {
     List<Types.NestedField> fields = schema.asStruct().fields();
-    Assert.assertEquals(fields.size(), record.getSchema().getFields().size());
-    Assert.assertEquals(fields.size(), row.getArity());
+    assertThat(fields).hasSameSizeAs(record.getSchema().getFields());
+    assertThat(fields).hasSize(row.getArity());
+
     RowType rowType = FlinkSchemaUtil.convert(schema);
     for (int i = 0; i < fields.size(); ++i) {
       Type fieldType = fields.get(i).type();
@@ -337,9 +334,8 @@ public class TestHelpers {
     if (expected == null && actual == null) {
       return;
     }
-
-    Assert.assertTrue(
-        "expected and actual should be both null or not null", expected != null && actual != null);
+    assertThat(expected).isNotNull();
+    assertThat(actual).isNotNull();
 
     switch (type.typeId()) {
       case BOOLEAN:
@@ -347,72 +343,63 @@ public class TestHelpers {
       case LONG:
       case FLOAT:
       case DOUBLE:
-        Assertions.assertThat(expected)
+        assertThat(expected)
             .as("Should expect a " + type.typeId().javaClass())
             .isInstanceOf(type.typeId().javaClass());
-        Assertions.assertThat(actual)
+        assertThat(actual)
             .as("Should expect a " + type.typeId().javaClass())
             .isInstanceOf(type.typeId().javaClass());
-        Assert.assertEquals(type.typeId() + " value should be equal", expected, actual);
+        assertThat(actual).as(type.typeId() + " value should be equal").isEqualTo(expected);
         break;
       case STRING:
-        Assertions.assertThat(expected)
-            .as("Should expect a CharSequence")
-            .isInstanceOf(CharSequence.class);
-        Assertions.assertThat(actual)
-            .as("Should expect a CharSequence")
-            .isInstanceOf(CharSequence.class);
-        Assert.assertEquals("string should be equal", expected.toString(), actual.toString());
+        assertThat(expected).as("Should expect a CharSequence").isInstanceOf(CharSequence.class);
+        assertThat(actual).as("Should expect a CharSequence").isInstanceOf(CharSequence.class);
+        assertThat(actual.toString()).as("string should be equal").isEqualTo(expected.toString());
         break;
       case DATE:
-        Assertions.assertThat(expected).as("Should expect a Date").isInstanceOf(LocalDate.class);
+        assertThat(expected).as("Should expect a Date").isInstanceOf(LocalDate.class);
         LocalDate date = DateTimeUtil.dateFromDays((int) actual);
-        Assert.assertEquals("date should be equal", expected, date);
+        assertThat(date).as("date should be equal").isEqualTo(expected);
         break;
       case TIME:
-        Assertions.assertThat(expected)
-            .as("Should expect a LocalTime")
-            .isInstanceOf(LocalTime.class);
+        assertThat(expected).as("Should expect a LocalTime").isInstanceOf(LocalTime.class);
         int milliseconds = (int) (((LocalTime) expected).toNanoOfDay() / 1000_000);
-        Assert.assertEquals("time millis should be equal", milliseconds, actual);
+        assertThat(actual).as("time millis should be equal").isEqualTo(milliseconds);
         break;
       case TIMESTAMP:
         if (((Types.TimestampType) type).shouldAdjustToUTC()) {
-          Assertions.assertThat(expected)
+          assertThat(expected)
               .as("Should expect a OffsetDataTime")
               .isInstanceOf(OffsetDateTime.class);
           OffsetDateTime ts = (OffsetDateTime) expected;
-          Assert.assertEquals(
-              "OffsetDataTime should be equal",
-              ts.toLocalDateTime(),
-              ((TimestampData) actual).toLocalDateTime());
+          assertThat(((TimestampData) actual).toLocalDateTime())
+              .as("OffsetDataTime should be equal")
+              .isEqualTo(ts.toLocalDateTime());
         } else {
-          Assertions.assertThat(expected)
+          assertThat(expected)
               .as("Should expect a LocalDataTime")
               .isInstanceOf(LocalDateTime.class);
           LocalDateTime ts = (LocalDateTime) expected;
-          Assert.assertEquals(
-              "LocalDataTime should be equal", ts, ((TimestampData) actual).toLocalDateTime());
+          assertThat(((TimestampData) actual).toLocalDateTime())
+              .as("LocalDataTime should be equal")
+              .isEqualTo(ts);
         }
         break;
       case BINARY:
-        Assertions.assertThat(expected)
+        assertThat(ByteBuffer.wrap((byte[]) actual))
             .as("Should expect a ByteBuffer")
-            .isInstanceOf(ByteBuffer.class);
-        Assert.assertEquals("binary should be equal", expected, ByteBuffer.wrap((byte[]) actual));
+            .isInstanceOf(ByteBuffer.class)
+            .isEqualTo(expected);
         break;
       case DECIMAL:
-        Assertions.assertThat(expected)
-            .as("Should expect a BigDecimal")
-            .isInstanceOf(BigDecimal.class);
+        assertThat(expected).as("Should expect a BigDecimal").isInstanceOf(BigDecimal.class);
         BigDecimal bd = (BigDecimal) expected;
-        Assert.assertEquals(
-            "decimal value should be equal", bd, ((DecimalData) actual).toBigDecimal());
+        assertThat(((DecimalData) actual).toBigDecimal())
+            .as("decimal value should be equal")
+            .isEqualTo(bd);
         break;
       case LIST:
-        Assertions.assertThat(expected)
-            .as("Should expect a Collection")
-            .isInstanceOf(Collection.class);
+        assertThat(expected).as("Should expect a Collection").isInstanceOf(Collection.class);
         Collection<?> expectedArrayData = (Collection<?>) expected;
         ArrayData actualArrayData;
         try {
@@ -421,13 +408,14 @@ public class TestHelpers {
           actualArrayData = new GenericArrayData((Object[]) actual);
         }
         LogicalType elementType = ((ArrayType) logicalType).getElementType();
-        Assert.assertEquals(
-            "array length should be equal", expectedArrayData.size(), actualArrayData.size());
+        assertThat(actualArrayData.size())
+            .as("array length should be equal")
+            .isEqualTo(expectedArrayData.size());
         assertArrayValues(
             type.asListType().elementType(), elementType, expectedArrayData, actualArrayData);
         break;
       case MAP:
-        Assertions.assertThat(expected).as("Should expect a Map").isInstanceOf(Map.class);
+        assertThat(expected).as("Should expect a Map").isInstanceOf(Map.class);
         MapData actualMap;
         try {
           actualMap = (MapData) actual;
@@ -437,25 +425,24 @@ public class TestHelpers {
         assertMapValues(type.asMapType(), logicalType, (Map<?, ?>) expected, actualMap);
         break;
       case STRUCT:
-        Assertions.assertThat(expected)
-            .as("Should expect a Record")
-            .isInstanceOf(GenericData.Record.class);
+        assertThat(expected).as("Should expect a Record").isInstanceOf(GenericData.Record.class);
         assertEquals(
             type.asNestedType().asStructType(), (GenericData.Record) expected, (Row) actual);
         break;
       case UUID:
-        Assertions.assertThat(expected).as("Should expect a UUID").isInstanceOf(UUID.class);
+        assertThat(expected).as("Should expect a UUID").isInstanceOf(UUID.class);
         ByteBuffer bb = ByteBuffer.wrap((byte[]) actual);
         long firstLong = bb.getLong();
         long secondLong = bb.getLong();
-        Assert.assertEquals(
-            "UUID should be equal",
-            expected.toString(),
-            new UUID(firstLong, secondLong).toString());
+        assertThat(new UUID(firstLong, secondLong).toString())
+            .as("UUID should be equal")
+            .isEqualTo(expected.toString());
         break;
       case FIXED:
-        Assertions.assertThat(expected).as("Should expect byte[]").isInstanceOf(byte[].class);
-        Assert.assertArrayEquals("binary should be equal", (byte[]) expected, (byte[]) actual);
+        assertThat(actual)
+            .as("Should expect byte[]")
+            .isInstanceOf(byte[].class)
+            .isEqualTo(expected);
         break;
       default:
         throw new IllegalArgumentException("Not a supported type: " + type);
@@ -467,7 +454,7 @@ public class TestHelpers {
     List<?> expectedElements = Lists.newArrayList(expectedArray);
     for (int i = 0; i < expectedArray.size(); i += 1) {
       if (expectedElements.get(i) == null) {
-        Assert.assertTrue(actualArray.isNullAt(i));
+        assertThat(actualArray.isNullAt(i)).isTrue();
         continue;
       }
 
@@ -483,7 +470,7 @@ public class TestHelpers {
 
   private static void assertMapValues(
       Types.MapType mapType, LogicalType type, Map<?, ?> expected, MapData actual) {
-    Assert.assertEquals("map size should be equal", expected.size(), actual.size());
+    assertThat(actual.size()).as("map size should be equal").isEqualTo(expected.size());
 
     ArrayData actualKeyArrayData = actual.keyArray();
     ArrayData actualValueArrayData = actual.valueArray();
@@ -509,7 +496,7 @@ public class TestHelpers {
           // not found
         }
       }
-      Assert.assertNotNull("Should have a matching key", matchedActualKey);
+      assertThat(matchedActualKey).as("Should have a matching key").isNotNull();
       final int valueIndex = matchedKeyIndex;
       assertEquals(
           valueType,
@@ -523,60 +510,67 @@ public class TestHelpers {
     if (expected == actual) {
       return;
     }
-    Assert.assertTrue("Should not be null.", expected != null && actual != null);
-    Assert.assertEquals("Path must match", expected.path(), actual.path());
-    Assert.assertEquals("Length must match", expected.length(), actual.length());
-    Assert.assertEquals("Spec id must match", expected.partitionSpecId(), actual.partitionSpecId());
-    Assert.assertEquals("ManifestContent must match", expected.content(), actual.content());
-    Assert.assertEquals(
-        "SequenceNumber must match", expected.sequenceNumber(), actual.sequenceNumber());
-    Assert.assertEquals(
-        "MinSequenceNumber must match", expected.minSequenceNumber(), actual.minSequenceNumber());
-    Assert.assertEquals("Snapshot id must match", expected.snapshotId(), actual.snapshotId());
-    Assert.assertEquals(
-        "Added files flag must match", expected.hasAddedFiles(), actual.hasAddedFiles());
-    Assert.assertEquals(
-        "Added files count must match", expected.addedFilesCount(), actual.addedFilesCount());
-    Assert.assertEquals(
-        "Added rows count must match", expected.addedRowsCount(), actual.addedRowsCount());
-    Assert.assertEquals(
-        "Existing files flag must match", expected.hasExistingFiles(), actual.hasExistingFiles());
-    Assert.assertEquals(
-        "Existing files count must match",
-        expected.existingFilesCount(),
-        actual.existingFilesCount());
-    Assert.assertEquals(
-        "Existing rows count must match", expected.existingRowsCount(), actual.existingRowsCount());
-    Assert.assertEquals(
-        "Deleted files flag must match", expected.hasDeletedFiles(), actual.hasDeletedFiles());
-    Assert.assertEquals(
-        "Deleted files count must match", expected.deletedFilesCount(), actual.deletedFilesCount());
-    Assert.assertEquals(
-        "Deleted rows count must match", expected.deletedRowsCount(), actual.deletedRowsCount());
+    assertThat(expected).isNotNull();
+    assertThat(actual).isNotNull();
+    assertThat(actual.path()).as("Path must match").isEqualTo(expected.path());
+    assertThat(actual.length()).as("Length must match").isEqualTo(expected.length());
+    assertThat(actual.partitionSpecId())
+        .as("Spec id must match")
+        .isEqualTo(expected.partitionSpecId());
+    assertThat(actual.content()).as("ManifestContent must match").isEqualTo(expected.content());
+    assertThat(actual.sequenceNumber())
+        .as("SequenceNumber must match")
+        .isEqualTo(expected.sequenceNumber());
+    assertThat(actual.minSequenceNumber())
+        .as("MinSequenceNumber must match")
+        .isEqualTo(expected.minSequenceNumber());
+    assertThat(actual.snapshotId()).as("Snapshot id must match").isEqualTo(expected.snapshotId());
+    assertThat(actual.hasAddedFiles())
+        .as("Added files flag must match")
+        .isEqualTo(expected.hasAddedFiles());
+    assertThat(actual.addedFilesCount())
+        .as("Added files count must match")
+        .isEqualTo(expected.addedFilesCount());
+    assertThat(actual.addedRowsCount())
+        .as("Added rows count must match")
+        .isEqualTo(expected.addedRowsCount());
+    assertThat(actual.hasExistingFiles())
+        .as("Existing files flag must match")
+        .isEqualTo(expected.hasExistingFiles());
+    assertThat(actual.existingFilesCount())
+        .as("Existing files count must match")
+        .isEqualTo(expected.existingFilesCount());
+    assertThat(actual.existingRowsCount())
+        .as("Existing rows count must match")
+        .isEqualTo(expected.existingRowsCount());
+    assertThat(actual.hasDeletedFiles())
+        .as("Deleted files flag must match")
+        .isEqualTo(expected.hasDeletedFiles());
+    assertThat(actual.deletedFilesCount())
+        .as("Deleted files count must match")
+        .isEqualTo(expected.deletedFilesCount());
+    assertThat(actual.deletedRowsCount())
+        .as("Deleted rows count must match")
+        .isEqualTo(expected.deletedRowsCount());
 
     List<ManifestFile.PartitionFieldSummary> expectedSummaries = expected.partitions();
     List<ManifestFile.PartitionFieldSummary> actualSummaries = actual.partitions();
-    Assert.assertEquals(
-        "PartitionFieldSummary size does not match",
-        expectedSummaries.size(),
-        actualSummaries.size());
+    assertThat(actualSummaries)
+        .as("PartitionFieldSummary size does not match")
+        .hasSameSizeAs(expectedSummaries);
     for (int i = 0; i < expectedSummaries.size(); i++) {
-      Assert.assertEquals(
-          "Null flag in partition must match",
-          expectedSummaries.get(i).containsNull(),
-          actualSummaries.get(i).containsNull());
-      Assert.assertEquals(
-          "NaN flag in partition must match",
-          expectedSummaries.get(i).containsNaN(),
-          actualSummaries.get(i).containsNaN());
-      Assert.assertEquals(
-          "Lower bounds in partition must match",
-          expectedSummaries.get(i).lowerBound(),
-          actualSummaries.get(i).lowerBound());
-      Assert.assertEquals(
-          "Upper bounds in partition must match",
-          expectedSummaries.get(i).upperBound(),
-          actualSummaries.get(i).upperBound());
+      assertThat(actualSummaries.get(i).containsNull())
+          .as("Null flag in partition must match")
+          .isEqualTo(expectedSummaries.get(i).containsNull());
+      assertThat(actualSummaries.get(i).containsNaN())
+          .as("NaN flag in partition must match")
+          .isEqualTo(expectedSummaries.get(i).containsNaN());
+      assertThat(actualSummaries.get(i).lowerBound())
+          .as("Lower bounds in partition must match")
+          .isEqualTo(expectedSummaries.get(i).lowerBound());
+      assertThat(actualSummaries.get(i).upperBound())
+          .as("Upper bounds in partition must match")
+          .isEqualTo(expectedSummaries.get(i).upperBound());
     }
   }
 
@@ -584,28 +578,35 @@ public class TestHelpers {
     if (expected == actual) {
       return;
     }
-    Assert.assertTrue("Shouldn't be null.", expected != null && actual != null);
-    Assert.assertEquals("SpecId", expected.specId(), actual.specId());
-    Assert.assertEquals("Content", expected.content(), actual.content());
-    Assert.assertEquals("Path", expected.path(), actual.path());
-    Assert.assertEquals("Format", expected.format(), actual.format());
-    Assert.assertEquals("Partition size", expected.partition().size(), actual.partition().size());
+    assertThat(expected).isNotNull();
+    assertThat(actual).isNotNull();
+    assertThat(actual.specId()).as("SpecId").isEqualTo(expected.specId());
+    assertThat(actual.content()).as("Content").isEqualTo(expected.content());
+    assertThat(actual.path()).as("Path").isEqualTo(expected.path());
+    assertThat(actual.format()).as("Format").isEqualTo(expected.format());
+    assertThat(actual.partition().size())
+        .as("Partition size")
+        .isEqualTo(expected.partition().size());
     for (int i = 0; i < expected.partition().size(); i++) {
-      Assert.assertEquals(
-          "Partition data at index " + i,
-          expected.partition().get(i, Object.class),
-          actual.partition().get(i, Object.class));
+      assertThat(actual.partition().get(i, Object.class))
+          .as("Partition data at index " + i)
+          .isEqualTo(expected.partition().get(i, Object.class));
     }
-    Assert.assertEquals("Record count", expected.recordCount(), actual.recordCount());
-    Assert.assertEquals("File size in bytes", expected.fileSizeInBytes(), actual.fileSizeInBytes());
-    Assert.assertEquals("Column sizes", expected.columnSizes(), actual.columnSizes());
-    Assert.assertEquals("Value counts", expected.valueCounts(), actual.valueCounts());
-    Assert.assertEquals("Null value counts", expected.nullValueCounts(), actual.nullValueCounts());
-    Assert.assertEquals("Lower bounds", expected.lowerBounds(), actual.lowerBounds());
-    Assert.assertEquals("Upper bounds", expected.upperBounds(), actual.upperBounds());
-    Assert.assertEquals("Key metadata", expected.keyMetadata(), actual.keyMetadata());
-    Assert.assertEquals("Split offsets", expected.splitOffsets(), actual.splitOffsets());
-    Assert.assertEquals(
-        "Equality field id list", actual.equalityFieldIds(), expected.equalityFieldIds());
+    assertThat(actual.recordCount()).as("Record count").isEqualTo(expected.recordCount());
+    assertThat(actual.fileSizeInBytes())
+        .as("File size in bytes")
+        .isEqualTo(expected.fileSizeInBytes());
+    assertThat(actual.columnSizes()).as("Column sizes").isEqualTo(expected.columnSizes());
+    assertThat(actual.valueCounts()).as("Value counts").isEqualTo(expected.valueCounts());
+    assertThat(actual.nullValueCounts())
+        .as("Null value counts")
+        .isEqualTo(expected.nullValueCounts());
+    assertThat(actual.lowerBounds()).as("Lower bounds").isEqualTo(expected.lowerBounds());
+    assertThat(actual.upperBounds()).as("Upper bounds").isEqualTo(expected.upperBounds());
+    assertThat(actual.keyMetadata()).as("Key metadata").isEqualTo(expected.keyMetadata());
+    assertThat(actual.splitOffsets()).as("Split offsets").isEqualTo(expected.splitOffsets());
+    assertThat(actual.equalityFieldIds())
+        .as("Equality field id list")
+        .isEqualTo(expected.equalityFieldIds());
   }
 }
