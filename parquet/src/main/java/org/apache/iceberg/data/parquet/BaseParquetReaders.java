@@ -183,7 +183,7 @@ public abstract class BaseParquetReaders<T> {
         return tsMicrosType.shouldAdjustToUTC()
             ? Optional.of(new TimestamptzReader(desc))
             : Optional.of(new TimestampReader(desc));
-      } else if (timestampLogicalType.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS) {
+      } else if (timestampLogicalType.getUnit() == LogicalTypeAnnotation.TimeUnit.MILLIS) {
         Types.TimestampType tsMillisType = (Types.TimestampType) expected;
         return tsMillisType.shouldAdjustToUTC()
             ? Optional.of(new TimestamptzMillisReader(desc))
