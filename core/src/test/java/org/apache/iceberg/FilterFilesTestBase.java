@@ -24,67 +24,67 @@ import static org.junit.Assert.assertEquals;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public abstract class FilterFilesTestBase<
     ScanT extends Scan<ScanT, T, G>, T extends ScanTask, G extends ScanTaskGroup<T>> {
 
-  public final int formatVersion;
-
-  public FilterFilesTestBase(int formatVersion) {
-    this.formatVersion = formatVersion;
-  }
+  @Parameter(index = 0)
+  public int formatVersion;
 
   protected abstract ScanT newScan(Table table);
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir protected Path temp;
   private final Schema schema =
       new Schema(
           required(1, "id", Types.IntegerType.get()), required(2, "data", Types.StringType.get()));
   private File tableDir = null;
 
-  @Before
+  @BeforeEach
   public void setupTableDir() throws IOException {
-    this.tableDir = temp.newFolder();
+    this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
   }
 
-  @After
+  @AfterEach
   public void cleanupTables() {
     TestTables.clearTables();
   }
 
-  @Test
+  @TestTemplate
   public void testFilterFilesUnpartitionedTable() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Table table = TestTables.create(tableDir, "test", schema, spec, formatVersion);
     testFilterFiles(table);
   }
 
-  @Test
+  @TestTemplate
   public void testCaseInsensitiveFilterFilesUnpartitionedTable() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Table table = TestTables.create(tableDir, "test", schema, spec, formatVersion);
     testCaseInsensitiveFilterFiles(table);
   }
 
-  @Test
+  @TestTemplate
   public void testFilterFilesPartitionedTable() {
     PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("data", 16).build();
     Table table = TestTables.create(tableDir, "test", schema, spec, formatVersion);
     testFilterFiles(table);
   }
 
-  @Test
+  @TestTemplate
   public void testCaseInsensitiveFilterFilesPartitionedTable() {
     PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("data", 16).build();
     Table table = TestTables.create(tableDir, "test", schema, spec, formatVersion);

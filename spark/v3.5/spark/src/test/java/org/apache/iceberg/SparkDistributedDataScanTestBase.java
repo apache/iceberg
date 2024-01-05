@@ -25,42 +25,38 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.internal.SQLConf;
-import org.junit.Before;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Parameterized.Parameters;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public abstract class SparkDistributedDataScanTestBase
     extends DataTableScanTestBase<BatchScan, ScanTask, ScanTaskGroup<ScanTask>> {
 
-  @Parameters(name = "formatVersion = {0}, dataMode = {1}, deleteMode = {2}")
-  public static Object[] parameters() {
+  @Parameters(
+      name =
+          "formatVersion = {0}, V1Assert = {1}, V2Assert = {2}, dataMode = {3}, deleteMode = {4}")
+  public static Object[][] parameters() {
     return new Object[][] {
-      new Object[] {1, LOCAL, LOCAL},
-      new Object[] {1, LOCAL, DISTRIBUTED},
-      new Object[] {1, DISTRIBUTED, LOCAL},
-      new Object[] {1, DISTRIBUTED, DISTRIBUTED},
-      new Object[] {2, LOCAL, LOCAL},
-      new Object[] {2, LOCAL, DISTRIBUTED},
-      new Object[] {2, DISTRIBUTED, LOCAL},
-      new Object[] {2, DISTRIBUTED, DISTRIBUTED}
+      {1, new TableAssertions(1, 1), new TableAssertions(2, 1), LOCAL, LOCAL},
+      {1, new TableAssertions(1, 1), new TableAssertions(2, 1), LOCAL, DISTRIBUTED},
+      {1, new TableAssertions(1, 1), new TableAssertions(2, 1), DISTRIBUTED, LOCAL},
+      {1, new TableAssertions(1, 1), new TableAssertions(2, 1), DISTRIBUTED, DISTRIBUTED},
+      {2, new TableAssertions(1, 2), new TableAssertions(2, 2), LOCAL, LOCAL},
+      {2, new TableAssertions(1, 2), new TableAssertions(2, 2), LOCAL, DISTRIBUTED},
+      {2, new TableAssertions(1, 2), new TableAssertions(2, 2), DISTRIBUTED, LOCAL},
+      {2, new TableAssertions(1, 2), new TableAssertions(2, 2), DISTRIBUTED, DISTRIBUTED}
     };
   }
 
   protected static SparkSession spark = null;
 
-  private final PlanningMode dataMode;
-  private final PlanningMode deleteMode;
+  @Parameter(index = 3)
+  private PlanningMode dataMode;
 
-  public SparkDistributedDataScanTestBase(
-      int formatVersion, PlanningMode dataPlanningMode, PlanningMode deletePlanningMode) {
-    super(formatVersion);
-    this.dataMode = dataPlanningMode;
-    this.deleteMode = deletePlanningMode;
-  }
+  @Parameter(index = 4)
+  private PlanningMode deleteMode;
 
-  @Before
+  @BeforeEach
   public void configurePlanningModes() {
     table
         .updateProperties()

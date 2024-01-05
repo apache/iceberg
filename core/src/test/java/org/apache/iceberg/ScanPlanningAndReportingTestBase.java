@@ -34,21 +34,22 @@ import org.apache.iceberg.metrics.ScanMetricsResult;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.assertj.core.api.InstanceOfAssertFactories;
-import org.junit.Test;
+import org.junit.jupiter.api.TestTemplate;
 
 public abstract class ScanPlanningAndReportingTestBase<
         ScanT extends Scan<ScanT, T, G>, T extends ScanTask, G extends ScanTaskGroup<T>>
-    extends TableTestBase {
+    extends ParameterizedTableTestBase {
 
   private final TestMetricsReporter reporter = new TestMetricsReporter();
 
-  public ScanPlanningAndReportingTestBase() {
-    super(2);
+  @Parameters(name = "formatVersion = {0}, V1Assert = {1}, V2Assert = {2}")
+  public static Object[][] parameters() {
+    return new Object[][] {{2, new TableAssertions(1, 2), new TableAssertions(2, 2)}};
   }
 
   protected abstract ScanT newScan(Table table);
 
-  @Test
+  @TestTemplate
   public void noDuplicatesInScanContext() {
     TableScanContext context = TableScanContext.empty();
     assertThat(context.metricsReporter()).isInstanceOf(LoggingMetricsReporter.class);
@@ -76,7 +77,7 @@ public abstract class ScanPlanningAndReportingTestBase<
         .containsExactlyInAnyOrder(LoggingMetricsReporter.instance(), first, second);
   }
 
-  @Test
+  @TestTemplate
   public void scanningWithMultipleReporters() throws IOException {
     String tableName = "scan-with-multiple-reporters";
     Table table =
@@ -106,7 +107,7 @@ public abstract class ScanPlanningAndReportingTestBase<
     assertThat(reportedCount.get()).isEqualTo(2);
   }
 
-  @Test
+  @TestTemplate
   public void scanningWithMultipleDataManifests() throws IOException {
     String tableName = "multiple-data-manifests";
     Table table =
@@ -169,7 +170,7 @@ public abstract class ScanPlanningAndReportingTestBase<
     assertThat(result.skippedDeleteFiles().value()).isEqualTo(0);
   }
 
-  @Test
+  @TestTemplate
   public void scanningWithDeletes() throws IOException {
     Table table =
         TestTables.create(
@@ -212,7 +213,7 @@ public abstract class ScanPlanningAndReportingTestBase<
     assertThat(result.positionalDeleteFiles().value()).isEqualTo(2);
   }
 
-  @Test
+  @TestTemplate
   public void scanningWithSkippedDataFiles() throws IOException {
     String tableName = "scan-planning-with-skipped-data-files";
     Table table =
@@ -252,7 +253,7 @@ public abstract class ScanPlanningAndReportingTestBase<
     assertThat(result.totalDeleteFileSizeInBytes().value()).isEqualTo(0L);
   }
 
-  @Test
+  @TestTemplate
   public void scanningWithSkippedDeleteFiles() throws IOException {
     String tableName = "scan-planning-with-skipped-delete-files";
     Table table =
@@ -296,7 +297,7 @@ public abstract class ScanPlanningAndReportingTestBase<
     assertThat(result.positionalDeleteFiles().value()).isEqualTo(0);
   }
 
-  @Test
+  @TestTemplate
   public void scanningWithEqualityAndPositionalDeleteFiles() throws IOException {
     String tableName = "scan-planning-with-eq-and-pos-delete-files";
     Table table =
