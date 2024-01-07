@@ -57,14 +57,14 @@ public class TestNamespaceSQL extends CatalogTestBase {
         SparkCatalogConfig.HIVE.catalogName(),
         SparkCatalogConfig.HIVE.implementation(),
         SparkCatalogConfig.HIVE.properties(),
-        "testhive." + NS.toString(),
+        SparkCatalogConfig.HIVE.catalogName() + NS.toString(),
         false
       },
       {
         SparkCatalogConfig.HADOOP.catalogName(),
         SparkCatalogConfig.HADOOP.implementation(),
         SparkCatalogConfig.HADOOP.properties(),
-        "testhadoop." + NS.toString(),
+        SparkCatalogConfig.HADOOP.catalogName() + NS.toString(),
         true
       },
       {

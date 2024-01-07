@@ -31,7 +31,7 @@ import org.junit.jupiter.api.TestTemplate;
 
 public class TestPartitionedWritesAsSelect extends TestBaseWithCatalog {
 
-  private final String targetTable = "testhadoop.default.target_table";
+  private final String targetTable = tableName("target_table");
 
   @BeforeEach
   public void createTables() {
