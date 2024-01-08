@@ -24,6 +24,9 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class EncryptionTestHelpers {
+
+  private EncryptionTestHelpers() {}
+
   public static EncryptionManager createEncryptionManager() {
     Map<String, String> catalogProperties = Maps.newHashMap();
     catalogProperties.put(
