@@ -19,5 +19,5 @@ mkdocs-awesome-pages-plugin==2.9.2
 mkdocs-macros-plugin==1.0.5
 mkdocs-material==9.5.3
 mkdocs-material-extensions==1.3
-mkdocs-monorepo-plugin==1.0.5
+mkdocs-monorepo-plugin==1.1.0
 mkdocs-redirects==1.2.1
