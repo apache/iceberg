@@ -145,7 +145,7 @@ public class TestTimestampWithoutZone extends CatalogTestBase {
 
     assertThat(scalarSql("SELECT count(*) FROM %s", newTableName))
         .as("Should have " + values.size() + " row")
-        .isEqualTo(values.size());
+        .isEqualTo((long) values.size());
 
     assertEquals(
         "Row data should match expected",
@@ -161,7 +161,7 @@ public class TestTimestampWithoutZone extends CatalogTestBase {
 
     assertThat(scalarSql("SELECT count(*) FROM %s", newTableName))
         .as("Should have " + values.size() + " row")
-        .isEqualTo(values.size());
+        .isEqualTo((long) values.size());
 
     assertEquals(
         "Data from created table should match data from base table",
@@ -186,7 +186,7 @@ public class TestTimestampWithoutZone extends CatalogTestBase {
 
     assertThat(scalarSql("SELECT count(*) FROM %s", newTableName))
         .as("Should have " + values.size() + " row")
-        .isEqualTo(values.size());
+        .isEqualTo((long) values.size());
 
     assertEquals(
         "Row data should match expected",
