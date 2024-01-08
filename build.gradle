@@ -407,6 +407,7 @@ project(':iceberg-data') {
   }
 
   test {
+    useJUnitPlatform()
     // Only for TestSplitScan as of Gradle 5.0+
     maxHeapSize '1500m'
   }

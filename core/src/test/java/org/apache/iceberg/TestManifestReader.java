@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,18 +33,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.recursive.comparison.RecursiveComparisonConfiguration;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.TestTemplate;
 
-@RunWith(Parameterized.class)
-public class TestManifestReader extends TableTestBase {
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
-  }
+public class TestManifestReader extends TestBase {
 
   private static final RecursiveComparisonConfiguration FILE_COMPARISON_CONFIG =
       RecursiveComparisonConfiguration.builder()
@@ -51,22 +43,18 @@ public class TestManifestReader extends TableTestBase {
               "dataSequenceNumber", "fileOrdinal", "fileSequenceNumber", "fromProjectionPos")
           .build();
 
-  public TestManifestReader(int formatVersion) {
-    super(formatVersion);
-  }
-
-  @Test
+  @TestTemplate
   public void testManifestReaderWithEmptyInheritableMetadata() throws IOException {
     ManifestFile manifest = writeManifest(1000L, manifestEntry(Status.EXISTING, 1000L, FILE_A));
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)) {
       ManifestEntry<DataFile> entry = Iterables.getOnlyElement(reader.entries());
-      Assert.assertEquals(Status.EXISTING, entry.status());
-      Assert.assertEquals(FILE_A.path(), entry.file().path());
-      Assert.assertEquals(1000L, (long) entry.snapshotId());
+      assertThat(entry.status()).isEqualTo(Status.EXISTING);
+      assertThat(entry.file().path()).isEqualTo(FILE_A.path());
+      assertThat(entry.snapshotId()).isEqualTo(1000L);
     }
   }
 
-  @Test
+  @TestTemplate
   public void testReaderWithFilterWithoutSelect() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE_A, FILE_B, FILE_C);
     try (ManifestReader<DataFile> reader =
@@ -82,7 +70,7 @@ public class TestManifestReader extends TableTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testInvalidUsage() throws IOException {
     ManifestFile manifest = writeManifest(FILE_A, FILE_B);
     Assertions.assertThatThrownBy(() -> ManifestFiles.read(manifest, FILE_IO))
@@ -90,23 +78,23 @@ public class TestManifestReader extends TableTestBase {
         .hasMessage("Cannot read from ManifestFile with null (unassigned) snapshot ID");
   }
 
-  @Test
+  @TestTemplate
   public void testManifestReaderWithPartitionMetadata() throws IOException {
     ManifestFile manifest = writeManifest(1000L, manifestEntry(Status.EXISTING, 123L, FILE_A));
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)) {
       ManifestEntry<DataFile> entry = Iterables.getOnlyElement(reader.entries());
-      Assert.assertEquals(123L, (long) entry.snapshotId());
+      assertThat(entry.snapshotId()).isEqualTo(123L);
 
       List<Types.NestedField> fields =
           ((PartitionData) entry.file().partition()).getPartitionType().fields();
-      Assert.assertEquals(1, fields.size());
-      Assert.assertEquals(1000, fields.get(0).fieldId());
-      Assert.assertEquals("data_bucket", fields.get(0).name());
-      Assert.assertEquals(Types.IntegerType.get(), fields.get(0).type());
+      assertThat(fields).hasSize(1);
+      assertThat(fields.get(0).fieldId()).isEqualTo(1000);
+      assertThat(fields.get(0).name()).isEqualTo("data_bucket");
+      assertThat(fields.get(0).type()).isEqualTo(Types.IntegerType.get());
     }
   }
 
-  @Test
+  @TestTemplate
   public void testManifestReaderWithUpdatedPartitionMetadataForV1Table() throws IOException {
     PartitionSpec spec =
         PartitionSpec.builderFor(table.schema()).bucket("id", 8).bucket("data", 16).build();
@@ -115,53 +103,55 @@ public class TestManifestReader extends TableTestBase {
     ManifestFile manifest = writeManifest(1000L, manifestEntry(Status.EXISTING, 123L, FILE_A));
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)) {
       ManifestEntry<DataFile> entry = Iterables.getOnlyElement(reader.entries());
-      Assert.assertEquals(123L, (long) entry.snapshotId());
+      assertThat(entry.snapshotId()).isEqualTo(123L);
 
       List<Types.NestedField> fields =
           ((PartitionData) entry.file().partition()).getPartitionType().fields();
-      Assert.assertEquals(2, fields.size());
-      Assert.assertEquals(1000, fields.get(0).fieldId());
-      Assert.assertEquals("id_bucket", fields.get(0).name());
-      Assert.assertEquals(Types.IntegerType.get(), fields.get(0).type());
+      assertThat(fields).hasSize(2);
+      assertThat(fields.get(0).fieldId()).isEqualTo(1000);
+      assertThat(fields.get(0).name()).isEqualTo("id_bucket");
+      assertThat(fields.get(0).type()).isEqualTo(Types.IntegerType.get());
 
-      Assert.assertEquals(1001, fields.get(1).fieldId());
-      Assert.assertEquals("data_bucket", fields.get(1).name());
-      Assert.assertEquals(Types.IntegerType.get(), fields.get(1).type());
+      assertThat(fields.get(1).fieldId()).isEqualTo(1001);
+      assertThat(fields.get(1).name()).isEqualTo("data_bucket");
+      assertThat(fields.get(1).type()).isEqualTo(Types.IntegerType.get());
     }
   }
 
-  @Test
+  @TestTemplate
   public void testDataFilePositions() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE_A, FILE_B, FILE_C);
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)) {
       long expectedPos = 0L;
       for (DataFile file : reader) {
-        Assert.assertEquals("Position should match", (Long) expectedPos, file.pos());
-        Assert.assertEquals(
-            "Position from field index should match", expectedPos, ((BaseFile) file).get(17));
+        assertThat(file.pos()).as("Position should match").isEqualTo(expectedPos);
+        assertThat(((BaseFile) file).get(17))
+            .as("Position from field index should match")
+            .isEqualTo(expectedPos);
         expectedPos += 1;
       }
     }
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteFilePositions() throws IOException {
-    Assume.assumeTrue("Delete files only work for format version 2", formatVersion == 2);
+    assumeThat(formatVersion).as("Delete files only work for format version 2").isEqualTo(2);
     ManifestFile manifest =
         writeDeleteManifest(formatVersion, 1000L, FILE_A_DELETES, FILE_B_DELETES);
     try (ManifestReader<DeleteFile> reader =
         ManifestFiles.readDeleteManifest(manifest, FILE_IO, null)) {
       long expectedPos = 0L;
       for (DeleteFile file : reader) {
-        Assert.assertEquals("Position should match", (Long) expectedPos, file.pos());
-        Assert.assertEquals(
-            "Position from field index should match", expectedPos, ((BaseFile) file).get(17));
+        assertThat(file.pos()).as("Position should match").isEqualTo(expectedPos);
+        assertThat(((BaseFile) file).get(17))
+            .as("Position from field index should match")
+            .isEqualTo(expectedPos);
         expectedPos += 1;
       }
     }
   }
 
-  @Test
+  @TestTemplate
   public void testDataFileSplitOffsetsNullWhenInvalid() throws IOException {
     DataFile invalidOffset =
         DataFiles.builder(SPEC)
@@ -173,7 +163,7 @@ public class TestManifestReader extends TableTestBase {
     ManifestFile manifest = writeManifest(1000L, invalidOffset);
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)) {
       DataFile file = Iterables.getOnlyElement(reader);
-      Assertions.assertThat(file.splitOffsets()).isNull();
+      assertThat(file.splitOffsets()).isNull();
     }
   }
 }
