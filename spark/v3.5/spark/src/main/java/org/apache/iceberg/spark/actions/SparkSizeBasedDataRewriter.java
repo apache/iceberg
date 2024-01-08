@@ -22,11 +22,9 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
-
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.SizeBasedDataRewriter;
@@ -66,15 +64,17 @@ abstract class SparkSizeBasedDataRewriter extends SizeBasedDataRewriter {
 
       Set<DataFile> newFiles = coordinator.fetchNewFiles(table(), groupId);
 
-      PartitionData partition = (PartitionData) group.get(0).partition();
+      FileScanTask scanTask = group.get(0);
       Comparator<StructLike> structLikeComparator =
-          Comparators.forType(partition.getPartitionType());
-      boolean sameSpec = group.get(0).spec().equals(table().spec());
+          Comparators.forType(scanTask.spec().partitionType());
+      boolean sameSpec = scanTask.spec().equals(table().spec());
       if (sameSpec) {
         boolean partitionValuesSame =
             newFiles.stream()
                 .allMatch(
-                    dataFile -> structLikeComparator.compare(dataFile.partition(), partition) == 0);
+                    dataFile ->
+                        structLikeComparator.compare(dataFile.partition(), scanTask.partition())
+                            == 0);
         if (!partitionValuesSame) {
           throw new ValidationException(
               "The rewritten partitions value(s) are different from the source partition");
