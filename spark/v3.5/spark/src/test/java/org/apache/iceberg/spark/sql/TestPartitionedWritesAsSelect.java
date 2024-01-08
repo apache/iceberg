@@ -22,7 +22,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.stream.IntStream;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.spark.IcebergSpark;
+import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.spark.sql.types.DataTypes;
 import org.junit.jupiter.api.AfterEach;
@@ -31,7 +34,20 @@ import org.junit.jupiter.api.TestTemplate;
 
 public class TestPartitionedWritesAsSelect extends TestBaseWithCatalog {
 
-  private final String targetTable = tableName("target_table");
+  @Parameter(index = 3)
+  private String targetTable;
+
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}, targetTable = {3}")
+  protected static Object[][] parameters() {
+    return new Object[][] {
+      {
+        SparkCatalogConfig.HADOOP.catalogName(),
+        SparkCatalogConfig.HADOOP.implementation(),
+        SparkCatalogConfig.HADOOP.properties(),
+        SparkCatalogConfig.HADOOP.catalogName() + ".default.target_table"
+      },
+    };
+  }
 
   @BeforeEach
   public void createTables() {
