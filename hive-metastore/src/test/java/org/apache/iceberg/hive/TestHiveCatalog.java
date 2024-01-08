@@ -52,7 +52,6 @@ import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
@@ -82,7 +81,6 @@ import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 import org.apache.thrift.TException;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -1180,56 +1178,5 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
     Database database = hiveCatalog.convertToDatabase(Namespace.of("database"), ImmutableMap.of());
 
     assertThat(database.getLocationUri()).isEqualTo("s3://bucket/database.db");
-  }
-
-  // TODO: This test should be removed after fix of https://github.com/apache/iceberg/issues/9289.
-  @Test
-  @Override
-  public void testRenameTableDestinationTableAlreadyExists() {
-    Namespace ns = Namespace.of("newdb");
-    TableIdentifier renamedTable = TableIdentifier.of(ns, "table_renamed");
-
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(ns);
-    }
-
-    Assertions.assertThat(catalog.tableExists(TABLE))
-        .as("Source table should not exist before create")
-        .isFalse();
-
-    catalog.buildTable(TABLE, SCHEMA).create();
-    Assertions.assertThat(catalog.tableExists(TABLE))
-        .as("Source table should exist after create")
-        .isTrue();
-
-    Assertions.assertThat(catalog.tableExists(renamedTable))
-        .as("Destination table should not exist before create")
-        .isFalse();
-
-    catalog.buildTable(renamedTable, SCHEMA).create();
-    Assertions.assertThat(catalog.tableExists(renamedTable))
-        .as("Destination table should exist after create")
-        .isTrue();
-
-    // With fix of issues#9289,it should match with CatalogTests and expect
-    // AlreadyExistsException.class
-    // and message should contain as "Table already exists"
-    Assertions.assertThatThrownBy(() -> catalog.renameTable(TABLE, renamedTable))
-        .isInstanceOf(RuntimeException.class)
-        .hasMessageContaining("new table newdb.table_renamed already exists");
-    Assertions.assertThat(catalog.tableExists(TABLE))
-        .as("Source table should still exist after failed rename")
-        .isTrue();
-    Assertions.assertThat(catalog.tableExists(renamedTable))
-        .as("Destination table should still exist after failed rename")
-        .isTrue();
-
-    String sourceTableUUID =
-        ((HasTableOperations) catalog.loadTable(TABLE)).operations().current().uuid();
-    String destinationTableUUID =
-        ((HasTableOperations) catalog.loadTable(renamedTable)).operations().current().uuid();
-    Assertions.assertThat(sourceTableUUID)
-        .as("Source and destination table should remain distinct after failed rename")
-        .isNotEqualTo(destinationTableUUID);
   }
 }
