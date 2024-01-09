@@ -58,13 +58,13 @@ public class TestSelect extends CatalogTestBase {
         SparkCatalogConfig.HIVE.catalogName(),
         SparkCatalogConfig.HIVE.implementation(),
         SparkCatalogConfig.HIVE.properties(),
-        "testhive.default.binary_table"
+        SparkCatalogConfig.HIVE.catalogName() + ".default.binary_table"
       },
       {
         SparkCatalogConfig.HADOOP.catalogName(),
         SparkCatalogConfig.HADOOP.implementation(),
         SparkCatalogConfig.HADOOP.properties(),
-        "testhadoop.default.binary_table"
+        SparkCatalogConfig.HADOOP.catalogName() + ".default.binary_table"
       },
       {
         SparkCatalogConfig.SPARK.catalogName(),

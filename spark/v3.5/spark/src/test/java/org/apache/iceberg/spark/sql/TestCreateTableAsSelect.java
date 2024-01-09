@@ -47,13 +47,13 @@ public class TestCreateTableAsSelect extends CatalogTestBase {
         SparkCatalogConfig.HIVE.catalogName(),
         SparkCatalogConfig.HIVE.implementation(),
         SparkCatalogConfig.HIVE.properties(),
-        "testhive.default.source"
+        SparkCatalogConfig.HIVE.catalogName() + ".default.source"
       },
       {
         SparkCatalogConfig.HADOOP.catalogName(),
         SparkCatalogConfig.HADOOP.implementation(),
         SparkCatalogConfig.HADOOP.properties(),
-        "testhadoop.default.source"
+        SparkCatalogConfig.HADOOP.catalogName() + ".default.source"
       },
       {
         SparkCatalogConfig.SPARK.catalogName(),

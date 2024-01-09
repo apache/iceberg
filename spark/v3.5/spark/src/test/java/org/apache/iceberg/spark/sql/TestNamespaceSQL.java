@@ -103,7 +103,7 @@ public class TestNamespaceSQL extends CatalogTestBase {
     sql("USE %s", catalogName);
 
     Object[] current = Iterables.getOnlyElement(sql("SHOW CURRENT NAMESPACE"));
-    assertThat(catalogName).as("Should use the current catalog").isEqualTo(current[0]);
+    assertThat(current[0]).as("Should use the current catalog").isEqualTo(catalogName);
     assertThat(current[1]).as("Should use the configured default namespace").isEqualTo("default");
   }
 
@@ -226,9 +226,7 @@ public class TestNamespaceSQL extends CatalogTestBase {
 
     Map<String, String> nsMetadata = validationNamespaceCatalog.loadNamespaceMetadata(NS);
 
-    assertThat(nsMetadata.get("prop"))
-        .as("Namespace should have expected prop value")
-        .isEqualTo("value");
+    assertThat(nsMetadata).containsEntry("prop", "value");
   }
 
   @TestTemplate
@@ -247,9 +245,7 @@ public class TestNamespaceSQL extends CatalogTestBase {
 
     Map<String, String> nsMetadata = validationNamespaceCatalog.loadNamespaceMetadata(NS);
 
-    assertThat(nsMetadata.get("comment"))
-        .as("Namespace should have expected comment")
-        .isEqualTo("namespace doc");
+    assertThat(nsMetadata).containsEntry("comment", "namespace doc");
   }
 
   @TestTemplate
@@ -271,9 +267,7 @@ public class TestNamespaceSQL extends CatalogTestBase {
 
     Map<String, String> nsMetadata = validationNamespaceCatalog.loadNamespaceMetadata(NS);
 
-    assertThat(nsMetadata.get("location"))
-        .as("Namespace should have expected location")
-        .isEqualTo("file:" + location.getPath());
+    assertThat(nsMetadata).containsEntry("location", "file:" + location.getPath());
   }
 
   @TestTemplate
@@ -299,8 +293,6 @@ public class TestNamespaceSQL extends CatalogTestBase {
 
     Map<String, String> nsMetadata = validationNamespaceCatalog.loadNamespaceMetadata(NS);
 
-    assertThat(nsMetadata.get("prop"))
-        .as("Namespace should have expected prop value")
-        .isEqualTo("value");
+    assertThat(nsMetadata).containsEntry("prop", "value");
   }
 }

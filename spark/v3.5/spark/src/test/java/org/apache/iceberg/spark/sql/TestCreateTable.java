@@ -322,8 +322,7 @@ public class TestCreateTable extends CatalogTestBase {
         .as("Should have the expected schema")
         .isEqualTo(expectedSchema);
     assertThat(table.spec().fields()).as("Should not be partitioned").hasSize(0);
-    assertThat(table.properties().get("p1")).as("Should have property p1").isEqualTo("2");
-    assertThat(table.properties().get("p2")).as("Should have property p2").isEqualTo("x");
+    assertThat(table.properties()).containsEntry("p1", "2").containsEntry("p2", "x");
   }
 
   @TestTemplate
