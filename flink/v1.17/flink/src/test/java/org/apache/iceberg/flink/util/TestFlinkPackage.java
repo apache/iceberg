@@ -18,14 +18,31 @@
  */
 package org.apache.iceberg.flink.util;
 
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 public class TestFlinkPackage {
 
   /** This unit test would need to be adjusted as new Flink version is supported. */
+  @AfterClass
+  public static void cleanup() {
+    FlinkPackage.setVersionDetector(new FlinkVersionDetector());
+  }
+
   @Test
   public void testVersion() {
     Assert.assertEquals("1.17.1", FlinkPackage.version());
+  }
+
+  @Test
+  public void testDefaultVersion() {
+    // It's difficult to reproduce a reflection error in a unit test, so we just inject a mocked fault to test
+    // the default logic
+    FlinkVersionDetector detectorWithReflectionError = Mockito.spy(FlinkVersionDetector.class);
+    Mockito.when(detectorWithReflectionError.getVersionFromJar()).thenThrow(RuntimeException.class);
+    FlinkPackage.setVersionDetector(detectorWithReflectionError);
+    Assert.assertEquals("1.17.x", FlinkPackage.version());
   }
 }

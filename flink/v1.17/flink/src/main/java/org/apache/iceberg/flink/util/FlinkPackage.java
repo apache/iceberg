@@ -18,16 +18,19 @@
  */
 package org.apache.iceberg.flink.util;
 
-import org.apache.flink.streaming.api.datastream.DataStream;
-
 public class FlinkPackage {
-  /** Choose {@link DataStream} class because it is one of the core Flink API. */
-  private static final String VERSION = DataStream.class.getPackage().getImplementationVersion();
+
+  private static FlinkVersionDetector versionDetector = new FlinkVersionDetector();
 
   private FlinkPackage() {}
 
   /** Returns Flink version string like x.y.z */
   public static String version() {
-    return VERSION;
+    return versionDetector.version();
+  }
+
+  static void setVersionDetector(FlinkVersionDetector detector) {
+    // visible for testing
+    versionDetector = detector;
   }
 }

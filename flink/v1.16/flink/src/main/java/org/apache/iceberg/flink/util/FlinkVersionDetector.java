@@ -18,19 +18,27 @@
  */
 package org.apache.iceberg.flink.util;
 
-public class FlinkPackage {
+import org.apache.flink.streaming.api.datastream.DataStream;
 
-  private static FlinkVersionDetector versionDetector = new FlinkVersionDetector();
-
-  private FlinkPackage() {}
-
-  /** Returns Flink version string like x.y.z */
-  public static String version() {
-    return versionDetector.version();
+public class FlinkVersionDetector {
+  public String version() {
+    String version = null;
+    try {
+      version = getVersionFromJar();
+    } catch (Exception e) {
+      /* we can't detect the exact implementation version from the jar (this can happen if the DataStream class
+       appears multiple times in the same classpath such as with shading), so the best we can do is say it's
+       1.16.x below
+      */
+    }
+    if (version == null) {
+      version = "1.16.x";
+    }
+    return version;
   }
 
-  static void setVersionDetector(FlinkVersionDetector detector) {
-    // visible for testing
-    versionDetector = detector;
+  String getVersionFromJar() {
+    /* Choose {@link DataStream} class because it is one of the core Flink API. */
+    return DataStream.class.getPackage().getImplementationVersion();
   }
 }
