@@ -133,6 +133,7 @@ public class TestIcebergSourceSql extends TestSqlBase {
         expected,
         SCHEMA_TS);
   }
+
   /**
    * Tests the order of splits returned when setting the watermark-column and
    * watermark-column-time-unit" options
