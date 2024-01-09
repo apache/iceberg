@@ -287,7 +287,6 @@ public class TestFilteredScan {
       InputPartition[] tasks = scan.planInputPartitions();
 
       // validate predicate push-down
-
       assertThat(tasks).as("Should only create one task for a single bucket").hasSize(1);
 
       // validate row filtering
@@ -317,7 +316,7 @@ public class TestFilteredScan {
       Batch scan = builder.build().toBatch();
 
       InputPartition[] tasks = scan.planInputPartitions();
-      assertThat(tasks).as("Should only create one task for 2017-12-21").hasSize(1);
+      assertThat(tasks).as("Should create one task for 2017-12-21").hasSize(1);
 
       assertEqualsSafe(
           SCHEMA.asStruct(),

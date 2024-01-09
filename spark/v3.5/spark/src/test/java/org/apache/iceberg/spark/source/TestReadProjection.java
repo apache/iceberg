@@ -27,6 +27,8 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
@@ -44,6 +46,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public abstract class TestReadProjection {
+  @Parameter(index = 0)
+  protected FileFormat format;
 
   protected abstract Record writeAndRead(
       String desc, Schema writeSchema, Schema readSchema, Record record) throws IOException;

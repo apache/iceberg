@@ -1098,7 +1098,14 @@ public class TestPositionDeletesTable extends CatalogTestBase {
                     .writeTo(posDeletesTableName)
                     .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, fileSetID)
                     .append())
-        .isInstanceOf(AnalysisException.class);
+        .isInstanceOf(AnalysisException.class)
+        .hasMessage(
+            "[INCOMPATIBLE_DATA_FOR_TABLE.CANNOT_FIND_DATA] Cannot write incompatible data for the table `"
+                + catalogName
+                + "`.`default`.`"
+                + tableName
+                + "`.`position_deletes`"
+                + ": Cannot find data for the output column `partition`.");
 
     dropTable(tableName);
   }
@@ -1321,10 +1328,9 @@ public class TestPositionDeletesTable extends CatalogTestBase {
 
     Dataset<Row> scanDF = spark.read().format("iceberg").load(posDeletesTableName);
 
-    assertThatThrownBy(
-            () -> scanDF.writeTo(posDeletesTableName).append(),
-            "position_deletes table can only be written by RewriteDeleteFiles")
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> scanDF.writeTo(posDeletesTableName).append())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Can only write to " + posDeletesTableName + " via actions");
 
     dropTable(tableName);
   }

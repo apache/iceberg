@@ -75,9 +75,6 @@ public class TestSparkReadProjection extends TestReadProjection {
     };
   }
 
-  @Parameter(index = 0)
-  private FileFormat format;
-
   @Parameter(index = 1)
   private boolean vectorized;
 

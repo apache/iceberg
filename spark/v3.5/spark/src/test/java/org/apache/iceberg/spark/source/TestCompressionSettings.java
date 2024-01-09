@@ -94,7 +94,7 @@ public class TestCompressionSettings extends CatalogTestBase {
   private FileFormat format;
 
   @Parameter(index = 4)
-  private ImmutableMap<String, String> properties;
+  private Map<String, String> properties;
 
   @TempDir private java.nio.file.Path temp;
 
