@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.expressions.Expressions;
@@ -35,16 +36,18 @@ import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public abstract class ScanPlanningAndReportingTestBase<
         ScanT extends Scan<ScanT, T, G>, T extends ScanTask, G extends ScanTaskGroup<T>>
-    extends ParameterizedTableTestBase {
+    extends TestBase {
 
   private final TestMetricsReporter reporter = new TestMetricsReporter();
 
-  @Parameters(name = "formatVersion = {0}, V1Assert = {1}, V2Assert = {2}")
-  public static Object[][] parameters() {
-    return new Object[][] {{2, new TableAssertions(1, 2), new TableAssertions(2, 2)}};
+  @Parameters(name = "formatVersion = {0}")
+  public static List<Object> parameters() {
+    return Arrays.asList(new Object[] {2});
   }
 
   protected abstract ScanT newScan(Table table);

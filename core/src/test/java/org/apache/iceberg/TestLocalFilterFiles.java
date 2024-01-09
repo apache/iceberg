@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg;
 
+import java.util.Arrays;
+import java.util.List;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
@@ -25,8 +27,8 @@ public class TestLocalFilterFiles
     extends FilterFilesTestBase<TableScan, FileScanTask, CombinedScanTask> {
 
   @Parameters(name = "formatVersion = {0}")
-  public static Object[][] parameters() {
-    return new Object[][] {{1}, {2}};
+  public static List<Object> parameters() {
+    return Arrays.asList(new Object[] {1}, new Object[] {2});
   }
 
   @Override

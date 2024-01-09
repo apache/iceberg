@@ -39,7 +39,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 @ExtendWith(ParameterizedTestExtension.class)
 public abstract class ScanTestBase<
         ScanT extends Scan<ScanT, T, G>, T extends ScanTask, G extends ScanTaskGroup<T>>
-    extends ParameterizedTableTestBase {
+    extends TestBase {
 
   protected abstract ScanT newScan();
 

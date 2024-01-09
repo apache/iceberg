@@ -42,11 +42,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 @ExtendWith(ParameterizedTestExtension.class)
 public abstract class DeleteFileIndexTestBase<
         ScanT extends Scan<ScanT, T, G>, T extends ScanTask, G extends ScanTaskGroup<T>>
-    extends ParameterizedTableTestBase {
+    extends TestBase {
 
-  @Parameters(name = "formatVersion = {0}, V1Assert = {1}, V2Assert = {2}")
-  public static Object[][] parameters() {
-    return new Object[][] {{2, new TableAssertions(1, 2), new TableAssertions(2, 2)}};
+  @Parameters(name = "formatVersion = {0}")
+  public static List<Object> parameters() {
+    return Arrays.asList(new Object[] {2});
   }
 
   static final DeleteFile FILE_A_POS_1 =

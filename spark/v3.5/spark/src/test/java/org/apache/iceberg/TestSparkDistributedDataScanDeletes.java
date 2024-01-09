@@ -21,6 +21,8 @@ package org.apache.iceberg;
 import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
 import static org.apache.iceberg.PlanningMode.LOCAL;
 
+import java.util.Arrays;
+import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.spark.sql.SparkSession;
@@ -34,24 +36,21 @@ import org.junit.jupiter.api.extension.ExtendWith;
 public class TestSparkDistributedDataScanDeletes
     extends DeleteFileIndexTestBase<BatchScan, ScanTask, ScanTaskGroup<ScanTask>> {
 
-  @Parameters(
-      name =
-          "formatVersion = {0}, V1Assert = {1}, V2Assert = {2}, dataMode = {3}, deleteMode = {4}")
-  public static Object[][] parameters() {
-    return new Object[][] {
-      {2, new TableAssertions(1, 2), new TableAssertions(2, 2), LOCAL, LOCAL},
-      {2, new TableAssertions(1, 2), new TableAssertions(2, 2), LOCAL, DISTRIBUTED},
-      {2, new TableAssertions(1, 2), new TableAssertions(2, 2), DISTRIBUTED, LOCAL},
-      {2, new TableAssertions(1, 2), new TableAssertions(2, 2), LOCAL, DISTRIBUTED}
-    };
+  @Parameters(name = "formatVersion = {0}, dataMode = {1}, deleteMode = {2}")
+  public static List<Object> parameters() {
+    return Arrays.asList(
+        new Object[] {2, LOCAL, LOCAL},
+        new Object[] {2, LOCAL, DISTRIBUTED},
+        new Object[] {2, DISTRIBUTED, LOCAL},
+        new Object[] {2, LOCAL, DISTRIBUTED});
   }
 
   private static SparkSession spark = null;
 
-  @Parameter(index = 3)
+  @Parameter(index = 1)
   private PlanningMode dataMode;
 
-  @Parameter(index = 4)
+  @Parameter(index = 2)
   private PlanningMode deleteMode;
 
   @BeforeEach
