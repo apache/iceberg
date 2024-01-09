@@ -86,7 +86,21 @@ APP_BASE_NAME=${0##*/}
 APP_HOME=$( cd "${APP_HOME:-./}" && pwd -P ) || exit
 
 if [ ! -e $APP_HOME/gradle/wrapper/gradle-wrapper.jar ]; then
-    curl -o $APP_HOME/gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v8.1.1/gradle/wrapper/gradle-wrapper.jar
+    GRADLE_WRAPPER_FILENAME=$(grep 'distributionUrl' gradle/wrapper/gradle-wrapper.properties | awk -F '/' '{print $NF}')
+    # the GRADLE_WRAPPER_FILENAME could be either "gradle-X.Y[.Z]-all.zip" or "gradle-X.Y[.Z]-bin.zip"
+    GRADLE_VERSION=${GRADLE_WRAPPER_FILENAME#gradle-}
+    GRADLE_VERSION=${GRADLE_VERSION%.zip}
+    GRADLE_VERSION=${GRADLE_VERSION%-bin}
+    GRADLE_VERSION=${GRADLE_VERSION%-all}
+    # when GRADLE_VERSION is X.Y, the tag is vX.Y.0
+    if [ $(echo $GRADLE_VERSION | tr -cd '.' | wc -c) -eq 1 ]; then
+      GRADLE_TAG="v$GRADLE_VERSION.0"
+    else
+      GRADLE_TAG="v$GRADLE_VERSION"
+    fi
+    GRADLE_WRAPPER_URL="https://raw.githubusercontent.com/gradle/gradle/${GRADLE_TAG}/gradle/wrapper/gradle-wrapper.jar"
+    echo "Downloading $GRADLE_WRAPPER_URL"
+    curl -o $APP_HOME/gradle/wrapper/gradle-wrapper.jar "$GRADLE_WRAPPER_URL"
 fi
 
 # Use the maximum available, or set MAX_FD != -1 to use that value.
