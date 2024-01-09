@@ -126,6 +126,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
         SparkSession.builder()
             .master("local[2]")
             .config("spark.appStateStore.asyncTracking.enable", false)
+            .config("spark.ui.liveUpdate.period", 0)
             .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
             .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
             .enableHiveSupport()
