@@ -167,6 +167,10 @@ public class RewriteManifestsSparkAction
     return withJobGroupInfo(info, this::doExecute);
   }
 
+  public PartitionSpec spec() {
+    return this.spec;
+  }
+
   private RewriteManifests.Result doExecute() {
     List<ManifestFile> rewrittenManifests = Lists.newArrayList();
     List<ManifestFile> addedManifests = Lists.newArrayList();

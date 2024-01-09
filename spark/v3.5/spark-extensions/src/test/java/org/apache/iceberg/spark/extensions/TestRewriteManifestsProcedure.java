@@ -373,4 +373,157 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
         ImmutableList.of(row(0), row(1)),
         sql("SELECT partition_spec_id FROM %s.manifests order by 1 asc", tableName));
   }
+
+  @Test
+  public void testRewriteManifestsConditionInPartitionedTable() {
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, ts timestamp) USING iceberg PARTITIONED BY (hours(ts))",
+        tableName);
+
+    sql(
+        "INSERT INTO TABLE %s VALUES (1, cast('2024-01-08T07:00:00+00:00' as timestamp))",
+        tableName);
+    sql(
+        "INSERT INTO TABLE %s VALUES (2, cast('2024-01-07T06:00:00+00:00' as timestamp))",
+        tableName);
+    sql(
+        "INSERT INTO TABLE %s VALUES (3, cast('2024-01-07T05:00:00+00:00' as timestamp))",
+        tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    Assert.assertEquals(
+        "Must have 3 manifest", 3, table.currentSnapshot().allManifests(table.io()).size());
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_manifests(use_caching => false, table => '%s',"
+                + " where => 'ts = cast(\"2024-01-08T07:00:00+00:00\" as timestamp)')",
+            catalogName, tableIdent);
+    assertEquals("Procedure output must match", ImmutableList.of(row(0, 0)), output);
+
+    output =
+        sql(
+            "CALL %s.system.rewrite_manifests(use_caching => false, table => '%s',"
+                + " where => 'ts <= cast(\"2024-01-07T07:00:00+00:00\" as timestamp)')",
+            catalogName, tableIdent);
+    assertEquals("Procedure output must match", ImmutableList.of(row(2, 1)), output);
+
+    // test inclusive
+    sql(
+        "INSERT INTO TABLE %s VALUES (4, cast('2024-01-07T04:00:00+00:00' as timestamp))",
+        tableName);
+    output =
+        sql(
+            "CALL %s.system.rewrite_manifests(use_caching => false, table => '%s',"
+                + " where => 'ts <= cast(\"2024-01-07T05:00:00+00:00\" as timestamp)')",
+            catalogName, tableIdent);
+    assertEquals("Procedure output must match", ImmutableList.of(row(2, 1)), output);
+
+    sql(
+        "INSERT INTO TABLE %s VALUES (5, cast('2024-01-07T06:00:00+00:00' as timestamp))",
+        tableName);
+    sql(
+        "INSERT INTO TABLE %s VALUES (6, cast('2024-01-07T06:00:00+00:00' as timestamp))",
+        tableName);
+    // where condition always true
+    output =
+        sql(
+            "CALL %s.system.rewrite_manifests(use_caching => false, table => '%s', where => 'id = 2')",
+            catalogName, tableIdent);
+    assertEquals("Procedure output must match", ImmutableList.of(row(4, 1)), output);
+  }
+
+  @Test
+  public void testRewriteManifestsConditionInUnpartitionedTable() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, ts timestamp) USING iceberg", tableName);
+
+    sql(
+        "INSERT INTO TABLE %s VALUES (1, cast('2024-01-08T07:00:00+00:00' as timestamp))",
+        tableName);
+    sql(
+        "INSERT INTO TABLE %s VALUES (2, cast('2024-01-07T06:00:00+00:00' as timestamp))",
+        tableName);
+    sql(
+        "INSERT INTO TABLE %s VALUES (2, cast('2024-01-07T06:00:00+00:00' as timestamp))",
+        tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    Assert.assertEquals(
+        "Must have 3 manifest", 3, table.currentSnapshot().allManifests(table.io()).size());
+
+    // where condition always true
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_manifests(use_caching => false, table => '%s',"
+                + " where => 'ts = cast(\"2024-01-08T07:00:00+00:00\" as timestamp)')",
+            catalogName, tableIdent);
+    assertEquals("Procedure output must match", ImmutableList.of(row(3, 1)), output);
+
+    sql(
+        "INSERT INTO TABLE %s VALUES (2, cast('2024-01-07T06:00:00+00:00' as timestamp))",
+        tableName);
+    sql(
+        "INSERT INTO TABLE %s VALUES (3, cast('2024-01-07T06:00:00+00:00' as timestamp))",
+        tableName);
+    output =
+        sql(
+            "CALL %s.system.rewrite_manifests(use_caching => false, table => '%s',"
+                + " where => 'ts <= cast(\"2024-01-07T07:00:00+00:00\" as timestamp)')",
+            catalogName, tableIdent);
+    assertEquals("Procedure output must match", ImmutableList.of(row(3, 1)), output);
+
+    sql(
+        "INSERT INTO TABLE %s VALUES (4, cast('2024-01-07T06:00:00+00:00' as timestamp))",
+        tableName);
+    sql(
+        "INSERT INTO TABLE %s VALUES (5, cast('2024-01-07T06:00:00+00:00' as timestamp))",
+        tableName);
+    output =
+        sql(
+            "CALL %s.system.rewrite_manifests(use_caching => false, table => '%s', where => 'id = 2')",
+            catalogName, tableIdent);
+    assertEquals("Procedure output must match", ImmutableList.of(row(3, 1)), output);
+  }
+
+  @Test
+  public void testRewriteManifestsConditionWithMultiSpecId() {
+    sql(
+        "CREATE TABLE %s (id int, dt string, hr string) USING iceberg PARTITIONED BY (dt)",
+        tableName);
+    sql("ALTER TABLE %s SET TBLPROPERTIES ('commit.manifest-merge.enabled' = 'false')", tableName);
+
+    sql("INSERT INTO %s VALUES (1, '2024-01-01', '00')", tableName);
+    sql("INSERT INTO %s VALUES (2, '2024-01-01', '00')", tableName);
+    assertEquals(
+        "Should have 2 manifests and their partition spec id should be 0",
+        ImmutableList.of(row(0), row(0)),
+        sql("SELECT partition_spec_id FROM %s.manifests order by 1 asc", tableName));
+
+    sql("ALTER TABLE %s ADD PARTITION FIELD hr", tableName);
+    sql("INSERT INTO %s VALUES (3, '2024-01-01', '00')", tableName);
+    sql("INSERT INTO %s VALUES (4, '2024-01-01', '00')", tableName);
+    sql("INSERT INTO %s VALUES (5, '2024-01-02', '00')", tableName);
+    assertEquals(
+        "Should have 5 manifests and their partition spec id should be 0 and 1",
+        ImmutableList.of(row(0), row(0), row(1), row(1), row(1)),
+        sql("SELECT partition_spec_id FROM %s.manifests order by 1 asc", tableName));
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_manifests(table => '%s', where => 'dt = \"2024-01-01\"')",
+            catalogName, tableIdent);
+    assertEquals("There should be 2 manifests rewritten", ImmutableList.of(row(2, 1)), output);
+
+    output =
+        sql(
+            "CALL %s.system.rewrite_manifests(table => '%s', spec_id => 0, where => 'dt = \"2024-01-01\"')",
+            catalogName, tableIdent);
+    assertEquals("There should be 2 manifests rewritten", ImmutableList.of(row(2, 1)), output);
+    assertEquals(
+        "Should have 3 manifests and their partition spec id should be 0 and 1",
+        ImmutableList.of(row(0), row(1), row(1)),
+        sql("SELECT partition_spec_id FROM %s.manifests order by 1 asc", tableName));
+  }
 }
