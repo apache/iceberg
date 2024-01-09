@@ -106,9 +106,9 @@ public class TestIcebergSourceSql extends TestSqlBase {
     helper.appendToTable(dataFile1, dataFile2);
 
     // Expected records if the splits are ordered
-    //     - ascending (watermark from t1) - records from the split with early timestamps then
+    //     - ascending (watermark from t1) - records from the split with early timestamps, then
     // records from the split with late timestamps
-    //     - descending (watermark from t2) - records from the split with old longs then records
+    //     - descending (watermark from t2) - records from the split with old longs, then records
     // from the split with new longs
     List<Record> expected = Lists.newArrayList();
     if (ascending) {
