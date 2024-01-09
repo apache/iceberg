@@ -18,7 +18,10 @@
  */
 package org.apache.iceberg.flink.source;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
 import org.apache.flink.core.execution.JobClient;
@@ -33,30 +36,27 @@ import org.apache.flink.util.CloseableIterator;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TestHelpers;
-import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.flink.FlinkCatalogTestBase;
+import org.apache.iceberg.flink.CatalogTestBase;
 import org.apache.iceberg.flink.MiniClusterResource;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.io.TempDir;
 
-public class TestStreamScanSql extends FlinkCatalogTestBase {
+public class TestStreamScanSql extends CatalogTestBase {
   private static final String TABLE = "test_table";
   private static final FileFormat FORMAT = FileFormat.PARQUET;
 
   private TableEnvironment tEnv;
 
-  public TestStreamScanSql(String catalogName, Namespace baseNamespace) {
-    super(catalogName, baseNamespace);
-  }
+  private @TempDir Path temp;
 
   @Override
   protected TableEnvironment getTableEnv() {
@@ -85,7 +85,7 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
   }
 
   @Override
-  @Before
+  @BeforeEach
   public void before() {
     super.before();
     sql("CREATE DATABASE %s", flinkDatabase);
@@ -94,7 +94,7 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
   }
 
   @Override
-  @After
+  @AfterEach
   public void clean() {
     sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, TABLE);
     sql("DROP DATABASE IF EXISTS %s", flinkDatabase);
@@ -102,7 +102,7 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
   }
 
   private void insertRows(String partition, Table table, Row... rows) throws IOException {
-    GenericAppenderHelper appender = new GenericAppenderHelper(table, FORMAT, TEMPORARY_FOLDER);
+    GenericAppenderHelper appender = new GenericAppenderHelper(table, FORMAT, temp);
 
     GenericRecord gRecord = GenericRecord.create(table.schema());
     List<Record> records = Lists.newArrayList();
@@ -127,20 +127,16 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
 
   private void assertRows(List<Row> expectedRows, Iterator<Row> iterator) {
     for (Row expectedRow : expectedRows) {
-      Assert.assertTrue("Should have more records", iterator.hasNext());
-
+      assertThat(iterator.hasNext()).isTrue();
       Row actualRow = iterator.next();
-      Assert.assertEquals("Should have expected fields", 3, actualRow.getArity());
-      Assert.assertEquals(
-          "Should have expected id", expectedRow.getField(0), actualRow.getField(0));
-      Assert.assertEquals(
-          "Should have expected data", expectedRow.getField(1), actualRow.getField(1));
-      Assert.assertEquals(
-          "Should have expected dt", expectedRow.getField(2), actualRow.getField(2));
+      assertThat(actualRow.getArity()).isEqualTo(3);
+      assertThat(actualRow.getField(0)).isEqualTo(expectedRow.getField(0));
+      assertThat(actualRow.getField(1)).isEqualTo(expectedRow.getField(1));
+      assertThat(actualRow.getField(2)).isEqualTo(expectedRow.getField(2));
     }
   }
 
-  @Test
+  @TestTemplate
   public void testUnPartitionedTable() throws Exception {
     sql("CREATE TABLE %s (id INT, data VARCHAR, dt VARCHAR)", TABLE);
     Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE));
@@ -160,7 +156,7 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
     result.getJobClient().ifPresent(JobClient::cancel);
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionedTable() throws Exception {
     sql("CREATE TABLE %s (id INT, data VARCHAR, dt VARCHAR) PARTITIONED BY (dt)", TABLE);
     Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE));
@@ -187,7 +183,7 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
     result.getJobClient().ifPresent(JobClient::cancel);
   }
 
-  @Test
+  @TestTemplate
   public void testConsumeFromBeginning() throws Exception {
     sql("CREATE TABLE %s (id INT, data VARCHAR, dt VARCHAR)", TABLE);
     Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE));
@@ -212,7 +208,7 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
     result.getJobClient().ifPresent(JobClient::cancel);
   }
 
-  @Test
+  @TestTemplate
   public void testConsumeFilesWithBranch() throws Exception {
     sql("CREATE TABLE %s (id INT, data VARCHAR, dt VARCHAR)", TABLE);
     Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE));
@@ -229,7 +225,7 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
         .hasMessage("Cannot scan table using ref b1 configured for streaming reader yet");
   }
 
-  @Test
+  @TestTemplate
   public void testConsumeFromStartSnapshotId() throws Exception {
     sql("CREATE TABLE %s (id INT, data VARCHAR, dt VARCHAR)", TABLE);
     Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE));
@@ -267,7 +263,7 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
     result.getJobClient().ifPresent(JobClient::cancel);
   }
 
-  @Test
+  @TestTemplate
   public void testConsumeFromStartTag() throws Exception {
     sql("CREATE TABLE %s (id INT, data VARCHAR, dt VARCHAR)", TABLE);
     Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE));
