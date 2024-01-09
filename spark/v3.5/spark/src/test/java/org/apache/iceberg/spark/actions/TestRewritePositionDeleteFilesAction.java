@@ -613,6 +613,26 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     assertEquals("Rows must match", expectedRecords, actualRecords);
   }
 
+  @TestTemplate
+  public void testSnapshotProperty() throws Exception {
+    Table table = createTableUnpartitioned(2, SCALE);
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
+    writePosDeletesForFiles(table, 2, DELETES_SCALE, dataFiles);
+    assertThat(dataFiles).hasSize(2);
+
+    List<DeleteFile> deleteFiles = deleteFiles(table);
+    assertThat(deleteFiles).hasSize(2);
+
+    Result ignored =
+        SparkActions.get(spark)
+            .rewritePositionDeletes(table)
+            .snapshotProperty("key", "value")
+            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .execute();
+    assertThat(table.currentSnapshot().summary())
+        .containsAllEntriesOf(ImmutableMap.of("key", "value"));
+  }
+
   private Table createTablePartitioned(int partitions, int files, int numRecords) {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").build();
     Table table =

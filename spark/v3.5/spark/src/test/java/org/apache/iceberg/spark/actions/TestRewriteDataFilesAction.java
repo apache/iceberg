@@ -1445,6 +1445,14 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThat(actual).as("Number of files order should not be ascending").isNotEqualTo(expected);
   }
 
+  @Test
+  public void testSnapshotProperty() {
+    Table table = createTable(4);
+    Result ignored = basicRewrite(table).snapshotProperty("key", "value").execute();
+    assertThat(table.currentSnapshot().summary())
+        .containsAllEntriesOf(ImmutableMap.of("key", "value"));
+  }
+
   private Stream<RewriteFileGroup> toGroupStream(Table table, RewriteDataFilesSparkAction rewrite) {
     rewrite.validateAndInitOptions();
     StructLikeMap<List<List<FileScanTask>>> fileGroupsByPartition =

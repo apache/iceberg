@@ -18,12 +18,14 @@
  */
 package org.apache.iceberg.actions;
 
+import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
@@ -36,6 +38,7 @@ public class RewriteDataFilesCommitManager {
   private final Table table;
   private final long startingSnapshotId;
   private final boolean useStartingSequenceNumber;
+  private final Map<String, String> extraCommitSummary;
 
   // constructor used for testing
   public RewriteDataFilesCommitManager(Table table) {
@@ -48,9 +51,18 @@ public class RewriteDataFilesCommitManager {
 
   public RewriteDataFilesCommitManager(
       Table table, long startingSnapshotId, boolean useStartingSequenceNumber) {
+    this(table, startingSnapshotId, useStartingSequenceNumber, ImmutableMap.of());
+  }
+
+  public RewriteDataFilesCommitManager(
+      Table table,
+      long startingSnapshotId,
+      boolean useStartingSequenceNumber,
+      Map<String, String> extraCommitSummary) {
     this.table = table;
     this.startingSnapshotId = startingSnapshotId;
     this.useStartingSequenceNumber = useStartingSequenceNumber;
+    this.extraCommitSummary = extraCommitSummary;
   }
 
   /**
@@ -74,7 +86,9 @@ public class RewriteDataFilesCommitManager {
     } else {
       rewrite.rewriteFiles(rewrittenDataFiles, addedDataFiles);
     }
-
+    if (!extraCommitSummary.isEmpty()) {
+      extraCommitSummary.forEach(rewrite::set);
+    }
     rewrite.commit();
   }
 
