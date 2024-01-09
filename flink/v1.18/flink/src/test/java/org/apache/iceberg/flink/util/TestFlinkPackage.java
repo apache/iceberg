@@ -38,7 +38,8 @@ public class TestFlinkPackage {
 
   @Test
   public void testDefaultVersion() {
-    // It's difficult to reproduce a reflection error in a unit test, so we just inject a mocked fault to test
+    // It's difficult to reproduce a reflection error in a unit test, so we just inject a mocked
+    // fault to test
     // the default logic
     FlinkVersionDetector detectorWithReflectionError = Mockito.spy(FlinkVersionDetector.class);
     Mockito.when(detectorWithReflectionError.getVersionFromJar()).thenThrow(RuntimeException.class);
