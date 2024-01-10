@@ -124,6 +124,7 @@ public class SparkTable
   private final Set<TableCapability> capabilities;
   private String branch;
   private StructType lazyTableSchema = null;
+  private Long lazyFixedSnapshotId;
   private SparkSession lazySpark = null;
 
   public SparkTable(Table icebergTable, boolean refreshEagerly) {
@@ -133,18 +134,19 @@ public class SparkTable
   public SparkTable(Table icebergTable, String branch, boolean refreshEagerly) {
     this(icebergTable, refreshEagerly);
     this.branch = branch;
+    final Snapshot branchSnapshot = icebergTable.snapshot(branch);
     ValidationException.check(
-        branch == null
-            || SnapshotRef.MAIN_BRANCH.equals(branch)
-            || icebergTable.snapshot(branch) != null,
+        branch == null || SnapshotRef.MAIN_BRANCH.equals(branch) || branchSnapshot != null,
         "Cannot use branch (does not exist): %s",
         branch);
+    this.lazyFixedSnapshotId = branchSnapshot.snapshotId();
   }
 
   public SparkTable(Table icebergTable, Long snapshotId, boolean refreshEagerly) {
     this.icebergTable = icebergTable;
     this.snapshotId = snapshotId;
     this.refreshEagerly = refreshEagerly;
+    this.lazyFixedSnapshotId = snapshotId;
 
     boolean acceptAnySchema =
         PropertyUtil.propertyAsBoolean(
@@ -420,12 +422,11 @@ public class SparkTable
   }
 
   public Long effectiveSnapshotId() {
-    if (snapshotId != null) {
-      return snapshotId;
+    if (lazyFixedSnapshotId != null) {
+      return lazyFixedSnapshotId;
     }
-    final Snapshot snapshot =
-        branch != null ? icebergTable.snapshot(branch) : icebergTable.currentSnapshot();
-    return snapshot != null ? snapshot.snapshotId() : null;
+    final Snapshot currentSnapshot = icebergTable.currentSnapshot();
+    return currentSnapshot != null ? currentSnapshot.snapshotId() : null;
   }
 
   private static CaseInsensitiveStringMap addSnapshotId(

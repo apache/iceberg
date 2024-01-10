@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.source;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
@@ -70,6 +71,8 @@ public class TestSparkTable extends CatalogTestBase {
     SparkTable firstSnapshotTable = table.copyWithSnapshotId(version1Snapshot);
     SparkTable firstTagTable = table.copyWithBranch(version1);
 
+    assertThat(table).as("The SparkTable points to latest snapshot").isEqualTo(firstTagTable);
+
     sql("UPDATE %s SET data = 'b'", tableName);
 
     final String version2 = "VERSION_2";
@@ -86,8 +89,27 @@ public class TestSparkTable extends CatalogTestBase {
     assertThat(firstTagTable)
         .as("The different snapshots should not match")
         .isNotEqualTo(secondTagTable);
-    assertThat(table)
-        .as("The SparkTable should points to latest snapshot")
-        .isEqualTo(secondTagTable);
+    assertThat(table).as("The SparkTable points to latest snapshot").isEqualTo(secondTagTable);
+
+    assertEquals(
+        "UNION should return two rows if two sub-queries have different effective snapshot id",
+        ImmutableList.of(row(1L, "b"), row(1L, "a")),
+        sql(
+            "SELECT * FROM %s UNION SELECT * FROM %s VERSION AS OF '%s'",
+            tableName, tableName, version1));
+
+    assertEquals(
+        "UNION should return one row if two sub-queries have same effective snapshot id",
+        ImmutableList.of(row(1L, "b")),
+        sql(
+            "SELECT * FROM %s UNION SELECT * FROM %s VERSION AS OF '%s'",
+            tableName, tableName, version2));
+
+    assertEquals(
+        "UNION ALL should return two rows even if two sub-queries have same effective snapshot id",
+        ImmutableList.of(row(1L, "b"), row(1L, "b")),
+        sql(
+            "SELECT * FROM %s UNION ALL SELECT * FROM %s VERSION AS OF '%s'",
+            tableName, tableName, version2));
   }
 }
