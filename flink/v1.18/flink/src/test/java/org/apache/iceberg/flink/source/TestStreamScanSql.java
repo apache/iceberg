@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.source;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
 import org.apache.flink.core.execution.JobClient;
@@ -48,15 +47,12 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
-import org.junit.jupiter.api.io.TempDir;
 
 public class TestStreamScanSql extends CatalogTestBase {
   private static final String TABLE = "test_table";
   private static final FileFormat FORMAT = FileFormat.PARQUET;
 
   private TableEnvironment tEnv;
-
-  private @TempDir Path temp;
 
   @Override
   protected TableEnvironment getTableEnv() {
@@ -102,7 +98,7 @@ public class TestStreamScanSql extends CatalogTestBase {
   }
 
   private void insertRows(String partition, Table table, Row... rows) throws IOException {
-    GenericAppenderHelper appender = new GenericAppenderHelper(table, FORMAT, temp);
+    GenericAppenderHelper appender = new GenericAppenderHelper(table, FORMAT, temporaryDirectory);
 
     GenericRecord gRecord = GenericRecord.create(table.schema());
     List<Record> records = Lists.newArrayList();
@@ -127,7 +123,7 @@ public class TestStreamScanSql extends CatalogTestBase {
 
   private void assertRows(List<Row> expectedRows, Iterator<Row> iterator) {
     for (Row expectedRow : expectedRows) {
-      assertThat(iterator.hasNext()).isTrue();
+      assertThat(iterator).hasNext();
       Row actualRow = iterator.next();
       assertThat(actualRow.getArity()).isEqualTo(3);
       assertThat(actualRow.getField(0)).isEqualTo(expectedRow.getField(0));
