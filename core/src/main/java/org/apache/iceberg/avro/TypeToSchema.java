@@ -21,6 +21,7 @@ package org.apache.iceberg.avro;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 import org.apache.avro.JsonProperties;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
@@ -30,7 +31,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
-class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
+abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
   private static final Schema BOOLEAN_SCHEMA = Schema.create(Schema.Type.BOOLEAN);
   private static final Schema INTEGER_SCHEMA = Schema.create(Schema.Type.INT);
   private static final Schema LONG_SCHEMA = Schema.create(Schema.Type.LONG);
@@ -55,15 +56,10 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
   }
 
   private final Deque<Integer> fieldIds = Lists.newLinkedList();
-  private final Map<Type, Schema> results = Maps.newHashMap();
-  private final Map<Types.StructType, String> names;
+  private final BiFunction<Integer, Types.StructType, String> namesFunction;
 
-  TypeToSchema(Map<Types.StructType, String> names) {
-    this.names = names;
-  }
-
-  Map<Type, Schema> getConversionMap() {
-    return results;
+  TypeToSchema(BiFunction<Integer, Types.StructType, String> namesFunction) {
+    this.namesFunction = namesFunction;
   }
 
   @Override
@@ -81,16 +77,29 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
     fieldIds.pop();
   }
 
+  Schema lookupSchema(Type type) {
+    return lookupSchema(type, null);
+  }
+
+  abstract Schema lookupSchema(Type type, String recordName);
+
+  void cacheSchema(Type struct, Schema schema) {
+    cacheSchema(struct, null, schema);
+  }
+
+  abstract void cacheSchema(Type struct, String recordName, Schema schema);
+
   @Override
   public Schema struct(Types.StructType struct, List<Schema> fieldSchemas) {
-    Schema recordSchema = results.get(struct);
-    if (recordSchema != null) {
-      return recordSchema;
+    Integer fieldId = fieldIds.peek();
+    String recordName = namesFunction.apply(fieldId, struct);
+    if (recordName == null) {
+      recordName = "r" + fieldId;
     }
 
-    String recordName = names.get(struct);
-    if (recordName == null) {
-      recordName = "r" + fieldIds.peek();
+    Schema recordSchema = lookupSchema(struct, recordName);
+    if (recordSchema != null) {
+      return recordSchema;
     }
 
     List<Types.NestedField> structFields = struct.fields();
@@ -115,7 +124,7 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
 
     recordSchema = Schema.createRecord(recordName, null, null, false, fields);
 
-    results.put(struct, recordSchema);
+    cacheSchema(struct, recordName, recordSchema);
 
     return recordSchema;
   }
@@ -131,7 +140,7 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
 
   @Override
   public Schema list(Types.ListType list, Schema elementSchema) {
-    Schema listSchema = results.get(list);
+    Schema listSchema = lookupSchema(list);
     if (listSchema != null) {
       return listSchema;
     }
@@ -144,14 +153,14 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
 
     listSchema.addProp(AvroSchemaUtil.ELEMENT_ID_PROP, list.elementId());
 
-    results.put(list, listSchema);
+    cacheSchema(list, listSchema);
 
     return listSchema;
   }
 
   @Override
   public Schema map(Types.MapType map, Schema keySchema, Schema valueSchema) {
-    Schema mapSchema = results.get(map);
+    Schema mapSchema = lookupSchema(map);
     if (mapSchema != null) {
       return mapSchema;
     }
@@ -173,7 +182,7 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
               map.isValueOptional() ? AvroSchemaUtil.toOption(valueSchema) : valueSchema);
     }
 
-    results.put(map, mapSchema);
+    cacheSchema(map, mapSchema);
 
     return mapSchema;
   }
@@ -238,8 +247,51 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
         throw new UnsupportedOperationException("Unsupported type ID: " + primitive.typeId());
     }
 
-    results.put(primitive, primitiveSchema);
+    cacheSchema(primitive, primitiveSchema);
 
     return primitiveSchema;
+  }
+
+  static class WithTypeToName extends TypeToSchema {
+
+    private final Map<Type, Schema> results = Maps.newHashMap();
+
+    WithTypeToName(Map<Types.StructType, String> names) {
+      super((id, struct) -> names.get(struct));
+    }
+
+    Map<Type, Schema> getConversionMap() {
+      return results;
+    }
+
+    @Override
+    void cacheSchema(Type type, String recordName, Schema schema) {
+      results.put(type, schema);
+    }
+
+    @Override
+    Schema lookupSchema(Type type, String recordName) {
+      return results.get(type);
+    }
+  }
+
+  static class WithNamesFunction extends TypeToSchema {
+    private final Map<String, Schema> schemaCache = Maps.newHashMap();
+
+    WithNamesFunction(BiFunction<Integer, Types.StructType, String> namesFunction) {
+      super(namesFunction);
+    }
+
+    @Override
+    void cacheSchema(Type type, String recordName, Schema schema) {
+      if (recordName != null) {
+        schemaCache.put(recordName, schema);
+      }
+    }
+
+    @Override
+    Schema lookupSchema(Type type, String recordName) {
+      return recordName == null ? null : schemaCache.get(recordName);
+    }
   }
 }
