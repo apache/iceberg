@@ -185,3 +185,9 @@ AZURE:
       'azure/**/*',
       'azure-bundle/**/*'
     ]
+
+KAFKACONNECT:
+  - changed-files:
+    - any-glob-to-any-file: [
+      'kafka-connect/**/*'
+    ]
