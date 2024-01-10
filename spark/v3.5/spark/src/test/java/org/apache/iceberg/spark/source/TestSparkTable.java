@@ -53,4 +53,41 @@ public class TestSparkTable extends CatalogTestBase {
     assertThat(table1).as("References must be different").isNotSameAs(table2);
     assertThat(table1).as("Tables must be equivalent").isEqualTo(table2);
   }
+
+  @TestTemplate
+  public void testEffectiveSnapshotIdEquality() throws NoSuchTableException {
+    CatalogManager catalogManager = spark.sessionState().catalogManager();
+    TableCatalog catalog = (TableCatalog) catalogManager.catalog(catalogName);
+    Identifier identifier = Identifier.of(tableIdent.namespace().levels(), tableIdent.name());
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+
+    SparkTable table = (SparkTable) catalog.loadTable(identifier);
+    final long version1Snapshot = table.effectiveSnapshotId();
+    final String version1 = "VERSION_1";
+    table.table().manageSnapshots().createTag(version1, version1Snapshot).commit();
+
+    SparkTable firstSnapshotTable = table.copyWithSnapshotId(version1Snapshot);
+    SparkTable firstTagTable = table.copyWithBranch(version1);
+
+    sql("UPDATE %s SET data = 'b'", tableName);
+
+    final String version2 = "VERSION_2";
+    table.table().manageSnapshots().createTag(version2, table.effectiveSnapshotId()).commit();
+
+    SparkTable secondTagTable = table.copyWithBranch(version2);
+
+    assertThat(firstSnapshotTable)
+        .as("References for two different SparkTables must be different")
+        .isNotSameAs(firstTagTable);
+    assertThat(firstSnapshotTable)
+        .as("The different snapshots with same id must be equal")
+        .isEqualTo(firstTagTable);
+    assertThat(firstTagTable)
+        .as("The different snapshots should not match")
+        .isNotEqualTo(secondTagTable);
+    assertThat(table)
+        .as("The SparkTable should points to latest snapshot")
+        .isEqualTo(secondTagTable);
+  }
 }

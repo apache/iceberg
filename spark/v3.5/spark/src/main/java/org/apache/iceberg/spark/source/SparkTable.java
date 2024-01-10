@@ -23,6 +23,7 @@ import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.BaseTable;
@@ -34,6 +35,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.PositionDeletesTable;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
@@ -405,15 +407,25 @@ public class SparkTable
       return false;
     }
 
-    // use only name in order to correctly invalidate Spark cache
+    // use name and effective snapshot id to support time travel
     SparkTable that = (SparkTable) other;
-    return icebergTable.name().equals(that.icebergTable.name());
+    return icebergTable.name().equals(that.icebergTable.name())
+        && Objects.equals(effectiveSnapshotId(), that.effectiveSnapshotId());
   }
 
   @Override
   public int hashCode() {
-    // use only name in order to correctly invalidate Spark cache
-    return icebergTable.name().hashCode();
+    // use name and effective snapshot id to support time travel
+    return Objects.hash(icebergTable.name(), effectiveSnapshotId());
+  }
+
+  public Long effectiveSnapshotId() {
+    if (snapshotId != null) {
+      return snapshotId;
+    }
+    final Snapshot snapshot =
+        branch != null ? icebergTable.snapshot(branch) : icebergTable.currentSnapshot();
+    return snapshot != null ? snapshot.snapshotId() : null;
   }
 
   private static CaseInsensitiveStringMap addSnapshotId(
