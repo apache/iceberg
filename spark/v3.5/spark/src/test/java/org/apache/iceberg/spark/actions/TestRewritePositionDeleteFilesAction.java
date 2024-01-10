@@ -49,6 +49,7 @@ import org.apache.iceberg.PositionDeletesScanTask;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -631,6 +632,19 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
             .execute();
     assertThat(table.currentSnapshot().summary())
         .containsAllEntriesOf(ImmutableMap.of("key", "value"));
+
+    // make sure internal produced properties is not lost
+    String[] commitMetricsKeys =
+        new String[] {
+          SnapshotSummary.ADDED_DELETE_FILES_PROP,
+          SnapshotSummary.ADDED_POS_DELETES_PROP,
+          SnapshotSummary.CHANGED_PARTITION_COUNT_PROP,
+          SnapshotSummary.REMOVED_DELETE_FILES_PROP,
+          SnapshotSummary.REMOVED_POS_DELETES_PROP,
+          SnapshotSummary.TOTAL_DATA_FILES_PROP,
+          SnapshotSummary.TOTAL_DELETE_FILES_PROP,
+        };
+    assertThat(table.currentSnapshot().summary()).containsKeys(commitMetricsKeys);
   }
 
   private Table createTablePartitioned(int partitions, int files, int numRecords) {

@@ -86,9 +86,9 @@ public class RewriteDataFilesCommitManager {
     } else {
       rewrite.rewriteFiles(rewrittenDataFiles, addedDataFiles);
     }
-    if (!extraCommitSummary.isEmpty()) {
-      extraCommitSummary.forEach(rewrite::set);
-    }
+
+    extraCommitSummary.forEach(rewrite::set);
+
     rewrite.commit();
   }
 

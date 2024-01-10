@@ -72,9 +72,7 @@ public class RewritePositionDeletesCommitManager {
       }
     }
 
-    if (!extraCommitSummary.isEmpty()) {
-      extraCommitSummary.forEach(rewriteFiles::set);
-    }
+    extraCommitSummary.forEach(rewriteFiles::set);
 
     rewriteFiles.commit();
   }
