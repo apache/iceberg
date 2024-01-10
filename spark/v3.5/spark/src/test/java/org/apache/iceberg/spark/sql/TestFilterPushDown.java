@@ -20,44 +20,57 @@ package org.apache.iceberg.spark.sql;
 
 import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
 import static org.apache.iceberg.PlanningMode.LOCAL;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
+import org.apache.iceberg.spark.SparkCatalogConfig;
+import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.spark.sql.execution.SparkPlan;
-import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public class TestFilterPushDown extends SparkTestBaseWithCatalog {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestFilterPushDown extends TestBaseWithCatalog {
 
-  @Parameterized.Parameters(name = "planningMode = {0}")
-  public static Object[] parameters() {
-    return new Object[] {LOCAL, DISTRIBUTED};
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}, planningMode = {0}")
+  public static Object[][] parameters() {
+    return new Object[][] {
+      {
+        SparkCatalogConfig.HADOOP.catalogName(),
+        SparkCatalogConfig.HADOOP.implementation(),
+        SparkCatalogConfig.HADOOP.properties(),
+        LOCAL
+      },
+      {
+        SparkCatalogConfig.HADOOP.catalogName(),
+        SparkCatalogConfig.HADOOP.implementation(),
+        SparkCatalogConfig.HADOOP.properties(),
+        DISTRIBUTED
+      }
+    };
   }
 
-  private final PlanningMode planningMode;
+  @Parameter(index = 3)
+  private PlanningMode planningMode;
 
-  public TestFilterPushDown(PlanningMode planningMode) {
-    this.planningMode = planningMode;
-  }
-
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS tmp_view");
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushdownWithDecimalValues() {
     sql(
         "CREATE TABLE %s (id INT, salary DECIMAL(10, 2), dep STRING)"
@@ -76,7 +89,7 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
         ImmutableList.of(row(2, new BigDecimal("100.05"), "d1")));
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushdownWithIdentityTransform() {
     sql(
         "CREATE TABLE %s (id INT, salary INT, dep STRING)"
@@ -188,7 +201,7 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
         ImmutableList.of(row(5, 500, "d5")));
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushdownWithHoursTransform() {
     sql(
         "CREATE TABLE %s (id INT, price INT, t TIMESTAMP)"
@@ -234,7 +247,7 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
         });
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushdownWithDaysTransform() {
     sql(
         "CREATE TABLE %s (id INT, price INT, t TIMESTAMP)"
@@ -277,7 +290,7 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
         });
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushdownWithMonthsTransform() {
     sql(
         "CREATE TABLE %s (id INT, price INT, t TIMESTAMP)"
@@ -320,7 +333,7 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
         });
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushdownWithYearsTransform() {
     sql(
         "CREATE TABLE %s (id INT, price INT, t TIMESTAMP)"
@@ -363,7 +376,7 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
         });
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushdownWithBucketTransform() {
     sql(
         "CREATE TABLE %s (id INT, salary INT, dep STRING)"
@@ -382,7 +395,7 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
         ImmutableList.of(row(1, 100, "d1")));
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushdownWithTruncateTransform() {
     sql(
         "CREATE TABLE %s (id INT, salary INT, dep STRING)"
@@ -407,7 +420,7 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
         ImmutableList.of(row(1, 100, "d1")));
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushdownWithSpecEvolutionAndIdentityTransforms() {
     sql(
         "CREATE TABLE %s (id INT, salary INT, dep STRING, sub_dep STRING)"
@@ -448,7 +461,7 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
         ImmutableList.of(row(1, 100, "d1", "sd1")));
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushdownWithSpecEvolutionAndTruncateTransform() {
     sql(
         "CREATE TABLE %s (id INT, salary INT, dep STRING)"
@@ -489,7 +502,7 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
         ImmutableList.of(row(1, 100, "d1")));
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushdownWithSpecEvolutionAndTimeTransforms() {
     sql(
         "CREATE TABLE %s (id INT, price INT, t TIMESTAMP)"
@@ -526,7 +539,7 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
         });
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushdownWithSpecialFloatingPointPartitionValues() {
     sql(
         "CREATE TABLE %s (id INT, salary DOUBLE)" + "USING iceberg " + "PARTITIONED BY (salary)",
@@ -585,16 +598,14 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
     String planAsString = sparkPlan.toString().replaceAll("#(\\d+L?)", "");
 
     if (sparkFilter != null) {
-      Assertions.assertThat(planAsString)
+      assertThat(planAsString)
           .as("Post scan filter should match")
           .contains("Filter (" + sparkFilter + ")");
     } else {
-      Assertions.assertThat(planAsString)
-          .as("Should be no post scan filter")
-          .doesNotContain("Filter (");
+      assertThat(planAsString).as("Should be no post scan filter").doesNotContain("Filter (");
     }
 
-    Assertions.assertThat(planAsString)
+    assertThat(planAsString)
         .as("Pushed filters must match")
         .contains("[filters=" + icebergFilters + ",");
   }
