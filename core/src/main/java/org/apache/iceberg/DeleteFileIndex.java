@@ -161,6 +161,7 @@ class DeleteFileIndex {
     return deletes == null ? EMPTY_DELETES : deletes.filter(seq, dataFile);
   }
 
+  @SuppressWarnings("CollectionUndefinedEquality")
   private DeleteFile[] findPathDeletes(long seq, DataFile dataFile) {
     if (posDeletesByPath == null) {
       return EMPTY_DELETES;
