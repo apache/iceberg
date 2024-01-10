@@ -78,6 +78,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private boolean failMissingDeletePaths = false;
   private int duplicateDeleteCount = 0;
   private boolean caseSensitive = true;
+  private boolean dropPartitionDeleteEnabled = false;
 
   // cache filtered manifests to avoid extra work when commits fail.
   private final Map<ManifestFile, ManifestFile> filteredManifests = Maps.newConcurrentMap();
@@ -85,6 +86,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   // tracking where files were deleted to validate retries quickly
   private final Map<ManifestFile, Iterable<F>> filteredManifestToDeletedFiles =
       Maps.newConcurrentMap();
+  private Map<Pair<Integer, StructLike>, Long> minSequenceNumberByPartition;
 
   private final Supplier<ExecutorService> workerPoolSupplier;
 
@@ -108,6 +110,15 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
   protected void failMissingDeletePaths() {
     this.failMissingDeletePaths = true;
+  }
+
+  protected void setDropPartitionDelete(boolean dropPartitionDelete) {
+    this.dropPartitionDeleteEnabled = dropPartitionDelete;
+  }
+
+  public void setMinSequenceNumberByPartition(
+      Map<Pair<Integer, StructLike>, Long> minSequenceNumberByPartition) {
+    this.minSequenceNumberByPartition = minSequenceNumberByPartition;
   }
 
   /**
@@ -143,6 +154,22 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     Preconditions.checkArgument(
         sequenceNumber >= 0, "Invalid minimum data sequence number: %s", sequenceNumber);
     this.minSequenceNumber = sequenceNumber;
+  }
+
+  protected void recordPartitionMinDataSequenceNumber(
+      int specId, StructLike partition, long sequenceNumber) {
+    Preconditions.checkArgument(
+        sequenceNumber >= 0, "Invalid minimum data sequence number: %s", sequenceNumber);
+
+    Pair<Integer, StructLike> par = Pair.of(specId, partition);
+    if (minSequenceNumberByPartition.containsKey(par)) {
+      long currentMin = minSequenceNumberByPartition.get(par);
+      if (sequenceNumber < currentMin) {
+        this.minSequenceNumberByPartition.put(par, sequenceNumber);
+      }
+    } else {
+      this.minSequenceNumberByPartition.put(par, sequenceNumber);
+    }
   }
 
   void caseSensitive(boolean newCaseSensitive) {
@@ -289,12 +316,37 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     cleanUncommitted(SnapshotProducer.EMPTY_SET);
   }
 
+  private void recordPartitionMinDataSequenceNumber(ManifestFile manifest) {
+    if (dropPartitionDeleteEnabled && manifest.content() != ManifestContent.DELETES) {
+      try (ManifestReader<F> reader = newManifestReader(manifest)) {
+        reader
+            .entries()
+            .forEach(
+                entry -> {
+                  F dataFile = entry.file();
+                  long dataFileSequence = dataFile.dataSequenceNumber();
+                  if (entry.status() == ManifestEntry.Status.DELETED
+                      || dataFileSequence == ManifestWriter.UNASSIGNED_SEQ) {
+                    // ignore data files already deleted
+                    return;
+                  }
+                  recordPartitionMinDataSequenceNumber(
+                      dataFile.specId(), dataFile.partition(), dataFileSequence);
+                });
+      } catch (IOException e) {
+        throw new RuntimeIOException(e, "Failed to close manifest: %s", manifest);
+      }
+    }
+  }
+
   /** @return a ManifestReader that is a filtered version of the input manifest. */
   private ManifestFile filterManifest(Schema tableSchema, ManifestFile manifest) {
     ManifestFile cached = filteredManifests.get(manifest);
     if (cached != null) {
       return cached;
     }
+
+    recordPartitionMinDataSequenceNumber(manifest);
 
     boolean hasLiveFiles = manifest.hasAddedFiles() || manifest.hasExistingFiles();
     if (!hasLiveFiles || !canContainDeletedFiles(manifest)) {
@@ -360,7 +412,23 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     return canContainExpressionDeletes
         || canContainDroppedPartitions
         || canContainDroppedFiles
-        || canContainDropBySeq;
+        || canContainDropBySeq
+        || (dropPartitionDeleteEnabled && canContainDropByPartitionSeq(manifest));
+  }
+
+  private boolean canContainDropByPartitionSeq(ManifestFile manifest) {
+    // When delete file within delete manifest could be marked for delete
+    // That delete file sequence must be less the one of its corresponding data sequence in
+    // partition
+    // Conversely if the min sequence of the delete manifest is bigger than the max of all data
+    // sequences in partition
+    // Then there is no chance that this manifest contains delete file that could be removed
+    return dropPartitionDeleteEnabled
+        && manifest.content() == ManifestContent.DELETES
+        && !(manifest.minSequenceNumber()
+            > this.minSequenceNumberByPartition.values().stream()
+                .max(Long::compareTo)
+                .orElse(Long.MIN_VALUE));
   }
 
   @SuppressWarnings({"CollectionUndefinedEquality", "checkstyle:CyclomaticComplexity"})
@@ -370,13 +438,17 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
     for (ManifestEntry<F> entry : reader.liveEntries()) {
       F file = entry.file();
+      long partitionMinSequence =
+          this.minSequenceNumberByPartition.getOrDefault(
+              Pair.of(file.specId(), file.partition()), Long.MIN_VALUE);
       boolean markedForDelete =
           deletePaths.contains(file.path())
               || dropPartitions.contains(file.specId(), file.partition())
               || (isDelete
                   && entry.isLive()
                   && entry.dataSequenceNumber() > 0
-                  && entry.dataSequenceNumber() < minSequenceNumber);
+                  && (entry.dataSequenceNumber() < minSequenceNumber
+                      || entry.dataSequenceNumber() < partitionMinSequence));
 
       if (markedForDelete || evaluator.rowsMightMatch(file)) {
         boolean allRowsMatch = markedForDelete || evaluator.rowsMustMatch(file);
@@ -418,13 +490,17 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
             .forEach(
                 entry -> {
                   F file = entry.file();
+                  long partitionMinSequence =
+                      this.minSequenceNumberByPartition.getOrDefault(
+                          Pair.of(file.specId(), file.partition()), Long.MIN_VALUE);
                   boolean markedForDelete =
                       deletePaths.contains(file.path())
                           || dropPartitions.contains(file.specId(), file.partition())
                           || (isDelete
                               && entry.isLive()
                               && entry.dataSequenceNumber() > 0
-                              && entry.dataSequenceNumber() < minSequenceNumber);
+                              && (entry.dataSequenceNumber() < minSequenceNumber
+                                  || entry.dataSequenceNumber() < partitionMinSequence));
                   if (entry.status() != ManifestEntry.Status.DELETED) {
                     if (markedForDelete || evaluator.rowsMightMatch(file)) {
                       boolean allRowsMatch = markedForDelete || evaluator.rowsMustMatch(file);

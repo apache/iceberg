@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.TableProperties.DROP_PARTITION_DELETE_ENABLED;
+import static org.apache.iceberg.TableProperties.DROP_PARTITION_DELETE_ENABLED_DEFAULT;
 import static org.apache.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT;
 import static org.apache.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT_DEFAULT;
 import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES;
@@ -77,6 +79,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final ManifestFilterManager<DataFile> filterManager;
   private final ManifestMergeManager<DeleteFile> deleteMergeManager;
   private final ManifestFilterManager<DeleteFile> deleteFilterManager;
+  private final boolean dropPartitionDeleteEnabled;
 
   // update data
   private final List<DataFile> newDataFiles = Lists.newArrayList();
@@ -119,6 +122,15 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     this.deleteMergeManager =
         new DeleteFileMergeManager(targetSizeBytes, minCountToMerge, mergeEnabled);
     this.deleteFilterManager = new DeleteFileFilterManager();
+    this.dropPartitionDeleteEnabled =
+        ops.current()
+            .propertyAsBoolean(
+                DROP_PARTITION_DELETE_ENABLED, DROP_PARTITION_DELETE_ENABLED_DEFAULT);
+    this.deleteFilterManager.setDropPartitionDelete(dropPartitionDeleteEnabled);
+    this.filterManager.setDropPartitionDelete(dropPartitionDeleteEnabled);
+    Map<Pair<Integer, StructLike>, Long> seqByPartMap = Maps.newConcurrentMap();
+    this.deleteFilterManager.setMinSequenceNumberByPartition(seqByPartMap);
+    this.filterManager.setMinSequenceNumberByPartition(seqByPartMap);
   }
 
   @Override
