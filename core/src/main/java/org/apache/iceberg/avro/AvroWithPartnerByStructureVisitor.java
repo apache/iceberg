@@ -109,7 +109,7 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
         // types match according to the following pattern:
         // Before NULL, branch type i in the union maps to struct field i + 1.
         // After NULL, branch type i in the union maps to struct field i.
-        int structFieldIndex = (encounteredNull) ? i : i + 1;
+        int structFieldIndex = encounteredNull ? i : i + 1;
         if (types.get(i).getType() == Schema.Type.NULL) {
           visit(visitor.nullType(), types.get(i), visitor);
           encounteredNull = true;
