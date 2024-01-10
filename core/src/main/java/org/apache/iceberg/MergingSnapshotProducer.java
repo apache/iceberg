@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -128,7 +129,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
                 DROP_PARTITION_DELETE_ENABLED, DROP_PARTITION_DELETE_ENABLED_DEFAULT);
     this.deleteFilterManager.setDropPartitionDelete(dropPartitionDeleteEnabled);
     this.filterManager.setDropPartitionDelete(dropPartitionDeleteEnabled);
-    Map<Pair<Integer, StructLike>, Long> seqByPartMap = Maps.newConcurrentMap();
+    Map<Pair<Integer, StructLike>, AtomicLong> seqByPartMap = Maps.newConcurrentMap();
     this.deleteFilterManager.setMinSequenceNumberByPartition(seqByPartMap);
     this.filterManager.setMinSequenceNumberByPartition(seqByPartMap);
   }
