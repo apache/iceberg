@@ -18,184 +18,174 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
-import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
+import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.iceberg.spark.functions.BucketFunction;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.types.DataTypes;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
 
-public class TestSparkBucketFunction extends SparkTestBaseWithCatalog {
-  @Before
+public class TestSparkBucketFunction extends TestBaseWithCatalog {
+  @BeforeEach
   public void useCatalog() {
     sql("USE %s", catalogName);
   }
 
-  @Test
+  @TestTemplate
   public void testSpecValues() {
-    Assert.assertEquals(
-        "Spec example: hash(34) = 2017239379",
-        2017239379,
-        new BucketFunction.BucketInt(DataTypes.IntegerType).hash(34));
+    assertThat(new BucketFunction.BucketInt(DataTypes.IntegerType).hash(34))
+        .as("Spec example: hash(34) = 2017239379")
+        .isEqualTo(2017239379);
 
-    Assert.assertEquals(
-        "Spec example: hash(34L) = 2017239379",
-        2017239379,
-        new BucketFunction.BucketLong(DataTypes.LongType).hash(34L));
+    assertThat(new BucketFunction.BucketLong(DataTypes.IntegerType).hash(34L))
+        .as("Spec example: hash(34L) = 2017239379")
+        .isEqualTo(2017239379);
 
-    Assert.assertEquals(
-        "Spec example: hash(decimal2(14.20)) = -500754589",
-        -500754589,
-        new BucketFunction.BucketDecimal(DataTypes.createDecimalType(9, 2))
-            .hash(new BigDecimal("14.20")));
+    assertThat(
+            new BucketFunction.BucketDecimal(DataTypes.createDecimalType(9, 2))
+                .hash(new BigDecimal("14.20")))
+        .as("Spec example: hash(decimal2(14.20)) = -500754589")
+        .isEqualTo(-500754589);
 
     Literal<Integer> date = Literal.of("2017-11-16").to(Types.DateType.get());
-    Assert.assertEquals(
-        "Spec example: hash(2017-11-16) = -653330422",
-        -653330422,
-        new BucketFunction.BucketInt(DataTypes.DateType).hash(date.value()));
+    assertThat(new BucketFunction.BucketInt(DataTypes.DateType).hash(date.value()))
+        .as("Spec example: hash(2017-11-16) = -653330422")
+        .isEqualTo(-653330422);
 
     Literal<Long> timestampVal =
         Literal.of("2017-11-16T22:31:08").to(Types.TimestampType.withoutZone());
-    Assert.assertEquals(
-        "Spec example: hash(2017-11-16T22:31:08) = -2047944441",
-        -2047944441,
-        new BucketFunction.BucketLong(DataTypes.TimestampType).hash(timestampVal.value()));
+    assertThat(new BucketFunction.BucketLong(DataTypes.TimestampType).hash(timestampVal.value()))
+        .as("Spec example: hash(2017-11-16T22:31:08) = -2047944441")
+        .isEqualTo(-2047944441);
 
     Literal<Long> timestampntzVal =
         Literal.of("2017-11-16T22:31:08").to(Types.TimestampType.withoutZone());
-    Assert.assertEquals(
-        "Spec example: hash(2017-11-16T22:31:08) = -2047944441",
-        -2047944441,
-        new BucketFunction.BucketLong(DataTypes.TimestampNTZType).hash(timestampntzVal.value()));
+    assertThat(
+            new BucketFunction.BucketLong(DataTypes.TimestampNTZType).hash(timestampntzVal.value()))
+        .as("Spec example: hash(2017-11-16T22:31:08) = -2047944441")
+        .isEqualTo(-2047944441);
 
-    Assert.assertEquals(
-        "Spec example: hash(\"iceberg\") = 1210000089",
-        1210000089,
-        new BucketFunction.BucketString().hash("iceberg"));
+    assertThat(new BucketFunction.BucketString().hash("iceberg"))
+        .as("Spec example: hash(\"iceberg\") = 1210000089")
+        .isEqualTo(1210000089);
 
     ByteBuffer bytes = ByteBuffer.wrap(new byte[] {0, 1, 2, 3});
-    Assert.assertEquals(
-        "Spec example: hash([00 01 02 03]) = -188683207",
-        -188683207,
-        new BucketFunction.BucketBinary().hash(bytes));
+    assertThat(new BucketFunction.BucketBinary().hash(bytes))
+        .as("Spec example: hash([00 01 02 03]) = -188683207")
+        .isEqualTo(-188683207);
   }
 
-  @Test
+  @TestTemplate
   public void testBucketIntegers() {
-    Assert.assertEquals(
-        "Byte type should bucket similarly to integer",
-        3,
-        scalarSql("SELECT system.bucket(10, 8Y)"));
-    Assert.assertEquals(
-        "Short type should bucket similarly to integer",
-        3,
-        scalarSql("SELECT system.bucket(10, 8S)"));
+    assertThat(scalarSql("SELECT system.bucket(10, 8Y)"))
+        .as("Byte type should bucket similarly to integer")
+        .isEqualTo(3);
+    assertThat(scalarSql("SELECT system.bucket(10, 8S)"))
+        .as("Short type should bucket similarly to integer")
+        .isEqualTo(3);
     // Integers
-    Assert.assertEquals(3, scalarSql("SELECT system.bucket(10, 8)"));
-    Assert.assertEquals(79, scalarSql("SELECT system.bucket(100, 34)"));
-    Assert.assertNull(scalarSql("SELECT system.bucket(1, CAST(null AS INT))"));
+    assertThat(scalarSql("SELECT system.bucket(10, 8)")).isEqualTo(3);
+    assertThat(scalarSql("SELECT system.bucket(100, 34)")).isEqualTo(79);
+    assertThat(scalarSql("SELECT system.bucket(1, CAST(null AS INT))")).isNull();
   }
 
-  @Test
+  @TestTemplate
   public void testBucketDates() {
-    Assert.assertEquals(3, scalarSql("SELECT system.bucket(10, date('1970-01-09'))"));
-    Assert.assertEquals(79, scalarSql("SELECT system.bucket(100, date('1970-02-04'))"));
-    Assert.assertNull(scalarSql("SELECT system.bucket(1, CAST(null AS DATE))"));
+    assertThat(scalarSql("SELECT system.bucket(10, date('1970-01-09'))")).isEqualTo(3);
+    assertThat(scalarSql("SELECT system.bucket(100, date('1970-02-04'))")).isEqualTo(79);
+    assertThat(scalarSql("SELECT system.bucket(1, CAST(null AS DATE))")).isNull();
   }
 
-  @Test
+  @TestTemplate
   public void testBucketLong() {
-    Assert.assertEquals(79, scalarSql("SELECT system.bucket(100, 34L)"));
-    Assert.assertEquals(76, scalarSql("SELECT system.bucket(100, 0L)"));
-    Assert.assertEquals(97, scalarSql("SELECT system.bucket(100, -34L)"));
-    Assert.assertEquals(0, scalarSql("SELECT system.bucket(2, -1L)"));
-    Assert.assertNull(scalarSql("SELECT system.bucket(2, CAST(null AS LONG))"));
+    assertThat(scalarSql("SELECT system.bucket(100, 34L)")).isEqualTo(79);
+    assertThat(scalarSql("SELECT system.bucket(100, 0L)")).isEqualTo(76);
+    assertThat(scalarSql("SELECT system.bucket(100, -34L)")).isEqualTo(97);
+    assertThat(scalarSql("SELECT system.bucket(2, -1L)")).isEqualTo(0);
+    assertThat(scalarSql("SELECT system.bucket(2, CAST(null AS LONG))")).isNull();
   }
 
-  @Test
+  @TestTemplate
   public void testBucketDecimal() {
-    Assert.assertEquals(56, scalarSql("SELECT system.bucket(64, CAST('12.34' as DECIMAL(9, 2)))"));
-    Assert.assertEquals(13, scalarSql("SELECT system.bucket(18, CAST('12.30' as DECIMAL(9, 2)))"));
-    Assert.assertEquals(2, scalarSql("SELECT system.bucket(16, CAST('12.999' as DECIMAL(9, 3)))"));
-    Assert.assertEquals(21, scalarSql("SELECT system.bucket(32, CAST('0.05' as DECIMAL(5, 2)))"));
-    Assert.assertEquals(85, scalarSql("SELECT system.bucket(128, CAST('0.05' as DECIMAL(9, 2)))"));
-    Assert.assertEquals(3, scalarSql("SELECT system.bucket(18, CAST('0.05' as DECIMAL(9, 2)))"));
+    assertThat(scalarSql("SELECT system.bucket(64, CAST('12.34' as DECIMAL(9, 2)))")).isEqualTo(56);
+    assertThat(scalarSql("SELECT system.bucket(18, CAST('12.30' as DECIMAL(9, 2)))")).isEqualTo(13);
+    assertThat(scalarSql("SELECT system.bucket(16, CAST('12.999' as DECIMAL(9, 3)))")).isEqualTo(2);
+    assertThat(scalarSql("SELECT system.bucket(32, CAST('0.05' as DECIMAL(5, 2)))")).isEqualTo(21);
+    assertThat(scalarSql("SELECT system.bucket(128, CAST('0.05' as DECIMAL(9, 2)))")).isEqualTo(85);
+    assertThat(scalarSql("SELECT system.bucket(18, CAST('0.05' as DECIMAL(9, 2)))")).isEqualTo(3);
 
-    Assert.assertNull(
-        "Null input should return null",
-        scalarSql("SELECT system.bucket(2, CAST(null AS decimal))"));
+    assertThat(scalarSql("SELECT system.bucket(2, CAST(null AS decimal))"))
+        .as("Null input should return null")
+        .isNull();
   }
 
-  @Test
+  @TestTemplate
   public void testBucketTimestamp() {
-    Assert.assertEquals(
-        99, scalarSql("SELECT system.bucket(100, TIMESTAMP '1997-01-01 00:00:00 UTC+00:00')"));
-    Assert.assertEquals(
-        85, scalarSql("SELECT system.bucket(100, TIMESTAMP '1997-01-31 09:26:56 UTC+00:00')"));
-    Assert.assertEquals(
-        62, scalarSql("SELECT system.bucket(100, TIMESTAMP '2022-08-08 00:00:00 UTC+00:00')"));
-    Assert.assertNull(scalarSql("SELECT system.bucket(2, CAST(null AS timestamp))"));
+    assertThat(scalarSql("SELECT system.bucket(100, TIMESTAMP '1997-01-01 00:00:00 UTC+00:00')"))
+        .isEqualTo(99);
+    assertThat(scalarSql("SELECT system.bucket(100, TIMESTAMP '1997-01-31 09:26:56 UTC+00:00')"))
+        .isEqualTo(85);
+    assertThat(scalarSql("SELECT system.bucket(100, TIMESTAMP '2022-08-08 00:00:00 UTC+00:00')"))
+        .isEqualTo(62);
+    assertThat(scalarSql("SELECT system.bucket(2, CAST(null AS timestamp))")).isNull();
   }
 
-  @Test
+  @TestTemplate
   public void testBucketString() {
-    Assert.assertEquals(4, scalarSql("SELECT system.bucket(5, 'abcdefg')"));
-    Assert.assertEquals(122, scalarSql("SELECT system.bucket(128, 'abc')"));
-    Assert.assertEquals(54, scalarSql("SELECT system.bucket(64, 'abcde')"));
-    Assert.assertEquals(8, scalarSql("SELECT system.bucket(12, '测试')"));
-    Assert.assertEquals(1, scalarSql("SELECT system.bucket(16, '测试raul试测')"));
-    Assert.assertEquals(
-        "Varchar should work like string",
-        1,
-        scalarSql("SELECT system.bucket(16, CAST('测试raul试测' AS varchar(8)))"));
-    Assert.assertEquals(
-        "Char should work like string",
-        1,
-        scalarSql("SELECT system.bucket(16, CAST('测试raul试测' AS char(8)))"));
-    Assert.assertEquals(
-        "Should not fail on the empty string", 0, scalarSql("SELECT system.bucket(16, '')"));
-    Assert.assertNull(
-        "Null input should return null as output",
-        scalarSql("SELECT system.bucket(16, CAST(null AS string))"));
+    assertThat(scalarSql("SELECT system.bucket(5, 'abcdefg')")).isEqualTo(4);
+    assertThat(scalarSql("SELECT system.bucket(128, 'abc')")).isEqualTo(122);
+    assertThat(scalarSql("SELECT system.bucket(64, 'abcde')")).isEqualTo(54);
+    assertThat(scalarSql("SELECT system.bucket(12, '测试')")).isEqualTo(8);
+    assertThat(scalarSql("SELECT system.bucket(16, '测试raul试测')")).isEqualTo(1);
+    assertThat(scalarSql("SELECT system.bucket(16, CAST('测试raul试测' AS varchar(8)))"))
+        .as("Varchar should work like string")
+        .isEqualTo(1);
+    assertThat(scalarSql("SELECT system.bucket(16, CAST('测试raul试测' AS char(8)))"))
+        .as("Char should work like string")
+        .isEqualTo(1);
+    assertThat(scalarSql("SELECT system.bucket(16, '')"))
+        .as("Should not fail on the empty string")
+        .isEqualTo(0);
+    assertThat(scalarSql("SELECT system.bucket(16, CAST(null AS string))"))
+        .as("Null input should return null as output")
+        .isNull();
   }
 
-  @Test
+  @TestTemplate
   public void testBucketBinary() {
-    Assert.assertEquals(
-        1, scalarSql("SELECT system.bucket(10, X'0102030405060708090a0b0c0d0e0f')"));
-    Assert.assertEquals(10, scalarSql("SELECT system.bucket(12, %s)", asBytesLiteral("abcdefg")));
-    Assert.assertEquals(13, scalarSql("SELECT system.bucket(18, %s)", asBytesLiteral("abc\0\0")));
-    Assert.assertEquals(42, scalarSql("SELECT system.bucket(48, %s)", asBytesLiteral("abc")));
-    Assert.assertEquals(3, scalarSql("SELECT system.bucket(16, %s)", asBytesLiteral("测试_")));
+    assertThat(scalarSql("SELECT system.bucket(10, X'0102030405060708090a0b0c0d0e0f')"))
+        .isEqualTo(1);
+    assertThat(scalarSql("SELECT system.bucket(12, %s)", asBytesLiteral("abcdefg"))).isEqualTo(10);
+    assertThat(scalarSql("SELECT system.bucket(18, %s)", asBytesLiteral("abc\0\0"))).isEqualTo(13);
+    assertThat(scalarSql("SELECT system.bucket(48, %s)", asBytesLiteral("abc"))).isEqualTo(42);
+    assertThat(scalarSql("SELECT system.bucket(16, %s)", asBytesLiteral("测试_"))).isEqualTo(3);
 
-    Assert.assertNull(
-        "Null input should return null as output",
-        scalarSql("SELECT system.bucket(100, CAST(null AS binary))"));
+    assertThat(scalarSql("SELECT system.bucket(100, CAST(null AS binary))"))
+        .as("Null input should return null as output")
+        .isNull();
   }
 
-  @Test
+  @TestTemplate
   public void testNumBucketsAcceptsShortAndByte() {
-    Assert.assertEquals(
-        "Short types should be usable for the number of buckets field",
-        1,
-        scalarSql("SELECT system.bucket(5S, 1L)"));
+    assertThat(scalarSql("SELECT system.bucket(5S, 1L)"))
+        .as("Short types should be usable for the number of buckets field")
+        .isEqualTo(1);
 
-    Assert.assertEquals(
-        "Byte types should be allowed for the number of buckets field",
-        1,
-        scalarSql("SELECT system.bucket(5Y, 1)"));
+    assertThat(scalarSql("SELECT system.bucket(5Y, 1)"))
+        .as("Byte types should be allowed for the number of buckets field")
+        .isEqualTo(1);
   }
 
-  @Test
+  @TestTemplate
   public void testWrongNumberOfArguments() {
     Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.bucket()"))
         .isInstanceOf(AnalysisException.class)
@@ -213,7 +203,7 @@ public class TestSparkBucketFunction extends SparkTestBaseWithCatalog {
             "Function 'bucket' cannot process input: (int, bigint, int): Wrong number of inputs (expected numBuckets and value)");
   }
 
-  @Test
+  @TestTemplate
   public void testInvalidTypesCannotBeUsedForNumberOfBuckets() {
     Assertions.assertThatThrownBy(
             () -> scalarSql("SELECT system.bucket(CAST('12.34' as DECIMAL(9, 2)), 10)"))
@@ -245,7 +235,7 @@ public class TestSparkBucketFunction extends SparkTestBaseWithCatalog {
             "Function 'bucket' cannot process input: (interval day to second, int): Expected number of buckets to be tinyint, shortint or int");
   }
 
-  @Test
+  @TestTemplate
   public void testInvalidTypesForBucketColumn() {
     Assertions.assertThatThrownBy(
             () -> scalarSql("SELECT system.bucket(10, cast(12.3456 as float))"))
@@ -285,7 +275,7 @@ public class TestSparkBucketFunction extends SparkTestBaseWithCatalog {
             "Function 'bucket' cannot process input: (int, interval day to second)");
   }
 
-  @Test
+  @TestTemplate
   public void testThatMagicFunctionsAreInvoked() {
     // TinyInt
     Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.bucket(5, 6Y)"))
