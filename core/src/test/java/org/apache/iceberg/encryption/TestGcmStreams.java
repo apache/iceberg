@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.encryption;
 
-import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -60,8 +59,7 @@ public class TestGcmStreams {
     Assert.assertEquals("File size", 0, decryptedFile.getLength());
 
     try (SeekableInputStream decryptedStream = decryptedFile.newStream()) {
-      Assertions.assertThatThrownBy(() -> decryptedStream.read(readBytes))
-          .isInstanceOf(EOFException.class);
+      Assert.assertEquals("Read empty stream", -1, decryptedStream.read(readBytes));
     }
 
     // check that the AAD is still verified, even for an empty file
@@ -284,6 +282,7 @@ public class TestGcmStreams {
         }
 
         encryptedStream.close();
+        Assert.assertEquals("Final position in closed stream", offset, encryptedStream.getPos());
 
         AesGcmInputFile decryptedFile =
             new AesGcmInputFile(Files.localInput(testFile), key, aadPrefix);
@@ -380,6 +379,7 @@ public class TestGcmStreams {
       }
 
       encryptedStream.close();
+      Assert.assertEquals("Final position in closed stream", offset, encryptedStream.getPos());
 
       AesGcmInputFile decryptedFile =
           new AesGcmInputFile(Files.localInput(testFile), key, aadPrefix);
