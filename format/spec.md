@@ -298,7 +298,7 @@ Tables are configured with a **partition spec** that defines how to produce a tu
 
 *   A **source column id** or a list of **source column ids** from the table’s schema
 *   A **partition field id** that is used to identify a partition field and is unique within a partition spec. In v2 table metadata, it is unique across all partition specs.
-*   A **transform** that is applied to the source column or columns to produce a partition value
+*   A **transform** that is applied to the source column(s) to produce a partition value
 *   A **partition name**
 
 The source column, selected by id, must be a primitive type and cannot be contained in a map or list, but may be nested in a struct. For details on how to serialize a partition spec to JSON, see Appendix C.
@@ -1162,7 +1162,7 @@ The `field-id` property was added for each partition field in v2. In v1, the ref
 
 Notes:
 
-1. For multi-arg bucket, the serialized form is `bucketV2[N]` instead of `bucket[N]` to distinguish it from the single-arg bucket transform. Therefore, old readers/writers will identifier this transform as an unknown transform, old writer will stop writing the table if it encounters this transform, but old readers would still be able to read the table by scanning all the partitions.
+1. For multi-arg bucket, the serialized form is `bucketV2[N]` instead of `bucket[N]` to distinguish it from the single-arg bucket transform. Therefore, old readers/writers will identify this transform as an unknown transform, old writer will stop writing the table if it encounters this transform, but old readers would still be able to read the table by scanning all the partitions.
    This makes adding multi-arg transform a forward-compatible change, but not a backward-compatible change.
 2. For partition fields with multi-arg transform, `source-id` is replaced by `source-ids` and marked as `-1` to be consistent with single-arg transform. `source-id` should still be emitted for single-arg transform.
 
