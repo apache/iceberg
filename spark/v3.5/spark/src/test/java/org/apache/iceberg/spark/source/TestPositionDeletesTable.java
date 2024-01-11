@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -82,7 +81,6 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.functions;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestPositionDeletesTable extends CatalogTestBase {
@@ -125,8 +123,6 @@ public class TestPositionDeletesTable extends CatalogTestBase {
       },
     };
   }
-
-  @TempDir private Path temp;
 
   @TestTemplate
   public void testNullRows() throws IOException {
