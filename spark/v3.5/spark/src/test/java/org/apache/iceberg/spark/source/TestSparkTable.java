@@ -56,57 +56,63 @@ public class TestSparkTable extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testEffectiveSnapshotIdEquality() throws NoSuchTableException {
+  public void testTimeTravelEquality() throws NoSuchTableException {
     CatalogManager catalogManager = spark.sessionState().catalogManager();
     TableCatalog catalog = (TableCatalog) catalogManager.catalog(catalogName);
     Identifier identifier = Identifier.of(tableIdent.namespace().levels(), tableIdent.name());
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
-    SparkTable table = (SparkTable) catalog.loadTable(identifier);
-    final long version1Snapshot = table.effectiveSnapshotId();
+    SparkTable table1 = (SparkTable) catalog.loadTable(identifier);
+    final long version1Snapshot = table1.table().currentSnapshot().snapshotId();
     final String version1 = "VERSION_1";
-    table.table().manageSnapshots().createTag(version1, version1Snapshot).commit();
+    table1.table().manageSnapshots().createTag(version1, version1Snapshot).commit();
 
-    SparkTable firstSnapshotTable = table.copyWithSnapshotId(version1Snapshot);
-    SparkTable firstTagTable = table.copyWithBranch(version1);
-
-    assertThat(table).as("The SparkTable points to latest snapshot").isEqualTo(firstTagTable);
+    SparkTable firstSnapshotTable = table1.copyWithSnapshotId(version1Snapshot);
+    SparkTable firstTagTable = table1.copyWithBranch(version1);
 
     sql("UPDATE %s SET data = 'b'", tableName);
 
+    SparkTable table2 = (SparkTable) catalog.loadTable(identifier);
+    final long version2Snapshot = table2.table().currentSnapshot().snapshotId();
     final String version2 = "VERSION_2";
-    table.table().manageSnapshots().createTag(version2, table.effectiveSnapshotId()).commit();
+    table2.table().manageSnapshots().createTag(version2, version2Snapshot).commit();
 
-    SparkTable secondTagTable = table.copyWithBranch(version2);
+    SparkTable secondTagTable = table2.copyWithBranch(version2);
 
     assertThat(firstSnapshotTable)
         .as("References for two different SparkTables must be different")
         .isNotSameAs(firstTagTable);
     assertThat(firstSnapshotTable)
-        .as("The different snapshots with same id must be equal")
+        .as("The different snapshots points to same snapshot id must be equal")
         .isEqualTo(firstTagTable);
     assertThat(firstTagTable)
         .as("The different snapshots should not match")
         .isNotEqualTo(secondTagTable);
-    assertThat(table).as("The SparkTable points to latest snapshot").isEqualTo(secondTagTable);
 
     assertEquals(
-        "UNION should return two rows if two sub-queries have different effective snapshot id",
+        "UNION should return two rows if two sub-queries point to different snapshot ids",
         ImmutableList.of(row(1L, "b"), row(1L, "a")),
         sql(
             "SELECT * FROM %s UNION SELECT * FROM %s VERSION AS OF '%s'",
             tableName, tableName, version1));
 
     assertEquals(
-        "UNION should return one row if two sub-queries have same effective snapshot id",
+        "UNION should return two rows if two sub-queries point to different snapshot ids",
+        ImmutableList.of(row(1L, "b"), row(1L, "a")),
+        sql(
+            "SELECT * FROM %s VERSION AS OF '%s' UNION SELECT * FROM %s VERSION AS OF '%s'",
+            tableName, version2, tableName, version1));
+
+    assertEquals(
+        "UNION should return one row if two sub-queries generates same result",
         ImmutableList.of(row(1L, "b")),
         sql(
             "SELECT * FROM %s UNION SELECT * FROM %s VERSION AS OF '%s'",
             tableName, tableName, version2));
 
     assertEquals(
-        "UNION ALL should return two rows even if two sub-queries have same effective snapshot id",
+        "UNION ALL should return two rows even if two sub-queries generates same result",
         ImmutableList.of(row(1L, "b"), row(1L, "b")),
         sql(
             "SELECT * FROM %s UNION ALL SELECT * FROM %s VERSION AS OF '%s'",

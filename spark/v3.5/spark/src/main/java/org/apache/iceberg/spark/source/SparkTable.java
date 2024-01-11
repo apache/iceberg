@@ -409,24 +409,18 @@ public class SparkTable
       return false;
     }
 
-    // use name and effective snapshot id to support time travel
+    // use name only unless branch/snapshotId is given in order to correctly invalidate Spark cache
+    // when branch or snapshotId is given, it's time travel
     SparkTable that = (SparkTable) other;
     return icebergTable.name().equals(that.icebergTable.name())
-        && Objects.equals(effectiveSnapshotId(), that.effectiveSnapshotId());
+        && Objects.equals(lazyFixedSnapshotId, that.lazyFixedSnapshotId);
   }
 
   @Override
   public int hashCode() {
-    // use name and effective snapshot id to support time travel
-    return Objects.hash(icebergTable.name(), effectiveSnapshotId());
-  }
-
-  public Long effectiveSnapshotId() {
-    if (lazyFixedSnapshotId != null) {
-      return lazyFixedSnapshotId;
-    }
-    final Snapshot currentSnapshot = icebergTable.currentSnapshot();
-    return currentSnapshot != null ? currentSnapshot.snapshotId() : null;
+    // use name only unless branch/snapshotId is given in order to correctly invalidate Spark cache
+    // when branch or snapshotId is given, it's time travel
+    return Objects.hash(icebergTable.name(), lazyFixedSnapshotId);
   }
 
   private static CaseInsensitiveStringMap addSnapshotId(
