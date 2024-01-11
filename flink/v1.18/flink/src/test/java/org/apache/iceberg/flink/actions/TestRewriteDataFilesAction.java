@@ -54,7 +54,6 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.CatalogTestBase;
-import org.apache.iceberg.flink.FlinkCatalogTestBase;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
@@ -93,7 +92,7 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
     List<Object[]> parameters = Lists.newArrayList();
     for (FileFormat format :
         new FileFormat[] {FileFormat.AVRO, FileFormat.ORC, FileFormat.PARQUET}) {
-      for (Object[] catalogParams : FlinkCatalogTestBase.parameters()) {
+      for (Object[] catalogParams : CatalogTestBase.parameters()) {
         String catalogName = (String) catalogParams[0];
         Namespace baseNamespace = (Namespace) catalogParams[1];
         parameters.add(new Object[] {catalogName, baseNamespace, format});
