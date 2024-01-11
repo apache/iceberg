@@ -48,8 +48,8 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.SparkSession;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
@@ -85,13 +85,13 @@ public class TestSnapshotSelection {
   @Parameter(index = 0)
   private Map<String, String> properties;
 
-  @BeforeEach
-  public void startSpark() {
+  @BeforeAll
+  public static void startSpark() {
     TestSnapshotSelection.spark = SparkSession.builder().master("local[2]").getOrCreate();
   }
 
-  @AfterEach
-  public void stopSpark() {
+  @AfterAll
+  public static void stopSpark() {
     SparkSession currentSpark = TestSnapshotSelection.spark;
     TestSnapshotSelection.spark = null;
     currentSpark.stop();
