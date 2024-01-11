@@ -25,6 +25,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.TableOperations;
@@ -103,9 +105,12 @@ public class NessieCatalog extends BaseMetastoreViewCatalog
             .fallbackTo(x -> options.get(removePrefix.apply(x)));
     NessieClientBuilder nessieClientBuilder =
         NessieClientBuilder.createClientBuilderFromSystemSettings(configSource);
-    // default version is set to v1.
-    final String apiVersion =
-        options.getOrDefault(removePrefix.apply(NessieUtil.CLIENT_API_VERSION), "1");
+    // default version is inferred by uri.
+    String apiVersion = options.get(removePrefix.apply(NessieUtil.CLIENT_API_VERSION));
+    if (apiVersion == null) {
+      apiVersion = inferVersionFromURI(options.get(CatalogProperties.URI));
+    }
+
     NessieApiV1 api;
     switch (apiVersion) {
       case "1":
@@ -126,6 +131,26 @@ public class NessieCatalog extends BaseMetastoreViewCatalog
         new NessieIcebergClient(api, requestedRef, requestedHash, catalogOptions),
         CatalogUtil.loadFileIO(fileIOImpl, options, config),
         catalogOptions);
+  }
+
+  private static String inferVersionFromURI(String uri) {
+    if (uri == null) {
+      throw new IllegalArgumentException("URI is not specified in the catalog properties");
+    }
+
+    // match for uri ending with /v1, /v2 etc
+    Pattern pattern = Pattern.compile("/v(\\d+)$");
+    Matcher matcher = pattern.matcher(uri);
+    // Extract and print the version number
+    if (matcher.find()) {
+      return matcher.group(1);
+    } else {
+      throw new IllegalArgumentException(
+          String.format(
+              "URI doesn't end with the version: %s. "
+                  + "Please configure `client-api-version` in the catalog properties explicitly.",
+              uri));
+    }
   }
 
   /**
