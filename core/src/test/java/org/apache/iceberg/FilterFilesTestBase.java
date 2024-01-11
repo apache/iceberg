@@ -43,7 +43,7 @@ public abstract class FilterFilesTestBase<
     ScanT extends Scan<ScanT, T, G>, T extends ScanTask, G extends ScanTaskGroup<T>> {
 
   @Parameter(index = 0)
-  public int formatVersion;
+  protected int formatVersion;
 
   protected abstract ScanT newScan(Table table);
 
