@@ -19,6 +19,7 @@
 package org.apache.iceberg.mr;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -49,9 +50,11 @@ public class TestHelper {
   private final PartitionSpec spec;
   private final FileFormat fileFormat;
   private final TemporaryFolder tmp;
+  private final Path temp;
 
   private Table table;
 
+  @Deprecated
   public TestHelper(
       Configuration conf,
       Tables tables,
@@ -66,7 +69,26 @@ public class TestHelper {
     this.schema = schema;
     this.spec = spec;
     this.fileFormat = fileFormat;
+    this.temp = null;
     this.tmp = tmp;
+  }
+
+  public TestHelper(
+      Configuration conf,
+      Tables tables,
+      String tableIdentifier,
+      Schema schema,
+      PartitionSpec spec,
+      FileFormat fileFormat,
+      Path temp) {
+    this.conf = conf;
+    this.tables = tables;
+    this.tableIdentifier = tableIdentifier;
+    this.schema = schema;
+    this.spec = spec;
+    this.fileFormat = fileFormat;
+    this.temp = temp;
+    this.tmp = null;
   }
 
   public void setTable(Table table) {
@@ -122,7 +144,7 @@ public class TestHelper {
   }
 
   private GenericAppenderHelper appender() {
-    return new GenericAppenderHelper(table, fileFormat, tmp, conf);
+    return new GenericAppenderHelper(table, fileFormat, temp, conf);
   }
 
   public static class RecordsBuilder {
