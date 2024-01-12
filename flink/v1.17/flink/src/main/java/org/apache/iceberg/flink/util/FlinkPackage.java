@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.util;
 
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 
 public class FlinkPackage {
 
@@ -28,21 +29,19 @@ public class FlinkPackage {
 
   /** Returns Flink version string like x.y.z */
   public static String version() {
-    String version = null;
     try {
-      version = getVersionFromJar();
-    } catch (Exception e) {
-      /* we can't detect the exact implementation version from the jar (this can happen if the DataStream class
-       appears multiple times in the same classpath such as with shading), so the best we can do is say it's
+      String version = getVersionFromJar();
+      /* If we can't detect the exact implementation version from the jar (this can happen if the DataStream class
+       appears multiple times in the same classpath such as with shading), then the best we can do is say it's
        unknown
       */
+      return version != null ? version : FLINK_UNKNOWN_VERSION;
+    } catch (Exception e) {
+      return FLINK_UNKNOWN_VERSION;
     }
-    if (version == null) {
-      version = FLINK_UNKNOWN_VERSION;
-    }
-    return version;
   }
 
+  @VisibleForTesting
   static String getVersionFromJar() {
     /* Choose {@link DataStream} class because it is one of the core Flink API. */
     return DataStream.class.getPackage().getImplementationVersion();
