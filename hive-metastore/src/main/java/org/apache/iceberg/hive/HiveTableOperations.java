@@ -21,21 +21,18 @@ package org.apache.iceberg.hive;
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.StatsSetupConst;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.TableType;
-import org.apache.hadoop.hive.metastore.api.InvalidObjectException;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
+import org.apache.iceberg.BaseMetadata;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.ClientPool;
 import org.apache.iceberg.PartitionSpecParser;
@@ -44,12 +41,7 @@ import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SortOrderParser;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.exceptions.AlreadyExistsException;
-import org.apache.iceberg.exceptions.CommitFailedException;
-import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.BiMap;
@@ -142,8 +134,10 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
   @Override
   protected void doRefresh() {
     String metadataLocation = null;
+    Table table;
+
     try {
-      Table table = metaClients.run(client -> client.getTable(database, tableName));
+      table = metaClients.run(client -> client.getTable(database, tableName));
       HiveOperationsBase.validateTableIsIceberg(table, fullName);
 
       metadataLocation = table.getParameters().get(METADATA_LOCATION_PROP);
@@ -166,153 +160,34 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     refreshFromMetadataLocation(metadataLocation, metadataRefreshMaxRetries);
   }
 
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
     boolean newTable = base == null;
     String newMetadataLocation = writeNewMetadataIfRequired(newTable, metadata);
-    boolean hiveEngineEnabled = hiveEngineEnabled(metadata, conf);
-    boolean keepHiveStats = conf.getBoolean(ConfigProperties.KEEP_HIVE_STATS, false);
-
-    CommitStatus commitStatus = CommitStatus.FAILURE;
-    boolean updateHiveTable = false;
-
-    HiveLock lock = lockObject(metadata);
-    try {
-      lock.lock();
-
-      Table tbl = loadHmsTable();
-
-      if (tbl != null) {
-        // If we try to create the table but the metadata location is already set, then we had a
-        // concurrent commit
-        if (newTable
-            && tbl.getParameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP)
-                != null) {
-          throw new AlreadyExistsException("Table already exists: %s.%s", database, tableName);
-        }
-
-        updateHiveTable = true;
-        LOG.debug("Committing existing table: {}", fullName);
-      } else {
-        tbl =
-            newHmsTable(
-                metadata.property(HiveCatalog.HMS_TABLE_OWNER, HiveHadoopUtil.currentUser()));
-        LOG.debug("Committing new table: {}", fullName);
-      }
-
-      tbl.setSd(
-          HiveOperationsBase.storageDescriptor(
-              metadata, hiveEngineEnabled)); // set to pickup any schema changes
-
-      String metadataLocation = tbl.getParameters().get(METADATA_LOCATION_PROP);
-      String baseMetadataLocation = base != null ? base.metadataFileLocation() : null;
-      if (!Objects.equals(baseMetadataLocation, metadataLocation)) {
-        throw new CommitFailedException(
-            "Cannot commit: Base metadata location '%s' is not same as the current table metadata location '%s' for %s.%s",
-            baseMetadataLocation, metadataLocation, database, tableName);
-      }
-
-      // get Iceberg props that have been removed
-      Set<String> removedProps = Collections.emptySet();
-      if (base != null) {
-        removedProps =
-            base.properties().keySet().stream()
-                .filter(key -> !metadata.properties().containsKey(key))
-                .collect(Collectors.toSet());
-      }
-
-      Map<String, String> summary =
-          Optional.ofNullable(metadata.currentSnapshot())
-              .map(Snapshot::summary)
-              .orElseGet(ImmutableMap::of);
-      setHmsTableParameters(
-          newMetadataLocation, tbl, metadata, removedProps, hiveEngineEnabled, summary);
-
-      if (!keepHiveStats) {
-        tbl.getParameters().remove(StatsSetupConst.COLUMN_STATS_ACCURATE);
-      }
-
-      lock.ensureActive();
-
-      try {
-        persistTable(
-            tbl, updateHiveTable, hiveLockEnabled(metadata, conf) ? null : baseMetadataLocation);
-        lock.ensureActive();
-
-        commitStatus = CommitStatus.SUCCESS;
-      } catch (LockException le) {
-        commitStatus = CommitStatus.UNKNOWN;
-        throw new CommitStateUnknownException(
-            "Failed to heartbeat for hive lock while "
-                + "committing changes. This can lead to a concurrent commit attempt be able to overwrite this commit. "
-                + "Please check the commit history. If you are running into this issue, try reducing "
-                + "iceberg.hive.lock-heartbeat-interval-ms.",
-            le);
-      } catch (org.apache.hadoop.hive.metastore.api.AlreadyExistsException e) {
-        throw new AlreadyExistsException(e, "Table already exists: %s.%s", database, tableName);
-
-      } catch (InvalidObjectException e) {
-        throw new ValidationException(e, "Invalid Hive object for %s.%s", database, tableName);
-
-      } catch (CommitFailedException | CommitStateUnknownException e) {
-        throw e;
-
-      } catch (Throwable e) {
-        if (e.getMessage()
-            .contains(
-                "The table has been modified. The parameter value for key '"
-                    + HiveTableOperations.METADATA_LOCATION_PROP
-                    + "' is")) {
-          throw new CommitFailedException(
-              e, "The table %s.%s has been modified concurrently", database, tableName);
-        }
-
-        if (e.getMessage() != null
-            && e.getMessage().contains("Table/View 'HIVE_LOCKS' does not exist")) {
-          throw new RuntimeException(
-              "Failed to acquire locks from metastore because the underlying metastore "
-                  + "table 'HIVE_LOCKS' does not exist. This can occur when using an embedded metastore which does not "
-                  + "support transactions. To fix this use an alternative metastore.",
-              e);
-        }
-
-        LOG.error(
-            "Cannot tell if commit to {}.{} succeeded, attempting to reconnect and check.",
-            database,
-            tableName,
-            e);
-        commitStatus = checkCommitStatus(newMetadataLocation, metadata);
-        switch (commitStatus) {
-          case SUCCESS:
-            break;
-          case FAILURE:
-            throw e;
-          case UNKNOWN:
-            throw new CommitStateUnknownException(e);
-        }
-      }
-    } catch (TException e) {
-      throw new RuntimeException(
-          String.format("Metastore operation failed for %s.%s", database, tableName), e);
-
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      throw new RuntimeException("Interrupted during commit", e);
-
-    } catch (LockException e) {
-      throw new CommitFailedException(e);
-
-    } finally {
-      cleanupMetadataAndUnlock(commitStatus, newMetadataLocation, lock);
-    }
+    String baseMetadataLocation = base != null ? base.metadataFileLocation() : null;
+    commitWithLocking(
+        conf,
+        catalogName,
+        base,
+        metadata,
+        baseMetadataLocation,
+        newMetadataLocation,
+        fullName,
+        fileIO);
 
     LOG.info(
         "Committed to table {} with the new metadata location {}", fullName, newMetadataLocation);
   }
 
-  @VisibleForTesting
-  Table loadHmsTable() throws TException, InterruptedException {
+  @Override
+  public BaseMetastoreTableOperations.CommitStatus validateNewLocationAndReturnCommitStatus(
+      BaseMetadata metadata, String newMetadataLocation) {
+    return checkCommitStatus(
+        fullName, newMetadataLocation, metadata.properties(), this::loadMetadataLocations);
+  }
+
+  @Override
+  public Table loadHmsTable() throws TException, InterruptedException {
     try {
       return metaClients.run(client -> client.getTable(database, tableName));
     } catch (NoSuchObjectException nte) {
@@ -321,13 +196,15 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     }
   }
 
-  private void setHmsTableParameters(
-      String newMetadataLocation,
+  @Override
+  public void setHmsParameters(
+      BaseMetadata baseMetadata,
       Table tbl,
-      TableMetadata metadata,
+      String newMetadataLocation,
       Set<String> obsoleteProps,
-      boolean hiveEngineEnabled,
-      Map<String, String> summary) {
+      boolean hiveEngineEnabled) {
+    TableMetadata metadata = (TableMetadata) baseMetadata;
+
     Map<String, String> parameters =
         Optional.ofNullable(tbl.getParameters()).orElseGet(Maps::newHashMap);
 
@@ -341,19 +218,20 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
               String hmsKey = ICEBERG_TO_HMS_TRANSLATION.getOrDefault(key, key);
               parameters.put(hmsKey, entry.getValue());
             });
-    if (metadata.uuid() != null) {
-      parameters.put(TableProperties.UUID, metadata.uuid());
-    }
 
     // remove any props from HMS that are no longer present in Iceberg table props
     obsoleteProps.forEach(parameters::remove);
 
-    parameters.put(TABLE_TYPE_PROP, ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ENGLISH));
-    parameters.put(METADATA_LOCATION_PROP, newMetadataLocation);
+    setCommonHmsParameters(
+        tbl,
+        BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ENGLISH),
+        newMetadataLocation,
+        metadata.schema(),
+        metadata.uuid(),
+        obsoleteProps,
+        this::currentMetadataLocation);
 
-    if (currentMetadataLocation() != null && !currentMetadataLocation().isEmpty()) {
-      parameters.put(PREVIOUS_METADATA_LOCATION_PROP, currentMetadataLocation());
-    }
+    parameters.put(TABLE_TYPE_PROP, ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ENGLISH));
 
     // If needed set the 'storage_handler' property to enable query from Hive
     if (hiveEngineEnabled) {
@@ -365,6 +243,10 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     }
 
     // Set the basic statistics
+    Map<String, String> summary =
+        Optional.ofNullable(metadata.currentSnapshot())
+            .map(Snapshot::summary)
+            .orElseGet(ImmutableMap::of);
     if (summary.get(SnapshotSummary.TOTAL_DATA_FILES_PROP) != null) {
       parameters.put(StatsSetupConst.NUM_FILES, summary.get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
     }
@@ -376,7 +258,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     }
 
     setSnapshotStats(metadata, parameters);
-    setSchema(metadata, parameters);
     setPartitionSpec(metadata, parameters);
     setSortOrder(metadata, parameters);
 
@@ -465,77 +346,5 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
   @Override
   public ClientPool<IMetaStoreClient, TException> metaClients() {
     return metaClients;
-  }
-
-  private void cleanupMetadataAndUnlock(
-      CommitStatus commitStatus, String metadataLocation, HiveLock lock) {
-    try {
-      HiveOperationsBase.cleanupMetadata(io(), commitStatus.name(), metadataLocation);
-    } finally {
-      lock.unlock();
-    }
-  }
-
-  /**
-   * Returns if the hive engine related values should be enabled on the table, or not.
-   *
-   * <p>The decision is made like this:
-   *
-   * <ol>
-   *   <li>Table property value {@link TableProperties#ENGINE_HIVE_ENABLED}
-   *   <li>If the table property is not set then check the hive-site.xml property value {@link
-   *       ConfigProperties#ENGINE_HIVE_ENABLED}
-   *   <li>If none of the above is enabled then use the default value {@link
-   *       TableProperties#ENGINE_HIVE_ENABLED_DEFAULT}
-   * </ol>
-   *
-   * @param metadata Table metadata to use
-   * @param conf The hive configuration to use
-   * @return if the hive engine related values should be enabled or not
-   */
-  private static boolean hiveEngineEnabled(TableMetadata metadata, Configuration conf) {
-    if (metadata.properties().get(TableProperties.ENGINE_HIVE_ENABLED) != null) {
-      // We know that the property is set, so default value will not be used,
-      return metadata.propertyAsBoolean(TableProperties.ENGINE_HIVE_ENABLED, false);
-    }
-
-    return conf.getBoolean(
-        ConfigProperties.ENGINE_HIVE_ENABLED, TableProperties.ENGINE_HIVE_ENABLED_DEFAULT);
-  }
-
-  /**
-   * Returns if the hive locking should be enabled on the table, or not.
-   *
-   * <p>The decision is made like this:
-   *
-   * <ol>
-   *   <li>Table property value {@link TableProperties#HIVE_LOCK_ENABLED}
-   *   <li>If the table property is not set then check the hive-site.xml property value {@link
-   *       ConfigProperties#LOCK_HIVE_ENABLED}
-   *   <li>If none of the above is enabled then use the default value {@link
-   *       TableProperties#HIVE_LOCK_ENABLED_DEFAULT}
-   * </ol>
-   *
-   * @param metadata Table metadata to use
-   * @param conf The hive configuration to use
-   * @return if the hive engine related values should be enabled or not
-   */
-  private static boolean hiveLockEnabled(TableMetadata metadata, Configuration conf) {
-    if (metadata.properties().get(TableProperties.HIVE_LOCK_ENABLED) != null) {
-      // We know that the property is set, so default value will not be used,
-      return metadata.propertyAsBoolean(TableProperties.HIVE_LOCK_ENABLED, false);
-    }
-
-    return conf.getBoolean(
-        ConfigProperties.LOCK_HIVE_ENABLED, TableProperties.HIVE_LOCK_ENABLED_DEFAULT);
-  }
-
-  @VisibleForTesting
-  HiveLock lockObject(TableMetadata metadata) {
-    if (hiveLockEnabled(metadata, conf)) {
-      return new MetastoreLock(conf, metaClients, catalogName, database, tableName);
-    } else {
-      return new NoLock();
-    }
   }
 }
