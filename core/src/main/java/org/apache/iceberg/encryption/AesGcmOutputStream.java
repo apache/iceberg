@@ -59,6 +59,7 @@ public class AesGcmOutputStream extends PositionOutputStream {
     this.isHeaderWritten = false;
     this.lastBlockWritten = false;
     this.isClosed = false;
+    this.finalPosition = 0;
   }
 
   @Override
