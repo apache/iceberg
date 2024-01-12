@@ -284,7 +284,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         current.specsById(),
         newManifestPath,
         snapshotId(),
-        appendedManifestsSummary);
+        appendedManifestsSummary,
+        current.properties().get(TableProperties.AVRO_COMPRESSION),
+        current.propertyAsNullableInt(TableProperties.AVRO_COMPRESSION_LEVEL));
   }
 
   /**

@@ -22,7 +22,9 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import org.apache.avro.file.DataFileConstants;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.types.Conversions;
@@ -30,7 +32,6 @@ import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.Assumptions;
 import org.junit.Assert;
-import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -105,7 +106,7 @@ public class TestManifestWriter extends TableTestBase {
 
   @Test
   public void testWriteManifestWithSequenceNumber() throws IOException {
-    Assume.assumeTrue("sequence number is only valid for format version > 1", formatVersion > 1);
+    Assumptions.assumeThat(formatVersion).isGreaterThan(1);
     File manifestFile = temp.newFile("manifest.avro");
     Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
@@ -130,7 +131,7 @@ public class TestManifestWriter extends TableTestBase {
 
   @Test
   public void testCommitManifestWithExplicitDataSequenceNumber() throws IOException {
-    Assume.assumeTrue("Sequence numbers are valid for format version > 1", formatVersion > 1);
+    Assumptions.assumeThat(formatVersion).isGreaterThan(1);
 
     DataFile file1 = newFile(50);
     DataFile file2 = newFile(50);
@@ -175,7 +176,7 @@ public class TestManifestWriter extends TableTestBase {
 
   @Test
   public void testCommitManifestWithExistingEntriesWithoutFileSequenceNumber() throws IOException {
-    Assume.assumeTrue("Sequence numbers are valid for format version > 1", formatVersion > 1);
+    Assumptions.assumeThat(formatVersion).isGreaterThan(1);
 
     DataFile file1 = newFile(50);
     DataFile file2 = newFile(50);
@@ -384,6 +385,17 @@ public class TestManifestWriter extends TableTestBase {
     }
   }
 
+  @Test
+  public void testWriteManifestWithCompression() throws IOException {
+    validateManifestCompressionCodec(false);
+  }
+
+  @Test
+  public void testWriteDeleteManifestWithCompression() throws IOException {
+    Assumptions.assumeThat(formatVersion).isGreaterThan(1);
+    validateManifestCompressionCodec(true);
+  }
+
   private DataFile newFile(long recordCount) {
     return newFile(recordCount, null);
   }
@@ -433,6 +445,25 @@ public class TestManifestWriter extends TableTestBase {
       return Files.localOutput(FileFormat.AVRO.addExtension(temp.newFile().toString()));
     } catch (IOException e) {
       throw new UncheckedIOException(e);
+    }
+  }
+
+  void validateManifestCompressionCodec(boolean testDeletes) throws IOException {
+    for (Map.Entry<String, String> entry : AVRO_CODEC_NAME_MAPPING.entrySet()) {
+      String codec = entry.getKey();
+      String expectedCodecValue = entry.getValue();
+
+      ManifestFile manifest =
+          testDeletes
+              ? writeDeleteManifest(formatVersion, EXAMPLE_SNAPSHOT_ID, codec, FILE_A_DELETES)
+              : writeManifest(EXAMPLE_SNAPSHOT_ID, codec, FILE_A);
+      try (ManifestReader<? extends ContentFile<?>> reader =
+          testDeletes
+              ? ManifestFiles.readDeleteManifest(manifest, FILE_IO, null)
+              : ManifestFiles.read(manifest, FILE_IO)) {
+        Assertions.assertThat(reader.metadata())
+            .containsEntry(DataFileConstants.CODEC, expectedCodecValue);
+      }
     }
   }
 }
