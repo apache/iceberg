@@ -50,8 +50,7 @@ public class TestInputFormatReaderDeletes extends DeleteReadTests {
   private TestHelper helper;
 
   // parametrized variables
-  @Parameter(index = 0)
-  private String inputFormat;
+  @Parameter private String inputFormat;
 
   @Parameter(index = 1)
   private FileFormat fileFormat;

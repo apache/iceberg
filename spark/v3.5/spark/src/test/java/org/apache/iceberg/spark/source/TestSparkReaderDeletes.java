@@ -99,8 +99,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   protected static SparkSession spark = null;
   protected static HiveCatalog catalog = null;
 
-  @Parameter(index = 0)
-  private String format;
+  @Parameter private String format;
 
   @Parameter(index = 1)
   private boolean vectorized;

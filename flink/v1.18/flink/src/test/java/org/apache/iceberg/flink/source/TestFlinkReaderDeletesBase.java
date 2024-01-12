@@ -51,8 +51,7 @@ public abstract class TestFlinkReaderDeletesBase extends DeleteReadTests {
   protected static HiveCatalog catalog = null;
   private static TestHiveMetastore metastore = null;
 
-  @Parameter(index = 0)
-  protected FileFormat format;
+  @Parameter protected FileFormat format;
 
   @Parameters(name = "fileFormat = {0}")
   public static Object[][] parameters() {
