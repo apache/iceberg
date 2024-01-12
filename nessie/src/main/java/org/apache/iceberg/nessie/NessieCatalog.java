@@ -141,7 +141,6 @@ public class NessieCatalog extends BaseMetastoreViewCatalog
     // match for uri ending with /v1, /v2 etc
     Pattern pattern = Pattern.compile("/v(\\d+)$");
     Matcher matcher = pattern.matcher(uri);
-    // Extract and print the version number
     if (matcher.find()) {
       return matcher.group(1);
     } else {
