@@ -147,7 +147,7 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
 
       for (FileScanTask fileScanTask : fileScanTasks) {
         String taskJson = FileScanTaskParser.toJson(fileScanTask);
-        out.writeUTF(taskJson);
+        writeBytes(out, taskJson);
       }
 
       serializedBytesCache = out.getCopyOfBuffer();
@@ -166,12 +166,19 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
 
     List<FileScanTask> tasks = Lists.newArrayListWithCapacity(taskCount);
     for (int i = 0; i < taskCount; ++i) {
-      String taskJson = in.readUTF();
+      String taskJson = in.readLine();
       FileScanTask task = FileScanTaskParser.fromJson(taskJson, caseSensitive);
       tasks.add(task);
     }
 
     CombinedScanTask combinedScanTask = new BaseCombinedScanTask(tasks);
     return IcebergSourceSplit.fromCombinedScanTask(combinedScanTask, fileOffset, recordOffset);
+  }
+
+  private static void writeBytes(DataOutputSerializer out, String s) throws IOException {
+    for (int i = 0; i < s.length(); i++) {
+      out.writeByte(s.charAt(i));
+    }
+    out.writeByte('\n');
   }
 }
