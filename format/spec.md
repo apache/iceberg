@@ -337,15 +337,15 @@ Transforms are parameterized by a number of buckets [1], `N`. The hash mod `N` m
   def bucket_N(x) = (murmur3_x86_32_hash(x) & Integer.MAX_VALUE) % N
 ```
 
-When bucket transform is applied on a list of values, the input is treated as concatenated bytes of each value. In pseudo-code, the function is:
+When bucket transform is applied on a list of values, the hash is applied on the concatenated byte representations of all values. In pseudo-code, the function is:
 
 ```
   def murmur3_x86_32_hashes(x1, x2, x3, ...) = {
     byte[] bytes;
     for (x in [x1, x2, x3, ...]) {
-      bytes = x == null ? bytes : append(bytes, bytesOf(x));
+      if (x != null) bytes.append(bytesOf(x))
     }
-    return murmur3_x86_32_hash(bytes);
+    return murmur3_x86_32_hash(bytes)
   }
   
   def bucket_N(x1, x2, x3, ...) = (murmur3_x86_32_hashes(x1, x2, x3, ...) & Integer.MAX_VALUE) % N
@@ -1076,12 +1076,25 @@ The types below are not currently valid for bucketing, and so are not hashed. Ho
 | **`float`**        | `hashLong(doubleToLongBits(double(v))` [4]| `1.0F` ￫ `-142385009`, `0.0F` ￫ `1669671676`, `-0.0F` ￫ `1669671676` |
 | **`double`**       | `hashLong(doubleToLongBits(v))`        [4]| `1.0D` ￫ `-142385009`, `0.0D` ￫ `1669671676`, `-0.0D` ￫ `1669671676` |
 
-For multi-arg hash function, the hash value is the result of `hashBytes` on the concatenation of the bytes of the arguments. NULL input is ignored.
+For multiple arguments, hashBytes() is applied on the concatenated byte representation of each argument:
 
-| Struct examples                    | Hash Specification                                                                    | Test value                                                 |
-|------------------------------------|---------------------------------------------------------------------------------------|------------------------------------------------------------|
-| **`struct<a:int,b:string>`**       | `hashBytes(concatenation(littleEndianBytes(long(v)), utf8Bytes(b)))`                  | `{a: 34, b: "iceberg"}` ￫ `875336289`                      |
-| **`struct<b:timestamp,c:string>`** | `hashBytes(concatenation(littleEndianBytes(microsecsFromUnixEpoch(b)),utf8Bytes(c)))` | `{b: '2017-11-16T22:31:08', c: "iceberg"}` ￫ `-1797269680` |
+| Primitive type       | Bytes representation                           |
+|----------------------|------------------------------------------------|
+| **`int`**            | `littleEndianBytes(long(v))`                   |
+| **`long`**           | `littleEndianBytes(v)`                         | 
+| **`decimal(P,S)`**   | `minBigEndian(unscaled(v))`                    |
+| **`date`**           | `littleEndianBytes(daysFromUnixEpoch(v))`      |
+| **`time`**           | `littleEndianBytes(microsecsFromMidnight(v))`  |
+| **`timestamp`**      | `littleEndianBytes(microsecsFromUnixEpoch(v))` |
+| **`timestamptz`**    | `littleEndianBytes(microsecsFromUnixEpoch(v))` |
+| **`timestamp_ns`**   | `littleEndianBytes(nanosecsFromUnixEpoch(v))`  |
+| **`timestamptz_ns`** | `littleEndianBytes(nanosecsFromUnixEpoch(v))`  |
+| **`string`**         | `utf8Bytes(v)`                                 |
+| **`uuid`**           | `uuidBytes(v)`                                 |  
+| **`fixed(L)`**       | `v`                                            |
+| **`binary`**         | `v`                                            |
+
+For example, the hash representation of `(a:int, b:string)` will be `hashBytes(concatenation(littleEndianBytes(long(v)), utf8Bytes(b))`
 
 
 Notes:
@@ -1164,7 +1177,8 @@ Notes:
 
 1. For multi-arg bucket, the serialized form is `bucketV2[N]` instead of `bucket[N]` to distinguish it from the single-arg bucket transform. Therefore, old readers/writers will identify this transform as an unknown transform, old writer will stop writing the table if it encounters this transform, but old readers would still be able to read the table by scanning all the partitions.
    This makes adding multi-arg transform a forward-compatible change, but not a backward-compatible change.
-2. For partition fields with multi-arg transform, `source-id` is replaced by `source-ids` and marked as `-1` to be consistent with single-arg transform. `source-id` should still be emitted for single-arg transform.
+2. For partition fields with a transform of multiple arguments, the ids of the source fields are set on `source-ids`. To preserve backward compatibility, `source-id` is set to -1.
+3. For partition field with a transform with a single argument, the id of the source field is set on `source-id`, and `source-ids` is omitted.
 
 ### Sort Orders
 
