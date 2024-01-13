@@ -105,13 +105,12 @@ public class TestIcebergSourceSplitSerializer {
     serializeAndDeserializeV2(1, 1, 5000);
   }
 
-  private void serializeAndDeserializeV2(int splitCount, int filesPerSplit, int mockDeletesPerSplit)
-      throws Exception {
-    final List<IcebergSourceSplit> splits =
-        SplitHelpers.createSplitsFromTransientHadoopTable(
+  private void serializeAndDeserializeV2(int splitCount, int filesPerSplit, int mockDeletesPerSplit) throws Exception {
+    final List<IcebergSourceSplit> splits = SplitHelpers.createSplitsFromTransientHadoopTable(
             TEMPORARY_FOLDER, splitCount, filesPerSplit);
     final List<IcebergSourceSplit> splitsWithMockDeleteFiles =
-        SplitHelpers.equipSplitsWithMockDeleteFiles(splits, TEMPORARY_FOLDER, mockDeletesPerSplit);
+        SplitHelpers.equipSplitsWithMockDeleteFiles(splits,
+            TEMPORARY_FOLDER, mockDeletesPerSplit);
 
     for (IcebergSourceSplit split : splitsWithMockDeleteFiles) {
       byte[] result = split.serializeV2();
@@ -119,6 +118,9 @@ public class TestIcebergSourceSplitSerializer {
       assertSplitEquals(split, deserialized);
     }
   }
+
+
+
 
   @Test
   public void testDeserializeV1() throws Exception {
