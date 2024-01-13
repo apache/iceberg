@@ -144,6 +144,9 @@ public class TestHelper {
   }
 
   private GenericAppenderHelper appender() {
+    if (null != tmp) {
+      return new GenericAppenderHelper(table, fileFormat, tmp, conf);
+    }
     return new GenericAppenderHelper(table, fileFormat, temp, conf);
   }
 
