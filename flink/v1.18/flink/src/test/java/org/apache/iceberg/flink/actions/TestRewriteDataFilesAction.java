@@ -19,9 +19,11 @@
 package org.apache.iceberg.flink.actions;
 
 import static org.apache.iceberg.flink.SimpleDataUtil.RECORD;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -39,6 +41,8 @@ import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteDataFilesActionResult;
@@ -49,7 +53,7 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.flink.FlinkCatalogTestBase;
+import org.apache.iceberg.flink.CatalogTestBase;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
@@ -59,31 +63,23 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
-public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
+public class TestRewriteDataFilesAction extends CatalogTestBase {
 
   private static final String TABLE_NAME_UNPARTITIONED = "test_table_unpartitioned";
   private static final String TABLE_NAME_PARTITIONED = "test_table_partitioned";
   private static final String TABLE_NAME_WITH_PK = "test_table_with_pk";
-  private final FileFormat format;
+
+  @Parameter(index = 2)
+  private FileFormat format;
+
   private Table icebergTableUnPartitioned;
   private Table icebergTablePartitioned;
   private Table icebergTableWithPk;
-
-  public TestRewriteDataFilesAction(
-      String catalogName, Namespace baseNamespace, FileFormat format) {
-    super(catalogName, baseNamespace);
-    this.format = format;
-  }
 
   @Override
   protected TableEnvironment getTableEnv() {
@@ -91,12 +87,12 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
     return super.getTableEnv();
   }
 
-  @Parameterized.Parameters(name = "catalogName={0}, baseNamespace={1}, format={2}")
-  public static Iterable<Object[]> parameters() {
+  @Parameters(name = "catalogName={0}, baseNamespace={1}, format={2}")
+  public static List<Object[]> parameters() {
     List<Object[]> parameters = Lists.newArrayList();
     for (FileFormat format :
         new FileFormat[] {FileFormat.AVRO, FileFormat.ORC, FileFormat.PARQUET}) {
-      for (Object[] catalogParams : FlinkCatalogTestBase.parameters()) {
+      for (Object[] catalogParams : CatalogTestBase.parameters()) {
         String catalogName = (String) catalogParams[0];
         Namespace baseNamespace = (Namespace) catalogParams[1];
         parameters.add(new Object[] {catalogName, baseNamespace, format});
@@ -105,10 +101,10 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
     return parameters;
   }
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  private @TempDir Path temp;
 
   @Override
-  @Before
+  @BeforeEach
   public void before() {
     super.before();
     sql("CREATE DATABASE %s", flinkDatabase);
@@ -135,7 +131,7 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
   }
 
   @Override
-  @After
+  @AfterEach
   public void clean() {
     sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, TABLE_NAME_UNPARTITIONED);
     sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, TABLE_NAME_PARTITIONED);
@@ -144,14 +140,14 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
     super.clean();
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteDataFilesEmptyTable() throws Exception {
-    Assert.assertNull("Table must be empty", icebergTableUnPartitioned.currentSnapshot());
+    assertThat(icebergTableUnPartitioned.currentSnapshot()).isNull();
     Actions.forTable(icebergTableUnPartitioned).rewriteDataFiles().execute();
-    Assert.assertNull("Table must stay empty", icebergTableUnPartitioned.currentSnapshot());
+    assertThat(icebergTableUnPartitioned.currentSnapshot()).isNull();
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteDataFilesUnpartitionedTable() throws Exception {
     sql("INSERT INTO %s SELECT 1, 'hello'", TABLE_NAME_UNPARTITIONED);
     sql("INSERT INTO %s SELECT 2, 'world'", TABLE_NAME_UNPARTITIONED);
@@ -161,21 +157,19 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
     CloseableIterable<FileScanTask> tasks = icebergTableUnPartitioned.newScan().planFiles();
     List<DataFile> dataFiles =
         Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
-    Assert.assertEquals("Should have 2 data files before rewrite", 2, dataFiles.size());
-
+    assertThat(dataFiles).hasSize(2);
     RewriteDataFilesActionResult result =
         Actions.forTable(icebergTableUnPartitioned).rewriteDataFiles().execute();
 
-    Assert.assertEquals("Action should rewrite 2 data files", 2, result.deletedDataFiles().size());
-    Assert.assertEquals("Action should add 1 data file", 1, result.addedDataFiles().size());
+    assertThat(result.deletedDataFiles()).hasSize(2);
+    assertThat(result.addedDataFiles()).hasSize(1);
 
     icebergTableUnPartitioned.refresh();
 
     CloseableIterable<FileScanTask> tasks1 = icebergTableUnPartitioned.newScan().planFiles();
     List<DataFile> dataFiles1 =
         Lists.newArrayList(CloseableIterable.transform(tasks1, FileScanTask::file));
-    Assert.assertEquals("Should have 1 data files after rewrite", 1, dataFiles1.size());
-
+    assertThat(dataFiles1).hasSize(1);
     // Assert the table records as expected.
     SimpleDataUtil.assertTableRecords(
         icebergTableUnPartitioned,
@@ -183,7 +177,7 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
             SimpleDataUtil.createRecord(1, "hello"), SimpleDataUtil.createRecord(2, "world")));
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteDataFilesPartitionedTable() throws Exception {
     sql("INSERT INTO %s SELECT 1, 'hello' ,'a'", TABLE_NAME_PARTITIONED);
     sql("INSERT INTO %s SELECT 2, 'hello' ,'a'", TABLE_NAME_PARTITIONED);
@@ -195,21 +189,19 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
     CloseableIterable<FileScanTask> tasks = icebergTablePartitioned.newScan().planFiles();
     List<DataFile> dataFiles =
         Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
-    Assert.assertEquals("Should have 4 data files before rewrite", 4, dataFiles.size());
-
+    assertThat(dataFiles).hasSize(4);
     RewriteDataFilesActionResult result =
         Actions.forTable(icebergTablePartitioned).rewriteDataFiles().execute();
 
-    Assert.assertEquals("Action should rewrite 4 data files", 4, result.deletedDataFiles().size());
-    Assert.assertEquals("Action should add 2 data file", 2, result.addedDataFiles().size());
+    assertThat(result.deletedDataFiles()).hasSize(4);
+    assertThat(result.addedDataFiles()).hasSize(2);
 
     icebergTablePartitioned.refresh();
 
     CloseableIterable<FileScanTask> tasks1 = icebergTablePartitioned.newScan().planFiles();
     List<DataFile> dataFiles1 =
         Lists.newArrayList(CloseableIterable.transform(tasks1, FileScanTask::file));
-    Assert.assertEquals("Should have 2 data files after rewrite", 2, dataFiles1.size());
-
+    assertThat(dataFiles1).hasSize(2);
     // Assert the table records as expected.
     Schema schema =
         new Schema(
@@ -227,7 +219,7 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
             record.copy("id", 4, "data", "world", "spec", "b")));
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteDataFilesWithFilter() throws Exception {
     sql("INSERT INTO %s SELECT 1, 'hello' ,'a'", TABLE_NAME_PARTITIONED);
     sql("INSERT INTO %s SELECT 2, 'hello' ,'a'", TABLE_NAME_PARTITIONED);
@@ -240,25 +232,22 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
     CloseableIterable<FileScanTask> tasks = icebergTablePartitioned.newScan().planFiles();
     List<DataFile> dataFiles =
         Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
-    Assert.assertEquals("Should have 5 data files before rewrite", 5, dataFiles.size());
-
+    assertThat(dataFiles).hasSize(5);
     RewriteDataFilesActionResult result =
         Actions.forTable(icebergTablePartitioned)
             .rewriteDataFiles()
             .filter(Expressions.equal("spec", "a"))
             .filter(Expressions.startsWith("data", "he"))
             .execute();
-
-    Assert.assertEquals("Action should rewrite 2 data files", 2, result.deletedDataFiles().size());
-    Assert.assertEquals("Action should add 1 data file", 1, result.addedDataFiles().size());
+    assertThat(result.deletedDataFiles()).hasSize(2);
+    assertThat(result.addedDataFiles()).hasSize(1);
 
     icebergTablePartitioned.refresh();
 
     CloseableIterable<FileScanTask> tasks1 = icebergTablePartitioned.newScan().planFiles();
     List<DataFile> dataFiles1 =
         Lists.newArrayList(CloseableIterable.transform(tasks1, FileScanTask::file));
-    Assert.assertEquals("Should have 4 data files after rewrite", 4, dataFiles1.size());
-
+    assertThat(dataFiles1).hasSize(4);
     // Assert the table records as expected.
     Schema schema =
         new Schema(
@@ -277,7 +266,7 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
             record.copy("id", 5, "data", "world", "spec", "b")));
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteLargeTableHasResiduals() throws IOException {
     // all records belong to the same partition
     List<String> records1 = Lists.newArrayList();
@@ -309,19 +298,19 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
             .filter(Expressions.equal("data", "0"))
             .planFiles();
     for (FileScanTask task : tasks) {
-      Assert.assertEquals("Residuals must be ignored", Expressions.alwaysTrue(), task.residual());
+      assertThat(task.residual())
+          .as("Residuals must be ignored")
+          .isEqualTo(Expressions.alwaysTrue());
     }
     List<DataFile> dataFiles =
         Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
-    Assert.assertEquals("Should have 2 data files before rewrite", 2, dataFiles.size());
-
+    assertThat(dataFiles).hasSize(2);
     Actions actions = Actions.forTable(icebergTableUnPartitioned);
 
     RewriteDataFilesActionResult result =
         actions.rewriteDataFiles().filter(Expressions.equal("data", "0")).execute();
-    Assert.assertEquals("Action should rewrite 2 data files", 2, result.deletedDataFiles().size());
-    Assert.assertEquals("Action should add 1 data file", 1, result.addedDataFiles().size());
-
+    assertThat(result.deletedDataFiles()).hasSize(2);
+    assertThat(result.addedDataFiles()).hasSize(1);
     // Assert the table records as expected.
     SimpleDataUtil.assertTableRecords(icebergTableUnPartitioned, expected);
   }
@@ -339,12 +328,12 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
    *
    * @throws IOException IOException
    */
-  @Test
+  @TestTemplate
   public void testRewriteAvoidRepeateCompress() throws IOException {
     List<Record> expected = Lists.newArrayList();
     Schema schema = icebergTableUnPartitioned.schema();
     GenericAppenderFactory genericAppenderFactory = new GenericAppenderFactory(schema);
-    File file = temp.newFile();
+    File file = File.createTempFile("junit", null, temp.toFile());
     int count = 0;
     try (FileAppender<Record> fileAppender =
         genericAppenderFactory.newAppender(Files.localOutput(file), format)) {
@@ -374,8 +363,7 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
     CloseableIterable<FileScanTask> tasks = icebergTableUnPartitioned.newScan().planFiles();
     List<DataFile> dataFiles =
         Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
-    Assert.assertEquals("Should have 3 data files before rewrite", 3, dataFiles.size());
-
+    assertThat(dataFiles).hasSize(3);
     Actions actions = Actions.forTable(icebergTableUnPartitioned);
 
     long targetSizeInBytes = file.length() + 10;
@@ -385,20 +373,18 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
             .targetSizeInBytes(targetSizeInBytes)
             .splitOpenFileCost(1)
             .execute();
-    Assert.assertEquals("Action should rewrite 2 data files", 2, result.deletedDataFiles().size());
-    Assert.assertEquals("Action should add 1 data file", 1, result.addedDataFiles().size());
-
+    assertThat(result.deletedDataFiles()).hasSize(2);
+    assertThat(result.addedDataFiles()).hasSize(1);
     icebergTableUnPartitioned.refresh();
 
     CloseableIterable<FileScanTask> tasks1 = icebergTableUnPartitioned.newScan().planFiles();
     List<DataFile> dataFilesRewrote =
         Lists.newArrayList(CloseableIterable.transform(tasks1, FileScanTask::file));
-    Assert.assertEquals("Should have 2 data files after rewrite", 2, dataFilesRewrote.size());
-
+    assertThat(dataFilesRewrote).hasSize(2);
     // the biggest file do not be rewrote
     List rewroteDataFileNames =
         dataFilesRewrote.stream().map(ContentFile::path).collect(Collectors.toList());
-    Assert.assertTrue(rewroteDataFileNames.contains(file.getAbsolutePath()));
+    assertThat(rewroteDataFileNames).contains(file.getAbsolutePath());
 
     // Assert the table records as expected.
     expected.add(SimpleDataUtil.createRecord(1, "a"));
@@ -406,7 +392,7 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
     SimpleDataUtil.assertTableRecords(icebergTableUnPartitioned, expected);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteNoConflictWithEqualityDeletes() throws IOException {
     // Add 2 data files
     sql("INSERT INTO %s SELECT 1, 'hello'", TABLE_NAME_WITH_PK);
@@ -423,11 +409,9 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
     sql("INSERT INTO %s /*+ OPTIONS('upsert-enabled'='true')*/ SELECT 1, 'hi'", TABLE_NAME_WITH_PK);
 
     icebergTableWithPk.refresh();
-    Assert.assertEquals(
-        "The latest sequence number should be greater than that of the stale snapshot",
-        stale1.currentSnapshot().sequenceNumber() + 1,
-        icebergTableWithPk.currentSnapshot().sequenceNumber());
-
+    assertThat(icebergTableWithPk.currentSnapshot().sequenceNumber())
+        .as("The latest sequence number should be greater than that of the stale snapshot")
+        .isEqualTo(stale1.currentSnapshot().sequenceNumber() + 1);
     CloseableIterable<FileScanTask> tasks = icebergTableWithPk.newScan().planFiles();
     List<DataFile> dataFiles =
         Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
@@ -435,12 +419,10 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
         Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::deletes)).stream()
             .flatMap(Collection::stream)
             .collect(Collectors.toSet());
-    Assert.assertEquals("Should have 3 data files before rewrite", 3, dataFiles.size());
-    Assert.assertEquals("Should have 1 delete file before rewrite", 1, deleteFiles.size());
-    Assert.assertSame(
-        "The 1 delete file should be an equality-delete file",
-        Iterables.getOnlyElement(deleteFiles).content(),
-        FileContent.EQUALITY_DELETES);
+    assertThat(dataFiles).hasSize(3);
+    assertThat(deleteFiles).hasSize(1);
+    assertThat(Iterables.getOnlyElement(deleteFiles).content())
+        .isEqualTo(FileContent.EQUALITY_DELETES);
     shouldHaveDataAndFileSequenceNumbers(
         TABLE_NAME_WITH_PK,
         ImmutableList.of(Pair.of(1L, 1L), Pair.of(2L, 2L), Pair.of(3L, 3L), Pair.of(3L, 3L)));
@@ -459,8 +441,8 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
         Actions.forTable(stale2).rewriteDataFiles().useStartingSequenceNumber(true).execute();
 
     // Should not rewrite files from the new commit
-    Assert.assertEquals("Action should rewrite 2 data files", 2, result.deletedDataFiles().size());
-    Assert.assertEquals("Action should add 1 data file", 1, result.addedDataFiles().size());
+    assertThat(result.deletedDataFiles()).hasSize(2);
+    assertThat(result.addedDataFiles()).hasSize(1);
     // The 2 older files with file-sequence-number <= 2 should be rewritten into a new file.
     // The new file is the one with file-sequence-number == 4.
     // The new file should use rewrite's starting-sequence-number 2 as its data-sequence-number.
@@ -494,6 +476,6 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
                     Pair.<Long, Long>of(
                         row.getFieldAs("sequence_number"), row.getFieldAs("file_sequence_number")))
             .collect(Collectors.toList());
-    Assertions.assertThat(actualSequenceNumbers).hasSameElementsAs(expectedSequenceNumbers);
+    assertThat(actualSequenceNumbers).hasSameElementsAs(expectedSequenceNumbers);
   }
 }
