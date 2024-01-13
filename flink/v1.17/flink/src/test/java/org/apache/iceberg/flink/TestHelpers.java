@@ -68,6 +68,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
+import org.assertj.core.api.Assertions;
 
 public class TestHelpers {
   private TestHelpers() {}
@@ -126,7 +127,7 @@ public class TestHelpers {
         .collect(Collectors.toList());
   }
 
-  public static void assertRecords(List<Row> results, List<Record> expectedRecords, Schema schema) {
+  private static List<Row> convertRecordToRow(List<Record> expectedRecords, Schema schema) {
     List<Row> expected = Lists.newArrayList();
     @SuppressWarnings("unchecked")
     DataStructureConverter<RowData, Row> converter =
@@ -135,6 +136,17 @@ public class TestHelpers {
                 TypeConversions.fromLogicalToDataType(FlinkSchemaUtil.convert(schema)));
     expectedRecords.forEach(
         r -> expected.add(converter.toExternal(RowDataConverter.convert(schema, r))));
+    return expected;
+  }
+
+  public static void assertRecordsWithOrder(
+      List<Row> results, List<Record> expectedRecords, Schema schema) {
+    List<Row> expected = convertRecordToRow(expectedRecords, schema);
+    assertRowsWithOrder(results, expected);
+  }
+
+  public static void assertRecords(List<Row> results, List<Record> expectedRecords, Schema schema) {
+    List<Row> expected = convertRecordToRow(expectedRecords, schema);
     assertRows(results, expected);
   }
 
@@ -144,6 +156,10 @@ public class TestHelpers {
 
   public static void assertRows(List<Row> results, List<Row> expected) {
     assertThat(results).containsExactlyInAnyOrderElementsOf(expected);
+  }
+
+  public static void assertRowsWithOrder(List<Row> results, List<Row> expected) {
+    Assertions.assertThat(results).containsExactlyElementsOf(expected);
   }
 
   public static void assertRowData(Schema schema, StructLike expected, RowData actual) {
