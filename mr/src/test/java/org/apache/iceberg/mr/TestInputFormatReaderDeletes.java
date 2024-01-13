@@ -79,8 +79,7 @@ public class TestInputFormatReaderDeletes extends DeleteReadTests {
     Table table;
 
     File location = temp.resolve(inputFormat).resolve(fileFormat.name()).toFile();
-    location.mkdirs();
-    assertThat(location.delete()).isTrue();
+    assertThat(location.mkdirs()).isTrue();
     helper = new TestHelper(conf, tables, location.toString(), schema, spec, fileFormat, temp);
     table = helper.createTable();
 
