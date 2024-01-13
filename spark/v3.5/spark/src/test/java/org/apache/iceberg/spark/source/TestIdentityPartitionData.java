@@ -20,14 +20,19 @@ package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
 import static org.apache.iceberg.PlanningMode.LOCAL;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -37,48 +42,75 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
-import org.apache.iceberg.spark.SparkTestBase;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.TableIdentifier;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
-public class TestIdentityPartitionData extends SparkTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestIdentityPartitionData extends TestBase {
   private static final Configuration CONF = new Configuration();
   private static final HadoopTables TABLES = new HadoopTables(CONF);
 
-  @Parameterized.Parameters(name = "format = {0}, vectorized = {1}, planningMode = {2}")
+  @Parameters(name = "format = {0}, vectorized = {1}, properties = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
-      {"parquet", false, LOCAL},
-      {"parquet", true, DISTRIBUTED},
-      {"avro", false, LOCAL},
-      {"orc", false, DISTRIBUTED},
-      {"orc", true, LOCAL},
+      {
+        "parquet",
+        false,
+        ImmutableMap.of(
+            TableProperties.DEFAULT_FILE_FORMAT, "parquet",
+            TableProperties.DATA_PLANNING_MODE, LOCAL.modeName(),
+            TableProperties.DELETE_PLANNING_MODE, LOCAL.modeName())
+      },
+      {
+        "parquet",
+        true,
+        ImmutableMap.of(
+            TableProperties.DEFAULT_FILE_FORMAT, "parquet",
+            TableProperties.DATA_PLANNING_MODE, DISTRIBUTED.modeName(),
+            TableProperties.DELETE_PLANNING_MODE, DISTRIBUTED.modeName())
+      },
+      {
+        "avro",
+        false,
+        ImmutableMap.of(
+            TableProperties.DEFAULT_FILE_FORMAT, "avro",
+            TableProperties.DATA_PLANNING_MODE, LOCAL.modeName(),
+            TableProperties.DELETE_PLANNING_MODE, LOCAL.modeName())
+      },
+      {
+        "orc",
+        false,
+        ImmutableMap.of(
+            TableProperties.DEFAULT_FILE_FORMAT, "orc",
+            TableProperties.DATA_PLANNING_MODE, DISTRIBUTED.modeName(),
+            TableProperties.DELETE_PLANNING_MODE, DISTRIBUTED.modeName())
+      },
+      {
+        "orc",
+        true,
+        ImmutableMap.of(
+            TableProperties.DEFAULT_FILE_FORMAT, "orc",
+            TableProperties.DATA_PLANNING_MODE, LOCAL.modeName(),
+            TableProperties.DELETE_PLANNING_MODE, LOCAL.modeName())
+      },
     };
   }
 
-  private final String format;
-  private final boolean vectorized;
-  private final Map<String, String> properties;
+  @Parameter(index = 0)
+  private String format;
 
-  public TestIdentityPartitionData(String format, boolean vectorized, PlanningMode planningMode) {
-    this.format = format;
-    this.vectorized = vectorized;
-    this.properties =
-        ImmutableMap.of(
-            TableProperties.DEFAULT_FILE_FORMAT, format,
-            TableProperties.DATA_PLANNING_MODE, planningMode.modeName(),
-            TableProperties.DELETE_PLANNING_MODE, planningMode.modeName());
-  }
+  @Parameter(index = 1)
+  private boolean vectorized;
+
+  @Parameter(index = 2)
+  private Map<String, String> properties;
 
   private static final Schema LOG_SCHEMA =
       new Schema(
@@ -100,7 +132,7 @@ public class TestIdentityPartitionData extends SparkTestBase {
           LogMessage.warn("2020-02-04", "warn event 1"),
           LogMessage.debug("2020-02-04", "debug event 5"));
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
   private PartitionSpec spec =
       PartitionSpec.builderFor(LOG_SCHEMA).identity("date").identity("level").build();
@@ -113,10 +145,10 @@ public class TestIdentityPartitionData extends SparkTestBase {
    * also fail.
    */
   private void setupParquet() throws Exception {
-    File location = temp.newFolder("logs");
-    File hiveLocation = temp.newFolder("hive");
+    File location = Files.createTempDirectory(temp, "logs").toFile();
+    File hiveLocation = Files.createTempDirectory(temp, "hive").toFile();
     String hiveTable = "hivetable";
-    Assert.assertTrue("Temp folder should exist", location.exists());
+    assertThat(location).as("Temp folder should exist").exists();
 
     this.logs =
         spark.createDataFrame(LOGS, LogMessage.class).select("id", "date", "level", "message");
@@ -139,13 +171,13 @@ public class TestIdentityPartitionData extends SparkTestBase {
         spark, new TableIdentifier(hiveTable), table, location.toString());
   }
 
-  @Before
+  @BeforeEach
   public void setupTable() throws Exception {
     if (format.equals("parquet")) {
       setupParquet();
     } else {
-      File location = temp.newFolder("logs");
-      Assert.assertTrue("Temp folder should exist", location.exists());
+      File location = Files.createTempDirectory(temp, "logs").toFile();
+      assertThat(location).as("Temp folder should exist").exists();
 
       this.table = TABLES.create(LOG_SCHEMA, spec, properties, location.toString());
       this.logs =
@@ -159,7 +191,7 @@ public class TestIdentityPartitionData extends SparkTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testFullProjection() {
     List<Row> expected = logs.orderBy("id").collectAsList();
     List<Row> actual =
@@ -171,10 +203,10 @@ public class TestIdentityPartitionData extends SparkTestBase {
             .orderBy("id")
             .select("id", "date", "level", "message")
             .collectAsList();
-    Assert.assertEquals("Rows should match", expected, actual);
+    assertThat(actual).as("Rows should match").isEqualTo(expected);
   }
 
-  @Test
+  @TestTemplate
   public void testProjections() {
     String[][] cases =
         new String[][] {
@@ -210,8 +242,9 @@ public class TestIdentityPartitionData extends SparkTestBase {
               .select("id", ordering)
               .orderBy("id")
               .collectAsList();
-      Assert.assertEquals(
-          "Rows should match for ordering: " + Arrays.toString(ordering), expected, actual);
+      assertThat(actual)
+          .as("Rows should match for ordering: " + Arrays.toString(ordering))
+          .isEqualTo(expected);
     }
   }
 }
