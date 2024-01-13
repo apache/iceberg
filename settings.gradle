@@ -195,3 +195,7 @@ if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
 include ":iceberg-kafka-connect:kafka-connect-events"
 project(":iceberg-kafka-connect:kafka-connect-events").projectDir = file('kafka-connect/kafka-connect-events')
 project(":iceberg-kafka-connect:kafka-connect-events").name = "iceberg-kafka-connect-events"
+
+include ":iceberg-kafka-connect:kafka-connect"
+project(":iceberg-kafka-connect:kafka-connect").projectDir = file('kafka-connect/kafka-connect')
+project(":iceberg-kafka-connect:kafka-connect").name = "iceberg-kafka-connect"

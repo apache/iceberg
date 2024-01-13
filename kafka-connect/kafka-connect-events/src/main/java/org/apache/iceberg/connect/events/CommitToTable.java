@@ -21,6 +21,7 @@ package org.apache.iceberg.connect.events;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 import org.apache.avro.Schema;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
@@ -64,6 +65,8 @@ public class CommitToTable implements Payload {
       TableReference tableReference,
       Long snapshotId,
       OffsetDateTime validThroughTs) {
+    Preconditions.checkNotNull(commitId, "Commit ID cannot be null");
+    Preconditions.checkNotNull(tableReference, "Table reference cannot be null");
     this.commitId = commitId;
     this.tableReference = tableReference;
     this.snapshotId = snapshotId;
