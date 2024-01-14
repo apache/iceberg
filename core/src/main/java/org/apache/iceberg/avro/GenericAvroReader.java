@@ -55,12 +55,20 @@ public class GenericAvroReader<T>
     return new GenericAvroReader<>(schema);
   }
 
+  public static <D> GenericAvroReader<D> create(org.apache.iceberg.Schema avroSchema, Schema icebrgSchema) {
+    return new GenericAvroReader<>(avroSchema, icebrgSchema);
+  }
+
   GenericAvroReader(org.apache.iceberg.Schema readSchema) {
     this.expectedType = readSchema.asStruct();
   }
 
   GenericAvroReader(Schema readSchema) {
     this.expectedType = AvroSchemaUtil.convert(readSchema).asStructType();
+  }
+
+  GenericAvroReader(org.apache.iceberg.Schema icebergReadSchema, Schema avroReadSchema) {
+    this.expectedType = AvroSchemaUtil.convert(avroReadSchema).asStructType();
   }
 
   @SuppressWarnings("unchecked")

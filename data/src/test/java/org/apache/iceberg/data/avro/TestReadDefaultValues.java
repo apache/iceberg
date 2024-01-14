@@ -29,6 +29,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SingleValueParser;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroIterable;
+import org.apache.iceberg.avro.GenericAvroReader;
 import org.apache.iceberg.data.DataTestHelpers;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IdentityPartitionConverters;
@@ -149,7 +150,7 @@ public class TestReadDefaultValues {
       try (AvroIterable<Record> reader =
           Avro.read(Files.localInput(testFile))
               .project(readerSchema)
-              .createReaderFunc(DataReader::create)
+              .createReaderFunc((expectedSchema, readSchema) -> GenericAvroReader.create(expectedSchema, readSchema))
               .build()) {
         rows = Lists.newArrayList(reader);
       }
