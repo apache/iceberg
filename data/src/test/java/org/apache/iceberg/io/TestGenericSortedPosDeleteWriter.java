@@ -62,7 +62,7 @@ public class TestGenericSortedPosDeleteWriter extends TestBase {
   private Record gRecord;
 
   @Parameters(name = "formatVersion = {0}, fileFormat = {1}")
-  public static List<Object> parameters() {
+  public static List<Object[]> parameters() {
     return Arrays.asList(
         new Object[] {FORMAT_V2, FileFormat.AVRO},
         new Object[] {FORMAT_V2, FileFormat.ORC},

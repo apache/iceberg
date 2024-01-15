@@ -27,7 +27,7 @@ public class TestLocalFilterFiles
     extends FilterFilesTestBase<TableScan, FileScanTask, CombinedScanTask> {
 
   @Parameters(name = "formatVersion = {0}")
-  public static List<Object> parameters() {
+  public static List<Object[]> parameters() {
     return Arrays.asList(new Object[] {1}, new Object[] {2});
   }
 

@@ -35,7 +35,7 @@ public abstract class SparkDistributedDataScanTestBase
     extends DataTableScanTestBase<BatchScan, ScanTask, ScanTaskGroup<ScanTask>> {
 
   @Parameters(name = "formatVersion = {0}, dataMode = {1}, deleteMode = {2}")
-  public static List<Object> parameters() {
+  public static List<Object[]> parameters() {
     return Arrays.asList(
         new Object[] {1, LOCAL, LOCAL},
         new Object[] {1, LOCAL, DISTRIBUTED},
