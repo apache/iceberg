@@ -51,6 +51,8 @@ import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
@@ -78,6 +80,7 @@ import org.junit.jupiter.api.TestTemplate;
 
 public class TestSparkExecutorCache extends TestBaseWithCatalog {
 
+  private static final String TARGET_TABLE_NAME = "target_exec_cache";
   private static final String UPDATES_VIEW_NAME = "updates";
   private static final Map<String, InputFile> INPUT_FILES =
       Collections.synchronizedMap(Maps.newHashMap());
@@ -101,7 +104,7 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
 
   @AfterEach
   public void after() {
-    sql("DROP TABLE IF EXISTS %s", tableName);
+    sql("DROP TABLE IF EXISTS %s", tableName(TARGET_TABLE_NAME));
     sql("DROP TABLE IF EXISTS %s", UPDATES_VIEW_NAME);
     INPUT_FILES.clear();
   }
@@ -244,7 +247,7 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
   private void checkDelete(RowLevelOperationMode mode) throws Exception {
     List<DeleteFile> deleteFiles = createAndInitTable(TableProperties.DELETE_MODE, mode);
 
-    sql("DELETE FROM %s WHERE id = 1 OR id = 4", tableName);
+    sql("DELETE FROM %s WHERE id = 1 OR id = 4", tableName(TARGET_TABLE_NAME));
 
     // in CoW, the target table will be scanned 2 times (main query + runtime filter)
     // in MoR, the target table will be scanned only once
@@ -260,7 +263,7 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(),
-        sql("SELECT * FROM %s ORDER BY id ASC", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC", tableName(TARGET_TABLE_NAME)));
   }
 
   @TestTemplate
@@ -279,7 +282,9 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
     Dataset<Integer> updateDS = spark.createDataset(ImmutableList.of(1, 4), Encoders.INT());
     updateDS.createOrReplaceTempView(UPDATES_VIEW_NAME);
 
-    sql("UPDATE %s SET id = -1 WHERE id IN (SELECT * FROM %s)", tableName, UPDATES_VIEW_NAME);
+    sql(
+        "UPDATE %s SET id = -1 WHERE id IN (SELECT * FROM %s)",
+        tableName(TARGET_TABLE_NAME), UPDATES_VIEW_NAME);
 
     // in CoW, the target table will be scanned 3 times (2 in main query + runtime filter)
     // in MoR, the target table will be scanned only once
@@ -295,7 +300,7 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(-1, "hr"), row(-1, "hr")),
-        sql("SELECT * FROM %s ORDER BY id ASC", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC", tableName(TARGET_TABLE_NAME)));
   }
 
   @TestTemplate
@@ -321,7 +326,7 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
             + "  UPDATE SET id = 100 "
             + "WHEN NOT MATCHED THEN "
             + "  INSERT (id, dep) VALUES (-1, 'unknown')",
-        tableName, UPDATES_VIEW_NAME);
+        tableName(TARGET_TABLE_NAME), UPDATES_VIEW_NAME);
 
     // in CoW, the target table will be scanned 2 times (main query + runtime filter)
     // in MoR, the target table will be scanned only once
@@ -337,7 +342,7 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(100, "hr"), row(100, "hr")),
-        sql("SELECT * FROM %s ORDER BY id ASC", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC", tableName(TARGET_TABLE_NAME)));
   }
 
   private List<DeleteFile> createAndInitTable(String operation, RowLevelOperationMode mode)
@@ -346,7 +351,7 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
         "CREATE TABLE %s (id INT, dep STRING) "
             + "USING iceberg "
             + "TBLPROPERTIES ('%s' '%s', '%s' '%s', '%s' '%s')",
-        tableName,
+        tableName(TARGET_TABLE_NAME),
         TableProperties.WRITE_METADATA_LOCATION,
         temp.toString().replaceFirst("file:", ""),
         TableProperties.WRITE_DATA_LOCATION,
@@ -354,10 +359,19 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
         operation,
         mode.modeName());
 
-    append(tableName, new Employee(0, "hr"), new Employee(1, "hr"), new Employee(2, "hr"));
-    append(tableName, new Employee(3, "hr"), new Employee(4, "hr"), new Employee(5, "hr"));
+    append(
+        tableName(TARGET_TABLE_NAME),
+        new Employee(0, "hr"),
+        new Employee(1, "hr"),
+        new Employee(2, "hr"));
+    append(
+        tableName(TARGET_TABLE_NAME),
+        new Employee(3, "hr"),
+        new Employee(4, "hr"),
+        new Employee(5, "hr"));
 
-    Table table = validationCatalog.loadTable(tableIdent);
+    TableIdentifier ident = TableIdentifier.of(Namespace.of("default"), TARGET_TABLE_NAME);
+    Table table = validationCatalog.loadTable(ident);
 
     List<Pair<CharSequence, Long>> posDeletes =
         dataFiles(table).stream()
@@ -377,7 +391,7 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
         .addDeletes(eqDeleteFile)
         .commit();
 
-    sql("REFRESH TABLE %s", tableName);
+    sql("REFRESH TABLE %s", tableName(TARGET_TABLE_NAME));
 
     return ImmutableList.of(posDeleteFile, eqDeleteFile);
   }
