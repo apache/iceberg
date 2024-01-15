@@ -23,47 +23,35 @@ import java.util.List;
 import java.util.Map;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.runtime.testutils.MiniClusterResourceConfiguration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
-import org.apache.flink.test.util.MiniClusterWithClientResource;
+import org.apache.flink.test.junit5.MiniClusterExtension;
 import org.apache.flink.util.CloseableIterator;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.CatalogLoader;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.flink.MiniFlinkClusterExtension;
 import org.apache.iceberg.flink.RowDataWrapper;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.source.assigner.SimpleSplitAssignerFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.StructLikeSet;
-import org.junit.ClassRule;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 public class TestIcebergSourceReaderDeletes extends TestFlinkReaderDeletesBase {
 
   private static final int PARALLELISM = 4;
 
-  @ClassRule public static final TemporaryFolder TMP_FOLDER = new TemporaryFolder();
-
-  @ClassRule
-  public static final MiniClusterWithClientResource MINI_CLUSTER =
-      new MiniClusterWithClientResource(
-          new MiniClusterResourceConfiguration.Builder()
-              .setNumberTaskManagers(1)
-              .setNumberSlotsPerTaskManager(PARALLELISM)
-              .build());
-
-  public TestIcebergSourceReaderDeletes(FileFormat inputFormat) {
-    super(inputFormat);
-  }
+  @RegisterExtension
+  private static final MiniClusterExtension MINI_CLUSTER =
+      MiniFlinkClusterExtension.createWithClassloaderCheckDisabled();
 
   @Override
   protected StructLikeSet rowSet(String tableName, Table testTable, String... columns)
