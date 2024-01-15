@@ -23,7 +23,6 @@ import java.util.Map;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -36,10 +35,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.StructLikeSet;
 
 public class TestFlinkInputFormatReaderDeletes extends TestFlinkReaderDeletesBase {
-
-  public TestFlinkInputFormatReaderDeletes(FileFormat inputFormat) {
-    super(inputFormat);
-  }
 
   @Override
   protected StructLikeSet rowSet(String tableName, Table testTable, String... columns)
