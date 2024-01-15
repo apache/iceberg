@@ -46,8 +46,8 @@ public abstract class ScanPlanningAndReportingTestBase<
   private final TestMetricsReporter reporter = new TestMetricsReporter();
 
   @Parameters(name = "formatVersion = {0}")
-  public static List<Object[]> parameters() {
-    return Arrays.asList(new Object[][] {{2}});
+  public static List<Object> parameters() {
+    return Arrays.asList(new Object[] {2});
   }
 
   protected abstract ScanT newScan(Table table);

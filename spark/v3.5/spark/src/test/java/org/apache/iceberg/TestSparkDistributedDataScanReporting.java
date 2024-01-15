@@ -36,7 +36,7 @@ public class TestSparkDistributedDataScanReporting
     extends ScanPlanningAndReportingTestBase<BatchScan, ScanTask, ScanTaskGroup<ScanTask>> {
 
   @Parameters(name = "formatVersion = {0}, dataMode = {1}, deleteMode = {2}")
-  public static List<Object[]> parameters() {
+  public static List<Object> parameters() {
     return Arrays.asList(
         new Object[] {2, LOCAL, LOCAL},
         new Object[] {2, LOCAL, DISTRIBUTED},
