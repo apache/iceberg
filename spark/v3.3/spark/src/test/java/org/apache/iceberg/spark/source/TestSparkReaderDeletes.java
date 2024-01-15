@@ -103,16 +103,13 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   @Parameter(index = 1)
   private boolean vectorized;
 
-  @Parameter(index = 2)
-  private PlanningMode planningMode;
-
-  @Parameters(name = "format = {0}, vectorized = {1}, planningMode = {2}")
+  @Parameters(name = "format = {0}, vectorized = {1}")
   public static Object[][] parameters() {
     return new Object[][] {
-      new Object[] {"parquet", false, PlanningMode.DISTRIBUTED},
-      new Object[] {"parquet", true, PlanningMode.LOCAL},
-      new Object[] {"orc", false, PlanningMode.DISTRIBUTED},
-      new Object[] {"avro", false, PlanningMode.LOCAL}
+      new Object[] {"parquet", false},
+      new Object[] {"parquet", true},
+      new Object[] {"orc", false},
+      new Object[] {"avro", false}
     };
   }
 
