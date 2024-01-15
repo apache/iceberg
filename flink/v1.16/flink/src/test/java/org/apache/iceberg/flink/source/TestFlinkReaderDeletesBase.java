@@ -22,7 +22,7 @@ import java.util.Map;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogUtil;
-import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -35,40 +35,19 @@ import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public abstract class TestFlinkReaderDeletesBase extends DeleteReadTests {
-
-  @ClassRule public static final TemporaryFolder TEMP_FOLDER = new TemporaryFolder();
-
   protected static String databaseName = "default";
 
   protected static HiveConf hiveConf = null;
   protected static HiveCatalog catalog = null;
   private static TestHiveMetastore metastore = null;
 
-  protected final FileFormat format;
-
-  @Parameterized.Parameters(name = "fileFormat={0}")
-  public static Object[][] parameters() {
-    return new Object[][] {
-      new Object[] {FileFormat.PARQUET},
-      new Object[] {FileFormat.AVRO},
-      new Object[] {FileFormat.ORC}
-    };
-  }
-
-  TestFlinkReaderDeletesBase(FileFormat fileFormat) {
-    this.format = fileFormat;
-  }
-
-  @BeforeClass
+  @BeforeAll
   public static void startMetastore() {
     metastore = new TestHiveMetastore();
     metastore.start();
@@ -79,7 +58,7 @@ public abstract class TestFlinkReaderDeletesBase extends DeleteReadTests {
                 HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
   }
 
-  @AfterClass
+  @AfterAll
   public static void stopMetastore() throws Exception {
     metastore.stop();
     catalog = null;
