@@ -46,7 +46,7 @@ public abstract class DeleteFileIndexTestBase<
 
   @Parameters(name = "formatVersion = {0}")
   public static List<Object> parameters() {
-    return Arrays.asList(new Object[] {2});
+    return Arrays.asList(2);
   }
 
   static final DeleteFile FILE_A_POS_1 =
