@@ -50,7 +50,7 @@ public class TestIcebergSourceReaderDeletes extends TestFlinkReaderDeletesBase {
   private static final int PARALLELISM = 4;
 
   @RegisterExtension
-  public static final MiniClusterExtension miniClusterResource =
+  private static final MiniClusterExtension MINI_CLUSTER =
       MiniFlinkClusterExtension.createWithClassloaderCheckDisabled();
 
   @Override
