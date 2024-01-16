@@ -75,14 +75,10 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 
 public class TestSparkExecutorCache extends TestBaseWithCatalog {
-
-  private static final String TARGET_TABLE_NAME = "target_exec_cache";
-  private static final String UPDATES_VIEW_NAME = "updates";
-  private static final Map<String, CustomInputFile> INPUT_FILES =
-      Collections.synchronizedMap(Maps.newHashMap());
 
   @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
   protected static Object[][] parameters() {
@@ -101,9 +97,24 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
     };
   }
 
+  private static final String UPDATES_VIEW_NAME = "updates";
+  private static final AtomicInteger JOB_COUNTER = new AtomicInteger();
+  private static final Map<String, CustomInputFile> INPUT_FILES =
+      Collections.synchronizedMap(Maps.newHashMap());
+
+  private String targetTableName;
+  private TableIdentifier targetTableIdent;
+
+  @BeforeEach
+  public void configureTargetTableName() {
+    String name = "target_exec_cache_" + JOB_COUNTER.incrementAndGet();
+    this.targetTableName = tableName(name);
+    this.targetTableIdent = TableIdentifier.of(Namespace.of("default"), name);
+  }
+
   @AfterEach
-  public void after() {
-    sql("DROP TABLE IF EXISTS %s", tableName(TARGET_TABLE_NAME));
+  public void releaseResources() {
+    sql("DROP TABLE IF EXISTS %s", targetTableName);
     sql("DROP TABLE IF EXISTS %s", UPDATES_VIEW_NAME);
     INPUT_FILES.clear();
   }
@@ -246,7 +257,7 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
   private void checkDelete(RowLevelOperationMode mode) throws Exception {
     List<DeleteFile> deleteFiles = createAndInitTable(TableProperties.DELETE_MODE, mode);
 
-    sql("DELETE FROM %s WHERE id = 1 OR id = 4", tableName(TARGET_TABLE_NAME));
+    sql("DELETE FROM %s WHERE id = 1 OR id = 4", targetTableName);
 
     // there are 2 data files and 2 delete files that apply to both of them
     // in CoW, the target table will be scanned 2 times (main query + runtime filter)
@@ -260,7 +271,7 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(),
-        sql("SELECT * FROM %s ORDER BY id ASC", tableName(TARGET_TABLE_NAME)));
+        sql("SELECT * FROM %s ORDER BY id ASC", targetTableName));
   }
 
   @TestTemplate
@@ -279,9 +290,7 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
     Dataset<Integer> updateDS = spark.createDataset(ImmutableList.of(1, 4), Encoders.INT());
     updateDS.createOrReplaceTempView(UPDATES_VIEW_NAME);
 
-    sql(
-        "UPDATE %s SET id = -1 WHERE id IN (SELECT * FROM %s)",
-        tableName(TARGET_TABLE_NAME), UPDATES_VIEW_NAME);
+    sql("UPDATE %s SET id = -1 WHERE id IN (SELECT * FROM %s)", targetTableName, UPDATES_VIEW_NAME);
 
     // there are 2 data files and 2 delete files that apply to both of them
     // in CoW, the target table will be scanned 3 times (2 in main query + runtime filter)
@@ -295,7 +304,7 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(-1, "hr"), row(-1, "hr")),
-        sql("SELECT * FROM %s ORDER BY id ASC", tableName(TARGET_TABLE_NAME)));
+        sql("SELECT * FROM %s ORDER BY id ASC", targetTableName));
   }
 
   @TestTemplate
@@ -321,7 +330,7 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
             + "  UPDATE SET id = 100 "
             + "WHEN NOT MATCHED THEN "
             + "  INSERT (id, dep) VALUES (-1, 'unknown')",
-        tableName(TARGET_TABLE_NAME), UPDATES_VIEW_NAME);
+        targetTableName, UPDATES_VIEW_NAME);
 
     // there are 2 data files and 2 delete files that apply to both of them
     // in CoW, the target table will be scanned 2 times (main query + runtime filter)
@@ -335,7 +344,7 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(100, "hr"), row(100, "hr")),
-        sql("SELECT * FROM %s ORDER BY id ASC", tableName(TARGET_TABLE_NAME)));
+        sql("SELECT * FROM %s ORDER BY id ASC", targetTableName));
   }
 
   private int streamCount(DeleteFile deleteFile) {
@@ -349,7 +358,7 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
         "CREATE TABLE %s (id INT, dep STRING) "
             + "USING iceberg "
             + "TBLPROPERTIES ('%s' '%s', '%s' '%s', '%s' '%s')",
-        tableName(TARGET_TABLE_NAME),
+        targetTableName,
         TableProperties.WRITE_METADATA_LOCATION,
         temp.toString().replaceFirst("file:", ""),
         TableProperties.WRITE_DATA_LOCATION,
@@ -357,19 +366,10 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
         operation,
         mode.modeName());
 
-    append(
-        tableName(TARGET_TABLE_NAME),
-        new Employee(0, "hr"),
-        new Employee(1, "hr"),
-        new Employee(2, "hr"));
-    append(
-        tableName(TARGET_TABLE_NAME),
-        new Employee(3, "hr"),
-        new Employee(4, "hr"),
-        new Employee(5, "hr"));
+    append(targetTableName, new Employee(0, "hr"), new Employee(1, "hr"), new Employee(2, "hr"));
+    append(targetTableName, new Employee(3, "hr"), new Employee(4, "hr"), new Employee(5, "hr"));
 
-    TableIdentifier ident = TableIdentifier.of(Namespace.of("default"), TARGET_TABLE_NAME);
-    Table table = validationCatalog.loadTable(ident);
+    Table table = validationCatalog.loadTable(targetTableIdent);
 
     List<Pair<CharSequence, Long>> posDeletes =
         dataFiles(table).stream()
@@ -389,7 +389,7 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
         .addDeletes(eqDeleteFile)
         .commit();
 
-    sql("REFRESH TABLE %s", tableName(TARGET_TABLE_NAME));
+    sql("REFRESH TABLE %s", targetTableName);
 
     return ImmutableList.of(posDeleteFile, eqDeleteFile);
   }
