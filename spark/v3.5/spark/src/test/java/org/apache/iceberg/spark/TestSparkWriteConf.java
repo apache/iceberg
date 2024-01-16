@@ -47,6 +47,7 @@ import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.UPD
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.DistributionMode;
@@ -76,6 +77,28 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
   @AfterEach
   public void after() {
     sql("DROP TABLE IF EXISTS %s", tableName);
+  }
+
+  @TestTemplate
+  public void testDurationConf() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    String confName = "spark.sql.iceberg.some-duration-conf";
+
+    withSQLConf(
+        ImmutableMap.of(confName, "10s"),
+        () -> {
+          SparkConfParser parser = new SparkConfParser(spark, table, ImmutableMap.of());
+          Duration duration = parser.durationConf().sessionConf(confName).parseOptional();
+          assertThat(duration).hasSeconds(10);
+        });
+
+    withSQLConf(
+        ImmutableMap.of(confName, "2m"),
+        () -> {
+          SparkConfParser parser = new SparkConfParser(spark, table, ImmutableMap.of());
+          Duration duration = parser.durationConf().sessionConf(confName).parseOptional();
+          assertThat(duration).hasMinutes(2);
+        });
   }
 
   @TestTemplate

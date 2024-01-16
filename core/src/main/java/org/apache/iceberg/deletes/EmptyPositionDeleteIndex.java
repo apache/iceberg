@@ -18,36 +18,38 @@
  */
 package org.apache.iceberg.deletes;
 
-import org.roaringbitmap.longlong.Roaring64Bitmap;
+class EmptyPositionDeleteIndex implements PositionDeleteIndex {
 
-class BitmapPositionDeleteIndex implements PositionDeleteIndex {
-  private final Roaring64Bitmap roaring64Bitmap;
+  private static final EmptyPositionDeleteIndex INSTANCE = new EmptyPositionDeleteIndex();
 
-  BitmapPositionDeleteIndex() {
-    roaring64Bitmap = new Roaring64Bitmap();
-  }
+  private EmptyPositionDeleteIndex() {}
 
-  void merge(BitmapPositionDeleteIndex that) {
-    roaring64Bitmap.or(that.roaring64Bitmap);
+  static EmptyPositionDeleteIndex get() {
+    return INSTANCE;
   }
 
   @Override
   public void delete(long position) {
-    roaring64Bitmap.add(position);
+    throw new UnsupportedOperationException("Cannot modify " + getClass().getName());
   }
 
   @Override
   public void delete(long posStart, long posEnd) {
-    roaring64Bitmap.add(posStart, posEnd);
+    throw new UnsupportedOperationException("Cannot modify " + getClass().getName());
   }
 
   @Override
   public boolean isDeleted(long position) {
-    return roaring64Bitmap.contains(position);
+    return false;
   }
 
   @Override
   public boolean isEmpty() {
-    return roaring64Bitmap.isEmpty();
+    return true;
+  }
+
+  @Override
+  public String toString() {
+    return "PositionDeleteIndex{}";
   }
 }
