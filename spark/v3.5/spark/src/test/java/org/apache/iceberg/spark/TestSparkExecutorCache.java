@@ -21,9 +21,6 @@ package org.apache.iceberg.spark;
 import static org.apache.iceberg.RowLevelOperationMode.COPY_ON_WRITE;
 import static org.apache.iceberg.RowLevelOperationMode.MERGE_ON_READ;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.atMost;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import java.io.File;
@@ -39,6 +36,7 @@ import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.ContentScanTask;
@@ -61,6 +59,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -82,7 +81,7 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
 
   private static final String TARGET_TABLE_NAME = "target_exec_cache";
   private static final String UPDATES_VIEW_NAME = "updates";
-  private static final Map<String, InputFile> INPUT_FILES =
+  private static final Map<String, CustomInputFile> INPUT_FILES =
       Collections.synchronizedMap(Maps.newHashMap());
 
   @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
@@ -249,15 +248,13 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
 
     sql("DELETE FROM %s WHERE id = 1 OR id = 4", tableName(TARGET_TABLE_NAME));
 
+    // there are 2 data files and 2 delete files that apply to both of them
     // in CoW, the target table will be scanned 2 times (main query + runtime filter)
+    // the runtime filter may invalidate the cache so check at least some requests were hits
     // in MoR, the target table will be scanned only once
-    int scanCount = mode == COPY_ON_WRITE ? 2 : 1;
-
-    // each delete file must be opened only once per scan
-    for (DeleteFile deleteFile : deleteFiles) {
-      InputFile inputFile = INPUT_FILES.get(deleteFile.path().toString());
-      verify(inputFile, atMost(scanCount)).newStream();
-    }
+    // so each delete file must be opened once
+    int maxRequestCount = mode == COPY_ON_WRITE ? 3 : 1;
+    assertThat(deleteFiles).allMatch(deleteFile -> streamCount(deleteFile) <= maxRequestCount);
 
     // verify the final set of records is correct
     assertEquals(
@@ -286,15 +283,13 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
         "UPDATE %s SET id = -1 WHERE id IN (SELECT * FROM %s)",
         tableName(TARGET_TABLE_NAME), UPDATES_VIEW_NAME);
 
+    // there are 2 data files and 2 delete files that apply to both of them
     // in CoW, the target table will be scanned 3 times (2 in main query + runtime filter)
+    // the runtime filter may invalidate the cache so check at least some requests were hits
     // in MoR, the target table will be scanned only once
-    int scanCount = mode == COPY_ON_WRITE ? 3 : 1;
-
-    // each delete file must be opened only once per scan
-    for (DeleteFile deleteFile : deleteFiles) {
-      InputFile inputFile = INPUT_FILES.get(deleteFile.path().toString());
-      verify(inputFile, atMost(scanCount)).newStream();
-    }
+    // so each delete file must be opened once
+    int maxRequestCount = mode == COPY_ON_WRITE ? 5 : 1;
+    assertThat(deleteFiles).allMatch(deleteFile -> streamCount(deleteFile) <= maxRequestCount);
 
     // verify the final set of records is correct
     assertEquals(
@@ -330,21 +325,22 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
 
     // there are 2 data files and 2 delete files that apply to both of them
     // in CoW, the target table will be scanned 2 times (main query + runtime filter)
-    // runtime filter may invalidate the cache so check at least some requests were hits
+    // the runtime filter may invalidate the cache so check at least some requests were hits
     // in MoR, the target table will be scanned only once
-    // each delete file must be opened once per scan
+    // so each delete file must be opened once
     int maxRequestCount = mode == COPY_ON_WRITE ? 3 : 1;
-
-    for (DeleteFile deleteFile : deleteFiles) {
-      InputFile inputFile = INPUT_FILES.get(deleteFile.path().toString());
-      verify(inputFile, atMost(maxRequestCount)).newStream();
-    }
+    assertThat(deleteFiles).allMatch(deleteFile -> streamCount(deleteFile) <= maxRequestCount);
 
     // verify the final set of records is correct
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(100, "hr"), row(100, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC", tableName(TARGET_TABLE_NAME)));
+  }
+
+  private int streamCount(DeleteFile deleteFile) {
+    CustomInputFile inputFile = INPUT_FILES.get(deleteFile.path().toString());
+    return inputFile.streamCount();
   }
 
   private List<DeleteFile> createAndInitTable(String operation, RowLevelOperationMode mode)
@@ -453,7 +449,7 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
 
     @Override
     public InputFile newInputFile(String path) {
-      return INPUT_FILES.computeIfAbsent(path, key -> spy(Files.localInput(path)));
+      return INPUT_FILES.computeIfAbsent(path, key -> new CustomInputFile(path));
     }
 
     @Override
@@ -467,6 +463,41 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
       if (!file.delete()) {
         throw new RuntimeIOException("Failed to delete file: " + path);
       }
+    }
+  }
+
+  public static class CustomInputFile implements InputFile {
+    private final InputFile delegate;
+    private final AtomicInteger streamCount;
+
+    public CustomInputFile(String path) {
+      this.delegate = Files.localInput(path);
+      this.streamCount = new AtomicInteger();
+    }
+
+    @Override
+    public long getLength() {
+      return delegate.getLength();
+    }
+
+    @Override
+    public SeekableInputStream newStream() {
+      streamCount.incrementAndGet();
+      return delegate.newStream();
+    }
+
+    public int streamCount() {
+      return streamCount.get();
+    }
+
+    @Override
+    public String location() {
+      return delegate.location();
+    }
+
+    @Override
+    public boolean exists() {
+      return delegate.exists();
     }
   }
 }
