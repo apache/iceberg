@@ -328,14 +328,16 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
             + "  INSERT (id, dep) VALUES (-1, 'unknown')",
         tableName(TARGET_TABLE_NAME), UPDATES_VIEW_NAME);
 
+    // there are 2 data files and 2 delete files that apply to both of them
     // in CoW, the target table will be scanned 2 times (main query + runtime filter)
+    // runtime filter may invalidate the cache so check at least some requests were hits
     // in MoR, the target table will be scanned only once
-    int scanCount = mode == COPY_ON_WRITE ? 2 : 1;
+    // each delete file must be opened once per scan
+    int maxRequestCount = mode == COPY_ON_WRITE ? 3 : 1;
 
-    // each delete file must be opened only once per scan
     for (DeleteFile deleteFile : deleteFiles) {
       InputFile inputFile = INPUT_FILES.get(deleteFile.path().toString());
-      verify(inputFile, atMost(scanCount)).newStream();
+      verify(inputFile, atMost(maxRequestCount)).newStream();
     }
 
     // verify the final set of records is correct
