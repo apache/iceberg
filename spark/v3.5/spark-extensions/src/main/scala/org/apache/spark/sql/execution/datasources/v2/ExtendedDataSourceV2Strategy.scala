@@ -26,6 +26,7 @@ import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.Strategy
 import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.analysis.ResolvedIdentifier
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
 import org.apache.spark.sql.catalyst.expressions.PredicateHelper
@@ -43,6 +44,7 @@ import org.apache.spark.sql.catalyst.plans.logical.RenameTable
 import org.apache.spark.sql.catalyst.plans.logical.ReplacePartitionField
 import org.apache.spark.sql.catalyst.plans.logical.SetIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering
+import org.apache.spark.sql.catalyst.plans.logical.views.DropIcebergView
 import org.apache.spark.sql.catalyst.plans.logical.views.ResolvedV2View
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.TableCatalog
@@ -101,6 +103,9 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
           s"Cannot move view between catalogs: from=${oldCatalog.name} and to=${newIdent.catalog().name()}")
       }
       RenameV2ViewExec(oldCatalog, oldIdent, newIdent.identifier()) :: Nil
+
+    case DropIcebergView(ResolvedIdentifier(viewCatalog: ViewCatalog, ident), ifExists) =>
+      DropV2ViewExec(viewCatalog, ident, ifExists) :: Nil
 
     case _ => Nil
   }

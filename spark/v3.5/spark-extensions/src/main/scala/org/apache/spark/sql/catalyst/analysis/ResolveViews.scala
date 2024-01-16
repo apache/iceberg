@@ -117,8 +117,8 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
   }
 
   private def qualifyFunctionIdentifiers(
-      plan: LogicalPlan,
-      catalogAndNamespace: Seq[String]): LogicalPlan = plan transformExpressions {
+    plan: LogicalPlan,
+    catalogAndNamespace: Seq[String]): LogicalPlan = plan transformExpressions {
     case u@UnresolvedFunction(Seq(name), _, _, _, _) =>
       if (!isBuiltinFunction(name)) {
         u.copy(nameParts = catalogAndNamespace :+ name)
@@ -143,11 +143,11 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
     }
 
   private def isCatalog(name: String): Boolean = {
-    spark.sessionState.catalogManager.isCatalogRegistered(name)
+    catalogManager.isCatalogRegistered(name)
   }
 
   private def isBuiltinFunction(name: String): Boolean = {
-    spark.sessionState.catalogManager.v1SessionCatalog.isBuiltinFunction(FunctionIdentifier(name))
+    catalogManager.v1SessionCatalog.isBuiltinFunction(FunctionIdentifier(name))
   }
 
 
