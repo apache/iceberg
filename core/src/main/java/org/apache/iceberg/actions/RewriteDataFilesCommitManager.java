@@ -38,7 +38,7 @@ public class RewriteDataFilesCommitManager {
   private final Table table;
   private final long startingSnapshotId;
   private final boolean useStartingSequenceNumber;
-  private final Map<String, String> extraCommitSummary;
+  private final Map<String, String> snapshotProperties;
 
   // constructor used for testing
   public RewriteDataFilesCommitManager(Table table) {
@@ -58,11 +58,11 @@ public class RewriteDataFilesCommitManager {
       Table table,
       long startingSnapshotId,
       boolean useStartingSequenceNumber,
-      Map<String, String> extraCommitSummary) {
+      Map<String, String> snapshotProperties) {
     this.table = table;
     this.startingSnapshotId = startingSnapshotId;
     this.useStartingSequenceNumber = useStartingSequenceNumber;
-    this.extraCommitSummary = extraCommitSummary;
+    this.snapshotProperties = snapshotProperties;
   }
 
   /**
@@ -87,7 +87,7 @@ public class RewriteDataFilesCommitManager {
       rewrite.rewriteFiles(rewrittenDataFiles, addedDataFiles);
     }
 
-    extraCommitSummary.forEach(rewrite::set);
+    snapshotProperties.forEach(rewrite::set);
 
     rewrite.commit();
   }

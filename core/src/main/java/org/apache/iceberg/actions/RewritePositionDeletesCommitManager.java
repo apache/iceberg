@@ -41,16 +41,16 @@ public class RewritePositionDeletesCommitManager {
 
   private final Table table;
   private final long startingSnapshotId;
-  private final Map<String, String> extraCommitSummary;
+  private final Map<String, String> snapshotProperties;
 
   public RewritePositionDeletesCommitManager(Table table) {
     this(table, ImmutableMap.of());
   }
 
-  public RewritePositionDeletesCommitManager(Table table, Map<String, String> extraCommitSummary) {
+  public RewritePositionDeletesCommitManager(Table table, Map<String, String> snapshotProperties) {
     this.table = table;
     this.startingSnapshotId = table.currentSnapshot().snapshotId();
-    this.extraCommitSummary = extraCommitSummary;
+    this.snapshotProperties = snapshotProperties;
   }
 
   /**
@@ -72,7 +72,7 @@ public class RewritePositionDeletesCommitManager {
       }
     }
 
-    extraCommitSummary.forEach(rewriteFiles::set);
+    snapshotProperties.forEach(rewriteFiles::set);
 
     rewriteFiles.commit();
   }

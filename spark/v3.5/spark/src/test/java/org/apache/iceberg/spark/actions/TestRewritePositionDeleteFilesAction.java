@@ -633,7 +633,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     assertThat(table.currentSnapshot().summary())
         .containsAllEntriesOf(ImmutableMap.of("key", "value"));
 
-    // make sure internal produced properties is not lost
+    // make sure internal produced properties are not lost
     String[] commitMetricsKeys =
         new String[] {
           SnapshotSummary.ADDED_DELETE_FILES_PROP,
