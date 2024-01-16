@@ -173,8 +173,8 @@ public class TestBase {
   public TestTables.TestTable table = null;
 
   @Parameters(name = "formatVersion = {0}")
-  protected static List<Object[]> parameters() {
-    return Arrays.asList(new Object[] {1}, new Object[] {2});
+  protected static List<Object> parameters() {
+    return Arrays.asList(1, 2);
   }
 
   @Parameter protected int formatVersion;
