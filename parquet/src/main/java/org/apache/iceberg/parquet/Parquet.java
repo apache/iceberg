@@ -1063,6 +1063,8 @@ public class Parquet {
       return this;
     }
 
+    /** @deprecated will be removed in 2.0.0; use {@link #createReaderFunc(Function)} instead */
+    @Deprecated
     public ReadBuilder readSupport(ReadSupport<?> newFilterSupport) {
       this.readSupport = newFilterSupport;
       return this;
@@ -1090,6 +1092,8 @@ public class Parquet {
       return this;
     }
 
+    /** @deprecated will be removed in 2.0.0; use {@link #createReaderFunc(Function)} instead */
+    @Deprecated
     public ReadBuilder callInit() {
       this.callInit = true;
       return this;
