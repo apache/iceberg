@@ -18,36 +18,25 @@
  */
 package org.apache.iceberg.deletes;
 
-import org.roaringbitmap.longlong.Roaring64Bitmap;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-class BitmapPositionDeleteIndex implements PositionDeleteIndex {
-  private final Roaring64Bitmap roaring64Bitmap;
+public class PositionDeleteIndexUtil {
 
-  BitmapPositionDeleteIndex() {
-    roaring64Bitmap = new Roaring64Bitmap();
-  }
+  private PositionDeleteIndexUtil() {}
 
-  void merge(BitmapPositionDeleteIndex that) {
-    roaring64Bitmap.or(that.roaring64Bitmap);
-  }
+  public static PositionDeleteIndex merge(Iterable<? extends PositionDeleteIndex> indexes) {
+    BitmapPositionDeleteIndex result = new BitmapPositionDeleteIndex();
 
-  @Override
-  public void delete(long position) {
-    roaring64Bitmap.add(position);
-  }
+    for (PositionDeleteIndex index : indexes) {
+      if (index.isNotEmpty()) {
+        Preconditions.checkArgument(
+            index instanceof BitmapPositionDeleteIndex,
+            "Can merge only bitmap-based indexes, got %s",
+            index.getClass().getName());
+        result.merge((BitmapPositionDeleteIndex) index);
+      }
+    }
 
-  @Override
-  public void delete(long posStart, long posEnd) {
-    roaring64Bitmap.add(posStart, posEnd);
-  }
-
-  @Override
-  public boolean isDeleted(long position) {
-    return roaring64Bitmap.contains(position);
-  }
-
-  @Override
-  public boolean isEmpty() {
-    return roaring64Bitmap.isEmpty();
+    return result;
   }
 }
