@@ -31,17 +31,17 @@ import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.encryption.Ciphers;
 import org.apache.iceberg.encryption.UnitestKMS;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.SeekableInputStream;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
 import org.apache.iceberg.types.Types;
-import org.apache.parquet.crypto.ParquetCryptoRuntimeException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -50,15 +50,13 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
-public class TestTableEncryption extends SparkTestBaseWithCatalog {
+public class TestAvroTableEncryption extends SparkTestBaseWithCatalog {
 
   private static Map<String, String> appendCatalogEncryptionConfigProperties(
       Map<String, String> props) {
     Map<String, String> newProps = Maps.newHashMap();
     newProps.putAll(props);
-    newProps.put(
-        CatalogProperties.ENCRYPTION_KMS_TYPE, CatalogProperties.ENCRYPTION_KMS_CUSTOM_TYPE);
-    newProps.put(CatalogProperties.ENCRYPTION_KMS_CLIENT_IMPL, UnitestKMS.class.getCanonicalName());
+    newProps.put(CatalogProperties.ENCRYPTION_KMS_IMPL, UnitestKMS.class.getCanonicalName());
     return newProps;
   }
 
@@ -84,7 +82,7 @@ public class TestTableEncryption extends SparkTestBaseWithCatalog {
     };
   }
 
-  public TestTableEncryption(
+  public TestAvroTableEncryption(
       String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
   }
@@ -95,6 +93,7 @@ public class TestTableEncryption extends SparkTestBaseWithCatalog {
         "CREATE TABLE %s (id bigint, data string, float float) USING iceberg "
             + "TBLPROPERTIES ( "
             + "'encryption.key-id'='%s' , "
+            + "'write.format.default'='AVRO' , "
             + "'format-version'='2')",
         tableName, UnitestKMS.MASTER_KEY_NAME1);
     sql("INSERT INTO %s VALUES (1, 'a', 1.0), (2, 'b', 2.0), (3, 'c', float('NaN'))", tableName);
@@ -114,7 +113,7 @@ public class TestTableEncryption extends SparkTestBaseWithCatalog {
   }
 
   @Test
-  public void testDirectDataFileRead() {
+  public void testDirectDataFileRead() throws IOException {
     List<Object[]> dataFileTable =
         sql("SELECT file_path FROM %s.%s", tableName, MetadataTableType.ALL_DATA_FILES);
     List<String> dataFiles =
@@ -122,18 +121,20 @@ public class TestTableEncryption extends SparkTestBaseWithCatalog {
             .map(row -> (String) row[0])
             .collect(Collectors.toList());
     Schema schema = new Schema(optional(0, "id", Types.IntegerType.get()));
+    byte[] magic = new byte[4];
     for (String filePath : dataFiles) {
       AssertHelpers.assertThrows(
           "Read without keys",
-          ParquetCryptoRuntimeException.class,
-          "Trying to read file with encrypted footer. No keys available",
-          () ->
-              Parquet.read(localInput(filePath))
-                  .project(schema)
-                  .callInit()
-                  .build()
-                  .iterator()
-                  .next());
+          RuntimeIOException.class,
+          "Failed to open file",
+          () -> Avro.read(localInput(filePath)).project(schema).build().iterator().next());
+
+      // Verify encryption of data files
+      SeekableInputStream dataFileReader = localInput(filePath).newStream();
+      dataFileReader.read(magic);
+      dataFileReader.close();
+      Assert.assertArrayEquals(
+          magic, Ciphers.GCM_STREAM_MAGIC_STRING.getBytes(StandardCharsets.UTF_8));
     }
   }
 
