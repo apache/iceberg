@@ -97,16 +97,13 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
     case RenameTable(ResolvedV2View(oldCatalog: ViewCatalog, oldIdent), newName, isView@true) =>
       val newIdent = Spark3Util.catalogAndIdentifier(spark, newName.toList.asJava)
       if (oldCatalog.name != newIdent.catalog().name()) {
-        cannotMoveViewBetweenCatalogs(oldCatalog.name, newIdent.catalog().name())
+        throw new AnalysisException(
+          s"Cannot move view between catalogs: from=${oldCatalog.name} and to=${newIdent.catalog().name()}")
       }
       RenameV2ViewExec(oldCatalog, oldIdent, newIdent.identifier()) :: Nil
 
     case _ => Nil
   }
-
-  private def cannotMoveViewBetweenCatalogs(oldCatalog: String, newCatalog: String): Throwable =
-    throw new AnalysisException(
-      s"Cannot move view between catalogs: from=$oldCatalog and to=$newCatalog")
 
   private def buildInternalRow(exprs: Seq[Expression]): InternalRow = {
     val values = new Array[Any](exprs.size)
