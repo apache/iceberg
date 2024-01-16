@@ -119,12 +119,11 @@ public class SparkTable
           .build();
 
   private final Table icebergTable;
-  private final Long snapshotId;
+  private Long snapshotId;
   private final boolean refreshEagerly;
   private final Set<TableCapability> capabilities;
   private String branch;
   private StructType lazyTableSchema = null;
-  private Long lazyFixedSnapshotId;
   private SparkSession lazySpark = null;
 
   public SparkTable(Table icebergTable, boolean refreshEagerly) {
@@ -134,19 +133,18 @@ public class SparkTable
   public SparkTable(Table icebergTable, String branch, boolean refreshEagerly) {
     this(icebergTable, refreshEagerly);
     this.branch = branch;
-    final Snapshot branchSnapshot = icebergTable.snapshot(branch);
+    final Snapshot snapshot = icebergTable.snapshot(branch);
     ValidationException.check(
-        branch == null || SnapshotRef.MAIN_BRANCH.equals(branch) || branchSnapshot != null,
+        branch == null || SnapshotRef.MAIN_BRANCH.equals(branch) || snapshot != null,
         "Cannot use branch (does not exist): %s",
         branch);
-    this.lazyFixedSnapshotId = branchSnapshot.snapshotId();
+    this.snapshotId = snapshot.snapshotId();
   }
 
   public SparkTable(Table icebergTable, Long snapshotId, boolean refreshEagerly) {
     this.icebergTable = icebergTable;
     this.snapshotId = snapshotId;
     this.refreshEagerly = refreshEagerly;
-    this.lazyFixedSnapshotId = snapshotId;
 
     boolean acceptAnySchema =
         PropertyUtil.propertyAsBoolean(
@@ -413,14 +411,14 @@ public class SparkTable
     // when branch or snapshotId is given, it's time travel
     SparkTable that = (SparkTable) other;
     return icebergTable.name().equals(that.icebergTable.name())
-        && Objects.equals(lazyFixedSnapshotId, that.lazyFixedSnapshotId);
+        && Objects.equals(snapshotId, that.snapshotId);
   }
 
   @Override
   public int hashCode() {
     // use name only unless branch/snapshotId is given in order to correctly invalidate Spark cache
     // when branch or snapshotId is given, it's time travel
-    return Objects.hash(icebergTable.name(), lazyFixedSnapshotId);
+    return Objects.hash(icebergTable.name(), snapshotId);
   }
 
   private static CaseInsensitiveStringMap addSnapshotId(
