@@ -282,6 +282,7 @@ public class TestGcmStreams {
         }
 
         encryptedStream.close();
+        Assert.assertEquals("Final position in closed stream", offset, encryptedStream.getPos());
 
         AesGcmInputFile decryptedFile =
             new AesGcmInputFile(Files.localInput(testFile), key, aadPrefix);
@@ -378,6 +379,7 @@ public class TestGcmStreams {
       }
 
       encryptedStream.close();
+      Assert.assertEquals("Final position in closed stream", offset, encryptedStream.getPos());
 
       AesGcmInputFile decryptedFile =
           new AesGcmInputFile(Files.localInput(testFile), key, aadPrefix);
