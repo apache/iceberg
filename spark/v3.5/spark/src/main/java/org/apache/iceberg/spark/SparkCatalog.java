@@ -581,8 +581,11 @@ public class SparkCatalog extends BaseCatalog
 
   @Override
   public boolean dropView(Identifier ident) {
-    throw new UnsupportedOperationException(
-        "Dropping a view is not supported by catalog: " + catalogName);
+    if (null != asViewCatalog) {
+      return asViewCatalog.dropView(buildIdentifier(ident));
+    }
+
+    return false;
   }
 
   @Override
