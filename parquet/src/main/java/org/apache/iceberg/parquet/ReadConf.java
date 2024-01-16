@@ -41,6 +41,8 @@ import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.schema.MessageType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Configuration for Parquet readers.
@@ -61,6 +63,7 @@ class ReadConf<T> {
   private final Integer batchSize;
   private final long[] startRowPositions;
 
+  private static final Logger LOG = LoggerFactory.getLogger(ReadConf.class);
   // List of column chunk metadata for each row group
   private final List<Map<ColumnPath, ColumnChunkMetaData>> columnChunkMetaDataForRowGroups;
 
@@ -75,7 +78,8 @@ class ReadConf<T> {
       NameMapping nameMapping,
       boolean reuseContainers,
       boolean caseSensitive,
-      Integer bSize) {
+      Integer bSize,
+      boolean alreadyPushedFilters) {
     this.file = file;
     this.options = options;
     this.reader = newReader(file, options);
@@ -100,34 +104,42 @@ class ReadConf<T> {
     // Fetch all row groups starting positions to compute the row offsets of the filtered row groups
     Map<Long, Long> offsetToStartPos = generateOffsetToStartPos(expectedSchema);
 
-    ParquetMetricsRowGroupFilter statsFilter = null;
-    ParquetDictionaryRowGroupFilter dictFilter = null;
-    ParquetBloomRowGroupFilter bloomFilter = null;
-    if (filter != null) {
-      statsFilter = new ParquetMetricsRowGroupFilter(expectedSchema, filter, caseSensitive);
-      dictFilter = new ParquetDictionaryRowGroupFilter(expectedSchema, filter, caseSensitive);
-      bloomFilter = new ParquetBloomRowGroupFilter(expectedSchema, filter, caseSensitive);
-    }
-
     long computedTotalValues = 0L;
-    for (int i = 0; i < shouldSkip.length; i += 1) {
-      BlockMetaData rowGroup = rowGroups.get(i);
-      startRowPositions[i] =
-          offsetToStartPos == null ? 0 : offsetToStartPos.get(rowGroup.getStartingPos());
-      boolean shouldRead =
-          filter == null
-              || (statsFilter.shouldRead(typeWithIds, rowGroup)
-                  && dictFilter.shouldRead(
-                      typeWithIds, rowGroup, reader.getDictionaryReader(rowGroup))
-                  && bloomFilter.shouldRead(
-                      typeWithIds, rowGroup, reader.getBloomFilterDataReader(rowGroup)));
-      this.shouldSkip[i] = !shouldRead;
-      if (shouldRead) {
-        computedTotalValues += rowGroup.getRowCount();
+
+    LOG.info("Filters pushed status, alreadyPushed: {}", alreadyPushedFilters);
+
+
+    if(!alreadyPushedFilters) {
+      LOG.warn("Filters not pushed yet, checking on row groups");
+
+      ParquetMetricsRowGroupFilter statsFilter = null;
+      ParquetDictionaryRowGroupFilter dictFilter = null;
+      ParquetBloomRowGroupFilter bloomFilter = null;
+      if (filter != null) {
+        statsFilter = new ParquetMetricsRowGroupFilter(expectedSchema, filter, caseSensitive);
+        dictFilter = new ParquetDictionaryRowGroupFilter(expectedSchema, filter, caseSensitive);
+        bloomFilter = new ParquetBloomRowGroupFilter(expectedSchema, filter, caseSensitive);
+      }
+
+      for (int i = 0; i < shouldSkip.length; i += 1) {
+        BlockMetaData rowGroup = rowGroups.get(i);
+        startRowPositions[i] =
+                offsetToStartPos == null ? 0 : offsetToStartPos.get(rowGroup.getStartingPos());
+        boolean shouldRead =
+                filter == null
+                        || (statsFilter.shouldRead(typeWithIds, rowGroup)
+                        && dictFilter.shouldRead(
+                        typeWithIds, rowGroup, reader.getDictionaryReader(rowGroup))
+                        && bloomFilter.shouldRead(
+                        typeWithIds, rowGroup, reader.getBloomFilterDataReader(rowGroup)));
+        this.shouldSkip[i] = !shouldRead;
+        if (shouldRead) {
+          computedTotalValues += rowGroup.getRowCount();
+        }
       }
     }
 
-    this.totalValues = computedTotalValues;
+    this.totalValues = reader.getFilteredRecordCount();
     if (readerFunc != null) {
       this.model = (ParquetValueReader<T>) readerFunc.apply(typeWithIds);
       this.vectorizedModel = null;

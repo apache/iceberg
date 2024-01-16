@@ -49,6 +49,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
   private final boolean caseSensitive;
   private final int batchSize;
   private final NameMapping nameMapping;
+  private final boolean alreadyPushedFilters;
 
   public VectorizedParquetReader(
       InputFile input,
@@ -59,7 +60,8 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
       Expression filter,
       boolean reuseContainers,
       boolean caseSensitive,
-      int maxRecordsPerBatch) {
+      int maxRecordsPerBatch,
+      boolean alreadyPushedFilters) {
     this.input = input;
     this.expectedSchema = expectedSchema;
     this.options = options;
@@ -70,6 +72,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
     this.caseSensitive = caseSensitive;
     this.batchSize = maxRecordsPerBatch;
     this.nameMapping = nameMapping;
+    this.alreadyPushedFilters = alreadyPushedFilters;
   }
 
   private ReadConf conf = null;
@@ -87,7 +90,8 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
               nameMapping,
               reuseContainers,
               caseSensitive,
-              batchSize);
+              batchSize,
+              alreadyPushedFilters);
       this.conf = readConf.copy();
       return readConf;
     }
@@ -118,7 +122,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
     FileIterator(ReadConf conf) {
       this.reader = conf.reader();
       this.shouldSkip = conf.shouldSkip();
-      this.totalValues = conf.totalValues();
+      this.totalValues = reader.getFilteredRecordCount();
       this.reuseContainers = conf.reuseContainers();
       this.model = conf.vectorizedModel();
       this.batchSize = conf.batchSize();
@@ -160,7 +164,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
       }
       PageReadStore pages;
       try {
-        pages = reader.readNextRowGroup();
+        pages = reader.readNextFilteredRowGroup();
       } catch (IOException e) {
         throw new RuntimeIOException(e);
       }
