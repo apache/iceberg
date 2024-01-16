@@ -31,6 +31,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
@@ -528,6 +529,44 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
           .isThrownBy(() -> newCatalog.initialize("nessie", options.buildOrThrow()))
           .withMessage("Unsupported client-api-version: 3. Can only be 1 or 2");
     }
+  }
+
+  @Test
+  public void testInvalidClientApiVersionViaURI() throws IOException {
+    try (NessieCatalog newCatalog = new NessieCatalog()) {
+      newCatalog.setConf(hadoopConfig);
+      ImmutableMap.Builder<String, String> options =
+          ImmutableMap.<String, String>builder().put("uri", "some/uri/");
+      Assertions.assertThatIllegalArgumentException()
+          .isThrownBy(() -> newCatalog.initialize("nessie", options.buildOrThrow()))
+          .withMessage(
+              "URI doesn't end with the version: some/uri/. Please configure `client-api-version` in the catalog properties explicitly.");
+
+      ImmutableMap.Builder<String, String> newOptions =
+          ImmutableMap.<String, String>builder().put("uri", "some/uri/v3");
+      Assertions.assertThatIllegalArgumentException()
+          .isThrownBy(() -> newCatalog.initialize("nessie", newOptions.buildOrThrow()))
+          .withMessage("Unsupported client-api-version: 3. Can only be 1 or 2");
+    }
+  }
+
+  @Test
+  public void testClientApiVersionOverride() {
+    // for v1 URI use v2 version and vice versa.
+    String version = apiVersion.equals("1") ? "2" : "1";
+
+    NessieCatalog newCatalog = new NessieCatalog();
+    newCatalog.setConf(hadoopConfig);
+    ImmutableMap.Builder<String, String> options =
+        ImmutableMap.<String, String>builder()
+            .put(CatalogProperties.URI, uri)
+            .put(CatalogProperties.WAREHOUSE_LOCATION, temp.toUri().toString())
+            .put("client-api-version", version);
+    newCatalog.initialize("nessie", options.buildOrThrow());
+    // Since client-api-version is configured, API version should not be based on URI.
+    Assertions.assertThatRuntimeException()
+        .isThrownBy(() -> newCatalog.loadTable(TableIdentifier.of("foo", "t1")))
+        .withMessageStartingWith("API version mismatch, check URI prefix");
   }
 
   private void commit(String branch, String message, Operation... operations)

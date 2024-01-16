@@ -35,7 +35,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 import org.projectnessie.client.api.NessieApiV1;
-import org.projectnessie.client.ext.NessieApiVersion;
 import org.projectnessie.client.ext.NessieApiVersions;
 import org.projectnessie.client.ext.NessieClientFactory;
 import org.projectnessie.client.ext.NessieClientUri;
@@ -65,7 +64,6 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
 
   private NessieCatalog catalog;
   private NessieApiV1 api;
-  private NessieApiVersion apiVersion;
   private Configuration hadoopConfig;
   private String initialHashOfDefaultBranch;
   private String uri;
@@ -74,7 +72,6 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
   public void setUp(NessieClientFactory clientFactory, @NessieClientUri URI nessieUri)
       throws NessieNotFoundException {
     api = clientFactory.make();
-    apiVersion = clientFactory.apiVersion();
     initialHashOfDefaultBranch = api.getDefaultBranch().getHash();
     uri = nessieUri.toASCIIString();
     hadoopConfig = new Configuration();
@@ -122,9 +119,7 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
             CatalogProperties.URI,
             uri,
             CatalogProperties.WAREHOUSE_LOCATION,
-            temp.toUri().toString(),
-            "client-api-version",
-            apiVersion == NessieApiVersion.V2 ? "2" : "1");
+            temp.toUri().toString());
     newCatalog.initialize("nessie", options);
     return newCatalog;
   }
