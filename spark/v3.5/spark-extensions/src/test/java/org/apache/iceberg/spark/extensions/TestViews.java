@@ -1172,7 +1172,7 @@ public class TestViews extends SparkExtensionsTestBase {
         .hasMessageContaining(String.format("The table or view `%s` cannot be found", tableName));
 
     // the underlying SQL in the View should be rewritten to have catalog & namespace
-    assertThat(sql("SELECT * FROM %s.%s.%s", catalogName, "default", viewName))
+    assertThat(sql("SELECT * FROM %s.%s.%s", catalogName, NAMESPACE, viewName))
         .hasSize(1)
         .containsExactly(row(5));
   }
@@ -1197,9 +1197,169 @@ public class TestViews extends SparkExtensionsTestBase {
         .hasMessageContaining(String.format("The table or view `%s` cannot be found", tableName));
 
     // the underlying SQL in the View should be rewritten to have catalog & namespace
-    assertThat(sql("SELECT * FROM %s.%s.%s", catalogName, "default", viewName))
+    assertThat(sql("SELECT * FROM %s.%s.%s", catalogName, NAMESPACE, viewName))
         .hasSize(3)
         .containsExactly(row(3), row(3), row(3));
+  }
+
+  @Test
+  public void describeView() {
+    String viewName = "describeView";
+
+    sql("CREATE VIEW %s AS SELECT id, data FROM %s WHERE id <= 3", viewName, tableName);
+    assertThat(sql("DESCRIBE %s", viewName))
+        .containsExactly(row("id", "int", ""), row("data", "string", ""));
+  }
+
+  @Test
+  public void describeExtendedView() {
+    String viewName = "describeExtendedView";
+    String sql = String.format("SELECT id, data FROM %s WHERE id <= 3", tableName);
+
+    sql(
+        "CREATE VIEW %s (new_id COMMENT 'ID', new_data COMMENT 'DATA') COMMENT 'view comment' AS %s",
+        viewName, sql);
+    assertThat(sql("DESCRIBE EXTENDED %s", viewName))
+        .contains(
+            row("new_id", "int", "ID"),
+            row("new_data", "string", "DATA"),
+            row("", "", ""),
+            row("# Detailed View Information", "", ""),
+            row("Comment", "view comment", ""),
+            row("View Catalog and Namespace", String.format("%s.%s", catalogName, NAMESPACE), ""),
+            row("View Query Output Columns", "[id, data]", ""),
+            row(
+                "View Properties",
+                String.format(
+                    "['format-version' = '1', 'location' = '/%s/%s', 'provider' = 'iceberg']",
+                    NAMESPACE, viewName),
+                ""));
+  }
+
+  @Test
+  public void showViewProperties() {
+    String viewName = "showViewProps";
+
+    sql(
+        "CREATE VIEW %s TBLPROPERTIES ('key1'='val1', 'key2'='val2') AS SELECT id, data FROM %s WHERE id <= 3",
+        viewName, tableName);
+    assertThat(sql("SHOW TBLPROPERTIES %s", viewName))
+        .contains(row("key1", "val1"), row("key2", "val2"));
+  }
+
+  @Test
+  public void showViewPropertiesByKey() {
+    String viewName = "showViewPropsByKey";
+
+    sql("CREATE VIEW %s AS SELECT id, data FROM %s WHERE id <= 3", viewName, tableName);
+    assertThat(sql("SHOW TBLPROPERTIES %s", viewName)).contains(row("provider", "iceberg"));
+
+    assertThat(sql("SHOW TBLPROPERTIES %s (provider)", viewName))
+        .contains(row("provider", "iceberg"));
+
+    assertThat(sql("SHOW TBLPROPERTIES %s (non.existing)", viewName))
+        .contains(
+            row(
+                "non.existing",
+                String.format(
+                    "View %s.%s.%s does not have property: non.existing",
+                    catalogName, NAMESPACE, viewName)));
+  }
+
+  @Test
+  public void showViews() throws NoSuchTableException {
+    insertRows(6);
+    String sql = String.format("SELECT * from %s", tableName);
+    sql("CREATE VIEW v1 AS %s", sql);
+    sql("CREATE VIEW prefixV2 AS %s", sql);
+    sql("CREATE VIEW prefixV3 AS %s", sql);
+    sql("CREATE GLOBAL TEMPORARY VIEW globalViewForListing AS %s", sql);
+    sql("CREATE TEMPORARY VIEW tempViewForListing AS %s", sql);
+
+    // spark stores temp views case-insensitive by default
+    Object[] tempView = row("", "tempviewforlisting", true);
+    assertThat(sql("SHOW VIEWS"))
+        .contains(
+            row(NAMESPACE.toString(), "prefixV2", false),
+            row(NAMESPACE.toString(), "prefixV3", false),
+            row(NAMESPACE.toString(), "v1", false),
+            tempView);
+
+    assertThat(sql("SHOW VIEWS IN %s", catalogName))
+        .contains(
+            row(NAMESPACE.toString(), "prefixV2", false),
+            row(NAMESPACE.toString(), "prefixV3", false),
+            row(NAMESPACE.toString(), "v1", false),
+            tempView);
+
+    assertThat(sql("SHOW VIEWS IN %s.%s", catalogName, NAMESPACE))
+        .contains(
+            row(NAMESPACE.toString(), "prefixV2", false),
+            row(NAMESPACE.toString(), "prefixV3", false),
+            row(NAMESPACE.toString(), "v1", false),
+            tempView);
+
+    assertThat(sql("SHOW VIEWS LIKE 'pref*'"))
+        .contains(
+            row(NAMESPACE.toString(), "prefixV2", false),
+            row(NAMESPACE.toString(), "prefixV3", false));
+
+    assertThat(sql("SHOW VIEWS LIKE 'non-existing'")).isEmpty();
+
+    assertThat(sql("SHOW VIEWS IN spark_catalog.default")).contains(tempView);
+
+    assertThat(sql("SHOW VIEWS IN global_temp"))
+        .contains(
+            // spark stores temp views case-insensitive by default
+            row("global_temp", "globalviewforlisting", true), tempView);
+  }
+
+  @Test
+  public void showCreateSimpleView() {
+    String viewName = "showCreateSimpleView";
+    String sql = String.format("SELECT id, data FROM %s WHERE id <= 3", tableName);
+
+    sql("CREATE VIEW %s AS %s", viewName, sql);
+
+    String expected =
+        String.format(
+            "CREATE VIEW %s.%s.%s (\n"
+                + "  id,\n"
+                + "  data)\n"
+                + "TBLPROPERTIES (\n"
+                + "  'format-version' = '1',\n"
+                + "  'location' = '/%s/%s',\n"
+                + "  'provider' = 'iceberg')\n"
+                + "AS\n%s\n",
+            catalogName, NAMESPACE, viewName, NAMESPACE, viewName, sql);
+    assertThat(sql("SHOW CREATE TABLE %s", viewName)).containsExactly(row(expected));
+  }
+
+  @Test
+  public void showCreateComplexView() {
+    String viewName = "showCreateComplexView";
+    String sql = String.format("SELECT id, data FROM %s WHERE id <= 3", tableName);
+
+    sql(
+        "CREATE VIEW %s (new_id COMMENT 'ID', new_data COMMENT 'DATA')"
+            + "COMMENT 'view comment' TBLPROPERTIES ('key1'='val1', 'key2'='val2') AS %s",
+        viewName, sql);
+
+    String expected =
+        String.format(
+            "CREATE VIEW %s.%s.%s (\n"
+                + "  new_id COMMENT 'ID',\n"
+                + "  new_data COMMENT 'DATA')\n"
+                + "COMMENT 'view comment'\n"
+                + "TBLPROPERTIES (\n"
+                + "  'format-version' = '1',\n"
+                + "  'key1' = 'val1',\n"
+                + "  'key2' = 'val2',\n"
+                + "  'location' = '/%s/%s',\n"
+                + "  'provider' = 'iceberg')\n"
+                + "AS\n%s\n",
+            catalogName, NAMESPACE, viewName, NAMESPACE, viewName, sql);
+    assertThat(sql("SHOW CREATE TABLE %s", viewName)).containsExactly(row(expected));
   }
 
   private void insertRows(int numRows) throws NoSuchTableException {

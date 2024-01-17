@@ -539,8 +539,13 @@ public class SparkCatalog extends BaseCatalog
 
   @Override
   public Identifier[] listViews(String... namespace) {
-    throw new UnsupportedOperationException(
-        "Listing views is not supported by catalog: " + catalogName);
+    if (null != asViewCatalog) {
+      return asViewCatalog.listViews(Namespace.of(namespace)).stream()
+          .map(ident -> Identifier.of(ident.namespace().levels(), ident.name()))
+          .toArray(Identifier[]::new);
+    }
+
+    return new Identifier[0];
   }
 
   @Override
