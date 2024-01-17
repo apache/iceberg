@@ -457,36 +457,37 @@ public class TestHadoopCommits extends HadoopTableTestBase {
   }
 
   @Test
-  public void testCommitFailedToAcquire() {
+  public void testCommitFailedToAcquireLock() {
     table.newFastAppend().appendFile(FILE_A).commit();
     Configuration conf = new Configuration();
     LockManager lockManager = new NoLockManager();
-    HadoopTableOperations tops = 
-            new HadoopTableOperations(new Path(table.location()), new HadoopFileIO(conf), conf, lockManager);
-    tops.refresh();
+    HadoopTableOperations tableOperations =
+        new HadoopTableOperations(
+            new Path(table.location()), new HadoopFileIO(conf), conf, lockManager);
+    tableOperations.refresh();
     BaseTable baseTable = (BaseTable) table;
     TableMetadata meta2 = baseTable.operations().current();
-    Assertions.assertThatThrownBy(() -> tops.commit(tops.current(), meta2))
-            .isInstanceOf(CommitFailedException.class)
-            .hasMessageStartingWith("Failed to acquire lock on file");
+    Assertions.assertThatThrownBy(() -> tableOperations.commit(tableOperations.current(), meta2))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageStartingWith("Failed to acquire lock on file");
   }
 
   // Always returns false when trying to acquire
   static class NoLockManager implements LockManager {
-  
+
     @Override
     public boolean acquire(String entityId, String ownerId) {
       return false;
     }
-  
+
     @Override
     public boolean release(String entityId, String ownerId) {
       return false;
     }
-  
+
     @Override
     public void close() throws Exception {}
-  
+
     @Override
     public void initialize(Map<String, String> properties) {}
   }
