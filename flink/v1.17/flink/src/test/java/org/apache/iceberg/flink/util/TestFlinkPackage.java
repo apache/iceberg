@@ -39,13 +39,13 @@ public class TestFlinkPackage {
     // First make sure we're not caching a version result from a previous test
     FlinkPackage.setVersion(null);
     try (MockedStatic<FlinkPackage> mockedStatic = Mockito.mockStatic(FlinkPackage.class)) {
-      mockedStatic.when(FlinkPackage::getVersionFromJar).thenThrow(RuntimeException.class);
+      mockedStatic.when(FlinkPackage::versionFromJar).thenThrow(RuntimeException.class);
       mockedStatic.when(FlinkPackage::version).thenCallRealMethod();
       Assert.assertEquals(FlinkPackage.FLINK_UNKNOWN_VERSION, FlinkPackage.version());
     }
     FlinkPackage.setVersion(null);
     try (MockedStatic<FlinkPackage> mockedStatic = Mockito.mockStatic(FlinkPackage.class)) {
-      mockedStatic.when(FlinkPackage::getVersionFromJar).thenReturn(null);
+      mockedStatic.when(FlinkPackage::versionFromJar).thenReturn(null);
       mockedStatic.when(FlinkPackage::version).thenCallRealMethod();
       FlinkPackage.setVersion(null);
       Assert.assertEquals(FlinkPackage.FLINK_UNKNOWN_VERSION, FlinkPackage.version());
