@@ -47,28 +47,20 @@ public class GenericAvroReader<T>
   private Schema fileSchema = null;
   private ValueReader<T> reader = null;
 
-  public static <D> GenericAvroReader<D> create(org.apache.iceberg.Schema schema) {
-    return new GenericAvroReader<>(schema);
+  public static <D> GenericAvroReader<D> create(org.apache.iceberg.Schema expectedSchema) {
+    return new GenericAvroReader<>(expectedSchema);
   }
 
-  public static <D> GenericAvroReader<D> create(Schema schema) {
-    return new GenericAvroReader<>(schema);
+  public static <D> GenericAvroReader<D> create(Schema readSchema) {
+    return new GenericAvroReader<>(readSchema);
   }
 
-  public static <D> GenericAvroReader<D> create(org.apache.iceberg.Schema avroSchema, Schema icebrgSchema) {
-    return new GenericAvroReader<>(avroSchema, icebrgSchema);
-  }
-
-  GenericAvroReader(org.apache.iceberg.Schema readSchema) {
-    this.expectedType = readSchema.asStruct();
+  GenericAvroReader(org.apache.iceberg.Schema expectedSchema) {
+    this.expectedType = expectedSchema.asStruct();
   }
 
   GenericAvroReader(Schema readSchema) {
     this.expectedType = AvroSchemaUtil.convert(readSchema).asStructType();
-  }
-
-  GenericAvroReader(org.apache.iceberg.Schema icebergReadSchema, Schema avroReadSchema) {
-    this.expectedType = AvroSchemaUtil.convert(avroReadSchema).asStructType();
   }
 
   @SuppressWarnings("unchecked")
@@ -148,6 +140,8 @@ public class GenericAvroReader<T>
         Types.NestedField field = expected.field(fieldId);
         if (constant != null) {
           readPlan.add(Pair.of(pos, ValueReaders.constant(constant)));
+        } else if (field.initialDefault() != null) {
+          readPlan.add(Pair.of(pos, ValueReaders.constant(field.initialDefault(), field.type())));
         } else if (fieldId == MetadataColumns.IS_DELETED.fieldId()) {
           readPlan.add(Pair.of(pos, ValueReaders.constant(false)));
         } else if (fieldId == MetadataColumns.ROW_POSITION.fieldId()) {
