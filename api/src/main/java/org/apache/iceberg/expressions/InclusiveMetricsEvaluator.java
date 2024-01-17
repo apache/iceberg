@@ -24,7 +24,9 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Map;
+import java.util.NavigableSet;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
@@ -376,6 +378,38 @@ public class InclusiveMetricsEvaluator {
       }
 
       return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean rangeIn(BoundReference<T> ref, Set<T> literalSetX) {
+      NavigableSet<T> literalSet = (NavigableSet<T>) literalSetX;
+      Integer id = ref.fieldId();
+      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
+        return ROWS_CANNOT_MATCH;
+      }
+      Supplier<T> lowerBoundsSupplier =
+          () -> {
+            if (lowerBounds != null && lowerBounds.containsKey(id)) {
+              T lowerVal = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
+              if (NaNUtil.isNaN(lowerVal)) {
+                // NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
+                return null;
+              } else {
+                return lowerVal;
+              }
+            } else {
+              return null;
+            }
+          };
+      Supplier<T> upperBoundsSupplier =
+          () -> {
+            if (upperBounds != null && upperBounds.containsKey(id)) {
+              return Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
+            } else {
+              return null;
+            }
+          };
+      return RangeInPredUtil.isInRange(lowerBoundsSupplier, upperBoundsSupplier, literalSet, true);
     }
 
     @Override

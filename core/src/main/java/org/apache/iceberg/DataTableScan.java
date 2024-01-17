@@ -22,10 +22,20 @@ import java.util.List;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.SnapshotUtil;
+
 
 public class DataTableScan extends BaseTableScan {
+
+  private volatile List<FileScanTask> files = null;
+
   protected DataTableScan(Table table, Schema schema, TableScanContext context) {
     super(table, schema, context);
+  }
+
+  protected void setFiles(List<FileScanTask> files) {
+    this.files = files;
   }
 
   @Override
@@ -86,7 +96,8 @@ public class DataTableScan extends BaseTableScan {
     if (shouldPlanWithExecutor() && (dataManifests.size() > 1 || deleteManifests.size() > 1)) {
       manifestGroup = manifestGroup.planWith(planExecutor());
     }
-
-    return manifestGroup.planFiles();
+    CloseableIterable<FileScanTask> temp = manifestGroup.planFiles();
+    this.setFiles(Lists.newArrayList(temp));
+    return temp;
   }
 }

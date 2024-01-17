@@ -43,12 +43,18 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.spark.source.Tuple;
+import org.apache.iceberg.spark.source.UncomparableLiteralException;
+import org.apache.iceberg.spark.source.broadcastvar.BroadcastHRUnboundPredicate;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.NaNUtil;
+import org.apache.spark.sql.catalyst.bcvar.BroadcastedJoinKeysWrapper;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
 import org.apache.spark.sql.sources.AlwaysFalse;
 import org.apache.spark.sql.sources.AlwaysFalse$;
@@ -68,10 +74,14 @@ import org.apache.spark.sql.sources.LessThanOrEqual;
 import org.apache.spark.sql.sources.Not;
 import org.apache.spark.sql.sources.Or;
 import org.apache.spark.sql.sources.StringStartsWith;
+import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SparkFilters {
 
   private static final Pattern BACKTICKS_PATTERN = Pattern.compile("([`])(.|$)");
+  private static final Logger LOG = LoggerFactory.getLogger(SparkFilters.class);
 
   private SparkFilters() {}
 
@@ -96,51 +106,60 @@ public class SparkFilters {
           .put(StringStartsWith.class, Operation.STARTS_WITH)
           .buildOrThrow();
 
-  public static Expression convert(Filter[] filters) {
-    Expression expression = Expressions.alwaysTrue();
+  public static Tuple<Expression, Expression> convert(Filter[] filters) {
+    Expression expressionForRangeIn = Expressions.alwaysTrue();
+    Expression expressionForOthers = Expressions.alwaysTrue();
     for (Filter filter : filters) {
-      Expression converted = convert(filter);
+      Tuple<Boolean, Expression> converted = convert(filter);
       Preconditions.checkArgument(
           converted != null, "Cannot convert filter to Iceberg: %s", filter);
-      expression = Expressions.and(expression, converted);
+      if (converted.getElement1()) {
+        expressionForRangeIn = Expressions.and(expressionForRangeIn, converted.getElement2());
+      } else {
+        expressionForOthers = Expressions.and(expressionForOthers, converted.getElement2());
+      }
     }
-    return expression;
+    return new Tuple<>(expressionForRangeIn, expressionForOthers);
   }
 
-  public static Expression convert(Filter filter) {
+  public static Tuple<Boolean, Expression> convert(Filter filter, Schema schema) {
     // avoid using a chain of if instanceof statements by mapping to the expression enum.
     Operation op = FILTERS.get(filter.getClass());
+    // if boolean is true, it is a range in filter
     if (op != null) {
       switch (op) {
         case TRUE:
-          return Expressions.alwaysTrue();
+          return new Tuple<>(false, Expressions.alwaysTrue());
 
         case FALSE:
-          return Expressions.alwaysFalse();
+          return new Tuple<>(false, Expressions.alwaysFalse());
 
         case IS_NULL:
           IsNull isNullFilter = (IsNull) filter;
-          return isNull(unquote(isNullFilter.attribute()));
+          return new Tuple<>(false, isNull(unquote(isNullFilter.attribute())));
 
         case NOT_NULL:
           IsNotNull notNullFilter = (IsNotNull) filter;
-          return notNull(unquote(notNullFilter.attribute()));
+          return new Tuple<>(false, notNull(unquote(notNullFilter.attribute())));
 
         case LT:
           LessThan lt = (LessThan) filter;
-          return lessThan(unquote(lt.attribute()), convertLiteral(lt.value()));
+          return new Tuple<>(false, lessThan(unquote(lt.attribute()), convertLiteral(lt.value())));
 
         case LT_EQ:
           LessThanOrEqual ltEq = (LessThanOrEqual) filter;
-          return lessThanOrEqual(unquote(ltEq.attribute()), convertLiteral(ltEq.value()));
+          return new Tuple<>(
+              false, lessThanOrEqual(unquote(ltEq.attribute()), convertLiteral(ltEq.value())));
 
         case GT:
           GreaterThan gt = (GreaterThan) filter;
-          return greaterThan(unquote(gt.attribute()), convertLiteral(gt.value()));
+          return new Tuple<>(
+              false, greaterThan(unquote(gt.attribute()), convertLiteral(gt.value())));
 
         case GT_EQ:
           GreaterThanOrEqual gtEq = (GreaterThanOrEqual) filter;
-          return greaterThanOrEqual(unquote(gtEq.attribute()), convertLiteral(gtEq.value()));
+          return new Tuple<>(
+              false, greaterThanOrEqual(unquote(gtEq.attribute()), convertLiteral(gtEq.value())));
 
         case EQ: // used for both eq and null-safe-eq
           if (filter instanceof EqualTo) {
@@ -148,24 +167,18 @@ public class SparkFilters {
             // comparison with null in normal equality is always null. this is probably a mistake.
             Preconditions.checkNotNull(
                 eq.value(), "Expression is always false (eq is not null-safe): %s", filter);
-            return handleEqual(unquote(eq.attribute()), eq.value());
+            return new Tuple<>(false, handleEqual(unquote(eq.attribute()), eq.value()));
           } else {
             EqualNullSafe eq = (EqualNullSafe) filter;
             if (eq.value() == null) {
-              return isNull(unquote(eq.attribute()));
+              return new Tuple<>(false, isNull(unquote(eq.attribute())));
             } else {
-              return handleEqual(unquote(eq.attribute()), eq.value());
+              return new Tuple<>(false, handleEqual(unquote(eq.attribute()), eq.value()));
             }
           }
 
         case IN:
-          In inFilter = (In) filter;
-          return in(
-              unquote(inFilter.attribute()),
-              Stream.of(inFilter.values())
-                  .filter(Objects::nonNull)
-                  .map(SparkFilters::convertLiteral)
-                  .collect(Collectors.toList()));
+          return handleInFilter((In) filter, schema);
 
         case NOT:
           Not notFilter = (Not) filter;
@@ -183,11 +196,11 @@ public class SparkFilters {
                     Stream.of(childInFilter.values())
                         .map(SparkFilters::convertLiteral)
                         .collect(Collectors.toList()));
-            return and(notNull(childInFilter.attribute()), notIn);
+            return new Tuple<>(false, and(notNull(childInFilter.attribute()), notIn));
           } else if (hasNoInFilter(childFilter)) {
-            Expression child = convert(childFilter);
+            Tuple<Boolean, Expression> child = convert(childFilter);
             if (child != null) {
-              return not(child);
+              return new Tuple<>(false, not(child.getElement2()));
             }
           }
           return null;
@@ -195,10 +208,10 @@ public class SparkFilters {
         case AND:
           {
             And andFilter = (And) filter;
-            Expression left = convert(andFilter.left());
-            Expression right = convert(andFilter.right());
+            Tuple<Boolean, Expression> left = convert(andFilter.left());
+            Tuple<Boolean, Expression> right = convert(andFilter.right());
             if (left != null && right != null) {
-              return and(left, right);
+              return new Tuple<>(false, and(left.getElement2(), right.getElement2()));
             }
             return null;
           }
@@ -206,10 +219,10 @@ public class SparkFilters {
         case OR:
           {
             Or orFilter = (Or) filter;
-            Expression left = convert(orFilter.left());
-            Expression right = convert(orFilter.right());
+            Tuple<Boolean, Expression> left = convert(orFilter.left());
+            Tuple<Boolean, Expression> right = convert(orFilter.right());
             if (left != null && right != null) {
-              return or(left, right);
+              return new Tuple<>(false, or(left.getElement2(), right.getElement2()));
             }
             return null;
           }
@@ -217,15 +230,46 @@ public class SparkFilters {
         case STARTS_WITH:
           {
             StringStartsWith stringStartsWith = (StringStartsWith) filter;
-            return startsWith(unquote(stringStartsWith.attribute()), stringStartsWith.value());
+            return new Tuple<>(
+                false, startsWith(unquote(stringStartsWith.attribute()), stringStartsWith.value()));
           }
       }
     }
-
     return null;
   }
 
-  private static Object convertLiteral(Object value) {
+  @Nullable
+  private static Tuple<Boolean, Expression> handleInFilter(In inFilter, Schema schema) {
+    // TODO :Asif find a more graceful logic to identify rangeIn case
+    if (inFilter.values()[0] instanceof BroadcastedJoinKeysWrapper) {
+      String unquotedName = unquote(inFilter.attribute());
+      Type internalType = schema.findType(unquotedName);
+      // we have a BroadCast variable here. so get elements out of it here itself
+      BroadcastedJoinKeysWrapper bc = (BroadcastedJoinKeysWrapper) inFilter.values()[0];
+      try {
+        return new Tuple<>(true, new BroadcastHRUnboundPredicate<>(unquotedName, bc, internalType));
+      } catch (UncomparableLiteralException ule) {
+        // for now jst log
+        LOG.error("Literals involved in RangeIn pred not comparable", ule);
+        return null;
+      }
+    } else {
+      return new Tuple<>(
+          false,
+          in(
+              unquote(inFilter.attribute()),
+              Stream.of(inFilter.values())
+                  .filter(Objects::nonNull)
+                  .map(SparkFilters::convertLiteral)
+                  .collect(Collectors.toList())));
+    }
+  }
+
+  public static Tuple<Boolean, Expression> convert(Filter filter) {
+    return convert(filter, null);
+  }
+
+  public static Object convertLiteral(Object value) {
     if (value instanceof Timestamp) {
       return DateTimeUtils.fromJavaTimestamp((Timestamp) value);
     } else if (value instanceof Date) {

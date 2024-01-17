@@ -28,9 +28,15 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.source.DummyBroadcastedJoinKeysWrapper;
+import org.apache.iceberg.spark.source.Tuple;
+import org.apache.iceberg.spark.source.broadcastvar.BroadcastHRUnboundPredicate;
+import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.catalyst.bcvar.BroadcastedJoinKeysWrapper;
 import org.apache.spark.sql.sources.And;
 import org.apache.spark.sql.sources.EqualNullSafe;
 import org.apache.spark.sql.sources.EqualTo;
@@ -42,7 +48,12 @@ import org.apache.spark.sql.sources.IsNull;
 import org.apache.spark.sql.sources.LessThan;
 import org.apache.spark.sql.sources.LessThanOrEqual;
 import org.apache.spark.sql.sources.Not;
+
 import org.junit.jupiter.api.Test;
+
+import org.apache.spark.sql.types.DataTypes;
+
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestSparkFilters {
 
@@ -59,62 +70,82 @@ public class TestSparkFilters {
         (quoted, unquoted) -> {
           IsNull isNull = IsNull.apply(quoted);
           Expression expectedIsNull = Expressions.isNull(unquoted);
-          Expression actualIsNull = SparkFilters.convert(isNull);
-          assertThat(actualIsNull.toString())
-              .as("IsNull must match")
-              .isEqualTo(expectedIsNull.toString());
+
+          Tuple<Boolean, Expression> actualIsNullTuple = SparkFilters.convert(isNull);
+          Assert.assertEquals(
+              "IsNull must match",
+              expectedIsNull.toString(),
+              actualIsNullTuple.getElement2().toString());
 
           IsNotNull isNotNull = IsNotNull.apply(quoted);
           Expression expectedIsNotNull = Expressions.notNull(unquoted);
-          Expression actualIsNotNull = SparkFilters.convert(isNotNull);
-          assertThat(actualIsNotNull.toString())
-              .as("IsNotNull must match")
-              .isEqualTo(expectedIsNotNull.toString());
+          Tuple<Boolean, Expression> actualIsNotNullTuple = SparkFilters.convert(isNotNull);
+          Assert.assertEquals(
+              "IsNotNull must match",
+              expectedIsNotNull.toString(),
+              actualIsNotNullTuple.getElement2().toString());
 
           LessThan lt = LessThan.apply(quoted, 1);
           Expression expectedLt = Expressions.lessThan(unquoted, 1);
-          Expression actualLt = SparkFilters.convert(lt);
-          assertThat(actualLt.toString())
-              .as("LessThan must match")
-              .isEqualTo(expectedLt.toString());
+          Tuple<Boolean, Expression> actualLtTup = SparkFilters.convert(lt);
+          Assert.assertEquals(
+              "LessThan must match", expectedLt.toString(), actualLtTup.getElement2().toString());
 
           LessThanOrEqual ltEq = LessThanOrEqual.apply(quoted, 1);
           Expression expectedLtEq = Expressions.lessThanOrEqual(unquoted, 1);
-          Expression actualLtEq = SparkFilters.convert(ltEq);
-          assertThat(actualLtEq.toString())
-              .as("LessThanOrEqual must match")
-              .isEqualTo(expectedLtEq.toString());
+          Tuple<Boolean, Expression> actualLtEqTup = SparkFilters.convert(ltEq);
+          Assert.assertEquals(
+              "LessThanOrEqual must match",
+              expectedLtEq.toString(),
+              actualLtEqTup.getElement2().toString());
 
           GreaterThan gt = GreaterThan.apply(quoted, 1);
           Expression expectedGt = Expressions.greaterThan(unquoted, 1);
-          Expression actualGt = SparkFilters.convert(gt);
-          assertThat(actualGt.toString())
-              .as("GreaterThan must match")
-              .isEqualTo(expectedGt.toString());
+          Tuple<Boolean, Expression> actualGtTp = SparkFilters.convert(gt);
+          Assert.assertEquals(
+              "GreaterThan must match", expectedGt.toString(), actualGtTp.getElement2().toString());
 
           GreaterThanOrEqual gtEq = GreaterThanOrEqual.apply(quoted, 1);
           Expression expectedGtEq = Expressions.greaterThanOrEqual(unquoted, 1);
-          Expression actualGtEq = SparkFilters.convert(gtEq);
-          assertThat(actualGtEq.toString())
-              .as("GreaterThanOrEqual must match")
-              .isEqualTo(expectedGtEq.toString());
+          Tuple<Boolean, Expression> actualGtEqTp = SparkFilters.convert(gtEq);
+          Assert.assertEquals(
+              "GreaterThanOrEqual must match",
+              expectedGtEq.toString(),
+              actualGtEqTp.getElement2().toString());
 
           EqualTo eq = EqualTo.apply(quoted, 1);
           Expression expectedEq = Expressions.equal(unquoted, 1);
-          Expression actualEq = SparkFilters.convert(eq);
-          assertThat(actualEq.toString()).as("EqualTo must match").isEqualTo(expectedEq.toString());
+          Tuple<Boolean, Expression> actualEqTp = SparkFilters.convert(eq);
+          Assert.assertEquals(
+              "EqualTo must match", expectedEq.toString(), actualEqTp.getElement2().toString());
 
           EqualNullSafe eqNullSafe = EqualNullSafe.apply(quoted, 1);
           Expression expectedEqNullSafe = Expressions.equal(unquoted, 1);
-          Expression actualEqNullSafe = SparkFilters.convert(eqNullSafe);
-          assertThat(actualEqNullSafe.toString())
-              .as("EqualNullSafe must match")
-              .isEqualTo(expectedEqNullSafe.toString());
+          Tuple<Boolean, Expression> actualEqNullSafeTp = SparkFilters.convert(eqNullSafe);
+          Assert.assertEquals(
+              "EqualNullSafe must match",
+              expectedEqNullSafe.toString(),
+              actualEqNullSafeTp.getElement2().toString());
 
           In in = In.apply(quoted, new Integer[] {1});
           Expression expectedIn = Expressions.in(unquoted, 1);
-          Expression actualIn = SparkFilters.convert(in);
-          assertThat(actualIn.toString()).as("In must match").isEqualTo(expectedIn.toString());
+          Tuple<Boolean, Expression> actualInTp = SparkFilters.convert(in);
+          Assert.assertEquals(
+              "In must match", expectedIn.toString(), actualInTp.getElement2().toString());
+
+          // test range-in
+          Schema schema = new Schema(required(100, unquoted, Types.IntegerType.get()));
+          BroadcastedJoinKeysWrapper dummyWrapper =
+              new DummyBroadcastedJoinKeysWrapper(DataTypes.IntegerType, new Object[] {1}, 1L);
+          In rangeIn = In.apply(quoted, new Object[] {dummyWrapper});
+          BroadcastHRUnboundPredicate expectedRangeIn =
+              new BroadcastHRUnboundPredicate<>(unquoted, dummyWrapper);
+          Tuple<Boolean, Expression> actualRangeInTup = SparkFilters.convert(rangeIn, schema);
+          Assert.assertEquals(
+              "Range In must match",
+              expectedRangeIn.toStringWithData(),
+              ((BroadcastHRUnboundPredicate) actualRangeInTup.getElement2()).toStringWithData());
+>>>>>>> broadcastvar-push
         });
   }
 
@@ -124,31 +155,69 @@ public class TestSparkFilters {
     Timestamp timestamp = Timestamp.from(instant);
     long epochMicros = ChronoUnit.MICROS.between(Instant.EPOCH, instant);
 
-    Expression instantExpression = SparkFilters.convert(GreaterThan.apply("x", instant));
-    Expression timestampExpression = SparkFilters.convert(GreaterThan.apply("x", timestamp));
+    Tuple<Boolean, Expression> instantExpressionTp =
+        SparkFilters.convert(GreaterThan.apply("x", instant));
+    Tuple<Boolean, Expression> timestampExpressionTp =
+        SparkFilters.convert(GreaterThan.apply("x", timestamp));
     Expression rawExpression = Expressions.greaterThan("x", epochMicros);
 
-    assertThat(timestampExpression.toString())
-        .as("Generated Timestamp expression should be correct")
-        .isEqualTo(rawExpression.toString());
-
-    assertThat(instantExpression.toString())
-        .as("Generated Instant expression should be correct")
-        .isEqualTo(rawExpression.toString());
+    Assert.assertEquals(
+        "Generated Timestamp expression should be correct",
+        rawExpression.toString(),
+        timestampExpressionTp.getElement2().toString());
+    Assert.assertEquals(
+        "Generated Instant expression should be correct",
+        rawExpression.toString(),
+        instantExpressionTp.getElement2().toString());
   }
 
+  @Test
+  public void testTimestampFilterConversionForRangeIn() {
+    Instant instant = Instant.parse("2018-10-18T00:00:57.907Z");
+    Timestamp timestamp = Timestamp.from(instant);
+    long epochMicros = ChronoUnit.MICROS.between(Instant.EPOCH, instant);
+
+    Schema schema = new Schema(required(100, "x", Types.TimestampType.withZone()));
+
+    BroadcastedJoinKeysWrapper dummyWrapper1 =
+        new DummyBroadcastedJoinKeysWrapper(DataTypes.TimestampType, new Object[] {instant}, 1L);
+    Tuple<Boolean, Expression> instantExpressionTp =
+        SparkFilters.convert(In.apply("x", new Object[] {dummyWrapper1}), schema);
+
+    BroadcastedJoinKeysWrapper dummyWrapper2 =
+        new DummyBroadcastedJoinKeysWrapper(DataTypes.TimestampType, new Object[] {timestamp}, 1L);
+    Tuple<Boolean, Expression> timestampExpressionTp =
+        SparkFilters.convert(In.apply("x", new Object[] {dummyWrapper2}), schema);
+
+    BroadcastedJoinKeysWrapper dummyWrapper3 =
+        new DummyBroadcastedJoinKeysWrapper(
+            DataTypes.TimestampType, new Object[] {epochMicros}, 1L);
+    BroadcastHRUnboundPredicate rawExpression =
+        new BroadcastHRUnboundPredicate<>("x", dummyWrapper3);
+
+    Assert.assertEquals(
+        "Generated Timestamp expression should be correct",
+        rawExpression.toStringWithData(),
+        ((BroadcastHRUnboundPredicate) timestampExpressionTp.getElement2()).toStringWithData());
+    Assert.assertEquals(
+        "Generated Instant expression should be correct",
+        rawExpression.toStringWithData(),
+        ((BroadcastHRUnboundPredicate) instantExpressionTp.getElement2()).toStringWithData());
+  }
   @Test
   public void testLocalDateTimeFilterConversion() {
     LocalDateTime ldt = LocalDateTime.parse("2018-10-18T00:00:57");
     long epochMicros =
         ChronoUnit.MICROS.between(LocalDateTime.ofInstant(Instant.EPOCH, ZoneId.of("UTC")), ldt);
 
-    Expression instantExpression = SparkFilters.convert(GreaterThan.apply("x", ldt));
+    Tuple<Boolean, Expression> instantExpressionTuple =
+        SparkFilters.convert(GreaterThan.apply("x", ldt));
     Expression rawExpression = Expressions.greaterThan("x", epochMicros);
 
-    assertThat(instantExpression.toString())
-        .as("Generated Instant expression should be correct")
-        .isEqualTo(rawExpression.toString());
+    Assert.assertEquals(
+        "Generated Instant expression should be correct",
+        rawExpression.toString(),
+        instantExpressionTuple.getElement2().toString());
   }
 
   @Test
@@ -157,33 +226,72 @@ public class TestSparkFilters {
     Date date = Date.valueOf(localDate);
     long epochDay = localDate.toEpochDay();
 
-    Expression localDateExpression = SparkFilters.convert(GreaterThan.apply("x", localDate));
-    Expression dateExpression = SparkFilters.convert(GreaterThan.apply("x", date));
+    Tuple<Boolean, Expression> localDateExpressionTp =
+        SparkFilters.convert(GreaterThan.apply("x", localDate));
+    Tuple<Boolean, Expression> dateExpressionTp =
+        SparkFilters.convert(GreaterThan.apply("x", date));
     Expression rawExpression = Expressions.greaterThan("x", epochDay);
 
-    assertThat(localDateExpression.toString())
-        .as("Generated localdate expression should be correct")
-        .isEqualTo(rawExpression.toString());
+    Assert.assertEquals(
+        "Generated localdate expression should be correct",
+        rawExpression.toString(),
+        localDateExpressionTp.getElement2().toString());
 
-    assertThat(dateExpression.toString())
-        .as("Generated date expression should be correct")
-        .isEqualTo(rawExpression.toString());
+    Assert.assertEquals(
+        "Generated date expression should be correct",
+        rawExpression.toString(),
+        dateExpressionTp.getElement2().toString());
+  }
+
+  @Test
+  public void testDateFilterConversionForRangeIn() {
+    LocalDate localDate = LocalDate.parse("2018-10-18");
+    Date date = Date.valueOf(localDate);
+    long epochDay = localDate.toEpochDay();
+
+    Schema schema = new Schema(required(100, "x", Types.DateType.get()));
+
+    BroadcastedJoinKeysWrapper dummyWrapper1 =
+        new DummyBroadcastedJoinKeysWrapper(DataTypes.DateType, new Object[] {localDate}, 1L);
+    Tuple<Boolean, Expression> localDateExpressionTp =
+        SparkFilters.convert(In.apply("x", new Object[] {dummyWrapper1}), schema);
+
+    BroadcastedJoinKeysWrapper dummyWrapper2 =
+        new DummyBroadcastedJoinKeysWrapper(DataTypes.DateType, new Object[] {date}, 1L);
+    Tuple<Boolean, Expression> dateExpressionTp =
+        SparkFilters.convert(In.apply("x", new Object[] {dummyWrapper2}), schema);
+
+    BroadcastedJoinKeysWrapper dummyWrapper3 =
+        new DummyBroadcastedJoinKeysWrapper(DataTypes.DateType, new Object[] {epochDay}, 1L);
+    BroadcastHRUnboundPredicate rawExpression =
+        new BroadcastHRUnboundPredicate<>("x", dummyWrapper3);
+
+    Assert.assertEquals(
+        "Generated localdate expression should be correct",
+        rawExpression.toStringWithData(),
+        ((BroadcastHRUnboundPredicate) localDateExpressionTp.getElement2()).toStringWithData());
+
+    Assert.assertEquals(
+        "Generated date expression should be correct",
+        rawExpression.toStringWithData(),
+        ((BroadcastHRUnboundPredicate) dateExpressionTp.getElement2()).toStringWithData());
   }
 
   @Test
   public void testNestedInInsideNot() {
     Not filter =
         Not.apply(And.apply(EqualTo.apply("col1", 1), In.apply("col2", new Integer[] {1, 2})));
-    Expression converted = SparkFilters.convert(filter);
-    assertThat(converted).as("Expression should not be converted").isNull();
+    Tuple<Boolean, Expression> converted = SparkFilters.convert(filter);
+    Assert.assertNull("Expression should not be converted", converted);
   }
 
   @Test
   public void testNotIn() {
     Not filter = Not.apply(In.apply("col", new Integer[] {1, 2}));
-    Expression actual = SparkFilters.convert(filter);
+    Tuple<Boolean, Expression> actualTp = SparkFilters.convert(filter);
     Expression expected =
         Expressions.and(Expressions.notNull("col"), Expressions.notIn("col", 1, 2));
-    assertThat(actual.toString()).as("Expressions should match").isEqualTo(expected.toString());
+    Assert.assertEquals(
+        "Expressions should match", expected.toString(), actualTp.getElement2().toString());
   }
 }

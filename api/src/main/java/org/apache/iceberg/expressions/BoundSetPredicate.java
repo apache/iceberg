@@ -26,10 +26,10 @@ public class BoundSetPredicate<T> extends BoundPredicate<T> {
   private static final Joiner COMMA = Joiner.on(", ");
   private final Set<T> literalSet;
 
-  BoundSetPredicate(Operation op, BoundTerm<T> term, Set<T> lits) {
+  public BoundSetPredicate(Operation op, BoundTerm<T> term, Set<T> lits) {
     super(op, term);
     Preconditions.checkArgument(
-        op == Operation.IN || op == Operation.NOT_IN,
+        op == Operation.IN || op == Operation.NOT_IN || op == Operation.RANGE_IN,
         "%s predicate does not support a literal set",
         op);
     this.literalSet = lits;
@@ -74,7 +74,6 @@ public class BoundSetPredicate<T> extends BoundPredicate<T> {
       BoundSetPredicate<?> pred = (BoundSetPredicate<?>) other;
       return literalSet().equals(pred.literalSet());
     }
-
     return false;
   }
 
@@ -85,6 +84,8 @@ public class BoundSetPredicate<T> extends BoundPredicate<T> {
         return term() + " in (" + COMMA.join(literalSet) + ")";
       case NOT_IN:
         return term() + " not in (" + COMMA.join(literalSet) + ")";
+      case RANGE_IN:
+        return term() + " range in (" + COMMA.join(literalSet) + ")";
       default:
         return "Invalid unary predicate: operation = " + op();
     }

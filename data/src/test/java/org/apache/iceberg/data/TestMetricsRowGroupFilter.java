@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.data;
 
-import static org.apache.iceberg.avro.AvroSchemaUtil.convert;
 import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
@@ -37,43 +36,24 @@ import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.expressions.Expressions.truncate;
-import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
-import java.util.UUID;
-import org.apache.avro.generic.GenericData.Record;
-import org.apache.avro.generic.GenericRecordBuilder;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.orc.GenericOrcReader;
-import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.orc.ORC;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetMetricsRowGroupFilter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.types.Types.DoubleType;
-import org.apache.iceberg.types.Types.FloatType;
-import org.apache.iceberg.types.Types.IntegerType;
-import org.apache.iceberg.types.Types.StringType;
-import org.apache.orc.OrcFile;
-import org.apache.orc.Reader;
-import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.io.DelegatingSeekableInputStream;
 import org.apache.parquet.schema.MessageType;
@@ -81,193 +61,15 @@ import org.assertj.core.api.Assertions;
 import org.assertj.core.api.Assumptions;
 import org.junit.Assert;
 import org.junit.Assume;
-import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
-public class TestMetricsRowGroupFilter {
-
-  @Parameterized.Parameters(name = "format = {0}")
-  public static Object[] parameters() {
-    return new Object[] {"parquet", "orc"};
-  }
-
-  private final FileFormat format;
+public class TestMetricsRowGroupFilter extends MetricsRowGroupFilterBase {
 
   public TestMetricsRowGroupFilter(String format) {
-    this.format = FileFormat.fromString(format);
-  }
-
-  private static final Types.StructType structFieldType =
-      Types.StructType.of(Types.NestedField.required(8, "int_field", IntegerType.get()));
-
-  private static final Schema SCHEMA =
-      new Schema(
-          required(1, "id", IntegerType.get()),
-          optional(2, "no_stats_parquet", StringType.get()),
-          required(3, "required", StringType.get()),
-          optional(4, "all_nulls", DoubleType.get()),
-          optional(5, "some_nulls", StringType.get()),
-          optional(6, "no_nulls", StringType.get()),
-          optional(7, "struct_not_null", structFieldType),
-          optional(9, "not_in_file", FloatType.get()),
-          optional(10, "str", StringType.get()),
-          optional(
-              11,
-              "map_not_null",
-              Types.MapType.ofRequired(12, 13, StringType.get(), IntegerType.get())),
-          optional(14, "all_nans", DoubleType.get()),
-          optional(15, "some_nans", FloatType.get()),
-          optional(16, "no_nans", DoubleType.get()),
-          optional(17, "some_double_nans", DoubleType.get()));
-
-  private static final Types.StructType _structFieldType =
-      Types.StructType.of(Types.NestedField.required(8, "_int_field", IntegerType.get()));
-
-  private static final Schema FILE_SCHEMA =
-      new Schema(
-          required(1, "_id", IntegerType.get()),
-          optional(2, "_no_stats_parquet", StringType.get()),
-          required(3, "_required", StringType.get()),
-          optional(4, "_all_nulls", DoubleType.get()),
-          optional(5, "_some_nulls", StringType.get()),
-          optional(6, "_no_nulls", StringType.get()),
-          optional(7, "_struct_not_null", _structFieldType),
-          optional(10, "_str", StringType.get()),
-          optional(14, "_all_nans", Types.DoubleType.get()),
-          optional(15, "_some_nans", FloatType.get()),
-          optional(16, "_no_nans", Types.DoubleType.get()),
-          optional(17, "_some_double_nans", Types.DoubleType.get()));
-
-  private static final String TOO_LONG_FOR_STATS_PARQUET;
-
-  static {
-    StringBuilder sb = new StringBuilder();
-    for (int i = 0; i < 200; i += 1) {
-      sb.append(UUID.randomUUID().toString());
-    }
-    TOO_LONG_FOR_STATS_PARQUET = sb.toString();
-  }
-
-  private static final int INT_MIN_VALUE = 30;
-  private static final int INT_MAX_VALUE = 79;
-
-  private File orcFile = null;
-  private MessageType parquetSchema = null;
-  private BlockMetaData rowGroupMetadata = null;
-
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
-
-  @Before
-  public void createInputFile() throws IOException {
-    switch (format) {
-      case ORC:
-        createOrcInputFile();
-        break;
-      case PARQUET:
-        createParquetInputFile();
-        break;
-      default:
-        throw new UnsupportedOperationException(
-            "Row group filter tests not supported for " + format);
-    }
-  }
-
-  public void createOrcInputFile() throws IOException {
-    this.orcFile = temp.newFile();
-    Assert.assertTrue(orcFile.delete());
-
-    OutputFile outFile = Files.localOutput(orcFile);
-    try (FileAppender<GenericRecord> appender =
-        ORC.write(outFile)
-            .schema(FILE_SCHEMA)
-            .createWriterFunc(GenericOrcWriter::buildWriter)
-            .build()) {
-      GenericRecord record = GenericRecord.create(FILE_SCHEMA);
-      // create 50 records
-      for (int i = 0; i < INT_MAX_VALUE - INT_MIN_VALUE + 1; i += 1) {
-        record.setField("_id", INT_MIN_VALUE + i); // min=30, max=79, num-nulls=0
-        record.setField(
-            "_no_stats_parquet",
-            TOO_LONG_FOR_STATS_PARQUET); // value longer than 4k will produce no stats
-        // in Parquet, but will produce stats for ORC
-        record.setField("_required", "req"); // required, always non-null
-        record.setField("_all_nulls", null); // never non-null
-        record.setField("_some_nulls", (i % 10 == 0) ? null : "some"); // includes some null values
-        record.setField("_no_nulls", ""); // optional, but always non-null
-        record.setField("_str", i + "str" + i);
-        record.setField("_all_nans", Double.NaN); // never non-nan
-        record.setField("_some_nans", (i % 10 == 0) ? Float.NaN : 2F); // includes some nan values
-        record.setField(
-            "_some_double_nans", (i % 10 == 0) ? Double.NaN : 2D); // includes some nan values
-        record.setField("_no_nans", 3D); // optional, but always non-nan
-
-        GenericRecord structNotNull = GenericRecord.create(_structFieldType);
-        structNotNull.setField("_int_field", INT_MIN_VALUE + i);
-        record.setField("_struct_not_null", structNotNull); // struct with int
-
-        appender.add(record);
-      }
-    }
-
-    InputFile inFile = Files.localInput(orcFile);
-    try (Reader reader =
-        OrcFile.createReader(
-            new Path(inFile.location()), OrcFile.readerOptions(new Configuration()))) {
-      Assert.assertEquals("Should create only one stripe", 1, reader.getStripes().size());
-    }
-
-    orcFile.deleteOnExit();
-  }
-
-  private void createParquetInputFile() throws IOException {
-    File parquetFile = temp.newFile();
-    Assert.assertTrue(parquetFile.delete());
-
-    // build struct field schema
-    org.apache.avro.Schema structSchema = AvroSchemaUtil.convert(_structFieldType);
-
-    OutputFile outFile = Files.localOutput(parquetFile);
-    try (FileAppender<Record> appender = Parquet.write(outFile).schema(FILE_SCHEMA).build()) {
-      GenericRecordBuilder builder = new GenericRecordBuilder(convert(FILE_SCHEMA, "table"));
-      // create 50 records
-      for (int i = 0; i < INT_MAX_VALUE - INT_MIN_VALUE + 1; i += 1) {
-        builder.set("_id", INT_MIN_VALUE + i); // min=30, max=79, num-nulls=0
-        builder.set(
-            "_no_stats_parquet",
-            TOO_LONG_FOR_STATS_PARQUET); // value longer than 4k will produce no stats
-        // in Parquet
-        builder.set("_required", "req"); // required, always non-null
-        builder.set("_all_nulls", null); // never non-null
-        builder.set("_some_nulls", (i % 10 == 0) ? null : "some"); // includes some null values
-        builder.set("_no_nulls", ""); // optional, but always non-null
-        builder.set("_all_nans", Double.NaN); // never non-nan
-        builder.set("_some_nans", (i % 10 == 0) ? Float.NaN : 2F); // includes some nan values
-        builder.set(
-            "_some_double_nans", (i % 10 == 0) ? Double.NaN : 2D); // includes some nan values
-        builder.set("_no_nans", 3D); // optional, but always non-nan
-        builder.set("_str", i + "str" + i);
-
-        Record structNotNull = new Record(structSchema);
-        structNotNull.put("_int_field", INT_MIN_VALUE + i);
-        builder.set("_struct_not_null", structNotNull); // struct with int
-
-        appender.add(builder.build());
-      }
-    }
-
-    InputFile inFile = Files.localInput(parquetFile);
-    try (ParquetFileReader reader = ParquetFileReader.open(parquetInputFile(inFile))) {
-      Assert.assertEquals("Should create only one row group", 1, reader.getRowGroups().size());
-      rowGroupMetadata = reader.getRowGroups().get(0);
-      parquetSchema = reader.getFileMetaData().getSchema();
-    }
-
-    parquetFile.deleteOnExit();
+    super(format);
   }
 
   @Test
@@ -306,43 +108,6 @@ public class TestMetricsRowGroupFilter {
 
     shouldRead = shouldRead(isNull("struct_not_null"));
     Assert.assertTrue("Should read: struct type is not skipped", shouldRead);
-  }
-
-  @Test
-  public void testFloatWithNan() {
-    // NaN's should break Parquet's Min/Max stats we should be reading in all cases
-    boolean shouldRead = shouldRead(greaterThan("some_nans", 1.0));
-    Assert.assertTrue(shouldRead);
-
-    shouldRead = shouldRead(greaterThanOrEqual("some_nans", 1.0));
-    Assert.assertTrue(shouldRead);
-
-    shouldRead = shouldRead(lessThan("some_nans", 3.0));
-    Assert.assertTrue(shouldRead);
-
-    shouldRead = shouldRead(lessThanOrEqual("some_nans", 1.0));
-    Assert.assertTrue(shouldRead);
-
-    shouldRead = shouldRead(equal("some_nans", 2.0));
-    Assert.assertTrue(shouldRead);
-  }
-
-  @Test
-  public void testDoubleWithNan() {
-    boolean shouldRead = shouldRead(greaterThan("some_double_nans", 1.0));
-    Assert.assertTrue("Should read: column with some nans contains target value", shouldRead);
-
-    shouldRead = shouldRead(greaterThanOrEqual("some_double_nans", 1.0));
-    Assert.assertTrue("Should read: column with some nans contains the target value", shouldRead);
-
-    shouldRead = shouldRead(lessThan("some_double_nans", 3.0));
-    Assert.assertTrue("Should read: column with some nans contains target value", shouldRead);
-
-    shouldRead = shouldRead(lessThanOrEqual("some_double_nans", 1.0));
-    Assert.assertTrue("Should read: column with some nans contains target value", shouldRead);
-
-    shouldRead = shouldRead(equal("some_double_nans", 2.0));
-    Assert.assertTrue("Should read: column with some nans contains target value", shouldRead);
   }
 
   @Test
@@ -951,11 +716,11 @@ public class TestMetricsRowGroupFilter {
         .isTrue();
   }
 
-  private boolean shouldRead(Expression expression) {
+  protected boolean shouldRead(Expression expression) {
     return shouldRead(expression, true);
   }
 
-  private boolean shouldRead(Expression expression, boolean caseSensitive) {
+  protected boolean shouldRead(Expression expression, boolean caseSensitive) {
     switch (format) {
       case ORC:
         return shouldReadOrc(expression, caseSensitive);
@@ -967,8 +732,8 @@ public class TestMetricsRowGroupFilter {
     }
   }
 
-  private boolean shouldReadOrc(Expression expression, boolean caseSensitive) {
-    try (CloseableIterable<org.apache.iceberg.data.Record> reader =
+  protected boolean shouldReadOrc(Expression expression, boolean caseSensitive) {
+    try (CloseableIterable<Record> reader =
         ORC.read(Files.localInput(orcFile))
             .project(SCHEMA)
             .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(SCHEMA, fileSchema))
@@ -981,7 +746,7 @@ public class TestMetricsRowGroupFilter {
     }
   }
 
-  private boolean shouldReadParquet(
+  protected boolean shouldReadParquet(
       Expression expression,
       boolean caseSensitive,
       MessageType messageType,
@@ -990,7 +755,7 @@ public class TestMetricsRowGroupFilter {
         .shouldRead(messageType, blockMetaData);
   }
 
-  private org.apache.parquet.io.InputFile parquetInputFile(InputFile inFile) {
+  protected org.apache.parquet.io.InputFile parquetInputFile(InputFile inFile) {
     return new org.apache.parquet.io.InputFile() {
       @Override
       public long getLength() throws IOException {

@@ -24,6 +24,7 @@ import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.UnBoundCreator;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
@@ -130,18 +131,17 @@ enum Timestamps implements Transform<Long, Integer> {
 
     if (pred.isUnaryPredicate()) {
       return Expressions.predicate(pred.op(), fieldName);
-
     } else if (pred.isLiteralPredicate()) {
       UnboundPredicate<Integer> projected =
           ProjectionUtil.truncateLong(fieldName, pred.asLiteralPredicate(), apply);
       return ProjectionUtil.fixInclusiveTimeProjection(projected);
-
     } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.IN) {
       UnboundPredicate<Integer> projected =
           ProjectionUtil.transformSet(fieldName, pred.asSetPredicate(), apply);
       return ProjectionUtil.fixInclusiveTimeProjection(projected);
+    } else if (pred.op() == Expression.Operation.RANGE_IN) {
+      return ((UnBoundCreator) pred).createTransformAppliedUnboundPred(apply, fieldName, true);
     }
-
     return null;
   }
 

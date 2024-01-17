@@ -45,7 +45,8 @@ buildscript {
 }
 
 String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
-String sparkVersionsString = System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")
+String sparkVersionsString = "4.0.0-SNAPSHOT"
+//System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")
 List<String> sparkVersions = sparkVersionsString != null && !sparkVersionsString.isEmpty() ? sparkVersionsString.split(",") : []
 
 try {
@@ -126,7 +127,16 @@ allprojects {
   version = projectVersion
   repositories {
     mavenCentral()
-    mavenLocal()
+    exclusiveContent {
+      forRepository {
+        mavenLocal()
+      }
+      filter {
+        // this repository *only* contains artifacts with group "my.company"
+        includeGroup "org.apache.spark"
+      }
+    }
+
   }
 }
 
@@ -599,6 +609,7 @@ project(':iceberg-delta-lake') {
       integrationImplementation project(path: ':iceberg-hive-metastore')
       integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
       integrationImplementation("org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark.hive35.get()}") {
+
         exclude group: 'org.apache.avro', module: 'avro'
         exclude group: 'org.apache.arrow'
         exclude group: 'org.apache.parquet'

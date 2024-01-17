@@ -23,7 +23,9 @@ import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Map;
+import java.util.NavigableSet;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
@@ -451,6 +453,29 @@ public class StrictMetricsEvaluator {
         }
       }
 
+      return ROWS_MIGHT_NOT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean rangeIn(BoundReference<T> ref, Set<T> literalSetX) {
+      NavigableSet<T> literalSet = (NavigableSet<T>) literalSetX;
+      Integer id = ref.fieldId();
+      Types.NestedField field = struct.field(id);
+      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
+      if (canContainNulls(id) || canContainNaNs(id)) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+      if (lowerBounds != null
+          && lowerBounds.containsKey(id)
+          && upperBounds != null
+          && upperBounds.containsKey(id)) {
+        Supplier<T> lowerBoundsSupplier =
+            () -> Conversions.fromByteBuffer(struct.field(id).type(), lowerBounds.get(id));
+        Supplier<T> upperBoundsSupplier =
+            () -> Conversions.fromByteBuffer(field.type(), upperBounds.get(id));
+        return RangeInPredUtil.isStrictlyInRange(
+            lowerBoundsSupplier, upperBoundsSupplier, literalSet, false);
+      }
       return ROWS_MIGHT_NOT_MATCH;
     }
 

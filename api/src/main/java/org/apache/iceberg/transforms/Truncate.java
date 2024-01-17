@@ -28,6 +28,7 @@ import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.BoundUnaryPredicate;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.UnBoundCreator;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -196,6 +197,8 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
         return ProjectionUtil.truncateInteger(name, pred.asLiteralPredicate(), this);
       } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.IN) {
         return ProjectionUtil.transformSet(name, pred.asSetPredicate(), this);
+      } else if (pred.op() == Expression.Operation.RANGE_IN) {
+        return ((UnBoundCreator) pred).createTransformAppliedUnboundPred(this, name);
       }
       return null;
     }
@@ -255,6 +258,8 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
         return ProjectionUtil.truncateLong(name, pred.asLiteralPredicate(), this);
       } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.IN) {
         return ProjectionUtil.transformSet(name, pred.asSetPredicate(), this);
+      } else if (pred.op() == Expression.Operation.RANGE_IN) {
+        return ((UnBoundCreator) pred).createTransformAppliedUnboundPred(this, name);
       }
       return null;
     }
@@ -348,6 +353,8 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
         }
       } else if (predicate.isSetPredicate() && predicate.op() == Expression.Operation.IN) {
         return ProjectionUtil.transformSet(name, predicate.asSetPredicate(), this);
+      } else if (predicate.op() == Expression.Operation.RANGE_IN) {
+        return ((UnBoundCreator) predicate).createTransformAppliedUnboundPred(this, name);
       }
       return null;
     }
@@ -491,6 +498,10 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
         return ProjectionUtil.truncateDecimal(name, pred.asLiteralPredicate(), this);
       } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.IN) {
         return ProjectionUtil.transformSet(name, pred.asSetPredicate(), this);
+      } else if (pred.op() == Expression.Operation.RANGE_IN) {
+        UnboundPredicate<BigDecimal> projected =
+            ((UnBoundCreator) pred).createTransformAppliedUnboundPred(this, name);
+        return projected;
       }
       return null;
     }

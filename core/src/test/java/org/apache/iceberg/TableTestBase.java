@@ -60,21 +60,21 @@ public class TableTestBase {
   public static final PartitionSpec SPEC =
       PartitionSpec.builderFor(SCHEMA).bucket("data", BUCKETS_NUMBER).build();
 
-  static final DataFile FILE_A =
+  protected static final DataFile FILE_A =
       DataFiles.builder(SPEC)
           .withPath("/path/to/data-a.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("data_bucket=0") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
-  static final DataFile FILE_A2 =
+  protected static final DataFile FILE_A2 =
       DataFiles.builder(SPEC)
           .withPath("/path/to/data-a-2.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("data_bucket=0") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
-  static final DeleteFile FILE_A_DELETES =
+  protected static final DeleteFile FILE_A_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofPositionDeletes()
           .withPath("/path/to/data-a-deletes.parquet")
@@ -83,7 +83,7 @@ public class TableTestBase {
           .withRecordCount(1)
           .build();
   // Equality delete files.
-  static final DeleteFile FILE_A2_DELETES =
+  protected static final DeleteFile FILE_A2_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofEqualityDeletes(1)
           .withPath("/path/to/data-a2-deletes.parquet")
@@ -91,7 +91,7 @@ public class TableTestBase {
           .withPartitionPath("data_bucket=0")
           .withRecordCount(1)
           .build();
-  static final DataFile FILE_B =
+  protected static final DataFile FILE_B =
       DataFiles.builder(SPEC)
           .withPath("/path/to/data-b.parquet")
           .withFileSizeInBytes(10)
@@ -99,7 +99,7 @@ public class TableTestBase {
           .withRecordCount(1)
           .withSplitOffsets(ImmutableList.of(1L))
           .build();
-  static final DeleteFile FILE_B_DELETES =
+  protected static final DeleteFile FILE_B_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofPositionDeletes()
           .withPath("/path/to/data-b-deletes.parquet")
@@ -107,7 +107,7 @@ public class TableTestBase {
           .withPartitionPath("data_bucket=1") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
-  static final DataFile FILE_C =
+  protected static final DataFile FILE_C =
       DataFiles.builder(SPEC)
           .withPath("/path/to/data-c.parquet")
           .withFileSizeInBytes(10)
@@ -115,7 +115,7 @@ public class TableTestBase {
           .withRecordCount(1)
           .withSplitOffsets(ImmutableList.of(2L, 8L))
           .build();
-  static final DeleteFile FILE_C2_DELETES =
+  protected static final DeleteFile FILE_C2_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofEqualityDeletes(1)
           .withPath("/path/to/data-c-deletes.parquet")
@@ -123,7 +123,7 @@ public class TableTestBase {
           .withPartitionPath("data_bucket=2") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
-  static final DataFile FILE_D =
+  protected static final DataFile FILE_D =
       DataFiles.builder(SPEC)
           .withPath("/path/to/data-d.parquet")
           .withFileSizeInBytes(10)
@@ -131,7 +131,7 @@ public class TableTestBase {
           .withRecordCount(1)
           .withSplitOffsets(ImmutableList.of(0L, 3L, 6L))
           .build();
-  static final DeleteFile FILE_D2_DELETES =
+  protected static final DeleteFile FILE_D2_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofEqualityDeletes(1)
           .withPath("/path/to/data-d-deletes.parquet")
@@ -139,7 +139,7 @@ public class TableTestBase {
           .withPartitionPath("data_bucket=3") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
-  static final DataFile FILE_WITH_STATS =
+  protected static final DataFile FILE_WITH_STATS =
       DataFiles.builder(SPEC)
           .withPath("/path/to/data-with-stats.parquet")
           .withMetrics(
@@ -163,7 +163,7 @@ public class TableTestBase {
           .withFileSizeInBytes(350)
           .build();
 
-  static final FileIO FILE_IO = new TestTables.LocalFileIO();
+  protected static final FileIO FILE_IO = new TestTables.LocalFileIO();
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
 

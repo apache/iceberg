@@ -20,6 +20,8 @@ package org.apache.iceberg;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.function.Supplier;
+
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -29,6 +31,8 @@ public class BaseScanTaskGroup<T extends ScanTask> implements ScanTaskGroup<T> {
   private final StructLike groupingKey;
   private final Object[] tasks;
   private transient volatile Collection<T> taskCollection;
+
+  private volatile String[] preferredLocations = new String[0];
 
   public BaseScanTaskGroup(StructLike groupingKey, Collection<T> tasks) {
     Preconditions.checkNotNull(tasks, "tasks cannot be null");
@@ -95,5 +99,14 @@ public class BaseScanTaskGroup<T extends ScanTask> implements ScanTaskGroup<T> {
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this).add("tasks", Joiner.on(", ").join(tasks)).toString();
+  }
+
+  @Override
+  public String[] setIfNeededAndGetPreferredLocations(
+      Supplier<String[]> preferredLocationsEvaluator) {
+    if (this.preferredLocations.length == 0) {
+      this.preferredLocations = preferredLocationsEvaluator.get();
+    }
+    return this.preferredLocations;
   }
 }

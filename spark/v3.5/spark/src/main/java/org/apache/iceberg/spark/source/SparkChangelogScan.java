@@ -34,8 +34,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.Scan;
@@ -59,6 +61,8 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
   // lazy variables
   private List<ScanTaskGroup<ChangelogScanTask>> taskGroups = null;
   private StructType expectedSparkType = null;
+
+  private volatile Broadcast<Table> tableBroadcast = null;
 
   SparkChangelogScan(
       SparkSession spark,
@@ -102,6 +106,8 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
 
   @Override
   public Batch toBatch() {
+    Broadcast<Table> tableBroadcastLocal = this.initTableMetadataBroadcast();
+
     return new SparkBatch(
         sparkContext,
         table,
@@ -109,7 +115,24 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
         EMPTY_GROUPING_KEY_TYPE,
         taskGroups(),
         expectedSchema,
-        hashCode());
+        hashCode(),
+        tableBroadcastLocal);
+  }
+
+  private Broadcast<Table> initTableMetadataBroadcast() {
+    Broadcast<Table> tableBroadcastLocal = this.tableBroadcast;
+    if (tableBroadcastLocal == null) {
+      synchronized (this) {
+        if (this.tableBroadcast == null) {
+          // broadcast the table metadata as input partitions will be sent to executors
+          tableBroadcastLocal = sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
+          this.tableBroadcast = tableBroadcastLocal;
+        } else {
+          tableBroadcastLocal = this.tableBroadcast;
+        }
+      }
+    }
+    return tableBroadcastLocal;
   }
 
   private List<ScanTaskGroup<ChangelogScanTask>> taskGroups() {

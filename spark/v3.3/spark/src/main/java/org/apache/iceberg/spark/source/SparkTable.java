@@ -306,9 +306,9 @@ public class SparkTable
     Expression deleteExpr = Expressions.alwaysTrue();
 
     for (Filter filter : filters) {
-      Expression expr = SparkFilters.convert(filter);
-      if (expr != null) {
-        deleteExpr = Expressions.and(deleteExpr, expr);
+      Tuple<Boolean, Expression> exprTuple = SparkFilters.convert(filter);
+      if (exprTuple != null) {
+        deleteExpr = Expressions.and(deleteExpr, exprTuple.getElement2());
       } else {
         return false;
       }
@@ -364,8 +364,8 @@ public class SparkTable
 
   @Override
   public void deleteWhere(Filter[] filters) {
-    Expression deleteExpr = SparkFilters.convert(filters);
-
+    Tuple<Expression, Expression> deleteExprTuple = SparkFilters.convert(filters);
+    Expression deleteExpr = deleteExprTuple.getElement2();
     if (deleteExpr == Expressions.alwaysFalse()) {
       LOG.info("Skipping the delete operation as the condition is always false");
       return;

@@ -22,8 +22,10 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Map;
+import java.util.NavigableSet;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Binder;
@@ -34,6 +36,7 @@ import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.expressions.RangeInPredUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Type;
@@ -57,9 +60,18 @@ public class ParquetMetricsRowGroupFilter {
   }
 
   public ParquetMetricsRowGroupFilter(Schema schema, Expression unbound, boolean caseSensitive) {
+    this(schema, unbound, caseSensitive, false);
+  }
+
+  public ParquetMetricsRowGroupFilter(
+      Schema schema, Expression expr, boolean caseSensitive, boolean boundAlready) {
     this.schema = schema;
     StructType struct = schema.asStruct();
-    this.expr = Binder.bind(struct, Expressions.rewriteNot(unbound), caseSensitive);
+    if (boundAlready) {
+      this.expr = expr;
+    } else {
+      this.expr = Binder.bind(struct, Expressions.rewriteNot(expr), caseSensitive);
+    }
   }
 
   /**
@@ -426,6 +438,39 @@ public class ParquetMetricsRowGroupFilter {
         }
       }
 
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean rangeIn(BoundReference<T> ref, Set<T> literalSetX) {
+      NavigableSet<T> literalSet = (NavigableSet<T>) literalSetX;
+      int id = ref.fieldId();
+      // When filtering nested types notNull() is implicit filter passed even though complex
+      // filters aren't pushed down in Parquet. Leave all nested column type filters to be
+      // evaluated post scan.
+      if (schema.findType(id) instanceof Type.NestedType) {
+        return ROWS_MIGHT_MATCH;
+      }
+      Long valueCount = valueCounts.get(id);
+      if (valueCount == null) {
+        // the column is not present and is all nulls
+        return ROWS_CANNOT_MATCH;
+      }
+      Statistics<?> colStats = stats.get(id);
+      if (colStats != null && !colStats.isEmpty()) {
+        if (allNulls(colStats, valueCount)) {
+          return ROWS_CANNOT_MATCH;
+        }
+
+        if (minMaxUndefined(colStats)) {
+          return ROWS_MIGHT_MATCH;
+        }
+        Supplier<T> lowerBoundsSupplier = () -> min(colStats, id);
+
+        Supplier<T> upperBoundsSupplier = () -> max(colStats, id);
+        return RangeInPredUtil.isInRange(
+            lowerBoundsSupplier, upperBoundsSupplier, literalSet, true);
+      }
       return ROWS_MIGHT_MATCH;
     }
 

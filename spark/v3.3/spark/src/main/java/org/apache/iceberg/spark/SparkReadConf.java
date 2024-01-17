@@ -52,6 +52,8 @@ public class SparkReadConf {
   private final Map<String, String> readOptions;
   private final SparkConfParser confParser;
 
+  private final boolean isLocalityEnabled;
+
   public SparkReadConf(SparkSession spark, Table table, Map<String, String> readOptions) {
     this(spark, table, null, readOptions);
   }
@@ -63,13 +65,14 @@ public class SparkReadConf {
     this.branch = branch;
     this.readOptions = readOptions;
     this.confParser = new SparkConfParser(spark, table, readOptions);
+    this.isLocalityEnabled = initLocalityEnabled(table, readOptions);
   }
 
   public boolean caseSensitive() {
     return SparkUtil.caseSensitive(spark);
   }
 
-  public boolean localityEnabled() {
+  private static boolean initLocalityEnabled(Table table, Map<String, String> readOptions) {
     boolean defaultValue = Util.mayHaveBlockLocations(table.io(), table.location());
     return confParser
         .booleanConf()
@@ -77,6 +80,10 @@ public class SparkReadConf {
         .sessionConf(SparkSQLProperties.LOCALITY)
         .defaultValue(defaultValue)
         .parse();
+  }
+
+  public boolean localityEnabled() {
+    return this.isLocalityEnabled;
   }
 
   public Long snapshotId() {

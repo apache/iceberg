@@ -76,7 +76,8 @@ if (null != System.getProperty("allVersions")) {
 
 List<String> knownFlinkVersions = System.getProperty("knownFlinkVersions").split(",")
 String flinkVersionsString = System.getProperty("flinkVersions") != null ? System.getProperty("flinkVersions") : System.getProperty("defaultFlinkVersions")
-List<String> flinkVersions = flinkVersionsString != null && !flinkVersionsString.isEmpty() ? flinkVersionsString.split(",") : []
+List<String> flinkVersions = Collections.emptyList()
+       // flinkVersionsString != null && !flinkVersionsString.isEmpty() ? flinkVersionsString.split(",") : []
 
 if (!knownFlinkVersions.containsAll(flinkVersions)) {
   throw new GradleException("Found unsupported Flink versions: " + (flinkVersions - knownFlinkVersions))

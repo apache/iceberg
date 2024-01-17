@@ -327,6 +327,10 @@ public class ExpressionUtil {
         case NOT_STARTS_WITH:
           return new UnboundPredicate<>(
               pred.op(), pred.term(), (T) sanitize(pred.literal(), now, today));
+        case RANGE_IN:
+          // Do not attempt sanitizing range in pred
+          return new UnboundPredicate<>(
+              pred.op(), pred.term(), (T) "Broadcast Var {not deserializing}");
         case IN:
         case NOT_IN:
           Iterable<String> iter =
@@ -464,6 +468,8 @@ public class ExpressionUtil {
                           .collect(Collectors.toList()))
                   .stream()
                   .collect(Collectors.joining(", ", "(", ")"));
+        case RANGE_IN:
+          return term + " RANGE IN (BroadcastVar {not deserializing})";
         case NOT_IN:
           return term
               + " NOT IN "

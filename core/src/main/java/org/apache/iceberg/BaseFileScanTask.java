@@ -40,6 +40,11 @@ public class BaseFileScanTask extends BaseContentScanTask<FileScanTask, DataFile
     this.deletes = deletes != null ? deletes : new DeleteFile[0];
   }
 
+  public BaseFileScanTask(BaseFileScanTask copySource, ResidualEvaluator residuals) {
+    super(copySource, residuals);
+    this.deletes = copySource.deletes;
+  }
+
   @Override
   protected FileScanTask self() {
     return this;
@@ -48,6 +53,11 @@ public class BaseFileScanTask extends BaseContentScanTask<FileScanTask, DataFile
   @Override
   protected FileScanTask newSplitTask(FileScanTask parentTask, long offset, long length) {
     return new SplitScanTask(offset, length, parentTask, deletesSizeBytes());
+  }
+
+  public BaseFileScanTask addFilter(Expression newNonPartitionFilter) {
+    ResidualEvaluator newResidualEval = this.getNewResidual(newNonPartitionFilter);
+    return new BaseFileScanTask(this, newResidualEval);
   }
 
   @Override

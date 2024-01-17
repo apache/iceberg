@@ -237,6 +237,11 @@ class ExpressionToSearchArgument
   }
 
   @Override
+  public <T> Action rangeIn(Bound<T> expr, Set<T> literalSet) {
+    return this.in(expr, literalSet);
+  }
+
+  @Override
   public <T> Action notIn(Bound<T> expr, Set<T> literalSet) {
     // NOTE: ORC uses SQL semantics for Search Arguments, so an expression like
     // `col NOT IN {1}` will exclude rows where col is NULL along with rows where col = 1

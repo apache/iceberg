@@ -64,9 +64,18 @@ public class ParquetBloomRowGroupFilter {
   }
 
   public ParquetBloomRowGroupFilter(Schema schema, Expression unbound, boolean caseSensitive) {
+    this(schema, unbound, caseSensitive, false);
+  }
+
+  public ParquetBloomRowGroupFilter(
+      Schema schema, Expression expr, boolean caseSensitive, boolean boundAlready) {
     this.schema = schema;
     StructType struct = schema.asStruct();
-    this.expr = Binder.bind(struct, Expressions.rewriteNot(unbound), caseSensitive);
+    if (boundAlready) {
+      this.expr = expr;
+    } else {
+      this.expr = Binder.bind(struct, Expressions.rewriteNot(expr), caseSensitive);
+    }
     this.caseSensitive = caseSensitive;
   }
 
@@ -245,6 +254,11 @@ public class ParquetBloomRowGroupFilter {
     public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
       // bloom filter is based on hash and cannot eliminate based on notIn
       return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean rangeIn(BoundReference<T> ref, Set<T> literalSet) {
+      return in(ref, literalSet);
     }
 
     @Override

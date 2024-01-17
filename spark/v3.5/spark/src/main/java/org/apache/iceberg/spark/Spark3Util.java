@@ -663,6 +663,9 @@ public class Spark3Util {
           return sqlString(pred.term()) + " IN (" + sqlString(pred.literals()) + ")";
         case NOT_IN:
           return sqlString(pred.term()) + " NOT IN (" + sqlString(pred.literals()) + ")";
+        case RANGE_IN:
+          return sqlString(pred.term())
+              + " RANGE IN ( not printing set of literals due to cost of desr)";
         default:
           throw new UnsupportedOperationException("Cannot convert predicate to SQL: " + pred);
       }

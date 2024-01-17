@@ -190,7 +190,9 @@ class ManifestGroup {
 
     DeleteFileIndex deleteFiles = deleteIndexBuilder.scanMetrics(scanMetrics).build();
 
-    boolean dropStats = ManifestReader.dropStats(columns);
+    // TODO: Asif : check what the heck is the logic behind dropping of stats.
+    // fix the hard coded false
+    boolean dropStats = false; // ManifestReader.dropStats(columns);
     if (!deleteFiles.isEmpty()) {
       select(ManifestReader.withStatsColumns(columns));
     }

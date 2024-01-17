@@ -42,6 +42,13 @@ abstract class BaseContentScanTask<ThisT extends ContentScanTask<F>, F extends C
     this.residuals = residuals;
   }
 
+  BaseContentScanTask(BaseContentScanTask<?, F> copySource, ResidualEvaluator residuals) {
+    this.file = copySource.file;
+    this.schemaString = copySource.schemaString;
+    this.specString = copySource.specString;
+    this.residuals = residuals;
+  }
+
   protected abstract ThisT self();
 
   protected abstract ThisT newSplitTask(ThisT parentTask, long offset, long length);
@@ -49,6 +56,11 @@ abstract class BaseContentScanTask<ThisT extends ContentScanTask<F>, F extends C
   @Override
   public F file() {
     return file;
+  }
+
+
+  protected ResidualEvaluator getNewResidual(Expression newNonPartitionFilter) {
+    return this.residuals.addFilter(newNonPartitionFilter);
   }
 
   protected Schema schema() {
@@ -62,7 +74,6 @@ abstract class BaseContentScanTask<ThisT extends ContentScanTask<F>, F extends C
 
     return schema;
   }
-
   @Override
   public PartitionSpec spec() {
     if (spec == null) {

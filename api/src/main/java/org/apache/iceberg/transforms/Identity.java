@@ -20,7 +20,9 @@ package org.apache.iceberg.transforms;
 
 import java.io.ObjectStreamException;
 import org.apache.iceberg.expressions.BoundPredicate;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.UnBoundCreator;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
@@ -131,6 +133,8 @@ class Identity<T> implements Transform<T, T> {
     } else if (predicate.isLiteralPredicate()) {
       return Expressions.predicate(
           predicate.op(), name, predicate.asLiteralPredicate().literal().value());
+    } else if (predicate.op() == Expression.Operation.RANGE_IN) {
+      return ((UnBoundCreator) predicate).createUnboundPred(name);
     } else if (predicate.isSetPredicate()) {
       return Expressions.predicate(predicate.op(), name, predicate.asSetPredicate().literalSet());
     }

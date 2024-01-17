@@ -116,8 +116,9 @@ class IncrementalDataTableScan extends DataTableScan {
     if (manifests.size() > 1 && shouldPlanWithExecutor()) {
       manifestGroup = manifestGroup.planWith(planExecutor());
     }
-
-    return manifestGroup.planFiles();
+    CloseableIterable<FileScanTask> temp = manifestGroup.planFiles();
+    this.setFiles(Lists.newArrayList(temp));
+    return temp;
   }
 
   @Override

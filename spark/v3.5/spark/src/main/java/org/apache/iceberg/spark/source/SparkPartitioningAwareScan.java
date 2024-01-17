@@ -21,12 +21,14 @@ package org.apache.iceberg.spark.source;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.apache.iceberg.BaseFileScanTask;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionScanTask;
 import org.apache.iceberg.PartitionSpec;
@@ -37,10 +39,12 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.types.Types.StructType;
@@ -61,7 +65,7 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkPartitioningAwareScan.class);
 
-  private final Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>> scan;
+  private volatile Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>> scan;
   private final boolean preserveDataGrouping;
 
   private Set<PartitionSpec> specs = null; // lazy cache of scanned specs
@@ -113,6 +117,48 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
       return new KeyGroupedPartitioning(groupingKeyTransforms(), taskGroups().size());
     }
   }
+
+  protected List<T> addAsDataFilters(
+      List<Expression> partitionBasedBroadcastVar, List<Expression> nonPartitionBasedBroadcastVar) {
+    Set<Integer> specIds = Sets.newHashSet();
+
+    for (PartitionSpec spec : specs()) {
+      specIds.add(spec.specId());
+    }
+    List<Expression> netBroadcastDataFiltersToAdd = new LinkedList<>(nonPartitionBasedBroadcastVar);
+    boolean shouldAddPartitionBroadcastVar = false;
+    if (!partitionBasedBroadcastVar.isEmpty()) {
+      shouldAddPartitionBroadcastVar =
+          specIds.stream()
+              .anyMatch(
+                  id ->
+                      table().specs().get(id).fields().stream()
+                          .anyMatch(pf -> !pf.transform().isIdentity()));
+    }
+    if (shouldAddPartitionBroadcastVar) {
+      netBroadcastDataFiltersToAdd.addAll(partitionBasedBroadcastVar);
+    }
+    if (!netBroadcastDataFiltersToAdd.isEmpty()) {
+      // No point adding the non broadcast partition filters as data filters as their data is not
+      // sorted
+      Expression newCombinedDataFilters =
+          netBroadcastDataFiltersToAdd.stream().reduce(Expressions.alwaysTrue(), Expressions::and);
+      // re-evaluate the scan so that new data filters are added
+      this.addFilterExpression(newCombinedDataFilters);
+      this.scan =
+          (Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>>)
+              this.scan.filter(newCombinedDataFilters);
+      // add the new data filters to existing file tasks
+      return tasks().stream()
+          .parallel()
+          .map(fs -> (T) ((BaseFileScanTask) fs).addFilter(newCombinedDataFilters))
+          .collect(Collectors.toList());
+    } else {
+      return tasks();
+    }
+  }
+
+  protected void incrementTaskCreationVersion() {}
 
   @Override
   protected StructType groupingKeyType() {
@@ -195,6 +241,7 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
 
   @Override
   protected synchronized List<ScanTaskGroup<T>> taskGroups() {
+    this.incrementTaskCreationVersion();
     if (taskGroups == null) {
       if (groupingKeyType().fields().isEmpty()) {
         CloseableIterable<ScanTaskGroup<T>> plannedTaskGroups =

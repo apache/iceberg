@@ -21,7 +21,10 @@ package org.apache.iceberg.spark.source;
 import static org.apache.iceberg.Files.localOutput;
 import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
 import static org.apache.iceberg.PlanningMode.LOCAL;
+
 import static org.assertj.core.api.Assertions.assertThat;
+
+import static org.apache.spark.sql.types.DataTypes.IntegerType;
 
 import java.io.File;
 import java.io.IOException;
@@ -69,6 +72,7 @@ import org.apache.spark.sql.sources.And;
 import org.apache.spark.sql.sources.EqualTo;
 import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.sources.GreaterThan;
+import org.apache.spark.sql.sources.In;
 import org.apache.spark.sql.sources.LessThan;
 import org.apache.spark.sql.sources.Not;
 import org.apache.spark.sql.sources.StringStartsWith;
@@ -204,6 +208,31 @@ public class TestFilteredScan {
       assertEqualsSafe(
           SCHEMA.asStruct(), expected(i), read(unpartitioned.toString(), vectorized, "id = " + i));
     }
+  }
+
+  @TestTemplate
+  public void testUnpartitionedIDFiltersUsingRangeIn() {
+    CaseInsensitiveStringMap options =
+        new CaseInsensitiveStringMap(ImmutableMap.of("path", unpartitioned.toString()));
+    SparkScanBuilder builder =
+        new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
+
+    Filter filter =
+        In.apply(
+            "id",
+            new Object[] {
+              new DummyBroadcastedJoinKeysWrapper(
+                  IntegerType, new Object[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, 1)
+            });
+    pushFilters(builder, filter);
+    Batch scan = builder.build().toBatch();
+
+    InputPartition[] partitions = scan.planInputPartitions();
+    Assert.assertEquals("Should only create one task for a small file", 1, partitions.length);
+
+    // validate row filtering
+    assertEqualsSafe(
+        SCHEMA.asStruct(), expected(9), read(unpartitioned.toString(), vectorized, "id = " + 9));
   }
 
   @TestTemplate

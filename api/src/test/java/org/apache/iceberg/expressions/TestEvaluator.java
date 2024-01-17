@@ -38,7 +38,6 @@ import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.predicate;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
-import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -53,39 +52,7 @@ import org.apache.iceberg.types.Types.StructType;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-public class TestEvaluator {
-  private static final StructType STRUCT =
-      StructType.of(
-          required(13, "x", Types.IntegerType.get()),
-          required(14, "y", Types.DoubleType.get()),
-          optional(15, "z", Types.IntegerType.get()),
-          optional(
-              16,
-              "s1",
-              Types.StructType.of(
-                  Types.NestedField.required(
-                      17,
-                      "s2",
-                      Types.StructType.of(
-                          Types.NestedField.required(
-                              18,
-                              "s3",
-                              Types.StructType.of(
-                                  Types.NestedField.required(
-                                      19,
-                                      "s4",
-                                      Types.StructType.of(
-                                          Types.NestedField.required(
-                                              20, "i", Types.IntegerType.get()))))))))),
-          optional(
-              21,
-              "s5",
-              Types.StructType.of(
-                  Types.NestedField.required(
-                      22,
-                      "s6",
-                      Types.StructType.of(
-                          Types.NestedField.required(23, "f", Types.FloatType.get()))))));
+public class TestEvaluator extends BaseTestEvaluator {
 
   @Test
   public void testLessThan() {

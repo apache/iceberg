@@ -309,6 +309,8 @@ class ProjectionUtil {
         return projected;
 
       case IN:
+
+        // TODO: Asif Unify it with DateFixer
         Set<Integer> fixedSet = Sets.newHashSet();
         boolean hasNegativeValue = false;
         for (Literal<Integer> lit : projected.literals()) {

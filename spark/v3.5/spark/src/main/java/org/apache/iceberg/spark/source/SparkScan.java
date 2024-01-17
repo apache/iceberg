@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -74,6 +75,7 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.metric.CustomMetric;
 import org.apache.spark.sql.connector.metric.CustomTaskMetric;
@@ -101,6 +103,8 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   // lazy variables
   private StructType readSchema;
 
+  private volatile Broadcast<Table> tableBroadcast = null;
+
   SparkScan(
       SparkSession spark,
       Table table,
@@ -116,7 +120,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     this.readConf = readConf;
     this.caseSensitive = readConf.caseSensitive();
     this.expectedSchema = expectedSchema;
-    this.filterExpressions = filters != null ? filters : Collections.emptyList();
+    this.filterExpressions = filters != null ? filters : new LinkedList<>();
     this.branch = readConf.branch();
     this.scanReportSupplier = scanReportSupplier;
   }
@@ -138,7 +142,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   }
 
   protected List<Expression> filterExpressions() {
-    return filterExpressions;
+    return Collections.unmodifiableList(filterExpressions);
   }
 
   protected Types.StructType groupingKeyType() {
@@ -149,14 +153,33 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
   @Override
   public Batch toBatch() {
+    Broadcast<Table> tableBroadcastLocal = this.initTableMetadataBroadcast();
     return new SparkBatch(
-        sparkContext, table, readConf, groupingKeyType(), taskGroups(), expectedSchema, hashCode());
+        sparkContext, table, readConf, groupingKeyType(), taskGroups(), expectedSchema,
+        hashCode(), tableBroadcastLocal);
+  }
+
+  private Broadcast<Table> initTableMetadataBroadcast() {
+    Broadcast<Table> tableBroadcastLocal = this.tableBroadcast;
+    if (tableBroadcastLocal == null) {
+      synchronized (this) {
+        if (this.tableBroadcast == null) {
+          // broadcast the table metadata as input partitions will be sent to executors
+          tableBroadcastLocal = sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
+          this.tableBroadcast = tableBroadcastLocal;
+        } else {
+          tableBroadcastLocal = this.tableBroadcast;
+        }
+      }
+    }
+    return tableBroadcastLocal;
   }
 
   @Override
   public MicroBatchStream toMicroBatchStream(String checkpointLocation) {
+    Broadcast<Table> tableBroadcast = this.initTableMetadataBroadcast();
     return new SparkMicroBatchStream(
-        sparkContext, table, readConf, expectedSchema, checkpointLocation);
+        sparkContext, table, readConf, expectedSchema, checkpointLocation, tableBroadcast);
   }
 
   @Override
@@ -170,6 +193,10 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   @Override
   public Statistics estimateStatistics() {
     return estimateStatistics(SnapshotUtil.latestSnapshot(table, branch));
+  }
+
+  protected void addFilterExpression(Expression filter) {
+    this.filterExpressions.add(filter);
   }
 
   protected Statistics estimateStatistics(Snapshot snapshot) {

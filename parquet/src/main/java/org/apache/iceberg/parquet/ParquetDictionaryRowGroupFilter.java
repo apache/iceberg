@@ -20,7 +20,9 @@ package org.apache.iceberg.parquet;
 
 import java.io.IOException;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.NavigableSet;
 import java.util.Set;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
@@ -58,9 +60,18 @@ public class ParquetDictionaryRowGroupFilter {
   }
 
   public ParquetDictionaryRowGroupFilter(Schema schema, Expression unbound, boolean caseSensitive) {
+    this(schema, unbound, caseSensitive, false);
+  }
+
+  public ParquetDictionaryRowGroupFilter(
+      Schema schema, Expression expr, boolean caseSensitive, boolean boundAlready) {
     this.schema = schema;
     StructType struct = schema.asStruct();
-    this.expr = Binder.bind(struct, Expressions.rewriteNot(unbound), caseSensitive);
+    if (boundAlready) {
+      this.expr = expr;
+    } else {
+      this.expr = Binder.bind(struct, Expressions.rewriteNot(expr), caseSensitive);
+    }
   }
 
   /**
@@ -80,7 +91,7 @@ public class ParquetDictionaryRowGroupFilter {
 
   private class EvalVisitor extends BoundExpressionVisitor<Boolean> {
     private DictionaryPageReadStore dictionaries = null;
-    private Map<Integer, Set<?>> dictCache = null;
+    private Map<Integer, NavigableSet<?>> dictCache = null;
     private Map<Integer, Boolean> isFallback = null;
     private Map<Integer, Boolean> mayContainNulls = null;
     private Map<Integer, ColumnDescriptor> cols = null;
@@ -369,6 +380,38 @@ public class ParquetDictionaryRowGroupFilter {
     }
 
     @Override
+    public <T> Boolean rangeIn(BoundReference<T> ref, Set<T> literalSetX) {
+      NavigableSet<T> literalSet = (NavigableSet<T>) literalSetX;
+      int id = ref.fieldId();
+
+      Boolean hasNonDictPage = isFallback.get(id);
+      if (hasNonDictPage == null || hasNonDictPage) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      NavigableSet<T> dictionary = dict(id, ref.comparator());
+
+      // we need to find out the smaller set to iterate through
+      NavigableSet<T> firstSet;
+      NavigableSet<T> secondSet;
+      if (literalSet.isEmpty() || dictionary.isEmpty()) {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      Comparator<? super T> comparator = literalSet.comparator();
+
+      if (literalSet.size() < dictionary.size()) {
+        firstSet = literalSet;
+        secondSet = dictionary.tailSet(firstSet.first(), true);
+      } else {
+        firstSet = dictionary;
+        secondSet = literalSet.tailSet(firstSet.first(), true);
+      }
+
+      return anyMatch(firstSet, secondSet, comparator);
+    }
+
+    @Override
     public <T> Boolean startsWith(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
@@ -407,12 +450,12 @@ public class ParquetDictionaryRowGroupFilter {
     }
 
     @SuppressWarnings("unchecked")
-    private <T> Set<T> dict(int id, Comparator<T> comparator) {
+    private <T> NavigableSet<T> dict(int id, Comparator<T> comparator) {
       Preconditions.checkNotNull(dictionaries, "Dictionary is required");
 
-      Set<?> cached = dictCache.get(id);
+      NavigableSet<?> cached = dictCache.get(id);
       if (cached != null) {
-        return (Set<T>) cached;
+        return (NavigableSet<T>) cached;
       }
 
       ColumnDescriptor col = cols.get(id);
@@ -431,7 +474,7 @@ public class ParquetDictionaryRowGroupFilter {
         throw new RuntimeIOException("Failed to create reader for dictionary page");
       }
 
-      Set<T> dictSet = Sets.newTreeSet(comparator);
+      NavigableSet<T> dictSet = Sets.newTreeSet(comparator);
 
       for (int i = 0; i <= dict.getMaxId(); i++) {
         switch (col.getPrimitiveType().getPrimitiveTypeName()) {
@@ -472,6 +515,41 @@ public class ParquetDictionaryRowGroupFilter {
     public <T> Boolean handleNonReference(Bound<T> term) {
       return ROWS_MIGHT_MATCH;
     }
+  }
+
+  private static <T> Boolean anyMatch(
+      NavigableSet<T> firstSet, NavigableSet<T> secondSet, Comparator<? super T> comparator) {
+    Iterator<T> firstIter = firstSet.iterator();
+    Iterator<T> secondIter = secondSet.iterator();
+    boolean moveFirst = true;
+    boolean moveSecond = true;
+    T firstEle = null;
+    T secondEle = null;
+    while ((!moveFirst || firstIter.hasNext()) && (!moveSecond || secondIter.hasNext())) {
+      if (moveFirst) {
+        firstEle = firstIter.next();
+        moveFirst = false;
+      }
+      if (moveSecond) {
+        secondEle = secondIter.next();
+        moveSecond = false;
+      }
+      if (firstEle != null && secondEle != null) {
+        int compare = comparator.compare(firstEle, secondEle);
+        if (compare == 0) {
+          return ROWS_MIGHT_MATCH;
+        } else if (compare < 0) {
+          moveFirst = true;
+        } else {
+          moveSecond = true;
+        }
+      } else {
+        moveFirst = firstEle == null;
+        moveSecond = secondEle == null;
+      }
+    }
+    // value sets are disjoint so rows don't match
+    return ROWS_CANNOT_MATCH;
   }
 
   private static boolean mayContainNull(ColumnChunkMetaData meta) {

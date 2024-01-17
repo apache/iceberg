@@ -20,9 +20,13 @@ package org.apache.iceberg.transforms;
 
 import java.io.Serializable;
 import java.nio.ByteBuffer;
+import java.util.Collection;
+import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SerializableFunction;
@@ -204,4 +208,25 @@ public interface Transform<S, T> extends Serializable {
   default String dedupName() {
     return toString();
   }
+
+  Function<List<Object>, Collection<Object>> dateFixer =
+      input -> {
+        boolean hasNegativeValue = false;
+        Set<Object> fixedSet = Sets.newHashSet();
+        for (Object val : input) {
+          if (val != null) {
+            Integer value = (Integer) val;
+            fixedSet.add(value);
+            if (value < 0) {
+              hasNegativeValue = true;
+              fixedSet.add(value + 1);
+            }
+          }
+        }
+        if (hasNegativeValue) {
+          return fixedSet;
+        } else {
+          return input;
+        }
+      };
 }

@@ -652,6 +652,9 @@ public class Spark3Util {
           return pred.ref().name() + " NOT LIKE '" + pred.literal().value() + "%'";
         case IN:
           return pred.ref().name() + " IN (" + sqlString(pred.literals()) + ")";
+        case RANGE_IN:
+          return pred.ref().name()
+              + " RANGE IN ( not printing set of literals due to cost of desr)";
         case NOT_IN:
           return pred.ref().name() + " NOT IN (" + sqlString(pred.literals()) + ")";
         default:

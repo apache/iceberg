@@ -49,6 +49,7 @@ class SparkBatch implements Batch {
   private final boolean caseSensitive;
   private final boolean localityEnabled;
   private final int scanHashCode;
+  private final Broadcast<Table> tableBroadcast;
 
   SparkBatch(
       JavaSparkContext sparkContext,
@@ -57,7 +58,8 @@ class SparkBatch implements Batch {
       Types.StructType groupingKeyType,
       List<? extends ScanTaskGroup<?>> taskGroups,
       Schema expectedSchema,
-      int scanHashCode) {
+      int scanHashCode,
+      Broadcast<Table> tableBroadcast) {
     this.sparkContext = sparkContext;
     this.table = table;
     this.branch = readConf.branch();
@@ -68,13 +70,11 @@ class SparkBatch implements Batch {
     this.caseSensitive = readConf.caseSensitive();
     this.localityEnabled = readConf.localityEnabled();
     this.scanHashCode = scanHashCode;
+    this.tableBroadcast = tableBroadcast;
   }
 
   @Override
   public InputPartition[] planInputPartitions() {
-    // broadcast the table metadata as input partitions will be sent to executors
-    Broadcast<Table> tableBroadcast =
-        sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
     String expectedSchemaString = SchemaParser.toJson(expectedSchema);
 
     InputPartition[] partitions = new InputPartition[taskGroups.size()];

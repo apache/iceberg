@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Supplier;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -28,7 +29,9 @@ import org.apache.iceberg.util.TableScanUtil;
 
 public class BaseCombinedScanTask implements CombinedScanTask {
   private final FileScanTask[] tasks;
+  private String[] preferredLocations = new String[0];
   private transient volatile List<FileScanTask> taskList = null;
+
 
   public BaseCombinedScanTask(FileScanTask... tasks) {
     Preconditions.checkNotNull(tasks, "tasks cannot be null");
@@ -79,5 +82,14 @@ public class BaseCombinedScanTask implements CombinedScanTask {
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this).add("tasks", Joiner.on(", ").join(tasks)).toString();
+  }
+
+  @Override
+  public String[] setIfNeededAndGetPreferredLocations(
+      Supplier<String[]> preferredLocationsEvaluator) {
+    if (this.preferredLocations.length == 0) {
+      this.preferredLocations = preferredLocationsEvaluator.get();
+    }
+    return this.preferredLocations;
   }
 }

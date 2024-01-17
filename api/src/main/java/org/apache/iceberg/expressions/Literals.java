@@ -42,7 +42,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.NaNUtil;
 
-class Literals {
+public class Literals {
   private Literals() {}
 
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
@@ -56,7 +56,7 @@ class Literals {
    * @return a Literal for the given value
    */
   @SuppressWarnings("unchecked")
-  static <T> Literal<T> from(T value) {
+  public static <T> Literal<T> from(T value) {
     Preconditions.checkNotNull(value, "Cannot create expression literal from null");
     Preconditions.checkArgument(!NaNUtil.isNaN(value), "Cannot create expression literal from NaN");
 
@@ -88,12 +88,12 @@ class Literals {
   }
 
   @SuppressWarnings("unchecked")
-  static <T> AboveMax<T> aboveMax() {
+  public static <T> AboveMax<T> aboveMax() {
     return AboveMax.INSTANCE;
   }
 
   @SuppressWarnings("unchecked")
-  static <T> BelowMin<T> belowMin() {
+  public static <T> BelowMin<T> belowMin() {
     return BelowMin.INSTANCE;
   }
 
