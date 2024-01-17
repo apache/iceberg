@@ -251,9 +251,14 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     } catch (NoSuchObjectException e) {
       throw new NoSuchTableException("Table does not exist: %s", from);
 
-    } catch (AlreadyExistsException e) {
-      throw new org.apache.iceberg.exceptions.AlreadyExistsException(
-          "Table already exists: %s", to);
+    } catch (InvalidOperationException e) {
+      if (e.getMessage() != null
+          && e.getMessage().contains(String.format("new table %s already exists", to))) {
+        throw new org.apache.iceberg.exceptions.AlreadyExistsException(
+            "Table already exists: %s", to);
+      } else {
+        throw new RuntimeException("Failed to rename " + from + " to " + to, e);
+      }
 
     } catch (TException e) {
       throw new RuntimeException("Failed to rename " + from + " to " + to, e);
