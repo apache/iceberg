@@ -53,7 +53,7 @@ github:
     - bitsondatadev
     - ajantha-bhat
   ghp_branch: gh-pages
-  ghp_path: ~
+  ghp_path: /
 
 notifications:
     commits:      commits@iceberg.apache.org
