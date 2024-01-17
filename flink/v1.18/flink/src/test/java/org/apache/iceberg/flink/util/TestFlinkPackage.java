@@ -35,15 +35,19 @@ public class TestFlinkPackage {
   public void testDefaultVersion() {
     // It's difficult to reproduce a reflection error in a unit test, so we just inject a mocked
     // fault to test the default logic
+
+    // First make sure we're not caching a version result from a previous test
+    FlinkPackage.setVersion(null);
     try (MockedStatic<FlinkPackage> mockedStatic = Mockito.mockStatic(FlinkPackage.class)) {
       mockedStatic.when(FlinkPackage::getVersionFromJar).thenThrow(RuntimeException.class);
       mockedStatic.when(FlinkPackage::version).thenCallRealMethod();
       Assert.assertEquals(FlinkPackage.FLINK_UNKNOWN_VERSION, FlinkPackage.version());
     }
-
+    FlinkPackage.setVersion(null);
     try (MockedStatic<FlinkPackage> mockedStatic = Mockito.mockStatic(FlinkPackage.class)) {
       mockedStatic.when(FlinkPackage::getVersionFromJar).thenReturn(null);
       mockedStatic.when(FlinkPackage::version).thenCallRealMethod();
+      FlinkPackage.setVersion(null);
       Assert.assertEquals(FlinkPackage.FLINK_UNKNOWN_VERSION, FlinkPackage.version());
     }
   }
