@@ -50,10 +50,7 @@ case class CreateV2ViewExec(
   override lazy val output: Seq[Attribute] = Nil
 
   override protected def run(): Seq[InternalRow] = {
-    val qe = session.sessionState.executePlan(query, CommandExecutionMode.SKIP)
-    qe.assertAnalyzed()
-    val analyzedPlan = qe.analyzed
-
+    val analyzedPlan = session.sessionState.executePlan(query, CommandExecutionMode.SKIP).analyzed
     val identifier = Spark3Util.toV1TableIdentifier(ident)
 
     if (userSpecifiedColumns.nonEmpty) {
@@ -71,17 +68,17 @@ case class CreateV2ViewExec(
 
     val viewSchema = aliasPlan(analyzedPlan, userSpecifiedColumns).schema
     val columnAliases = userSpecifiedColumns.map(_._1).toArray
-    val columnComments = userSpecifiedColumns.map(_._2.getOrElse("")).toArray
+    val columnComments = userSpecifiedColumns.map(_._2.orNull).toArray
 
-    val currentCatalog = session.sessionState.catalogManager.currentCatalog.name
+    val currentCatalogName = session.sessionState.catalogManager.currentCatalog.name
+    val currentCatalog = if (!catalog.name().equals(currentCatalogName)) currentCatalogName else null
     val currentNamespace = session.sessionState.catalogManager.currentNamespace
 
     val engineVersion = "Spark " + org.apache.spark.SPARK_VERSION
-    val createEngineVersion = Some(engineVersion)
     val newProperties = properties ++
-      comment.map(ViewCatalog.PROP_COMMENT -> _) ++
-      createEngineVersion.map(ViewCatalog.PROP_CREATE_ENGINE_VERSION -> _) +
-      (ViewCatalog.PROP_ENGINE_VERSION -> engineVersion)
+      comment.map(ViewCatalog.PROP_COMMENT -> _) +
+      (ViewCatalog.PROP_CREATE_ENGINE_VERSION -> engineVersion,
+        ViewCatalog.PROP_ENGINE_VERSION -> engineVersion)
 
     if (replace) {
       // CREATE OR REPLACE VIEW

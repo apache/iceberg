@@ -87,8 +87,8 @@ public class SparkView implements org.apache.spark.sql.connector.catalog.View {
 
   @Override
   public String[] queryColumnNames() {
-    return properties().containsKey(QUERY_COLUMN_NAMES)
-        ? properties().get(QUERY_COLUMN_NAMES).split(", ")
+    return icebergView.properties().containsKey(QUERY_COLUMN_NAMES)
+        ? icebergView.properties().get(QUERY_COLUMN_NAMES).split(", ")
         : new String[0];
   }
 

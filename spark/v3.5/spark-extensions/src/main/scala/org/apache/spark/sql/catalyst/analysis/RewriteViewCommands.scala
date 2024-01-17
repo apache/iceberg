@@ -43,9 +43,9 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
     case DropView(ResolvedView(resolved), ifExists) =>
       DropIcebergView(resolved, ifExists)
 
-    case CreateView(r@ResolvedView(_), userSpecifiedColumns, comment, properties,
+    case CreateView(ResolvedView(resolved), userSpecifiedColumns, comment, properties,
     originalText, query, allowExisting, replace) =>
-      CreateIcebergView(r, userSpecifiedColumns, comment, properties, originalText,
+      CreateIcebergView(resolved, userSpecifiedColumns, comment, properties, originalText,
         query, allowExisting, replace)
   }
 

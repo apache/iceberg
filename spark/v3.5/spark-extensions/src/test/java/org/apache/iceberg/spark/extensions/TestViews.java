@@ -339,7 +339,6 @@ public class TestViews extends SparkExtensionsTestBase {
     insertRows(10);
     String tempView = "tempViewBeingReferencedInAnotherView";
     String viewReferencingTempView = "viewReferencingTempView";
-    String sql = String.format("SELECT id FROM %s", tempView);
 
     sql("CREATE TEMPORARY VIEW %s AS SELECT id FROM %s WHERE id <= 5", tempView, tableName);
 
@@ -893,6 +892,9 @@ public class TestViews extends SparkExtensionsTestBase {
         "CREATE VIEW %s (new_id COMMENT 'ID', new_data COMMENT 'DATA') AS SELECT id, data FROM %s WHERE id <= 3",
         viewName, tableName);
 
+    assertThat(viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName)).properties())
+        .containsEntry("queryColumnNames", "id, data");
+
     assertThat(sql("SELECT new_id FROM %s", viewName))
         .hasSize(3)
         .containsExactlyInAnyOrder(row(1), row(2), row(3));
@@ -906,6 +908,19 @@ public class TestViews extends SparkExtensionsTestBase {
     assertThat(sql("SELECT new_id FROM %s", viewName))
         .hasSize(3)
         .containsExactlyInAnyOrder(row(1), row(2), row(3));
+  }
+
+  @Test
+  public void createViewWithDuplicateQueryColumnNames() {
+    String viewName = "viewWithDuplicateQueryColumnNames";
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CREATE VIEW %s (new_id , new_data) AS SELECT id, id FROM %s WHERE id <= 3",
+                    viewName, tableName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("The column `id` already exists");
   }
 
   private void insertRows(int numRows) throws NoSuchTableException {

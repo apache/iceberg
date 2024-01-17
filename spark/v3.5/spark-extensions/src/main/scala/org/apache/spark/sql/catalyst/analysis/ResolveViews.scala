@@ -19,6 +19,7 @@
 
 package org.apache.spark.sql.catalyst.analysis
 
+import org.apache.iceberg.spark.Spark3Util
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.FunctionIdentifier
 import org.apache.spark.sql.catalyst.expressions.Alias
@@ -27,6 +28,7 @@ import org.apache.spark.sql.catalyst.parser.ParseException
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.catalyst.plans.logical.SubqueryAlias
+import org.apache.spark.sql.catalyst.plans.logical.views.CreateIcebergView
 import org.apache.spark.sql.catalyst.plans.logical.views.ResolvedV2View
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.trees.CurrentOrigin
@@ -38,6 +40,7 @@ import org.apache.spark.sql.connector.catalog.LookupCatalog
 import org.apache.spark.sql.connector.catalog.View
 import org.apache.spark.sql.connector.catalog.ViewCatalog
 import org.apache.spark.sql.errors.QueryCompilationErrors
+import org.apache.spark.sql.execution.command.ViewHelper
 
 case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with LookupCatalog {
 
@@ -59,6 +62,10 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
       loadView(catalog, ident)
         .map(_ => ResolvedV2View(catalog.asViewCatalog, ident))
         .getOrElse(u)
+
+    case c@CreateIcebergView(ResolvedIdentifier(_: ViewCatalog, ident), _, _, _, _, query, _, _) =>
+      ViewHelper.verifyTemporaryObjectsNotExists(false, Spark3Util.toV1TableIdentifier(ident), query, Seq.empty)
+      c
   }
 
   def loadView(catalog: CatalogPlugin, ident: Identifier): Option[View] = catalog match {
@@ -151,7 +158,7 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
   }
 
 
-  implicit class ViewHelper(plugin: CatalogPlugin) {
+  implicit class IcebergViewHelper(plugin: CatalogPlugin) {
     def asViewCatalog: ViewCatalog = plugin match {
       case viewCatalog: ViewCatalog =>
         viewCatalog
