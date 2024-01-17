@@ -62,7 +62,7 @@ import org.apache.spark.sql.types.ObjectType;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.Assertions
+
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 
@@ -101,7 +101,7 @@ public class TestSparkV2Filters {
           Predicate isNull = new Predicate("IS_NULL", attrOnly);
           Expression expectedIsNull = Expressions.isNull(unquoted);
           Tuple<Boolean, Expression> actualIsNullTuple = SparkV2Filters.convert(isNull);
-          assertEquals(
+          Assert.assertEquals(
               "IsNull must match", expectedIsNull.toString(),
               actualIsNullTuple.getElement2().toString());
 
@@ -801,7 +801,7 @@ public class TestSparkV2Filters {
     Predicate invalid = new Predicate("<", attrAndAttr);
     Predicate andWithInvalidLeft = new And(invalid, eq1);
     Tuple<Boolean, Expression> convertedAndTuple = SparkV2Filters.convert(andWithInvalidLeft);
-    assertThat(convertedAndTuple).isNull();
+    Assertions.assertThat(convertedAndTuple).isNull();
 
     Predicate or = new Or(lt1, eq1);
     Expression expectedOr = Expressions.or(expectedLt1, expectedEq1);
