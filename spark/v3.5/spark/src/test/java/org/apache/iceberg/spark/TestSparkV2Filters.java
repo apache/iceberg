@@ -241,7 +241,7 @@ public class TestSparkV2Filters {
           Predicate invalid = new Predicate("<", attrAndAttr);
           Predicate andWithInvalidLeft = new And(invalid, eq1);
           Tuple<Boolean, Expression> convertedAndTuple = SparkV2Filters.convert(andWithInvalidLeft);
-          assertThat(null).as("And must match").isEqualTo(convertedAndTuple);
+          assertThat(convertedAndTuple).as("And must match").isNull();
 
           Predicate or = new Or(lt1, eq1);
           Expression expectedOr = Expressions.or(expectedLt1, expectedEq1);
@@ -251,7 +251,7 @@ public class TestSparkV2Filters {
 
           Predicate orWithInvalidLeft = new Or(invalid, eq1);
           Tuple<Boolean, Expression> convertedOrTuple = SparkV2Filters.convert(orWithInvalidLeft);
-          Assert.assertEquals("Or must match", convertedOrTuple, null);
+          assertThat(convertedOrTuple).as("Or must match").isNull();
 
           Predicate not = new Not(lt1);
           Expression expectedNot = Expressions.not(expectedLt1);
@@ -459,7 +459,7 @@ public class TestSparkV2Filters {
 
     Not filter = new Not(new And(equal, in));
     Tuple<Boolean, Expression> convertedTuple = SparkV2Filters.convert(filter);
-    Assert.assertNull("Expression should not be converted", convertedTuple);
+    assertThat(convertedTuple).as("Expression should not be converted").isNull();
   }
 
   @Test
@@ -670,7 +670,7 @@ public class TestSparkV2Filters {
     Predicate predicate = new Predicate("=", expressions(udf, literalValue));
 
     Tuple<Boolean, Expression> icebergExprTuple = SparkV2Filters.convert(predicate);
-    Assertions.assertThat(icebergExprTuple).isNull();
+    assertThat(icebergExprTuple).isNull();
   }
 
   private <T> void testUDF(
@@ -786,7 +786,7 @@ public class TestSparkV2Filters {
     Predicate invalid = new Predicate("<", attrAndAttr);
     Predicate andWithInvalidLeft = new And(invalid, eq1);
     Tuple<Boolean, Expression> convertedAndTuple = SparkV2Filters.convert(andWithInvalidLeft);
-    Assertions.assertThat(convertedAndTuple).isNull();
+    assertThat(convertedAndTuple).isNull();
 
     Predicate or = new Or(lt1, eq1);
     Expression expectedOr = Expressions.or(expectedLt1, expectedEq1);

@@ -228,7 +228,8 @@ public class TestFilteredScan {
     Batch scan = builder.build().toBatch();
 
     InputPartition[] partitions = scan.planInputPartitions();
-    Assert.assertEquals("Should only create one task for a small file", 1, partitions.length);
+    assertThat(partitions.length).as("Should only create one task for a small file").
+        isEqualTo(1);
 
     // validate row filtering
     assertEqualsSafe(
