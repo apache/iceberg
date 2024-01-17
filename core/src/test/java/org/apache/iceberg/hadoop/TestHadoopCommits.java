@@ -30,18 +30,22 @@ import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.LockManager;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -450,5 +454,40 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     tableWithHighRetries.refresh();
     Assertions.assertThat(Lists.newArrayList(tableWithHighRetries.snapshots()))
         .hasSize(threadsCount * numberOfCommitedFilesPerThread);
+  }
+
+  @Test
+  public void testCommitFailedToAcquire() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Configuration conf = new Configuration();
+    LockManager lockManager = new NoLockManager();
+    HadoopTableOperations tops = 
+            new HadoopTableOperations(new Path(table.location()), new HadoopFileIO(conf), conf, lockManager);
+    tops.refresh();
+    BaseTable baseTable = (BaseTable) table;
+    TableMetadata meta2 = baseTable.operations().current();
+    Assertions.assertThatThrownBy(() -> tops.commit(tops.current(), meta2))
+            .isInstanceOf(CommitFailedException.class)
+            .hasMessageStartingWith("Failed to acquire lock on file");
+  }
+
+  // Always returns false when trying to acquire
+  static class NoLockManager implements LockManager {
+  
+    @Override
+    public boolean acquire(String entityId, String ownerId) {
+      return false;
+    }
+  
+    @Override
+    public boolean release(String entityId, String ownerId) {
+      return false;
+    }
+  
+    @Override
+    public void close() throws Exception {}
+  
+    @Override
+    public void initialize(Map<String, String> properties) {}
   }
 }
