@@ -41,6 +41,7 @@ import org.apache.iceberg.GenericBlobMetadata;
 import org.apache.iceberg.GenericStatisticsFile;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PartitionStatisticsFile;
 import org.apache.iceberg.ReachableFileUtil;
 import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.Table;
@@ -528,6 +529,75 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
         .as("Deleted files")
         .containsExactly(statsLocation.toURI().toString());
     Assertions.assertThat(statsLocation.exists()).as("stats file should be deleted").isFalse();
+  }
+
+  @Test
+  public void testRemoveOrphanFilesWithPartitionStatisticFiles() throws Exception {
+    sql(
+        "CREATE TABLE %s USING iceberg "
+            + "TBLPROPERTIES('format-version'='2') "
+            + "AS SELECT 10 int, 'abc' data",
+        tableName);
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+
+    String partitionStatsLocation = ProcedureUtil.statsFileLocation(table.location());
+    PartitionStatisticsFile partitionStatisticsFile =
+        ProcedureUtil.writePartitionStatsFile(
+            table.currentSnapshot().snapshotId(), partitionStatsLocation, table.io());
+
+    commitPartitionStatsTxn(table, partitionStatisticsFile);
+
+    // wait to ensure files are old enough
+    waitUntilAfter(System.currentTimeMillis());
+    Timestamp currentTimestamp = Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis()));
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.remove_orphan_files("
+                + "table => '%s',"
+                + "older_than => TIMESTAMP '%s')",
+            catalogName, tableIdent, currentTimestamp);
+    Assertions.assertThat(output).as("Should be no orphan files").isEmpty();
+
+    Assertions.assertThat(new File(partitionStatsLocation))
+        .as("partition stats file should exist")
+        .exists();
+
+    removePartitionStatsTxn(table, partitionStatisticsFile);
+
+    output =
+        sql(
+            "CALL %s.system.remove_orphan_files("
+                + "table => '%s',"
+                + "older_than => TIMESTAMP '%s')",
+            catalogName, tableIdent, currentTimestamp);
+    Assertions.assertThat(output).as("Should be orphan files").hasSize(1);
+    Assertions.assertThat(Iterables.getOnlyElement(output))
+        .as("Deleted files")
+        .containsExactly("file:" + partitionStatsLocation);
+    Assertions.assertThat(new File(partitionStatsLocation))
+        .as("partition stats file should be deleted")
+        .doesNotExist();
+  }
+
+  private static void removePartitionStatsTxn(
+      Table table, PartitionStatisticsFile partitionStatisticsFile) {
+    Transaction transaction = table.newTransaction();
+    transaction
+        .updatePartitionStatistics()
+        .removePartitionStatistics(partitionStatisticsFile.snapshotId())
+        .commit();
+    transaction.commitTransaction();
+  }
+
+  private static void commitPartitionStatsTxn(
+      Table table, PartitionStatisticsFile partitionStatisticsFile) {
+    Transaction transaction = table.newTransaction();
+    transaction
+        .updatePartitionStatistics()
+        .setPartitionStatistics(partitionStatisticsFile)
+        .commit();
+    transaction.commitTransaction();
   }
 
   @Test
