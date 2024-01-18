@@ -26,7 +26,6 @@ import com.emc.object.s3.bean.ListObjectsResult;
 import com.emc.object.s3.bean.S3Object;
 import com.emc.object.s3.request.ListObjectsRequest;
 import com.emc.object.s3.request.PutObjectRequest;
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -64,7 +63,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class EcsCatalog extends BaseMetastoreCatalog
-    implements Closeable, SupportsNamespaces, Configurable<Object> {
+    implements SupportsNamespaces, Configurable<Object> {
 
   /** Suffix of table metadata object */
   private static final String TABLE_OBJECT_SUFFIX = ".table";
@@ -111,6 +110,7 @@ public class EcsCatalog extends BaseMetastoreCatalog
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(client::destroy);
     closeableGroup.addCloseable(fileIO);
+    closeableGroup.addCloseable(metricsReporter());
     closeableGroup.setSuppressCloseFailure(true);
   }
 
