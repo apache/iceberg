@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.snowflake;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -45,7 +44,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class SnowflakeCatalog extends BaseMetastoreCatalog
-    implements Closeable, SupportsNamespaces, Configurable<Object> {
+    implements SupportsNamespaces, Configurable<Object> {
   private static final String DEFAULT_CATALOG_NAME = "snowflake_catalog";
   private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
   // Specifies the name of a Snowflake's partner application to connect through JDBC.
@@ -157,6 +156,7 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
     this.catalogProperties = properties;
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(snowflakeClient);
+    closeableGroup.addCloseable(metricsReporter());
     closeableGroup.setSuppressCloseFailure(true);
   }
 
