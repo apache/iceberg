@@ -593,10 +593,7 @@ public class TestViews extends SparkExtensionsTestBase {
   @Test
   public void fullFunctionIdentifierNotRewrittenLoadFailure() {
     String viewName = "fullFunctionIdentifierNotRewrittenLoadFailure";
-    String sql =
-        String.format(
-            "SELECT spark_catalog.system.bucket(100, 'a') AS bucket_result, 'a' AS value",
-            catalogName);
+    String sql = "SELECT spark_catalog.system.bucket(100, 'a') AS bucket_result, 'a' AS value";
 
     // avoid namespace failures
     sql("USE spark_catalog");
@@ -783,6 +780,106 @@ public class TestViews extends SparkExtensionsTestBase {
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
             String.format("Cannot create view default.%s because it already exists", target));
+  }
+
+  @Test
+  public void dropView() {
+    String viewName = "viewToBeDropped";
+    String sql = String.format("SELECT id FROM %s", tableName);
+
+    ViewCatalog viewCatalog = viewCatalog();
+
+    TableIdentifier identifier = TableIdentifier.of(NAMESPACE, viewName);
+    viewCatalog
+        .buildView(identifier)
+        .withQuery("spark", sql)
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema(sql))
+        .create();
+
+    assertThat(viewCatalog.viewExists(identifier)).isTrue();
+
+    sql("DROP VIEW %s", viewName);
+    assertThat(viewCatalog.viewExists(identifier)).isFalse();
+  }
+
+  @Test
+  public void dropNonExistingView() {
+    assertThatThrownBy(() -> sql("DROP VIEW non_existing"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("The view %s.%s cannot be found", NAMESPACE, "non_existing");
+  }
+
+  @Test
+  public void dropViewIfExists() {
+    String viewName = "viewToBeDropped";
+    String sql = String.format("SELECT id FROM %s", tableName);
+
+    ViewCatalog viewCatalog = viewCatalog();
+
+    TableIdentifier identifier = TableIdentifier.of(NAMESPACE, viewName);
+    viewCatalog
+        .buildView(identifier)
+        .withQuery("spark", sql)
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema(sql))
+        .create();
+
+    assertThat(viewCatalog.viewExists(identifier)).isTrue();
+
+    sql("DROP VIEW IF EXISTS %s", viewName);
+    assertThat(viewCatalog.viewExists(identifier)).isFalse();
+
+    assertThatNoException().isThrownBy(() -> sql("DROP VIEW IF EXISTS %s", viewName));
+  }
+
+  /** The purpose of this test is mainly to make sure that normal view deletion isn't messed up */
+  @Test
+  public void dropGlobalTempView() {
+    String globalTempView = "globalViewToBeDropped";
+    sql("CREATE GLOBAL TEMPORARY VIEW %s AS SELECT id FROM %s", globalTempView, tableName);
+    assertThat(v1SessionCatalog().getGlobalTempView(globalTempView).isDefined()).isTrue();
+
+    sql("DROP VIEW global_temp.%s", globalTempView);
+    assertThat(v1SessionCatalog().getGlobalTempView(globalTempView).isDefined()).isFalse();
+  }
+
+  /** The purpose of this test is mainly to make sure that normal view deletion isn't messed up */
+  @Test
+  public void dropTempView() {
+    String tempView = "tempViewToBeDropped";
+    sql("CREATE TEMPORARY VIEW %s AS SELECT id FROM %s", tempView, tableName);
+    assertThat(v1SessionCatalog().getTempView(tempView).isDefined()).isTrue();
+
+    sql("DROP VIEW %s", tempView);
+    assertThat(v1SessionCatalog().getTempView(tempView).isDefined()).isFalse();
+  }
+
+  /** The purpose of this test is mainly to make sure that normal view deletion isn't messed up */
+  @Test
+  public void dropV1View() {
+    String v1View = "v1ViewToBeDropped";
+    sql("USE spark_catalog");
+    sql("CREATE NAMESPACE IF NOT EXISTS %s", NAMESPACE);
+    sql("CREATE TABLE %s (id INT, data STRING)", tableName);
+    sql("CREATE VIEW %s AS SELECT id FROM %s", v1View, tableName);
+    sql("USE %s", catalogName);
+    assertThat(
+            v1SessionCatalog()
+                .tableExists(new org.apache.spark.sql.catalyst.TableIdentifier(v1View)))
+        .isTrue();
+
+    sql("DROP VIEW spark_catalog.%s.%s", NAMESPACE, v1View);
+    assertThat(
+            v1SessionCatalog()
+                .tableExists(new org.apache.spark.sql.catalyst.TableIdentifier(v1View)))
+        .isFalse();
+  }
+
+  private SessionCatalog v1SessionCatalog() {
+    return spark.sessionState().catalogManager().v1SessionCatalog();
   }
 
   private String viewName(String viewName) {
