@@ -20,5 +20,5 @@ set -e
 
 ./dev/setup_env.sh
 
-mkdocs gh-deploy --dirty # --remote-branch asf-site
+mkdocs gh-deploy --remote-name "${REMOTE}"  # --remote-branch asf-site
 
