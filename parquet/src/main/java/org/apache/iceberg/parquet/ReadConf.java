@@ -108,8 +108,7 @@ class ReadConf<T> {
 
     LOG.info("Filters pushed status, alreadyPushed: {}", alreadyPushedFilters);
 
-
-    if(!alreadyPushedFilters) {
+    if (!alreadyPushedFilters) {
       LOG.warn("Filters not pushed yet, checking on row groups");
 
       ParquetMetricsRowGroupFilter statsFilter = null;
@@ -124,13 +123,13 @@ class ReadConf<T> {
       for (int i = 0; i < shouldSkip.length; i += 1) {
         BlockMetaData rowGroup = rowGroups.get(i);
         startRowPositions[i] =
-                offsetToStartPos == null ? 0 : offsetToStartPos.get(rowGroup.getStartingPos());
+            offsetToStartPos == null ? 0 : offsetToStartPos.get(rowGroup.getStartingPos());
         boolean shouldRead =
-                filter == null
-                        || (statsFilter.shouldRead(typeWithIds, rowGroup)
-                        && dictFilter.shouldRead(
+            filter == null
+                || (statsFilter.shouldRead(typeWithIds, rowGroup)
+                    && dictFilter.shouldRead(
                         typeWithIds, rowGroup, reader.getDictionaryReader(rowGroup))
-                        && bloomFilter.shouldRead(
+                    && bloomFilter.shouldRead(
                         typeWithIds, rowGroup, reader.getBloomFilterDataReader(rowGroup)));
         this.shouldSkip[i] = !shouldRead;
         if (shouldRead) {
