@@ -1076,7 +1076,7 @@ The types below are not currently valid for bucketing, and so are not hashed. Ho
 | **`float`**        | `hashLong(doubleToLongBits(double(v))` [4]| `1.0F` ￫ `-142385009`, `0.0F` ￫ `1669671676`, `-0.0F` ￫ `1669671676` |
 | **`double`**       | `hashLong(doubleToLongBits(v))`        [4]| `1.0D` ￫ `-142385009`, `0.0D` ￫ `1669671676`, `-0.0D` ￫ `1669671676` |
 
-For multiple arguments, hashBytes() is applied on the concatenated byte representation of each argument:
+For multiple arguments, `hashBytes()` is applied on the concatenated byte representation of each argument:
 
 | Primitive type       | Bytes representation                           |
 |----------------------|------------------------------------------------|
@@ -1094,7 +1094,7 @@ For multiple arguments, hashBytes() is applied on the concatenated byte represen
 | **`fixed(L)`**       | `v`                                            |
 | **`binary`**         | `v`                                            |
 
-For example, the hash representation of `(a:int, b:string)` will be `hashBytes(concatenation(littleEndianBytes(long(v)), utf8Bytes(b))`
+For example, the hash representation of `(a:int, b:string)` will be `hashBytes(concatenation(littleEndianBytes(long(v)), utf8Bytes(b))`.
 
 
 Notes:
@@ -1156,18 +1156,18 @@ Partition specs are serialized as a JSON object with the following fields:
 
 Each partition field in the fields list is stored as an object. See the table for more detail:
 
-| Transform or Field                                 | JSON representation                                                                                                                                                                                                                                     | Example                                                                                                                                                                                                                   |
-|----------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **`identity`**                                     | `JSON string: "identity"`                                                                                                                                                                                                                               | `"identity"`                                                                                                                                                                                                              |
-| **`bucket[N]`**                                    | `JSON string: "bucket[<N>]"`                                                                                                                                                                                                                            | `"bucket[16]"`                                                                                                                                                                                                            |
-| **`bucket[N]`** (multi-arg bucket [1])             | `JSON string: "bucketV2[<N>]"`                                                                                                                                                                                                                          | `"bucketV2[16]"`                                                                                                                                                                                                          |
-| **`truncate[W]`**                                  | `JSON string: "truncate[<W>]"`                                                                                                                                                                                                                          | `"truncate[20]"`                                                                                                                                                                                                          |
-| **`year`**                                         | `JSON string: "year"`                                                                                                                                                                                                                                   | `"year"`                                                                                                                                                                                                                  |
-| **`month`**                                        | `JSON string: "month"`                                                                                                                                                                                                                                  | `"month"`                                                                                                                                                                                                                 |
-| **`day`**                                          | `JSON string: "day"`                                                                                                                                                                                                                                    | `"day"`                                                                                                                                                                                                                   |
-| **`hour`**                                         | `JSON string: "hour"`                                                                                                                                                                                                                                   | `"hour"`                                                                                                                                                                                                                  |
-| **`Partition Field`** [2]                          | `JSON object: {`<br />&nbsp;&nbsp;`"source-id": <id int>,`<br />&nbsp;&nbsp;`"field-id": <field id int>,`<br />&nbsp;&nbsp;`"name": <name string>,`<br />&nbsp;&nbsp;`"transform": <transform JSON>`<br />`}`                                           | `{`<br />&nbsp;&nbsp;`"source-id": 1,`<br />&nbsp;&nbsp;`"field-id": 1000,`<br />&nbsp;&nbsp;`"name": "id_bucket",`<br />&nbsp;&nbsp;`"transform": "bucket[16]"`<br />`}`                                                 |
-| **`Partition Field with multi-arg transform`** [3] | `JSON object: {`<br />&nbsp;&nbsp;`"source-id": -1,`<br />&nbsp;&nbsp;`"source-ids": <list of ids>,`<br />&nbsp;&nbsp;`"field-id": <field id int>,`<br />&nbsp;&nbsp;`"name": <name string>,`<br />&nbsp;&nbsp;`"transform": <transform JSON>`<br />`}` | `{`<br />&nbsp;&nbsp;`"source-id": -1,`<br />&nbsp;&nbsp;`"source-ids": [1,2],`<br />&nbsp;&nbsp;`"field-id": 1000,`<br />&nbsp;&nbsp;`"name": "id_type_bucket",`<br />&nbsp;&nbsp;`"transform": "bucketV2[16]"`<br />`}` |
+|Transform or Field|JSON representation|Example|
+|--- |--- |--- |
+|**`identity`**|`JSON string: "identity"`|`"identity"`|
+|**`bucket[N]`**|`JSON string: "bucket[<N>]"`|`"bucket[16]"`|
+|**`bucket[N]`** (multi-arg bucket [1])| `JSON string: "bucketV2[<N>]"`                                                                                                                                                                                                                          | `"bucketV2[16]"`                                                                                                                                                                                                          |
+|**`truncate[W]`**|`JSON string: "truncate[<W>]"`|`"truncate[20]"`|
+|**`year`**|`JSON string: "year"`|`"year"`|
+|**`month`**|`JSON string: "month"`|`"month"`|
+|**`day`**|`JSON string: "day"`|`"day"`|
+|**`hour`**|`JSON string: "hour"`|`"hour"`|
+|**`Partition Field`** [2]|`JSON object: {`<br />&nbsp;&nbsp;`"source-id": <id int>,`<br />&nbsp;&nbsp;`"field-id": <field id int>,`<br />&nbsp;&nbsp;`"name": <name string>,`<br />&nbsp;&nbsp;`"transform": <transform JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"source-id": 1,`<br />&nbsp;&nbsp;`"field-id": 1000,`<br />&nbsp;&nbsp;`"name": "id_bucket",`<br />&nbsp;&nbsp;`"transform": "bucket[16]"`<br />`}`|
+|**`Partition Field with multi-arg transform`** [3]|`JSON object: {`<br />&nbsp;&nbsp;`"source-id": -1,`<br />&nbsp;&nbsp;`"source-ids": <list of ids>,`<br />&nbsp;&nbsp;`"field-id": <field id int>,`<br />&nbsp;&nbsp;`"name": <name string>,`<br />&nbsp;&nbsp;`"transform": <transform JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"source-id": -1,`<br />&nbsp;&nbsp;`"source-ids": [1,2],`<br />&nbsp;&nbsp;`"field-id": 1000,`<br />&nbsp;&nbsp;`"name": "id_type_bucket",`<br />&nbsp;&nbsp;`"transform": "bucketV2[16]"`<br />`}`|
 
 In some cases partition specs are stored using only the field list instead of the object format that includes the spec ID, like the deprecated `partition-spec` field in table metadata. The object format should be used unless otherwise noted in this spec.
 
@@ -1177,8 +1177,8 @@ Notes:
 
 1. For multi-arg bucket, the serialized form is `bucketV2[N]` instead of `bucket[N]` to distinguish it from the single-arg bucket transform. Therefore, old readers/writers will identify this transform as an unknown transform, old writer will stop writing the table if it encounters this transform, but old readers would still be able to read the table by scanning all the partitions.
    This makes adding multi-arg transform a forward-compatible change, but not a backward-compatible change.
-2. For partition fields with a transform with a single argument, the id of the source field is set on `source-id`, and `source-ids` is omitted.
-3. For partition fields with a transform of multiple arguments, the ids of the source fields are set on `source-ids`. To preserve backward compatibility, `source-id` is set to -1.
+2. For partition fields with a transform with a single argument, the ID of the source field is set on `source-id`, and `source-ids` is omitted.
+3. For partition fields with a transform of multiple arguments, the IDs of the source fields are set on `source-ids`. To preserve backward compatibility, `source-id` is set to -1.
 
 ### Sort Orders
 
@@ -1191,14 +1191,15 @@ Sort orders are serialized as a list of JSON object, each of which contains the 
 
 Each sort field in the fields list is stored as an object with the following properties:
 
-| Field                                         | JSON representation                                                                                                                                                                                                                                                      | Example                                                                                                                                                                                                                                |
-|-----------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **`Sort Field`** [1]                          | `JSON object: {`<br />&nbsp;&nbsp;`"transform": <transform JSON>,`<br />&nbsp;&nbsp;`"source-id": <source id int>,`<br />&nbsp;&nbsp;`"direction": <direction string>,`<br />&nbsp;&nbsp;`"null-order": <null-order string>`<br />`}`                                    | `{`<br />&nbsp;&nbsp;`  "transform": "bucket[4]",`<br />&nbsp;&nbsp;`  "source-id": 3,`<br />&nbsp;&nbsp;`  "direction": "desc",`<br />&nbsp;&nbsp;`  "null-order": "nulls-last"`<br />`}`                                             |
-| **`Sort Field with multi-arg transform`** [2] | `JSON object: {`<br />&nbsp;&nbsp;`"transform": <transform JSON>,`<br />&nbsp;&nbsp;`"source-id": -1,`<br />&nbsp;&nbsp;`"source-ids": <list of ids>,`<br />&nbsp;&nbsp;`"direction": <direction string>,`<br />&nbsp;&nbsp;`"null-order": <null-order string>`<br />`}` | `{`<br />&nbsp;&nbsp;`  "transform": "bucketV2[4]",`<br />&nbsp;&nbsp;`  "source-id": -1,`<br />&nbsp;&nbsp;`  "source-id": [1,2],`<br />&nbsp;&nbsp;`  "direction": "desc",`<br />&nbsp;&nbsp;`  "null-order": "nulls-last"`<br />`}` |
+|Field|JSON representation|Example|
+|--- |--- |--- |
+|**`Sort Field`** [1]|`JSON object: {`<br />&nbsp;&nbsp;`"transform": <transform JSON>,`<br />&nbsp;&nbsp;`"source-id": <source id int>,`<br />&nbsp;&nbsp;`"direction": <direction string>,`<br />&nbsp;&nbsp;`"null-order": <null-order string>`<br />`}`|`{`<br />&nbsp;&nbsp;`  "transform": "bucket[4]",`<br />&nbsp;&nbsp;`  "source-id": 3,`<br />&nbsp;&nbsp;`  "direction": "desc",`<br />&nbsp;&nbsp;`  "null-order": "nulls-last"`<br />`}`|
+|**`Sort Field with multi-arg transform`** [2]|`JSON object: {`<br />&nbsp;&nbsp;`"transform": <transform JSON>,`<br />&nbsp;&nbsp;`"source-id": -1,`<br />&nbsp;&nbsp;`"source-ids": <list of ids>,`<br />&nbsp;&nbsp;`"direction": <direction string>,`<br />&nbsp;&nbsp;`"null-order": <null-order string>`<br />`}`|`{`<br />&nbsp;&nbsp;`  "transform": "bucketV2[4]",`<br />&nbsp;&nbsp;`  "source-id": -1,`<br />&nbsp;&nbsp;`  "source-id": [1,2],`<br />&nbsp;&nbsp;`  "direction": "desc",`<br />&nbsp;&nbsp;`  "null-order": "nulls-last"`<br />`}`|
+
 
 Notes:
-1. For sort fields with a transform with a single argument, the id of the source field is set on `source-id`, and `source-ids` is omitted.
-2. For sort fields with a transform of multiple arguments, the ids of the source fields are set on `source-ids`. To preserve backward compatibility, `source-id` is set to -1.
+1. For sort fields with a transform with a single argument, the ID of the source field is set on `source-id`, and `source-ids` is omitted.
+2. For sort fields with a transform of multiple arguments, the IDs of the source fields are set on `source-ids`. To preserve backward compatibility, `source-id` is set to -1.
 
 The following table describes the possible values for the some of the field within sort field: 
 
