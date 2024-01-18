@@ -1729,6 +1729,46 @@ public class TestTableMetadata {
         meta.location());
   }
 
+  @Test
+  public void testCompressionDefaultPropertyForParquet() {
+    Map<String, String> properties =
+        ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, FileFormat.PARQUET.name());
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            TEST_SCHEMA, SPEC_5, SORT_ORDER_3, "/some-location/", properties);
+
+    Assertions.assertThat(metadata.property(TableProperties.PARQUET_COMPRESSION, null))
+        .as(
+            "Parquet data files should have the updated Parquet default compression property defined")
+        .isEqualTo(TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0);
+
+    properties =
+        ImmutableMap.of(
+            TableProperties.DEFAULT_FILE_FORMAT, FileFormat.ORC.name(),
+            TableProperties.DELETE_DEFAULT_FILE_FORMAT, FileFormat.PARQUET.name());
+    metadata =
+        TableMetadata.newTableMetadata(
+            TEST_SCHEMA, SPEC_5, SORT_ORDER_3, "/some-location/", properties);
+    Assertions.assertThat(metadata.property(TableProperties.PARQUET_COMPRESSION, null))
+        .as(
+            "Parquet delete files should have the updated Parquet default compression property defined")
+        .isEqualTo(TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0);
+  }
+
+  @Test
+  public void testNonParquetTablesNoParquetCompressionProperty() {
+    Map<String, String> properties =
+        ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, FileFormat.ORC.name());
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            TEST_SCHEMA, SPEC_5, SORT_ORDER_3, "/some-location/", properties);
+
+    Assertions.assertThat(metadata.property(TableProperties.PARQUET_COMPRESSION, null))
+        .as(
+            "ORC and other non-parquet files should not have the updated Parquet default compression property defined")
+        .isNull();
+  }
+
   private String createManifestListWithManifestFile(
       long snapshotId, Long parentSnapshotId, String manifestFile) throws IOException {
     File manifestList = temp.newFile("manifests" + UUID.randomUUID());

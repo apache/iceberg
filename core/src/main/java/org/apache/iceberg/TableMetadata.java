@@ -90,10 +90,19 @@ public class TableMetadata implements Serializable {
   private static Map<String, String> persistedProperties(Map<String, String> rawProperties) {
     Map<String, String> persistedProperties = Maps.newHashMap();
 
+    String format =
+        rawProperties.getOrDefault(
+            TableProperties.DEFAULT_FILE_FORMAT, TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
+    String deleteFileFormat =
+        rawProperties.getOrDefault(TableProperties.DELETE_DEFAULT_FILE_FORMAT, format);
+
     // explicitly set defaults that apply only to new tables
-    persistedProperties.put(
-        TableProperties.PARQUET_COMPRESSION,
-        TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0);
+    if (format.equalsIgnoreCase(FileFormat.PARQUET.name())
+        || deleteFileFormat.equalsIgnoreCase(FileFormat.PARQUET.name())) {
+      persistedProperties.put(
+          TableProperties.PARQUET_COMPRESSION,
+          TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0);
+    }
 
     rawProperties.entrySet().stream()
         .filter(entry -> !TableProperties.RESERVED_PROPERTIES.contains(entry.getKey()))
