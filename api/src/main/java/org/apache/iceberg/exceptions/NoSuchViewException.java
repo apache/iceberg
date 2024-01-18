@@ -21,7 +21,7 @@ package org.apache.iceberg.exceptions;
 import com.google.errorprone.annotations.FormatMethod;
 
 /** Exception raised when attempting to load a view that does not exist. */
-public class NoSuchViewException extends RuntimeException {
+public class NoSuchViewException extends RuntimeException implements CleanableFailure {
   @FormatMethod
   public NoSuchViewException(String message, Object... args) {
     super(String.format(message, args));
