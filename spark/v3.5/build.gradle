@@ -62,7 +62,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
 
     compileOnly libs.errorprone.annotations
     compileOnly libs.avro.avro
-    compileOnly("org.apache.spark:spark-hive_${scalaVersion}:4.0.0-SNAPSHOT") {
+    compileOnly("org.apache.spark:spark-hive_${scalaVersion}:3.5") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
       exclude group: 'org.apache.parquet'
@@ -145,7 +145,7 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
     compileOnly project(':iceberg-core')
     compileOnly project(':iceberg-common')
     compileOnly project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}")
-    compileOnly("org.apache.spark:spark-hive_${scalaVersion}:4.0.0-SNAPSHOT") {
+    compileOnly("org.apache.spark:spark-hive_${scalaVersion}:3.5") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
       exclude group: 'org.apache.parquet'
@@ -232,7 +232,7 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     }
 
     integrationImplementation "org.scala-lang.modules:scala-collection-compat_${scalaVersion}:${libs.versions.scala.collection.compat.get()}"
-    integrationImplementation "org.apache.spark:spark-hive_${scalaVersion}:4.0.0-SNAPSHOT"
+    integrationImplementation "org.apache.spark:spark-hive_${scalaVersion}:3.5"
     integrationImplementation libs.junit.vintage.engine
     integrationImplementation libs.slf4j.simple
     integrationImplementation libs.assertj.core

@@ -45,7 +45,7 @@ buildscript {
 }
 
 String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
-String sparkVersionsString = "4.0.0-SNAPSHOT"
+String sparkVersionsString = "3.5"
 //System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")
 List<String> sparkVersions = sparkVersionsString != null && !sparkVersionsString.isEmpty() ? sparkVersionsString.split(",") : []
 
