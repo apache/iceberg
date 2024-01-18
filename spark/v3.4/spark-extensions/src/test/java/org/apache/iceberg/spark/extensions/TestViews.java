@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -633,6 +634,157 @@ public class TestViews extends SparkExtensionsTestBase {
 
   private Catalog tableCatalog() {
     return Spark3Util.loadIcebergCatalog(spark, catalogName);
+  }
+
+  @Test
+  public void renameView() throws NoSuchTableException {
+    insertRows(10);
+    String viewName = viewName("originalView");
+    String renamedView = viewName("renamedView");
+    String sql = String.format("SELECT id FROM %s", tableName);
+
+    ViewCatalog viewCatalog = viewCatalog();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("spark", sql)
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema(sql))
+        .create();
+
+    sql("ALTER VIEW %s RENAME TO %s", viewName, renamedView);
+
+    List<Object[]> expected =
+        IntStream.rangeClosed(1, 10).mapToObj(this::row).collect(Collectors.toList());
+    assertThat(sql("SELECT * FROM %s", renamedView))
+        .hasSize(10)
+        .containsExactlyInAnyOrderElementsOf(expected);
+  }
+
+  @Test
+  public void renameViewHiddenByTempView() throws NoSuchTableException {
+    insertRows(10);
+    String viewName = viewName("originalView");
+    String renamedView = viewName("renamedView");
+    String sql = String.format("SELECT id FROM %s WHERE id > 5", tableName);
+
+    ViewCatalog viewCatalog = viewCatalog();
+
+    sql("CREATE TEMPORARY VIEW %s AS SELECT id FROM %s WHERE id <= 5", viewName, tableName);
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("spark", sql)
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema(sql))
+        .create();
+
+    // renames the TEMP VIEW
+    sql("ALTER VIEW %s RENAME TO %s", viewName, renamedView);
+    assertThat(sql("SELECT * FROM %s", renamedView))
+        .hasSize(5)
+        .containsExactlyInAnyOrderElementsOf(
+            IntStream.rangeClosed(1, 5).mapToObj(this::row).collect(Collectors.toList()));
+
+    // original view still exists with its name
+    assertThat(viewCatalog.viewExists(TableIdentifier.of(NAMESPACE, viewName))).isTrue();
+    assertThat(viewCatalog.viewExists(TableIdentifier.of(NAMESPACE, renamedView))).isFalse();
+    assertThat(sql("SELECT * FROM %s", viewName))
+        .hasSize(5)
+        .containsExactlyInAnyOrderElementsOf(
+            IntStream.rangeClosed(6, 10).mapToObj(this::row).collect(Collectors.toList()));
+
+    // will rename the Iceberg view
+    sql("ALTER VIEW %s RENAME TO %s", viewName, renamedView);
+    assertThat(viewCatalog.viewExists(TableIdentifier.of(NAMESPACE, renamedView))).isTrue();
+  }
+
+  @Test
+  public void renameViewToDifferentTargetCatalog() {
+    String viewName = viewName("originalView");
+    String renamedView = viewName("renamedView");
+    String sql = String.format("SELECT id FROM %s", tableName);
+
+    ViewCatalog viewCatalog = viewCatalog();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("spark", sql)
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema(sql))
+        .create();
+
+    assertThatThrownBy(() -> sql("ALTER VIEW %s RENAME TO spark_catalog.%s", viewName, renamedView))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "Cannot move view between catalogs: from=spark_with_views and to=spark_catalog");
+  }
+
+  @Test
+  public void renameNonExistingView() {
+    assertThatThrownBy(() -> sql("ALTER VIEW non_existing RENAME TO target"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("The table or view `non_existing` cannot be found");
+  }
+
+  @Test
+  public void renameViewTargetAlreadyExistsAsView() {
+    String viewName = viewName("renameViewSource");
+    String target = viewName("renameViewTarget");
+    String sql = String.format("SELECT id FROM %s", tableName);
+
+    ViewCatalog viewCatalog = viewCatalog();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("spark", sql)
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema(sql))
+        .create();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, target))
+        .withQuery("spark", sql)
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema(sql))
+        .create();
+
+    assertThatThrownBy(() -> sql("ALTER VIEW %s RENAME TO %s", viewName, target))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            String.format("Cannot create view default.%s because it already exists", target));
+  }
+
+  @Test
+  public void renameViewTargetAlreadyExistsAsTable() {
+    String viewName = viewName("renameViewSource");
+    String target = viewName("renameViewTarget");
+    String sql = String.format("SELECT id FROM %s", tableName);
+
+    ViewCatalog viewCatalog = viewCatalog();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("spark", sql)
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema(sql))
+        .create();
+
+    sql("CREATE TABLE %s (id INT, data STRING)", target);
+    assertThatThrownBy(() -> sql("ALTER VIEW %s RENAME TO %s", viewName, target))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            String.format("Cannot create view default.%s because it already exists", target));
+  }
+
+  private String viewName(String viewName) {
+    return viewName + new Random().nextInt(1000000);
   }
 
   private void insertRows(int numRows) throws NoSuchTableException {

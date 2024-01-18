@@ -27,6 +27,7 @@ import org.apache.spark.sql.catalyst.parser.ParseException
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.catalyst.plans.logical.SubqueryAlias
+import org.apache.spark.sql.catalyst.plans.logical.views.ResolvedV2View
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.trees.CurrentOrigin
 import org.apache.spark.sql.catalyst.trees.Origin
@@ -52,6 +53,11 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
     case u@UnresolvedRelation(parts@CatalogAndIdentifier(catalog, ident), _, _) =>
       loadView(catalog, ident)
         .map(createViewRelation(parts, _))
+        .getOrElse(u)
+
+    case u@UnresolvedTableOrView(CatalogAndIdentifier(catalog, ident), _, _) =>
+      loadView(catalog, ident)
+        .map(_ => ResolvedV2View(catalog.asViewCatalog, ident))
         .getOrElse(u)
   }
 
@@ -142,5 +148,14 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
 
   private def isBuiltinFunction(name: String): Boolean = {
     spark.sessionState.catalogManager.v1SessionCatalog.isBuiltinFunction(FunctionIdentifier(name))
+  }
+
+  implicit class ViewHelper(plugin: CatalogPlugin) {
+    def asViewCatalog: ViewCatalog = plugin match {
+      case viewCatalog: ViewCatalog =>
+        viewCatalog
+      case _ =>
+        throw QueryCompilationErrors.missingCatalogAbilityError(plugin, "views")
+    }
   }
 }
