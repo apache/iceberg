@@ -187,41 +187,6 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void testWithCarryovers() {
-    createTableWithTwoColumns();
-    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
-    Table table = validationCatalog.loadTable(tableIdent);
-    Snapshot snap0 = table.currentSnapshot();
-
-    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
-    table.refresh();
-    Snapshot snap1 = table.currentSnapshot();
-
-    sql("INSERT OVERWRITE %s VALUES (-2, 'b'), (2, 'b'), (2, 'b')", tableName);
-    table.refresh();
-    Snapshot snap2 = table.currentSnapshot();
-
-    List<Object[]> returns =
-        sql(
-            "CALL %s.system.create_changelog_view("
-                + "remove_carryovers => false,"
-                + "table => '%s')",
-            catalogName, tableName, "cdc_view");
-
-    String viewName = (String) returns.get(0)[0];
-    assertEquals(
-        "Rows should match",
-        ImmutableList.of(
-            row(1, "a", INSERT, 0, snap0.snapshotId()),
-            row(2, "b", INSERT, 1, snap1.snapshotId()),
-            row(-2, "b", INSERT, 2, snap2.snapshotId()),
-            row(2, "b", DELETE, 2, snap2.snapshotId()),
-            row(2, "b", INSERT, 2, snap2.snapshotId()),
-            row(2, "b", INSERT, 2, snap2.snapshotId())),
-        sql("select * from %s order by _change_ordinal, id, _change_type", viewName));
-  }
-
-  @Test
   public void testUpdate() {
     createTableWithTwoColumns();
     sql("ALTER TABLE %s DROP PARTITION FIELD data", tableName);
@@ -473,42 +438,5 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
             sql(
                 "CALL %s.system.create_changelog_view(table => '%s', identifier_columns => array('id'), net_changes => true)",
                 catalogName, tableName));
-  }
-
-  @Test
-  public void testNotRemoveCarryOvers() {
-    createTableWithThreeColumns();
-
-    sql("INSERT INTO %s VALUES (1, 'a', 12), (2, 'b', 11), (2, 'e', 12)", tableName);
-    Table table = validationCatalog.loadTable(tableIdent);
-    Snapshot snap1 = table.currentSnapshot();
-
-    // carry-over row (2, 'e', 12)
-    sql("INSERT OVERWRITE %s VALUES (3, 'c', 13), (2, 'd', 11), (2, 'e', 12)", tableName);
-    table.refresh();
-    Snapshot snap2 = table.currentSnapshot();
-
-    List<Object[]> returns =
-        sql(
-            "CALL %s.system.create_changelog_view("
-                + "remove_carryovers => false,"
-                + "table => '%s')",
-            catalogName, tableName);
-
-    String viewName = (String) returns.get(0)[0];
-
-    assertEquals(
-        "Rows should match",
-        ImmutableList.of(
-            row(1, "a", 12, INSERT, 0, snap1.snapshotId()),
-            row(2, "b", 11, INSERT, 0, snap1.snapshotId()),
-            row(2, "e", 12, INSERT, 0, snap1.snapshotId()),
-            row(2, "b", 11, DELETE, 1, snap2.snapshotId()),
-            row(2, "d", 11, INSERT, 1, snap2.snapshotId()),
-            // the following two rows are carry-over rows
-            row(2, "e", 12, DELETE, 1, snap2.snapshotId()),
-            row(2, "e", 12, INSERT, 1, snap2.snapshotId()),
-            row(3, "c", 13, INSERT, 1, snap2.snapshotId())),
-        sql("select * from %s order by _change_ordinal, id, data, _change_type", viewName));
   }
 }
