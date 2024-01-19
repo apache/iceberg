@@ -1022,11 +1022,17 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           UpdateTableRequest.create(commit.identifier(), commit.requirements(), commit.updates()));
     }
 
+    Map<String, String> props = properties();
+    if (null != context.credentials()) {
+      props = RESTUtil.merge(properties(), context.credentials());
+    }
+
+    AuthSession authSession = tableSession(props, session(context));
     client.post(
         paths.commitTransaction(),
         new CommitTransactionRequest(tableChanges),
         null,
-        headers(context),
+        authSession::headers,
         ErrorHandlers.tableCommitHandler());
   }
 
