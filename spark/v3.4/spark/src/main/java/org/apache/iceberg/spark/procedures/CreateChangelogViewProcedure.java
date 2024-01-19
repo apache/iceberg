@@ -49,8 +49,8 @@ import org.apache.spark.unsafe.types.UTF8String;
 /**
  * A procedure that creates a view for changed rows.
  *
- * <p>The procedure removes the carry-over rows by default. If you want to keep them, you can set
- * "remove_carryovers" to be false in the options.
+ * <p>The procedure always removes the carry-over rows. Please query {@link SparkChangelogTable}
+ * instead when carry-over rows are required.
  *
  * <p>The procedure doesn't compute the pre/post update images by default. If you want to compute
  * them, you can set "compute_updates" to be true in the options.
@@ -91,18 +91,6 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
       ProcedureParameter.optional("options", STRING_MAP);
   private static final ProcedureParameter COMPUTE_UPDATES_PARAM =
       ProcedureParameter.optional("compute_updates", DataTypes.BooleanType);
-
-  /**
-   * Enable or disable the remove carry-over rows.
-   *
-   * @deprecated since 1.4.0, will be removed in 1.5.0; The procedure will always remove carry-over
-   *     rows. Please query {@link SparkChangelogTable} instead for the use cases doesn't remove
-   *     carry-over rows.
-   */
-  @Deprecated
-  private static final ProcedureParameter REMOVE_CARRYOVERS_PARAM =
-      ProcedureParameter.optional("remove_carryovers", DataTypes.BooleanType);
-
   private static final ProcedureParameter IDENTIFIER_COLUMNS_PARAM =
       ProcedureParameter.optional("identifier_columns", STRING_ARRAY);
   private static final ProcedureParameter NET_CHANGES =
@@ -114,7 +102,6 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
         CHANGELOG_VIEW_PARAM,
         OPTIONS_PARAM,
         COMPUTE_UPDATES_PARAM,
-        REMOVE_CARRYOVERS_PARAM,
         IDENTIFIER_COLUMNS_PARAM,
         NET_CHANGES,
       };
@@ -163,7 +150,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     if (shouldComputeUpdateImages(input)) {
       Preconditions.checkArgument(!netChanges, "Not support net changes with update images");
       df = computeUpdateImages(identifierColumns(input, tableIdent), df);
-    } else if (shouldRemoveCarryoverRows(input)) {
+    } else {
       df = removeCarryoverRows(df, netChanges);
     }
 
@@ -193,10 +180,6 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     // If the identifier columns are set, we compute pre/post update images by default.
     boolean defaultValue = input.isProvided(IDENTIFIER_COLUMNS_PARAM);
     return input.asBoolean(COMPUTE_UPDATES_PARAM, defaultValue);
-  }
-
-  private boolean shouldRemoveCarryoverRows(ProcedureInput input) {
-    return input.asBoolean(REMOVE_CARRYOVERS_PARAM, true);
   }
 
   private Dataset<Row> removeCarryoverRows(Dataset<Row> df, boolean netChanges) {
