@@ -53,7 +53,7 @@ jobs:
       - run: |
           echo "Using the old version tag, as per git describe, of $(git describe)";
       - run: ./gradlew revapi --rerun-tasks
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: test logs
