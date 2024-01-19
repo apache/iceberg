@@ -50,7 +50,7 @@ import org.apache.spark.unsafe.types.UTF8String;
  * A procedure that creates a view for changed rows.
  *
  * <p>The procedure always removes the carry-over rows. Please query {@link SparkChangelogTable}
- * instead for the use cases doesn't remove carry-over rows.
+ * instead when carry-over rows are required.
  *
  * <p>The procedure doesn't compute the pre/post update images by default. If you want to compute
  * them, you can set "compute_updates" to be true in the options.
