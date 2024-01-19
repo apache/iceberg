@@ -115,4 +115,10 @@ public interface SplitAssigner extends Closeable {
    * snapshots and splits, which defeats the purpose of throttling.
    */
   int pendingSplitCount();
+
+  /**
+   * Return the number of pending records, which can act as a measure of the source lag. This value
+   * could be an estimation if the exact number of records cannot be accurately computed.
+   */
+  long pendingRecords();
 }
