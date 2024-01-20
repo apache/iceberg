@@ -230,7 +230,8 @@ class IcebergToGlueConverter {
                 .collect(Collectors.toSet()));
       }
 
-      Optional.ofNullable(properties.get(GLUE_DESCRIPTION_KEY)).ifPresent(tableInputBuilder::description);
+      Optional.ofNullable(properties.get(GLUE_DESCRIPTION_KEY))
+          .ifPresent(tableInputBuilder::description);
 
       tableInputBuilder.storageDescriptor(
           storageDescriptor.location(metadata.location()).columns(toColumns(metadata)).build());

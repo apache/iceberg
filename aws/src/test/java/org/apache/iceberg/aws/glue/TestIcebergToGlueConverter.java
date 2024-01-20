@@ -293,21 +293,23 @@ public class TestIcebergToGlueConverter {
   @Test
   public void testSetTableDescription() {
     String tableDescription = "hello world!";
-    Map<String, String> tableProperties = ImmutableMap.<String, String>builder()
+    Map<String, String> tableProperties =
+        ImmutableMap.<String, String>builder()
             .putAll((tableLocationProperties))
             .put(IcebergToGlueConverter.GLUE_DESCRIPTION_KEY, tableDescription)
             .build();
     TableInput.Builder actualTableInputBuilder = TableInput.builder();
-    Schema schema = new Schema(Types.NestedField.required(1, "x", Types.StringType.get(), "comment1"));
-    TableMetadata tableMetadata = TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), "s3://test", tableProperties
-    );
+    Schema schema =
+        new Schema(Types.NestedField.required(1, "x", Types.StringType.get(), "comment1"));
+    TableMetadata tableMetadata =
+        TableMetadata.newTableMetadata(
+            schema, PartitionSpec.unpartitioned(), "s3://test", tableProperties);
 
     IcebergToGlueConverter.setTableInputInformation(actualTableInputBuilder, tableMetadata);
     TableInput actualTableInput = actualTableInputBuilder.build();
 
     Assertions.assertThat(actualTableInput.description())
-            .as("description should match")
-            .isEqualTo(tableDescription);
+        .as("description should match")
+        .isEqualTo(tableDescription);
   }
 }
