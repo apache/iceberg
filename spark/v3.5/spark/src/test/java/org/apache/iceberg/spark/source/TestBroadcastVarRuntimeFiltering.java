@@ -47,12 +47,13 @@ import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.sources.In;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.ObjectType;
-import org.junit.After;
+
 import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.TestTemplate;
 
 public class TestBroadcastVarRuntimeFiltering extends TestRuntimeFiltering {
@@ -61,10 +62,16 @@ public class TestBroadcastVarRuntimeFiltering extends TestRuntimeFiltering {
 
   @BeforeEach
   @Override
-  public void populateFilterMap() {
+  void init(TestInfo testInfo) {
+    this.testInfo = testInfo;
     spark.conf().set(SQLConf.OPTIMIZER_EXCLUDED_RULES().key(), PartitionPruning.ruleName());
     spark.conf().set(SQLConf.PUSH_BROADCASTED_JOIN_KEYS_AS_FILTER_TO_SCAN().key(), "true");
     spark.conf().set(SQLConf.PREFER_BROADCAST_VAR_PUSHDOWN_OVER_DPP().key(), "true");
+  }
+
+  @BeforeAll
+  @Override
+  public void populateFilterMap() {
     runtimeFilterExpressions.put(
         "testIdentityPartitionedTable",
         new BroadcastHRUnboundPredicate<>(

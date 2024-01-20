@@ -29,7 +29,7 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
+
 import org.apache.commons.lang3.StringUtils;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Parameter;
@@ -50,15 +50,17 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.internal.SQLConf;
-import org.junit.Before;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInfo;
+import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class TestRuntimeFiltering extends TestBaseWithCatalog {
   protected TestInfo testInfo;
 
@@ -83,14 +85,14 @@ public class TestRuntimeFiltering extends TestBaseWithCatalog {
   @BeforeEach
   void init(TestInfo testInfo) {
     this.testInfo = testInfo;
+    spark.conf().set(SQLConf.PUSH_BROADCASTED_JOIN_KEYS_AS_FILTER_TO_SCAN().key(), "false");
+    spark.conf().set(SQLConf.PREFER_BROADCAST_VAR_PUSHDOWN_OVER_DPP().key(), "false");
   }
 
   private final Map<String, Expression> runtimeFilterExpressions = Maps.newHashMap();
 
-  @Before
+  @BeforeAll
   public void populateFilterMap() {
-    spark.conf().set(SQLConf.PUSH_BROADCASTED_JOIN_KEYS_AS_FILTER_TO_SCAN().key(), "false");
-    spark.conf().set(SQLConf.PREFER_BROADCAST_VAR_PUSHDOWN_OVER_DPP().key(), "false");
     runtimeFilterExpressions.put("testIdentityPartitionedTable", Expressions.equal("date", 1));
     runtimeFilterExpressions.put("testBucketedTable", Expressions.equal("id", 1));
     runtimeFilterExpressions.put("testRenamedSourceColumnTable", Expressions.equal("row_id", 1));

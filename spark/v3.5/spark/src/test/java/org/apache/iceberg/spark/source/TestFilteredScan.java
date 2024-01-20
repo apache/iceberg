@@ -60,6 +60,8 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.bcvar.BroadcastedJoinKeysWrapper;
+import org.apache.spark.sql.catalyst.expressions.Literal;
 import org.apache.spark.sql.catalyst.expressions.UnsafeRow;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.connector.read.Batch;
@@ -74,6 +76,8 @@ import org.apache.spark.sql.sources.In;
 import org.apache.spark.sql.sources.LessThan;
 import org.apache.spark.sql.sources.Not;
 import org.apache.spark.sql.sources.StringStartsWith;
+import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.ObjectType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -214,14 +218,12 @@ public class TestFilteredScan {
         new CaseInsensitiveStringMap(ImmutableMap.of("path", unpartitioned.toString()));
     SparkScanBuilder builder =
         new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
+    DataType dt = ObjectType.apply(DummyBroadcastedJoinKeysWrapper.class);
+    BroadcastedJoinKeysWrapper actualData = new DummyBroadcastedJoinKeysWrapper(
+        IntegerType, new Object[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, 1);
+    Literal embedAsLiteral = Literal.create(actualData, dt);
 
-    Filter filter =
-        In.apply(
-            "id",
-            new Object[] {
-              new DummyBroadcastedJoinKeysWrapper(
-                  IntegerType, new Object[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, 1)
-            });
+    Filter filter = In.apply("id", new Object[] {embedAsLiteral});
     pushFilters(builder, filter);
     Batch scan = builder.build().toBatch();
 
