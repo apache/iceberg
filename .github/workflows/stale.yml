@@ -48,3 +48,5 @@ jobs:
             This issue has been closed because it has not received any activity in the last 14 days
             since being marked as 'stale'
           ascending: true
+          operations-per-run: 100
+          
