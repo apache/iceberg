@@ -57,11 +57,16 @@ public class TestMetadataTableScansWithRangeIn extends MetadataTableScanTestBase
 
     Expression set = RangeInTestUtils.createPredicate("partition.data_bucket", new Object[] {2, 3});
     TableScan scanSet = partitionsTable.newScan().filter(set);
-    CloseableIterable<ManifestEntry<?>> tasksSet =
+    CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanSet);
-    Assert.assertEquals(2, Iterators.size(tasksSet.iterator()));
-    validateSingleFieldPartition(tasksSet, 2);
-    validateSingleFieldPartition(tasksSet, 3);
+    if (formatVersion == 2) {
+      Assert.assertEquals(4, Iterators.size(entries.iterator()));
+    } else {
+      Assert.assertEquals(2, Iterators.size(entries.iterator()));
+    }
+
+    validateSingleFieldPartition(entries, 2);
+    validateSingleFieldPartition(entries, 3);
   }
 
   @Test
@@ -72,11 +77,8 @@ public class TestMetadataTableScansWithRangeIn extends MetadataTableScanTestBase
     Table manifestsTable = new AllManifestsTable(table);
 
     TableScan manifestsTableScan =
-        manifestsTable
-            .newScan()
-            .filter(
-                RangeInTestUtils.<Long>createPredicate(
-                    "reference_snapshot_id", new Object[] {1L, 3L}, DataTypes.LongType));
+        manifestsTable.newScan().filter(RangeInTestUtils.<Long>createPredicate(
+            "reference_snapshot_id", new Object[] {1L, 3L}, DataTypes.LongType));
     Assert.assertEquals(
         "Expected snapshots do not match",
         expectedManifestListPaths(table.snapshots(), 1L, 3L),
