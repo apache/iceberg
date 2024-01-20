@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -59,7 +60,7 @@ class IcebergToGlueConverter {
   private static final Pattern GLUE_DB_PATTERN = Pattern.compile("^[a-z0-9_]{1,252}$");
   private static final Pattern GLUE_TABLE_PATTERN = Pattern.compile("^[a-z0-9_]{1,255}$");
   public static final String GLUE_DB_LOCATION_KEY = "location";
-  public static final String GLUE_DB_DESCRIPTION_KEY = "comment";
+  public static final String GLUE_DESCRIPTION_KEY = "comment";
   public static final String ICEBERG_FIELD_ID = "iceberg.field.id";
   public static final String ICEBERG_FIELD_OPTIONAL = "iceberg.field.optional";
   public static final String ICEBERG_FIELD_CURRENT = "iceberg.field.current";
@@ -150,7 +151,7 @@ class IcebergToGlueConverter {
     Map<String, String> parameters = Maps.newHashMap();
     metadata.forEach(
         (k, v) -> {
-          if (GLUE_DB_DESCRIPTION_KEY.equals(k)) {
+          if (GLUE_DESCRIPTION_KEY.equals(k)) {
             builder.description(v);
           } else if (GLUE_DB_LOCATION_KEY.equals(k)) {
             builder.locationUri(v);
@@ -218,15 +219,18 @@ class IcebergToGlueConverter {
   static void setTableInputInformation(
       TableInput.Builder tableInputBuilder, TableMetadata metadata) {
     try {
+      Map<String, String> properties = metadata.properties();
       StorageDescriptor.Builder storageDescriptor = StorageDescriptor.builder();
       if (!SET_ADDITIONAL_LOCATIONS.isNoop()) {
         SET_ADDITIONAL_LOCATIONS.invoke(
             storageDescriptor,
             ADDITIONAL_LOCATION_PROPERTIES.stream()
-                .map(metadata.properties()::get)
+                .map(properties::get)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet()));
       }
+
+      Optional.ofNullable(properties.get(GLUE_DESCRIPTION_KEY)).ifPresent(tableInputBuilder::description);
 
       tableInputBuilder.storageDescriptor(
           storageDescriptor.location(metadata.location()).columns(toColumns(metadata)).build());
