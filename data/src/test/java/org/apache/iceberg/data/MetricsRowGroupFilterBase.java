@@ -18,6 +18,10 @@
  */
 package org.apache.iceberg.data;
 
+import static org.apache.iceberg.avro.AvroSchemaUtil.convert;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -54,10 +58,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runners.Parameterized;
-
-import static org.apache.iceberg.avro.AvroSchemaUtil.convert;
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
 
 public abstract class MetricsRowGroupFilterBase {
 

@@ -58,7 +58,6 @@ abstract class BaseContentScanTask<ThisT extends ContentScanTask<F>, F extends C
     return file;
   }
 
-
   protected ResidualEvaluator getNewResidual(Expression newNonPartitionFilter) {
     return this.residuals.addFilter(newNonPartitionFilter);
   }
@@ -74,6 +73,7 @@ abstract class BaseContentScanTask<ThisT extends ContentScanTask<F>, F extends C
 
     return schema;
   }
+
   @Override
   public PartitionSpec spec() {
     if (spec == null) {

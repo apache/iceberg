@@ -32,7 +32,6 @@ public class BaseCombinedScanTask implements CombinedScanTask {
   private String[] preferredLocations = new String[0];
   private transient volatile List<FileScanTask> taskList = null;
 
-
   public BaseCombinedScanTask(FileScanTask... tasks) {
     Preconditions.checkNotNull(tasks, "tasks cannot be null");
     this.tasks = tasks;

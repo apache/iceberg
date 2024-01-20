@@ -19,7 +19,6 @@
 package org.apache.iceberg;
 
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.spark.broadcastvar.expressions.RangeInTestUtils;

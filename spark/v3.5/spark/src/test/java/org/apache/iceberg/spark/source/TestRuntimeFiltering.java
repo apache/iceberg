@@ -29,6 +29,7 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Parameter;
@@ -48,13 +49,18 @@ import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-
+import org.apache.spark.sql.internal.SQLConf;
+import org.junit.Before;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
-public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
+public class TestRuntimeFiltering extends TestBaseWithCatalog {
+  protected TestInfo testInfo;
 
   @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}, planningMode = {3}")
   public static Object[][] parameters() {
@@ -72,24 +78,28 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
         DISTRIBUTED
       }
     };
+  }
 
-    @Rule public TestName name = new TestName();
+  @BeforeEach
+  void init(TestInfo testInfo) {
+    this.testInfo = testInfo;
+  }
 
-    private final Map<String, Expression> runtimeFilterExpressions = Maps.newHashMap();
+  private final Map<String, Expression> runtimeFilterExpressions = Maps.newHashMap();
 
-    @Before
-    public void populateFilterMap() {
-      spark.conf().set(SQLConf.PUSH_BROADCASTED_JOIN_KEYS_AS_FILTER_TO_SCAN().key(), "false");
-      spark.conf().set(SQLConf.PREFER_BROADCAST_VAR_PUSHDOWN_OVER_DPP().key(), "false");
-      runtimeFilterExpressions.put("testIdentityPartitionedTable", Expressions.equal("date", 1));
-      runtimeFilterExpressions.put("testBucketedTable", Expressions.equal("id", 1));
-      runtimeFilterExpressions.put("testRenamedSourceColumnTable", Expressions.equal("row_id", 1));
-      runtimeFilterExpressions.put("testMultipleRuntimeFilters", Expressions.equal("id", 1));
-      runtimeFilterExpressions.put("testCaseSensitivityOfRuntimeFilters", Expressions.equal("id", 1));
-      runtimeFilterExpressions.put("testBucketedTableWithMultipleSpecs", Expressions.equal("id", 1));
-      runtimeFilterExpressions.put("testSourceColumnWithDots", Expressions.equal("i.d", 1));
-      runtimeFilterExpressions.put("testSourceColumnWithBackticks", Expressions.equal("i`d", 1));
-    }
+  @Before
+  public void populateFilterMap() {
+    spark.conf().set(SQLConf.PUSH_BROADCASTED_JOIN_KEYS_AS_FILTER_TO_SCAN().key(), "false");
+    spark.conf().set(SQLConf.PREFER_BROADCAST_VAR_PUSHDOWN_OVER_DPP().key(), "false");
+    runtimeFilterExpressions.put("testIdentityPartitionedTable", Expressions.equal("date", 1));
+    runtimeFilterExpressions.put("testBucketedTable", Expressions.equal("id", 1));
+    runtimeFilterExpressions.put("testRenamedSourceColumnTable", Expressions.equal("row_id", 1));
+    runtimeFilterExpressions.put("testMultipleRuntimeFilters", Expressions.equal("id", 1));
+    runtimeFilterExpressions.put("testCaseSensitivityOfRuntimeFilters", Expressions.equal("id", 1));
+    runtimeFilterExpressions.put("testBucketedTableWithMultipleSpecs", Expressions.equal("id", 1));
+    runtimeFilterExpressions.put("testSourceColumnWithDots", Expressions.equal("i.d", 1));
+    runtimeFilterExpressions.put("testSourceColumnWithBackticks", Expressions.equal("i`d", 1));
+  }
 
   @Parameter(index = 3)
   private PlanningMode planningMode;
@@ -542,7 +552,12 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
   void assertQueryContainsDataFilters(String query, int expectedFilterCount, String errorMessage) {}
 
   Expression getFileDeletionFilter() {
-    return this.runtimeFilterExpressions.get(name.getMethodName());
+    return this.runtimeFilterExpressions.get(tesMethodName());
+  }
+
+  protected String tesMethodName() {
+    return testInfo.getTestMethod().map(m -> m.getName()).orElseThrow(() ->
+        new RuntimeException("test method name unavailable"));
   }
 
   boolean isBroadcastVarPushDownTest() {

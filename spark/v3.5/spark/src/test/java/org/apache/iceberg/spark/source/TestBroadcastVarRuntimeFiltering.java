@@ -28,7 +28,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.source.broadcastvar.BroadcastHRUnboundPredicate;
@@ -45,7 +44,6 @@ import org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanExec;
 import org.apache.spark.sql.execution.datasources.v2.BatchScanExec;
 import org.apache.spark.sql.execution.dynamicpruning.PartitionPruning;
 import org.apache.spark.sql.internal.SQLConf;
-
 import org.apache.spark.sql.sources.In;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.ObjectType;
@@ -53,16 +51,15 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
 
 public class TestBroadcastVarRuntimeFiltering extends TestRuntimeFiltering {
 
   private final Map<String, Expression> runtimeFilterExpressions = new HashMap<>();
 
-  public TestBroadcastVarRuntimeFiltering(PlanningMode planningMode) {
-    super(planningMode);
-  }
-
-  @Before
+  @BeforeEach
   @Override
   public void populateFilterMap() {
     spark.conf().set(SQLConf.OPTIMIZER_EXCLUDED_RULES().key(), PartitionPruning.ruleName());
@@ -105,8 +102,9 @@ public class TestBroadcastVarRuntimeFiltering extends TestRuntimeFiltering {
             "i`d", new DummyBroadcastedJoinKeysWrapper(LongType, new Object[] {1L}, 1)));
   }
 
-  @After
+
   @Override
+  @AfterEach
   public void removeTables() {
     super.removeTables();
     spark.conf().unset(SQLConf.OPTIMIZER_EXCLUDED_RULES().key());
@@ -116,7 +114,7 @@ public class TestBroadcastVarRuntimeFiltering extends TestRuntimeFiltering {
 
   @Override
   Expression getFileDeletionFilter() {
-    return this.runtimeFilterExpressions.get(name.getMethodName());
+    return this.runtimeFilterExpressions.get(tesMethodName());
   }
 
   @Override
@@ -175,7 +173,7 @@ public class TestBroadcastVarRuntimeFiltering extends TestRuntimeFiltering {
     return true;
   }
 
-  @Test
+  @TestTemplate
   public void testBroadcastVarDataFilterSegregation() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP, testCol INT) "
@@ -210,13 +208,13 @@ public class TestBroadcastVarRuntimeFiltering extends TestRuntimeFiltering {
     // get number of FileScanTasks before pushdown
     int numFileScanTasksBefore = sbq.getNumFileScanTasks();
 
-    Object actualData = new DummyBroadcastedJoinKeysWrapper(
-        DataTypes.IntegerType, new Object[] {1, 25, 40}, 1L);
+    Object actualData =
+        new DummyBroadcastedJoinKeysWrapper(DataTypes.IntegerType, new Object[] {1, 25, 40}, 1L);
     ObjectType dt = ObjectType.apply(BroadcastedJoinKeysWrapper.class);
     Literal embedAsLiteral = Literal$.MODULE$.create(actualData, dt);
-    In filter = In.apply("testCol", new Object[]{embedAsLiteral});
+    In filter = In.apply("testCol", new Object[] {embedAsLiteral});
 
-    ((SupportsRuntimeV2Filtering)sbq).filter(new Predicate[] {filter.toV2()});
+    ((SupportsRuntimeV2Filtering) sbq).filter(new Predicate[] {filter.toV2()});
     // after filter pushdown it should be 1
     int numFileScanTasksAfter = sbq.getNumFileScanTasks();
     assert (numFileScanTasksAfter < numFileScanTasksBefore);

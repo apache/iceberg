@@ -45,8 +45,8 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
+import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -60,8 +60,8 @@ import org.apache.iceberg.spark.source.broadcastvar.BroadcastHRUnboundPredicate;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.expressions.NamedReference;
-import org.apache.spark.sql.connector.read.PushedBroadcastFilterData;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
+import org.apache.spark.sql.connector.read.PushedBroadcastFilterData;
 import org.apache.spark.sql.connector.read.Statistics;
 import org.apache.spark.sql.connector.read.SupportsRuntimeV2Filtering;
 import org.slf4j.Logger;
@@ -165,6 +165,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
     }
     return rangeInExprs;
   }
+
   @Override
   public void filter(Predicate[] predicates) {
     Tuple<Expression, Expression> allFilterExprs = convertRuntimeFilters(predicates);
@@ -205,9 +206,8 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
         partitionAndNonPartitionBased.getOrDefault(Boolean.TRUE, Collections.emptyList());
     List<Expression> nonPartitionBasedBroadcastVar =
         partitionAndNonPartitionBased.getOrDefault(Boolean.FALSE, Collections.emptyList());
-    List<PartitionScanTask> filteredTasks = addAsDataFilters(partitionBasedBroadcastVar,
-        nonPartitionBasedBroadcastVar);
-
+    List<PartitionScanTask> filteredTasks =
+        addAsDataFilters(partitionBasedBroadcastVar, nonPartitionBasedBroadcastVar);
 
     // first filter tasks on the basis of partition filters
     Expression netPartitionFilter = Expressions.alwaysTrue();
@@ -220,10 +220,11 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
                   .reduce(Expressions.alwaysTrue(), Expressions::and));
     }
 
-    filteredTasks = filterFilesAtManifestLevelAndAddToRuntimeFilters(filteredTasks,
-        netPartitionFilter);
-    filteredTasks = filterFilesAtDataFileLevelUsingBounds(netNewBroadcastVarFilters,
-        nonPartitionBasedBroadcastVar, filteredTasks);
+    filteredTasks =
+        filterFilesAtManifestLevelAndAddToRuntimeFilters(filteredTasks, netPartitionFilter);
+    filteredTasks =
+        filterFilesAtDataFileLevelUsingBounds(
+            netNewBroadcastVarFilters, nonPartitionBasedBroadcastVar, filteredTasks);
     LOG.info(
         "{} of {} task(s) for table {} matched runtime filter {}",
         filteredTasks.size(),
@@ -280,7 +281,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
                 boolean shouldEvalFile =
                     nonPartitionBroadcastFilterExists
                         || task.spec().fields().stream()
-                        .anyMatch(pf -> !pf.transform().isIdentity());
+                            .anyMatch(pf -> !pf.transform().isIdentity());
                 return !shouldEvalFile || evaluator.eval(task.asFileScanTask().file());
               })
           .collect(Collectors.toList());
@@ -326,16 +327,15 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
    * @param filters spark filters
    * @return A Tuple whose first element if not alwaysTrue, will contain the RangeIn filter ( those
    *     which have BroadcastVar) and the second element, if not alwaysTrue, will contain the Non
-   *     Broadcast Expressions. When invoked by {@link #filter(Predicate[])} Filter},
-   *     the non broadcast var ( i.e non RangeIn) expressions would always represent runtime
-   *     filters ( i.e filters on
-   *     partition column, and they will not be added to data filters), as they cannot provide any
-   *     benefit on executors for data filtering. While the broadcast var ( RangeIn) types of
-   *     expression could be on both partitioned and non partitioned columns. Non Partitioned
-   *     RangeIn op will be used as data filters( on executor side), as well as file filters ( on
-   *     driver side during task creations). While Partitioned RangeIn filters will be used for file
-   *     filteration on driver side during task creation and would be added as data filters for
-   *     executors only if there exists a non trivial transform.
+   *     Broadcast Expressions. When invoked by {@link #filter(Predicate[])} Filter}, the non
+   *     broadcast var ( i.e non RangeIn) expressions would always represent runtime filters ( i.e
+   *     filters on partition column, and they will not be added to data filters), as they cannot
+   *     provide any benefit on executors for data filtering. While the broadcast var ( RangeIn)
+   *     types of expression could be on both partitioned and non partitioned columns. Non
+   *     Partitioned RangeIn op will be used as data filters( on executor side), as well as file
+   *     filters ( on driver side during task creations). While Partitioned RangeIn filters will be
+   *     used for file filteration on driver side during task creation and would be added as data
+   *     filters for executors only if there exists a non trivial transform.
    */
   private Tuple<Expression, Expression> convertRuntimeFilters(Predicate[] filters) {
     return getExpression(filters, Expressions.alwaysTrue());
@@ -450,8 +450,8 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
   public String toString() {
     String broadcastVarMissed = getUnusedBroadcastVarString();
     return String.format(
-        "IcebergScan(table=%s, branch=%s, type=%s, filters=%s, runtimeFilters=%s, " +
-            "caseSensitive=%s, RangeIn UNUSED=%s)",
+        "IcebergScan(table=%s, branch=%s, type=%s, filters=%s, runtimeFilters=%s, "
+            + "caseSensitive=%s, RangeIn UNUSED=%s)",
         table(),
         branch(),
         expectedSchema().asStruct(),
@@ -460,6 +460,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
         caseSensitive(),
         broadcastVarMissed);
   }
+
   private String getUnusedBroadcastVarString() {
     int taskVersionNum = this.taskCreationVersionNum;
     return this.broadcastVarAdded.entrySet().stream()
@@ -599,6 +600,3 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
     }
   }
 }
-
-
-

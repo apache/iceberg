@@ -21,10 +21,8 @@ package org.apache.iceberg.spark.source;
 import static org.apache.iceberg.Files.localOutput;
 import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
 import static org.apache.iceberg.PlanningMode.LOCAL;
-
-import static org.assertj.core.api.Assertions.assertThat;
-
 import static org.apache.spark.sql.types.DataTypes.IntegerType;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -228,8 +226,7 @@ public class TestFilteredScan {
     Batch scan = builder.build().toBatch();
 
     InputPartition[] partitions = scan.planInputPartitions();
-    assertThat(partitions.length).as("Should only create one task for a small file").
-        isEqualTo(1);
+    assertThat(partitions.length).as("Should only create one task for a small file").isEqualTo(1);
 
     // validate row filtering
     assertEqualsSafe(

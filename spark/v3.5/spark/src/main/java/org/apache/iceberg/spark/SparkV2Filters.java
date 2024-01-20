@@ -128,14 +128,14 @@ public class SparkV2Filters {
     for (Predicate predicate : predicates) {
       Tuple<Boolean, Expression> convertedTuple = convert(predicate);
       Preconditions.checkArgument(
-          convertedTuple != null, "Cannot convert Spark predicate to Iceberg expression: %s",
+          convertedTuple != null,
+          "Cannot convert Spark predicate to Iceberg expression: %s",
           predicate);
       if (convertedTuple.getElement1()) {
         expressionForRangeIn = Expressions.and(expressionForRangeIn, convertedTuple.getElement2());
       } else {
         expressionForOthers = Expressions.and(expressionForOthers, convertedTuple.getElement2());
       }
-
     }
     return new Tuple<>(expressionForRangeIn, expressionForOthers);
   }
@@ -174,12 +174,14 @@ public class SparkV2Filters {
         case LT:
           if (canConvertToTerm(leftChild(predicate)) && isLiteral(rightChild(predicate))) {
             UnboundTerm<Object> term = toTerm(leftChild(predicate));
-            return term != null ? new Tuple<>(false, lessThan(term,
-                convertLiteral(rightChild(predicate)))) : null;
+            return term != null
+                ? new Tuple<>(false, lessThan(term, convertLiteral(rightChild(predicate))))
+                : null;
           } else if (canConvertToTerm(rightChild(predicate)) && isLiteral(leftChild(predicate))) {
             UnboundTerm<Object> term = toTerm(rightChild(predicate));
-            return term != null ? new Tuple<>(false, greaterThan(term,
-                convertLiteral(leftChild(predicate)))) : null;
+            return term != null
+                ? new Tuple<>(false, greaterThan(term, convertLiteral(leftChild(predicate))))
+                : null;
           } else {
             return null;
           }
@@ -202,12 +204,14 @@ public class SparkV2Filters {
         case GT:
           if (canConvertToTerm(leftChild(predicate)) && isLiteral(rightChild(predicate))) {
             UnboundTerm<Object> term = toTerm(leftChild(predicate));
-            return term != null ? new Tuple<>(false, greaterThan(term,
-                convertLiteral(rightChild(predicate)))) : null;
+            return term != null
+                ? new Tuple<>(false, greaterThan(term, convertLiteral(rightChild(predicate))))
+                : null;
           } else if (canConvertToTerm(rightChild(predicate)) && isLiteral(leftChild(predicate))) {
             UnboundTerm<Object> term = toTerm(rightChild(predicate));
-            return term != null ? new Tuple<>(false, lessThan(term,
-                convertLiteral(leftChild(predicate)))) : null;
+            return term != null
+                ? new Tuple<>(false, lessThan(term, convertLiteral(leftChild(predicate))))
+                : null;
           } else {
             return null;
           }
@@ -216,8 +220,8 @@ public class SparkV2Filters {
           if (canConvertToTerm(leftChild(predicate)) && isLiteral(rightChild(predicate))) {
             UnboundTerm<Object> term = toTerm(leftChild(predicate));
             return term != null
-                ? new Tuple<>(false, greaterThanOrEqual(term,
-                convertLiteral(rightChild(predicate))))
+                ? new Tuple<>(
+                    false, greaterThanOrEqual(term, convertLiteral(rightChild(predicate))))
                 : null;
           } else if (canConvertToTerm(rightChild(predicate)) && isLiteral(leftChild(predicate))) {
             UnboundTerm<Object> term = toTerm(rightChild(predicate));
@@ -281,11 +285,11 @@ public class SparkV2Filters {
                         .map(val -> convertLiteral(((Literal<?>) val)))
                         .filter(Objects::nonNull)
                         .collect(Collectors.toList()));
-            return new Tuple<>(false,  and(notNull(term), notIn));
+            return new Tuple<>(false, and(notNull(term), notIn));
           } else if (hasNoInFilter(childPredicate)) {
             Tuple<Boolean, Expression> childTuple = convert(childPredicate);
             if (childTuple != null) {
-              return new Tuple<>(false,   not(childTuple.getElement2()));
+              return new Tuple<>(false, not(childTuple.getElement2()));
             }
           }
           return null;
@@ -296,8 +300,8 @@ public class SparkV2Filters {
             Tuple<Boolean, Expression> leftExprTuple = convert(andPredicate.left(), schema);
             Tuple<Boolean, Expression> rightExprTuple = convert(andPredicate.right(), schema);
             if (leftExprTuple != null && rightExprTuple != null) {
-              return new Tuple<>(false, and(leftExprTuple.getElement2(),
-                  rightExprTuple.getElement2()));
+              return new Tuple<>(
+                  false, and(leftExprTuple.getElement2(), rightExprTuple.getElement2()));
             }
             return null;
           }
@@ -308,16 +312,16 @@ public class SparkV2Filters {
             Tuple<Boolean, Expression> leftExprTuple = convert(orPredicate.left(), schema);
             Tuple<Boolean, Expression> rightExprTuple = convert(orPredicate.right(), schema);
             if (leftExprTuple != null && rightExprTuple != null) {
-              return new Tuple<>(false, or(leftExprTuple.getElement2(),
-                  rightExprTuple.getElement2()));
+              return new Tuple<>(
+                  false, or(leftExprTuple.getElement2(), rightExprTuple.getElement2()));
             }
             return null;
           }
 
         case STARTS_WITH:
           String colName = SparkUtil.toColumnName(leftChild(predicate));
-          return new Tuple<>(false, startsWith(colName,
-              convertLiteral(rightChild(predicate)).toString()));
+          return new Tuple<>(
+              false, startsWith(colName, convertLiteral(rightChild(predicate)).toString()));
       }
     }
 
@@ -332,11 +336,12 @@ public class SparkV2Filters {
       if (term == null) {
         return null;
       } else {
-        List<Object> values = Arrays.stream(predicate.children())
-            .skip(1)
-            .map(val -> convertLiteral(((Literal<?>) val)))
-            .filter(Objects::nonNull)
-            .collect(Collectors.toList());
+        List<Object> values =
+            Arrays.stream(predicate.children())
+                .skip(1)
+                .map(val -> convertLiteral(((Literal<?>) val)))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
         Iterator<Object> valuesIter = values.iterator();
         if (valuesIter.hasNext()) {
           Object val = valuesIter.next();
@@ -345,8 +350,8 @@ public class SparkV2Filters {
             // we have a BroadCast variable here. so get elements out of it here itself
             BroadcastedJoinKeysWrapper bc = (BroadcastedJoinKeysWrapper) val;
             try {
-              return new Tuple<>(true, new BroadcastHRUnboundPredicate<>(term.ref().name(), bc,
-                  internalType));
+              return new Tuple<>(
+                  true, new BroadcastHRUnboundPredicate<>(term.ref().name(), bc, internalType));
             } catch (UncomparableLiteralException ule) {
               // for now jst log
               LOG.error("Literals involved in RangeIn pred not comparable", ule);

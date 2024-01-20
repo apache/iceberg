@@ -72,15 +72,17 @@ public class SparkReadConf {
     this.table = table;
     this.branch = branch;
     this.readOptions = readOptions;
-    this.confParser = new SparkConfParser(spark, table, readOptions);
-    this.isLocalityEnabled = initLocalityEnabled(table, readOptions);
+    SparkConfParser temp = new SparkConfParser(spark, table, readOptions);
+    this.confParser = temp;
+    this.isLocalityEnabled = initLocalityEnabled(table, readOptions, temp);
   }
 
   public boolean caseSensitive() {
     return SparkUtil.caseSensitive(spark);
   }
 
-  private static boolean initLocalityEnabled(Table table, Map<String, String> readOptions) {
+  private static boolean initLocalityEnabled(
+      Table table, Map<String, String> readOptions, SparkConfParser confParser) {
     boolean defaultValue = Util.mayHaveBlockLocations(table.io(), table.location());
     return confParser
         .booleanConf()

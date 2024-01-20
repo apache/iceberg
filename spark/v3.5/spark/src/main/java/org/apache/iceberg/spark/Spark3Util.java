@@ -893,6 +893,8 @@ public class Spark3Util {
             userSpecifiedSchema,
             fileStatusCache,
             Option.empty(),
+            Option.empty(),
+            Option.empty(),
             Option.empty());
 
     org.apache.spark.sql.execution.datasources.PartitionSpec spec = fileIndex.partitionSpec();

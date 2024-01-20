@@ -239,7 +239,6 @@ public class SparkFilters {
     return null;
   }
 
-
   private static Tuple<Boolean, Expression> handleInFilter(In inFilter, Schema schema) {
     // TODO :Asif find a more graceful logic to identify rangeIn case
     if (inFilter.values()[0] instanceof BroadcastedJoinKeysWrapper) {

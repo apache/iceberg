@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.function.Supplier;
-
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
