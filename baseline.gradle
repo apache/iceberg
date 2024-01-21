@@ -105,6 +105,7 @@ subprojects {
           '-Xep:IntLongMath:ERROR',
           '-Xep:MissingSummary:ERROR',
           '-Xep:AnnotateFormatMethod:ERROR',
+          '-Xep:CollectionUndefinedEquality:ERROR',
       )
     }
   }

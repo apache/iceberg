@@ -151,6 +151,7 @@ public class BaseDeleteLoader implements DeleteLoader {
     return PositionDeleteIndexUtil.merge(deletes);
   }
 
+  @SuppressWarnings("CollectionUndefinedEquality")
   private PositionDeleteIndex getOrReadPosDeletes(DeleteFile deleteFile, CharSequence filePath) {
     long estimatedSize = estimatePosDeletesSize(deleteFile);
     if (canCache(estimatedSize)) {
