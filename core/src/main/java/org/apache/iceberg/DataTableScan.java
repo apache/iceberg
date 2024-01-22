@@ -26,14 +26,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public class DataTableScan extends BaseTableScan {
 
-  private volatile List<FileScanTask> files = null;
-
   protected DataTableScan(Table table, Schema schema, TableScanContext context) {
     super(table, schema, context);
-  }
-
-  protected void setFiles(List<FileScanTask> files) {
-    this.files = files;
   }
 
   @Override
@@ -94,8 +88,6 @@ public class DataTableScan extends BaseTableScan {
     if (shouldPlanWithExecutor() && (dataManifests.size() > 1 || deleteManifests.size() > 1)) {
       manifestGroup = manifestGroup.planWith(planExecutor());
     }
-    CloseableIterable<FileScanTask> temp = manifestGroup.planFiles();
-    this.setFiles(Lists.newArrayList(temp));
-    return temp;
+    return manifestGroup.planFiles();
   }
 }
