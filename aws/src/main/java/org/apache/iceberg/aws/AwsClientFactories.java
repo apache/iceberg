@@ -122,7 +122,7 @@ public class AwsClientFactories {
           .applyMutation(awsClientProperties::applyClientRegionConfiguration)
           .applyMutation(httpClientProperties::applyHttpClientConfigurations)
           .applyMutation(awsProperties::applyGlueEndpointConfigurations)
-          .applyMutation(awsProperties::applyClientCredentialConfigurations)
+          .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
           .build();
     }
 
@@ -131,7 +131,7 @@ public class AwsClientFactories {
       return KmsClient.builder()
           .applyMutation(awsClientProperties::applyClientRegionConfiguration)
           .applyMutation(httpClientProperties::applyHttpClientConfigurations)
-          .applyMutation(awsProperties::applyClientCredentialConfigurations)
+          .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
           .build();
     }
 
@@ -140,7 +140,7 @@ public class AwsClientFactories {
       return DynamoDbClient.builder()
           .applyMutation(awsClientProperties::applyClientRegionConfiguration)
           .applyMutation(httpClientProperties::applyHttpClientConfigurations)
-          .applyMutation(awsProperties::applyClientCredentialConfigurations)
+          .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
           .applyMutation(awsProperties::applyDynamoDbEndpointConfigurations)
           .build();
     }
