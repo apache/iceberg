@@ -60,6 +60,7 @@ import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
@@ -1443,6 +1444,23 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThat(actual).as("Number of files order should be descending").isEqualTo(expected);
     Collections.reverse(expected);
     assertThat(actual).as("Number of files order should not be ascending").isNotEqualTo(expected);
+  }
+
+  @Test
+  public void testSnapshotProperty() {
+    Table table = createTable(4);
+    Result ignored = basicRewrite(table).snapshotProperty("key", "value").execute();
+    assertThat(table.currentSnapshot().summary())
+        .containsAllEntriesOf(ImmutableMap.of("key", "value"));
+    // make sure internal produced properties are not lost
+    String[] commitMetricsKeys =
+        new String[] {
+          SnapshotSummary.ADDED_FILES_PROP,
+          SnapshotSummary.DELETED_FILES_PROP,
+          SnapshotSummary.TOTAL_DATA_FILES_PROP,
+          SnapshotSummary.CHANGED_PARTITION_COUNT_PROP
+        };
+    assertThat(table.currentSnapshot().summary()).containsKeys(commitMetricsKeys);
   }
 
   private Stream<RewriteFileGroup> toGroupStream(Table table, RewriteDataFilesSparkAction rewrite) {

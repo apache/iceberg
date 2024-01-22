@@ -65,7 +65,7 @@ jobs:
       - name: Run Benchmark
         run: ./gradlew :iceberg-spark:${{ matrix.spark_version }}:jmh -PjmhIncludeRegex=${{ matrix.benchmark }} -PjmhOutputPath=benchmark/${{ matrix.benchmark }}.txt -PjmhJsonOutputPath=benchmark/${{ matrix.benchmark }}.json
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: ${{ always() }}
         with:
           name: benchmark-results

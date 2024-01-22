@@ -70,7 +70,7 @@ public class TestCreateTableAsSelect extends CatalogTestBase {
         "CREATE TABLE IF NOT EXISTS %s (id bigint NOT NULL, data string) "
             + "USING iceberg PARTITIONED BY (truncate(id, 3))",
         sourceName);
-    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b'), (3, 'c')", sourceName);
+    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd'), (5, 'e')", sourceName);
   }
 
   @AfterEach
@@ -112,6 +112,31 @@ public class TestCreateTableAsSelect extends CatalogTestBase {
             Types.NestedField.optional(2, "data", Types.StringType.get()));
 
     PartitionSpec expectedSpec = PartitionSpec.builderFor(expectedSchema).identity("id").build();
+
+    Table ctasTable = validationCatalog.loadTable(tableIdent);
+
+    assertThat(ctasTable.schema().asStruct())
+        .as("Should have expected nullable schema")
+        .isEqualTo(expectedSchema.asStruct());
+    assertThat(ctasTable.spec()).as("Should be partitioned by id").isEqualTo(expectedSpec);
+    assertEquals(
+        "Should have rows matching the source table",
+        sql("SELECT * FROM %s ORDER BY id", sourceName),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @TestTemplate
+  public void testCTASWriteDistributionModeRespected() {
+    sql(
+        "CREATE TABLE %s USING iceberg PARTITIONED BY (bucket(2, id)) AS SELECT * FROM %s",
+        tableName, sourceName);
+
+    Schema expectedSchema =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()));
+
+    PartitionSpec expectedSpec = PartitionSpec.builderFor(expectedSchema).bucket("id", 2).build();
 
     Table ctasTable = validationCatalog.loadTable(tableIdent);
 

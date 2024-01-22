@@ -16,19 +16,30 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.exceptions;
 
-import com.google.errorprone.annotations.FormatMethod;
+package org.apache.spark.sql.execution.datasources.v2
 
-/** Exception raised when attempting to load a view that does not exist. */
-public class NoSuchViewException extends RuntimeException implements CleanableFailure {
-  @FormatMethod
-  public NoSuchViewException(String message, Object... args) {
-    super(String.format(message, args));
+import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.expressions.Attribute
+import org.apache.spark.sql.connector.catalog.Identifier
+import org.apache.spark.sql.connector.catalog.ViewCatalog
+
+
+case class RenameV2ViewExec(
+  catalog: ViewCatalog,
+  oldIdent: Identifier,
+  newIdent: Identifier) extends LeafV2CommandExec {
+
+  override lazy val output: Seq[Attribute] = Nil
+
+  override protected def run(): Seq[InternalRow] = {
+    catalog.renameView(oldIdent, newIdent)
+
+    Seq.empty
   }
 
-  @FormatMethod
-  public NoSuchViewException(Throwable cause, String message, Object... args) {
-    super(String.format(message, args), cause);
+
+  override def simpleString(maxFields: Int): String = {
+    s"RenameV2View ${oldIdent} to {newIdent}"
   }
 }

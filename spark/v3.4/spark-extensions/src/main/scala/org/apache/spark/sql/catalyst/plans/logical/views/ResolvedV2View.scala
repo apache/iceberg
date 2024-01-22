@@ -16,19 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.exceptions;
 
-import com.google.errorprone.annotations.FormatMethod;
+package org.apache.spark.sql.catalyst.plans.logical.views
 
-/** Exception raised when attempting to load a view that does not exist. */
-public class NoSuchViewException extends RuntimeException implements CleanableFailure {
-  @FormatMethod
-  public NoSuchViewException(String message, Object... args) {
-    super(String.format(message, args));
-  }
+import org.apache.spark.sql.catalyst.analysis.LeafNodeWithoutStats
+import org.apache.spark.sql.catalyst.expressions.Attribute
+import org.apache.spark.sql.connector.catalog.Identifier
+import org.apache.spark.sql.connector.catalog.ViewCatalog
 
-  @FormatMethod
-  public NoSuchViewException(Throwable cause, String message, Object... args) {
-    super(String.format(message, args), cause);
-  }
+case class ResolvedV2View(
+  catalog: ViewCatalog,
+  identifier: Identifier) extends LeafNodeWithoutStats {
+  override def output: Seq[Attribute] = Nil
 }

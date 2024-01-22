@@ -343,7 +343,8 @@ data.writeTo("prod.db.sample").option("mergeSchema","true").append()
 Iceberg's default Spark writers require that the data in each spark task is clustered by partition values. This 
 distribution is required to minimize the number of file handles that are held open while writing. By default, starting
 in Iceberg 1.2.0, Iceberg also requests that Spark pre-sort data to be written to fit this distribution. The
-request to Spark is done through the table property `write.distribution-mode` with the value `hash`.
+request to Spark is done through the table property `write.distribution-mode` with the value `hash`. Spark doesn't respect
+distribution mode in CTAS/RTAS before 3.5.0.
 
 Let's go through writing the data against below sample table:
 
@@ -380,7 +381,7 @@ write data before writing.
 Practically, this means that each row is hashed based on the row's partition value and then placed
 in a corresponding Spark task based upon that value. Further division and coalescing of tasks may take place because of
 [Spark's Adaptive Query planning](#controlling-file-sizes).
-* `range` - This mode requests that Spark perform a range based exchanged to shuffle the data before writing.  
+* `range` - This mode requests that Spark perform a range based exchange to shuffle the data before writing.  
 This is a two stage procedure which is more expensive than the `hash` mode. The first stage samples the data to 
 be written based on the partition and sort columns. The second stage uses the range information to shuffle the input data into Spark 
 tasks. Each task gets an exclusive range of the input data which clusters the data by partition and also globally sorts.  

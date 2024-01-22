@@ -105,6 +105,8 @@ public class SerializableTable implements Table, Serializable {
     if (table instanceof HasTableOperations) {
       TableOperations ops = ((HasTableOperations) table).operations();
       return ops.current().metadataFileLocation();
+    } else if (table instanceof BaseMetadataTable) {
+      return ((BaseMetadataTable) table).table().operations().current().metadataFileLocation();
     } else {
       return null;
     }

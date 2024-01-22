@@ -16,19 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.exceptions;
 
-import com.google.errorprone.annotations.FormatMethod;
+package org.apache.spark.sql.catalyst.plans.logical.views
 
-/** Exception raised when attempting to load a view that does not exist. */
-public class NoSuchViewException extends RuntimeException implements CleanableFailure {
-  @FormatMethod
-  public NoSuchViewException(String message, Object... args) {
-    super(String.format(message, args));
-  }
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.UnaryCommand
 
-  @FormatMethod
-  public NoSuchViewException(Throwable cause, String message, Object... args) {
-    super(String.format(message, args), cause);
-  }
+case class DropIcebergView(
+  child: LogicalPlan,
+  ifExists: Boolean) extends UnaryCommand {
+  override protected def withNewChildInternal(newChild: LogicalPlan): DropIcebergView =
+    copy(child = newChild)
 }

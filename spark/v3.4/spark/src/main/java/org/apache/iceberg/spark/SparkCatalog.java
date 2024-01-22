@@ -581,15 +581,28 @@ public class SparkCatalog extends BaseCatalog
 
   @Override
   public boolean dropView(Identifier ident) {
-    throw new UnsupportedOperationException(
-        "Dropping a view is not supported by catalog: " + catalogName);
+    if (null != asViewCatalog) {
+      return asViewCatalog.dropView(buildIdentifier(ident));
+    }
+
+    return false;
   }
 
   @Override
   public void renameView(Identifier fromIdentifier, Identifier toIdentifier)
       throws NoSuchViewException, ViewAlreadyExistsException {
-    throw new UnsupportedOperationException(
-        "Renaming a view is not supported by catalog: " + catalogName);
+    if (null != asViewCatalog) {
+      try {
+        asViewCatalog.renameView(buildIdentifier(fromIdentifier), buildIdentifier(toIdentifier));
+      } catch (org.apache.iceberg.exceptions.NoSuchViewException e) {
+        throw new NoSuchViewException(fromIdentifier);
+      } catch (org.apache.iceberg.exceptions.AlreadyExistsException e) {
+        throw new ViewAlreadyExistsException(toIdentifier);
+      }
+    } else {
+      throw new UnsupportedOperationException(
+          "Renaming a view is not supported by catalog: " + catalogName);
+    }
   }
 
   @Override
