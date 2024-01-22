@@ -54,8 +54,6 @@ import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
-import org.apache.iceberg.util.Tasks;
-import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.connector.read.InputPartition;
@@ -154,25 +152,27 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
     List<CombinedScanTask> combinedScanTasks =
         Lists.newArrayList(
             TableScanUtil.planTasks(splitTasks, splitSize, splitLookback, splitOpenFileCost));
+    String[][] locations = computePreferredLocations(combinedScanTasks);
 
     InputPartition[] partitions = new InputPartition[combinedScanTasks.size()];
 
-    Tasks.range(partitions.length)
-        .stopOnFailure()
-        .executeWith(localityPreferred ? ThreadPools.getWorkerPool() : null)
-        .run(
-            index ->
-                partitions[index] =
-                    new SparkInputPartition(
-                        EMPTY_GROUPING_KEY_TYPE,
-                        combinedScanTasks.get(index),
-                        tableBroadcast,
-                        branch,
-                        expectedSchema,
-                        caseSensitive,
-                        localityPreferred));
+    for (int index = 0; index < combinedScanTasks.size(); index++) {
+      partitions[index] =
+          new SparkInputPartition(
+              EMPTY_GROUPING_KEY_TYPE,
+              combinedScanTasks.get(index),
+              tableBroadcast,
+              branch,
+              expectedSchema,
+              caseSensitive,
+              locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE);
+    }
 
     return partitions;
+  }
+
+  private String[][] computePreferredLocations(List<CombinedScanTask> taskGroups) {
+    return localityPreferred ? SparkPlanningUtil.fetchBlockLocations(table.io(), taskGroups) : null;
   }
 
   @Override
