@@ -53,9 +53,7 @@ import org.apache.iceberg.rest.requests.RegisterTableRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequestParser;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequestParser;
-import org.apache.iceberg.rest.requests.UpdateRequirementParser;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
-import org.apache.iceberg.rest.requests.UpdateTableRequest.UpdateRequirement;
 import org.apache.iceberg.rest.requests.UpdateTableRequestParser;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
@@ -88,8 +86,6 @@ public class RESTSerializers {
         .addDeserializer(MetadataUpdate.class, new MetadataUpdateDeserializer())
         .addSerializer(TableMetadata.class, new TableMetadataSerializer())
         .addDeserializer(TableMetadata.class, new TableMetadataDeserializer())
-        .addSerializer(UpdateRequirement.class, new UpdateRequirementSerializer())
-        .addDeserializer(UpdateRequirement.class, new UpdateRequirementDeserializer())
         .addSerializer(org.apache.iceberg.UpdateRequirement.class, new UpdateReqSerializer())
         .addDeserializer(org.apache.iceberg.UpdateRequirement.class, new UpdateReqDeserializer())
         .addSerializer(OAuthTokenResponse.class, new OAuthTokenResponseSerializer())
@@ -118,28 +114,6 @@ public class RESTSerializers {
         .addDeserializer(ImmutableLoadViewResponse.class, new LoadViewResponseDeserializer<>());
 
     mapper.registerModule(module);
-  }
-
-  /** @deprecated will be removed in 1.5.0, use {@link UpdateReqDeserializer} instead. */
-  @Deprecated
-  public static class UpdateRequirementDeserializer extends JsonDeserializer<UpdateRequirement> {
-    @Override
-    public UpdateRequirement deserialize(JsonParser p, DeserializationContext ctxt)
-        throws IOException {
-      JsonNode node = p.getCodec().readTree(p);
-      return UpdateRequirementParser.fromJson(node);
-    }
-  }
-
-  /** @deprecated will be removed in 1.5.0, use {@link UpdateReqSerializer} instead. */
-  @Deprecated
-  public static class UpdateRequirementSerializer extends JsonSerializer<UpdateRequirement> {
-    @Override
-    public void serialize(
-        UpdateRequirement value, JsonGenerator gen, SerializerProvider serializers)
-        throws IOException {
-      UpdateRequirementParser.toJson(value, gen);
-    }
   }
 
   static class UpdateReqDeserializer

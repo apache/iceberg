@@ -222,6 +222,23 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
   }
 
   @Test
+  public void testHadoopFileIOProperties() {
+    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    ImmutableMap<String, String> catalogProps =
+        ImmutableMap.of(
+            "warehouse", "/hive/testwarehouse",
+            "io.manifest.cache-enabled", "true");
+
+    HadoopCatalog catalog = new HadoopCatalog();
+    catalog.setConf(new Configuration());
+    catalog.initialize("hadoop", catalogProps);
+    FileIO fileIO = catalog.newTableOps(tableIdent).io();
+
+    Assertions.assertThat(fileIO.properties()).containsEntry("warehouse", "/hive/testwarehouse");
+    Assertions.assertThat(fileIO.properties()).containsEntry("io.manifest.cache-enabled", "true");
+  }
+
+  @Test
   public void testCreateAndDropTableWithoutNamespace() throws Exception {
     HadoopCatalog catalog = hadoopCatalog();
 

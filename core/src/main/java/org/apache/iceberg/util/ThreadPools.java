@@ -68,8 +68,9 @@ public class ThreadPools {
   /**
    * Return an {@link ExecutorService} that uses the "delete worker" thread-pool.
    *
-   * <p>The size of the delete worker pool limits the number of threads used to compute the
-   * PositionDeleteIndex from the position deletes for a data file.
+   * <p>The size of this worker pool limits the number of tasks concurrently reading delete files
+   * within a single JVM. If there are multiple threads loading deletes, all of them will share this
+   * worker pool by default.
    *
    * <p>The size of this thread-pool is controlled by the Java system property {@code
    * iceberg.worker.delete-num-threads}.

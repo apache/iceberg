@@ -26,6 +26,6 @@ public class TestFlinkPackage {
   /** This unit test would need to be adjusted as new Flink version is supported. */
   @Test
   public void testVersion() {
-    Assert.assertEquals("1.18.0", FlinkPackage.version());
+    Assert.assertEquals("1.18.1", FlinkPackage.version());
   }
 }

@@ -151,7 +151,7 @@ CALL catalog_name.system.set_current_snapshot('db.sample', 1);
 
 Set the current snapshot for `db.sample` to tag `s1`:
 ```sql
-CALL catalog_name.system.set_current_snapshot(table => 'db.sample', tag => 's1');
+CALL catalog_name.system.set_current_snapshot(table => 'db.sample', ref => 's1');
 ```
 
 ### `cherrypick_snapshot`
@@ -640,6 +640,7 @@ Keep in mind the `add_files` procedure will fetch the Parquet metadata from each
 | `source_table`          | ✔️        | string              | Table where files should come from, paths are also possible in the form of \`file_format\`.\`path\` |
 | `partition_filter`      | ️         | map<string, string> | A map of partitions in the source table to import from                                              |
 | `check_duplicate_files` | ️         | boolean             | Whether to prevent files existing in the table from being added (defaults to true)                  |
+| `parallelism`           |           | int                 | number of threads to use for file reading (defaults to 1)                                         |
 
 Warning : Schema is not validated, adding files with different schema to the Iceberg table will cause issues.
 
@@ -769,7 +770,6 @@ Creates a view that contains the changes from a given table.
 | `net_changes`        |           | boolean             | Whether to output net changes (see below for more information). Defaults to false.                                                                                                                   |
 | `compute_updates`    |           | boolean             | Whether to compute pre/post update images (see below for more information). Defaults to false.                                                                                                       | 
 | `identifier_columns` |           | array<string>       | The list of identifier columns to compute updates. If the argument `compute_updates` is set to true and `identifier_columns` are not provided, the table’s current identifier fields will be used.   |
-| `remove_carryovers`  |           | boolean             | Whether to remove carry-over rows (see below for more information). Defaults to true. Deprecated since 1.4.0, will be removed in 1.5.0;  Please query `SparkChangelogTable` to view carry-over rows. |
 
 Here is a list of commonly used Spark read options:
 * `start-snapshot-id`: the exclusive start snapshot ID. If not provided, it reads from the table’s first snapshot inclusively. 

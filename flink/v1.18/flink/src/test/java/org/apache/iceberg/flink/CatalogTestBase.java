@@ -18,12 +18,16 @@
  */
 package org.apache.iceberg.flink;
 
-import java.io.IOException;
+import java.io.File;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.util.ArrayUtils;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -31,68 +35,46 @@ import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
-public abstract class FlinkCatalogTestBase extends FlinkTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public abstract class CatalogTestBase extends TestBase {
 
   protected static final String DATABASE = "db";
-  private static TemporaryFolder hiveWarehouse = new TemporaryFolder();
-  private static TemporaryFolder hadoopWarehouse = new TemporaryFolder();
+  @TempDir protected File hiveWarehouse;
+  @TempDir protected File hadoopWarehouse;
 
-  @BeforeClass
-  public static void createWarehouse() throws IOException {
-    hiveWarehouse.create();
-    hadoopWarehouse.create();
-  }
+  @Parameter(index = 0)
+  protected String catalogName;
 
-  @AfterClass
-  public static void dropWarehouse() {
-    hiveWarehouse.delete();
-    hadoopWarehouse.delete();
-  }
+  @Parameter(index = 1)
+  protected Namespace baseNamespace;
 
-  @Before
-  public void before() {
-    sql("CREATE CATALOG %s WITH %s", catalogName, toWithClause(config));
-  }
+  protected Catalog validationCatalog;
+  protected SupportsNamespaces validationNamespaceCatalog;
+  protected Map<String, String> config = Maps.newHashMap();
 
-  @After
-  public void clean() {
-    dropCatalog(catalogName, true);
-  }
+  protected String flinkDatabase;
+  protected Namespace icebergNamespace;
+  protected boolean isHadoopCatalog;
 
-  @Parameterized.Parameters(name = "catalogName = {0} baseNamespace = {1}")
-  public static Iterable<Object[]> parameters() {
-    return Lists.newArrayList(
+  @Parameters(name = "catalogName={0}, baseNamespace={1}")
+  protected static List<Object[]> parameters() {
+    return Arrays.asList(
         new Object[] {"testhive", Namespace.empty()},
         new Object[] {"testhadoop", Namespace.empty()},
         new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1")});
   }
 
-  protected final String catalogName;
-  protected final Namespace baseNamespace;
-  protected final Catalog validationCatalog;
-  protected final SupportsNamespaces validationNamespaceCatalog;
-  protected final Map<String, String> config = Maps.newHashMap();
-
-  protected final String flinkDatabase;
-  protected final Namespace icebergNamespace;
-  protected final boolean isHadoopCatalog;
-
-  public FlinkCatalogTestBase(String catalogName, Namespace baseNamespace) {
-    this.catalogName = catalogName;
-    this.baseNamespace = baseNamespace;
+  @BeforeEach
+  public void before() {
     this.isHadoopCatalog = catalogName.startsWith("testhadoop");
     this.validationCatalog =
         isHadoopCatalog
-            ? new HadoopCatalog(hiveConf, "file:" + hadoopWarehouse.getRoot())
+            ? new HadoopCatalog(hiveConf, "file:" + hadoopWarehouse.getPath())
             : catalog;
     this.validationNamespaceCatalog = (SupportsNamespaces) validationCatalog;
 
@@ -111,13 +93,19 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
     this.flinkDatabase = catalogName + "." + DATABASE;
     this.icebergNamespace =
         Namespace.of(ArrayUtils.concat(baseNamespace.levels(), new String[] {DATABASE}));
+    sql("CREATE CATALOG %s WITH %s", catalogName, toWithClause(config));
+  }
+
+  @AfterEach
+  public void clean() {
+    dropCatalog(catalogName, true);
   }
 
   protected String warehouseRoot() {
     if (isHadoopCatalog) {
-      return hadoopWarehouse.getRoot().getAbsolutePath();
+      return hadoopWarehouse.getAbsolutePath();
     } else {
-      return hiveWarehouse.getRoot().getAbsolutePath();
+      return hiveWarehouse.getAbsolutePath();
     }
   }
 

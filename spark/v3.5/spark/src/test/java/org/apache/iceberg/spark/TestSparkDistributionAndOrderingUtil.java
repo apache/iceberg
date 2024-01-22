@@ -29,6 +29,7 @@ import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_RANGE;
 import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.DELETE;
 import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.MERGE;
 import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.UPDATE;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Table;
@@ -40,11 +41,10 @@ import org.apache.spark.sql.connector.expressions.Expressions;
 import org.apache.spark.sql.connector.expressions.SortDirection;
 import org.apache.spark.sql.connector.expressions.SortOrder;
 import org.apache.spark.sql.connector.write.RowLevelOperation.Command;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
 
-public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatalog {
+public class TestSparkDistributionAndOrderingUtil extends TestBaseWithCatalog {
 
   private static final Distribution UNSPECIFIED_DISTRIBUTION = Distributions.unspecified();
   private static final Distribution FILE_CLUSTERED_DISTRIBUTION =
@@ -100,7 +100,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
             Expressions.column(MetadataColumns.ROW_POSITION.name()), SortDirection.ASCENDING)
       };
 
-  @After
+  @AfterEach
   public void dropTable() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
@@ -141,7 +141,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
   // write mode is HASH -> CLUSTER BY date + LOCALLY ORDER BY date, id
   // write mode is RANGE -> ORDER BY date, id
 
-  @Test
+  @TestTemplate
   public void testDefaultWriteUnpartitionedUnsortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -150,7 +150,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkWriteDistributionAndOrdering(table, UNSPECIFIED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testHashWriteUnpartitionedUnsortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -161,7 +161,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkWriteDistributionAndOrdering(table, UNSPECIFIED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testRangeWriteUnpartitionedUnsortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -172,7 +172,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkWriteDistributionAndOrdering(table, UNSPECIFIED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testDefaultWriteUnpartitionedSortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -191,7 +191,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkWriteDistributionAndOrdering(table, expectedDistribution, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testHashWriteUnpartitionedSortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -210,7 +210,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkWriteDistributionAndOrdering(table, UNSPECIFIED_DISTRIBUTION, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testRangeWriteUnpartitionedSortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -231,7 +231,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkWriteDistributionAndOrdering(table, expectedDistribution, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testDefaultWritePartitionedUnsortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -260,7 +260,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkWriteDistributionAndOrdering(table, expectedDistribution, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testHashWritePartitionedUnsortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -291,7 +291,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkWriteDistributionAndOrdering(table, expectedDistribution, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testRangeWritePartitionedUnsortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -320,7 +320,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkWriteDistributionAndOrdering(table, expectedDistribution, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testDefaultWritePartitionedSortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -343,7 +343,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkWriteDistributionAndOrdering(table, expectedDistribution, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testHashWritePartitionedSortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -371,7 +371,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkWriteDistributionAndOrdering(table, expectedDistribution, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testRangeWritePartitionedSortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -436,7 +436,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
   // delete mode is HASH -> CLUSTER BY date + LOCALLY ORDER BY date, id
   // delete mode is RANGE -> ORDER BY date, id
 
-  @Test
+  @TestTemplate
   public void testDefaultCopyOnWriteDeleteUnpartitionedUnsortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -446,7 +446,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, DELETE, FILE_CLUSTERED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testNoneCopyOnWriteDeleteUnpartitionedUnsortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -458,7 +458,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, DELETE, UNSPECIFIED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testHashCopyOnWriteDeleteUnpartitionedUnsortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -470,7 +470,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, DELETE, FILE_CLUSTERED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testRangeCopyOnWriteDeleteUnpartitionedUnsortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -483,7 +483,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkCopyOnWriteDistributionAndOrdering(table, DELETE, expectedDistribution, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testDefaultCopyOnWriteDeleteUnpartitionedSortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -501,7 +501,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, DELETE, FILE_CLUSTERED_DISTRIBUTION, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testNoneCopyOnWriteDeleteUnpartitionedSortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -521,7 +521,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, DELETE, UNSPECIFIED_DISTRIBUTION, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testHashCopyOnWriteDeleteUnpartitionedSortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -541,7 +541,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, DELETE, FILE_CLUSTERED_DISTRIBUTION, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testRangeCopyOnWriteDeleteUnpartitionedSortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -562,7 +562,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkCopyOnWriteDistributionAndOrdering(table, DELETE, expectedDistribution, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testDefaultCopyOnWriteDeletePartitionedUnsortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -591,7 +591,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkCopyOnWriteDistributionAndOrdering(table, DELETE, expectedDistribution, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testNoneCopyOnWriteDeletePartitionedUnsortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -620,7 +620,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, DELETE, UNSPECIFIED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testHashCopyOnWriteDeletePartitionedUnsortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -651,7 +651,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkCopyOnWriteDistributionAndOrdering(table, DELETE, expectedDistribution, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testRangeCopyOnWriteDeletePartitionedUnsortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -680,7 +680,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkCopyOnWriteDistributionAndOrdering(table, DELETE, expectedDistribution, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testDefaultCopyOnWriteDeletePartitionedSortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -704,7 +704,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkCopyOnWriteDistributionAndOrdering(table, DELETE, expectedDistribution, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testNoneCopyOnWriteDeletePartitionedSortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -728,7 +728,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, DELETE, UNSPECIFIED_DISTRIBUTION, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testHashCopyOnWriteDeletePartitionedSortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -756,7 +756,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkCopyOnWriteDistributionAndOrdering(table, DELETE, expectedDistribution, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testRangeCopyOnWriteDeletePartitionedSortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -817,7 +817,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
   // update mode is HASH -> CLUSTER BY date + LOCALLY ORDER BY date, id
   // update mode is RANGE -> ORDER BY date, id
 
-  @Test
+  @TestTemplate
   public void testDefaultCopyOnWriteUpdateUnpartitionedUnsortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -827,7 +827,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, UPDATE, FILE_CLUSTERED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testNoneCopyOnWriteUpdateUnpartitionedUnsortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -839,7 +839,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, UPDATE, UNSPECIFIED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testHashCopyOnWriteUpdateUnpartitionedUnsortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -851,7 +851,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, UPDATE, FILE_CLUSTERED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testRangeCopyOnWriteUpdateUnpartitionedUnsortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -864,7 +864,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkCopyOnWriteDistributionAndOrdering(table, UPDATE, expectedDistribution, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testDefaultCopyOnWriteUpdateUnpartitionedSortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -882,7 +882,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, UPDATE, FILE_CLUSTERED_DISTRIBUTION, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testNoneCopyOnWriteUpdateUnpartitionedSortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -902,7 +902,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, UPDATE, UNSPECIFIED_DISTRIBUTION, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testHashCopyOnWriteUpdateUnpartitionedSortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -922,7 +922,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, UPDATE, FILE_CLUSTERED_DISTRIBUTION, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testRangeCopyOnWriteUpdateUnpartitionedSortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -943,7 +943,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkCopyOnWriteDistributionAndOrdering(table, UPDATE, expectedDistribution, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testDefaultCopyOnWriteUpdatePartitionedUnsortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -972,7 +972,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkCopyOnWriteDistributionAndOrdering(table, UPDATE, expectedDistribution, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testNoneCopyOnWriteUpdatePartitionedUnsortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -1001,7 +1001,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, UPDATE, UNSPECIFIED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testHashCopyOnWriteUpdatePartitionedUnsortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -1032,7 +1032,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkCopyOnWriteDistributionAndOrdering(table, UPDATE, expectedDistribution, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testRangeCopyOnWriteUpdatePartitionedUnsortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -1061,7 +1061,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkCopyOnWriteDistributionAndOrdering(table, UPDATE, expectedDistribution, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testDefaultCopyOnWriteUpdatePartitionedSortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -1085,7 +1085,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkCopyOnWriteDistributionAndOrdering(table, UPDATE, expectedDistribution, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testNoneCopyOnWriteUpdatePartitionedSortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -1109,7 +1109,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, UPDATE, UNSPECIFIED_DISTRIBUTION, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testHashCopyOnWriteUpdatePartitionedSortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -1137,7 +1137,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkCopyOnWriteDistributionAndOrdering(table, UPDATE, expectedDistribution, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testRangeCopyOnWriteUpdatePartitionedSortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -1198,7 +1198,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
   // merge mode is HASH -> CLUSTER BY date + LOCALLY ORDER BY date, id
   // merge mode is RANGE -> ORDERED BY date, id
 
-  @Test
+  @TestTemplate
   public void testDefaultCopyOnWriteMergeUnpartitionedUnsortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -1207,7 +1207,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkCopyOnWriteDistributionAndOrdering(table, MERGE, UNSPECIFIED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testNoneCopyOnWriteMergeUnpartitionedUnsortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -1218,7 +1218,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkCopyOnWriteDistributionAndOrdering(table, MERGE, UNSPECIFIED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testHashCopyOnWriteMergeUnpartitionedUnsortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -1229,7 +1229,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkCopyOnWriteDistributionAndOrdering(table, MERGE, UNSPECIFIED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testRangeCopyOnWriteMergeUnpartitionedUnsortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -1240,7 +1240,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkCopyOnWriteDistributionAndOrdering(table, MERGE, UNSPECIFIED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testDefaultCopyOnWriteMergeUnpartitionedSortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -1259,7 +1259,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkCopyOnWriteDistributionAndOrdering(table, MERGE, expectedDistribution, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testNoneCopyOnWriteMergeUnpartitionedSortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -1279,7 +1279,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, MERGE, UNSPECIFIED_DISTRIBUTION, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testHashCopyOnWriteMergeUnpartitionedSortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -1299,7 +1299,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, MERGE, UNSPECIFIED_DISTRIBUTION, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testRangeCopyOnWriteMergeUnpartitionedSortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -1320,7 +1320,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkCopyOnWriteDistributionAndOrdering(table, MERGE, expectedDistribution, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testDefaultCopyOnWriteMergePartitionedUnsortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -1349,7 +1349,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkCopyOnWriteDistributionAndOrdering(table, MERGE, expectedDistribution, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testNoneCopyOnWriteMergePartitionedUnsortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -1377,7 +1377,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkCopyOnWriteDistributionAndOrdering(table, MERGE, UNSPECIFIED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testHashCopyOnWriteMergePartitionedUnsortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -1408,7 +1408,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkCopyOnWriteDistributionAndOrdering(table, MERGE, expectedDistribution, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testRangeCopyOnWriteMergePartitionedUnsortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -1437,7 +1437,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkCopyOnWriteDistributionAndOrdering(table, MERGE, expectedDistribution, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testDefaultCopyOnWriteMergePartitionedSortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -1461,7 +1461,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkCopyOnWriteDistributionAndOrdering(table, MERGE, expectedDistribution, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testNoneCopyOnWriteMergePartitionedSortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -1485,7 +1485,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, MERGE, UNSPECIFIED_DISTRIBUTION, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testHashCopyOnWriteMergePartitionedSortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -1513,7 +1513,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkCopyOnWriteDistributionAndOrdering(table, MERGE, expectedDistribution, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testRangeCopyOnWriteMergePartitionedSortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -1573,7 +1573,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
   //                         LOCALLY ORDERED BY _spec_id, _partition, _file, _pos
   // delete mode is RANGE (fanout) -> RANGE DISTRIBUTE BY _spec_id, _partition + empty ordering
 
-  @Test
+  @TestTemplate
   public void testDefaultPositionDeltaDeleteUnpartitionedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -1593,7 +1593,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, DELETE, SPEC_ID_PARTITION_FILE_CLUSTERED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testNonePositionDeltaDeleteUnpartitionedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -1612,7 +1612,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, DELETE, UNSPECIFIED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testHashPositionDeltaDeleteUnpartitionedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -1634,7 +1634,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, DELETE, SPEC_ID_PARTITION_FILE_CLUSTERED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testRangePositionDeltaDeleteUnpartitionedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -1654,7 +1654,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkPositionDeltaDistributionAndOrdering(table, DELETE, expectedDistribution, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testDefaultPositionDeltaDeletePartitionedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -1678,7 +1678,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, DELETE, SPEC_ID_PARTITION_CLUSTERED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testNonePositionDeltaDeletePartitionedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -1701,7 +1701,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, DELETE, UNSPECIFIED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testHashPositionDeltaDeletePartitionedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -1727,7 +1727,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, DELETE, SPEC_ID_PARTITION_CLUSTERED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testRangePositionDeltaDeletePartitionedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -1814,7 +1814,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
   // update mode is RANGE -> RANGE DISTRIBUTE BY _spec_id, _partition, date, id +
   //                         LOCALLY ORDERED BY _spec_id, _partition, _file, _pos, date, id
 
-  @Test
+  @TestTemplate
   public void testDefaultPositionDeltaUpdateUnpartitionedUnsortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -1834,7 +1834,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, UPDATE, SPEC_ID_PARTITION_FILE_CLUSTERED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testNonePositionDeltaUpdateUnpartitionedUnsortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -1853,7 +1853,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, UPDATE, UNSPECIFIED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testHashPositionDeltaUpdateUnpartitionedUnsortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -1875,7 +1875,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, UPDATE, SPEC_ID_PARTITION_FILE_CLUSTERED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testRangePositionDeltaUpdateUnpartitionedUnsortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -1895,7 +1895,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkPositionDeltaDistributionAndOrdering(table, UPDATE, expectedDistribution, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testDefaultPositionDeltaUpdateUnpartitionedSortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -1921,7 +1921,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, UPDATE, SPEC_ID_PARTITION_FILE_CLUSTERED_DISTRIBUTION, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testNonePositionDeltaUpdateUnpartitionedSortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -1949,7 +1949,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, UPDATE, UNSPECIFIED_DISTRIBUTION, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testHashPositionDeltaUpdateUnpartitionedSortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -1977,7 +1977,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, UPDATE, SPEC_ID_PARTITION_FILE_CLUSTERED_DISTRIBUTION, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testRangePositionDeltaUpdateUnpartitionedSortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -2018,7 +2018,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, UPDATE, expectedDistribution, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testDefaultPositionDeltaUpdatePartitionedUnsortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -2061,7 +2061,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkPositionDeltaDistributionAndOrdering(table, UPDATE, expectedDistribution, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testNonePositionDeltaUpdatePartitionedUnsortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -2098,7 +2098,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, UPDATE, UNSPECIFIED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testHashPositionDeltaUpdatePartitionedUnsortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -2143,7 +2143,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkPositionDeltaDistributionAndOrdering(table, UPDATE, expectedDistribution, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testRangePositionDeltaUpdatePartitionedUnsortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -2190,7 +2190,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkPositionDeltaDistributionAndOrdering(table, UPDATE, expectedDistribution, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testDefaultPositionDeltaUpdatePartitionedSortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -2230,7 +2230,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, UPDATE, expectedDistribution, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testNonePositionDeltaUpdatePartitionedSortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -2263,7 +2263,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, UPDATE, UNSPECIFIED_DISTRIBUTION, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testHashPositionDeltaUpdatePartitionedSortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -2305,7 +2305,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, UPDATE, expectedDistribution, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testRangePositionDeltaUpdatePartitionedSortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -2414,7 +2414,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
   // merge mode is RANGE -> RANGE DISTRIBUTE BY _spec_id, _partition, date, id
   //                        LOCALLY ORDERED BY _spec_id, _partition, _file, _pos, date, id
 
-  @Test
+  @TestTemplate
   public void testDefaultPositionDeltaMergeUnpartitionedUnsortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -2438,7 +2438,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkPositionDeltaDistributionAndOrdering(table, MERGE, expectedDistribution, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testNonePositionDeltaMergeUnpartitionedUnsortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -2457,7 +2457,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, MERGE, UNSPECIFIED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testHashPositionDeltaMergeUnpartitionedUnsortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -2483,7 +2483,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkPositionDeltaDistributionAndOrdering(table, MERGE, expectedDistribution, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testRangePositionDeltaMergeUnpartitionedUnsortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -2512,7 +2512,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkPositionDeltaDistributionAndOrdering(table, MERGE, expectedDistribution, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testDefaultPositionDeltaMergeUnpartitionedSortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -2545,7 +2545,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkPositionDeltaDistributionAndOrdering(table, MERGE, expectedDistribution, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testNonePositionDeltaMergeUnpartitionedSortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -2573,7 +2573,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, MERGE, UNSPECIFIED_DISTRIBUTION, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testHashPositionDeltaMergeUnpartitionedSortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -2608,7 +2608,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkPositionDeltaDistributionAndOrdering(table, MERGE, expectedDistribution, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testRangePositionDeltaMergeUnpartitionedSortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -2648,7 +2648,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkPositionDeltaDistributionAndOrdering(table, MERGE, expectedDistribution, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testDefaultPositionDeltaMergePartitionedUnsortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -2690,7 +2690,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkPositionDeltaDistributionAndOrdering(table, MERGE, expectedDistribution, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testNonePositionDeltaMergePartitionedUnsortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -2727,7 +2727,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, MERGE, UNSPECIFIED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testHashPositionDeltaMergePartitionedUnsortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -2771,7 +2771,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkPositionDeltaDistributionAndOrdering(table, MERGE, expectedDistribution, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testRangePositionDeltaMergePartitionedUnsortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -2817,7 +2817,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkPositionDeltaDistributionAndOrdering(table, MERGE, expectedDistribution, EMPTY_ORDERING);
   }
 
-  @Test
+  @TestTemplate
   public void testNonePositionDeltaMergePartitionedSortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -2849,7 +2849,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, MERGE, UNSPECIFIED_DISTRIBUTION, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testDefaultPositionDeltaMergePartitionedSortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -2888,7 +2888,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkPositionDeltaDistributionAndOrdering(table, MERGE, expectedDistribution, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testHashPositionDeltaMergePartitionedSortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -2929,7 +2929,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkPositionDeltaDistributionAndOrdering(table, MERGE, expectedDistribution, expectedOrdering);
   }
 
-  @Test
+  @TestTemplate
   public void testRangePositionDeltaMergePartitionedSortedTable() {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -2978,10 +2978,10 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     SparkWriteRequirements requirements = writeConf.writeRequirements();
 
     Distribution distribution = requirements.distribution();
-    Assert.assertEquals("Distribution must match", expectedDistribution, distribution);
+    assertThat(distribution).as("Distribution must match").isEqualTo(expectedDistribution);
 
     SortOrder[] ordering = requirements.ordering();
-    Assert.assertArrayEquals("Ordering must match", expectedOrdering, ordering);
+    assertThat(ordering).as("Ordering must match").isEqualTo(expectedOrdering);
   }
 
   private void checkCopyOnWriteDistributionAndOrdering(
@@ -2994,10 +2994,10 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     SparkWriteRequirements requirements = writeConf.copyOnWriteRequirements(command);
 
     Distribution distribution = requirements.distribution();
-    Assert.assertEquals("Distribution must match", expectedDistribution, distribution);
+    assertThat(distribution).as("Distribution must match").isEqualTo(expectedDistribution);
 
     SortOrder[] ordering = requirements.ordering();
-    Assert.assertArrayEquals("Ordering must match", expectedOrdering, ordering);
+    assertThat(ordering).as("Ordering must match").isEqualTo(expectedOrdering);
   }
 
   private void checkPositionDeltaDistributionAndOrdering(
@@ -3010,10 +3010,10 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     SparkWriteRequirements requirements = writeConf.positionDeltaRequirements(command);
 
     Distribution distribution = requirements.distribution();
-    Assert.assertEquals("Distribution must match", expectedDistribution, distribution);
+    assertThat(distribution).as("Distribution must match").isEqualTo(expectedDistribution);
 
     SortOrder[] ordering = requirements.ordering();
-    Assert.assertArrayEquals("Ordering must match", expectedOrdering, ordering);
+    assertThat(ordering).as("Ordering must match").isEqualTo(expectedOrdering);
   }
 
   private void disableFanoutWriters(Table table) {

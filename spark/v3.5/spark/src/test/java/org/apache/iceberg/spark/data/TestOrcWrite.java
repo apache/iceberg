@@ -19,22 +19,22 @@
 package org.apache.iceberg.spark.data;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestOrcWrite {
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
   private static final Schema SCHEMA =
       new Schema(
@@ -42,8 +42,8 @@ public class TestOrcWrite {
 
   @Test
   public void splitOffsets() throws IOException {
-    File testFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", testFile.delete());
+    File testFile = File.createTempFile("junit", null, temp.toFile());
+    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     Iterable<InternalRow> rows = RandomData.generateSpark(SCHEMA, 1, 0L);
     FileAppender<InternalRow> writer =
@@ -54,6 +54,6 @@ public class TestOrcWrite {
 
     writer.addAll(rows);
     writer.close();
-    Assert.assertNotNull("Split offsets not present", writer.splitOffsets());
+    assertThat(writer.splitOffsets()).as("Split offsets not present").isNotNull();
   }
 }

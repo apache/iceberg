@@ -112,7 +112,7 @@ public class AesGcmInputStream extends SeekableInputStream {
     }
 
     if (available() <= 0 && len > 0) {
-      throw new EOFException();
+      return -1;
     }
 
     if (len == 0) {

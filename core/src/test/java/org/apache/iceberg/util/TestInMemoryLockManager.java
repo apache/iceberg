@@ -49,7 +49,7 @@ public class TestInMemoryLockManager {
   }
 
   @AfterEach
-  public void after() {
+  public void after() throws Exception {
     lockManager.close();
   }
 

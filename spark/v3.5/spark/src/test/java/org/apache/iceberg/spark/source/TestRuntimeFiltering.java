@@ -22,6 +22,7 @@ import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
 import static org.apache.iceberg.PlanningMode.LOCAL;
 import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -29,6 +30,9 @@ import java.util.List;
 import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
@@ -36,38 +40,47 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
+import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkWriteOptions;
+import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestRuntimeFiltering extends TestBaseWithCatalog {
 
-  @Parameterized.Parameters(name = "planningMode = {0}")
-  public static Object[] parameters() {
-    return new Object[] {LOCAL, DISTRIBUTED};
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}, planningMode = {3}")
+  public static Object[][] parameters() {
+    return new Object[][] {
+      {
+        SparkCatalogConfig.HADOOP.catalogName(),
+        SparkCatalogConfig.HADOOP.implementation(),
+        SparkCatalogConfig.HADOOP.properties(),
+        LOCAL
+      },
+      {
+        SparkCatalogConfig.HADOOP.catalogName(),
+        SparkCatalogConfig.HADOOP.implementation(),
+        SparkCatalogConfig.HADOOP.properties(),
+        DISTRIBUTED
+      }
+    };
   }
 
-  private final PlanningMode planningMode;
+  @Parameter(index = 3)
+  private PlanningMode planningMode;
 
-  public TestRuntimeFiltering(PlanningMode planningMode) {
-    this.planningMode = planningMode;
-  }
-
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS dim");
   }
 
-  @Test
+  @TestTemplate
   public void testIdentityPartitionedTable() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -106,7 +119,7 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
         sql(query));
   }
 
-  @Test
+  @TestTemplate
   public void testBucketedTable() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -145,7 +158,7 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
         sql(query));
   }
 
-  @Test
+  @TestTemplate
   public void testRenamedSourceColumnTable() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -186,7 +199,7 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
         sql(query));
   }
 
-  @Test
+  @TestTemplate
   public void testMultipleRuntimeFilters() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -229,7 +242,7 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
         sql(query));
   }
 
-  @Test
+  @TestTemplate
   public void testCaseSensitivityOfRuntimeFilters() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -273,7 +286,7 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
         sql(caseInsensitiveQuery));
   }
 
-  @Test
+  @TestTemplate
   public void testBucketedTableWithMultipleSpecs() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) USING iceberg",
@@ -325,7 +338,7 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
         sql(query));
   }
 
-  @Test
+  @TestTemplate
   public void testSourceColumnWithDots() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (`i.d` BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -369,7 +382,7 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
         sql(query));
   }
 
-  @Test
+  @TestTemplate
   public void testSourceColumnWithBackticks() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (`i``d` BIGINT, data STRING, date DATE, ts TIMESTAMP) "
@@ -410,7 +423,7 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
         sql(query));
   }
 
-  @Test
+  @TestTemplate
   public void testUnpartitionedTable() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) USING iceberg",
@@ -458,7 +471,7 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
     List<Row> output = spark.sql("EXPLAIN EXTENDED " + query).collectAsList();
     String plan = output.get(0).getString(0);
     int actualFilterCount = StringUtils.countMatches(plan, "dynamicpruningexpression");
-    Assert.assertEquals(errorMessage, expectedFilterCount, actualFilterCount);
+    assertThat(actualFilterCount).as(errorMessage).isEqualTo(expectedFilterCount);
   }
 
   // delete files that don't match the filter to ensure dynamic filtering works and only required
@@ -490,9 +503,8 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
       throw new UncheckedIOException(e);
     }
 
-    Assert.assertEquals(
-        "Deleted unexpected number of files",
-        expectedDeletedFileCount,
-        deletedFileLocations.size());
+    assertThat(deletedFileLocations)
+        .as("Deleted unexpected number of files")
+        .hasSize(expectedDeletedFileCount);
   }
 }

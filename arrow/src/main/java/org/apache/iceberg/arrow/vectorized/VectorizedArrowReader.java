@@ -572,12 +572,6 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   public static class ConstantVectorReader<T> extends VectorizedArrowReader {
     private final T value;
 
-    /** @deprecated since 1.4.0, will be removed in 1.5.0; use typed constant readers. */
-    @Deprecated
-    public ConstantVectorReader(T value) {
-      this.value = value;
-    }
-
     public ConstantVectorReader(Types.NestedField icebergField, T value) {
       super(icebergField);
       this.value = value;

@@ -36,7 +36,7 @@ Spark 3 can create tables in any Iceberg catalog with the clause `USING iceberg`
 
 ```sql
 CREATE TABLE prod.db.sample (
-    id bigint COMMENT 'unique id',
+    id bigint NOT NULL COMMENT 'unique id',
     data string)
 USING iceberg;
 ```
@@ -51,6 +51,8 @@ Table create commands, including CTAS and RTAS, support the full range of Spark 
 * `TBLPROPERTIES ('key'='value', ...)` to set [table configuration](../configuration)
 
 Create commands may also set the default format with the `USING` clause. This is only supported for `SparkCatalog` because Spark handles the `USING` clause differently for the built-in catalog.
+
+`CREATE TABLE ... LIKE ...` syntax is not supported.
 
 ### `PARTITIONED BY`
 
@@ -457,7 +459,8 @@ ALTER TABLE prod.db.sample WRITE DISTRIBUTED BY PARTITION LOCALLY ORDERED BY cat
 
 ### `ALTER TABLE ... SET IDENTIFIER FIELDS`
 
-Iceberg supports setting identifier fields to a spec using `SET IDENTIFIER FIELDS`:
+Iceberg supports setting [identifier fields](https://iceberg.apache.org/spec/#identifier-field-ids) to a spec using `SET IDENTIFIER FIELDS`:
+Spark table can support Flink SQL upsert operation if the table has identifier fields.
 
 ```sql
 ALTER TABLE prod.db.sample SET IDENTIFIER FIELDS id
@@ -466,7 +469,8 @@ ALTER TABLE prod.db.sample SET IDENTIFIER FIELDS id, data
 -- multiple columns
 ```
 
-identifier fields must be `NOT NULL`, The later `ALTER` statement will overwrite the previous setting.
+Identifier fields must be `NOT NULL` columns when they are created or added. 
+The later `ALTER` statement will overwrite the previous setting.
 
 ### `ALTER TABLE ... DROP IDENTIFIER FIELDS`
 

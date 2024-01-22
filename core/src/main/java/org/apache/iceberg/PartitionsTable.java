@@ -314,12 +314,12 @@ public class PartitionsTable extends BaseMetadataTable {
           this.dataFileSizeInBytes += file.fileSizeInBytes();
           break;
         case POSITION_DELETES:
-          this.posDeleteRecordCount = file.recordCount();
+          this.posDeleteRecordCount += file.recordCount();
           this.posDeleteFileCount += 1;
           this.specId = file.specId();
           break;
         case EQUALITY_DELETES:
-          this.eqDeleteRecordCount = file.recordCount();
+          this.eqDeleteRecordCount += file.recordCount();
           this.eqDeleteFileCount += 1;
           this.specId = file.specId();
           break;
