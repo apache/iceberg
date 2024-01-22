@@ -235,7 +235,7 @@ public class TestUpdatePartitionSpec extends TableTestBase {
             .bucket("id", 8, "id_bucket_8")
             .build();
 
-    Assert.assertEquals("Should have a day and an hour time field", expected, bucket8);
+    Assert.assertEquals("Should have multiple bucket partition fields", expected, bucket8);
   }
 
   @Test
@@ -601,7 +601,7 @@ public class TestUpdatePartitionSpec extends TableTestBase {
   }
 
   @Test
-  public void testDeleteAndRename() {
+  public void testRenameAndDelete() {
     Assertions.assertThatThrownBy(
             () ->
                 new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
@@ -612,7 +612,7 @@ public class TestUpdatePartitionSpec extends TableTestBase {
   }
 
   @Test
-  public void testRenameAndDelete() {
+  public void testDeleteAndRename() {
     Assertions.assertThatThrownBy(
             () ->
                 new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
