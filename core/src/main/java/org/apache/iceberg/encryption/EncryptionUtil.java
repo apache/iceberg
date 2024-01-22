@@ -20,9 +20,9 @@ package org.apache.iceberg.encryption;
 
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.common.DynConstructors;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.PropertyUtil;
 
@@ -80,17 +80,6 @@ public class EncryptionUtil {
       return PlaintextEncryptionManager.instance();
     }
 
-    String fileFormat =
-        PropertyUtil.propertyAsString(
-            tableProperties,
-            TableProperties.DEFAULT_FILE_FORMAT,
-            TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
-
-    if (FileFormat.fromString(fileFormat) != FileFormat.PARQUET) {
-      throw new UnsupportedOperationException(
-          "Iceberg encryption currently supports only parquet format for data files");
-    }
-
     int dataKeyLength =
         PropertyUtil.propertyAsInt(
             tableProperties,
@@ -103,5 +92,9 @@ public class EncryptionUtil {
         dataKeyLength);
 
     return new StandardEncryptionManager(tableKeyId, dataKeyLength, kmsClient);
+  }
+
+  public static EncryptedOutputFile plainAsEncryptedOutput(OutputFile encryptingOutputFile) {
+    return new BaseEncryptedOutputFile(encryptingOutputFile, EncryptionKeyMetadata.empty());
   }
 }

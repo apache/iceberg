@@ -453,6 +453,9 @@ public class ParquetDictionaryRowGroupFilter {
           case DOUBLE:
             dictSet.add((T) conversion.apply(dict.decodeToDouble(i)));
             break;
+          case INT96:
+            dictSet.add((T) conversion.apply(dict.decodeToBinary(i)));
+            break;
           default:
             throw new IllegalArgumentException(
                 "Cannot decode dictionary of type: "

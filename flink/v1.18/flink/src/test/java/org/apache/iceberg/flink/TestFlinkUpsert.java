@@ -25,47 +25,32 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
-import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.ClassRule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
 
-@RunWith(Parameterized.class)
-public class TestFlinkUpsert extends FlinkCatalogTestBase {
+public class TestFlinkUpsert extends CatalogTestBase {
 
-  @ClassRule
-  public static final MiniClusterWithClientResource MINI_CLUSTER_RESOURCE =
-      MiniClusterResource.createWithClassloaderCheckDisabled();
+  @Parameter(index = 2)
+  private FileFormat format;
 
-  @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
+  @Parameter(index = 3)
+  private boolean isStreamingJob;
 
-  private final boolean isStreamingJob;
   private final Map<String, String> tableUpsertProps = Maps.newHashMap();
   private TableEnvironment tEnv;
 
-  public TestFlinkUpsert(
-      String catalogName, Namespace baseNamespace, FileFormat format, Boolean isStreamingJob) {
-    super(catalogName, baseNamespace);
-    this.isStreamingJob = isStreamingJob;
-    tableUpsertProps.put(TableProperties.FORMAT_VERSION, "2");
-    tableUpsertProps.put(TableProperties.UPSERT_ENABLED, "true");
-    tableUpsertProps.put(TableProperties.DEFAULT_FILE_FORMAT, format.name());
-  }
-
-  @Parameterized.Parameters(
-      name = "catalogName={0}, baseNamespace={1}, format={2}, isStreaming={3}")
-  public static Iterable<Object[]> parameters() {
+  @Parameters(name = "catalogName={0}, baseNamespace={1}, format={2}, isStreaming={3}")
+  public static List<Object[]> parameters() {
     List<Object[]> parameters = Lists.newArrayList();
     for (FileFormat format :
         new FileFormat[] {FileFormat.PARQUET, FileFormat.AVRO, FileFormat.ORC}) {
@@ -105,22 +90,25 @@ public class TestFlinkUpsert extends FlinkCatalogTestBase {
   }
 
   @Override
-  @Before
+  @BeforeEach
   public void before() {
     super.before();
     sql("CREATE DATABASE IF NOT EXISTS %s", flinkDatabase);
     sql("USE CATALOG %s", catalogName);
     sql("USE %s", DATABASE);
+    tableUpsertProps.put(TableProperties.FORMAT_VERSION, "2");
+    tableUpsertProps.put(TableProperties.UPSERT_ENABLED, "true");
+    tableUpsertProps.put(TableProperties.DEFAULT_FILE_FORMAT, format.name());
   }
 
   @Override
-  @After
+  @AfterEach
   public void clean() {
     sql("DROP DATABASE IF EXISTS %s", flinkDatabase);
     super.clean();
   }
 
-  @Test
+  @TestTemplate
   public void testUpsertAndQuery() {
     String tableName = "test_upsert_query";
     LocalDate dt20220301 = LocalDate.of(2022, 3, 1);
@@ -164,7 +152,7 @@ public class TestFlinkUpsert extends FlinkCatalogTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testUpsertOptions() {
     String tableName = "test_upsert_options";
     LocalDate dt20220301 = LocalDate.of(2022, 3, 1);
@@ -210,7 +198,7 @@ public class TestFlinkUpsert extends FlinkCatalogTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testPrimaryKeyEqualToPartitionKey() {
     // This is an SQL based reproduction of TestFlinkIcebergSinkV2#testUpsertOnDataKey
     String tableName = "upsert_on_id_key";
@@ -243,7 +231,7 @@ public class TestFlinkUpsert extends FlinkCatalogTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testPrimaryKeyFieldsAtBeginningOfSchema() {
     String tableName = "upsert_on_pk_at_schema_start";
     LocalDate dt = LocalDate.of(2022, 3, 1);
@@ -292,7 +280,7 @@ public class TestFlinkUpsert extends FlinkCatalogTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testPrimaryKeyFieldsAtEndOfTableSchema() {
     // This is the same test case as testPrimaryKeyFieldsAtBeginningOfSchema, but the primary key
     // fields

@@ -369,7 +369,11 @@ public class HadoopTableOperations implements TableOperations {
    */
   private void renameToFinal(FileSystem fs, Path src, Path dst, long nextVersion) {
     try {
-      lockManager.acquire(dst.toString(), src.toString());
+      if (!lockManager.acquire(dst.toString(), src.toString())) {
+        throw new CommitFailedException(
+            "Failed to acquire lock on file: %s with owner: %s", dst, src);
+      }
+
       if (fs.exists(dst)) {
         throw new CommitFailedException("Version %d already exists: %s", nextVersion, dst);
       }
@@ -392,7 +396,9 @@ public class HadoopTableOperations implements TableOperations {
       }
       throw cfe;
     } finally {
-      lockManager.release(dst.toString(), src.toString());
+      if (!lockManager.release(dst.toString(), src.toString())) {
+        LOG.warn("Failed to release lock on file: {} with owner: {}", dst, src);
+      }
     }
   }
 

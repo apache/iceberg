@@ -33,6 +33,7 @@ on:
     - '.gitignore'
     - '.asf.yml'
     - 'dev/**'
+    - 'site/**'
     - 'mr/**'
     - 'hive3/**'
     - 'hive3-orc-bundle/**'
@@ -76,7 +77,7 @@ jobs:
           restore-keys: ${{ runner.os }}-gradle-
       - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
       - run: ./gradlew -DsparkVersions=${{ matrix.spark }} -DscalaVersion=2.12 -DhiveVersions= -DflinkVersions= :iceberg-spark:iceberg-spark-${{ matrix.spark }}_2.12:check :iceberg-spark:iceberg-spark-extensions-${{ matrix.spark }}_2.12:check :iceberg-spark:iceberg-spark-runtime-${{ matrix.spark }}_2.12:check -Pquick=true -x javadoc
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: test logs
@@ -106,7 +107,7 @@ jobs:
           restore-keys: ${{ runner.os }}-gradle-
       - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
       - run: ./gradlew -DsparkVersions=${{ matrix.spark }} -DscalaVersion=2.13 -DhiveVersions= -DflinkVersions= :iceberg-spark:iceberg-spark-${{ matrix.spark }}_2.13:check :iceberg-spark:iceberg-spark-extensions-${{ matrix.spark }}_2.13:check :iceberg-spark:iceberg-spark-runtime-${{ matrix.spark }}_2.13:check -Pquick=true -x javadoc
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: test logs
@@ -136,7 +137,7 @@ jobs:
           restore-keys: ${{ runner.os }}-gradle-
       - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
       - run: ./gradlew -DsparkVersions=${{ matrix.spark }} -DscalaVersion=${{ matrix.scala-version }} -DhiveVersions= -DflinkVersions= :iceberg-spark:iceberg-spark-${{ matrix.spark }}_${{ matrix.scala-version }}:check :iceberg-spark:iceberg-spark-extensions-${{ matrix.spark }}_${{ matrix.scala-version }}:check :iceberg-spark:iceberg-spark-runtime-${{ matrix.spark }}_${{ matrix.scala-version }}:check -Pquick=true -x javadoc
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: test logs

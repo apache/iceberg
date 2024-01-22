@@ -40,6 +40,7 @@ on:
     - 'spark/**'
     - 'pig/**'
     - 'docs/**'
+    - 'site/**'
     - 'open-api/**'
     - 'format/**'
     - '.gitattributes'
@@ -78,7 +79,7 @@ jobs:
         restore-keys: ${{ runner.os }}-gradle-
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
     - run: ./gradlew -DsparkVersions= -DhiveVersions= -DflinkVersions=${{ matrix.flink }} :iceberg-flink:iceberg-flink-${{ matrix.flink }}:check :iceberg-flink:iceberg-flink-runtime-${{ matrix.flink }}:check -Pquick=true -x javadoc
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       if: failure()
       with:
         name: test logs

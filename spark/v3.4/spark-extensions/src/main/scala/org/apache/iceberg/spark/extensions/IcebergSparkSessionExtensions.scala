@@ -27,6 +27,7 @@ import org.apache.spark.sql.catalyst.analysis.MergeIntoIcebergTableResolutionChe
 import org.apache.spark.sql.catalyst.analysis.ProcedureArgumentCoercion
 import org.apache.spark.sql.catalyst.analysis.ResolveMergeIntoTableReferences
 import org.apache.spark.sql.catalyst.analysis.ResolveProcedures
+import org.apache.spark.sql.catalyst.analysis.ResolveViews
 import org.apache.spark.sql.catalyst.analysis.RewriteMergeIntoTable
 import org.apache.spark.sql.catalyst.analysis.RewriteUpdateTable
 import org.apache.spark.sql.catalyst.optimizer.ExtendedReplaceNullWithFalseInPredicate
@@ -47,6 +48,7 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
 
     // analyzer extensions
     extensions.injectResolutionRule { spark => ResolveProcedures(spark) }
+    extensions.injectResolutionRule { spark => ResolveViews(spark) }
     extensions.injectResolutionRule { spark => ResolveMergeIntoTableReferences(spark) }
     extensions.injectResolutionRule { _ => CheckMergeIntoTableConditions }
     extensions.injectResolutionRule { _ => ProcedureArgumentCoercion }

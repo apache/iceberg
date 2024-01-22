@@ -166,6 +166,7 @@ public class CharSequenceSet implements Set<CharSequence>, Serializable {
     wrapperSet.clear();
   }
 
+  @SuppressWarnings("CollectionUndefinedEquality")
   @Override
   public boolean equals(Object other) {
     if (this == other) {

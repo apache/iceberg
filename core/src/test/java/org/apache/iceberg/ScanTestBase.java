@@ -19,66 +19,54 @@
 package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.junit.Assert.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Collections;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public abstract class ScanTestBase<
         ScanT extends Scan<ScanT, T, G>, T extends ScanTask, G extends ScanTaskGroup<T>>
-    extends TableTestBase {
-
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
-  }
-
-  public ScanTestBase(int formatVersion) {
-    super(formatVersion);
-  }
+    extends TestBase {
 
   protected abstract ScanT newScan();
 
-  @Test
+  @TestTemplate
   public void testTableScanHonorsSelect() {
     ScanT scan = newScan().select(Collections.singletonList("id"));
 
     Schema expectedSchema = new Schema(required(1, "id", Types.IntegerType.get()));
 
-    assertEquals(
-        "A tableScan.select() should prune the schema",
-        expectedSchema.asStruct(),
-        scan.schema().asStruct());
+    assertThat(scan.schema().asStruct())
+        .as("A tableScan.select() should prune the schema")
+        .isEqualTo(expectedSchema.asStruct());
   }
 
-  @Test
+  @TestTemplate
   public void testTableBothProjectAndSelect() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> newScan().select(Collections.singletonList("id")).project(SCHEMA.select("data")))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Cannot set projection schema when columns are selected");
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> newScan().project(SCHEMA.select("data")).select(Collections.singletonList("id")))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Cannot select columns when projection schema is set");
   }
 
-  @Test
+  @TestTemplate
   public void testTableScanHonorsSelectWithoutCaseSensitivity() {
     ScanT scan1 = newScan().caseSensitive(false).select(Collections.singletonList("ID"));
     // order of refinements shouldn't matter
@@ -86,29 +74,29 @@ public abstract class ScanTestBase<
 
     Schema expectedSchema = new Schema(required(1, "id", Types.IntegerType.get()));
 
-    assertEquals(
-        "A tableScan.select() should prune the schema without case sensitivity",
-        expectedSchema.asStruct(),
-        scan1.schema().asStruct());
+    assertThat(scan1.schema().asStruct())
+        .as("A tableScan.select() should prune the schema without case sensitivity")
+        .isEqualTo(expectedSchema.asStruct());
 
-    assertEquals(
-        "A tableScan.select() should prune the schema regardless of scan refinement order",
-        expectedSchema.asStruct(),
-        scan2.schema().asStruct());
+    assertThat(scan2.schema().asStruct())
+        .as("A tableScan.select() should prune the schema regardless of scan refinement order")
+        .isEqualTo(expectedSchema.asStruct());
   }
 
-  @Test
+  @TestTemplate
   public void testTableScanHonorsIgnoreResiduals() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     ScanT scan1 = newScan().filter(Expressions.equal("id", 5));
 
     try (CloseableIterable<G> groups = scan1.planTasks()) {
-      Assert.assertTrue("Tasks should not be empty", Iterables.size(groups) > 0);
+      assertThat(groups).as("Tasks should not be empty").isNotEmpty();
       for (G group : groups) {
         for (T task : group.tasks()) {
           Expression residual = ((ContentScanTask<?>) task).residual();
-          Assert.assertNotEquals("Residuals must be preserved", Expressions.alwaysTrue(), residual);
+          assertThat(residual)
+              .as("Residuals must be preserved")
+              .isNotEqualTo(Expressions.alwaysTrue());
         }
       }
     }
@@ -116,17 +104,19 @@ public abstract class ScanTestBase<
     ScanT scan2 = newScan().filter(Expressions.equal("id", 5)).ignoreResiduals();
 
     try (CloseableIterable<G> groups = scan2.planTasks()) {
-      Assert.assertTrue("Tasks should not be empty", Iterables.size(groups) > 0);
+      assertThat(groups).as("Tasks should not be empty").isNotEmpty();
       for (G group : groups) {
         for (T task : group.tasks()) {
           Expression residual = ((ContentScanTask<?>) task).residual();
-          Assert.assertEquals("Residuals must be ignored", Expressions.alwaysTrue(), residual);
+          assertThat(residual)
+              .as("Residuals must be preserved")
+              .isEqualTo(Expressions.alwaysTrue());
         }
       }
     }
   }
 
-  @Test
+  @TestTemplate
   public void testTableScanWithPlanExecutor() {
     table.newFastAppend().appendFile(FILE_A).commit();
     table.newFastAppend().appendFile(FILE_B).commit();
@@ -144,20 +134,22 @@ public abstract class ScanTestBase<
                           true); // daemon threads will be terminated abruptly when the JVM exits
                       return thread;
                     }));
-    Assert.assertEquals(2, Iterables.size(scan.planFiles()));
-    Assert.assertTrue("Thread should be created in provided pool", planThreadsIndex.get() > 0);
+    assertThat(scan.planFiles()).hasSize(2);
+    assertThat(planThreadsIndex.get())
+        .as("Thread should be created in provided pool")
+        .isGreaterThan(0);
   }
 
-  @Test
+  @TestTemplate
   public void testReAddingPartitionField() throws Exception {
-    Assume.assumeTrue(formatVersion == 2);
+    assumeThat(formatVersion).isEqualTo(2);
     Schema schema =
         new Schema(
             required(1, "a", Types.IntegerType.get()),
             required(2, "b", Types.StringType.get()),
             required(3, "data", Types.IntegerType.get()));
     PartitionSpec initialSpec = PartitionSpec.builderFor(schema).identity("a").build();
-    File dir = temp.newFolder();
+    File dir = Files.createTempDirectory(temp, "junit").toFile();
     dir.delete();
     this.table = TestTables.create(dir, "test_part_evolution", schema, initialSpec, formatVersion);
     table
@@ -208,29 +200,29 @@ public abstract class ScanTestBase<
 
     TableScan scan1 = table.newScan().filter(Expressions.equal("b", "1"));
     try (CloseableIterable<CombinedScanTask> tasks = scan1.planTasks()) {
-      Assert.assertTrue("There should be 1 combined task", Iterables.size(tasks) == 1);
+      assertThat(tasks).as("There should be 1 combined task").hasSize(1);
       for (CombinedScanTask combinedScanTask : tasks) {
-        Assert.assertEquals(
-            "All 4 files should match b=1 filter", 4, combinedScanTask.files().size());
+        assertThat(combinedScanTask.files()).as("All 4 files should match b=1 filter").hasSize(4);
       }
     }
 
     TableScan scan2 = table.newScan().filter(Expressions.equal("a", 2));
     try (CloseableIterable<CombinedScanTask> tasks = scan2.planTasks()) {
-      Assert.assertTrue("There should be 1 combined task", Iterables.size(tasks) == 1);
+      assertThat(tasks).as("There should be 1 combined task").hasSize(1);
       for (CombinedScanTask combinedScanTask : tasks) {
-        Assert.assertEquals(
-            "a=2 and file without a in spec should match", 2, combinedScanTask.files().size());
+        assertThat(combinedScanTask.files())
+            .as("a=2 and file without a in spec should match")
+            .hasSize(2);
       }
     }
   }
 
-  @Test
+  @TestTemplate
   public void testDataFileSorted() throws Exception {
     Schema schema =
         new Schema(
             required(1, "a", Types.IntegerType.get()), required(2, "b", Types.StringType.get()));
-    File dir = temp.newFolder();
+    File dir = Files.createTempDirectory(temp, "junit").toFile();
     dir.delete();
     this.table =
         TestTables.create(
@@ -250,7 +242,7 @@ public abstract class ScanTestBase<
     TableScan scan = table.newScan();
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
       for (FileScanTask fileScanTask : tasks) {
-        Assertions.assertThat(fileScanTask.file().sortOrderId()).isEqualTo(1);
+        assertThat(fileScanTask.file().sortOrderId()).isEqualTo(1);
       }
     }
   }

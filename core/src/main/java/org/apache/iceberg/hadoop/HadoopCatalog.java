@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.hadoop;
 
-import java.io.Closeable;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -78,7 +77,7 @@ import org.slf4j.LoggerFactory;
  * <p>Note: The HadoopCatalog requires that the underlying file system supports atomic rename.
  */
 public class HadoopCatalog extends BaseMetastoreCatalog
-    implements Closeable, SupportsNamespaces, Configurable {
+    implements SupportsNamespaces, Configurable {
 
   private static final Logger LOG = LoggerFactory.getLogger(HadoopCatalog.class);
 
@@ -112,16 +111,17 @@ public class HadoopCatalog extends BaseMetastoreCatalog
     this.warehouseLocation = LocationUtil.stripTrailingSlash(inputWarehouseLocation);
     this.fs = Util.getFs(new Path(warehouseLocation), conf);
 
-    String fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
-    this.fileIO =
-        fileIOImpl == null
-            ? new HadoopFileIO(conf)
-            : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
+    String fileIOImpl =
+        properties.getOrDefault(
+            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.hadoop.HadoopFileIO");
+
+    this.fileIO = CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
 
     this.lockManager = LockManagers.from(properties);
 
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(lockManager);
+    closeableGroup.addCloseable(metricsReporter());
     closeableGroup.setSuppressCloseFailure(true);
 
     this.suppressPermissionError =

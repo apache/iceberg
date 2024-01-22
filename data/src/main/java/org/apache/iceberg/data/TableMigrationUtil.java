@@ -215,11 +215,11 @@ public class TableMigrationUtil {
         .build();
   }
 
-  private static ExecutorService migrationService(int concurrentDeletes) {
+  private static ExecutorService migrationService(int parallelism) {
     return MoreExecutors.getExitingExecutorService(
         (ThreadPoolExecutor)
             Executors.newFixedThreadPool(
-                concurrentDeletes,
+                parallelism,
                 new ThreadFactoryBuilder().setNameFormat("table-migration-%d").build()));
   }
 }

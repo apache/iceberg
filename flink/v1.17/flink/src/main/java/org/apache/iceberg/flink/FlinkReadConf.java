@@ -20,6 +20,7 @@ package org.apache.iceberg.flink;
 
 import java.time.Duration;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.util.TimeUtils;
 import org.apache.iceberg.Table;
@@ -188,6 +189,24 @@ public class FlinkReadConf {
         .option(FlinkReadOptions.MAX_ALLOWED_PLANNING_FAILURES)
         .flinkConfig(FlinkReadOptions.MAX_ALLOWED_PLANNING_FAILURES_OPTION)
         .defaultValue(FlinkReadOptions.MAX_ALLOWED_PLANNING_FAILURES_OPTION.defaultValue())
+        .parse();
+  }
+
+  public String watermarkColumn() {
+    return confParser
+        .stringConf()
+        .option(FlinkReadOptions.WATERMARK_COLUMN)
+        .flinkConfig(FlinkReadOptions.WATERMARK_COLUMN_OPTION)
+        .defaultValue(FlinkReadOptions.WATERMARK_COLUMN_OPTION.defaultValue())
+        .parseOptional();
+  }
+
+  public TimeUnit watermarkColumnTimeUnit() {
+    return confParser
+        .enumConfParser(TimeUnit.class)
+        .option(FlinkReadOptions.WATERMARK_COLUMN_TIME_UNIT)
+        .flinkConfig(FlinkReadOptions.WATERMARK_COLUMN_TIME_UNIT_OPTION)
+        .defaultValue(FlinkReadOptions.WATERMARK_COLUMN_TIME_UNIT_OPTION.defaultValue())
         .parse();
   }
 }

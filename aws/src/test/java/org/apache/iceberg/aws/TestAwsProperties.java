@@ -18,8 +18,10 @@
  */
 package org.apache.iceberg.aws;
 
+import static org.apache.iceberg.aws.AwsProperties.DYNAMODB_TABLE_NAME;
+import static org.apache.iceberg.aws.AwsProperties.GLUE_CATALOG_ID;
+
 import java.io.IOException;
-import java.util.Collections;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
@@ -29,22 +31,13 @@ public class TestAwsProperties {
 
   @Test
   public void testKryoSerialization() throws IOException {
-    AwsProperties awsProperties = new AwsProperties();
-    AwsProperties deSerializedAwsProperties =
-        TestHelpers.KryoHelpers.roundTripSerialize(awsProperties);
-    Assertions.assertThat(deSerializedAwsProperties.httpClientProperties())
-        .isEqualTo(awsProperties.httpClientProperties());
-
-    AwsProperties awsPropertiesWithProps = new AwsProperties(ImmutableMap.of("a", "b"));
+    AwsProperties awsPropertiesWithProps =
+        new AwsProperties(ImmutableMap.of(GLUE_CATALOG_ID, "foo", DYNAMODB_TABLE_NAME, "ice"));
     AwsProperties deSerializedAwsPropertiesWithProps =
         TestHelpers.KryoHelpers.roundTripSerialize(awsPropertiesWithProps);
-    Assertions.assertThat(deSerializedAwsPropertiesWithProps.httpClientProperties())
-        .isEqualTo(awsProperties.httpClientProperties());
-
-    AwsProperties awsPropertiesWithEmptyProps = new AwsProperties(Collections.emptyMap());
-    AwsProperties deSerializedAwsPropertiesWithEmptyProps =
-        TestHelpers.KryoHelpers.roundTripSerialize(awsPropertiesWithProps);
-    Assertions.assertThat(deSerializedAwsPropertiesWithEmptyProps.httpClientProperties())
-        .isEqualTo(awsProperties.httpClientProperties());
+    Assertions.assertThat(deSerializedAwsPropertiesWithProps.glueCatalogId())
+        .isEqualTo(awsPropertiesWithProps.glueCatalogId());
+    Assertions.assertThat(deSerializedAwsPropertiesWithProps.dynamoDbTableName())
+        .isEqualTo(awsPropertiesWithProps.dynamoDbTableName());
   }
 }

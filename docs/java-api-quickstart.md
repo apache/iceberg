@@ -264,7 +264,7 @@ Reading from a branch or tag can be done as usual via the Table Scan API, by pas
 TableScan branchRead = table.newScan().useRef("test-branch");
 
 // Read from the snapshot referenced by audit-tag
-Table tagRead = table.newScan().useRef("audit-tag");
+TableScan tagRead = table.newScan().useRef("audit-tag");
 ```
 
 ### Replacing and fast forwarding branches and tags
