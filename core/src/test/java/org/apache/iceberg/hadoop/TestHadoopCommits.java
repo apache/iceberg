@@ -21,18 +21,13 @@ package org.apache.iceberg.hadoop;
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
+import static org.mockito.Mockito.*;
 
 import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -40,19 +35,9 @@ import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.BaseTable;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DataFiles;
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.LockManager;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.Table;
-import org.apache.iceberg.TableMetadata;
-import org.apache.iceberg.TableOperations;
-import org.apache.iceberg.UpdateSchema;
+import org.apache.iceberg.*;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -205,6 +190,89 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     List<File> manifests = listManifestFiles();
     Assertions.assertThat(manifests).as("Should contain 0 Avro manifest files").isEmpty();
   }
+
+  @Test
+  public void testCommitFailedBeforeChangeVersionHint() throws Exception {
+    // create v1-format table,for easy testing
+    Map<String,String> confMap = new HashMap<>();
+    confMap.put(TableProperties.FORMAT_VERSION,"1");
+    String newLocation = tableLocation+"v1"+File.separator;
+    Table v1Table = TABLES.create(SCHEMA, SPEC,confMap,newLocation);
+    // Submit a new file to test the functionality.
+    v1Table.newFastAppend().appendFile(FILE_A).commit();
+    BaseTable baseTable = (BaseTable) v1Table;
+    HadoopTableOperations tableOperations = (HadoopTableOperations) baseTable.operations();
+    HadoopTableOperations spyOps = spy(tableOperations);
+    doThrow(new RuntimeException("hdfs crash!"))
+            .when(spyOps)
+            .renameToFinal(any(), any(), any(), any());
+    int versionBefore = spyOps.findVersion();
+    TableMetadata metadataV1 = spyOps.current();
+    TableMetadata metadataV2 = metadataV1.upgradeToFormatVersion(2);
+    // commit func should fail
+    assertThatThrownBy(() -> spyOps.commit(metadataV1, metadataV2))
+            .isInstanceOf(CommitFailedException.class)
+            .hasMessageContaining("hdfs crash!");
+    // commit should not successful.
+    int versionAfter = spyOps.findVersion();
+    assert versionBefore == versionAfter;
+  }
+
+  @Test
+  public void testCommitFailedWhenChangeVersionHint() throws Exception {
+    // create v1-format table,for easy testing
+    Map<String,String> confMap = new HashMap<>();
+    confMap.put(TableProperties.FORMAT_VERSION,"1");
+    String newLocation = tableLocation+"v1";
+    Table v1Table = TABLES.create(SCHEMA, SPEC,confMap,newLocation);
+    // Submit a new file to test the functionality.
+    v1Table.newFastAppend().appendFile(FILE_A).commit();
+    BaseTable baseTable = (BaseTable) v1Table;
+    HadoopTableOperations tableOperations = (HadoopTableOperations) baseTable.operations();
+    HadoopTableOperations spyOps = spy(tableOperations);
+    doThrow(new RuntimeException("hdfs crash!"))
+            .when(spyOps)
+            .writeVersionHint(any());
+    int versionBefore = spyOps.findVersion();
+    TableMetadata metadataV1 = spyOps.current();
+    TableMetadata metadataV2 = metadataV1.upgradeToFormatVersion(2);
+    // commit func should fail
+    assertThatThrownBy(() -> spyOps.commit(metadataV1, metadataV2))
+            .isInstanceOf(CommitFailedException.class)
+            .hasMessageContaining("hdfs crash!");
+    // The commit should actually success
+    int versionAfter = spyOps.findVersion();
+    assert versionAfter == versionBefore;
+  }
+
+  @Test
+  public void testCommitFailedAfterChangeVersionHint() throws Exception {
+    // create v1-format table,for easy testing
+    Map<String,String> confMap = new HashMap<>();
+    confMap.put(TableProperties.FORMAT_VERSION,"1");
+    String newLocation = tableLocation+"v1";
+    Table v1Table = TABLES.create(SCHEMA, SPEC,confMap,newLocation);
+    // Submit a new file to test the functionality.
+    v1Table.newFastAppend().appendFile(FILE_A).commit();
+    BaseTable baseTable = (BaseTable) v1Table;
+    HadoopTableOperations tableOperations = (HadoopTableOperations) baseTable.operations();
+    HadoopTableOperations spyOps = spy(tableOperations);
+    doThrow(new RuntimeException("hdfs crash!"))
+            .when(spyOps)
+            .deleteRemovedMetadataFiles(any(),any());
+    int versionBefore = spyOps.findVersion();
+    TableMetadata metadataV1 = spyOps.current();
+    TableMetadata metadataV2 = metadataV1.upgradeToFormatVersion(2);
+    // commit func should fail
+    assertThatThrownBy(() -> spyOps.commit(metadataV1, metadataV2))
+            .isInstanceOf(CommitStateUnknownException.class)
+            .hasMessageContaining("hdfs crash!");
+    // The commit should actually success
+    int versionAfter = spyOps.findVersion();
+    assert versionAfter != versionBefore;
+    assert versionAfter > versionBefore;
+  }
+
 
   @Test
   public void testStaleMetadata() throws Exception {
@@ -369,7 +437,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     // mock / spy the classes for testing
     TableOperations tops = baseTable.operations();
     Assertions.assertThat(tops).isInstanceOf(HadoopTableOperations.class);
-    HadoopTableOperations spyOps = Mockito.spy((HadoopTableOperations) tops);
+    HadoopTableOperations spyOps = spy((HadoopTableOperations) tops);
 
     // inject the mockFS into the TableOperations
     doReturn(mockFs).when(spyOps).getFileSystem(any(), any());

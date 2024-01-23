@@ -39,6 +39,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
@@ -154,21 +155,35 @@ public class HadoopTableOperations implements TableOperations {
     Path tempMetadataFile = metadataPath(UUID.randomUUID().toString() + fileExtension);
     TableMetadataParser.write(metadata, io().newOutputFile(tempMetadataFile.toString()));
 
+    // todo:What should we do if version variable overflows?
     int nextVersion = (current.first() != null ? current.first() : 0) + 1;
     Path finalMetadataFile = metadataFilePath(nextVersion, codec);
     FileSystem fs = getFileSystem(tempMetadataFile, conf);
+    boolean versionCommitSuccess = false;
+    try{
+      // this rename operation is the atomic commit operation
+      renameToFinal(fs, tempMetadataFile, finalMetadataFile, nextVersion);
 
-    // this rename operation is the atomic commit operation
-    renameToFinal(fs, tempMetadataFile, finalMetadataFile, nextVersion);
+      LOG.info("Committed a new metadata file {}", finalMetadataFile);
 
-    LOG.info("Committed a new metadata file {}", finalMetadataFile);
+      // update the best-effort version pointer
+      versionCommitSuccess = writeVersionHint(nextVersion);
 
-    // update the best-effort version pointer
-    writeVersionHint(nextVersion);
+      deleteRemovedMetadataFiles(base, metadata);
 
-    deleteRemovedMetadataFiles(base, metadata);
-
-    this.shouldRefresh = true;
+      this.shouldRefresh = true;
+    }catch (Throwable e){
+      // If the versionHint has been submitted successfully, then we don't need to clean up the data
+      // file if the task fails.
+      // This is achieved by throwing the CommitStateUnknownException
+      // exception(BaseFileRewriteAction::doReplace)
+      if(versionCommitSuccess && !this.shouldRefresh){
+        this.shouldRefresh = true;
+      }
+      throw versionCommitSuccess
+              ? new CommitStateUnknownException(e)
+              : new CommitFailedException(e);
+    }
   }
 
   @Override
@@ -289,7 +304,8 @@ public class HadoopTableOperations implements TableOperations {
     return metadataPath(Util.VERSION_HINT_FILENAME);
   }
 
-  private void writeVersionHint(int versionToWrite) {
+  @VisibleForTesting
+  boolean writeVersionHint(int versionToWrite) {
     Path versionHintFile = versionHintFile();
     FileSystem fs = getFileSystem(versionHintFile, conf);
 
@@ -297,9 +313,10 @@ public class HadoopTableOperations implements TableOperations {
       Path tempVersionHintFile = metadataPath(UUID.randomUUID().toString() + "-version-hint.temp");
       writeVersionToPath(fs, tempVersionHintFile, versionToWrite);
       fs.delete(versionHintFile, false /* recursive delete */);
-      fs.rename(tempVersionHintFile, versionHintFile);
+      return fs.rename(tempVersionHintFile, versionHintFile);
     } catch (IOException e) {
       LOG.warn("Failed to update version hint", e);
+      return false;
     }
   }
 
@@ -358,7 +375,8 @@ public class HadoopTableOperations implements TableOperations {
    * @param src the source file
    * @param dst the destination file
    */
-  private void renameToFinal(FileSystem fs, Path src, Path dst, int nextVersion) {
+  @VisibleForTesting
+  void renameToFinal(FileSystem fs, Path src, Path dst, int nextVersion) {
     try {
       if (!lockManager.acquire(dst.toString(), src.toString())) {
         throw new CommitFailedException(
@@ -419,7 +437,8 @@ public class HadoopTableOperations implements TableOperations {
    * @param base table metadata on which previous versions were based
    * @param metadata new table metadata with updated previous versions
    */
-  private void deleteRemovedMetadataFiles(TableMetadata base, TableMetadata metadata) {
+  @VisibleForTesting
+  void deleteRemovedMetadataFiles(TableMetadata base, TableMetadata metadata) {
     if (base == null) {
       return;
     }
