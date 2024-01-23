@@ -33,7 +33,6 @@ import org.apache.iceberg.spark.CatalogTestBase;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.TestTemplate;
 
 public class TestDropTable extends CatalogTestBase {
@@ -85,8 +84,7 @@ public class TestDropTable extends CatalogTestBase {
     }
   }
 
-  // TODO: enable once SPARK-43203 is fixed
-  @Disabled
+  @TestTemplate
   public void testPurgeTable() throws IOException {
     assertEquals(
         "Should have expected rows",
@@ -102,8 +100,7 @@ public class TestDropTable extends CatalogTestBase {
     assertThat(checkFilesExist(manifestAndFiles, false)).as("All files should be deleted").isTrue();
   }
 
-  // TODO: enable once SPARK-43203 is fixed
-  @Disabled
+  @TestTemplate
   public void testPurgeTableGCDisabled() throws IOException {
     sql("ALTER TABLE %s SET TBLPROPERTIES (gc.enabled = false)", tableName);
 
