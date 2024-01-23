@@ -190,21 +190,8 @@ public class TestFastForwardBranchProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void testFastForwardNonExistingBranchCases() {
+  public void testFastForwardNonExistingToRefFails() {
     sql("CREATE TABLE %s (id int NOT NULL, data string) USING iceberg", tableName);
-
-    Table table = validationCatalog.loadTable(tableIdent);
-    table.refresh();
-
-    assertThatThrownBy(
-            () ->
-                sql(
-                    "CALL %s.system.fast_forward(table => '%s', branch => '%s', to => '%s')",
-                    catalogName, tableIdent, "non_existing_branch", SnapshotRef.MAIN_BRANCH))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Branch to fast-forward does not exist: non_existing_branch");
-
-    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
     assertThatThrownBy(
             () ->
                 sql(
@@ -237,14 +224,37 @@ public class TestFastForwardBranchProcedure extends SparkExtensionsTestBase {
     sql("INSERT INTO TABLE %s VALUES (3, 'c')", tableNameWithBranch2);
     table.refresh();
     Snapshot branch2Snapshot = table.snapshot(branch2);
+    assertThat(
+            sql(
+                "CALL %s.system.fast_forward('%s', '%s', '%s')",
+                catalogName, tableIdent, branch1, branch2))
+        .containsExactly(row(branch1, branch1Snapshot.snapshotId(), branch2Snapshot.snapshotId()));
+  }
 
-    List<Object[]> output =
-        sql(
-            "CALL %s.system.fast_forward('%s', '%s', '%s')",
-            catalogName, tableIdent, branch1, branch2);
-    List<Object> outputRow = Arrays.stream(output.get(0)).collect(Collectors.toList());
-    assertThat(outputRow.get(0)).isEqualTo(branch1);
-    assertThat(outputRow.get(1)).isEqualTo(branch1Snapshot.snapshotId());
-    assertThat(outputRow.get(2)).isEqualTo(branch2Snapshot.snapshotId());
+  @Test
+  public void testFastForwardNonExistingFromMainCreatesBranch() {
+    sql("CREATE TABLE %s (id int NOT NULL, data string) USING iceberg", tableName);
+    String branch1 = "branch1";
+    sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branch1);
+    String branchIdentifier = String.format("%s.branch_%s", tableName, branch1);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", branchIdentifier);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", branchIdentifier);
+    Table table = validationCatalog.loadTable(tableIdent);
+    table.refresh();
+    Snapshot branch1Snapshot = table.snapshot(branch1);
+
+    assertThat(
+            sql(
+                "CALL %s.system.fast_forward('%s', '%s', '%s')",
+                catalogName, tableIdent, SnapshotRef.MAIN_BRANCH, branch1))
+        .containsExactly(row(SnapshotRef.MAIN_BRANCH, null, branch1Snapshot.snapshotId()));
+
+    // Ensure the same behavior for non-main branches
+    String branch2 = "branch2";
+    assertThat(
+            sql(
+                "CALL %s.system.fast_forward('%s', '%s', '%s')",
+                catalogName, tableIdent, branch2, branch1))
+        .containsExactly(row(branch2, null, branch1Snapshot.snapshotId()));
   }
 }
