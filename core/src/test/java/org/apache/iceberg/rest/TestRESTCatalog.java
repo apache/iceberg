@@ -136,7 +136,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             // this doesn't use a Mockito spy because this is used for catalog tests, which have
             // different method calls
             if (!"v1/oauth/tokens".equals(path)) {
-              if ("v1/config".equals(path)) {
+              if ("v1/config".equals(path) || "v1/transactions/commit".equals(path)) {
                 assertThat(headers).containsAllEntriesOf(catalogHeaders);
               } else {
                 assertThat(headers).containsAllEntriesOf(contextHeaders);
