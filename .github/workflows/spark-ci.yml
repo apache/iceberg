@@ -68,7 +68,7 @@ jobs:
         with:
           distribution: zulu
           java-version: ${{ matrix.jvm }}
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
@@ -98,7 +98,7 @@ jobs:
         with:
           distribution: zulu
           java-version: ${{ matrix.jvm }}
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
@@ -128,7 +128,7 @@ jobs:
         with:
           distribution: zulu
           java-version: 17
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
