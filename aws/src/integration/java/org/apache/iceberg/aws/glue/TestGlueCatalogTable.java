@@ -76,7 +76,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
     String tableDescription = "Test table";
     Map<String, String> tableProperties =
         ImmutableMap.<String, String>builder()
-                    .putAll((tableLocationProperties))
+                    .putAll(tableLocationProperties)
                     .put(IcebergToGlueConverter.GLUE_DESCRIPTION_KEY, tableDescription)
                     .build();
     glueCatalog.createTable(
