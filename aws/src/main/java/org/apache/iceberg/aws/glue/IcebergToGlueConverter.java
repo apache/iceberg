@@ -60,6 +60,7 @@ class IcebergToGlueConverter {
   private static final Pattern GLUE_DB_PATTERN = Pattern.compile("^[a-z0-9_]{1,252}$");
   private static final Pattern GLUE_TABLE_PATTERN = Pattern.compile("^[a-z0-9_]{1,255}$");
   public static final String GLUE_DB_LOCATION_KEY = "location";
+  // Utilized for defining descriptions at both the Glue database and table levels.
   public static final String GLUE_DESCRIPTION_KEY = "comment";
   public static final String ICEBERG_FIELD_ID = "iceberg.field.id";
   public static final String ICEBERG_FIELD_OPTIONAL = "iceberg.field.optional";
