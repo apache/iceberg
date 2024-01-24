@@ -22,6 +22,11 @@ title: "Blogs"
 
 Here is a list of company blogs that talk about Iceberg. The blogs are ordered from most recent to oldest.
 
+### [How not to use Apache Iceberg](https://medium.com/@ajanthabhat/how-not-to-use-apache-iceberg-046ae7e7c884)
+**Date**: January 23rd, 2024, **Company**: Dremio
+
+**Authors**: [Ajantha Bhat](https://www.linkedin.com/in/ajanthabhat/)
+
 ### [Apache Hive-4.x with Iceberg Branches & Tags](https://medium.com/@ayushtkn/apache-hive-4-x-with-iceberg-branches-tags-3d52293ac0bf/)
 **Date**: October 12th, 2023, **Company**: Cloudera
 
