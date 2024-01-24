@@ -27,6 +27,7 @@ nav:
     - configuration.md
     - evolution.md
     - maintenance.md
+    - metrics-reporting.md
     - partitioning.md
     - performance.md
     - reliability.md
@@ -66,5 +67,9 @@ nav:
     - java-api-quickstart.md
     - api.md
     - custom-catalog.md
+  - Migration:
+    - table-migration.md
+    - hive-migration.md
+    - delta-lake-migration.md
   - Javadoc: ../../javadoc/1.4.2
   - PyIceberg: https://py.iceberg.apache.org/
