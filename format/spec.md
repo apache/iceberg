@@ -314,7 +314,7 @@ Partition field IDs must be reused if an existing partition spec contains an equ
 | Transform name    | Description                                                  | Source types                                                                                              | Result type |
 |-------------------|--------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|-------------|
 | **`identity`**    | Source value, unmodified                                     | Any                                                                                                       | Source type |
-| **`bucket[N]`**   | Hash of value(s), mod `N` (see below)                        | `int`, `long`, `decimal`, `date`, `time`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`, `string`, `uuid`, `fixed`, `binary` | `int`       |
+| **`bucket[N]`**   | Hash of value, mod `N` (see below)                           | `int`, `long`, `decimal`, `date`, `time`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`, `string`, `uuid`, `fixed`, `binary` | `int`       |
 | **`truncate[W]`** | Value truncated to width `W` (see below)                     | `int`, `long`, `decimal`, `string`                                                                        | Source type |
 | **`year`**        | Extract a date or timestamp year, as years from 1970         | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                      | `int`       |
 | **`month`**       | Extract a date or timestamp month, as months from 1970-01-01 | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                      | `int`       |
@@ -329,7 +329,7 @@ The `void` transform may be used to replace the transform in an existing partiti
 
 #### Bucket Transform Details
 
-Bucket partition transforms use a 32-bit hash of the source value(s). The 32-bit hash implementation is the 32-bit Murmur3 hash, x86 variant, seeded with 0.
+Bucket partition transforms use a 32-bit hash of the source value. The 32-bit hash implementation is the 32-bit Murmur3 hash, x86 variant, seeded with 0.
 
 Transforms are parameterized by a number of buckets [1], `N`. The hash mod `N` must produce a positive value by first discarding the sign bit of the hash value. In pseudo-code, the function is:
 
@@ -337,27 +337,11 @@ Transforms are parameterized by a number of buckets [1], `N`. The hash mod `N` m
   def bucket_N(x) = (murmur3_x86_32_hash(x) & Integer.MAX_VALUE) % N
 ```
 
-When bucket transform is applied on a list of values, the hash is applied on the concatenated byte representations of all values. In pseudo-code, the function is:
-
-```
-  def murmur3_x86_32_hashes(x1, x2, x3, ...) = {
-    byte[] bytes;
-    for (x in [x1, x2, x3, ...]) {
-      if (x != null) bytes.append(bytesOf(x))
-    }
-    return murmur3_x86_32_hash(bytes)
-  }
-  
-  def bucket_N(x1, x2, x3, ...) = (murmur3_x86_32_hashes(x1, x2, x3, ...) & Integer.MAX_VALUE) % N
-```
-
 Notes:
 
 1. Changing the number of buckets as a table grows is possible by evolving the partition spec.
-2. `murmur3_x86_32_hashes` produces the same result as `murmur3_x86_32_hash` when applied on a single value.
-3. NULL input in the list of values is ignored when computing the hash. If all the input values are NULL, NULL should be produced.
 
-For hash function details by type and bytes representation of each type, see Appendix B.
+For hash function details by type, see Appendix B.
 
 
 #### Truncate Transform Details
@@ -1076,27 +1060,6 @@ The types below are not currently valid for bucketing, and so are not hashed. Ho
 | **`float`**        | `hashLong(doubleToLongBits(double(v))` [4]| `1.0F` ￫ `-142385009`, `0.0F` ￫ `1669671676`, `-0.0F` ￫ `1669671676` |
 | **`double`**       | `hashLong(doubleToLongBits(v))`        [4]| `1.0D` ￫ `-142385009`, `0.0D` ￫ `1669671676`, `-0.0D` ￫ `1669671676` |
 
-For multiple arguments, `hashBytes()` is applied on the concatenated byte representation of each argument:
-
-| Primitive type       | Bytes representation                           |
-|----------------------|------------------------------------------------|
-| **`int`**            | `littleEndianBytes(long(v))`                   |
-| **`long`**           | `littleEndianBytes(v)`                         | 
-| **`decimal(P,S)`**   | `minBigEndian(unscaled(v))`                    |
-| **`date`**           | `littleEndianBytes(daysFromUnixEpoch(v))`      |
-| **`time`**           | `littleEndianBytes(microsecsFromMidnight(v))`  |
-| **`timestamp`**      | `littleEndianBytes(microsecsFromUnixEpoch(v))` |
-| **`timestamptz`**    | `littleEndianBytes(microsecsFromUnixEpoch(v))` |
-| **`timestamp_ns`**   | `littleEndianBytes(nanosecsFromUnixEpoch(v))`  |
-| **`timestamptz_ns`** | `littleEndianBytes(nanosecsFromUnixEpoch(v))`  |
-| **`string`**         | `utf8Bytes(v)`                                 |
-| **`uuid`**           | `uuidBytes(v)`                                 |  
-| **`fixed(L)`**       | `v`                                            |
-| **`binary`**         | `v`                                            |
-
-For example, the hash representation of `(a:int, b:string)` will be `hashBytes(concatenation(littleEndianBytes(long(v)), utf8Bytes(b))`.
-
-
 Notes:
 
 1. Integer and long hash results must be identical for all integer values. This ensures that schema evolution does not change bucket partition values if integer types are promoted.
@@ -1160,14 +1123,12 @@ Each partition field in the fields list is stored as an object. See the table fo
 |--- |--- |--- |
 |**`identity`**|`JSON string: "identity"`|`"identity"`|
 |**`bucket[N]`**|`JSON string: "bucket[<N>]"`|`"bucket[16]"`|
-|**`bucket[N]`** (multi-arg bucket [1])| `JSON string: "bucketV2[<N>]"`                                                                                                                                                                                                                          | `"bucketV2[16]"`                                                                                                                                                                                                          |
 |**`truncate[W]`**|`JSON string: "truncate[<W>]"`|`"truncate[20]"`|
 |**`year`**|`JSON string: "year"`|`"year"`|
 |**`month`**|`JSON string: "month"`|`"month"`|
 |**`day`**|`JSON string: "day"`|`"day"`|
 |**`hour`**|`JSON string: "hour"`|`"hour"`|
-|**`Partition Field`** [2]|`JSON object: {`<br />&nbsp;&nbsp;`"source-id": <id int>,`<br />&nbsp;&nbsp;`"field-id": <field id int>,`<br />&nbsp;&nbsp;`"name": <name string>,`<br />&nbsp;&nbsp;`"transform": <transform JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"source-id": 1,`<br />&nbsp;&nbsp;`"field-id": 1000,`<br />&nbsp;&nbsp;`"name": "id_bucket",`<br />&nbsp;&nbsp;`"transform": "bucket[16]"`<br />`}`|
-|**`Partition Field with multi-arg transform`** [3]|`JSON object: {`<br />&nbsp;&nbsp;`"source-id": -1,`<br />&nbsp;&nbsp;`"source-ids": <list of ids>,`<br />&nbsp;&nbsp;`"field-id": <field id int>,`<br />&nbsp;&nbsp;`"name": <name string>,`<br />&nbsp;&nbsp;`"transform": <transform JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"source-id": -1,`<br />&nbsp;&nbsp;`"source-ids": [1,2],`<br />&nbsp;&nbsp;`"field-id": 1000,`<br />&nbsp;&nbsp;`"name": "id_type_bucket",`<br />&nbsp;&nbsp;`"transform": "bucketV2[16]"`<br />`}`|
+|**`Partition Field`** [1,2]|`JSON object: {`<br />&nbsp;&nbsp;`"source-id": <id int>,`<br />&nbsp;&nbsp;`"field-id": <field id int>,`<br />&nbsp;&nbsp;`"name": <name string>,`<br />&nbsp;&nbsp;`"transform": <transform JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"source-id": 1,`<br />&nbsp;&nbsp;`"field-id": 1000,`<br />&nbsp;&nbsp;`"name": "id_bucket",`<br />&nbsp;&nbsp;`"transform": "bucket[16]"`<br />`}`|
 
 In some cases partition specs are stored using only the field list instead of the object format that includes the spec ID, like the deprecated `partition-spec` field in table metadata. The object format should be used unless otherwise noted in this spec.
 
@@ -1175,10 +1136,8 @@ The `field-id` property was added for each partition field in v2. In v1, the ref
 
 Notes:
 
-1. For multi-arg bucket, the serialized form is `bucketV2[N]` instead of `bucket[N]` to distinguish it from the single-arg bucket transform. Therefore, old readers/writers will identify this transform as an unknown transform, old writer will stop writing the table if it encounters this transform, but old readers would still be able to read the table by scanning all the partitions.
-   This makes adding multi-arg transform a forward-compatible change, but not a backward-compatible change.
-2. For partition fields with a transform with a single argument, the ID of the source field is set on `source-id`, and `source-ids` is omitted.
-3. For partition fields with a transform of multiple arguments, the IDs of the source fields are set on `source-ids`. To preserve backward compatibility, `source-id` is set to -1.
+1. For partition fields with a transform with a single argument, the ID of the source field is set on `source-id`, and `source-ids` is omitted.
+2. For partition fields with a transform of multiple arguments, the IDs of the source fields are set on `source-ids`. To preserve backward compatibility, `source-id` is set to -1.
 
 ### Sort Orders
 
@@ -1193,9 +1152,7 @@ Each sort field in the fields list is stored as an object with the following pro
 
 |Field|JSON representation|Example|
 |--- |--- |--- |
-|**`Sort Field`** [1]|`JSON object: {`<br />&nbsp;&nbsp;`"transform": <transform JSON>,`<br />&nbsp;&nbsp;`"source-id": <source id int>,`<br />&nbsp;&nbsp;`"direction": <direction string>,`<br />&nbsp;&nbsp;`"null-order": <null-order string>`<br />`}`|`{`<br />&nbsp;&nbsp;`  "transform": "bucket[4]",`<br />&nbsp;&nbsp;`  "source-id": 3,`<br />&nbsp;&nbsp;`  "direction": "desc",`<br />&nbsp;&nbsp;`  "null-order": "nulls-last"`<br />`}`|
-|**`Sort Field with multi-arg transform`** [2]|`JSON object: {`<br />&nbsp;&nbsp;`"transform": <transform JSON>,`<br />&nbsp;&nbsp;`"source-id": -1,`<br />&nbsp;&nbsp;`"source-ids": <list of ids>,`<br />&nbsp;&nbsp;`"direction": <direction string>,`<br />&nbsp;&nbsp;`"null-order": <null-order string>`<br />`}`|`{`<br />&nbsp;&nbsp;`  "transform": "bucketV2[4]",`<br />&nbsp;&nbsp;`  "source-id": -1,`<br />&nbsp;&nbsp;`  "source-id": [1,2],`<br />&nbsp;&nbsp;`  "direction": "desc",`<br />&nbsp;&nbsp;`  "null-order": "nulls-last"`<br />`}`|
-
+|**`Sort Field`** [1,2]|`JSON object: {`<br />&nbsp;&nbsp;`"transform": <transform JSON>,`<br />&nbsp;&nbsp;`"source-id": <source id int>,`<br />&nbsp;&nbsp;`"direction": <direction string>,`<br />&nbsp;&nbsp;`"null-order": <null-order string>`<br />`}`|`{`<br />&nbsp;&nbsp;`  "transform": "bucket[4]",`<br />&nbsp;&nbsp;`  "source-id": 3,`<br />&nbsp;&nbsp;`  "direction": "desc",`<br />&nbsp;&nbsp;`  "null-order": "nulls-last"`<br />`}`|
 
 Notes:
 1. For sort fields with a transform with a single argument, the ID of the source field is set on `source-id`, and `source-ids` is omitted.
