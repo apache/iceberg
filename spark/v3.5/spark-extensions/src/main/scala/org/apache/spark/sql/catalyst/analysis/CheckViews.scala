@@ -26,14 +26,18 @@ import org.apache.spark.sql.catalyst.plans.logical.View
 import org.apache.spark.sql.catalyst.plans.logical.views.CreateIcebergView
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.ViewCatalog
+import org.apache.spark.sql.internal.SQLConf
+import org.apache.spark.sql.util.SchemaUtils
 
 object CheckViews extends (LogicalPlan => Unit) {
 
   override def apply(plan: LogicalPlan): Unit = {
     plan foreach {
-      case CreateIcebergView(ResolvedIdentifier(_: ViewCatalog, ident), _, query, columnAliases, _, _, _, _, _) =>
+      case CreateIcebergView(ResolvedIdentifier(_: ViewCatalog, ident), _, query, columnAliases, _,
+      queryColumnNames, _, _, _, _, _) =>
         verifyAmountOfColumns(ident, columnAliases, query)
         verifyTemporaryObjectsDontExist(ident, query)
+        SchemaUtils.checkColumnNameDuplication(queryColumnNames, SQLConf.get.resolver)
 
       case _ => // OK
     }

@@ -28,10 +28,12 @@ case class CreateIcebergView(
   query: LogicalPlan,
   columnAliases: Seq[String],
   columnComments: Seq[Option[String]],
+  queryColumnNames: Seq[String] = Seq.empty,
   comment: Option[String],
   properties: Map[String, String],
   allowExisting: Boolean,
-  replace: Boolean) extends BinaryCommand {
+  replace: Boolean,
+  rewritten: Boolean = false) extends BinaryCommand {
   override def left: LogicalPlan = child
 
   override def right: LogicalPlan = query

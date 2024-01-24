@@ -27,6 +27,7 @@ import org.apache.spark.sql.catalyst.parser.ParseException
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.catalyst.plans.logical.SubqueryAlias
+import org.apache.spark.sql.catalyst.plans.logical.views.CreateIcebergView
 import org.apache.spark.sql.catalyst.plans.logical.views.ResolvedV2View
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.trees.CurrentOrigin
@@ -38,6 +39,7 @@ import org.apache.spark.sql.connector.catalog.LookupCatalog
 import org.apache.spark.sql.connector.catalog.View
 import org.apache.spark.sql.connector.catalog.ViewCatalog
 import org.apache.spark.sql.errors.QueryCompilationErrors
+import org.apache.spark.sql.types.MetadataBuilder
 
 case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with LookupCatalog {
 
@@ -59,6 +61,32 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
       loadView(catalog, ident)
         .map(_ => ResolvedV2View(catalog.asViewCatalog, ident))
         .getOrElse(u)
+
+    case c@CreateIcebergView(ResolvedIdentifier(_, ident), _, query, columnAliases, columnComments, _, _, _, _, _,
+    rewritten)
+      if query.resolved && !rewritten =>
+      val rewritten = rewriteIdentifiers(query, ident.asMultipartIdentifier)
+      val aliasedPlan = aliasPlan(rewritten, columnAliases, columnComments)
+      c.copy(query = aliasedPlan, queryColumnNames = query.schema.fieldNames, rewritten = true)
+  }
+
+  private def aliasPlan(
+    analyzedPlan: LogicalPlan,
+    columnAliases: Seq[String],
+    columnComments: Seq[Option[String]]): LogicalPlan = {
+    if (columnAliases.isEmpty || columnAliases.length != analyzedPlan.output.length) {
+      analyzedPlan
+    } else {
+      val projectList = analyzedPlan.output.zipWithIndex.map { case (attr, pos) =>
+        if (columnComments.apply(pos).isDefined) {
+          val meta = new MetadataBuilder().putString("comment", columnComments.apply(pos).get).build()
+          Alias(attr, columnAliases.apply(pos))(explicitMetadata = Some(meta))
+        } else {
+          Alias(attr, columnAliases.apply(pos))()
+        }
+      }
+      Project(projectList, analyzedPlan)
+    }
   }
 
   def loadView(catalog: CatalogPlugin, ident: Identifier): Option[View] = catalog match {

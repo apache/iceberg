@@ -109,13 +109,15 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
       DropV2ViewExec(viewCatalog, ident, ifExists) :: Nil
 
     case CreateIcebergView(ResolvedIdentifier(viewCatalog: ViewCatalog, ident), queryText, query,
-    columnAliases, columnComments, comment, properties, allowExisting, replace) =>
+    columnAliases, columnComments, queryColumnNames, comment, properties, allowExisting, replace, _) =>
       CreateV2ViewExec(
         catalog = viewCatalog,
         ident = ident,
         queryText = queryText,
         columnAliases = columnAliases,
         columnComments = columnComments,
+        queryColumnNames = queryColumnNames,
+        query = query,
         viewSchema = query.schema,
         comment = comment,
         properties = properties,
