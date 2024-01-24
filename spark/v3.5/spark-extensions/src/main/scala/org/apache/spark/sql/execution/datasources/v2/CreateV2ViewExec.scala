@@ -32,6 +32,7 @@ import org.apache.spark.sql.errors.QueryCompilationErrors
 import org.apache.spark.sql.execution.CommandExecutionMode
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types.MetadataBuilder
+import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.SchemaUtils
 import scala.collection.JavaConverters._
 
@@ -39,9 +40,10 @@ import scala.collection.JavaConverters._
 case class CreateV2ViewExec(
   catalog: ViewCatalog,
   ident: Identifier,
-  originalText: String,
-  query: LogicalPlan,
-  userSpecifiedColumns: Seq[(String, Option[String])],
+  queryText: String,
+  viewSchema: StructType,
+  columnAliases: Seq[String],
+  columnComments: Seq[Option[String]],
   comment: Option[String],
   properties: Map[String, String],
   allowExisting: Boolean,
@@ -50,25 +52,10 @@ case class CreateV2ViewExec(
   override lazy val output: Seq[Attribute] = Nil
 
   override protected def run(): Seq[InternalRow] = {
-    val analyzedPlan = session.sessionState.executePlan(query, CommandExecutionMode.SKIP).analyzed
-    val identifier = Spark3Util.toV1TableIdentifier(ident)
-
-    if (userSpecifiedColumns.nonEmpty) {
-      if (userSpecifiedColumns.length > analyzedPlan.output.length) {
-        throw QueryCompilationErrors.cannotCreateViewNotEnoughColumnsError(
-          identifier, userSpecifiedColumns.map(_._1), analyzedPlan)
-      } else if (userSpecifiedColumns.length < analyzedPlan.output.length) {
-        throw QueryCompilationErrors.cannotCreateViewTooManyColumnsError(
-          identifier, userSpecifiedColumns.map(_._1), analyzedPlan)
-      }
-    }
-
-    val queryColumnNames = analyzedPlan.schema.fieldNames
+//    val analyzedPlan = session.sessionState.executePlan(query, CommandExecutionMode.SKIP).analyzed
+//
+    val queryColumnNames = viewSchema.fieldNames
     SchemaUtils.checkColumnNameDuplication(queryColumnNames, SQLConf.get.resolver)
-
-    val viewSchema = aliasPlan(analyzedPlan, userSpecifiedColumns).schema
-    val columnAliases = userSpecifiedColumns.map(_._1).toArray
-    val columnComments = userSpecifiedColumns.map(_._2.orNull).toArray
 
     val currentCatalogName = session.sessionState.catalogManager.currentCatalog.name
     val currentCatalog = if (!catalog.name().equals(currentCatalogName)) currentCatalogName else null
@@ -88,26 +75,26 @@ case class CreateV2ViewExec(
       // FIXME: replaceView API doesn't exist in Spark 3.5
       catalog.createView(
         ident,
-        originalText,
+        queryText,
         currentCatalog,
         currentNamespace,
         viewSchema,
         queryColumnNames,
-        columnAliases,
-        columnComments,
+        columnAliases.toArray,
+        columnComments.map(c => c.orNull).toArray,
         newProperties.asJava)
     } else {
       try {
         // CREATE VIEW [IF NOT EXISTS]
         catalog.createView(
           ident,
-          originalText,
+          queryText,
           currentCatalog,
           currentNamespace,
           viewSchema,
           queryColumnNames,
-          columnAliases,
-          columnComments,
+          columnAliases.toArray,
+          columnComments.map(c => c.orNull).toArray,
           newProperties.asJava)
       } catch {
         case _: ViewAlreadyExistsException if allowExisting => // Ignore

@@ -139,9 +139,24 @@ public class TestViews extends SparkExtensionsTestBase {
     insertRows(6);
     String viewName = "firstView";
     String secondView = "secondView";
+    String viewSQL = String.format("SELECT id FROM %s WHERE id <= 3", tableName);
+    String secondViewSQL = String.format("SELECT id FROM %s WHERE id > 3", tableName);
 
-    sql("CREATE VIEW %s AS SELECT id FROM %s WHERE id <= 3", viewName, tableName);
-    sql("CREATE VIEW %s AS SELECT id FROM %s WHERE id > 3", secondView, tableName);
+    ViewCatalog viewCatalog = viewCatalog();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("spark", viewSQL)
+        .withDefaultNamespace(NAMESPACE)
+        .withSchema(schema(viewSQL))
+        .create();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, secondView))
+        .withQuery("spark", secondViewSQL)
+        .withDefaultNamespace(NAMESPACE)
+        .withSchema(schema(secondViewSQL))
+        .create();
 
     assertThat(sql("SELECT * FROM %s", viewName))
         .hasSize(3)
@@ -869,18 +884,18 @@ public class TestViews extends SparkExtensionsTestBase {
     assertThatThrownBy(
             () -> sql("CREATE VIEW %s (id, data) AS SELECT id FROM %s", viewName, tableName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(String.format("Cannot create view `%s`.`%s`", NAMESPACE, viewName))
+        .hasMessageContaining(String.format("Cannot create view %s.%s", NAMESPACE, viewName))
         .hasMessageContaining("not enough data columns")
-        .hasMessageContaining("View columns: `id`, `data`")
-        .hasMessageContaining("Data columns: `id`");
+        .hasMessageContaining("View columns: id, data")
+        .hasMessageContaining("Data columns: id");
 
     assertThatThrownBy(
             () -> sql("CREATE VIEW %s (id) AS SELECT id, data FROM %s", viewName, tableName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(String.format("Cannot create view `%s`.`%s`", NAMESPACE, viewName))
+        .hasMessageContaining(String.format("Cannot create view %s.%s", NAMESPACE, viewName))
         .hasMessageContaining("too many data columns")
-        .hasMessageContaining("View columns: `id`")
-        .hasMessageContaining("Data columns: `id`, `data`");
+        .hasMessageContaining("View columns: id")
+        .hasMessageContaining("Data columns: id, data");
   }
 
   @Test
@@ -921,6 +936,20 @@ public class TestViews extends SparkExtensionsTestBase {
                     viewName, tableName))
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("The column `id` already exists");
+  }
+
+  @Test
+  public void createViewWithNonExistingQueryColumn() {
+    String viewName = "viewWithNonExistingQueryColumn";
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CREATE VIEW %s AS SELECT non_existing FROM %s WHERE id <= 3",
+                    viewName, tableName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "A column or function parameter with name `non_existing` cannot be resolved");
   }
 
   private void insertRows(int numRows) throws NoSuchTableException {

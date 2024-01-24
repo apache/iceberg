@@ -44,9 +44,11 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
       DropIcebergView(resolved, ifExists)
 
     case CreateView(ResolvedView(resolved), userSpecifiedColumns, comment, properties,
-    originalText, query, allowExisting, replace) =>
-      CreateIcebergView(resolved, userSpecifiedColumns, comment, properties, originalText,
-        query, allowExisting, replace)
+    Some(queryText), query, allowExisting, replace) =>
+      val columnAliases = userSpecifiedColumns.map(_._1)
+      val columnComments = userSpecifiedColumns.map(_._2.orElse(Option.empty))
+      CreateIcebergView(resolved, queryText, query, columnAliases, columnComments,
+        comment, properties, allowExisting, replace)
   }
 
   private def isTempView(nameParts: Seq[String]): Boolean = {

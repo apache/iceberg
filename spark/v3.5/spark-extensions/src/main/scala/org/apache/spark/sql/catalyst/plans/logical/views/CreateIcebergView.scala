@@ -24,11 +24,12 @@ import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 
 case class CreateIcebergView(
   child: LogicalPlan,
-  userSpecifiedColumns: Seq[(String, Option[String])],
+  queryText: String,
+  query: LogicalPlan,
+  columnAliases: Seq[String],
+  columnComments: Seq[Option[String]],
   comment: Option[String],
   properties: Map[String, String],
-  originalText: Option[String],
-  query: LogicalPlan,
   allowExisting: Boolean,
   replace: Boolean) extends BinaryCommand {
   override def left: LogicalPlan = child
