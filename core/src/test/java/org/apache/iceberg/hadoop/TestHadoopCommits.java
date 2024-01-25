@@ -240,7 +240,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     assertThatThrownBy(() -> spyOps.commit(metadataV1, metadataV2))
             .isInstanceOf(CommitFailedException.class)
             .hasMessageContaining("hdfs crash!");
-    // The commit should actually success
+    // commit should not successful.
     int versionAfter = spyOps.findVersion();
     assert versionAfter == versionBefore;
   }
