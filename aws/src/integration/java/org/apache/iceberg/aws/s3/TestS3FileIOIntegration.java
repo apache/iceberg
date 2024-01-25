@@ -161,11 +161,7 @@ public class TestS3FileIOIntegration {
         PutObjectRequest.builder().bucket(bucketName).key(objectKey).build(),
         RequestBody.fromBytes(contentBytes));
     S3FileIO s3FileIO = new S3FileIO();
-    Map<String, String> properties = Maps.newHashMap();
-    properties.put(
-        S3FileIOProperties.CLIENT_FACTORY,
-        "org.apache.iceberg.aws.s3.DefaultS3FileIOAwsClientFactory");
-    s3FileIO.initialize(properties);
+    s3FileIO.initialize(Maps.newHashMap());
     validateRead(s3FileIO);
   }
 
