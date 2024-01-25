@@ -173,10 +173,8 @@ public class HadoopTableOperations implements TableOperations {
 
       this.shouldRefresh = true;
     }catch (Throwable e){
-      // If the versionHint has been submitted successfully, then we don't need to clean up the data
-      // file if the task fails.
-      // This is achieved by throwing the CommitStateUnknownException
-      // exception(BaseFileRewriteAction::doReplace)
+      // If the versionHint has been submitted successfully, then we don't need to clean up the data file if the task fails.
+      // This is achieved by throwing the CommitStateUnknownException exception(BaseRewriteDataFilesAction::replaceDataFiles)
       if(versionCommitSuccess && !this.shouldRefresh){
         this.shouldRefresh = true;
       }
