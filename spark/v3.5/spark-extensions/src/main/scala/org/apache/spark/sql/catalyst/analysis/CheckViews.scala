@@ -35,7 +35,7 @@ object CheckViews extends (LogicalPlan => Unit) {
     plan foreach {
       case CreateIcebergView(ResolvedIdentifier(_: ViewCatalog, ident), _, query, columnAliases, _,
       queryColumnNames, _, _, _, _, _) =>
-        verifyAmountOfColumns(ident, columnAliases, query)
+        verifyColumnCount(ident, columnAliases, query)
         verifyTemporaryObjectsDontExist(ident, query)
         SchemaUtils.checkColumnNameDuplication(queryColumnNames, SQLConf.get.resolver)
 
@@ -43,7 +43,7 @@ object CheckViews extends (LogicalPlan => Unit) {
     }
   }
 
-  private def verifyAmountOfColumns(ident: Identifier, columns: Seq[String], query: LogicalPlan): Unit = {
+  private def verifyColumnCount(ident: Identifier, columns: Seq[String], query: LogicalPlan): Unit = {
     if (columns.nonEmpty) {
       if (columns.length > query.output.length) {
         throw new AnalysisException(

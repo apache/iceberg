@@ -112,11 +112,6 @@ public class SparkView implements org.apache.spark.sql.connector.catalog.View {
 
     propsBuilder.put("provider", "iceberg");
     propsBuilder.put("location", icebergView.location());
-    if (icebergView.properties().containsKey(QUERY_COLUMN_NAMES)) {
-      String queryColumnNames =
-          icebergView.properties().get(QUERY_COLUMN_NAMES).replace("[", "").replace("]", "");
-      propsBuilder.put(QUERY_COLUMN_NAMES, queryColumnNames);
-    }
 
     if (icebergView instanceof BaseView) {
       ViewOperations ops = ((BaseView) icebergView).operations();

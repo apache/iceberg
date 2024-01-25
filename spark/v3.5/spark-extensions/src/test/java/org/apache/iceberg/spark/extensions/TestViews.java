@@ -350,21 +350,39 @@ public class TestViews extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void createViewReferencingTempView() throws NoSuchTableException {
+  public void readFromViewReferencingTempView() throws NoSuchTableException {
     insertRows(10);
     String tempView = "tempViewBeingReferencedInAnotherView";
     String viewReferencingTempView = "viewReferencingTempView";
+    String sql = String.format("SELECT id FROM %s", tempView);
+
+    ViewCatalog viewCatalog = viewCatalog();
 
     sql("CREATE TEMPORARY VIEW %s AS SELECT id FROM %s WHERE id <= 5", tempView, tableName);
 
-    // creating a view that references a TEMP VIEW shouldn't be possible
-    assertThatThrownBy(
-            () -> sql("CREATE VIEW %s AS SELECT id FROM %s", viewReferencingTempView, tempView))
+    // it wouldn't be possible to reference a TEMP VIEW if the view had been created via SQL,
+    // but this can't be prevented when using the API directly
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewReferencingTempView))
+        .withQuery("spark", sql)
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema(sql))
+        .create();
+
+    List<Object[]> expected =
+        IntStream.rangeClosed(1, 5).mapToObj(this::row).collect(Collectors.toList());
+
+    assertThat(sql("SELECT * FROM %s", tempView))
+        .hasSize(5)
+        .containsExactlyInAnyOrderElementsOf(expected);
+
+    // reading from a view that references a TEMP VIEW shouldn't be possible
+    assertThatThrownBy(() -> sql("SELECT * FROM %s", viewReferencingTempView))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("Cannot create the persistent object")
-        .hasMessageContaining(viewReferencingTempView)
-        .hasMessageContaining("of the type VIEW because it references to the temporary object")
-        .hasMessageContaining(tempView);
+        .hasMessageContaining("The table or view")
+        .hasMessageContaining(tempView)
+        .hasMessageContaining("cannot be found");
   }
 
   @Test
@@ -416,26 +434,41 @@ public class TestViews extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void createViewReferencingGlobalTempView() throws NoSuchTableException {
+  public void readFromViewReferencingGlobalTempView() throws NoSuchTableException {
     insertRows(10);
     String globalTempView = "globalTempViewBeingReferenced";
     String viewReferencingTempView = "viewReferencingGlobalTempView";
+
+    ViewCatalog viewCatalog = viewCatalog();
+    Schema schema = tableCatalog().loadTable(TableIdentifier.of(NAMESPACE, tableName)).schema();
 
     sql(
         "CREATE GLOBAL TEMPORARY VIEW %s AS SELECT id FROM %s WHERE id <= 5",
         globalTempView, tableName);
 
-    // creating a view that references a GLOBAL TEMP VIEW shouldn't be possible
-    assertThatThrownBy(
-            () ->
-                sql(
-                    "CREATE VIEW %s AS SELECT id FROM global_temp.%s",
-                    viewReferencingTempView, globalTempView))
+    // it wouldn't be possible to reference a GLOBAL TEMP VIEW if the view had been created via SQL,
+    // but this can't be prevented when using the API directly
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewReferencingTempView))
+        .withQuery("spark", String.format("SELECT id FROM global_temp.%s", globalTempView))
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema)
+        .create();
+
+    List<Object[]> expected =
+        IntStream.rangeClosed(1, 5).mapToObj(this::row).collect(Collectors.toList());
+
+    assertThat(sql("SELECT * FROM global_temp.%s", globalTempView))
+        .hasSize(5)
+        .containsExactlyInAnyOrderElementsOf(expected);
+
+    // reading from a view that references a GLOBAL TEMP VIEW shouldn't be possible
+    assertThatThrownBy(() -> sql("SELECT * FROM %s", viewReferencingTempView))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("Cannot create the persistent object")
-        .hasMessageContaining(viewReferencingTempView)
-        .hasMessageContaining("of the type VIEW because it references to the temporary object")
-        .hasMessageContaining(globalTempView);
+        .hasMessageContaining("The table or view")
+        .hasMessageContaining(globalTempView)
+        .hasMessageContaining("cannot be found");
   }
 
   @Test
@@ -871,15 +904,64 @@ public class TestViews extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void createViewWithInvalidSQL() {
+    assertThatThrownBy(() -> sql("CREATE VIEW simpleViewWithInvalidSQL AS invalid SQL"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Syntax error");
+  }
+
+  @Test
+  public void createViewReferencingTempView() throws NoSuchTableException {
+    insertRows(10);
+    String tempView = "temporaryViewBeingReferencedInAnotherView";
+    String viewReferencingTempView = "viewReferencingTemporaryView";
+
+    sql("CREATE TEMPORARY VIEW %s AS SELECT id FROM %s WHERE id <= 5", tempView, tableName);
+
+    // creating a view that references a TEMP VIEW shouldn't be possible
+    assertThatThrownBy(
+            () -> sql("CREATE VIEW %s AS SELECT id FROM %s", viewReferencingTempView, tempView))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Cannot create the persistent object")
+        .hasMessageContaining(viewReferencingTempView)
+        .hasMessageContaining("of the type VIEW because it references to the temporary object")
+        .hasMessageContaining(tempView);
+  }
+
+  @Test
+  public void createViewReferencingGlobalTempView() throws NoSuchTableException {
+    insertRows(10);
+    String globalTempView = "globalTemporaryViewBeingReferenced";
+    String viewReferencingTempView = "viewReferencingGlobalTemporaryView";
+
+    sql(
+        "CREATE GLOBAL TEMPORARY VIEW %s AS SELECT id FROM %s WHERE id <= 5",
+        globalTempView, tableName);
+
+    // creating a view that references a GLOBAL TEMP VIEW shouldn't be possible
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CREATE VIEW %s AS SELECT id FROM global_temp.%s",
+                    viewReferencingTempView, globalTempView))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Cannot create the persistent object")
+        .hasMessageContaining(viewReferencingTempView)
+        .hasMessageContaining("of the type VIEW because it references to the temporary object")
+        .hasMessageContaining(globalTempView);
+  }
+
+  @Test
   public void createViewUsingNonExistingTable() {
-    assertThatThrownBy(() -> sql("CREATE VIEW %s AS SELECT id FROM %s", "viewName", "non_existing"))
+    assertThatThrownBy(
+            () -> sql("CREATE VIEW viewWithNonExistingTable AS SELECT id FROM non_existing"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("The table or view `non_existing` cannot be found");
   }
 
   @Test
-  public void createViewColumnMismatch() {
-    String viewName = "viewWithMismatchedColumns";
+  public void createViewWithMismatchedColumnCounts() {
+    String viewName = "viewWithMismatchedColumnCounts";
 
     assertThatThrownBy(
             () -> sql("CREATE VIEW %s (id, data) AS SELECT id FROM %s", viewName, tableName))
@@ -917,7 +999,7 @@ public class TestViews extends SparkExtensionsTestBase {
     sql("DROP VIEW %s", viewName);
 
     sql(
-        "CREATE VIEW %s (new_id, new_data) AS SELECT id, data FROM %s WHERE id <= 3",
+        "CREATE VIEW %s (new_data, new_id) AS SELECT data, id FROM %s WHERE id <= 3",
         viewName, tableName);
 
     assertThat(sql("SELECT new_id FROM %s", viewName))
@@ -927,29 +1009,77 @@ public class TestViews extends SparkExtensionsTestBase {
 
   @Test
   public void createViewWithDuplicateQueryColumnNames() {
-    String viewName = "viewWithDuplicateQueryColumnNames";
-
     assertThatThrownBy(
             () ->
                 sql(
-                    "CREATE VIEW %s (new_id , new_data) AS SELECT id, id FROM %s WHERE id <= 3",
-                    viewName, tableName))
+                    "CREATE VIEW viewWithDuplicateQueryColumnNames (new_id , new_data) AS SELECT id, id FROM %s WHERE id <= 3",
+                    tableName))
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("The column `id` already exists");
   }
 
   @Test
-  public void createViewWithNonExistingQueryColumn() {
-    String viewName = "viewWithNonExistingQueryColumn";
+  public void createViewWithCTE() throws NoSuchTableException {
+    insertRows(10);
+    String viewName = "simpleViewWithCTE";
+    String sql =
+        String.format(
+            "WITH max_by_data AS (SELECT max(id) as max FROM %s) "
+                + "SELECT max, count(1) AS count FROM max_by_data GROUP BY max",
+            tableName);
 
+    sql("CREATE VIEW %s AS %s", viewName, sql);
+
+    assertThat(sql("SELECT * FROM %s", viewName)).hasSize(1).containsExactly(row(10, 1L));
+  }
+
+  @Test
+  public void createViewWithNonExistingQueryColumn() {
     assertThatThrownBy(
             () ->
                 sql(
-                    "CREATE VIEW %s AS SELECT non_existing FROM %s WHERE id <= 3",
-                    viewName, tableName))
+                    "CREATE VIEW viewWithNonExistingQueryColumn AS SELECT non_existing FROM %s WHERE id <= 3",
+                    tableName))
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
             "A column or function parameter with name `non_existing` cannot be resolved");
+  }
+
+  @Test
+  public void createViewWithSubqueryExpressionUsingTempView() {
+    String viewName = "viewWithSubqueryExpression";
+    String tempView = "simpleTempView";
+    String sql =
+        String.format("SELECT * FROM %s WHERE id = (SELECT id FROM %s)", tableName, tempView);
+
+    sql("CREATE TEMPORARY VIEW %s AS SELECT id from %s WHERE id = 5", tempView, tableName);
+
+    assertThatThrownBy(() -> sql("CREATE VIEW %s AS %s", viewName, sql))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(String.format("Cannot create the persistent object %s", viewName))
+        .hasMessageContaining(
+            String.format("because it references to the temporary object %s", tempView));
+  }
+
+  @Test
+  public void createViewWithSubqueryExpressionUsingGlobalTempView() {
+    String viewName = "simpleViewWithSubqueryExpression";
+    String globalTempView = "simpleGlobalTempView";
+    String sql =
+        String.format(
+            "SELECT * FROM %s WHERE id = (SELECT id FROM global_temp.%s)",
+            tableName, globalTempView);
+
+    sql(
+        "CREATE GLOBAL TEMPORARY VIEW %s AS SELECT id from %s WHERE id = 5",
+        globalTempView, tableName);
+
+    assertThatThrownBy(() -> sql("CREATE VIEW %s AS %s", viewName, sql))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(String.format("Cannot create the persistent object %s", viewName))
+        .hasMessageContaining(
+            String.format(
+                "because it references to the temporary object global_temp.%s", globalTempView));
   }
 
   private void insertRows(int numRows) throws NoSuchTableException {

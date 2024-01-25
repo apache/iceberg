@@ -62,9 +62,8 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
         .map(_ => ResolvedV2View(catalog.asViewCatalog, ident))
         .getOrElse(u)
 
-    case c@CreateIcebergView(ResolvedIdentifier(_, ident), _, query, columnAliases, columnComments, _, _, _, _, _,
-    rewritten)
-      if query.resolved && !rewritten =>
+    case c@CreateIcebergView(ResolvedIdentifier(_, ident), _, query, columnAliases, columnComments, _, _, _, _, _, _)
+      if query.resolved && !c.rewritten =>
       val rewritten = rewriteIdentifiers(query, ident.asMultipartIdentifier)
       val aliasedPlan = aliasPlan(rewritten, columnAliases, columnComments)
       c.copy(query = aliasedPlan, queryColumnNames = query.schema.fieldNames, rewritten = true)
@@ -77,12 +76,14 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
     if (columnAliases.isEmpty || columnAliases.length != analyzedPlan.output.length) {
       analyzedPlan
     } else {
-      val projectList = analyzedPlan.output.zipWithIndex.map { case (attr, pos) =>
+      val projectList = analyzedPlan.output.zipWithIndex.map { case (_, pos) =>
+        val column = GetColumnByOrdinal(pos, analyzedPlan.schema.fields.apply(pos).dataType)
+
         if (columnComments.apply(pos).isDefined) {
           val meta = new MetadataBuilder().putString("comment", columnComments.apply(pos).get).build()
-          Alias(attr, columnAliases.apply(pos))(explicitMetadata = Some(meta))
+          Alias(column, columnAliases.apply(pos))(explicitMetadata = Some(meta))
         } else {
-          Alias(attr, columnAliases.apply(pos))()
+          Alias(column, columnAliases.apply(pos))()
         }
       }
       Project(projectList, analyzedPlan)

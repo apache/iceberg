@@ -40,8 +40,7 @@ case class CreateV2ViewExec(
   comment: Option[String],
   properties: Map[String, String],
   allowExisting: Boolean,
-  replace: Boolean,
-  query: LogicalPlan) extends LeafV2CommandExec {
+  replace: Boolean) extends LeafV2CommandExec {
 
   override lazy val output: Seq[Attribute] = Nil
 

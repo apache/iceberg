@@ -117,7 +117,6 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
         columnAliases = columnAliases,
         columnComments = columnComments,
         queryColumnNames = queryColumnNames,
-        query = query,
         viewSchema = query.schema,
         comment = comment,
         properties = properties,
