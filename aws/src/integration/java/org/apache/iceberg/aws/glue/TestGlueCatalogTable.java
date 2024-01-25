@@ -76,9 +76,9 @@ public class TestGlueCatalogTable extends GlueTestBase {
     String tableDescription = "Test table";
     Map<String, String> tableProperties =
         ImmutableMap.<String, String>builder()
-                    .putAll(tableLocationProperties)
-                    .put(IcebergToGlueConverter.GLUE_DESCRIPTION_KEY, tableDescription)
-                    .build();
+            .putAll(tableLocationProperties)
+            .put(IcebergToGlueConverter.GLUE_DESCRIPTION_KEY, tableDescription)
+            .build();
     glueCatalog.createTable(
         TableIdentifier.of(namespace, tableName), schema, partitionSpec, tableProperties);
     // verify table exists in Glue
@@ -111,7 +111,8 @@ public class TestGlueCatalogTable extends GlueTestBase {
     Table table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
     Assert.assertEquals(partitionSpec, table.spec());
     Assert.assertEquals(schema.toString(), table.schema().toString());
-    Assert.assertEquals(tableDescription, table.properties().get(IcebergToGlueConverter.GLUE_DESCRIPTION_KEY));
+    Assert.assertEquals(
+        tableDescription, table.properties().get(IcebergToGlueConverter.GLUE_DESCRIPTION_KEY));
     Assert.assertEquals(tableDescription, response.table().description());
   }
 

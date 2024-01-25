@@ -132,8 +132,7 @@ public class TestIcebergToGlueConverter {
   @Test
   public void testToDatabaseInputEmptyLocation() {
     Map<String, String> properties =
-        ImmutableMap.of(
-            IcebergToGlueConverter.GLUE_DESCRIPTION_KEY, "description", "key", "val");
+        ImmutableMap.of(IcebergToGlueConverter.GLUE_DESCRIPTION_KEY, "description", "key", "val");
     DatabaseInput databaseInput =
         IcebergToGlueConverter.toDatabaseInput(Namespace.of("ns"), properties, false);
     Assertions.assertThat(databaseInput.locationUri()).as("Location should not be set").isNull();
