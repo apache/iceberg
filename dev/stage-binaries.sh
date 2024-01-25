@@ -18,9 +18,9 @@
 # under the License.
 #
 
-SCALA_VERSION=2.12
+SCALA_VERSION=2.13
 FLINK_VERSIONS=1.16,1.17,1.18
-SPARK_VERSIONS=3.3,3.4,3.5
+SPARK_VERSIONS=3.3,3.4,3.5,4.0.0-SNAPSHOT
 HIVE_VERSIONS=2,3
 
 ./gradlew -Prelease -DscalaVersion=$SCALA_VERSION -DflinkVersions=$FLINK_VERSIONS -DsparkVersions=$SPARK_VERSIONS -DhiveVersions=$HIVE_VERSIONS publishApachePublicationToMavenRepository

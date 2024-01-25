@@ -45,7 +45,7 @@ buildscript {
 }
 
 String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
-String sparkVersionsString = "3.5"
+String sparkVersionsString = "4.0.0-SNAPSHOT"
 //System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")
 List<String> sparkVersions = sparkVersionsString != null && !sparkVersionsString.isEmpty() ? sparkVersionsString.split(",") : []
 
@@ -1032,11 +1032,12 @@ project(':iceberg-bom') {
       // The Iceberg-Build builds for only one Scala version at a time, so the BOM would also
       // only contain artifacts for that single Scala version. The following code ensures that
       // the BOM references the artifacts for all Scala versions.
-      def sparkScalaPattern = ~"(.*)-([0-9][.][0-9]+)_([0-9][.][0-9]+)"
+      def sparkScalaPattern = ~"(.*)-([0-9][.][0-9]+.*)_([0-9][.][0-9]+)"
       def sparkScalaVersions = [
-        "3.3": ["2.12", "2.13"],
+       /* "3.3": ["2.12", "2.13"],
         "3.4": ["2.12", "2.13"],
-        "3.5": ["2.12", "2.13"],
+        "3.5": ["2.12", "2.13"],*/
+        "4.0.0-SNAPSHOT": ["2.13"]
       ]
       rootProject.allprojects.forEach {
         // Do not include ':iceberg-spark', the bom itself and the root project.

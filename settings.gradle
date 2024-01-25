@@ -174,6 +174,18 @@ if (sparkVersions.contains("3.5")) {
   project(":iceberg-spark:spark-runtime-3.5_${scalaVersion}").name = "iceberg-spark-runtime-3.5_${scalaVersion}"
 }
 
+if (sparkVersions.contains("4.0.0-SNAPSHOT")) {
+  include ":iceberg-spark:spark-4.0.0-SNAPSHOT_${scalaVersion}"
+  include ":iceberg-spark:spark-extensions-4.0.0-SNAPSHOT_${scalaVersion}"
+  include ":iceberg-spark:spark-runtime-4.0.0-SNAPSHOT_${scalaVersion}"
+  project(":iceberg-spark:spark-4.0.0-SNAPSHOT_${scalaVersion}").projectDir = file('spark/v4.0.0-SNAPSHOT/spark')
+  project(":iceberg-spark:spark-4.0.0-SNAPSHOT_${scalaVersion}").name = "iceberg-spark-4.0.0-SNAPSHOT_${scalaVersion}"
+  project(":iceberg-spark:spark-extensions-4.0.0-SNAPSHOT_${scalaVersion}").projectDir = file('spark/v4.0.0-SNAPSHOT/spark-extensions')
+  project(":iceberg-spark:spark-extensions-4.0.0-SNAPSHOT_${scalaVersion}").name = "iceberg-spark-extensions-4.0.0-SNAPSHOT_${scalaVersion}"
+  project(":iceberg-spark:spark-runtime-4.0.0-SNAPSHOT_${scalaVersion}").projectDir = file('spark/v4.0.0-SNAPSHOT/spark-runtime')
+  project(":iceberg-spark:spark-runtime-4.0.0-SNAPSHOT_${scalaVersion}").name = "iceberg-spark-runtime-4.0.0-SNAPSHOT_${scalaVersion}"
+}
+
 // hive 3 depends on hive 2, so always add hive 2 if hive3 is enabled
 if (hiveVersions.contains("2") || hiveVersions.contains("3")) {
   include 'mr'
