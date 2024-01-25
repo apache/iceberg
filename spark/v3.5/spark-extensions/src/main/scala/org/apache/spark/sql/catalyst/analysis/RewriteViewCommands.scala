@@ -19,15 +19,19 @@
 
 package org.apache.spark.sql.catalyst.analysis
 
+import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
 import org.apache.spark.sql.catalyst.plans.logical.CreateView
 import org.apache.spark.sql.catalyst.plans.logical.DropView
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.View
 import org.apache.spark.sql.catalyst.plans.logical.views.CreateIcebergView
 import org.apache.spark.sql.catalyst.plans.logical.views.DropIcebergView
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.connector.catalog.CatalogManager
 import org.apache.spark.sql.connector.catalog.CatalogPlugin
+import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.LookupCatalog
 import org.apache.spark.sql.connector.catalog.ViewCatalog
 
@@ -45,6 +49,7 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
 
     case CreateView(ResolvedView(resolved), userSpecifiedColumns, comment, properties,
     Some(queryText), query, allowExisting, replace) =>
+      verifyTemporaryObjectsDontExist(resolved.identifier, query)
       CreateIcebergView(child = resolved,
         queryText = queryText,
         query = query,
@@ -75,5 +80,46 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
       case _ =>
         None
     }
+  }
+
+  /**
+   * Permanent views are not allowed to reference temp objects
+   */
+  private def verifyTemporaryObjectsDontExist(
+    name: Identifier,
+    child: LogicalPlan): Unit = {
+    import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
+
+    val tempViews = collectTemporaryViews(child)
+    tempViews.foreach { nameParts =>
+      throw new AnalysisException(
+        errorClass = "INVALID_TEMP_OBJ_REFERENCE",
+        messageParameters = Map(
+          "obj" -> "VIEW",
+          "objName" -> name.name(),
+          "tempObj" -> "VIEW",
+          "tempObjName" -> nameParts.quoted))
+    }
+
+    // TODO: check for temp function names
+  }
+
+  /**
+   * Collect all temporary views and return the identifiers separately
+   */
+  private def collectTemporaryViews(child: LogicalPlan): Seq[Seq[String]] = {
+    def collectTempViews(child: LogicalPlan): Seq[Seq[String]] = {
+      child.flatMap {
+        case unresolved: UnresolvedRelation if isTempView(unresolved.multipartIdentifier) =>
+          Seq(unresolved.multipartIdentifier)
+        case view: View if view.isTempView => Seq(view.desc.identifier.nameParts)
+        case plan => plan.expressions.flatMap(_.flatMap {
+          case e: SubqueryExpression => collectTempViews(e.plan)
+          case _ => Seq.empty
+        })
+      }.distinct
+    }
+
+    collectTempViews(child)
   }
 }
