@@ -156,7 +156,7 @@ public class TestS3FileIOIntegration {
   }
 
   @Test
-  public void testS3FileIOWithAwsClientFactoryImpl() throws Exception {
+  public void testS3FileIOWithDefaultAwsClientFactoryImpl() throws Exception {
     s3.putObject(
         PutObjectRequest.builder().bucket(bucketName).key(objectKey).build(),
         RequestBody.fromBytes(contentBytes));
