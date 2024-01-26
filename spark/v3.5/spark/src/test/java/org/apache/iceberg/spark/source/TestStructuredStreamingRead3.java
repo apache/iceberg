@@ -499,7 +499,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   }
 
 
-  @Test
+  @TestTemplate
   public void testReadStreamWithSnapshotTypeRewriteDataFilesIgnoresReplace() throws Exception {
     // fill table with some data
     List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
@@ -513,7 +513,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
         .isEqualTo(6);
   }
 
-  @Test
+  @TestTemplate
   public void testReadStreamWithSnapshotTypeRewriteDataFilesIgnoresReplaceMaxRows()
       throws Exception {
     // fill table with some data
@@ -528,7 +528,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
         .isEqualTo(2);
   }
 
-  @Test
+  @TestTemplate
   public void testReadStreamWithSnapshotTypeRewriteDataFilesIgnoresReplaceMaxFilesAndRows()
       throws Exception {
     // fill table with some data
@@ -547,7 +547,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
         .isEqualTo(6);
   }
 
-  @Test
+  @TestTemplate
   public void testReadStreamWithSnapshotType2RewriteDataFilesIgnoresReplace() throws Exception {
     // fill table with some data
     List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
@@ -562,7 +562,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
         .isEqualTo(6);
   }
 
-  @Test
+  @TestTemplate
   public void testReadStreamWithSnapshotTypeRewriteDataFilesIgnoresReplaceFollowedByAppend()
       throws Exception {
     // fill table with some data
