@@ -1708,14 +1708,12 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     table.replaceSortOrder().desc("id").commit();
 
-    Expression[] expectedClustering = new Expression[] {Expressions.identity("date")};
-    Distribution expectedDistribution = Distributions.clustered(expectedClustering);
-
     SortOrder[] expectedOrdering =
         new SortOrder[] {
           Expressions.sort(Expressions.column("date"), SortDirection.ASCENDING),
           Expressions.sort(Expressions.column("id"), SortDirection.DESCENDING)
         };
+    Distribution expectedDistribution = Distributions.ordered(expectedOrdering);
 
     checkCopyOnWriteDistributionAndOrdering(table, MERGE, expectedDistribution, expectedOrdering);
   }

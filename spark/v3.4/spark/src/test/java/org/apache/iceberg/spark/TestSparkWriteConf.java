@@ -122,6 +122,16 @@ public class TestSparkWriteConf extends SparkTestBaseWithCatalog {
   }
 
   @Test
+  public void testSparkWriteConfDistributionModeWithWriteDistributionModeTablePropertyOnly() {
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.updateProperties().set(WRITE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_RANGE).commit();
+
+    SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
+    Assert.assertEquals(DistributionMode.RANGE, writeConf.copyOnWriteDistributionMode(MERGE));
+  }
+
+  @Test
   public void testSparkWriteConfDistributionModeWithTblPropAndSessionConfig() {
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.DISTRIBUTION_MODE, DistributionMode.NONE.modeName()),

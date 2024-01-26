@@ -354,10 +354,6 @@ public class SparkWriteConf {
     if (mergeModeName != null) {
       DistributionMode mergeMode = DistributionMode.fromName(mergeModeName);
       return adjustWriteDistributionMode(mergeMode);
-
-    } else if (table.spec().isPartitioned()) {
-      return HASH;
-
     } else {
       return distributionMode();
     }
