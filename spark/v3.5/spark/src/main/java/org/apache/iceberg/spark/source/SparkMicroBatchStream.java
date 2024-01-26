@@ -392,8 +392,15 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
 
       // if everything was OK and we consumed complete snapshot then move to next snapshot
       if (shouldContinueReading) {
+        Snapshot nextValid = nextValidSnapshot(curSnapshot);
+        if (nextValid == null) {
+          // nextValide implies all the remaining snapshots should be skipped.
+          shouldContinueReading = false;
+          break;
+        }
+        // we found the next available snapshot, continue from there.
+        curSnapshot = nextValid;
         startPosOfSnapOffset = -1;
-        curSnapshot = SnapshotUtil.snapshotAfter(table, curSnapshot.snapshotId());
         // if anyhow we are moving to next snapshot we should only scan addedFiles
         scanAllFiles = false;
       }
@@ -404,6 +411,27 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
 
     // if no new data arrived, then return null.
     return latestStreamingOffset.equals(startingOffset) ? null : latestStreamingOffset;
+  }
+
+  /**
+   * Get the next snapshot skiping over rewrite and delete snapshots.
+   *
+   * @param curSnapshot the current snapshot
+   * @return the next valid snapshot (not a rewrite or delete snapshot), returns null if all
+   *     remaining snapshots should be skipped.
+   */
+  private Snapshot nextValidSnapshot(Snapshot curSnapshot) {
+    Snapshot nextSnapshot = SnapshotUtil.snapshotAfter(table, curSnapshot.snapshotId());
+    // skip over rewrite and delete snapshots
+    while (!shouldProcess(nextSnapshot)) {
+      LOG.debug("Skipping snapshot: {} of table {}", nextSnapshot.snapshotId(), table.name());
+      // if the currentSnapShot was also the mostRecentSnapshot then break
+      if (nextSnapshot.snapshotId() == table.currentSnapshot().snapshotId()) {
+        return null;
+      }
+      nextSnapshot = SnapshotUtil.snapshotAfter(table, nextSnapshot.snapshotId());
+    }
+    return nextSnapshot;
   }
 
   private long addedFilesCount(Snapshot snapshot) {
