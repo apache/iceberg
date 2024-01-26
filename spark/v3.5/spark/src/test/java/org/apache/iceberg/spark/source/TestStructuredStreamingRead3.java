@@ -506,7 +506,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
 
     makeRewriteDataFiles();
 
-    Assertions.assertThat(
+    assertThat(
             microBatchCount(
                 ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1")))
         .isEqualTo(6);
@@ -521,7 +521,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
 
     makeRewriteDataFiles();
 
-    Assertions.assertThat(
+    assertThat(
             microBatchCount(
                 ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "4")))
         .isEqualTo(2);
@@ -536,7 +536,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
 
     makeRewriteDataFiles();
 
-    Assertions.assertThat(
+    assertThat(
             microBatchCount(
                 ImmutableMap.of(
                     SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH,
@@ -555,7 +555,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
     makeRewriteDataFiles();
     makeRewriteDataFiles();
 
-    Assertions.assertThat(
+    assertThat(
             microBatchCount(
                 ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1")))
         .isEqualTo(6);
@@ -572,7 +572,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
 
     appendDataAsMultipleSnapshots(expected);
 
-    Assertions.assertThat(
+    assertThat(
             microBatchCount(
                 ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1")))
         .isEqualTo(12);
