@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -32,6 +33,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.puffin.Blob;
 import org.apache.iceberg.puffin.Puffin;
 import org.apache.iceberg.puffin.PuffinWriter;
@@ -440,7 +442,10 @@ public class TestRemoveSnapshots extends TableTestBase {
       t3 = System.currentTimeMillis();
     }
 
-    // Retain last 2 snapshots
+    Assert.assertEquals(
+        "Should be 3 manifest lists", 3, listManifestLists(table.location()).size());
+
+    // Retain last 2 snapshots, which means 1 is deleted.
     Transaction tx = table.newTransaction();
     removeSnapshots(tx.table()).expireOlderThan(t3).retainLast(2).commit();
     tx.commitTransaction();
@@ -449,6 +454,8 @@ public class TestRemoveSnapshots extends TableTestBase {
         "Should have two snapshots.", 2, Lists.newArrayList(table.snapshots()).size());
     Assert.assertEquals(
         "First snapshot should not present.", null, table.snapshot(firstSnapshotId));
+    Assert.assertEquals(
+        "Should be 2 manifest lists", 2, listManifestLists(table.location()).size());
   }
 
   @Test
@@ -790,7 +797,7 @@ public class TestRemoveSnapshots extends TableTestBase {
     rewriteManifests.addManifest(newManifest);
     rewriteManifests.commit();
 
-    Set<String> deletedFiles = Sets.newHashSet();
+    Set<String> deletedFiles = ConcurrentHashMap.newKeySet();
     Set<String> deleteThreads = ConcurrentHashMap.newKeySet();
     AtomicInteger deleteThreadsIndex = new AtomicInteger(0);
     AtomicInteger planThreadsIndex = new AtomicInteger(0);
@@ -1272,8 +1279,8 @@ public class TestRemoveSnapshots extends TableTestBase {
         .as("Should contain only the statistics file of snapshot2")
         .isEqualTo(Lists.newArrayList(statisticsFile2.snapshotId()));
 
-    Assertions.assertThat(new File(statsFileLocation1).exists()).isFalse();
-    Assertions.assertThat(new File(statsFileLocation2).exists()).isTrue();
+    Assertions.assertThat(new File(statsFileLocation1)).doesNotExist();
+    Assertions.assertThat(new File(statsFileLocation2)).exists();
   }
 
   @Test
@@ -1310,7 +1317,75 @@ public class TestRemoveSnapshots extends TableTestBase {
         .as("Should contain only the statistics file of snapshot2")
         .isEqualTo(Lists.newArrayList(statisticsFile2.snapshotId()));
     // the reused stats file should exist.
-    Assertions.assertThat(new File(statsFileLocation1).exists()).isTrue();
+    Assertions.assertThat(new File(statsFileLocation1)).exists();
+  }
+
+  @Test
+  public void testExpireWithPartitionStatisticsFiles() throws IOException {
+    table.newAppend().appendFile(FILE_A).commit();
+    String statsFileLocation1 = statsFileLocation(table.location());
+    PartitionStatisticsFile statisticsFile1 =
+        writePartitionStatsFile(
+            table.currentSnapshot().snapshotId(), statsFileLocation1, table.io());
+    commitPartitionStats(table, statisticsFile1);
+
+    table.newAppend().appendFile(FILE_B).commit();
+    String statsFileLocation2 = statsFileLocation(table.location());
+    PartitionStatisticsFile statisticsFile2 =
+        writePartitionStatsFile(
+            table.currentSnapshot().snapshotId(), statsFileLocation2, table.io());
+    commitPartitionStats(table, statisticsFile2);
+    Assert.assertEquals(
+        "Should have 2 partition statistics file", 2, table.partitionStatisticsFiles().size());
+
+    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+    removeSnapshots(table).expireOlderThan(tAfterCommits).commit();
+
+    // only the current snapshot and its stats file should be retained
+    Assert.assertEquals("Should keep 1 snapshot", 1, Iterables.size(table.snapshots()));
+    Assertions.assertThat(table.partitionStatisticsFiles())
+        .hasSize(1)
+        .extracting(PartitionStatisticsFile::snapshotId)
+        .as("Should contain only the statistics file of snapshot2")
+        .isEqualTo(Lists.newArrayList(statisticsFile2.snapshotId()));
+
+    Assertions.assertThat(new File(statsFileLocation1)).doesNotExist();
+    Assertions.assertThat(new File(statsFileLocation2)).exists();
+  }
+
+  @Test
+  public void testExpireWithPartitionStatisticsFilesWithReuse() throws IOException {
+    table.newAppend().appendFile(FILE_A).commit();
+    String statsFileLocation1 = statsFileLocation(table.location());
+    PartitionStatisticsFile statisticsFile1 =
+        writePartitionStatsFile(
+            table.currentSnapshot().snapshotId(), statsFileLocation1, table.io());
+    commitPartitionStats(table, statisticsFile1);
+
+    table.newAppend().appendFile(FILE_B).commit();
+    // If an expired snapshot's stats file is reused for some reason by the live snapshots,
+    // that stats file should not get deleted from the file system as the live snapshots still
+    // reference it.
+    PartitionStatisticsFile statisticsFile2 =
+        reusePartitionStatsFile(table.currentSnapshot().snapshotId(), statisticsFile1);
+    commitPartitionStats(table, statisticsFile2);
+
+    Assert.assertEquals(
+        "Should have 2 partition statistics file", 2, table.partitionStatisticsFiles().size());
+
+    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+    removeSnapshots(table).expireOlderThan(tAfterCommits).commit();
+
+    // only the current snapshot and its stats file (reused from previous snapshot) should be
+    // retained
+    Assert.assertEquals("Should keep 1 snapshot", 1, Iterables.size(table.snapshots()));
+    Assertions.assertThat(table.partitionStatisticsFiles())
+        .hasSize(1)
+        .extracting(PartitionStatisticsFile::snapshotId)
+        .as("Should contain only the statistics file of snapshot2")
+        .isEqualTo(Lists.newArrayList(statisticsFile2.snapshotId()));
+    // the reused stats file should exist.
+    Assertions.assertThat(new File(statsFileLocation1)).exists();
   }
 
   @Test
@@ -1633,5 +1708,35 @@ public class TestRemoveSnapshots extends TableTestBase {
   private String statsFileLocation(String tableLocation) {
     String statsFileName = "stats-file-" + UUID.randomUUID();
     return tableLocation + "/metadata/" + statsFileName;
+  }
+
+  private static PartitionStatisticsFile writePartitionStatsFile(
+      long snapshotId, String statsLocation, FileIO fileIO) {
+    PositionOutputStream positionOutputStream;
+    try {
+      positionOutputStream = fileIO.newOutputFile(statsLocation).create();
+      positionOutputStream.close();
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+
+    return ImmutableGenericPartitionStatisticsFile.builder()
+        .snapshotId(snapshotId)
+        .fileSizeInBytes(42L)
+        .path(statsLocation)
+        .build();
+  }
+
+  private static PartitionStatisticsFile reusePartitionStatsFile(
+      long snapshotId, PartitionStatisticsFile statisticsFile) {
+    return ImmutableGenericPartitionStatisticsFile.builder()
+        .path(statisticsFile.path())
+        .fileSizeInBytes(statisticsFile.fileSizeInBytes())
+        .snapshotId(snapshotId)
+        .build();
+  }
+
+  private static void commitPartitionStats(Table table, PartitionStatisticsFile statisticsFile) {
+    table.updatePartitionStatistics().setPartitionStatistics(statisticsFile).commit();
   }
 }

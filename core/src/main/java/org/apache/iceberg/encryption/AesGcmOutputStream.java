@@ -44,6 +44,8 @@ public class AesGcmOutputStream extends PositionOutputStream {
   private int currentBlockIndex;
   private boolean isHeaderWritten;
   private boolean lastBlockWritten;
+  private boolean isClosed;
+  private long finalPosition;
 
   AesGcmOutputStream(PositionOutputStream targetStream, byte[] aesKey, byte[] fileAadPrefix) {
     this.targetStream = targetStream;
@@ -56,6 +58,8 @@ public class AesGcmOutputStream extends PositionOutputStream {
     this.currentBlockIndex = 0;
     this.isHeaderWritten = false;
     this.lastBlockWritten = false;
+    this.isClosed = false;
+    this.finalPosition = 0;
   }
 
   @Override
@@ -66,6 +70,10 @@ public class AesGcmOutputStream extends PositionOutputStream {
 
   @Override
   public void write(byte[] b, int off, int len) throws IOException {
+    if (isClosed) {
+      throw new IOException("Writing to closed stream");
+    }
+
     if (!isHeaderWritten) {
       writeHeader();
     }
@@ -95,6 +103,10 @@ public class AesGcmOutputStream extends PositionOutputStream {
 
   @Override
   public long getPos() throws IOException {
+    if (isClosed) {
+      return finalPosition;
+    }
+
     return (long) currentBlockIndex * Ciphers.PLAIN_BLOCK_SIZE + positionInPlainBlock;
   }
 
@@ -108,6 +120,9 @@ public class AesGcmOutputStream extends PositionOutputStream {
     if (!isHeaderWritten) {
       writeHeader();
     }
+
+    finalPosition = getPos();
+    isClosed = true;
 
     encryptAndWriteBlock();
 

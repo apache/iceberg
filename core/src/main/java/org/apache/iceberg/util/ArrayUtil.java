@@ -320,4 +320,31 @@ public class ArrayUtil {
 
     return true;
   }
+
+  @SuppressWarnings("unchecked")
+  public static <T> T[] concat(Class<T> type, T[]... arrays) {
+    T[] result = (T[]) Array.newInstance(type, totalLength(arrays));
+
+    int currentLength = 0;
+
+    for (T[] array : arrays) {
+      int length = array.length;
+      if (length > 0) {
+        System.arraycopy(array, 0, result, currentLength, length);
+        currentLength += length;
+      }
+    }
+
+    return result;
+  }
+
+  private static int totalLength(Object[][] arrays) {
+    int totalLength = 0;
+
+    for (Object[] array : arrays) {
+      totalLength += array.length;
+    }
+
+    return totalLength;
+  }
 }

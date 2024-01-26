@@ -221,6 +221,11 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   }
 
   @Override
+  public UpdatePartitionStatistics updatePartitionStatistics() {
+    return new SetPartitionStatistics(ops);
+  }
+
+  @Override
   public ExpireSnapshots expireSnapshots() {
     return new RemoveSnapshots(ops);
   }
@@ -253,6 +258,11 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   @Override
   public List<StatisticsFile> statisticsFiles() {
     return ops.current().statisticsFiles();
+  }
+
+  @Override
+  public List<PartitionStatisticsFile> partitionStatisticsFiles() {
+    return ops.current().partitionStatisticsFiles();
   }
 
   @Override

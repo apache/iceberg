@@ -48,8 +48,13 @@ import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ParquetBloomRowGroupFilter {
+
+  private static final Logger LOG = LoggerFactory.getLogger(ParquetBloomRowGroupFilter.class);
+
   private final Schema schema;
   private final Expression expr;
   private final boolean caseSensitive;
@@ -114,10 +119,13 @@ public class ParquetBloomRowGroupFilter {
 
       Set<Integer> filterRefs =
           Binder.boundReferences(schema.asStruct(), ImmutableList.of(expr), caseSensitive);
-      // If the filter's column set doesn't overlap with any bloom filter columns, exit early with
-      // ROWS_MIGHT_MATCH
-      if (!filterRefs.isEmpty() && Sets.intersection(fieldsWithBloomFilter, filterRefs).isEmpty()) {
-        return ROWS_MIGHT_MATCH;
+      if (!filterRefs.isEmpty()) {
+        Set<Integer> overlappedBloomFilters = Sets.intersection(fieldsWithBloomFilter, filterRefs);
+        if (overlappedBloomFilters.isEmpty()) {
+          return ROWS_MIGHT_MATCH;
+        } else {
+          LOG.debug("Using Bloom filters for columns with IDs: {}", overlappedBloomFilters);
+        }
       }
 
       return ExpressionVisitors.visitEvaluator(expr, this);

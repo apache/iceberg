@@ -34,6 +34,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestWriter;
@@ -42,6 +43,7 @@ import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.TableMigrationUtil;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -596,6 +598,8 @@ public class SparkTableUtil {
             .collectAsList();
 
     try {
+      TableOperations ops = ((HasTableOperations) targetTable).operations();
+      int formatVersion = ops.current().formatVersion();
       boolean snapshotIdInheritanceEnabled =
           PropertyUtil.propertyAsBoolean(
               targetTable.properties(),
@@ -606,7 +610,7 @@ public class SparkTableUtil {
       manifests.forEach(append::appendManifest);
       append.commit();
 
-      if (!snapshotIdInheritanceEnabled) {
+      if (formatVersion == 1 && !snapshotIdInheritanceEnabled) {
         // delete original manifests as they were rewritten before the commit
         deleteManifests(targetTable.io(), manifests);
       }

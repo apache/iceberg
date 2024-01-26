@@ -25,20 +25,27 @@ import static org.apache.iceberg.TableProperties.PARQUET_BATCH_SIZE;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_VECTORIZATION_ENABLED;
 import static org.apache.spark.sql.functions.lit;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -46,26 +53,22 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.spark.SparkTestBase;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Assert;
 import org.junit.Assume;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
-public class TestSparkMetadataColumns extends SparkTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestSparkMetadataColumns extends TestBase {
 
   private static final String TABLE_NAME = "test_table";
   private static final Schema SCHEMA =
@@ -75,11 +78,13 @@ public class TestSparkMetadataColumns extends SparkTestBase {
           Types.NestedField.optional(3, "data", Types.StringType.get()));
   private static final PartitionSpec SPEC = PartitionSpec.unpartitioned();
   private static final PartitionSpec UNKNOWN_SPEC =
-      PartitionSpecParser.fromJson(
-          SCHEMA,
-          "{ \"spec-id\": 1, \"fields\": [ { \"name\": \"id_zero\", \"transform\": \"zero\", \"source-id\": 1 } ] }");
+      TestHelpers.newExpectedSpecBuilder()
+          .withSchema(SCHEMA)
+          .withSpecId(1)
+          .addField("zero", 1, "id_zero")
+          .build();
 
-  @Parameterized.Parameters(name = "fileFormat = {0}, vectorized = {1}, formatVersion = {2}")
+  @Parameters(name = "fileFormat = {0}, vectorized = {1}, formatVersion = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
       {FileFormat.PARQUET, false, 1},
@@ -95,21 +100,20 @@ public class TestSparkMetadataColumns extends SparkTestBase {
     };
   }
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
-  private final FileFormat fileFormat;
-  private final boolean vectorized;
-  private final int formatVersion;
+  @Parameter(index = 0)
+  private FileFormat fileFormat;
+
+  @Parameter(index = 1)
+  private boolean vectorized;
+
+  @Parameter(index = 2)
+  private int formatVersion;
 
   private Table table = null;
 
-  public TestSparkMetadataColumns(FileFormat fileFormat, boolean vectorized, int formatVersion) {
-    this.fileFormat = fileFormat;
-    this.vectorized = vectorized;
-    this.formatVersion = formatVersion;
-  }
-
-  @BeforeClass
+  @BeforeAll
   public static void setupSpark() {
     ImmutableMap<String, String> config =
         ImmutableMap.of(
@@ -123,17 +127,17 @@ public class TestSparkMetadataColumns extends SparkTestBase {
         (key, value) -> spark.conf().set("spark.sql.catalog.spark_catalog." + key, value));
   }
 
-  @Before
+  @BeforeEach
   public void setupTable() throws IOException {
     createAndInitTable();
   }
 
-  @After
+  @AfterEach
   public void dropTable() {
     TestTables.clearTables();
   }
 
-  @Test
+  @TestTemplate
   public void testSpecAndPartitionMetadataColumns() {
     // TODO: support metadata structs in vectorized ORC reads
     Assume.assumeFalse(fileFormat == FileFormat.ORC && vectorized);
@@ -167,7 +171,7 @@ public class TestSparkMetadataColumns extends SparkTestBase {
         sql("SELECT _spec_id, _partition FROM %s ORDER BY _spec_id", TABLE_NAME));
   }
 
-  @Test
+  @TestTemplate
   public void testPositionMetadataColumnWithMultipleRowGroups() throws NoSuchTableException {
     Assume.assumeTrue(fileFormat == FileFormat.PARQUET);
 
@@ -185,13 +189,13 @@ public class TestSparkMetadataColumns extends SparkTestBase {
             .withColumn("data", lit("ABCDEF"));
     df.coalesce(1).writeTo(TABLE_NAME).append();
 
-    Assert.assertEquals(200, spark.table(TABLE_NAME).count());
+    assertThat(spark.table(TABLE_NAME).count()).isEqualTo(200);
 
     List<Object[]> expectedRows = ids.stream().map(this::row).collect(Collectors.toList());
     assertEquals("Rows must match", expectedRows, sql("SELECT _pos FROM %s", TABLE_NAME));
   }
 
-  @Test
+  @TestTemplate
   public void testPositionMetadataColumnWithMultipleBatches() throws NoSuchTableException {
     Assume.assumeTrue(fileFormat == FileFormat.PARQUET);
 
@@ -209,25 +213,25 @@ public class TestSparkMetadataColumns extends SparkTestBase {
             .withColumn("data", lit("ABCDEF"));
     df.coalesce(1).writeTo(TABLE_NAME).append();
 
-    Assert.assertEquals(7500, spark.table(TABLE_NAME).count());
+    assertThat(spark.table(TABLE_NAME).count()).isEqualTo(7500);
 
     List<Object[]> expectedRows = ids.stream().map(this::row).collect(Collectors.toList());
     assertEquals("Rows must match", expectedRows, sql("SELECT _pos FROM %s", TABLE_NAME));
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionMetadataColumnWithUnknownTransforms() {
     // replace the table spec to include an unknown transform
     TableOperations ops = ((HasTableOperations) table).operations();
     TableMetadata base = ops.current();
     ops.commit(base, base.updatePartitionSpec(UNKNOWN_SPEC));
 
-    Assertions.assertThatThrownBy(() -> sql("SELECT _partition FROM %s", TABLE_NAME))
+    assertThatThrownBy(() -> sql("SELECT _partition FROM %s", TABLE_NAME))
         .isInstanceOf(ValidationException.class)
         .hasMessage("Cannot build table partition type, unknown transforms: [zero]");
   }
 
-  @Test
+  @TestTemplate
   public void testConflictingColumns() {
     table
         .updateSchema()
@@ -242,7 +246,7 @@ public class TestSparkMetadataColumns extends SparkTestBase {
         ImmutableList.of(row(1L, "a1")),
         sql("SELECT id, category FROM %s", TABLE_NAME));
 
-    Assertions.assertThatThrownBy(() -> sql("SELECT * FROM %s", TABLE_NAME))
+    assertThatThrownBy(() -> sql("SELECT * FROM %s", TABLE_NAME))
         .isInstanceOf(ValidationException.class)
         .hasMessageStartingWith(
             "Table column names conflict with names reserved for Iceberg metadata columns: [_spec_id, _file].");
@@ -279,6 +283,12 @@ public class TestSparkMetadataColumns extends SparkTestBase {
             !vectorized, "File format %s does not support vectorized reads", fileFormat);
     }
 
-    this.table = TestTables.create(temp.newFolder(), TABLE_NAME, SCHEMA, SPEC, properties);
+    this.table =
+        TestTables.create(
+            Files.createTempDirectory(temp, "junit").toFile(),
+            TABLE_NAME,
+            SCHEMA,
+            SPEC,
+            properties);
   }
 }

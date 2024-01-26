@@ -18,11 +18,14 @@
  */
 package org.apache.iceberg.spark.source;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.List;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.Spark3Util;
-import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
+import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
@@ -32,24 +35,22 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.internal.SQLConf;
-import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
 
-public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
-  @Before
+public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
+  @BeforeEach
   public void createTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
   }
 
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testMergeSchemaFailsWithoutWriterOption() throws Exception {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
@@ -76,12 +77,12 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
 
     // this has a different error message than the case without accept-any-schema because it uses
     // Iceberg checks
-    Assertions.assertThatThrownBy(() -> threeColDF.writeTo(tableName).append())
+    assertThatThrownBy(() -> threeColDF.writeTo(tableName).append())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Field new_col not found in source schema");
   }
 
-  @Test
+  @TestTemplate
   public void testMergeSchemaWithoutAcceptAnySchema() throws Exception {
     Dataset<Row> twoColDF =
         jsonToDF(
@@ -102,14 +103,13 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
             "{ \"id\": 3, \"data\": \"c\", \"new_col\": 12.06 }",
             "{ \"id\": 4, \"data\": \"d\", \"new_col\": 14.41 }");
 
-    Assertions.assertThatThrownBy(
-            () -> threeColDF.writeTo(tableName).option("merge-schema", "true").append())
+    assertThatThrownBy(() -> threeColDF.writeTo(tableName).option("merge-schema", "true").append())
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
             "Cannot write to `testhadoop`.`default`.`table`, the reason is too many data columns");
   }
 
-  @Test
+  @TestTemplate
   public void testMergeSchemaSparkProperty() throws Exception {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
@@ -143,7 +143,7 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
         sql("select * from %s order by id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeSchemaIcebergProperty() throws Exception {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
@@ -177,7 +177,7 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
         sql("select * from %s order by id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testWriteWithCaseSensitiveOption() throws NoSuchTableException, ParseException {
     SparkSession sparkSession = spark.cloneSession();
     sparkSession
@@ -201,12 +201,12 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
     List<Types.NestedField> fields =
         Spark3Util.loadIcebergTable(sparkSession, tableName).schema().asStruct().fields();
     // Additional columns should not be created
-    Assert.assertEquals(2, fields.size());
+    assertThat(fields).hasSize(2);
 
     // enable spark.sql.caseSensitive
     sparkSession.sql(String.format("SET %s=true", SQLConf.CASE_SENSITIVE().key()));
     ds.writeTo(tableName).option("merge-schema", "true").option("check-ordering", "false").append();
     fields = Spark3Util.loadIcebergTable(sparkSession, tableName).schema().asStruct().fields();
-    Assert.assertEquals(4, fields.size());
+    assertThat(fields).hasSize(4);
   }
 }

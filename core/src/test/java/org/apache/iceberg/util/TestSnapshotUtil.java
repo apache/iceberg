@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.util;
 
+import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -186,5 +187,69 @@ public class TestSnapshotUtil {
             .mapToLong(Snapshot::snapshotId)
             .toArray();
     assertThat(actualSnapshots).isEqualTo(snapshotIdExpected);
+  }
+
+  @Test
+  public void schemaForRef() {
+    Schema initialSchema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            required(2, "data", Types.StringType.get()));
+    assertThat(table.schema().asStruct()).isEqualTo(initialSchema.asStruct());
+
+    assertThat(SnapshotUtil.schemaFor(table, null).asStruct()).isEqualTo(initialSchema.asStruct());
+    assertThat(SnapshotUtil.schemaFor(table, "non-existing-ref").asStruct())
+        .isEqualTo(initialSchema.asStruct());
+    assertThat(SnapshotUtil.schemaFor(table, SnapshotRef.MAIN_BRANCH).asStruct())
+        .isEqualTo(initialSchema.asStruct());
+  }
+
+  @Test
+  public void schemaForBranch() {
+    Schema initialSchema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            required(2, "data", Types.StringType.get()));
+    assertThat(table.schema().asStruct()).isEqualTo(initialSchema.asStruct());
+
+    String branch = "branch";
+    table.manageSnapshots().createBranch(branch).commit();
+
+    assertThat(SnapshotUtil.schemaFor(table, branch).asStruct())
+        .isEqualTo(initialSchema.asStruct());
+
+    table.updateSchema().addColumn("zip", Types.IntegerType.get()).commit();
+    Schema expected =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            required(2, "data", Types.StringType.get()),
+            optional(3, "zip", Types.IntegerType.get()));
+
+    assertThat(table.schema().asStruct()).isEqualTo(expected.asStruct());
+    assertThat(SnapshotUtil.schemaFor(table, branch).asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  public void schemaForTag() {
+    Schema initialSchema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            required(2, "data", Types.StringType.get()));
+    assertThat(table.schema().asStruct()).isEqualTo(initialSchema.asStruct());
+
+    String tag = "tag";
+    table.manageSnapshots().createTag(tag, table.currentSnapshot().snapshotId()).commit();
+
+    assertThat(SnapshotUtil.schemaFor(table, tag).asStruct()).isEqualTo(initialSchema.asStruct());
+
+    table.updateSchema().addColumn("zip", Types.IntegerType.get()).commit();
+    Schema expected =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            required(2, "data", Types.StringType.get()),
+            optional(3, "zip", Types.IntegerType.get()));
+
+    assertThat(table.schema().asStruct()).isEqualTo(expected.asStruct());
+    assertThat(SnapshotUtil.schemaFor(table, tag).asStruct()).isEqualTo(initialSchema.asStruct());
   }
 }

@@ -296,15 +296,18 @@ Data files are stored in manifests with a tuple of partition values that are use
 
 Tables are configured with a **partition spec** that defines how to produce a tuple of partition values from a record. A partition spec has a list of fields that consist of:
 
-*   A **source column id** from the table’s schema
+*   A **source column id** or a list of **source column ids** from the table’s schema
 *   A **partition field id** that is used to identify a partition field and is unique within a partition spec. In v2 table metadata, it is unique across all partition specs.
-*   A **transform** that is applied to the source column to produce a partition value
+*   A **transform** that is applied to the source column(s) to produce a partition value
 *   A **partition name**
 
 The source column, selected by id, must be a primitive type and cannot be contained in a map or list, but may be nested in a struct. For details on how to serialize a partition spec to JSON, see Appendix C.
 
 Partition specs capture the transform from table data to partition values. This is used to transform predicates to partition predicates, in addition to transforming data values. Deriving partition predicates from column predicates on the table data is used to separate the logical queries from physical storage: the partitioning can change and the correct partition filters are always derived from column predicates. This simplifies queries because users don’t have to supply both logical predicates and partition predicates. For more information, see Scan Planning below.
 
+Two partition specs are considered equivalent with each other if they have the same number of fields and for each corresponding field, the fields have the same source column ID, transform definition and partition name. Writers must not create a new parition spec if there already exists a compatible partition spec defined in the table.
+
+Partition field IDs must be reused if an existing partition spec contains an equivalent field.
 
 #### Partition Transforms
 
@@ -380,8 +383,8 @@ Users can sort their data within partitions by columns to gain performance. The 
 
 A sort order is defined by a sort order id and a list of sort fields. The order of the sort fields within the list defines the order in which the sort is applied to the data. Each sort field consists of:
 
-*   A **source column id** from the table's schema
-*   A **transform** that is used to produce values to be sorted on from the source column. This is the same transform as described in [partition transforms](#partition-transforms).
+*   A **source column id** or a list of **source column ids** from the table's schema
+*   A **transform** that is used to produce values to be sorted on from the source column(s). This is the same transform as described in [partition transforms](#partition-transforms).
 *   A **sort direction**, that can only be either `asc` or `desc`
 *   A **null order** that describes the order of null values when sorted. Can only be either `nulls-first` or `nulls-last`
 
@@ -595,7 +598,7 @@ Delete files that match the query filter must be applied to data files at read t
     - The data file's partition (both spec and partition values) is equal to the delete file's partition
 * An _equality_ delete file must be applied to a data file when all of the following are true:
     - The data file's data sequence number is _strictly less than_ the delete's data sequence number
-    - The data file's partition (both spec and partition values) is equal to the delete file's partition _or_ the delete file's partition spec is unpartitioned
+    - The data file's partition (both spec id and partition values) is equal to the delete file's partition _or_ the delete file's partition spec is unpartitioned
 
 In general, deletes are applied only to data files that are older and in the same partition, except for two special cases:
 
@@ -607,6 +610,7 @@ Notes:
 
 1. An alternative, *strict projection*, creates a partition predicate that will match a file if all of the rows in the file must match the scan predicate. These projections are used to calculate the residual predicates for each file in a scan.
 2. For example, if `file_a` has rows with `id` between 1 and 10 and a delete file contains rows with `id` between 1 and 4, a scan for `id = 9` may ignore the delete file because none of the deletes can match a row that will be selected.
+3. Floating point partition values are considered equal if their IEEE 754 floating-point "single format" bit layout are equal with NaNs normalized to have only the the most significant mantissa bit set (the equivelant of calling `Float.floatToIntBits` or `Double.doubleToLongBits` in Java). The Avro specification requires all floating point values to be encoded in this format.
 
 #### Snapshot Reference
 
@@ -959,7 +963,7 @@ Note that the string map case is for maps where the key type is a string. Using 
 
 **Data Type Mappings**
 
-Values should be stored in Parquet using the types and logical type annotations in the table below. Column IDs are required.
+Values should be stored in Parquet using the types and logical type annotations in the table below. Column IDs are required to be stored as [field IDs](http://github.com/apache/parquet-format/blob/40699d05bd24181de6b1457babbee2c16dce3803/src/main/thrift/parquet.thrift#L459) on the parquet schema.
 
 Lists must use the [3-level representation](https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#lists).
 
@@ -1000,10 +1004,10 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 | **`decimal(P,S)`** | `decimal`           |                                                      |                                                                                         |
 | **`date`**         | `date`              |                                                      |                                                                                         |
 | **`time`**         | `long`              | `iceberg.long-type`=`TIME`                           | Stores microseconds from midnight.                                                      |
-| **`timestamp`**    | `timestamp`         |                                                      | Stores microseconds from 2015-01-01 00:00:00.000000. [1], [2]                           |
-| **`timestamptz`**  | `timestamp_instant` |                                                      | Stores microseconds from 2015-01-01 00:00:00.000000 UTC. [1], [2]                       |
-| **`timestamp_ns`** | `timestamp`         |                                                      | Stores nanoseconds from 2015-01-01 00:00:00.000000000. [1]                              |
-| **`timestamptz_ns`** | `timestamp_instant` |                                                    | Stores nanoseconds from 2015-01-01 00:00:00.000000000 UTC. [1]                          |
+| **`timestamp`**    | `timestamp`         | `iceberg.timestamp-unit`=`MICROS`                    | Stores microseconds from 2015-01-01 00:00:00.000000. [1], [2]                           |
+| **`timestamptz`**  | `timestamp_instant` | `iceberg.timestamp-unit`=`MICROS`                    | Stores microseconds from 2015-01-01 00:00:00.000000 UTC. [1], [2]                       |
+| **`timestamp_ns`** | `timestamp`         | `iceberg.timestamp-unit`=`NANOS`                     | Stores nanoseconds from 2015-01-01 00:00:00.000000000. [1]                              |
+| **`timestamptz_ns`** | `timestamp_instant` | `iceberg.timestamp-unit`=`NANOS`                   | Stores nanoseconds from 2015-01-01 00:00:00.000000000 UTC. [1]                          |
 | **`string`**       | `string`            |                                                      | ORC `varchar` and `char` would also map to **`string`**.                                |
 | **`uuid`**         | `binary`            | `iceberg.binary-type`=`UUID`                         |                                                                                         |
 | **`fixed(L)`**     | `binary`            | `iceberg.binary-type`=`FIXED` & `iceberg.length`=`L` | The length would not be checked by the ORC reader and should be checked by the adapter. |
@@ -1015,7 +1019,7 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 Notes:
 
 1. ORC's [TimestampColumnVector](https://orc.apache.org/api/hive-storage-api/org/apache/hadoop/hive/ql/exec/vector/TimestampColumnVector.html) consists of a time field (milliseconds since epoch) and a nanos field (nanoseconds within the second). Hence the milliseconds within the second are reported twice; once in the time field and again in the nanos field. The read adapter should only use milliseconds within the second from one of these fields. The write adapter should also report milliseconds within the second twice; once in the time field and again in the nanos field. ORC writer is expected to correctly consider millis information from one of the fields. More details at https://issues.apache.org/jira/browse/ORC-546
-2. ORC `timestamp` and `timestamp_instant` values store nanosecond precision. Iceberg ORC writers for Iceberg types `timestamp` and `timestamptz` **must** truncate nanoseconds to microseconds.
+2. ORC `timestamp` and `timestamp_instant` values store nanosecond precision. Iceberg ORC writers for Iceberg types `timestamp` and `timestamptz` **must** truncate nanoseconds to microseconds. `iceberg.timestamp-unit` is assumed to be `MICROS` if not present.
 
 One of the interesting challenges with this is how to map Iceberg’s schema evolution (id based) on to ORC’s (name based). In theory, we could use Iceberg’s column ids as the column and field names, but that would be inconvenient.
 
@@ -1124,11 +1128,16 @@ Each partition field in the fields list is stored as an object. See the table fo
 |**`month`**|`JSON string: "month"`|`"month"`|
 |**`day`**|`JSON string: "day"`|`"day"`|
 |**`hour`**|`JSON string: "hour"`|`"hour"`|
-|**`Partition Field`**|`JSON object: {`<br />&nbsp;&nbsp;`"source-id": <id int>,`<br />&nbsp;&nbsp;`"field-id": <field id int>,`<br />&nbsp;&nbsp;`"name": <name string>,`<br />&nbsp;&nbsp;`"transform": <transform JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"source-id": 1,`<br />&nbsp;&nbsp;`"field-id": 1000,`<br />&nbsp;&nbsp;`"name": "id_bucket",`<br />&nbsp;&nbsp;`"transform": "bucket[16]"`<br />`}`|
+|**`Partition Field`** [1,2]|`JSON object: {`<br />&nbsp;&nbsp;`"source-id": <id int>,`<br />&nbsp;&nbsp;`"field-id": <field id int>,`<br />&nbsp;&nbsp;`"name": <name string>,`<br />&nbsp;&nbsp;`"transform": <transform JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"source-id": 1,`<br />&nbsp;&nbsp;`"field-id": 1000,`<br />&nbsp;&nbsp;`"name": "id_bucket",`<br />&nbsp;&nbsp;`"transform": "bucket[16]"`<br />`}`|
 
 In some cases partition specs are stored using only the field list instead of the object format that includes the spec ID, like the deprecated `partition-spec` field in table metadata. The object format should be used unless otherwise noted in this spec.
 
 The `field-id` property was added for each partition field in v2. In v1, the reference implementation assigned field ids sequentially in each spec starting at 1,000. See Partition Evolution for more details.
+
+Notes:
+
+1. For partition fields with a transform with a single argument, the ID of the source field is set on `source-id`, and `source-ids` is omitted.
+2. For partition fields with a transform of multiple arguments, the IDs of the source fields are set on `source-ids`. To preserve backward compatibility, `source-id` is set to -1.
 
 ### Sort Orders
 
@@ -1143,7 +1152,11 @@ Each sort field in the fields list is stored as an object with the following pro
 
 |Field|JSON representation|Example|
 |--- |--- |--- |
-|**`Sort Field`**|`JSON object: {`<br />&nbsp;&nbsp;`"transform": <transform JSON>,`<br />&nbsp;&nbsp;`"source-id": <source id int>,`<br />&nbsp;&nbsp;`"direction": <direction string>,`<br />&nbsp;&nbsp;`"null-order": <null-order string>`<br />`}`|`{`<br />&nbsp;&nbsp;`  "transform": "bucket[4]",`<br />&nbsp;&nbsp;`  "source-id": 3,`<br />&nbsp;&nbsp;`  "direction": "desc",`<br />&nbsp;&nbsp;`  "null-order": "nulls-last"`<br />`}`|
+|**`Sort Field`** [1,2]|`JSON object: {`<br />&nbsp;&nbsp;`"transform": <transform JSON>,`<br />&nbsp;&nbsp;`"source-id": <source id int>,`<br />&nbsp;&nbsp;`"direction": <direction string>,`<br />&nbsp;&nbsp;`"null-order": <null-order string>`<br />`}`|`{`<br />&nbsp;&nbsp;`  "transform": "bucket[4]",`<br />&nbsp;&nbsp;`  "source-id": 3,`<br />&nbsp;&nbsp;`  "direction": "desc",`<br />&nbsp;&nbsp;`  "null-order": "nulls-last"`<br />`}`|
+
+Notes:
+1. For sort fields with a transform with a single argument, the ID of the source field is set on `source-id`, and `source-ids` is omitted.
+2. For sort fields with a transform of multiple arguments, the IDs of the source fields are set on `source-ids`. To preserve backward compatibility, `source-id` is set to -1.
 
 The following table describes the possible values for the some of the field within sort field: 
 

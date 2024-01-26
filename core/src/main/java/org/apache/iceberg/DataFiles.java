@@ -29,7 +29,6 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Conversions;
-import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.ByteBuffers;
 
 public class DataFiles {
@@ -154,7 +153,6 @@ public class DataFiles {
     private Map<Integer, ByteBuffer> upperBounds = null;
     private ByteBuffer keyMetadata = null;
     private List<Long> splitOffsets = null;
-    private List<Integer> equalityFieldIds = null;
     private Integer sortOrderId = SortOrder.unsorted().orderId();
 
     public Builder(PartitionSpec spec) {
@@ -301,12 +299,10 @@ public class DataFiles {
       return this;
     }
 
+    /** @deprecated since 1.5.0, will be removed in 1.6.0; must not be set for data files. */
+    @Deprecated
     public Builder withEqualityFieldIds(List<Integer> equalityIds) {
-      if (equalityIds != null) {
-        this.equalityFieldIds = ImmutableList.copyOf(equalityIds);
-      }
-
-      return this;
+      throw new UnsupportedOperationException("Equality field IDs must not be set for data files");
     }
 
     public Builder withEncryptionKeyMetadata(ByteBuffer newKeyMetadata) {
@@ -350,7 +346,6 @@ public class DataFiles {
               upperBounds),
           keyMetadata,
           splitOffsets,
-          ArrayUtil.toIntArray(equalityFieldIds),
           sortOrderId);
     }
   }

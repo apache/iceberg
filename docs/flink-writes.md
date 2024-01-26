@@ -69,7 +69,7 @@ Iceberg supports `UPSERT` based on the primary key when writing data into v2 tab
 
 ```sql
 CREATE TABLE `hive_catalog`.`default`.`sample` (
-    `id`  INT UNIQUE COMMENT 'unique id',
+    `id` INT COMMENT 'unique id',
     `data` STRING NOT NULL,
     PRIMARY KEY(`id`) NOT ENFORCED
 ) with ('format-version'='2', 'write.upsert.enabled'='true');
@@ -213,7 +213,7 @@ They should have the following key-value tags.
 
  Metric name                | Metric type | Description                                                                                         |
 | ------------------------- |------------|-----------------------------------------------------------------------------------------------------|
-| lastFlushDurationMs       | Gague      | The duration (in milli) that writer subtasks take to flush and upload the files during checkpoint.  |
+| lastFlushDurationMs       | Gauge      | The duration (in milli) that writer subtasks take to flush and upload the files during checkpoint.  |
 | flushedDataFiles          | Counter    | Number of data files flushed and uploaded.                                                          |
 | flushedDeleteFiles        | Counter    | Number of delete files flushed and uploaded.                                                        |
 | flushedReferencedDataFiles| Counter    | Number of data files referenced by the flushed delete files.                                        |
@@ -227,15 +227,15 @@ They should have the following key-value tags.
 
  Metric name                      | Metric type | Description                                                                |
 |---------------------------------|--------|----------------------------------------------------------------------------|
-| lastCheckpointDurationMs        | Gague  | The duration (in milli) that the committer operator checkpoints its state. |
-| lastCommitDurationMs            | Gague  | The duration (in milli) that the Iceberg table commit takes.               |
+| lastCheckpointDurationMs        | Gauge  | The duration (in milli) that the committer operator checkpoints its state. |
+| lastCommitDurationMs            | Gauge  | The duration (in milli) that the Iceberg table commit takes.               |
 | committedDataFilesCount         | Counter | Number of data files committed.                                            |
 | committedDataFilesRecordCount   | Counter | Number of records contained in the committed data files.                   |
 | committedDataFilesByteCount     | Counter | Number of bytes contained in the committed data files.                     |
 | committedDeleteFilesCount       | Counter | Number of delete files committed.                                          |
 | committedDeleteFilesRecordCount | Counter | Number of records contained in the committed delete files.                 |
 | committedDeleteFilesByteCount   | Counter | Number of bytes contained in the committed delete files.                   |
-| elapsedSecondsSinceLastSuccessfulCommit| Gague  | Elapsed time (in seconds) since last successful Iceberg commit.            |
+| elapsedSecondsSinceLastSuccessfulCommit| Gauge  | Elapsed time (in seconds) since last successful Iceberg commit.            |
 
 `elapsedSecondsSinceLastSuccessfulCommit` is an ideal alerting metric
 to detect failed or missing Iceberg commits.
@@ -271,3 +271,12 @@ INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
 ```
 
 Check out all the options here: [write-options](/flink-configuration#write-options) 
+
+## Notes
+
+Flink streaming write jobs rely on snapshot summary to keep the last committed checkpoint ID, and
+store uncommitted data as temporary files. Therefore, [expiring snapshots](../tables/maintenance#expire-snapshots)
+and [deleting orphan files](../tables/maintenance#delete-orphan-files) could possibly corrupt
+the state of the Flink job. To avoid that, make sure to keep the last snapshot created by the Flink
+job (which can be identified by the `flink.job-id` property in the summary), and only delete
+orphan files that are old enough.

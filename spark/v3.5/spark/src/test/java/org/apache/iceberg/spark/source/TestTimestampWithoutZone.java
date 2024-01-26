@@ -19,9 +19,11 @@
 package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.Files.localOutput;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -31,6 +33,9 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -41,25 +46,22 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadOptions;
-import org.apache.iceberg.spark.SparkTestBase;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.data.GenericsHelpers;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
-public class TestTimestampWithoutZone extends SparkTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestTimestampWithoutZone extends TestBase {
   private static final Configuration CONF = new Configuration();
   private static final HadoopTables TABLES = new HadoopTables(CONF);
 
@@ -71,24 +73,27 @@ public class TestTimestampWithoutZone extends SparkTestBase {
 
   private static SparkSession spark = null;
 
-  @BeforeClass
+  @BeforeAll
   public static void startSpark() {
     TestTimestampWithoutZone.spark = SparkSession.builder().master("local[2]").getOrCreate();
   }
 
-  @AfterClass
+  @AfterAll
   public static void stopSpark() {
     SparkSession currentSpark = TestTimestampWithoutZone.spark;
     TestTimestampWithoutZone.spark = null;
     currentSpark.stop();
   }
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
-  private final String format;
-  private final boolean vectorized;
+  @Parameter(index = 0)
+  private String format;
 
-  @Parameterized.Parameters(name = "format = {0}, vectorized = {1}")
+  @Parameter(index = 1)
+  private boolean vectorized;
+
+  @Parameters(name = "format = {0}, vectorized = {1}")
   public static Object[][] parameters() {
     return new Object[][] {
       {"parquet", false},
@@ -97,21 +102,16 @@ public class TestTimestampWithoutZone extends SparkTestBase {
     };
   }
 
-  public TestTimestampWithoutZone(String format, boolean vectorized) {
-    this.format = format;
-    this.vectorized = vectorized;
-  }
-
   private File parent = null;
   private File unpartitioned = null;
   private List<Record> records = null;
 
-  @Before
+  @BeforeEach
   public void writeUnpartitionedTable() throws IOException {
-    this.parent = temp.newFolder("TestTimestampWithoutZone");
+    this.parent = temp.resolve("TestTimestampWithoutZone").toFile();
     this.unpartitioned = new File(parent, "unpartitioned");
     File dataFolder = new File(unpartitioned, "data");
-    Assert.assertTrue("Mkdir should succeed", dataFolder.mkdirs());
+    assertThat(dataFolder.mkdirs()).as("Mkdir should succeed").isTrue();
 
     Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), unpartitioned.toString());
     Schema tableSchema = table.schema(); // use the table schema because ids are reassigned
@@ -138,12 +138,12 @@ public class TestTimestampWithoutZone extends SparkTestBase {
     table.newAppend().appendFile(file).commit();
   }
 
-  @Test
+  @TestTemplate
   public void testUnpartitionedTimestampWithoutZone() {
     assertEqualsSafe(SCHEMA.asStruct(), records, read(unpartitioned.toString(), vectorized));
   }
 
-  @Test
+  @TestTemplate
   public void testUnpartitionedTimestampWithoutZoneProjection() {
     Schema projection = SCHEMA.select("id", "ts");
     assertEqualsSafe(
@@ -152,7 +152,7 @@ public class TestTimestampWithoutZone extends SparkTestBase {
         read(unpartitioned.toString(), vectorized, "id", "ts"));
   }
 
-  @Test
+  @TestTemplate
   public void testUnpartitionedTimestampWithoutZoneAppend() {
     spark
         .read()
@@ -182,7 +182,7 @@ public class TestTimestampWithoutZone extends SparkTestBase {
 
   public static void assertEqualsSafe(
       Types.StructType struct, List<Record> expected, List<Row> actual) {
-    Assert.assertEquals("Number of results should match expected", expected.size(), actual.size());
+    assertThat(actual).as("Number of results should match expected").hasSameSizeAs(expected);
     for (int i = 0; i < expected.size(); i += 1) {
       GenericsHelpers.assertEqualsSafe(struct, expected.get(i), actual.get(i));
     }

@@ -29,8 +29,8 @@ import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Function;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.data.RandomData;
-import org.junit.Ignore;
-import org.junit.Test;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 
 public class TestParquetDictionaryFallbackToPlainEncodingVectorizedReads
     extends TestParquetVectorizedReads {
@@ -65,11 +65,11 @@ public class TestParquetDictionaryFallbackToPlainEncodingVectorizedReads
 
   @Test
   @Override
-  @Ignore // Fallback encoding not triggered when data is mostly null
+  @Disabled // Fallback encoding not triggered when data is mostly null
   public void testMostlyNullsForOptionalFields() {}
 
   @Test
   @Override
-  @Ignore // Ignored since this code path is already tested in TestParquetVectorizedReads
+  @Disabled // Ignored since this code path is already tested in TestParquetVectorizedReads
   public void testVectorizedReadsWithNewContainers() throws IOException {}
 }

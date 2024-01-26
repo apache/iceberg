@@ -7,6 +7,9 @@ books.json
 new-books.json
 build
 .gitignore
+.git
+.gradle
+.idea
 .rat-excludes
 LICENSE
 NOTICE
@@ -24,6 +27,7 @@ gradle/*
 .*\.lock
 .*\.json
 .*\.bin
+.*\.prefs
 package-list
 sitemap.xml
 derby.log

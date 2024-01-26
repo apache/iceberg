@@ -24,10 +24,11 @@ gradle/wrapper/gradle-wrapper.jar
 lib/
 
 # web site build
-site/site
+site/site/
+#site/docs/docs/
+site/docs/javadoc/
 
 # benchmark output
-spark/v3.2/spark/benchmark/*
 spark/v3.3/spark/benchmark/*
 spark/v3.3/spark-extensions/benchmark/*
 spark/v3.4/spark/benchmark/*
@@ -63,4 +64,3 @@ metastore_db/
 # Spark/metastore files
 spark-warehouse/
 derby.log
-

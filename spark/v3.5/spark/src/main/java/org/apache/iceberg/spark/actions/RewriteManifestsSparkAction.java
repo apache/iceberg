@@ -20,22 +20,26 @@ package org.apache.iceberg.spark.actions;
 
 import static org.apache.iceberg.MetadataTableType.ENTRIES;
 
-import java.io.IOException;
-import java.util.Collections;
+import java.io.Serializable;
+import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestWriter;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Partitioning;
+import org.apache.iceberg.RollingManifestWriter;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
@@ -50,7 +54,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.JobGroupInfo;
+import org.apache.iceberg.spark.SparkContentFile;
 import org.apache.iceberg.spark.SparkDataFile;
+import org.apache.iceberg.spark.SparkDeleteFile;
 import org.apache.iceberg.spark.source.SerializableTableWithSize;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
@@ -85,8 +91,12 @@ public class RewriteManifestsSparkAction
   public static final boolean USE_CACHING_DEFAULT = false;
 
   private static final Logger LOG = LoggerFactory.getLogger(RewriteManifestsSparkAction.class);
+  private static final RewriteManifests.Result EMPTY_RESULT =
+      ImmutableRewriteManifests.Result.builder()
+          .rewrittenManifests(ImmutableList.of())
+          .addedManifests(ImmutableList.of())
+          .build();
 
-  private final Encoder<ManifestFile> manifestEncoder;
   private final Table table;
   private final int formatVersion;
   private final long targetManifestSizeBytes;
@@ -98,7 +108,6 @@ public class RewriteManifestsSparkAction
 
   RewriteManifestsSparkAction(SparkSession spark, Table table) {
     super(spark);
-    this.manifestEncoder = Encoders.javaSerialization(ManifestFile.class);
     this.table = table;
     this.spec = table.spec();
     this.targetManifestSizeBytes =
@@ -159,48 +168,48 @@ public class RewriteManifestsSparkAction
   }
 
   private RewriteManifests.Result doExecute() {
-    List<ManifestFile> matchingManifests = findMatchingManifests();
+    List<ManifestFile> rewrittenManifests = Lists.newArrayList();
+    List<ManifestFile> addedManifests = Lists.newArrayList();
+
+    RewriteManifests.Result dataResult = rewriteManifests(ManifestContent.DATA);
+    Iterables.addAll(rewrittenManifests, dataResult.rewrittenManifests());
+    Iterables.addAll(addedManifests, dataResult.addedManifests());
+
+    RewriteManifests.Result deletesResult = rewriteManifests(ManifestContent.DELETES);
+    Iterables.addAll(rewrittenManifests, deletesResult.rewrittenManifests());
+    Iterables.addAll(addedManifests, deletesResult.addedManifests());
+
+    if (rewrittenManifests.isEmpty()) {
+      return EMPTY_RESULT;
+    }
+
+    replaceManifests(rewrittenManifests, addedManifests);
+
+    return ImmutableRewriteManifests.Result.builder()
+        .rewrittenManifests(rewrittenManifests)
+        .addedManifests(addedManifests)
+        .build();
+  }
+
+  private RewriteManifests.Result rewriteManifests(ManifestContent content) {
+    List<ManifestFile> matchingManifests = findMatchingManifests(content);
     if (matchingManifests.isEmpty()) {
-      return ImmutableRewriteManifests.Result.builder()
-          .addedManifests(ImmutableList.of())
-          .rewrittenManifests(ImmutableList.of())
-          .build();
+      return EMPTY_RESULT;
     }
 
-    long totalSizeBytes = 0L;
-    int numEntries = 0;
-
-    for (ManifestFile manifest : matchingManifests) {
-      ValidationException.check(
-          hasFileCounts(manifest), "No file counts in manifest: %s", manifest.path());
-
-      totalSizeBytes += manifest.length();
-      numEntries +=
-          manifest.addedFilesCount() + manifest.existingFilesCount() + manifest.deletedFilesCount();
-    }
-
-    int targetNumManifests = targetNumManifests(totalSizeBytes);
-    int targetNumManifestEntries = targetNumManifestEntries(numEntries, targetNumManifests);
-
+    int targetNumManifests = targetNumManifests(totalSizeBytes(matchingManifests));
     if (targetNumManifests == 1 && matchingManifests.size() == 1) {
-      return ImmutableRewriteManifests.Result.builder()
-          .addedManifests(ImmutableList.of())
-          .rewrittenManifests(ImmutableList.of())
-          .build();
+      return EMPTY_RESULT;
     }
 
     Dataset<Row> manifestEntryDF = buildManifestEntryDF(matchingManifests);
 
     List<ManifestFile> newManifests;
-    if (spec.fields().size() < 1) {
-      newManifests = writeManifestsForUnpartitionedTable(manifestEntryDF, targetNumManifests);
+    if (spec.isUnpartitioned()) {
+      newManifests = writeUnpartitionedManifests(content, manifestEntryDF, targetNumManifests);
     } else {
-      newManifests =
-          writeManifestsForPartitionedTable(
-              manifestEntryDF, targetNumManifests, targetNumManifestEntries);
+      newManifests = writePartitionedManifests(content, manifestEntryDF, targetNumManifests);
     }
-
-    replaceManifests(matchingManifests, newManifests);
 
     return ImmutableRewriteManifests.Result.builder()
         .rewrittenManifests(matchingManifests)
@@ -230,63 +239,43 @@ public class RewriteManifestsSparkAction
         .select("snapshot_id", "sequence_number", "file_sequence_number", "data_file");
   }
 
-  private List<ManifestFile> writeManifestsForUnpartitionedTable(
-      Dataset<Row> manifestEntryDF, int numManifests) {
+  private List<ManifestFile> writeUnpartitionedManifests(
+      ManifestContent content, Dataset<Row> manifestEntryDF, int numManifests) {
 
-    Broadcast<Table> tableBroadcast =
-        sparkContext().broadcast(SerializableTableWithSize.copyOf(table));
-    StructType sparkType = (StructType) manifestEntryDF.schema().apply("data_file").dataType();
-    Types.StructType combinedPartitionType = Partitioning.partitionType(table);
-
-    // we rely only on the target number of manifests for unpartitioned tables
-    // as we should not worry about having too much metadata per partition
-    long maxNumManifestEntries = Long.MAX_VALUE;
-
-    return manifestEntryDF
-        .repartition(numManifests)
-        .mapPartitions(
-            toManifests(
-                tableBroadcast,
-                maxNumManifestEntries,
-                outputLocation,
-                formatVersion,
-                combinedPartitionType,
-                spec,
-                sparkType),
-            manifestEncoder)
-        .collectAsList();
+    WriteManifests<?> writeFunc = newWriteManifestsFunc(content, manifestEntryDF.schema());
+    Dataset<Row> transformedManifestEntryDF = manifestEntryDF.repartition(numManifests);
+    return writeFunc.apply(transformedManifestEntryDF).collectAsList();
   }
 
-  private List<ManifestFile> writeManifestsForPartitionedTable(
-      Dataset<Row> manifestEntryDF, int numManifests, int targetNumManifestEntries) {
-
-    Broadcast<Table> tableBroadcast =
-        sparkContext().broadcast(SerializableTableWithSize.copyOf(table));
-    StructType sparkType = (StructType) manifestEntryDF.schema().apply("data_file").dataType();
-    Types.StructType combinedPartitionType = Partitioning.partitionType(table);
-
-    // we allow the actual size of manifests to be 10% higher if the estimation is not precise
-    // enough
-    long maxNumManifestEntries = (long) (1.1 * targetNumManifestEntries);
+  private List<ManifestFile> writePartitionedManifests(
+      ManifestContent content, Dataset<Row> manifestEntryDF, int numManifests) {
 
     return withReusableDS(
         manifestEntryDF,
         df -> {
+          WriteManifests<?> writeFunc = newWriteManifestsFunc(content, df.schema());
           Column partitionColumn = df.col("data_file.partition");
-          return df.repartitionByRange(numManifests, partitionColumn)
-              .sortWithinPartitions(partitionColumn)
-              .mapPartitions(
-                  toManifests(
-                      tableBroadcast,
-                      maxNumManifestEntries,
-                      outputLocation,
-                      formatVersion,
-                      combinedPartitionType,
-                      spec,
-                      sparkType),
-                  manifestEncoder)
-              .collectAsList();
+          Dataset<Row> transformedDF = repartitionAndSort(df, partitionColumn, numManifests);
+          return writeFunc.apply(transformedDF).collectAsList();
         });
+  }
+
+  private WriteManifests<?> newWriteManifestsFunc(ManifestContent content, StructType sparkType) {
+    ManifestWriterFactory writers = manifestWriters();
+
+    StructType sparkFileType = (StructType) sparkType.apply("data_file").dataType();
+    Types.StructType combinedFileType = DataFile.getType(Partitioning.partitionType(table));
+    Types.StructType fileType = DataFile.getType(spec.partitionType());
+
+    if (content == ManifestContent.DATA) {
+      return new WriteDataManifests(writers, combinedFileType, fileType, sparkFileType);
+    } else {
+      return new WriteDeleteManifests(writers, combinedFileType, fileType, sparkFileType);
+    }
+  }
+
+  private Dataset<Row> repartitionAndSort(Dataset<Row> df, Column col, int numPartitions) {
+    return df.repartitionByRange(numPartitions, col).sortWithinPartitions(col);
   }
 
   private <T, U> U withReusableDS(Dataset<T> ds, Function<Dataset<T>, U> func) {
@@ -303,24 +292,45 @@ public class RewriteManifestsSparkAction
     }
   }
 
-  private List<ManifestFile> findMatchingManifests() {
+  private List<ManifestFile> findMatchingManifests(ManifestContent content) {
     Snapshot currentSnapshot = table.currentSnapshot();
 
     if (currentSnapshot == null) {
       return ImmutableList.of();
     }
 
-    return currentSnapshot.dataManifests(table.io()).stream()
+    List<ManifestFile> manifests = loadManifests(content, currentSnapshot);
+
+    return manifests.stream()
         .filter(manifest -> manifest.partitionSpecId() == spec.specId() && predicate.test(manifest))
         .collect(Collectors.toList());
+  }
+
+  private List<ManifestFile> loadManifests(ManifestContent content, Snapshot snapshot) {
+    switch (content) {
+      case DATA:
+        return snapshot.dataManifests(table.io());
+      case DELETES:
+        return snapshot.deleteManifests(table.io());
+      default:
+        throw new IllegalArgumentException("Unknown manifest content: " + content);
+    }
   }
 
   private int targetNumManifests(long totalSizeBytes) {
     return (int) ((totalSizeBytes + targetManifestSizeBytes - 1) / targetManifestSizeBytes);
   }
 
-  private int targetNumManifestEntries(int numEntries, int numManifests) {
-    return (numEntries + numManifests - 1) / numManifests;
+  private long totalSizeBytes(Iterable<ManifestFile> manifests) {
+    long totalSizeBytes = 0L;
+
+    for (ManifestFile manifest : manifests) {
+      ValidationException.check(
+          hasFileCounts(manifest), "No file counts in manifest: %s", manifest.path());
+      totalSizeBytes += manifest.length();
+    }
+
+    return totalSizeBytes;
   }
 
   private boolean hasFileCounts(ManifestFile manifest) {
@@ -360,104 +370,178 @@ public class RewriteManifestsSparkAction
         .run(location -> table.io().deleteFile(location));
   }
 
-  private static ManifestFile writeManifest(
-      List<Row> rows,
-      int startIndex,
-      int endIndex,
-      Broadcast<Table> tableBroadcast,
-      String location,
-      int format,
-      Types.StructType combinedPartitionType,
-      PartitionSpec spec,
-      StructType sparkType)
-      throws IOException {
-
-    String manifestName = "optimized-m-" + UUID.randomUUID();
-    Path manifestPath = new Path(location, manifestName);
-    OutputFile outputFile =
-        tableBroadcast
-            .value()
-            .io()
-            .newOutputFile(FileFormat.AVRO.addExtension(manifestPath.toString()));
-
-    Types.StructType combinedFileType = DataFile.getType(combinedPartitionType);
-    Types.StructType manifestFileType = DataFile.getType(spec.partitionType());
-    SparkDataFile wrapper = new SparkDataFile(combinedFileType, manifestFileType, sparkType);
-
-    ManifestWriter<DataFile> writer = ManifestFiles.write(format, spec, outputFile, null);
-
-    try {
-      for (int index = startIndex; index < endIndex; index++) {
-        Row row = rows.get(index);
-        long snapshotId = row.getLong(0);
-        long sequenceNumber = row.getLong(1);
-        Long fileSequenceNumber = row.isNullAt(2) ? null : row.getLong(2);
-        Row file = row.getStruct(3);
-        writer.existing(wrapper.wrap(file), snapshotId, sequenceNumber, fileSequenceNumber);
-      }
-    } finally {
-      writer.close();
-    }
-
-    return writer.toManifestFile();
+  private ManifestWriterFactory manifestWriters() {
+    return new ManifestWriterFactory(
+        sparkContext().broadcast(SerializableTableWithSize.copyOf(table)),
+        formatVersion,
+        spec.specId(),
+        outputLocation,
+        // allow the actual size of manifests to be 20% higher as the estimation is not precise
+        (long) (1.2 * targetManifestSizeBytes));
   }
 
-  private static MapPartitionsFunction<Row, ManifestFile> toManifests(
-      Broadcast<Table> tableBroadcast,
-      long maxNumManifestEntries,
-      String location,
-      int format,
-      Types.StructType combinedPartitionType,
-      PartitionSpec spec,
-      StructType sparkType) {
+  private static class WriteDataManifests extends WriteManifests<DataFile> {
 
-    return rows -> {
-      List<Row> rowsAsList = Lists.newArrayList(rows);
+    WriteDataManifests(
+        ManifestWriterFactory manifestWriters,
+        Types.StructType combinedPartitionType,
+        Types.StructType partitionType,
+        StructType sparkFileType) {
+      super(manifestWriters, combinedPartitionType, partitionType, sparkFileType);
+    }
 
-      if (rowsAsList.isEmpty()) {
-        return Collections.emptyIterator();
+    @Override
+    protected SparkDataFile newFileWrapper() {
+      return new SparkDataFile(combinedFileType(), fileType(), sparkFileType());
+    }
+
+    @Override
+    protected RollingManifestWriter<DataFile> newManifestWriter() {
+      return writers().newRollingManifestWriter();
+    }
+  }
+
+  private static class WriteDeleteManifests extends WriteManifests<DeleteFile> {
+
+    WriteDeleteManifests(
+        ManifestWriterFactory manifestWriters,
+        Types.StructType combinedFileType,
+        Types.StructType fileType,
+        StructType sparkFileType) {
+      super(manifestWriters, combinedFileType, fileType, sparkFileType);
+    }
+
+    @Override
+    protected SparkDeleteFile newFileWrapper() {
+      return new SparkDeleteFile(combinedFileType(), fileType(), sparkFileType());
+    }
+
+    @Override
+    protected RollingManifestWriter<DeleteFile> newManifestWriter() {
+      return writers().newRollingDeleteManifestWriter();
+    }
+  }
+
+  private abstract static class WriteManifests<F extends ContentFile<F>>
+      implements MapPartitionsFunction<Row, ManifestFile> {
+
+    private static final Encoder<ManifestFile> MANIFEST_ENCODER =
+        Encoders.javaSerialization(ManifestFile.class);
+
+    private final ManifestWriterFactory writers;
+    private final Types.StructType combinedFileType;
+    private final Types.StructType fileType;
+    private final StructType sparkFileType;
+
+    WriteManifests(
+        ManifestWriterFactory writers,
+        Types.StructType combinedFileType,
+        Types.StructType fileType,
+        StructType sparkFileType) {
+      this.writers = writers;
+      this.combinedFileType = combinedFileType;
+      this.fileType = fileType;
+      this.sparkFileType = sparkFileType;
+    }
+
+    protected abstract SparkContentFile<F> newFileWrapper();
+
+    protected abstract RollingManifestWriter<F> newManifestWriter();
+
+    public Dataset<ManifestFile> apply(Dataset<Row> input) {
+      return input.mapPartitions(this, MANIFEST_ENCODER);
+    }
+
+    @Override
+    public Iterator<ManifestFile> call(Iterator<Row> rows) throws Exception {
+      SparkContentFile<F> fileWrapper = newFileWrapper();
+      RollingManifestWriter<F> writer = newManifestWriter();
+
+      try {
+        while (rows.hasNext()) {
+          Row row = rows.next();
+          long snapshotId = row.getLong(0);
+          long sequenceNumber = row.getLong(1);
+          Long fileSequenceNumber = row.isNullAt(2) ? null : row.getLong(2);
+          Row file = row.getStruct(3);
+          writer.existing(fileWrapper.wrap(file), snapshotId, sequenceNumber, fileSequenceNumber);
+        }
+      } finally {
+        writer.close();
       }
 
-      List<ManifestFile> manifests = Lists.newArrayList();
-      if (rowsAsList.size() <= maxNumManifestEntries) {
-        manifests.add(
-            writeManifest(
-                rowsAsList,
-                0,
-                rowsAsList.size(),
-                tableBroadcast,
-                location,
-                format,
-                combinedPartitionType,
-                spec,
-                sparkType));
-      } else {
-        int midIndex = rowsAsList.size() / 2;
-        manifests.add(
-            writeManifest(
-                rowsAsList,
-                0,
-                midIndex,
-                tableBroadcast,
-                location,
-                format,
-                combinedPartitionType,
-                spec,
-                sparkType));
-        manifests.add(
-            writeManifest(
-                rowsAsList,
-                midIndex,
-                rowsAsList.size(),
-                tableBroadcast,
-                location,
-                format,
-                combinedPartitionType,
-                spec,
-                sparkType));
-      }
+      return writer.toManifestFiles().iterator();
+    }
 
-      return manifests.iterator();
-    };
+    protected ManifestWriterFactory writers() {
+      return writers;
+    }
+
+    protected Types.StructType combinedFileType() {
+      return combinedFileType;
+    }
+
+    protected Types.StructType fileType() {
+      return fileType;
+    }
+
+    protected StructType sparkFileType() {
+      return sparkFileType;
+    }
+  }
+
+  private static class ManifestWriterFactory implements Serializable {
+    private final Broadcast<Table> tableBroadcast;
+    private final int formatVersion;
+    private final int specId;
+    private final String outputLocation;
+    private final long maxManifestSizeBytes;
+
+    ManifestWriterFactory(
+        Broadcast<Table> tableBroadcast,
+        int formatVersion,
+        int specId,
+        String outputLocation,
+        long maxManifestSizeBytes) {
+      this.tableBroadcast = tableBroadcast;
+      this.formatVersion = formatVersion;
+      this.specId = specId;
+      this.outputLocation = outputLocation;
+      this.maxManifestSizeBytes = maxManifestSizeBytes;
+    }
+
+    public RollingManifestWriter<DataFile> newRollingManifestWriter() {
+      return new RollingManifestWriter<>(this::newManifestWriter, maxManifestSizeBytes);
+    }
+
+    private ManifestWriter<DataFile> newManifestWriter() {
+      return ManifestFiles.write(formatVersion, spec(), newOutputFile(), null);
+    }
+
+    public RollingManifestWriter<DeleteFile> newRollingDeleteManifestWriter() {
+      return new RollingManifestWriter<>(this::newDeleteManifestWriter, maxManifestSizeBytes);
+    }
+
+    private ManifestWriter<DeleteFile> newDeleteManifestWriter() {
+      return ManifestFiles.writeDeleteManifest(formatVersion, spec(), newOutputFile(), null);
+    }
+
+    private PartitionSpec spec() {
+      return table().specs().get(specId);
+    }
+
+    private OutputFile newOutputFile() {
+      return table().io().newOutputFile(newManifestLocation());
+    }
+
+    private String newManifestLocation() {
+      String fileName = FileFormat.AVRO.addExtension("optimized-m-" + UUID.randomUUID());
+      Path filePath = new Path(outputLocation, fileName);
+      return filePath.toString();
+    }
+
+    private Table table() {
+      return tableBroadcast.value();
+    }
   }
 }

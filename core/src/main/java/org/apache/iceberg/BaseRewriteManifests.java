@@ -22,8 +22,8 @@ import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFAULT;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -168,7 +168,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
 
   @Override
   public List<ManifestFile> apply(TableMetadata base, Snapshot snapshot) {
-    List<ManifestFile> currentManifests = base.currentSnapshot().dataManifests(ops.io());
+    List<ManifestFile> currentManifests = base.currentSnapshot().allManifests(ops.io());
     Set<ManifestFile> currentManifestSet = ImmutableSet.copyOf(currentManifests);
 
     validateDeletedManifests(currentManifestSet);
@@ -190,7 +190,6 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     List<ManifestFile> apply = Lists.newArrayList();
     Iterables.addAll(apply, newManifestsWithMetadata);
     apply.addAll(keptManifests);
-    apply.addAll(base.currentSnapshot().deleteManifests(ops.io()));
 
     return apply;
   }
@@ -242,13 +241,13 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
           .executeWith(workerPool())
           .run(
               manifest -> {
-                if (predicate != null && !predicate.test(manifest)) {
+                if (containsDeletes(manifest) || !matchesPredicate(manifest)) {
                   keptManifests.add(manifest);
                 } else {
                   rewrittenManifests.add(manifest);
                   try (ManifestReader<DataFile> reader =
                       ManifestFiles.read(manifest, ops.io(), ops.current().specsById())
-                          .select(Arrays.asList("*"))) {
+                          .select(Collections.singletonList("*"))) {
                     reader
                         .liveEntries()
                         .forEach(
@@ -266,6 +265,14 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     } finally {
       Tasks.foreach(writers.values()).executeWith(workerPool()).run(WriterWrapper::close);
     }
+  }
+
+  private boolean containsDeletes(ManifestFile manifest) {
+    return manifest.content() == ManifestContent.DELETES;
+  }
+
+  private boolean matchesPredicate(ManifestFile manifest) {
+    return predicate == null || predicate.test(manifest);
   }
 
   private void validateDeletedManifests(Set<ManifestFile> currentManifests) {

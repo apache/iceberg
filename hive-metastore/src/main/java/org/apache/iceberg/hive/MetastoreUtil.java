@@ -26,6 +26,7 @@ import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.thrift.TException;
 
 public class MetastoreUtil {
   private static final DynMethods.UnboundMethod ALTER_TABLE =
@@ -54,7 +55,7 @@ public class MetastoreUtil {
    * context will be set in a way that turns off stats updates to avoid recursive file listing.
    */
   public static void alterTable(
-      IMetaStoreClient client, String databaseName, String tblName, Table table) {
+      IMetaStoreClient client, String databaseName, String tblName, Table table) throws TException {
     alterTable(client, databaseName, tblName, table, ImmutableMap.of());
   }
 
@@ -67,11 +68,21 @@ public class MetastoreUtil {
       String databaseName,
       String tblName,
       Table table,
-      Map<String, String> extraEnv) {
+      Map<String, String> extraEnv)
+      throws TException {
     Map<String, String> env = Maps.newHashMapWithExpectedSize(extraEnv.size() + 1);
     env.putAll(extraEnv);
     env.put(StatsSetupConst.DO_NOT_UPDATE_STATS, StatsSetupConst.TRUE);
 
-    ALTER_TABLE.invoke(client, databaseName, tblName, table, new EnvironmentContext(env));
+    try {
+      ALTER_TABLE.invoke(client, databaseName, tblName, table, new EnvironmentContext(env));
+    } catch (RuntimeException e) {
+      // TException would be wrapped into RuntimeException during reflection
+      if (e.getCause() instanceof TException) {
+        throw (TException) e.getCause();
+      } else {
+        throw e;
+      }
+    }
   }
 }

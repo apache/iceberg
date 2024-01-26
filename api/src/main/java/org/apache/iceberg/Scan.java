@@ -78,6 +78,20 @@ public interface Scan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>> {
   ThisT includeColumnStats();
 
   /**
+   * Create a new scan from this that loads the column stats for the specific columns with each data
+   * file.
+   *
+   * <p>Column stats include: value count, null value count, lower bounds, and upper bounds.
+   *
+   * @param requestedColumns column names for which to keep the stats.
+   * @return a new scan based on this that loads column stats for specific columns.
+   */
+  default ThisT includeColumnStats(Collection<String> requestedColumns) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement includeColumnStats");
+  }
+
+  /**
    * Create a new scan from this that will read the given data columns. This produces an expected
    * schema that includes all fields that are either selected or used by this scan's filter
    * expression.

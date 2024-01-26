@@ -71,7 +71,7 @@ public interface TableOperations {
    * files.
    */
   default EncryptionManager encryption() {
-    return new PlaintextEncryptionManager();
+    return PlaintextEncryptionManager.instance();
   }
 
   /**

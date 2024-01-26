@@ -19,27 +19,21 @@
 package org.apache.iceberg.spark.sql;
 
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
 
 public class TestPartitionedWritesToWapBranch extends PartitionedWritesTestBase {
 
   private static final String BRANCH = "test";
 
-  public TestPartitionedWritesToWapBranch(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @Before
+  @BeforeEach
   @Override
   public void createTables() {
     spark.conf().set(SparkSQLProperties.WAP_BRANCH, BRANCH);
@@ -49,7 +43,7 @@ public class TestPartitionedWritesToWapBranch extends PartitionedWritesTestBase 
     sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b'), (3, 'c')", tableName);
   }
 
-  @After
+  @AfterEach
   @Override
   public void removeTables() {
     super.removeTables();
@@ -67,7 +61,7 @@ public class TestPartitionedWritesToWapBranch extends PartitionedWritesTestBase 
     return String.format("%s VERSION AS OF '%s'", tableName, BRANCH);
   }
 
-  @Test
+  @TestTemplate
   public void testBranchAndWapBranchCannotBothBeSetForWrite() {
     Table table = validationCatalog.loadTable(tableIdent);
     table.manageSnapshots().createBranch("test2", table.refs().get(BRANCH).snapshotId()).commit();
@@ -80,7 +74,7 @@ public class TestPartitionedWritesToWapBranch extends PartitionedWritesTestBase 
             BRANCH);
   }
 
-  @Test
+  @TestTemplate
   public void testWapIdAndWapBranchCannotBothBeSetForWrite() {
     String wapId = UUID.randomUUID().toString();
     spark.conf().set(SparkSQLProperties.WAP_ID, wapId);

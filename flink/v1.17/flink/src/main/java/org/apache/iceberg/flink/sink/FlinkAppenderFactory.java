@@ -35,6 +35,7 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.EncryptionUtil;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.data.FlinkAvroWriter;
 import org.apache.iceberg.flink.data.FlinkOrcWriter;
@@ -99,6 +100,11 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
 
   @Override
   public FileAppender<RowData> newAppender(OutputFile outputFile, FileFormat format) {
+    return newAppender(EncryptionUtil.plainAsEncryptedOutput(outputFile), format);
+  }
+
+  @Override
+  public FileAppender<RowData> newAppender(EncryptedOutputFile outputFile, FileFormat format) {
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
     try {
       switch (format) {
@@ -142,7 +148,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
   public DataWriter<RowData> newDataWriter(
       EncryptedOutputFile file, FileFormat format, StructLike partition) {
     return new DataWriter<>(
-        newAppender(file.encryptingOutputFile(), format),
+        newAppender(file, format),
         format,
         file.encryptingOutputFile().location(),
         spec,
@@ -164,7 +170,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
     try {
       switch (format) {
         case AVRO:
-          return Avro.writeDeletes(outputFile.encryptingOutputFile())
+          return Avro.writeDeletes(outputFile)
               .createWriterFunc(ignore -> new FlinkAvroWriter(lazyEqDeleteFlinkSchema()))
               .withPartition(partition)
               .overwrite()
@@ -177,7 +183,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
               .buildEqualityWriter();
 
         case ORC:
-          return ORC.writeDeletes(outputFile.encryptingOutputFile())
+          return ORC.writeDeletes(outputFile)
               .createWriterFunc(
                   (iSchema, typDesc) -> FlinkOrcWriter.buildWriter(flinkSchema, iSchema))
               .withPartition(partition)
@@ -191,7 +197,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
               .buildEqualityWriter();
 
         case PARQUET:
-          return Parquet.writeDeletes(outputFile.encryptingOutputFile())
+          return Parquet.writeDeletes(outputFile)
               .createWriterFunc(
                   msgType -> FlinkParquetWriters.buildWriter(lazyEqDeleteFlinkSchema(), msgType))
               .withPartition(partition)
@@ -220,7 +226,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
     try {
       switch (format) {
         case AVRO:
-          return Avro.writeDeletes(outputFile.encryptingOutputFile())
+          return Avro.writeDeletes(outputFile)
               .createWriterFunc(ignore -> new FlinkAvroWriter(lazyPosDeleteFlinkSchema()))
               .withPartition(partition)
               .overwrite()
@@ -234,7 +240,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
         case ORC:
           RowType orcPosDeleteSchema =
               FlinkSchemaUtil.convert(DeleteSchemaUtil.posDeleteSchema(posDeleteRowSchema));
-          return ORC.writeDeletes(outputFile.encryptingOutputFile())
+          return ORC.writeDeletes(outputFile)
               .createWriterFunc(
                   (iSchema, typDesc) -> FlinkOrcWriter.buildWriter(orcPosDeleteSchema, iSchema))
               .withPartition(partition)
@@ -250,7 +256,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
         case PARQUET:
           RowType flinkPosDeleteSchema =
               FlinkSchemaUtil.convert(DeleteSchemaUtil.posDeleteSchema(posDeleteRowSchema));
-          return Parquet.writeDeletes(outputFile.encryptingOutputFile())
+          return Parquet.writeDeletes(outputFile)
               .createWriterFunc(
                   msgType -> FlinkParquetWriters.buildWriter(flinkPosDeleteSchema, msgType))
               .withPartition(partition)

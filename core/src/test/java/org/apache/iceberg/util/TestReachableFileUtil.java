@@ -124,7 +124,7 @@ public class TestReachableFileUtil {
     TableMetadata metadata = ops.current();
     String metadataFileLocation = metadata.metadataFileLocation();
 
-    StaticTableOperations staticOps = new StaticTableOperations(metadataFileLocation, table.io());
+    StaticTableOperations staticOps = new StaticTableOperations(metadata, table.io());
     Table staticTable = new BaseTable(staticOps, metadataFileLocation);
 
     String reportedVersionHintLocation = ReachableFileUtil.versionHintLocation(staticTable);

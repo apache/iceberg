@@ -20,9 +20,12 @@ package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.Files.localInput;
 import static org.apache.iceberg.Files.localOutput;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeoutException;
@@ -34,7 +37,6 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestWriter;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -55,13 +57,10 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.execution.streaming.MemoryStream;
 import org.apache.spark.sql.streaming.StreamingQuery;
 import org.apache.spark.sql.streaming.StreamingQueryException;
-import org.assertj.core.api.Assertions;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import scala.Option;
 import scala.collection.JavaConverters;
 
@@ -75,25 +74,29 @@ public class TestForwardCompatibility {
 
   // create a spec for the schema that uses a "zero" transform that produces all 0s
   private static final PartitionSpec UNKNOWN_SPEC =
-      PartitionSpecParser.fromJson(
-          SCHEMA,
-          "{ \"spec-id\": 0, \"fields\": [ { \"name\": \"id_zero\", \"transform\": \"zero\", \"source-id\": 1 } ] }");
+      org.apache.iceberg.TestHelpers.newExpectedSpecBuilder()
+          .withSchema(SCHEMA)
+          .withSpecId(0)
+          .addField("zero", 1, "id_zero")
+          .build();
   // create a fake spec to use to write table metadata
   private static final PartitionSpec FAKE_SPEC =
-      PartitionSpecParser.fromJson(
-          SCHEMA,
-          "{ \"spec-id\": 0, \"fields\": [ { \"name\": \"id_zero\", \"transform\": \"identity\", \"source-id\": 1 } ] }");
+      org.apache.iceberg.TestHelpers.newExpectedSpecBuilder()
+          .withSchema(SCHEMA)
+          .withSpecId(0)
+          .addField("identity", 1, "id_zero")
+          .build();
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
   private static SparkSession spark = null;
 
-  @BeforeClass
+  @BeforeAll
   public static void startSpark() {
     TestForwardCompatibility.spark = SparkSession.builder().master("local[2]").getOrCreate();
   }
 
-  @AfterClass
+  @AfterAll
   public static void stopSpark() {
     SparkSession currentSpark = TestForwardCompatibility.spark;
     TestForwardCompatibility.spark = null;
@@ -102,7 +105,7 @@ public class TestForwardCompatibility {
 
   @Test
   public void testSparkWriteFailsUnknownTransform() throws IOException {
-    File parent = temp.newFolder("avro");
+    File parent = temp.resolve("avro").toFile();
     File location = new File(parent, "test");
     File dataFolder = new File(location, "data");
     dataFolder.mkdirs();
@@ -116,7 +119,7 @@ public class TestForwardCompatibility {
 
     Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 df.select("id", "data")
                     .write()
@@ -129,7 +132,7 @@ public class TestForwardCompatibility {
 
   @Test
   public void testSparkStreamingWriteFailsUnknownTransform() throws IOException, TimeoutException {
-    File parent = temp.newFolder("avro");
+    File parent = temp.resolve("avro").toFile();
     File location = new File(parent, "test");
     File dataFolder = new File(location, "data");
     dataFolder.mkdirs();
@@ -154,14 +157,14 @@ public class TestForwardCompatibility {
     List<Integer> batch1 = Lists.newArrayList(1, 2);
     send(batch1, inputStream);
 
-    Assertions.assertThatThrownBy(query::processAllAvailable)
+    assertThatThrownBy(query::processAllAvailable)
         .isInstanceOf(StreamingQueryException.class)
         .hasMessageEndingWith("Cannot write using unsupported transforms: zero");
   }
 
   @Test
   public void testSparkCanReadUnknownTransform() throws IOException {
-    File parent = temp.newFolder("avro");
+    File parent = temp.resolve("avro").toFile();
     File location = new File(parent, "test");
     File dataFolder = new File(location, "data");
     dataFolder.mkdirs();
@@ -191,7 +194,7 @@ public class TestForwardCompatibility {
             .withPartitionPath("id_zero=0")
             .build();
 
-    OutputFile manifestFile = localOutput(FileFormat.AVRO.addExtension(temp.newFile().toString()));
+    OutputFile manifestFile = localOutput(FileFormat.AVRO.addExtension(temp.toFile().toString()));
     ManifestWriter<DataFile> manifestWriter = ManifestFiles.write(FAKE_SPEC, manifestFile);
     try {
       manifestWriter.add(file);
@@ -204,7 +207,7 @@ public class TestForwardCompatibility {
     Dataset<Row> df = spark.read().format("iceberg").load(location.toString());
 
     List<Row> rows = df.collectAsList();
-    Assert.assertEquals("Should contain 100 rows", 100, rows.size());
+    assertThat(rows).as("Should contain 100 rows").hasSize(100);
 
     for (int i = 0; i < expected.size(); i += 1) {
       TestHelpers.assertEqualsSafe(table.schema().asStruct(), expected.get(i), rows.get(i));

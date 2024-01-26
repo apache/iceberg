@@ -18,7 +18,8 @@
  */
 package org.apache.iceberg.jdbc;
 
-import java.io.Closeable;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -50,9 +51,11 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.hadoop.Configurable;
+import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -61,7 +64,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class JdbcCatalog extends BaseMetastoreCatalog
-    implements Configurable<Object>, SupportsNamespaces, Closeable {
+    implements Configurable<Object>, SupportsNamespaces {
 
   public static final String PROPERTY_PREFIX = "jdbc.";
   private static final String NAMESPACE_EXISTS_PROPERTY = "exists";
@@ -77,6 +80,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog
   private final Function<Map<String, String>, FileIO> ioBuilder;
   private final Function<Map<String, String>, JdbcClientPool> clientPoolBuilder;
   private final boolean initializeCatalogTables;
+  private CloseableGroup closeableGroup;
 
   public JdbcCatalog() {
     this(null, null, true);
@@ -99,7 +103,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog
 
     String inputWarehouseLocation = properties.get(CatalogProperties.WAREHOUSE_LOCATION);
     Preconditions.checkArgument(
-        inputWarehouseLocation != null && inputWarehouseLocation.length() > 0,
+        !Strings.isNullOrEmpty(inputWarehouseLocation),
         "Cannot initialize JDBCCatalog because warehousePath must not be null or empty");
 
     this.warehouseLocation = LocationUtil.stripTrailingSlash(inputWarehouseLocation);
@@ -139,6 +143,10 @@ public class JdbcCatalog extends BaseMetastoreCatalog
       Thread.currentThread().interrupt();
       throw new UncheckedInterruptedException(e, "Interrupted in call to initialize");
     }
+    this.closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(metricsReporter());
+    closeableGroup.addCloseable(connections);
+    closeableGroup.setSuppressCloseFailure(true);
   }
 
   private void initializeCatalogTables() throws InterruptedException, SQLException {
@@ -481,7 +489,13 @@ public class JdbcCatalog extends BaseMetastoreCatalog
 
   @Override
   public void close() {
-    connections.close();
+    if (closeableGroup != null) {
+      try {
+        closeableGroup.close();
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
+      }
+    }
   }
 
   @Override

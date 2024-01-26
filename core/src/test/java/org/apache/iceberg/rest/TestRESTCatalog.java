@@ -52,7 +52,6 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdatePartitionSpec;
 import org.apache.iceberg.UpdateSchema;
-import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
@@ -63,8 +62,8 @@ import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.jdbc.JdbcCatalog;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -105,7 +104,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   @TempDir public Path temp;
 
   private RESTCatalog restCatalog;
-  private JdbcCatalog backendCatalog;
+  private InMemoryCatalog backendCatalog;
   private Server httpServer;
 
   @BeforeEach
@@ -113,19 +112,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     File warehouse = temp.toFile();
     Configuration conf = new Configuration();
 
-    this.backendCatalog = new JdbcCatalog();
-    backendCatalog.setConf(conf);
-    Map<String, String> backendCatalogProperties =
-        ImmutableMap.of(
-            CatalogProperties.WAREHOUSE_LOCATION,
-            warehouse.getAbsolutePath(),
-            CatalogProperties.URI,
-            "jdbc:sqlite:file::memory:?ic" + UUID.randomUUID().toString().replace("-", ""),
-            JdbcCatalog.PROPERTY_PREFIX + "username",
-            "user",
-            JdbcCatalog.PROPERTY_PREFIX + "password",
-            "password");
-    backendCatalog.initialize("backend", backendCatalogProperties);
+    this.backendCatalog = new InMemoryCatalog();
+    this.backendCatalog.initialize(
+        "in-memory",
+        ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath()));
 
     Map<String, String> catalogHeaders =
         ImmutableMap.of("Authorization", "Bearer client-credentials-token:sub=catalog");
@@ -244,6 +234,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @Override
   protected boolean supportsNestedNamespaces() {
+    return true;
+  }
+
+  @Override
+  protected boolean requiresNamespaceCreate() {
     return true;
   }
 
@@ -783,6 +778,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             "snapshot-loading-mode",
             "refs"));
 
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
     // Create a table with multiple snapshots
     Table table = catalog.createTable(TABLE, SCHEMA);
     table
@@ -876,6 +875,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             "org.apache.iceberg.inmemory.InMemoryFileIO",
             "snapshot-loading-mode",
             "refs"));
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
 
     Table table =
         catalog.createTable(
@@ -997,6 +1000,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             "snapshot-loading-mode",
             "refs"));
 
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
     Table table =
         catalog.createTable(TABLE, SCHEMA, PartitionSpec.unpartitioned(), ImmutableMap.of());
 
@@ -1105,6 +1112,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             required(1, "id", Types.IntegerType.get(), "unique ID"),
             required(2, "data", Types.StringType.get()));
 
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(ident.namespace());
+    }
+
     Table table = catalog.createTable(ident, expectedSchema);
     Assertions.assertThat(table.schema().asStruct())
         .as("Schema should match")
@@ -1151,7 +1162,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // if the table returned a bearer token, there will be no token request
     if (!tableConfig.containsKey("token")) {
       // client credentials or token exchange to get a table token
-      Mockito.verify(adapter, times(2))
+      Mockito.verify(adapter, times(1))
           .execute(
               eq(HTTPMethod.POST),
               eq("v1/oauth/tokens"),
@@ -1427,6 +1438,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             "catalog:12345",
             CatalogProperties.METRICS_REPORTER_IMPL,
             CustomMetricsReporter.class.getName()));
+
+    if (requiresNamespaceCreate()) {
+      restCatalog.createNamespace(TABLE.namespace());
+    }
 
     restCatalog.buildTable(TABLE, SCHEMA).create();
     Table table = restCatalog.loadTable(TABLE);
@@ -1951,6 +1966,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Namespace namespace = Namespace.of("namespace");
     TableIdentifier identifier = TableIdentifier.of(namespace, "multipleDiffsAgainstSingleTable");
 
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(namespace);
+    }
+
     Table table = catalog().buildTable(identifier, SCHEMA).create();
     Transaction transaction = table.newTransaction();
 
@@ -1982,6 +2001,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Namespace namespace = Namespace.of("multiDiffNamespace");
     TableIdentifier identifier1 = TableIdentifier.of(namespace, "multiDiffTable1");
     TableIdentifier identifier2 = TableIdentifier.of(namespace, "multiDiffTable2");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(namespace);
+    }
 
     Table table1 = catalog().buildTable(identifier1, SCHEMA).create();
     Table table2 = catalog().buildTable(identifier2, SCHEMA).create();
@@ -2024,6 +2047,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Namespace namespace = Namespace.of("multiDiffNamespace");
     TableIdentifier identifier1 = TableIdentifier.of(namespace, "multiDiffTable1");
     TableIdentifier identifier2 = TableIdentifier.of(namespace, "multiDiffTable2");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(namespace);
+    }
 
     catalog().createTable(identifier1, SCHEMA);
     catalog().createTable(identifier2, SCHEMA);
@@ -2071,7 +2098,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   @Test
   public void testCleanupUncommitedFilesForCleanableFailures() {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
-    Catalog catalog = catalog(adapter);
+    RESTCatalog catalog = catalog(adapter);
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
     catalog.createTable(TABLE, SCHEMA);
     DataFile file =
         DataFiles.builder(PartitionSpec.unpartitioned())
@@ -2102,7 +2134,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   @Test
   public void testNoCleanupForNonCleanableExceptions() {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
-    Catalog catalog = catalog(adapter);
+    RESTCatalog catalog = catalog(adapter);
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
     catalog.createTable(TABLE, SCHEMA);
     Table table = catalog.loadTable(TABLE);
 
@@ -2127,7 +2164,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   @Test
   public void testCleanupCleanableExceptionsCreate() {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
-    Catalog catalog = catalog(adapter);
+    RESTCatalog catalog = catalog(adapter);
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
     catalog.createTable(TABLE, SCHEMA);
     TableIdentifier newTable = TableIdentifier.of(TABLE.namespace(), "some_table");
     ArgumentCaptor<UpdateTableRequest> captor = ArgumentCaptor.forClass(UpdateTableRequest.class);
@@ -2161,7 +2203,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   @Test
   public void testNoCleanupForNonCleanableCreateTransaction() {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
-    Catalog catalog = catalog(adapter);
+    RESTCatalog catalog = catalog(adapter);
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
     catalog.createTable(TABLE, SCHEMA);
     TableIdentifier newTable = TableIdentifier.of(TABLE.namespace(), "some_table");
     Mockito.doThrow(new ServiceFailureException("some service failure"))
@@ -2194,7 +2241,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   @Test
   public void testCleanupCleanableExceptionsReplace() {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
-    Catalog catalog = catalog(adapter);
+    RESTCatalog catalog = catalog(adapter);
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
     catalog.createTable(TABLE, SCHEMA);
     ArgumentCaptor<UpdateTableRequest> captor = ArgumentCaptor.forClass(UpdateTableRequest.class);
     Mockito.doThrow(new NotAuthorizedException("not authorized"))
@@ -2227,7 +2279,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   @Test
   public void testNoCleanupForNonCleanableReplaceTransaction() {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
-    Catalog catalog = catalog(adapter);
+    RESTCatalog catalog = catalog(adapter);
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
     catalog.createTable(TABLE, SCHEMA);
     Mockito.doThrow(new ServiceFailureException("some service failure"))
         .when(adapter)
@@ -2256,7 +2313,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .isTrue();
   }
 
-  private Catalog catalog(RESTCatalogAdapter adapter) {
+  private RESTCatalog catalog(RESTCatalogAdapter adapter) {
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
     catalog.initialize(

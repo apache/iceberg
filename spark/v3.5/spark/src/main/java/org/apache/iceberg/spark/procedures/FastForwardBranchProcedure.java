@@ -71,18 +71,18 @@ public class FastForwardBranchProcedure extends BaseProcedure {
   @Override
   public InternalRow[] call(InternalRow args) {
     Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
-    String source = args.getString(1);
-    String target = args.getString(2);
+    String from = args.getString(1);
+    String to = args.getString(2);
 
     return modifyIcebergTable(
         tableIdent,
         table -> {
-          long currentRef = table.currentSnapshot().snapshotId();
-          table.manageSnapshots().fastForwardBranch(source, target).commit();
-          long updatedRef = table.currentSnapshot().snapshotId();
-
+          Long snapshotBefore =
+              table.snapshot(from) != null ? table.snapshot(from).snapshotId() : null;
+          table.manageSnapshots().fastForwardBranch(from, to).commit();
+          long snapshotAfter = table.snapshot(from).snapshotId();
           InternalRow outputRow =
-              newInternalRow(UTF8String.fromString(source), currentRef, updatedRef);
+              newInternalRow(UTF8String.fromString(from), snapshotBefore, snapshotAfter);
           return new InternalRow[] {outputRow};
         });
   }
