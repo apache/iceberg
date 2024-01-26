@@ -35,8 +35,8 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Files;
-import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -497,7 +497,6 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
         .isInstanceOf(IllegalStateException.class)
         .hasMessageStartingWith("Cannot process overwrite snapshot");
   }
-
 
   @TestTemplate
   public void testReadStreamWithSnapshotTypeRewriteDataFilesIgnoresReplace() throws Exception {
