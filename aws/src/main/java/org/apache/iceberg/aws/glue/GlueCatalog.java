@@ -521,7 +521,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
       }
 
       if (database.description() != null) {
-        result.put(IcebergToGlueConverter.GLUE_DB_DESCRIPTION_KEY, database.description());
+        result.put(IcebergToGlueConverter.GLUE_DESCRIPTION_KEY, database.description());
       }
 
       LOG.debug("Loaded metadata for namespace {} found {}", namespace, result);
