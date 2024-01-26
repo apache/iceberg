@@ -40,6 +40,7 @@ import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.view.View;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -884,6 +885,268 @@ public class TestViews extends SparkExtensionsTestBase {
 
   private String viewName(String viewName) {
     return viewName + new Random().nextInt(1000000);
+  }
+
+  @Test
+  public void createViewIfNotExists() {
+    String viewName = "viewThatAlreadyExists";
+    sql("CREATE VIEW %s AS SELECT id FROM %s", viewName, tableName);
+
+    assertThatThrownBy(() -> sql("CREATE VIEW %s AS SELECT id FROM %s", viewName, tableName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            String.format(
+                "Cannot create view %s.%s because it already exists", NAMESPACE, viewName));
+
+    // using IF NOT EXISTS should work
+    assertThatNoException()
+        .isThrownBy(
+            () -> sql("CREATE VIEW IF NOT EXISTS %s AS SELECT id FROM %s", viewName, tableName));
+  }
+
+  @Test
+  public void createViewWithInvalidSQL() {
+    assertThatThrownBy(() -> sql("CREATE VIEW simpleViewWithInvalidSQL AS invalid SQL"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Syntax error");
+  }
+
+  @Test
+  public void createViewReferencingTempView() throws NoSuchTableException {
+    insertRows(10);
+    String tempView = "temporaryViewBeingReferencedInAnotherView";
+    String viewReferencingTempView = "viewReferencingTemporaryView";
+
+    sql("CREATE TEMPORARY VIEW %s AS SELECT id FROM %s WHERE id <= 5", tempView, tableName);
+
+    // creating a view that references a TEMP VIEW shouldn't be possible
+    assertThatThrownBy(
+            () -> sql("CREATE VIEW %s AS SELECT id FROM %s", viewReferencingTempView, tempView))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Cannot create the persistent object")
+        .hasMessageContaining(viewReferencingTempView)
+        .hasMessageContaining("of the type VIEW because it references to the temporary object")
+        .hasMessageContaining(tempView);
+  }
+
+  @Test
+  public void createViewReferencingGlobalTempView() throws NoSuchTableException {
+    insertRows(10);
+    String globalTempView = "globalTemporaryViewBeingReferenced";
+    String viewReferencingTempView = "viewReferencingGlobalTemporaryView";
+
+    sql(
+        "CREATE GLOBAL TEMPORARY VIEW %s AS SELECT id FROM %s WHERE id <= 5",
+        globalTempView, tableName);
+
+    // creating a view that references a GLOBAL TEMP VIEW shouldn't be possible
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CREATE VIEW %s AS SELECT id FROM global_temp.%s",
+                    viewReferencingTempView, globalTempView))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Cannot create the persistent object")
+        .hasMessageContaining(viewReferencingTempView)
+        .hasMessageContaining("of the type VIEW because it references to the temporary object")
+        .hasMessageContaining(globalTempView);
+  }
+
+  @Test
+  public void createViewUsingNonExistingTable() {
+    assertThatThrownBy(
+            () -> sql("CREATE VIEW viewWithNonExistingTable AS SELECT id FROM non_existing"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("The table or view `non_existing` cannot be found");
+  }
+
+  @Test
+  public void createViewWithMismatchedColumnCounts() {
+    String viewName = "viewWithMismatchedColumnCounts";
+
+    assertThatThrownBy(
+            () -> sql("CREATE VIEW %s (id, data) AS SELECT id FROM %s", viewName, tableName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(String.format("Cannot create view %s.%s", NAMESPACE, viewName))
+        .hasMessageContaining("not enough data columns")
+        .hasMessageContaining("View columns: id, data")
+        .hasMessageContaining("Data columns: id");
+
+    assertThatThrownBy(
+            () -> sql("CREATE VIEW %s (id) AS SELECT id, data FROM %s", viewName, tableName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(String.format("Cannot create view %s.%s", NAMESPACE, viewName))
+        .hasMessageContaining("too many data columns")
+        .hasMessageContaining("View columns: id")
+        .hasMessageContaining("Data columns: id, data");
+  }
+
+  @Test
+  public void createViewWithColumnAliases() throws NoSuchTableException {
+    insertRows(6);
+    String viewName = "viewWithColumnAliases";
+
+    sql(
+        "CREATE VIEW %s (new_id COMMENT 'ID', new_data COMMENT 'DATA') AS SELECT id, data FROM %s WHERE id <= 3",
+        viewName, tableName);
+
+    View view = viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName));
+    assertThat(view.properties()).containsEntry("queryColumnNames", "id,data");
+
+    assertThat(view.schema().columns()).hasSize(2);
+    Types.NestedField first = view.schema().columns().get(0);
+    assertThat(first.name()).isEqualTo("new_id");
+    assertThat(first.doc()).isEqualTo("ID");
+
+    Types.NestedField second = view.schema().columns().get(1);
+    assertThat(second.name()).isEqualTo("new_data");
+    assertThat(second.doc()).isEqualTo("DATA");
+
+    assertThat(sql("SELECT new_id FROM %s", viewName))
+        .hasSize(3)
+        .containsExactlyInAnyOrder(row(1), row(2), row(3));
+
+    sql("DROP VIEW %s", viewName);
+
+    sql(
+        "CREATE VIEW %s (new_data, new_id) AS SELECT data, id FROM %s WHERE id <= 3",
+        viewName, tableName);
+
+    assertThat(sql("SELECT new_id FROM %s", viewName))
+        .hasSize(3)
+        .containsExactlyInAnyOrder(row(1), row(2), row(3));
+  }
+
+  @Test
+  public void createViewWithDuplicateColumnNames() {
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CREATE VIEW viewWithDuplicateColumnNames (new_id, new_id) AS SELECT id, id FROM %s WHERE id <= 3",
+                    tableName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("The column `new_id` already exists");
+  }
+
+  @Test
+  public void createViewWithDuplicateQueryColumnNames() throws NoSuchTableException {
+    insertRows(3);
+    String viewName = "viewWithDuplicateQueryColumnNames";
+    String sql = String.format("SELECT id, id FROM %s WHERE id <= 3", tableName);
+
+    // not specifying column aliases in the view should fail
+    assertThatThrownBy(() -> sql("CREATE VIEW %s AS %s", viewName, sql))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("The column `id` already exists");
+
+    sql("CREATE VIEW %s (id_one, id_two) AS %s", viewName, sql);
+
+    assertThat(sql("SELECT * FROM %s", viewName))
+        .hasSize(3)
+        .containsExactlyInAnyOrder(row(1, 1), row(2, 2), row(3, 3));
+  }
+
+  @Test
+  public void createViewWithCTE() throws NoSuchTableException {
+    insertRows(10);
+    String viewName = "simpleViewWithCTE";
+    String sql =
+        String.format(
+            "WITH max_by_data AS (SELECT max(id) as max FROM %s) "
+                + "SELECT max, count(1) AS count FROM max_by_data GROUP BY max",
+            tableName);
+
+    sql("CREATE VIEW %s AS %s", viewName, sql);
+
+    assertThat(sql("SELECT * FROM %s", viewName)).hasSize(1).containsExactly(row(10, 1L));
+  }
+
+  @Test
+  public void createViewWithConflictingNamesForCTEAndTempView() throws NoSuchTableException {
+    insertRows(10);
+    String viewName = "viewWithConflictingNamesForCTEAndTempView";
+    String cteName = "cteName";
+    String sql =
+        String.format(
+            "WITH %s AS (SELECT max(id) as max FROM %s) "
+                + "(SELECT max, count(1) AS count FROM %s GROUP BY max)",
+            cteName, tableName, cteName);
+
+    // create a CTE and a TEMP VIEW with the same name
+    sql("CREATE TEMPORARY VIEW %s AS SELECT * from %s", cteName, tableName);
+    sql("CREATE VIEW %s AS %s", viewName, sql);
+
+    // CTE should take precedence over the TEMP VIEW when data is read
+    assertThat(sql("SELECT * FROM %s", viewName)).hasSize(1).containsExactly(row(10, 1L));
+  }
+
+  @Test
+  public void createViewWithCTEReferencingTempView() {
+    String viewName = "viewWithCTEReferencingTempView";
+    String tempViewInCTE = "tempViewInCTE";
+    String sql =
+        String.format(
+            "WITH max_by_data AS (SELECT max(id) as max FROM %s) "
+                + "SELECT max, count(1) AS count FROM max_by_data GROUP BY max",
+            tempViewInCTE);
+
+    sql("CREATE TEMPORARY VIEW %s AS SELECT id FROM %s WHERE ID <= 5", tempViewInCTE, tableName);
+
+    assertThatThrownBy(() -> sql("CREATE VIEW %s AS %s", viewName, sql))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Cannot create the persistent object")
+        .hasMessageContaining(viewName)
+        .hasMessageContaining("of the type VIEW because it references to the temporary object")
+        .hasMessageContaining(tempViewInCTE);
+  }
+
+  @Test
+  public void createViewWithNonExistingQueryColumn() {
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CREATE VIEW viewWithNonExistingQueryColumn AS SELECT non_existing FROM %s WHERE id <= 3",
+                    tableName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "A column or function parameter with name `non_existing` cannot be resolved");
+  }
+
+  @Test
+  public void createViewWithSubqueryExpressionUsingTempView() {
+    String viewName = "viewWithSubqueryExpression";
+    String tempView = "simpleTempView";
+    String sql =
+        String.format("SELECT * FROM %s WHERE id = (SELECT id FROM %s)", tableName, tempView);
+
+    sql("CREATE TEMPORARY VIEW %s AS SELECT id from %s WHERE id = 5", tempView, tableName);
+
+    assertThatThrownBy(() -> sql("CREATE VIEW %s AS %s", viewName, sql))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(String.format("Cannot create the persistent object %s", viewName))
+        .hasMessageContaining(
+            String.format("because it references to the temporary object %s", tempView));
+  }
+
+  @Test
+  public void createViewWithSubqueryExpressionUsingGlobalTempView() {
+    String viewName = "simpleViewWithSubqueryExpression";
+    String globalTempView = "simpleGlobalTempView";
+    String sql =
+        String.format(
+            "SELECT * FROM %s WHERE id = (SELECT id FROM global_temp.%s)",
+            tableName, globalTempView);
+
+    sql(
+        "CREATE GLOBAL TEMPORARY VIEW %s AS SELECT id from %s WHERE id = 5",
+        globalTempView, tableName);
+
+    assertThatThrownBy(() -> sql("CREATE VIEW %s AS %s", viewName, sql))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(String.format("Cannot create the persistent object %s", viewName))
+        .hasMessageContaining(
+            String.format(
+                "because it references to the temporary object global_temp.%s", globalTempView));
   }
 
   private void insertRows(int numRows) throws NoSuchTableException {
