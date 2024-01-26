@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.StringJoiner;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
@@ -568,6 +569,36 @@ public class SparkCatalog extends BaseCatalog
       String[] columnComments,
       Map<String, String> properties)
       throws ViewAlreadyExistsException, NoSuchNamespaceException {
+    if (null != asViewCatalog) {
+      Schema icebergSchema = SparkSchemaUtil.convert(schema);
+
+      StringJoiner joiner = new StringJoiner(",");
+      Arrays.stream(queryColumnNames).forEach(joiner::add);
+
+      try {
+        Map<String, String> props =
+            ImmutableMap.<String, String>builder()
+                .putAll(Spark3Util.rebuildCreateProperties(properties))
+                .put("queryColumnNames", joiner.toString())
+                .build();
+        org.apache.iceberg.view.View view =
+            asViewCatalog
+                .buildView(buildIdentifier(ident))
+                .withDefaultCatalog(currentCatalog)
+                .withDefaultNamespace(Namespace.of(currentNamespace))
+                .withQuery("spark", sql)
+                .withSchema(icebergSchema)
+                .withLocation(properties.get("location"))
+                .withProperties(props)
+                .create();
+        return new SparkView(catalogName, view);
+      } catch (org.apache.iceberg.exceptions.NoSuchNamespaceException e) {
+        throw new NoSuchNamespaceException(currentNamespace);
+      } catch (AlreadyExistsException e) {
+        throw new ViewAlreadyExistsException(ident);
+      }
+    }
+
     throw new UnsupportedOperationException(
         "Creating a view is not supported by catalog: " + catalogName);
   }
