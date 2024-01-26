@@ -498,7 +498,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
         .hasMessageStartingWith("Cannot process overwrite snapshot");
   }
 
-<<<<<<< HEAD
+
   @Test
   public void testReadStreamWithSnapshotTypeRewriteDataFilesIgnoresReplace() throws Exception {
     // fill table with some data
