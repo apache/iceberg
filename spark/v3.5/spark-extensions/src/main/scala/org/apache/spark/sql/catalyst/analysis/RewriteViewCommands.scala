@@ -49,10 +49,11 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
 
     case CreateView(ResolvedView(resolved), userSpecifiedColumns, comment, properties,
     Some(queryText), query, allowExisting, replace) =>
-      verifyTemporaryObjectsDontExist(resolved.identifier, query)
+      val q = CTESubstitution.apply(query)
+      verifyTemporaryObjectsDontExist(resolved.identifier, q)
       CreateIcebergView(child = resolved,
         queryText = queryText,
-        query = query,
+        query = q,
         columnAliases = userSpecifiedColumns.map(_._1),
         columnComments = userSpecifiedColumns.map(_._2.orElse(Option.empty)),
         comment = comment,

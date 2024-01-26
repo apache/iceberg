@@ -62,31 +62,28 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
         .map(_ => ResolvedV2View(catalog.asViewCatalog, ident))
         .getOrElse(u)
 
-    case c@CreateIcebergView(ResolvedIdentifier(_, ident), _, query, columnAliases, columnComments, _, _, _, _, _, _)
+    case c@CreateIcebergView(ResolvedIdentifier(_, _), _, query, columnAliases, columnComments, _, _, _, _, _, _)
       if query.resolved && !c.rewritten =>
-      val rewritten = rewriteIdentifiers(query, ident.asMultipartIdentifier)
-      val aliasedPlan = aliasPlan(rewritten, columnAliases, columnComments)
-      c.copy(query = aliasedPlan, queryColumnNames = query.schema.fieldNames, rewritten = true)
+      val aliased = aliasColumns(query, columnAliases, columnComments)
+      c.copy(query = aliased, queryColumnNames = query.schema.fieldNames, rewritten = true)
   }
 
-  private def aliasPlan(
-    analyzedPlan: LogicalPlan,
+  private def aliasColumns(
+    plan: LogicalPlan,
     columnAliases: Seq[String],
     columnComments: Seq[Option[String]]): LogicalPlan = {
-    if (columnAliases.isEmpty || columnAliases.length != analyzedPlan.output.length) {
-      analyzedPlan
+    if (columnAliases.isEmpty || columnAliases.length != plan.output.length) {
+      plan
     } else {
-      val projectList = analyzedPlan.output.zipWithIndex.map { case (_, pos) =>
-        val column = GetColumnByOrdinal(pos, analyzedPlan.schema.fields.apply(pos).dataType)
-
+      val projectList = plan.output.zipWithIndex.map { case (attr, pos) =>
         if (columnComments.apply(pos).isDefined) {
           val meta = new MetadataBuilder().putString("comment", columnComments.apply(pos).get).build()
-          Alias(column, columnAliases.apply(pos))(explicitMetadata = Some(meta))
+          Alias(attr, columnAliases.apply(pos))(explicitMetadata = Some(meta))
         } else {
-          Alias(column, columnAliases.apply(pos))()
+          Alias(attr, columnAliases.apply(pos))()
         }
       }
-      Project(projectList, analyzedPlan)
+      Project(projectList, plan)
     }
   }
 

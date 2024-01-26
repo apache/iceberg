@@ -572,7 +572,7 @@ public class SparkCatalog extends BaseCatalog
     if (null != asViewCatalog) {
       Schema icebergSchema = SparkSchemaUtil.convert(schema);
 
-      StringJoiner joiner = new StringJoiner(", ");
+      StringJoiner joiner = new StringJoiner(",");
       Arrays.stream(queryColumnNames).forEach(joiner::add);
 
       try {

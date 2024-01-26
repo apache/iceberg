@@ -40,6 +40,7 @@ import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.view.View;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -989,8 +990,17 @@ public class TestViews extends SparkExtensionsTestBase {
         "CREATE VIEW %s (new_id COMMENT 'ID', new_data COMMENT 'DATA') AS SELECT id, data FROM %s WHERE id <= 3",
         viewName, tableName);
 
-    assertThat(viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName)).properties())
-        .containsEntry("queryColumnNames", "id, data");
+    View view = viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName));
+    assertThat(view.properties()).containsEntry("queryColumnNames", "id,data");
+
+    assertThat(view.schema().columns()).hasSize(2);
+    Types.NestedField first = view.schema().columns().get(0);
+    assertThat(first.name()).isEqualTo("new_id");
+    assertThat(first.doc()).isEqualTo("ID");
+
+    Types.NestedField second = view.schema().columns().get(1);
+    assertThat(second.name()).isEqualTo("new_data");
+    assertThat(second.doc()).isEqualTo("DATA");
 
     assertThat(sql("SELECT new_id FROM %s", viewName))
         .hasSize(3)
@@ -1008,14 +1018,32 @@ public class TestViews extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void createViewWithDuplicateQueryColumnNames() {
+  public void createViewWithDuplicateColumnNames() {
     assertThatThrownBy(
             () ->
                 sql(
-                    "CREATE VIEW viewWithDuplicateQueryColumnNames (new_id , new_data) AS SELECT id, id FROM %s WHERE id <= 3",
+                    "CREATE VIEW viewWithDuplicateColumnNames (new_id, new_id) AS SELECT id, id FROM %s WHERE id <= 3",
                     tableName))
         .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("The column `new_id` already exists");
+  }
+
+  @Test
+  public void createViewWithDuplicateQueryColumnNames() throws NoSuchTableException {
+    insertRows(3);
+    String viewName = "viewWithDuplicateQueryColumnNames";
+    String sql = String.format("SELECT id, id FROM %s WHERE id <= 3", tableName);
+
+    // not specifying column aliases in the view should fail
+    assertThatThrownBy(() -> sql("CREATE VIEW %s AS %s", viewName, sql))
+        .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("The column `id` already exists");
+
+    sql("CREATE VIEW %s (id_one, id_two) AS %s", viewName, sql);
+
+    assertThat(sql("SELECT * FROM %s", viewName))
+        .hasSize(3)
+        .containsExactlyInAnyOrder(row(1, 1), row(2, 2), row(3, 3));
   }
 
   @Test
@@ -1031,6 +1059,45 @@ public class TestViews extends SparkExtensionsTestBase {
     sql("CREATE VIEW %s AS %s", viewName, sql);
 
     assertThat(sql("SELECT * FROM %s", viewName)).hasSize(1).containsExactly(row(10, 1L));
+  }
+
+  @Test
+  public void createViewWithConflictingNamesForCTEAndTempView() throws NoSuchTableException {
+    insertRows(10);
+    String viewName = "viewWithConflictingNamesForCTEAndTempView";
+    String cteName = "cteName";
+    String sql =
+        String.format(
+            "WITH %s AS (SELECT max(id) as max FROM %s) "
+                + "(SELECT max, count(1) AS count FROM %s GROUP BY max)",
+            cteName, tableName, cteName);
+
+    // create a CTE and a TEMP VIEW with the same name
+    sql("CREATE TEMPORARY VIEW %s AS SELECT * from %s", cteName, tableName);
+    sql("CREATE VIEW %s AS %s", viewName, sql);
+
+    // CTE should take precedence over the TEMP VIEW when data is read
+    assertThat(sql("SELECT * FROM %s", viewName)).hasSize(1).containsExactly(row(10, 1L));
+  }
+
+  @Test
+  public void createViewWithCTEReferencingTempView() {
+    String viewName = "viewWithCTEReferencingTempView";
+    String tempViewInCTE = "tempViewInCTE";
+    String sql =
+        String.format(
+            "WITH max_by_data AS (SELECT max(id) as max FROM %s) "
+                + "SELECT max, count(1) AS count FROM max_by_data GROUP BY max",
+            tempViewInCTE);
+
+    sql("CREATE TEMPORARY VIEW %s AS SELECT id FROM %s WHERE ID <= 5", tempViewInCTE, tableName);
+
+    assertThatThrownBy(() -> sql("CREATE VIEW %s AS %s", viewName, sql))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Cannot create the persistent object")
+        .hasMessageContaining(viewName)
+        .hasMessageContaining("of the type VIEW because it references to the temporary object")
+        .hasMessageContaining(tempViewInCTE);
   }
 
   @Test
