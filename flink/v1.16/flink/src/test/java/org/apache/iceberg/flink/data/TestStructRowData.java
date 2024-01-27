@@ -22,7 +22,7 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.flink.DataGenerator;
 import org.apache.iceberg.flink.DataGenerators;
 import org.apache.iceberg.flink.TestHelpers;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestStructRowData {
 
