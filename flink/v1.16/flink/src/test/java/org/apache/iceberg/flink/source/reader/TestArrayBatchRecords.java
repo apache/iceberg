@@ -19,9 +19,10 @@
 package org.apache.iceberg.flink.source.reader;
 
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.junit.Assert;
-import org.junit.Test;
+//import org.junit.Assert;
+import org.junit.jupiter.api.Test;
 
+import static org.assertj.core.api.Assertions.assertThat;
 public class TestArrayBatchRecords {
 
   @Test
@@ -50,19 +51,26 @@ public class TestArrayBatchRecords {
             fileOffset,
             startingRecordOffset);
 
-    Assert.assertEquals(splitId, recordsWithSplitIds.nextSplit());
+//    Assert.assertEquals(splitId, recordsWithSplitIds.nextSplit());
+    assertThat(splitId).isEqualTo(recordsWithSplitIds.nextSplit());
 
     for (int i = 0; i < numberOfRecords; i++) {
       RecordAndPosition<String> recAndPos = recordsWithSplitIds.nextRecordFromSplit();
-      Assert.assertEquals(elements[i], recAndPos.record());
-      Assert.assertEquals(fileOffset, recAndPos.fileOffset());
+//      Assert.assertEquals(elements[i], recAndPos.record());
+      assertThat(elements[i]).isEqualTo(recAndPos.record());
+//      Assert.assertEquals(fileOffset, recAndPos.fileOffset());
+      assertThat(fileOffset).isEqualTo(recAndPos.fileOffset());
       // recordOffset points to the position after this one
-      Assert.assertEquals(startingRecordOffset + i + 1, recAndPos.recordOffset());
+//      Assert.assertEquals(startingRecordOffset + i + 1, recAndPos.recordOffset());
+      assertThat(startingRecordOffset + i + 1).isEqualTo(recAndPos.recordOffset());
     }
 
-    Assert.assertNull(recordsWithSplitIds.nextRecordFromSplit());
-    Assert.assertNull(recordsWithSplitIds.nextSplit());
+//    Assert.assertNull(recordsWithSplitIds.nextRecordFromSplit());
+    assertThat(recordsWithSplitIds.nextRecordFromSplit()).isNull();
+//    Assert.assertNull(recordsWithSplitIds.nextSplit());
+    assertThat(recordsWithSplitIds.nextSplit()).isNull();
     recordsWithSplitIds.recycle();
-    Assert.assertTrue(recycled.get());
+//    Assert.assertTrue(recycled.get());
+    assertThat(recycled.get()).isTrue();
   }
 }
