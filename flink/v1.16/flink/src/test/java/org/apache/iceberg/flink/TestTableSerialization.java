@@ -60,7 +60,7 @@ public class TestTableSerialization {
 
   private static final SortOrder SORT_ORDER = SortOrder.builderFor(SCHEMA).asc("id").build();
 
-  @TempDir protected Path temp;
+  @TempDir private Path temp;
   private Table table;
 
   @BeforeEach

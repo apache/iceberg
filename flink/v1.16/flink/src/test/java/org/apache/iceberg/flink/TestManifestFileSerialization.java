@@ -103,7 +103,7 @@ public class TestManifestFileSerialization {
 
   private static final FileIO FILE_IO = new HadoopFileIO(new Configuration());
 
-  @TempDir protected Path temp;
+  @TempDir private Path temp;
 
   @Test
   public void testKryoSerialization() throws IOException {
