@@ -18,14 +18,14 @@
  */
 package org.apache.iceberg.flink.util;
 
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 public class TestFlinkPackage {
 
   /** This unit test would need to be adjusted as new Flink version is supported. */
   @Test
   public void testVersion() {
-    Assert.assertEquals("1.16.2", FlinkPackage.version());
+    Assertions.assertEquals("1.16.2", FlinkPackage.version());
   }
 }
