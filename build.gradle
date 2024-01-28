@@ -27,7 +27,7 @@ buildscript {
   }
   dependencies {
     classpath 'com.github.johnrengelman:shadow:8.1.1'
-    classpath 'com.palantir.baseline:gradle-baseline-java:4.42.0'
+    classpath 'com.palantir.baseline:gradle-baseline-java:5.36.0'
     // com.palantir.baseline:gradle-baseline-java:4.42.0 (the last version supporting Java 8) pulls
     // in an old version of the errorprone, which doesn't work w/ Gradle 8, so bump errorpone as
     // well.
