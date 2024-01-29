@@ -49,6 +49,7 @@ import org.apache.spark.sql.catalyst.plans.logical.SetIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering
 import org.apache.spark.sql.catalyst.plans.logical.UpdateRows
 import org.apache.spark.sql.catalyst.plans.logical.WriteIcebergDelta
+import org.apache.spark.sql.catalyst.plans.logical.views.CreateIcebergView
 import org.apache.spark.sql.catalyst.plans.logical.views.DropIcebergView
 import org.apache.spark.sql.catalyst.plans.logical.views.ResolvedV2View
 import org.apache.spark.sql.connector.catalog.Identifier
@@ -133,6 +134,21 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
 
     case DropIcebergView(ResolvedIdentifier(viewCatalog: ViewCatalog, ident), ifExists) =>
       DropV2ViewExec(viewCatalog, ident, ifExists) :: Nil
+
+    case CreateIcebergView(ResolvedIdentifier(viewCatalog: ViewCatalog, ident), queryText, query,
+    columnAliases, columnComments, queryColumnNames, comment, properties, allowExisting, replace, _) =>
+      CreateV2ViewExec(
+        catalog = viewCatalog,
+        ident = ident,
+        queryText = queryText,
+        columnAliases = columnAliases,
+        columnComments = columnComments,
+        queryColumnNames = queryColumnNames,
+        viewSchema = query.schema,
+        comment = comment,
+        properties = properties,
+        allowExisting = allowExisting,
+        replace = replace) :: Nil
 
     case _ => Nil
   }

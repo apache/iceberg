@@ -23,6 +23,7 @@ import org.apache.spark.sql.SparkSessionExtensions
 import org.apache.spark.sql.catalyst.analysis.AlignedRowLevelIcebergCommandCheck
 import org.apache.spark.sql.catalyst.analysis.AlignRowLevelCommandAssignments
 import org.apache.spark.sql.catalyst.analysis.CheckMergeIntoTableConditions
+import org.apache.spark.sql.catalyst.analysis.CheckViews
 import org.apache.spark.sql.catalyst.analysis.MergeIntoIcebergTableResolutionCheck
 import org.apache.spark.sql.catalyst.analysis.ProcedureArgumentCoercion
 import org.apache.spark.sql.catalyst.analysis.ResolveMergeIntoTableReferences
@@ -55,6 +56,7 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
     extensions.injectResolutionRule { _ => AlignRowLevelCommandAssignments }
     extensions.injectResolutionRule { _ => RewriteUpdateTable }
     extensions.injectResolutionRule { _ => RewriteMergeIntoTable }
+    extensions.injectCheckRule { _ => CheckViews }
     extensions.injectCheckRule { _ => MergeIntoIcebergTableResolutionCheck }
     extensions.injectCheckRule { _ => AlignedRowLevelIcebergCommandCheck }
 
