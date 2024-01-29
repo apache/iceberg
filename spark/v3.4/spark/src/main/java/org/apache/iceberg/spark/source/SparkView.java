@@ -35,8 +35,9 @@ import org.apache.spark.sql.types.StructType;
 
 public class SparkView implements org.apache.spark.sql.connector.catalog.View {
 
+  private static final String QUERY_COLUMN_NAMES = "queryColumnNames";
   private static final Set<String> RESERVED_PROPERTIES =
-      ImmutableSet.of("provider", "location", FORMAT_VERSION);
+      ImmutableSet.of("provider", "location", FORMAT_VERSION, QUERY_COLUMN_NAMES);
 
   private final View icebergView;
   private final String catalogName;
@@ -86,7 +87,9 @@ public class SparkView implements org.apache.spark.sql.connector.catalog.View {
 
   @Override
   public String[] queryColumnNames() {
-    return new String[0];
+    return icebergView.properties().containsKey(QUERY_COLUMN_NAMES)
+        ? icebergView.properties().get(QUERY_COLUMN_NAMES).split(",")
+        : new String[0];
   }
 
   @Override
