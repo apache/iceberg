@@ -20,7 +20,6 @@ package org.apache.iceberg.flink;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -30,7 +29,6 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.file.Path;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.java.typeutils.runtime.kryo.KryoSerializer;
 import org.apache.flink.core.memory.DataInputDeserializer;
@@ -50,8 +48,11 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import org.assertj.core.api.Assertions;
+import org.junit.Assert;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 public class TestManifestFileSerialization {
 
@@ -103,7 +104,7 @@ public class TestManifestFileSerialization {
 
   private static final FileIO FILE_IO = new HadoopFileIO(new Configuration());
 
-  @TempDir private Path temp;
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   @Test
   public void testKryoSerialization() throws IOException {
@@ -144,15 +145,15 @@ public class TestManifestFileSerialization {
         new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
       for (int i = 0; i < 3; i += 1) {
         Object obj = in.readObject();
-        assertThat(obj).as("Should be a ManifestFile").isInstanceOf(ManifestFile.class);
+        Assertions.assertThat(obj).as("Should be a ManifestFile").isInstanceOf(ManifestFile.class);
         TestHelpers.assertEquals(manifest, (ManifestFile) obj);
       }
     }
   }
 
   private ManifestFile writeManifest(DataFile... files) throws IOException {
-    File manifestFile = temp.resolve("input.m0.avro").toFile();
-    assertThat(manifestFile).doesNotExist();
+    File manifestFile = temp.newFile("input.m0.avro");
+    Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = FILE_IO.newOutputFile(manifestFile.getCanonicalPath());
 
     ManifestWriter<DataFile> writer = ManifestFiles.write(SPEC, outputFile);

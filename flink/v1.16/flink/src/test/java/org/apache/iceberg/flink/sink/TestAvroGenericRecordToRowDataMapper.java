@@ -18,11 +18,10 @@
  */
 package org.apache.iceberg.flink.sink;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.flink.AvroGenericRecordConverterBase;
 import org.apache.iceberg.flink.DataGenerator;
+import org.junit.Assert;
 
 public class TestAvroGenericRecordToRowDataMapper extends AvroGenericRecordConverterBase {
   @Override
@@ -33,6 +32,6 @@ public class TestAvroGenericRecordToRowDataMapper extends AvroGenericRecordConve
         AvroGenericRecordToRowDataMapper.forAvroSchema(dataGenerator.avroSchema());
     RowData expected = dataGenerator.generateFlinkRowData();
     RowData actual = mapper.map(dataGenerator.generateAvroGenericRecord());
-    assertEquals(expected, actual);
+    Assert.assertEquals(expected, actual);
   }
 }

@@ -18,10 +18,9 @@
  */
 package org.apache.iceberg.flink.source.reader;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.junit.jupiter.api.Test;
+import org.junit.Assert;
+import org.junit.Test;
 
 public class TestArrayBatchRecords {
 
@@ -51,18 +50,19 @@ public class TestArrayBatchRecords {
             fileOffset,
             startingRecordOffset);
 
-    assertThat(splitId).isEqualTo(recordsWithSplitIds.nextSplit());
+    Assert.assertEquals(splitId, recordsWithSplitIds.nextSplit());
 
     for (int i = 0; i < numberOfRecords; i++) {
       RecordAndPosition<String> recAndPos = recordsWithSplitIds.nextRecordFromSplit();
-      assertThat(elements[i]).isEqualTo(recAndPos.record());
-      assertThat(fileOffset).isEqualTo(recAndPos.fileOffset());
-      assertThat(startingRecordOffset + i + 1).isEqualTo(recAndPos.recordOffset());
+      Assert.assertEquals(elements[i], recAndPos.record());
+      Assert.assertEquals(fileOffset, recAndPos.fileOffset());
+      // recordOffset points to the position after this one
+      Assert.assertEquals(startingRecordOffset + i + 1, recAndPos.recordOffset());
     }
 
-    assertThat(recordsWithSplitIds.nextRecordFromSplit()).isNull();
-    assertThat(recordsWithSplitIds.nextSplit()).isNull();
+    Assert.assertNull(recordsWithSplitIds.nextRecordFromSplit());
+    Assert.assertNull(recordsWithSplitIds.nextSplit());
     recordsWithSplitIds.recycle();
-    assertThat(recycled.get()).isTrue();
+    Assert.assertTrue(recycled.get());
   }
 }

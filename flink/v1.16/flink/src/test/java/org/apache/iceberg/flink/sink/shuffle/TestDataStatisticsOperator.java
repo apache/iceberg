@@ -61,9 +61,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 public class TestDataStatisticsOperator {
   private final Schema schema =
@@ -92,7 +92,7 @@ public class TestDataStatisticsOperator {
         new TestTaskStateManager());
   }
 
-  @BeforeEach
+  @Before
   public void before() throws Exception {
     this.operator = createOperator();
     Environment env = getTestingEnvironment();
@@ -108,7 +108,7 @@ public class TestDataStatisticsOperator {
         "testOperator", schema, sortOrder, mockGateway, statisticsSerializer);
   }
 
-  @AfterEach
+  @After
   public void clean() throws Exception {
     operator.close();
   }
