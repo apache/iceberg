@@ -22,6 +22,7 @@ import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.spark.SparkExecutorCache;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.spark.util.KnownSizeEstimation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,10 +43,12 @@ public class SerializableTableWithSize extends SerializableTable
   private static final Logger LOG = LoggerFactory.getLogger(SerializableTableWithSize.class);
   private static final long SIZE_ESTIMATE = 32_768L;
 
+  private final String executionId;
   private final transient Object serializationMarker;
 
   protected SerializableTableWithSize(Table table) {
     super(table);
+    this.executionId = SparkUtil.executionId();
     this.serializationMarker = new Object();
   }
 
@@ -68,7 +71,7 @@ public class SerializableTableWithSize extends SerializableTable
       LOG.info("Releasing resources");
       io().close();
     }
-    invalidateCache(name());
+    invalidateCache(executionId);
   }
 
   public static class SerializableMetadataTableWithSize extends SerializableMetadataTable
@@ -77,10 +80,12 @@ public class SerializableTableWithSize extends SerializableTable
     private static final Logger LOG =
         LoggerFactory.getLogger(SerializableMetadataTableWithSize.class);
 
+    private final String executionId;
     private final transient Object serializationMarker;
 
     protected SerializableMetadataTableWithSize(BaseMetadataTable metadataTable) {
       super(metadataTable);
+      this.executionId = SparkUtil.executionId();
       this.serializationMarker = new Object();
     }
 
@@ -95,14 +100,14 @@ public class SerializableTableWithSize extends SerializableTable
         LOG.info("Releasing resources");
         io().close();
       }
-      invalidateCache(name());
+      invalidateCache(executionId);
     }
   }
 
-  private static void invalidateCache(String name) {
+  private static void invalidateCache(String executionId) {
     SparkExecutorCache cache = SparkExecutorCache.get();
     if (cache != null) {
-      cache.invalidate(name);
+      cache.invalidate(executionId);
     }
   }
 }

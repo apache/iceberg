@@ -134,7 +134,7 @@ public class SparkExecutorCache {
   public void invalidate(String group) {
     if (state != null) {
       List<String> internalKeys = findInternalKeys(group);
-      LOG.info("Invalidating {} keys associated with {}", internalKeys.size(), group);
+      LOG.info("Invalidating {} keys associated with group {}", internalKeys.size(), group);
       internalKeys.forEach(internalKey -> state.invalidate(internalKey));
       LOG.info("Current cache stats {}", state.stats());
     }

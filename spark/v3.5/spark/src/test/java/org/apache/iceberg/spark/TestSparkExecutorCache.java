@@ -261,11 +261,9 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
 
     // there are 2 data files and 2 delete files that apply to both of them
     // in CoW, the target table will be scanned 2 times (main query + runtime filter)
-    // the runtime filter may invalidate the cache so check at least some requests were hits
     // in MoR, the target table will be scanned only once
-    // so each delete file must be opened once
-    int maxRequestCount = mode == COPY_ON_WRITE ? 3 : 1;
-    assertThat(deleteFiles).allMatch(deleteFile -> streamCount(deleteFile) <= maxRequestCount);
+    // each delete file must be opened once per execution in both modes
+    assertThat(deleteFiles).allMatch(deleteFile -> streamCount(deleteFile) == 1);
 
     // verify the final set of records is correct
     assertEquals(
@@ -294,11 +292,9 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
 
     // there are 2 data files and 2 delete files that apply to both of them
     // in CoW, the target table will be scanned 3 times (2 in main query + runtime filter)
-    // the runtime filter may invalidate the cache so check at least some requests were hits
     // in MoR, the target table will be scanned only once
-    // so each delete file must be opened once
-    int maxRequestCount = mode == COPY_ON_WRITE ? 5 : 1;
-    assertThat(deleteFiles).allMatch(deleteFile -> streamCount(deleteFile) <= maxRequestCount);
+    // each delete file must be opened once per execution in both modes
+    assertThat(deleteFiles).allMatch(deleteFile -> streamCount(deleteFile) == 1);
 
     // verify the final set of records is correct
     assertEquals(
@@ -334,11 +330,9 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
 
     // there are 2 data files and 2 delete files that apply to both of them
     // in CoW, the target table will be scanned 2 times (main query + runtime filter)
-    // the runtime filter may invalidate the cache so check at least some requests were hits
     // in MoR, the target table will be scanned only once
-    // so each delete file must be opened once
-    int maxRequestCount = mode == COPY_ON_WRITE ? 3 : 1;
-    assertThat(deleteFiles).allMatch(deleteFile -> streamCount(deleteFile) <= maxRequestCount);
+    // each delete file must be opened once per execution in both modes
+    assertThat(deleteFiles).allMatch(deleteFile -> streamCount(deleteFile) == 1);
 
     // verify the final set of records is correct
     assertEquals(

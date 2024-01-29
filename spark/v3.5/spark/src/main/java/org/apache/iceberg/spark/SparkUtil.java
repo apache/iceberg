@@ -34,12 +34,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.UnknownTransform;
 import org.apache.iceberg.util.Pair;
+import org.apache.spark.SparkContext;
+import org.apache.spark.TaskContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.expressions.BoundReference;
 import org.apache.spark.sql.catalyst.expressions.EqualTo;
 import org.apache.spark.sql.catalyst.expressions.Expression;
 import org.apache.spark.sql.catalyst.expressions.Literal;
 import org.apache.spark.sql.connector.expressions.NamedReference;
+import org.apache.spark.sql.execution.SQLExecution;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
@@ -237,5 +240,15 @@ public class SparkUtil {
 
   public static boolean caseSensitive(SparkSession spark) {
     return Boolean.parseBoolean(spark.conf().get("spark.sql.caseSensitive"));
+  }
+
+  public static String executionId() {
+    TaskContext taskContext = TaskContext.get();
+    if (taskContext != null) {
+      return taskContext.getLocalProperty(SQLExecution.EXECUTION_ID_KEY());
+    } else {
+      SparkContext sparkContext = SparkSession.active().sparkContext();
+      return sparkContext.getLocalProperty(SQLExecution.EXECUTION_ID_KEY());
+    }
   }
 }
