@@ -21,9 +21,7 @@ String flinkMajorVersion = '1.16'
 String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
 
 project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
-  test {
-    useJUnitPlatform()
-  }
+
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
