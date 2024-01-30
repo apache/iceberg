@@ -1,0 +1,8754 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../multi-engine-support/">
+      
+      
+        <link rel="next" href="../terms/">
+      
+      
+      <link rel="icon" href="../assets/images/favicon-96x96.png">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.3">
+    
+    
+      
+        <title>How To Release - Apache Iceberg</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.50c56a3b.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Nunito+Sans:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Nunito Sans";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/extra.css">
+    
+      <link rel="stylesheet" href="../assets/stylesheets/bootstrap-grid.css">
+    
+      <link rel="stylesheet" href="../assets/stylesheets/bootstrap-buttons.css">
+    
+      <link rel="stylesheet" href="../assets/stylesheets/home.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="iceberg" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#introduction" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      <!--
+  Copyright (c) 2016-2023 Martin Donath <martin.donath@squidfunk.com>
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to
+  deal in the Software without restriction, including without limitation the
+  rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+  sell copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in
+  all copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+  IN THE SOFTWARE.
+-->
+
+<!-- Determine classes -->
+   
+
+<!-- Header -->
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <!-- Link to home -->
+    <a
+      href=".."
+      title="Apache Iceberg"
+      class="md-header__button md-logo"
+      aria-label="Apache Iceberg"
+      data-md-component="logo"
+    >
+      
+  <img src="../assets/images/Iceberg-logo.svg" alt="logo">
+
+    </a>
+
+    <!-- Button to open drawer -->
+    <label class="md-header__button md-icon" for="__drawer">
+       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+
+    <!-- Header title -->
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">  </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+             How To Release 
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Button to open search modal -->
+    
+    <label class="md-header__button md-icon" for="__search">
+       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+    </label>
+
+    <!-- Search interface -->
+    <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div> 
+
+    
+      <div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://iceberg.apache.org/community/" target="_blank" rel="noopener" title="iceberg.apache.org" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.5.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M88.2 309.1c9.8-18.3 6.8-40.8-7.5-55.8C59.4 230.9 48 204 48 176c0-63.5 63.8-128 160-128s160 64.5 160 128-63.8 128-160 128c-13.1 0-25.8-1.3-37.8-3.6-10.4-2-21.2-.6-30.7 4.2-4.1 2.1-8.3 4.1-12.6 6-16 7.2-32.9 13.5-49.9 18 2.8-4.6 5.4-9.1 7.9-13.6 1.1-1.9 2.2-3.9 3.2-5.9zM0 176c0 41.8 17.2 80.1 45.9 110.3-.9 1.7-1.9 3.5-2.8 5.1-10.3 18.4-22.3 36.5-36.6 52.1-6.6 7-8.3 17.2-4.6 25.9C5.8 378.3 14.4 384 24 384c43 0 86.5-13.3 122.7-29.7 4.8-2.2 9.6-4.5 14.2-6.8 15.1 3 30.9 4.5 47.1 4.5 114.9 0 208-78.8 208-176S322.9 0 208 0 0 78.8 0 176zm432 304c16.2 0 31.9-1.6 47.1-4.5 4.6 2.3 9.4 4.6 14.2 6.8C529.5 498.7 573 512 616 512c9.6 0 18.2-5.7 22-14.5 3.8-8.8 2-19-4.6-25.9-14.2-15.6-26.2-33.7-36.6-52.1-.9-1.7-1.9-3.4-2.8-5.1 28.8-30.3 46-68.6 46-110.4 0-94.4-87.9-171.5-198.2-175.8 4.1 15.2 6.2 31.2 6.2 47.8v.6c87.2 6.7 144 67.5 144 127.4 0 28-11.4 54.9-32.7 77.2-14.3 15-17.3 37.6-7.5 55.8 1.1 2 2.2 4 3.2 5.9 2.5 4.5 5.2 9 7.9 13.6-17-4.5-33.9-10.7-49.9-18-4.3-1.9-8.5-3.9-12.6-6-9.5-4.8-20.3-6.2-30.7-4.2-12.1 2.4-24.7 3.6-37.8 3.6-61.7 0-110-26.5-136.8-62.3-16 5.4-32.8 9.4-50 11.8C279 439.8 350 480 432 480z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/apache/iceberg" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.5.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://www.youtube.com/@ApacheIceberg" target="_blank" rel="noopener" title="www.youtube.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.5.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M549.655 124.083c-6.281-23.65-24.787-42.276-48.284-48.597C458.781 64 288 64 288 64S117.22 64 74.629 75.486c-23.497 6.322-42.003 24.947-48.284 48.597-11.412 42.867-11.412 132.305-11.412 132.305s0 89.438 11.412 132.305c6.281 23.65 24.787 41.5 48.284 47.821C117.22 448 288 448 288 448s170.78 0 213.371-11.486c23.497-6.321 42.003-24.171 48.284-47.821 11.412-42.867 11.412-132.305 11.412-132.305s0-89.438-11.412-132.305zm-317.51 213.508V175.185l142.739 81.205-142.739 81.201z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://join.slack.com/t/apache-iceberg/shared_invite/zt-287g3akar-K9Oe_En5j1UL7Y_Ikpai3A" target="_blank" rel="noopener" title="join.slack.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.5.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M94.12 315.1c0 25.9-21.16 47.06-47.06 47.06S0 341 0 315.1c0-25.9 21.16-47.06 47.06-47.06h47.06v47.06zm23.72 0c0-25.9 21.16-47.06 47.06-47.06s47.06 21.16 47.06 47.06v117.84c0 25.9-21.16 47.06-47.06 47.06s-47.06-21.16-47.06-47.06V315.1zm47.06-188.98c-25.9 0-47.06-21.16-47.06-47.06S139 32 164.9 32s47.06 21.16 47.06 47.06v47.06H164.9zm0 23.72c25.9 0 47.06 21.16 47.06 47.06s-21.16 47.06-47.06 47.06H47.06C21.16 243.96 0 222.8 0 196.9s21.16-47.06 47.06-47.06H164.9zm188.98 47.06c0-25.9 21.16-47.06 47.06-47.06 25.9 0 47.06 21.16 47.06 47.06s-21.16 47.06-47.06 47.06h-47.06V196.9zm-23.72 0c0 25.9-21.16 47.06-47.06 47.06-25.9 0-47.06-21.16-47.06-47.06V79.06c0-25.9 21.16-47.06 47.06-47.06 25.9 0 47.06 21.16 47.06 47.06V196.9zM283.1 385.88c25.9 0 47.06 21.16 47.06 47.06 0 25.9-21.16 47.06-47.06 47.06-25.9 0-47.06-21.16-47.06-47.06v-47.06h47.06zm0-23.72c-25.9 0-47.06-21.16-47.06-47.06 0-25.9 21.16-47.06 47.06-47.06h117.84c25.9 0 47.06 21.16 47.06 47.06 0 25.9-21.16 47.06-47.06 47.06H283.1z"/></svg>
+    </a>
+  
+</div>
+    
+
+    <!-- Color palette toggle -->
+      
+
+    <!-- User preference: color palette -->
+    
+
+    <!-- Site language selector -->
+    
+
+    <!-- Repository information -->
+    
+  </nav>
+
+  <!-- Navigation tabs (sticky) -->
+    
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../spark-quickstart/" class="md-tabs__link">
+          
+  
+  Quickstart
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../docs/latest/" class="md-tabs__link">
+          
+  
+  Docs
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../releases/" class="md-tabs__link">
+        
+  
+    
+  
+  Releases
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../roadmap/" class="md-tabs__link">
+        
+  
+    
+  
+  Roadmap
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../blogs/" class="md-tabs__link">
+        
+  
+    
+  
+  Blogs
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../talks/" class="md-tabs__link">
+        
+  
+    
+  
+  Talks
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../vendors/" class="md-tabs__link">
+        
+  
+    
+  
+  Vendors
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../community/" class="md-tabs__link">
+          
+  
+  Project
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../catalog/" class="md-tabs__link">
+          
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="https://www.apache.org/foundation/sponsorship.html" class="md-tabs__link">
+          
+  
+  ASF
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Apache Iceberg" class="md-nav__button md-logo" aria-label="Apache Iceberg" data-md-component="logo">
+      
+  <img src="../assets/images/Iceberg-logo.svg" alt="logo">
+
+    </a>
+    Apache Iceberg
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Home
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+      
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Quickstart
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Quickstart
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../spark-quickstart/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Spark
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hive-quickstart/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Hive
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+      
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Docs
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Docs
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_1" id="__nav_3_1_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    latest
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1">
+            <span class="md-nav__icon md-icon"></span>
+            latest
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Introduction
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_1_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_1_2" id="__nav_3_1_2_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Tables
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_1_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1_2">
+            <span class="md-nav__icon md-icon"></span>
+            Tables
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/branching/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Branching and Tagging
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/configuration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Configuration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/evolution/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Evolution
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/maintenance/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Maintenance
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/metrics-reporting/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Metrics Reporting
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/partitioning/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Partitioning
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/performance/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Performance
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/reliability/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Reliability
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/schemas/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Schemas
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_1_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_1_3" id="__nav_3_1_3_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Spark
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_1_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1_3">
+            <span class="md-nav__icon md-icon"></span>
+            Spark
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/spark-getting-started/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Getting Started
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/spark-configuration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Configuration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/spark-ddl/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    DDL
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/spark-procedures/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Procedures
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/spark-queries/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Queries
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/spark-structured-streaming/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Structured Streaming
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/spark-writes/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Writes
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_1_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_1_4" id="__nav_3_1_4_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Flink
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_1_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1_4">
+            <span class="md-nav__icon md-icon"></span>
+            Flink
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/flink/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink Getting Started
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/flink-connector/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink Connector
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/flink-ddl/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink DDL
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/flink-queries/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink Queries
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/flink-writes/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink Writes
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/flink-actions/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink Actions
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/flink-configuration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink Configuration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/hive/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Hive
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://trino.io/docs/current/connector/iceberg.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Trino
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://clickhouse.com/docs/en/engines/table-engines/integrations/iceberg" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Clickhouse
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://prestodb.io/docs/current/connector/iceberg.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Presto
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://docs.dremio.com/data-formats/apache-iceberg/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Dremio
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://docs.starrocks.io/en-us/latest/data_source/catalog/iceberg_catalog" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Starrocks
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://docs.aws.amazon.com/athena/latest/ug/querying-iceberg.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Amazon Athena
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-iceberg-use-cluster.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Amazon EMR
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://impala.apache.org/docs/build/html/topics/impala_iceberg.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Impala
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://doris.apache.org/docs/dev/lakehouse/multi-catalog/iceberg" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Doris
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_1_15" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_1_15" id="__nav_3_1_15_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Integrations
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_1_15_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1_15">
+            <span class="md-nav__icon md-icon"></span>
+            Integrations
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/aws/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    AWS
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/dell/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Dell
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/jdbc/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    JDBC
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/nessie/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Nessie
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_1_16" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_1_16" id="__nav_3_1_16_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    API
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_1_16_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1_16">
+            <span class="md-nav__icon md-icon"></span>
+            API
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/java-api-quickstart/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Java Quickstart
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/api/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Java API
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/custom-catalog/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Java Custom Catalog
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_1_17" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_1_17" id="__nav_3_1_17_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Migration
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_1_17_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1_17">
+            <span class="md-nav__icon md-icon"></span>
+            Migration
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/table-migration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/hive-migration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Hive Migration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/latest/delta-lake-migration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Delta Lake Migration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../javadoc/latest" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Javadoc
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://py.iceberg.apache.org/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    PyIceberg
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    1.4.3
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            1.4.3
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Introduction
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2_2" id="__nav_3_2_2_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Tables
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            Tables
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/branching/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Branching and Tagging
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/configuration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Configuration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/evolution/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Evolution
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/maintenance/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Maintenance
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/metrics-reporting/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Metrics Reporting
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/partitioning/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Partitioning
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/performance/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Performance
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/reliability/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Reliability
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/schemas/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Schemas
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2_3" id="__nav_3_2_3_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Spark
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_2_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            Spark
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/spark-getting-started/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Getting Started
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/spark-configuration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Configuration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/spark-ddl/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    DDL
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/spark-procedures/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Procedures
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/spark-queries/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Queries
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/spark-structured-streaming/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Structured Streaming
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/spark-writes/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Writes
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2_4" id="__nav_3_2_4_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Flink
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            Flink
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/flink/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink Getting Started
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/flink-connector/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink Connector
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/flink-ddl/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink DDL
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/flink-queries/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink Queries
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/flink-writes/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink Writes
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/flink-actions/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink Actions
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/flink-configuration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink Configuration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/hive/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Hive
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://trino.io/docs/current/connector/iceberg.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Trino
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://clickhouse.com/docs/en/engines/table-engines/integrations/iceberg" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Clickhouse
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://prestodb.io/docs/current/connector/iceberg.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Presto
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://docs.dremio.com/data-formats/apache-iceberg/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Dremio
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://docs.starrocks.io/en-us/latest/data_source/catalog/iceberg_catalog" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Starrocks
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://docs.aws.amazon.com/athena/latest/ug/querying-iceberg.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Amazon Athena
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-iceberg-use-cluster.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Amazon EMR
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://impala.apache.org/docs/build/html/topics/impala_iceberg.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Impala
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://doris.apache.org/docs/dev/lakehouse/multi-catalog/iceberg" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Doris
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2_15" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2_15" id="__nav_3_2_15_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Integrations
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_2_15_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2_15">
+            <span class="md-nav__icon md-icon"></span>
+            Integrations
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/aws/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    AWS
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/dell/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Dell
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/jdbc/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    JDBC
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/nessie/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Nessie
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2_16" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2_16" id="__nav_3_2_16_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    API
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_2_16_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2_16">
+            <span class="md-nav__icon md-icon"></span>
+            API
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/java-api-quickstart/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Java Quickstart
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/api/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Java API
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/custom-catalog/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Java Custom Catalog
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2_17" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2_17" id="__nav_3_2_17_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Migration
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_2_17_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2_17">
+            <span class="md-nav__icon md-icon"></span>
+            Migration
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/table-migration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/hive-migration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Hive Migration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.3/delta-lake-migration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Delta Lake Migration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../javadoc/1.4.3" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Javadoc
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://py.iceberg.apache.org/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    PyIceberg
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    1.4.2
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            1.4.2
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Introduction
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_3_2" id="__nav_3_3_2_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Tables
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            Tables
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/branching/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Branching and Tagging
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/configuration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Configuration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/evolution/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Evolution
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/maintenance/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Maintenance
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/metrics-reporting/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Metrics Reporting
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/partitioning/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Partitioning
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/performance/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Performance
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/reliability/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Reliability
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/schemas/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Schemas
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_3_3" id="__nav_3_3_3_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Spark
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            Spark
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/spark-getting-started/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Getting Started
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/spark-configuration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Configuration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/spark-ddl/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    DDL
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/spark-procedures/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Procedures
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/spark-queries/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Queries
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/spark-structured-streaming/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Structured Streaming
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/spark-writes/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Writes
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_3_4" id="__nav_3_3_4_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Flink
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3_4">
+            <span class="md-nav__icon md-icon"></span>
+            Flink
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/flink/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink Getting Started
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/flink-connector/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink Connector
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/flink-ddl/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink DDL
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/flink-queries/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink Queries
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/flink-writes/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink Writes
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/flink-actions/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink Actions
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/flink-configuration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink Configuration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/hive/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Hive
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://trino.io/docs/current/connector/iceberg.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Trino
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://clickhouse.com/docs/en/engines/table-engines/integrations/iceberg" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Clickhouse
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://prestodb.io/docs/current/connector/iceberg.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Presto
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://docs.dremio.com/data-formats/apache-iceberg/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Dremio
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://docs.starrocks.io/en-us/latest/data_source/catalog/iceberg_catalog" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Starrocks
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://docs.aws.amazon.com/athena/latest/ug/querying-iceberg.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Amazon Athena
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-iceberg-use-cluster.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Amazon EMR
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://impala.apache.org/docs/build/html/topics/impala_iceberg.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Impala
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://doris.apache.org/docs/dev/lakehouse/multi-catalog/iceberg" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Doris
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3_15" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_3_15" id="__nav_3_3_15_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Integrations
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_3_15_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3_15">
+            <span class="md-nav__icon md-icon"></span>
+            Integrations
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/aws/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    AWS
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/dell/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Dell
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/jdbc/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    JDBC
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/nessie/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Nessie
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3_16" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_3_16" id="__nav_3_3_16_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    API
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_3_16_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3_16">
+            <span class="md-nav__icon md-icon"></span>
+            API
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/java-api-quickstart/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Java Quickstart
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/api/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Java API
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/custom-catalog/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Java Custom Catalog
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3_17" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_3_17" id="__nav_3_3_17_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Migration
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_3_17_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3_17">
+            <span class="md-nav__icon md-icon"></span>
+            Migration
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/table-migration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/hive-migration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Hive Migration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.2/delta-lake-migration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Delta Lake Migration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../javadoc/1.4.2" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Javadoc
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://py.iceberg.apache.org/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    PyIceberg
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    1.4.1
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
+            <span class="md-nav__icon md-icon"></span>
+            1.4.1
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Introduction
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_4_2" id="__nav_3_4_2_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Tables
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_4_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            Tables
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/branching/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Branching and Tagging
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/configuration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Configuration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/evolution/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Evolution
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/maintenance/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Maintenance
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/metrics-reporting/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Metrics Reporting
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/partitioning/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Partitioning
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/performance/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Performance
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/reliability/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Reliability
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/schemas/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Schemas
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_4_3" id="__nav_3_4_3_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Spark
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_4_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            Spark
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/spark-getting-started/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Getting Started
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/spark-configuration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Configuration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/spark-ddl/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    DDL
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/spark-procedures/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Procedures
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/spark-queries/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Queries
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/spark-structured-streaming/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Structured Streaming
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/spark-writes/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Writes
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_4_4" id="__nav_3_4_4_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Flink
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_4_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4_4">
+            <span class="md-nav__icon md-icon"></span>
+            Flink
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/flink/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink Getting Started
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/flink-connector/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink Connector
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/flink-ddl/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink DDL
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/flink-queries/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink Queries
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/flink-writes/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink Writes
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/flink-actions/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink Actions
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/flink-configuration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink Configuration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/hive/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Hive
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://trino.io/docs/current/connector/iceberg.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Trino
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://clickhouse.com/docs/en/engines/table-engines/integrations/iceberg" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Clickhouse
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://prestodb.io/docs/current/connector/iceberg.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Presto
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://docs.dremio.com/data-formats/apache-iceberg/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Dremio
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://docs.starrocks.io/en-us/latest/data_source/catalog/iceberg_catalog" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Starrocks
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://docs.aws.amazon.com/athena/latest/ug/querying-iceberg.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Amazon Athena
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-iceberg-use-cluster.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Amazon EMR
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://impala.apache.org/docs/build/html/topics/impala_iceberg.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Impala
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://doris.apache.org/docs/dev/lakehouse/multi-catalog/iceberg" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Doris
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4_15" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_4_15" id="__nav_3_4_15_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Integrations
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_4_15_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4_15">
+            <span class="md-nav__icon md-icon"></span>
+            Integrations
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/aws/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    AWS
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/dell/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Dell
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/jdbc/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    JDBC
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/nessie/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Nessie
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4_16" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_4_16" id="__nav_3_4_16_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    API
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_4_16_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4_16">
+            <span class="md-nav__icon md-icon"></span>
+            API
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/java-api-quickstart/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Java Quickstart
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/api/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Java API
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/custom-catalog/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Java Custom Catalog
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4_17" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_4_17" id="__nav_3_4_17_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Migration
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_4_17_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4_17">
+            <span class="md-nav__icon md-icon"></span>
+            Migration
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/table-migration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/hive-migration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Hive Migration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.1/delta-lake-migration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Delta Lake Migration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../javadoc/1.4.1/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Javadoc
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://py.iceberg.apache.org/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    PyIceberg
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_5" id="__nav_3_5_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    1.4.0
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_5">
+            <span class="md-nav__icon md-icon"></span>
+            1.4.0
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Introduction
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_5_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_5_2" id="__nav_3_5_2_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Tables
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_5_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_5_2">
+            <span class="md-nav__icon md-icon"></span>
+            Tables
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/branching/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Branching and Tagging
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/configuration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Configuration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/evolution/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Evolution
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/maintenance/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Maintenance
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/metrics-reporting/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Metrics Reporting
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/partitioning/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Partitioning
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/performance/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Performance
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/reliability/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Reliability
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/schemas/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Schemas
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_5_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_5_3" id="__nav_3_5_3_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Spark
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_5_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_5_3">
+            <span class="md-nav__icon md-icon"></span>
+            Spark
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/spark-getting-started/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Getting Started
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/spark-configuration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Configuration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/spark-ddl/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    DDL
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/spark-procedures/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Procedures
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/spark-queries/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Queries
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/spark-structured-streaming/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Structured Streaming
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/spark-writes/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Writes
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_5_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_5_4" id="__nav_3_5_4_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Flink
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_5_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_5_4">
+            <span class="md-nav__icon md-icon"></span>
+            Flink
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/flink/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink Getting Started
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/flink-connector/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink Connector
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/flink-ddl/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink DDL
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/flink-queries/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink Queries
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/flink-writes/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink Writes
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/flink-actions/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink Actions
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/flink-configuration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flink Configuration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/hive/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Hive
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://trino.io/docs/current/connector/iceberg.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Trino
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://clickhouse.com/docs/en/engines/table-engines/integrations/iceberg" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Clickhouse
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://prestodb.io/docs/current/connector/iceberg.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Presto
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://docs.dremio.com/data-formats/apache-iceberg/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Dremio
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://docs.starrocks.io/en-us/latest/data_source/catalog/iceberg_catalog" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Starrocks
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://docs.aws.amazon.com/athena/latest/ug/querying-iceberg.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Amazon Athena
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-iceberg-use-cluster.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Amazon EMR
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://impala.apache.org/docs/build/html/topics/impala_iceberg.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Impala
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://doris.apache.org/docs/dev/lakehouse/multi-catalog/iceberg" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Doris
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_5_15" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_5_15" id="__nav_3_5_15_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Integrations
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_5_15_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_5_15">
+            <span class="md-nav__icon md-icon"></span>
+            Integrations
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/aws/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    AWS
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/dell/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Dell
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/jdbc/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    JDBC
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/nessie/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Nessie
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_5_16" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_5_16" id="__nav_3_5_16_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    API
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_5_16_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_5_16">
+            <span class="md-nav__icon md-icon"></span>
+            API
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/java-api-quickstart/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Java Quickstart
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/api/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Java API
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/custom-catalog/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Java Custom Catalog
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_5_17" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_5_17" id="__nav_3_5_17_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Migration
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_5_17_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_5_17">
+            <span class="md-nav__icon md-icon"></span>
+            Migration
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/table-migration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/hive-migration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Hive Migration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/1.4.0/delta-lake-migration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Delta Lake Migration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../javadoc/1.4.0/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Javadoc
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://py.iceberg.apache.org/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    PyIceberg
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../releases/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Releases
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../roadmap/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Roadmap
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../blogs/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Blogs
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../talks/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Talks
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../vendors/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Vendors
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+      
+      
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Project
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            Project
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../community/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Join
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../spec/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Spec
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../view-spec/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    View spec
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../puffin-spec/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Puffin spec
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../multi-engine-support/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Multi-engine support
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    How to release
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    How to release
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#introduction" class="md-nav__link">
+    <span class="md-ellipsis">
+      Introduction
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      Setup
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#nexus-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      Nexus access
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pgp-signing" class="md-nav__link">
+    <span class="md-ellipsis">
+      PGP signing
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#apache-repository" class="md-nav__link">
+    <span class="md-ellipsis">
+      Apache repository
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#creating-a-release-candidate" class="md-nav__link">
+    <span class="md-ellipsis">
+      Creating a release candidate
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Creating a release candidate">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#initiate-a-discussion-about-the-release-with-the-community" class="md-nav__link">
+    <span class="md-ellipsis">
+      Initiate a discussion about the release with the community
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#build-the-source-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      Build the source release
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#build-and-stage-convenience-binaries" class="md-nav__link">
+    <span class="md-ellipsis">
+      Build and stage convenience binaries
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#start-a-vote-thread" class="md-nav__link">
+    <span class="md-ellipsis">
+      Start a VOTE thread
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#finishing-the-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      Finishing the release
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Finishing the release">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#publishing-the-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      Publishing the release
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#announcing-the-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      Announcing the release
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#update-revapi" class="md-nav__link">
+    <span class="md-ellipsis">
+      Update revapi
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#update-github" class="md-nav__link">
+    <span class="md-ellipsis">
+      Update GitHub
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#documentation-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      Documentation Release
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Documentation Release">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#common-documentation-update" class="md-nav__link">
+    <span class="md-ellipsis">
+      Common documentation update
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#versioned-documentation-update" class="md-nav__link">
+    <span class="md-ellipsis">
+      Versioned documentation update
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#javadoc-update" class="md-nav__link">
+    <span class="md-ellipsis">
+      Javadoc update
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#update-the-latest-branch" class="md-nav__link">
+    <span class="md-ellipsis">
+      Update the latest branch
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#set-latest-version-in-iceberg-docs-repo" class="md-nav__link">
+    <span class="md-ellipsis">
+      Set latest version in iceberg-docs repo
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-to-verify-a-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      How to Verify a Release
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How to Verify a Release">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#validating-a-source-release-candidate" class="md-nav__link">
+    <span class="md-ellipsis">
+      Validating a source release candidate
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Validating a source release candidate">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#verifying-signatures" class="md-nav__link">
+    <span class="md-ellipsis">
+      Verifying Signatures
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verifying-checksums" class="md-nav__link">
+    <span class="md-ellipsis">
+      Verifying Checksums
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verifying-license-documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Verifying License Documentation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verifying-build-and-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      Verifying Build and Test
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#testing-release-binaries" class="md-nav__link">
+    <span class="md-ellipsis">
+      Testing release binaries
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Testing release binaries">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#verifying-with-spark" class="md-nav__link">
+    <span class="md-ellipsis">
+      Verifying with Spark
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verifying-with-flink" class="md-nav__link">
+    <span class="md-ellipsis">
+      Verifying with Flink
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#voting" class="md-nav__link">
+    <span class="md-ellipsis">
+      Voting
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terms/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Terms
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+      
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Concepts
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            Concepts
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../catalog/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Catalogs
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+      
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    ASF
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            ASF
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://www.apache.org/foundation/sponsorship.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Sponsorship
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://www.apache.org/events/current-event.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Events
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://www.apache.org/licenses/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    License
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://www.apache.org/security/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Security
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://www.apache.org/foundation/thanks.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Sponsors
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#introduction" class="md-nav__link">
+    <span class="md-ellipsis">
+      Introduction
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      Setup
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#nexus-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      Nexus access
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pgp-signing" class="md-nav__link">
+    <span class="md-ellipsis">
+      PGP signing
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#apache-repository" class="md-nav__link">
+    <span class="md-ellipsis">
+      Apache repository
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#creating-a-release-candidate" class="md-nav__link">
+    <span class="md-ellipsis">
+      Creating a release candidate
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Creating a release candidate">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#initiate-a-discussion-about-the-release-with-the-community" class="md-nav__link">
+    <span class="md-ellipsis">
+      Initiate a discussion about the release with the community
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#build-the-source-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      Build the source release
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#build-and-stage-convenience-binaries" class="md-nav__link">
+    <span class="md-ellipsis">
+      Build and stage convenience binaries
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#start-a-vote-thread" class="md-nav__link">
+    <span class="md-ellipsis">
+      Start a VOTE thread
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#finishing-the-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      Finishing the release
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Finishing the release">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#publishing-the-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      Publishing the release
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#announcing-the-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      Announcing the release
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#update-revapi" class="md-nav__link">
+    <span class="md-ellipsis">
+      Update revapi
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#update-github" class="md-nav__link">
+    <span class="md-ellipsis">
+      Update GitHub
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#documentation-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      Documentation Release
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Documentation Release">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#common-documentation-update" class="md-nav__link">
+    <span class="md-ellipsis">
+      Common documentation update
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#versioned-documentation-update" class="md-nav__link">
+    <span class="md-ellipsis">
+      Versioned documentation update
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#javadoc-update" class="md-nav__link">
+    <span class="md-ellipsis">
+      Javadoc update
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#update-the-latest-branch" class="md-nav__link">
+    <span class="md-ellipsis">
+      Update the latest branch
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#set-latest-version-in-iceberg-docs-repo" class="md-nav__link">
+    <span class="md-ellipsis">
+      Set latest version in iceberg-docs repo
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-to-verify-a-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      How to Verify a Release
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How to Verify a Release">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#validating-a-source-release-candidate" class="md-nav__link">
+    <span class="md-ellipsis">
+      Validating a source release candidate
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Validating a source release candidate">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#verifying-signatures" class="md-nav__link">
+    <span class="md-ellipsis">
+      Verifying Signatures
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verifying-checksums" class="md-nav__link">
+    <span class="md-ellipsis">
+      Verifying Checksums
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verifying-license-documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Verifying License Documentation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verifying-build-and-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      Verifying Build and Test
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#testing-release-binaries" class="md-nav__link">
+    <span class="md-ellipsis">
+      Testing release binaries
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Testing release binaries">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#verifying-with-spark" class="md-nav__link">
+    <span class="md-ellipsis">
+      Verifying with Spark
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verifying-with-flink" class="md-nav__link">
+    <span class="md-ellipsis">
+      Verifying with Flink
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#voting" class="md-nav__link">
+    <span class="md-ellipsis">
+      Voting
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+<!--
+ - Licensed to the Apache Software Foundation (ASF) under one or more
+ - contributor license agreements.  See the NOTICE file distributed with
+ - this work for additional information regarding copyright ownership.
+ - The ASF licenses this file to You under the Apache License, Version 2.0
+ - (the "License"); you may not use this file except in compliance with
+ - the License.  You may obtain a copy of the License at
+ -
+ -   http://www.apache.org/licenses/LICENSE-2.0
+ -
+ - Unless required by applicable law or agreed to in writing, software
+ - distributed under the License is distributed on an "AS IS" BASIS,
+ - WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ - See the License for the specific language governing permissions and
+ - limitations under the License.
+ -->
+
+<h2 id="introduction">Introduction<a class="headerlink" href="#introduction" title="Permanent link">🔗</a></h2>
+<p>This page walks you through the release process of the Iceberg project. <a href="https://www.apache.org/legal/release-policy.html">Here</a> you can read about the release process in general for an Apache project.</p>
+<p>Decisions about releases are made by three groups:</p>
+<ul>
+<li>Release Manager: Does the work of creating the release, signing it, counting <a href="#voting">votes</a>, announcing the release and so on. Requires the assistance of a committer for some steps.</li>
+<li>The community: Performs the discussion of whether it is the right time to create a release and what that release should contain. The community can also cast non-binding votes on the release.</li>
+<li>PMC: Gives binding votes on the release.</li>
+</ul>
+<p>This page describes the procedures that the release manager and voting PMC members take during the release process.</p>
+<h2 id="setup">Setup<a class="headerlink" href="#setup" title="Permanent link">🔗</a></h2>
+<p>To create a release candidate, you will need:</p>
+<ul>
+<li>Apache LDAP credentals for Nexus and SVN</li>
+<li>A <a href="https://www.apache.org/dev/release-signing#generate">GPG key for signing</a>, published in <a href="https://dist.apache.org/repos/dist/dev/iceberg/KEYS">KEYS</a></li>
+</ul>
+<p>If you have not published your GPG key yet, you must publish it before sending the vote email by doing:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>svn<span class="w"> </span>co<span class="w"> </span>https://dist.apache.org/repos/dist/dev/iceberg<span class="w"> </span>icebergsvn
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nb">cd</span><span class="w"> </span>icebergsvn
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>KEYS<span class="w"> </span><span class="c1"># append a newline</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>gpg<span class="w"> </span>--list-sigs<span class="w"> </span>&lt;YOUR<span class="w"> </span>KEY<span class="w"> </span>ID<span class="w"> </span>HERE&gt;<span class="w"> </span>&gt;&gt;<span class="w"> </span>KEYS<span class="w"> </span><span class="c1"># append signatures</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>gpg<span class="w"> </span>--armor<span class="w"> </span>--export<span class="w"> </span>&lt;YOUR<span class="w"> </span>KEY<span class="w"> </span>ID<span class="w"> </span>HERE&gt;<span class="w"> </span>&gt;&gt;<span class="w"> </span>KEYS<span class="w"> </span><span class="c1"># append public key block</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>svn<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;add key for &lt;YOUR NAME HERE&gt;&quot;</span>
+</code></pre></div>
+<h3 id="nexus-access">Nexus access<a class="headerlink" href="#nexus-access" title="Permanent link">🔗</a></h3>
+<p>Nexus credentials are configured in your personal <code>~/.gradle/gradle.properties</code> file using <code>mavenUser</code> and <code>mavenPassword</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>mavenUser=yourApacheID
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>mavenPassword=SomePassword
+</code></pre></div>
+<h3 id="pgp-signing">PGP signing<a class="headerlink" href="#pgp-signing" title="Permanent link">🔗</a></h3>
+<p>The release scripts use the command-line <code>gpg</code> utility so that signing can use the gpg-agent and does not require writing your private key's passphrase to a configuration file.</p>
+<p>To configure gradle to sign convenience binary artifacts, add the following settings to <code>~/.gradle/gradle.properties</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>signing.gnupg.keyName=Your Name (CODE SIGNING KEY)
+</code></pre></div>
+<p>To use <code>gpg</code> instead of <code>gpg2</code>, also set <code>signing.gnupg.executable=gpg</code></p>
+<p>For more information, see the Gradle <a href="https://docs.gradle.org/current/userguide/signing_plugin.html#sec:signatory_credentials">signing documentation</a>.</p>
+<h3 id="apache-repository">Apache repository<a class="headerlink" href="#apache-repository" title="Permanent link">🔗</a></h3>
+<p>The release should be executed against <code>https://github.com/apache/iceberg.git</code> instead of any fork.
+Set it as remote with name <code>apache</code> for release if it is not already set up.</p>
+<h2 id="creating-a-release-candidate">Creating a release candidate<a class="headerlink" href="#creating-a-release-candidate" title="Permanent link">🔗</a></h2>
+<h3 id="initiate-a-discussion-about-the-release-with-the-community">Initiate a discussion about the release with the community<a class="headerlink" href="#initiate-a-discussion-about-the-release-with-the-community" title="Permanent link">🔗</a></h3>
+<p>This step can be useful to gather ongoing patches that the community thinks should be in the upcoming release.</p>
+<p>The communication can be started via a [DISCUSS] mail on the dev@ channel and the desired tickets can be added to the github milestone of the next release.</p>
+<p>Note, creating a milestone in github requires a committer. However, a non-committer can assign tasks to a milestone if added to the list of collaborators in <a href="https://github.com/apache/iceberg/blob/master/.asf.yaml">.asf.yaml</a></p>
+<p>The release status is discussed during each community sync meeting. Release manager should join the meeting to report status and discuss any release blocker.</p>
+<h3 id="build-the-source-release">Build the source release<a class="headerlink" href="#build-the-source-release" title="Permanent link">🔗</a></h3>
+<p>To create the source release artifacts, run the <code>source-release.sh</code> script with the release version and release candidate number:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>dev/source-release.sh<span class="w"> </span>-v<span class="w"> </span><span class="m">0</span>.13.0<span class="w"> </span>-r<span class="w"> </span><span class="m">0</span><span class="w"> </span>-k<span class="w"> </span>&lt;YOUR<span class="w"> </span>KEY<span class="w"> </span>ID<span class="w"> </span>HERE&gt;
+</code></pre></div>
+<p>Example console output:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>Preparing source for apache-iceberg-0.13.0-rc1
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>Adding version.txt and tagging release...
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>[master ca8bb7d0] Add version.txt for release 0.13.0
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a> 1 file changed, 1 insertion(+)
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a> create mode 100644 version.txt
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>Pushing apache-iceberg-0.13.0-rc1 to origin...
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>Enumerating objects: 5, done.
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>Counting objects: 100% (5/5), done.
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>Delta compression using up to 12 threads
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>Compressing objects: 100% (3/3), done.
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>Writing objects: 100% (4/4), 433 bytes | 433.00 KiB/s, done.
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>Total 4 (delta 1), reused 0 (delta 0)
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>remote: Resolving deltas: 100% (1/1), completed with 1 local object.
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>To https://github.com/apache/iceberg.git
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a> * [new tag]           apache-iceberg-0.13.0-rc1 -&gt; apache-iceberg-0.13.0-rc1
+<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a>Creating tarball  using commit ca8bb7d0821f35bbcfa79a39841be8fb630ac3e5
+<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a>Signing the tarball...
+<a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a>Checking out Iceberg RC subversion repo...
+<a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a>Checked out revision 52260.
+<a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a>Adding tarball to the Iceberg distribution Subversion repo...
+<a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a>A         tmp/apache-iceberg-0.13.0-rc1
+<a id="__codelineno-4-22" name="__codelineno-4-22" href="#__codelineno-4-22"></a>A         tmp/apache-iceberg-0.13.0-rc1/apache-iceberg-0.13.0.tar.gz.asc
+<a id="__codelineno-4-23" name="__codelineno-4-23" href="#__codelineno-4-23"></a>A  (bin)  tmp/apache-iceberg-0.13.0-rc1/apache-iceberg-0.13.0.tar.gz
+<a id="__codelineno-4-24" name="__codelineno-4-24" href="#__codelineno-4-24"></a>A         tmp/apache-iceberg-0.13.0-rc1/apache-iceberg-0.13.0.tar.gz.sha512
+<a id="__codelineno-4-25" name="__codelineno-4-25" href="#__codelineno-4-25"></a>Adding         tmp/apache-iceberg-0.13.0-rc1
+<a id="__codelineno-4-26" name="__codelineno-4-26" href="#__codelineno-4-26"></a>Adding  (bin)  tmp/apache-iceberg-0.13.0-rc1/apache-iceberg-0.13.0.tar.gz
+<a id="__codelineno-4-27" name="__codelineno-4-27" href="#__codelineno-4-27"></a>Adding         tmp/apache-iceberg-0.13.0-rc1/apache-iceberg-0.13.0.tar.gz.asc
+<a id="__codelineno-4-28" name="__codelineno-4-28" href="#__codelineno-4-28"></a>Adding         tmp/apache-iceberg-0.13.0-rc1/apache-iceberg-0.13.0.tar.gz.sha512
+<a id="__codelineno-4-29" name="__codelineno-4-29" href="#__codelineno-4-29"></a>Transmitting file data ...done
+<a id="__codelineno-4-30" name="__codelineno-4-30" href="#__codelineno-4-30"></a>Committing transaction...
+<a id="__codelineno-4-31" name="__codelineno-4-31" href="#__codelineno-4-31"></a>Committed revision 52261.
+<a id="__codelineno-4-32" name="__codelineno-4-32" href="#__codelineno-4-32"></a>Creating release-announcement-email.txt...
+<a id="__codelineno-4-33" name="__codelineno-4-33" href="#__codelineno-4-33"></a>Success! The release candidate is available here:
+<a id="__codelineno-4-34" name="__codelineno-4-34" href="#__codelineno-4-34"></a>  https://dist.apache.org/repos/dist/dev/iceberg/apache-iceberg-0.13.0-rc1
+<a id="__codelineno-4-35" name="__codelineno-4-35" href="#__codelineno-4-35"></a>
+<a id="__codelineno-4-36" name="__codelineno-4-36" href="#__codelineno-4-36"></a>Commit SHA1: ca8bb7d0821f35bbcfa79a39841be8fb630ac3e5
+<a id="__codelineno-4-37" name="__codelineno-4-37" href="#__codelineno-4-37"></a>
+<a id="__codelineno-4-38" name="__codelineno-4-38" href="#__codelineno-4-38"></a>We have generated a release announcement email for you here:
+<a id="__codelineno-4-39" name="__codelineno-4-39" href="#__codelineno-4-39"></a>/Users/jackye/iceberg/release-announcement-email.txt
+<a id="__codelineno-4-40" name="__codelineno-4-40" href="#__codelineno-4-40"></a>
+<a id="__codelineno-4-41" name="__codelineno-4-41" href="#__codelineno-4-41"></a>Please note that you must update the Nexus repository URL
+<a id="__codelineno-4-42" name="__codelineno-4-42" href="#__codelineno-4-42"></a>contained in the mail before sending it out.
+</code></pre></div>
+<p>The source release script will create a candidate tag based on the HEAD revision in git and will prepare the release tarball, signature, and checksum files. It will also upload the source artifacts to SVN.</p>
+<p>Note the commit SHA1 and candidate location because those will be added to the vote thread.</p>
+<p>Once the source release is ready, use it to stage convenience binary artifacts in Nexus.</p>
+<h3 id="build-and-stage-convenience-binaries">Build and stage convenience binaries<a class="headerlink" href="#build-and-stage-convenience-binaries" title="Permanent link">🔗</a></h3>
+<p>Convenience binaries are created using the source release tarball from in the last step.</p>
+<p>Untar the source release and go into the release directory:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>tar<span class="w"> </span>xzf<span class="w"> </span>apache-iceberg-0.13.0.tar.gz
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nb">cd</span><span class="w"> </span>apache-iceberg-0.13.0
+</code></pre></div>
+<p>To build and publish the convenience binaries, run the <code>dev/stage-binaries.sh</code> script. This will push to a release staging repository.</p>
+<p>Disable gradle parallelism by setting <code>org.gradle.parallel=false</code> in <code>gradle.properties</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>dev/stage-binaries.sh
+</code></pre></div>
+<p>Next, you need to close the staging repository:</p>
+<ol>
+<li>Go to <a href="https://repository.apache.org/">Nexus</a> and log in</li>
+<li>In the menu on the left, choose "Staging Repositories"</li>
+<li>Select the Iceberg repository</li>
+<li>If multiple staging repositories are created after running the script, verify that gradle parallelism is disabled and try again.</li>
+<li>At the top, select "Close" and follow the instructions</li>
+<li>In the comment field use "Apache Iceberg &lt;version&gt; RC&lt;num&gt;"</li>
+</ol>
+<h3 id="start-a-vote-thread">Start a VOTE thread<a class="headerlink" href="#start-a-vote-thread" title="Permanent link">🔗</a></h3>
+<p>The last step for a candidate is to create a VOTE thread on the dev mailing list.
+The email template is already generated in <code>release-announcement-email.txt</code> with some details filled.</p>
+<p>Example title subject:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>[VOTE] Release Apache Iceberg &lt;VERSION&gt; RC&lt;NUM&gt;
+</code></pre></div>
+<p>Example content:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>Hi everyone,
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>I propose the following RC to be released as official Apache Iceberg &lt;VERSION&gt; release.
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>The commit id is &lt;SHA1&gt;
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>* This corresponds to the tag: apache-iceberg-&lt;VERSION&gt;-rc&lt;NUM&gt;
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>* https://github.com/apache/iceberg/commits/apache-iceberg-&lt;VERSION&gt;-rc&lt;NUM&gt;
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>* https://github.com/apache/iceberg/tree/&lt;SHA1&gt;
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>The release tarball, signature, and checksums are here:
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>* https://dist.apache.org/repos/dist/dev/iceberg/apache-iceberg-&lt;VERSION&gt;-rc&lt;NUM&gt;/
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>You can find the KEYS file here:
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>* https://dist.apache.org/repos/dist/dev/iceberg/KEYS
+<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>
+<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a>Convenience binary artifacts are staged in Nexus. The Maven repository URL is:
+<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a>* https://repository.apache.org/content/repositories/orgapacheiceberg-&lt;ID&gt;/
+<a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a>
+<a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a>This release includes important changes that I should have summarized here, but I&#39;m lazy.
+<a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a>
+<a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a>Please download, verify, and test.
+<a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a>
+<a id="__codelineno-8-23" name="__codelineno-8-23" href="#__codelineno-8-23"></a>Please vote in the next 72 hours. (Weekends excluded)
+<a id="__codelineno-8-24" name="__codelineno-8-24" href="#__codelineno-8-24"></a>
+<a id="__codelineno-8-25" name="__codelineno-8-25" href="#__codelineno-8-25"></a>[ ] +1 Release this as Apache Iceberg &lt;VERSION&gt;
+<a id="__codelineno-8-26" name="__codelineno-8-26" href="#__codelineno-8-26"></a>[ ] +0
+<a id="__codelineno-8-27" name="__codelineno-8-27" href="#__codelineno-8-27"></a>[ ] -1 Do not release this because...
+<a id="__codelineno-8-28" name="__codelineno-8-28" href="#__codelineno-8-28"></a>
+<a id="__codelineno-8-29" name="__codelineno-8-29" href="#__codelineno-8-29"></a>Only PMC members have binding votes, but other community members are encouraged to cast
+<a id="__codelineno-8-30" name="__codelineno-8-30" href="#__codelineno-8-30"></a>non-binding votes. This vote will pass if there are 3 binding +1 votes and more binding
+<a id="__codelineno-8-31" name="__codelineno-8-31" href="#__codelineno-8-31"></a>+1 votes than -1 votes.
+</code></pre></div>
+<p>When a candidate is passed or rejected, reply with the voting result:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>Subject: [RESULT][VOTE] Release Apache Iceberg &lt;VERSION&gt; RC&lt;NUM&gt;
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>Thanks everyone who participated in the vote for Release Apache Iceberg &lt;VERSION&gt; RC&lt;NUM&gt;.
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>The vote result is:
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>+1: 3 (binding), 5 (non-binding)
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>+0: 0 (binding), 0 (non-binding)
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>-1: 0 (binding), 0 (non-binding)
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>Therefore, the release candidate is passed/rejected.
+</code></pre></div>
+<h3 id="finishing-the-release">Finishing the release<a class="headerlink" href="#finishing-the-release" title="Permanent link">🔗</a></h3>
+<p>After the release vote has passed, you need to release the last candidate's artifacts.</p>
+<p>But note that releasing the artifacts should happen around the same time the new docs are released
+so make sure the <a href="#documentation-release">documentation changes</a>
+are prepared when going through the below steps.</p>
+<h4 id="publishing-the-release">Publishing the release<a class="headerlink" href="#publishing-the-release" title="Permanent link">🔗</a></h4>
+<p>First, copy the source release directory to releases:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>mkdir<span class="w"> </span>iceberg
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="nb">cd</span><span class="w"> </span>iceberg
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>svn<span class="w"> </span>co<span class="w"> </span>https://dist.apache.org/repos/dist/dev/iceberg<span class="w"> </span>candidates
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>svn<span class="w"> </span>co<span class="w"> </span>https://dist.apache.org/repos/dist/release/iceberg<span class="w"> </span>releases
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>cp<span class="w"> </span>-r<span class="w"> </span>candidates/apache-iceberg-&lt;VERSION&gt;-rcN/<span class="w"> </span>releases/apache-iceberg-&lt;VERSION&gt;
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="nb">cd</span><span class="w"> </span>releases
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>svn<span class="w"> </span>add<span class="w"> </span>apache-iceberg-&lt;VERSION&gt;
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>svn<span class="w"> </span>ci<span class="w"> </span>-m<span class="w"> </span><span class="s1">&#39;Iceberg: Add release &lt;VERSION&gt;&#39;</span>
+</code></pre></div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+</div>
+<p>The above step requires PMC privileges to execute.</p>
+<p>Next, add a release tag to the git repository based on the passing candidate tag:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>git<span class="w"> </span>tag<span class="w"> </span>-am<span class="w"> </span><span class="s1">&#39;Release Apache Iceberg &lt;VERSION&gt;&#39;</span><span class="w"> </span>apache-iceberg-&lt;VERSION&gt;<span class="w"> </span>apache-iceberg-&lt;VERSION&gt;-rcN
+</code></pre></div>
+<p>Then release the candidate repository in <a href="https://repository.apache.org/#stagingRepositories">Nexus</a>.</p>
+<h4 id="announcing-the-release">Announcing the release<a class="headerlink" href="#announcing-the-release" title="Permanent link">🔗</a></h4>
+<p>To announce the release, wait until Maven central has mirrored the Apache binaries, then update the Iceberg site and send an announcement email:</p>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>[ANNOUNCE] Apache Iceberg release &lt;VERSION&gt;
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>I&#39;m pleased to announce the release of Apache Iceberg &lt;VERSION&gt;!
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>Apache Iceberg is an open table format for huge analytic datasets. Iceberg
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>delivers high query performance for tables with tens of petabytes of data,
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>along with atomic commits, concurrent writes, and SQL-compatible table
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>evolution.
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>This release can be downloaded from: https://www.apache.org/dyn/closer.cgi/iceberg/&lt;TARBALL NAME WITHOUT .tar.gz&gt;/&lt;TARBALL NAME&gt;
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>
+<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>Java artifacts are available from Maven Central.
+<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a>
+<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a>Thanks to everyone for contributing!
+</code></pre></div></p>
+<h4 id="update-revapi">Update revapi<a class="headerlink" href="#update-revapi" title="Permanent link">🔗</a></h4>
+<p>Create a PR in the <code>iceberg</code> repo to make revapi run on the new release. For an example see <a href="https://github.com/apache/iceberg/pull/6275">this PR</a>.</p>
+<h4 id="update-github">Update GitHub<a class="headerlink" href="#update-github" title="Permanent link">🔗</a></h4>
+<ul>
+<li>Create a PR in the <code>iceberg</code> repo to add the new version to the github issue template. For an example see <a href="https://github.com/apache/iceberg/pull/6287">this PR</a>.</li>
+<li>Draft <a href="https://github.com/apache/iceberg/releases/new">a new release to update Github</a> to show the latest release. A changelog can be generated automatically using Github.</li>
+</ul>
+<h3 id="documentation-release">Documentation Release<a class="headerlink" href="#documentation-release" title="Permanent link">🔗</a></h3>
+<p>Documentation needs to be updated as a part of an Iceberg release after a release candidate is passed.
+The commands described below assume you are in a directory containing a local clone of the <code>iceberg-docs</code>
+repository and <code>iceberg</code> repository. Adjust the commands accordingly if it is not the case. Note that all
+changes in <code>iceberg</code> need to happen against the <code>master</code> branch and changes in <code>iceberg-docs</code> need to happen
+against the <code>main</code> branch. </p>
+<h4 id="common-documentation-update">Common documentation update<a class="headerlink" href="#common-documentation-update" title="Permanent link">🔗</a></h4>
+<ol>
+<li>To start the release process, run the following steps in the <code>iceberg-docs</code> repository to copy docs over:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>cp<span class="w"> </span>-r<span class="w"> </span>../iceberg/format/*<span class="w"> </span>../iceberg-docs/landing-page/content/common/
+</code></pre></div></li>
+<li>Change into the <code>iceberg-docs</code> repository and create a branch.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="nb">cd</span><span class="w"> </span>../iceberg-docs
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>git<span class="w"> </span>checkout<span class="w"> </span>-b<span class="w"> </span>&lt;BRANCH<span class="w"> </span>NAME&gt;
+</code></pre></div></li>
+<li>Commit, push, and open a PR against the <code>iceberg-docs</code> repo (<code>&lt;BRANCH NAME&gt;</code> -&gt; <code>main</code>)</li>
+</ol>
+<h4 id="versioned-documentation-update">Versioned documentation update<a class="headerlink" href="#versioned-documentation-update" title="Permanent link">🔗</a></h4>
+<p>Once the common docs changes have been merged into <code>main</code>, the next step is to update the versioned docs.</p>
+<ol>
+<li>In the <code>iceberg-docs</code> repository, cut a new branch using the version number as the branch name
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nb">cd</span><span class="w"> </span>../iceberg-docs
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>git<span class="w"> </span>checkout<span class="w"> </span>-b<span class="w"> </span>&lt;VERSION&gt;
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>git<span class="w"> </span>push<span class="w"> </span>--set-upstream<span class="w"> </span>apache<span class="w"> </span>&lt;VERSION&gt;
+</code></pre></div></li>
+<li>Copy the versioned docs from the <code>iceberg</code> repo into the <code>iceberg-docs</code> repo
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>rm<span class="w"> </span>-rf<span class="w"> </span>../iceberg-docs/docs/content
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>cp<span class="w"> </span>-r<span class="w"> </span>../iceberg/docs<span class="w"> </span>../iceberg-docs/docs/content
+</code></pre></div></li>
+<li>Commit the changes and open a PR against the <code>&lt;VERSION&gt;</code> branch in the <code>iceberg-docs</code> repo</li>
+</ol>
+<h4 id="javadoc-update">Javadoc update<a class="headerlink" href="#javadoc-update" title="Permanent link">🔗</a></h4>
+<p>In the <code>iceberg</code> repository, generate the javadoc for your release and copy it to the <code>javadoc</code> folder in <code>iceberg-docs</code> repo:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="nb">cd</span><span class="w"> </span>../iceberg
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>./gradlew<span class="w"> </span>refreshJavadoc
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>rm<span class="w"> </span>-rf<span class="w"> </span>../iceberg-docs/javadoc
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>cp<span class="w"> </span>-r<span class="w"> </span>site/docs/javadoc/&lt;VERSION<span class="w"> </span>NUMBER&gt;<span class="w"> </span>../iceberg-docs/javadoc
+</code></pre></div></p>
+<p>This resulted changes in <code>iceberg-docs</code> should be approved in a separate PR.</p>
+<h4 id="update-the-latest-branch">Update the latest branch<a class="headerlink" href="#update-the-latest-branch" title="Permanent link">🔗</a></h4>
+<p>Since <code>main</code> is currently the same as the version branch, one needs to rebase <code>latest</code> branch against <code>main</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>git<span class="w"> </span>checkout<span class="w"> </span>latest
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>git<span class="w"> </span>rebase<span class="w"> </span>main
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>git<span class="w"> </span>push<span class="w"> </span>apache<span class="w"> </span>latest
+</code></pre></div>
+<h4 id="set-latest-version-in-iceberg-docs-repo">Set latest version in iceberg-docs repo<a class="headerlink" href="#set-latest-version-in-iceberg-docs-repo" title="Permanent link">🔗</a></h4>
+<p>The last step is to update the <code>main</code> branch in <code>iceberg-docs</code> to set the latest version.
+A PR needs to be published in the <code>iceberg-docs</code> repository with the following changes:
+1. Update variable <code>latestVersions.iceberg</code> to the new release version in <code>landing-page/config.toml</code>
+2. Update variable <code>latestVersions.iceberg</code> to the new release version and 
+<code>versions.nessie</code> to the version of <code>org.projectnessie.nessie:*</code> from <a href="https://github.com/apache/iceberg/blob/master/versions.props">versions.props</a> in <code>docs/config.toml</code>
+3. Update list <code>versions</code> with the new release in <code>landing-page/config.toml</code>
+4. Update list <code>versions</code> with the new release in <code>docs/config.toml</code>
+5. Mark the current latest release notes to past releases under <code>landing-page/content/common/release-notes.md</code>
+6. Add release notes for the new release version in <code>landing-page/content/common/release-notes.md</code></p>
+<h1 id="how-to-verify-a-release">How to Verify a Release<a class="headerlink" href="#how-to-verify-a-release" title="Permanent link">🔗</a></h1>
+<p>Each Apache Iceberg release is validated by the community by holding a vote. A community release manager
+will prepare a release candidate and call a vote on the Iceberg
+<a href="../community/#mailing-lists">dev list</a>.
+To validate the release candidate, community members will test it out in their downstream projects and environments.
+It's recommended to report the Java, Scala, Spark, Flink and Hive versions you have tested against when you vote.</p>
+<p>In addition to testing in downstream projects, community members also check the release's signatures, checksums, and
+license documentation.</p>
+<h2 id="validating-a-source-release-candidate">Validating a source release candidate<a class="headerlink" href="#validating-a-source-release-candidate" title="Permanent link">🔗</a></h2>
+<p>Release announcements include links to the following:</p>
+<ul>
+<li><strong>A source tarball</strong></li>
+<li><strong>A signature (.asc)</strong></li>
+<li><strong>A checksum (.sha512)</strong></li>
+<li><strong>KEYS file</strong></li>
+<li><strong>GitHub change comparison</strong></li>
+</ul>
+<p>After downloading the source tarball, signature, checksum, and KEYS file, here are instructions on how to
+verify signatures, checksums, and documentation.</p>
+<h3 id="verifying-signatures">Verifying Signatures<a class="headerlink" href="#verifying-signatures" title="Permanent link">🔗</a></h3>
+<p>First, import the keys.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>curl<span class="w"> </span>https://dist.apache.org/repos/dist/dev/iceberg/KEYS<span class="w"> </span>-o<span class="w"> </span>KEYS
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>gpg<span class="w"> </span>--import<span class="w"> </span>KEYS
+</code></pre></div></p>
+<p>Next, verify the <code>.asc</code> file.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>gpg<span class="w"> </span>--verify<span class="w"> </span>apache-iceberg-1.4.3.tar.gz.asc
+</code></pre></div></p>
+<h3 id="verifying-checksums">Verifying Checksums<a class="headerlink" href="#verifying-checksums" title="Permanent link">🔗</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>shasum<span class="w"> </span>-a<span class="w"> </span><span class="m">512</span><span class="w"> </span>--check<span class="w"> </span>apache-iceberg-1.4.3.tar.gz.sha512
+</code></pre></div>
+<h3 id="verifying-license-documentation">Verifying License Documentation<a class="headerlink" href="#verifying-license-documentation" title="Permanent link">🔗</a></h3>
+<p>Untar the archive and change into the source directory.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>tar<span class="w"> </span>xzf<span class="w"> </span>apache-iceberg-1.4.3.tar.gz
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="nb">cd</span><span class="w"> </span>apache-iceberg-1.4.3
+</code></pre></div></p>
+<p>Run RAT checks to validate license headers.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>dev/check-license
+</code></pre></div></p>
+<h3 id="verifying-build-and-test">Verifying Build and Test<a class="headerlink" href="#verifying-build-and-test" title="Permanent link">🔗</a></h3>
+<p>To verify that the release candidate builds properly, run the following command.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>./gradlew<span class="w"> </span>build
+</code></pre></div></p>
+<h2 id="testing-release-binaries">Testing release binaries<a class="headerlink" href="#testing-release-binaries" title="Permanent link">🔗</a></h2>
+<p>Release announcements will also include a maven repository location. You can use this
+location to test downstream dependencies by adding it to your maven or gradle build.</p>
+<p>To use the release in your maven build, add the following to your <code>POM</code> or <code>settings.xml</code>:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>...
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="w">  </span><span class="nt">&lt;repositories&gt;</span>
+<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="w">    </span><span class="nt">&lt;repository&gt;</span>
+<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a><span class="w">      </span><span class="nt">&lt;id&gt;</span>iceberg-release-candidate<span class="nt">&lt;/id&gt;</span>
+<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a><span class="w">      </span><span class="nt">&lt;name&gt;</span>Iceberg<span class="w"> </span>Release<span class="w"> </span>Candidate<span class="nt">&lt;/name&gt;</span>
+<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a><span class="w">      </span><span class="nt">&lt;url&gt;</span>${MAVEN_URL}<span class="nt">&lt;/url&gt;</span>
+<a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a><span class="w">    </span><span class="nt">&lt;/repository&gt;</span>
+<a id="__codelineno-27-8" name="__codelineno-27-8" href="#__codelineno-27-8"></a><span class="w">  </span><span class="nt">&lt;/repositories&gt;</span>
+<a id="__codelineno-27-9" name="__codelineno-27-9" href="#__codelineno-27-9"></a>...
+</code></pre></div></p>
+<p>To use the release in your gradle build, add the following to your <code>build.gradle</code>:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="n">repositories</span><span class="w"> </span><span class="o">{</span>
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a><span class="w">    </span><span class="n">mavenCentral</span><span class="o">()</span>
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a><span class="w">    </span><span class="n">maven</span><span class="w"> </span><span class="o">{</span>
+<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="w">        </span><span class="n">url</span><span class="w"> </span><span class="s2">&quot;${MAVEN_URL}&quot;</span>
+<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a><span class="w">    </span><span class="o">}</span>
+<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a><span class="o">}</span>
+</code></pre></div></p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+</div>
+<p>Replace <code>${MAVEN_URL}</code> with the URL provided in the release announcement</p>
+<h3 id="verifying-with-spark">Verifying with Spark<a class="headerlink" href="#verifying-with-spark" title="Permanent link">🔗</a></h3>
+<p>To verify using spark, start a <code>spark-shell</code> with a command like the following command (use the appropriate
+spark-runtime jar for the Spark installation):
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>spark-shell<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a><span class="w">    </span>--conf<span class="w"> </span>spark.jars.repositories<span class="o">=</span><span class="si">${</span><span class="nv">MAVEN_URL</span><span class="si">}</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="w">    </span>--packages<span class="w"> </span>org.apache.iceberg:iceberg-spark3-runtime:1.4.3<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a><span class="w">    </span>--conf<span class="w"> </span>spark.sql.extensions<span class="o">=</span>org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a><span class="w">    </span>--conf<span class="w"> </span>spark.sql.catalog.local<span class="o">=</span>org.apache.iceberg.spark.SparkCatalog<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a><span class="w">    </span>--conf<span class="w"> </span>spark.sql.catalog.local.type<span class="o">=</span>hadoop<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a><span class="w">    </span>--conf<span class="w"> </span>spark.sql.catalog.local.warehouse<span class="o">=</span><span class="si">${</span><span class="nv">LOCAL_WAREHOUSE_PATH</span><span class="si">}</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a><span class="w">    </span>--conf<span class="w"> </span>spark.sql.catalog.local.default-namespace<span class="o">=</span>default<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-29-9" name="__codelineno-29-9" href="#__codelineno-29-9"></a><span class="w">    </span>--conf<span class="w"> </span>spark.sql.defaultCatalog<span class="o">=</span><span class="nb">local</span>
+</code></pre></div></p>
+<h3 id="verifying-with-flink">Verifying with Flink<a class="headerlink" href="#verifying-with-flink" title="Permanent link">🔗</a></h3>
+<p>To verify using Flink, start a Flink SQL Client with the following command:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>wget<span class="w"> </span><span class="si">${</span><span class="nv">MAVEN_URL</span><span class="si">}</span>/iceberg-flink-runtime/1.4.3/iceberg-flink-runtime-1.4.3.jar
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>
+<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>sql-client.sh<span class="w"> </span>embedded<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a><span class="w">    </span>-j<span class="w"> </span>iceberg-flink-runtime-1.4.3.jar<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a><span class="w">    </span>-j<span class="w"> </span><span class="si">${</span><span class="nv">FLINK_CONNECTOR_PACKAGE</span><span class="si">}</span>-<span class="si">${</span><span class="nv">HIVE_VERSION</span><span class="si">}</span>_<span class="si">${</span><span class="nv">SCALA_VERSION</span><span class="si">}</span>-<span class="si">${</span><span class="nv">FLINK_VERSION</span><span class="si">}</span>.jar<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a><span class="w">    </span>shell
+</code></pre></div></p>
+<h2 id="voting">Voting<a class="headerlink" href="#voting" title="Permanent link">🔗</a></h2>
+<p>Votes are cast by replying to the release candidate announcement email on the dev mailing list
+with either <code>+1</code>, <code>0</code>, or <code>-1</code>.</p>
+<blockquote>
+<p>[ ] +1 Release this as Apache Iceberg 1.4.3
+[ ] +0
+[ ] -1 Do not release this because...</p>
+</blockquote>
+<p>In addition to your vote, it's customary to specify if your vote is binding or non-binding. Only members
+of the Project Management Committee have formally binding votes. If you're unsure, you can specify that your
+vote is non-binding. To read more about voting in the Apache framework, checkout the
+<a href="https://www.apache.org/foundation/voting.html">Voting</a> information page on the Apache foundation's website.</p>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var tab,labels=set.querySelector(".tabbed-labels");for(tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12Z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    <div class="md-footer-meta md-typeset">
+      <div class="md-footer-meta__inner md-grid">
+        <div class="md-copyright">
+    
+      <div class="md-copyright__highlight">
+        Apache Iceberg, Iceberg, Apache, the Apache feather logo, and the Apache Iceberg project logo are<br>either registered trademarks or trademarks of The Apache Software Foundation. Copyright © 2023<br>The Apache Software Foundation, Licensed under the <a href="https://www.apache.org/licenses/">Apache License, Version 2.0</a>.<br><br>
+  
+      </div>
+    
+    
+      Made with
+      <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+        Material for MkDocs
+      </a>
+    
+  </div>
+        
+      </div>
+    </div>
+  </footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.path", "navigation.top", "navigation.tracking", "toc.follow", "offline", "search.suggest", "search.highlight", "content.tabs.link", "content.code.copy", "content.code.annotate"], "search": "../assets/javascripts/workers/search.f886a092.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7c377c4.min.js"></script>
+      
+        <script src="../assets/javascript/extra.js"></script>
+      
+    
+  </body>
+</html>
