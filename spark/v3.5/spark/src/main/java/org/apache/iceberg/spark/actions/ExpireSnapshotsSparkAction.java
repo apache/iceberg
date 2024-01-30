@@ -67,6 +67,8 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
 
   public static final String STREAM_RESULTS = "stream-results";
   public static final boolean STREAM_RESULTS_DEFAULT = false;
+  public static final String DELETE_FILES = "delete-files";
+  public static final boolean DELETE_FILES_DEFAULT = true;
 
   private static final Logger LOG = LoggerFactory.getLogger(ExpireSnapshotsSparkAction.class);
 
@@ -163,16 +165,20 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
 
       this.expiredSnapshotsCount = expireSnapshots.expiredSnapshotsCount();
 
-      // fetch valid files after expiration
-      TableMetadata updatedMetadata = ops.refresh();
-      Dataset<FileInfo> validFileDS = fileDS(updatedMetadata);
+      if (deleteFiles()) {
+        // fetch valid files after expiration
+        TableMetadata updatedMetadata = ops.refresh();
+        Dataset<FileInfo> validFileDS = fileDS(updatedMetadata);
 
-      // fetch files referenced by expired snapshots
-      Set<Long> deletedSnapshotIds = findExpiredSnapshotIds(originalMetadata, updatedMetadata);
-      Dataset<FileInfo> deleteCandidateFileDS = fileDS(originalMetadata, deletedSnapshotIds);
+        // fetch files referenced by expired snapshots
+        Set<Long> deletedSnapshotIds = findExpiredSnapshotIds(originalMetadata, updatedMetadata);
+        Dataset<FileInfo> deleteCandidateFileDS = fileDS(originalMetadata, deletedSnapshotIds);
 
-      // determine expired files
-      this.expiredFileDS = deleteCandidateFileDS.except(validFileDS);
+        // determine expired files
+        this.expiredFileDS = deleteCandidateFileDS.except(validFileDS);
+      } else {
+        this.expiredFileDS = spark().emptyDataset(FileInfo.ENCODER);
+      }
     }
 
     return expiredFileDS;
@@ -218,6 +224,10 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
 
   private boolean streamResults() {
     return PropertyUtil.propertyAsBoolean(options(), STREAM_RESULTS, STREAM_RESULTS_DEFAULT);
+  }
+
+  private boolean deleteFiles() {
+    return PropertyUtil.propertyAsBoolean(options(), DELETE_FILES, DELETE_FILES_DEFAULT);
   }
 
   private Dataset<FileInfo> fileDS(TableMetadata metadata) {

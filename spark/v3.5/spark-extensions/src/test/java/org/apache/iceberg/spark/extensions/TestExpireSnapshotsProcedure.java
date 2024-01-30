@@ -541,6 +541,29 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
         .exists();
   }
 
+  @Test
+  public void testExpireSnapshotsNotDeletingFiles() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    Assertions.assertThat(table.snapshots()).hasSize(2);
+
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    Timestamp currentTimestamp = Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis()));
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.expire_snapshots(older_than => TIMESTAMP '%s', table => '%s', delete_files => false)",
+            catalogName, currentTimestamp, tableIdent);
+    assertEquals(
+        "Procedure output must match", ImmutableList.of(row(1L, 0L, 0L, 0L, 0L, 0L, 0L)), output);
+  }
+
   private static StatisticsFile writeStatsFile(
       long snapshotId, long snapshotSequenceNumber, String statsLocation, FileIO fileIO)
       throws IOException {
