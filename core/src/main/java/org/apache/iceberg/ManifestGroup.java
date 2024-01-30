@@ -46,7 +46,7 @@ import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.ParallelIterable;
 
 class ManifestGroup {
-  private static final Types.StructType EMPTY_STRUCT = Types.StructType.of();
+  public static final Types.StructType EMPTY_STRUCT = Types.StructType.of();
 
   private final FileIO io;
   private final Set<ManifestFile> dataManifests;

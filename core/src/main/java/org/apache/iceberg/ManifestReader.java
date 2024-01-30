@@ -358,10 +358,9 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     // is a primitive type.
     if (columns != null && !columns.containsAll(ManifestReader.ALL_COLUMNS)) {
       Set<String> intersection = Sets.intersection(Sets.newHashSet(columns), STATS_COLUMNS);
-      return intersection.isEmpty() ||
-          intersection.equals(Sets.newHashSet("record_count"));
-       /*   || intersection.containsAll(
-              Sets.newHashSet("record_count", "lower_bounds", "upper_bounds"));*/
+      return intersection.isEmpty() || intersection.equals(Sets.newHashSet("record_count"));
+      /*   || intersection.containsAll(
+      Sets.newHashSet("record_count", "lower_bounds", "upper_bounds"));*/
     }
     return false;
   }

@@ -22,7 +22,6 @@ import java.util.List;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public class DataTableScan extends BaseTableScan {
 

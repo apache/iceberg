@@ -29,7 +29,6 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
 import org.apache.commons.lang3.StringUtils;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Parameter;
@@ -50,7 +49,6 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.internal.SQLConf;
-
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -558,8 +556,10 @@ public class TestRuntimeFiltering extends TestBaseWithCatalog {
   }
 
   protected String tesMethodName() {
-    return testInfo.getTestMethod().map(m -> m.getName()).orElseThrow(() ->
-        new RuntimeException("test method name unavailable"));
+    return testInfo
+        .getTestMethod()
+        .map(m -> m.getName())
+        .orElseThrow(() -> new RuntimeException("test method name unavailable"));
   }
 
   boolean isBroadcastVarPushDownTest() {

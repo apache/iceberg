@@ -77,8 +77,11 @@ public class TestMetadataTableScansWithRangeIn extends MetadataTableScanTestBase
     Table manifestsTable = new AllManifestsTable(table);
 
     TableScan manifestsTableScan =
-        manifestsTable.newScan().filter(RangeInTestUtils.<Long>createPredicate(
-            "reference_snapshot_id", new Object[] {1L, 3L}, DataTypes.LongType));
+        manifestsTable
+            .newScan()
+            .filter(
+                RangeInTestUtils.<Long>createPredicate(
+                    "reference_snapshot_id", new Object[] {1L, 3L}, DataTypes.LongType));
     Assert.assertEquals(
         "Expected snapshots do not match",
         expectedManifestListPaths(table.snapshots(), 1L, 3L),

@@ -558,9 +558,10 @@ public class SparkCatalog extends BaseCatalog
   }
 
   @Override
-  public View createView(ViewInfo viewInfo) throws ViewAlreadyExistsException, NoSuchNamespaceException {
+  public View createView(ViewInfo viewInfo)
+      throws ViewAlreadyExistsException, NoSuchNamespaceException {
     throw new UnsupportedOperationException(
-            "Creating a view is not supported by catalog: " + catalogName);
+        "Creating a view is not supported by catalog: " + catalogName);
   }
 
   @Override

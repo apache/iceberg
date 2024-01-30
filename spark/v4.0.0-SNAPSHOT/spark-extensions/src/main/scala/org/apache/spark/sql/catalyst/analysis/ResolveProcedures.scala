@@ -90,7 +90,8 @@ case class ResolveProcedures(spark: SparkSession) extends Rule[LogicalPlan] with
     }
 
     if (missingParamNames.nonEmpty) {
-      throw new AnalysisException(s"Missing required parameters: ${missingParamNames.mkString("[", ",", "]")}", Map.empty)
+      throw new AnalysisException(s"Missing required parameters: ${missingParamNames.mkString("[", ",", "]")}",
+        Map.empty)
     }
 
     val argExprs = new Array[Expression](params.size)

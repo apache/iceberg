@@ -21,14 +21,12 @@ package org.apache.iceberg.spark.source;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import org.apache.iceberg.BaseFileScanTask;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionScanTask;
 import org.apache.iceberg.PartitionSpec;
@@ -39,7 +37,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -130,14 +127,15 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
       boolean shouldAddPartitionBroadcastVar = false;
       if (!partitionBasedBroadcastVar.isEmpty()) {
         shouldAddPartitionBroadcastVar =
-                specIds.stream()
-                        .anyMatch(
-                                id ->
-                                        table().specs().get(id).fields().stream()
-                                                .anyMatch(pf -> !pf.transform().isIdentity()));
+            specIds.stream()
+                .anyMatch(
+                    id ->
+                        table().specs().get(id).fields().stream()
+                            .anyMatch(pf -> !pf.transform().isIdentity()));
       }
       // TODO: Asif
-      // ideally we should filter and use only those broadcast var partition filters where transform is not identity
+      // ideally we should filter and use only those broadcast var partition filters where transform
+      // is not identity
       if (shouldAddPartitionBroadcastVar) {
         return partitionBasedBroadcastVar;
       } else {
@@ -148,8 +146,7 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
 
   void addFilterAndRecreateScan(Expression filter) {
     this.addFilterExpression(filter);
-    this.scan =  (Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>>)
-            this.scan.filter(filter);
+    this.scan = (Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>>) this.scan.filter(filter);
   }
 
   protected void incrementTaskCreationVersion() {}

@@ -40,6 +40,11 @@ public class BaseFileScanTask extends BaseContentScanTask<FileScanTask, DataFile
     this.deletes = deletes != null ? deletes : new DeleteFile[0];
   }
 
+  public BaseFileScanTask(DataFile file, ResidualEvaluator residuals, BaseFileScanTask oldTask) {
+    super(file, residuals, oldTask);
+    this.deletes = oldTask.deletes;
+  }
+
   public BaseFileScanTask(BaseFileScanTask copySource, ResidualEvaluator residuals) {
     super(copySource, residuals);
     this.deletes = copySource.deletes;

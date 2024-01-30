@@ -42,6 +42,13 @@ abstract class BaseContentScanTask<ThisT extends ContentScanTask<F>, F extends C
     this.residuals = residuals;
   }
 
+  BaseContentScanTask(F file, ResidualEvaluator residuals, BaseContentScanTask oldTask) {
+    this.file = file;
+    this.schemaString = oldTask.schemaString;
+    this.specString = oldTask.specString;
+    this.residuals = residuals;
+  }
+
   BaseContentScanTask(BaseContentScanTask<?, F> copySource, ResidualEvaluator residuals) {
     this.file = copySource.file;
     this.schemaString = copySource.schemaString;

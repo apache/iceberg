@@ -45,7 +45,6 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.metrics.ScanReport;
@@ -158,7 +157,8 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
       // as the scan has been already planned, filtering can only be done on projected attributes
       // that's why only partition source fields that are part of the read schema can be reported
 
-      this.partitionAttributes = partitionFieldSourceIds.stream()
+      this.partitionAttributes =
+          partitionFieldSourceIds.stream()
               .filter(fieldId -> expectedSchema().findField(fieldId) != null)
               .map(fieldId -> Spark3Util.toNamedReference(quotedNameById.get(fieldId)))
               .toArray(NamedReference[]::new);
@@ -234,44 +234,45 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
     List<Expression> nonPartitionBasedBroadcastVar =
         partitionAndNonPartitionBased.getOrDefault(Boolean.FALSE, Collections.emptyList());
     List<Expression> partitionBasedBroadcastVarUsableAsDataFilter =
-            getPartitionBasedBroadcastVarUsableAsDataFilters(partitionBasedBroadcastVar);
+        getPartitionBasedBroadcastVarUsableAsDataFilters(partitionBasedBroadcastVar);
     List<Expression> totalNewDataFilters = new LinkedList<>();
     totalNewDataFilters.addAll(partitionBasedBroadcastVarUsableAsDataFilter);
     totalNewDataFilters.addAll(nonPartitionBasedBroadcastVar);
-    if(!totalNewDataFilters.isEmpty()) {
-      Expression netFilter = totalNewDataFilters.stream().reduce(Expressions.alwaysTrue(), Expressions::and);
+    if (!totalNewDataFilters.isEmpty()) {
+      Expression netFilter =
+          totalNewDataFilters.stream().reduce(Expressions.alwaysTrue(), Expressions::and);
       addFilterAndRecreateScan(netFilter);
       this.resetTasks(null);
     }
 
     // first filter tasks on the basis of partition filters
-    Expression netPartitionFilter = partitionBasedBroadcastVar.stream()
-            .reduce(Expressions.alwaysTrue(), Expressions::and);
+    Expression netPartitionFilter =
+        partitionBasedBroadcastVar.stream().reduce(Expressions.alwaysTrue(), Expressions::and);
     if (netPartitionFilter != Expressions.alwaysTrue()) {
       Map<Integer, Evaluator> evaluatorsBySpecId = Maps.newHashMap();
 
       for (PartitionSpec spec : specs()) {
         Expression inclusiveExpr =
-                Projections.inclusive(spec, caseSensitive()).project(netPartitionFilter);
+            Projections.inclusive(spec, caseSensitive()).project(netPartitionFilter);
         Evaluator inclusive = new Evaluator(spec.partitionType(), inclusiveExpr);
         evaluatorsBySpecId.put(spec.specId(), inclusive);
       }
 
       List<PartitionScanTask> filteredTasks =
-              tasks().stream()
-                      .filter(
-                              task -> {
-                                Evaluator evaluator = evaluatorsBySpecId.get(task.spec().specId());
-                                return evaluator.eval(task.partition());
-                              })
-                      .collect(Collectors.toList());
+          tasks().stream()
+              .filter(
+                  task -> {
+                    Evaluator evaluator = evaluatorsBySpecId.get(task.spec().specId());
+                    return evaluator.eval(task.partition());
+                  })
+              .collect(Collectors.toList());
 
       LOG.info(
-              "{} of {} task(s) for table {} matched runtime filter {}",
-              filteredTasks.size(),
-              tasks().size(),
-              table().name(),
-              ExpressionUtil.toSanitizedString(netPartitionFilter));
+          "{} of {} task(s) for table {} matched runtime filter {}",
+          filteredTasks.size(),
+          tasks().size(),
+          table().name(),
+          ExpressionUtil.toSanitizedString(netPartitionFilter));
 
       // don't invalidate tasks if the runtime filter had no effect to avoid planning splits again
       if (filteredTasks.size() < tasks().size()) {
