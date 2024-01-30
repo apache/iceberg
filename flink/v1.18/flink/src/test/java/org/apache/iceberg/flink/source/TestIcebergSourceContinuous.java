@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import org.apache.flink.api.common.JobID;
@@ -30,7 +31,9 @@ import org.apache.flink.api.common.JobStatus;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.client.program.ClusterClient;
+import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.runtime.client.JobStatusMessage;
+import org.apache.flink.runtime.testutils.InMemoryReporter;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.data.RowData;
@@ -58,9 +61,11 @@ import org.junit.rules.TemporaryFolder;
 
 public class TestIcebergSourceContinuous {
 
+  public static final InMemoryReporter METRIC_REPORTER = InMemoryReporter.create();
+
   @ClassRule
   public static final MiniClusterWithClientResource MINI_CLUSTER_RESOURCE =
-      MiniClusterResource.createWithClassloaderCheckDisabled();
+      MiniClusterResource.createWithClassloaderCheckDisabled(METRIC_REPORTER);
 
   @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
 
@@ -112,6 +117,8 @@ public class TestIcebergSourceContinuous {
 
       List<Row> result3 = waitForResult(iter, 2);
       TestHelpers.assertRecords(result3, batch3, tableResource.table().schema());
+
+      assertThatIcebergEnumeratorMetricsExist();
     }
   }
 
@@ -162,6 +169,8 @@ public class TestIcebergSourceContinuous {
 
       List<Row> result3 = waitForResult(iter, 2);
       TestHelpers.assertRecords(result3, batch3, tableResource.table().schema());
+
+      assertThatIcebergEnumeratorMetricsExist();
     }
   }
 
@@ -211,6 +220,8 @@ public class TestIcebergSourceContinuous {
 
       List<Row> result3 = waitForResult(iter, 2);
       TestHelpers.assertRecords(result3, batch3, tableResource.table().schema());
+
+      assertThatIcebergEnumeratorMetricsExist();
     }
   }
 
@@ -263,6 +274,8 @@ public class TestIcebergSourceContinuous {
 
       List<Row> result3 = waitForResult(iter, 2);
       TestHelpers.assertRecords(result3, batch3, tableResource.table().schema());
+
+      assertThatIcebergEnumeratorMetricsExist();
     }
   }
 
@@ -313,6 +326,8 @@ public class TestIcebergSourceContinuous {
 
       List<Row> result3 = waitForResult(iter, 2);
       TestHelpers.assertRecords(result3, batch3, tableResource.table().schema());
+
+      assertThatIcebergEnumeratorMetricsExist();
     }
   }
 
@@ -367,6 +382,8 @@ public class TestIcebergSourceContinuous {
 
       List<Row> result3 = waitForResult(iter, 2);
       TestHelpers.assertRecords(result3, batch3, tableResource.table().schema());
+
+      assertThatIcebergEnumeratorMetricsExist();
     }
   }
 
@@ -504,5 +521,23 @@ public class TestIcebergSourceContinuous {
         .filter(status -> status.getJobState() == JobStatus.RUNNING)
         .map(JobStatusMessage::getJobId)
         .collect(Collectors.toList());
+  }
+
+  private static void assertThatIcebergEnumeratorMetricsExist() {
+    assertThatIcebergSourceMetricExists(
+        "enumerator", "coordinator.enumerator.elapsedSecondsSinceLastSplitDiscovery");
+    assertThatIcebergSourceMetricExists("enumerator", "coordinator.enumerator.unassignedSplits");
+    assertThatIcebergSourceMetricExists("enumerator", "coordinator.enumerator.pendingRecords");
+  }
+
+  private static void assertThatIcebergSourceMetricExists(
+      String metricGroupPattern, String metricName) {
+    Optional<MetricGroup> groups = METRIC_REPORTER.findGroup(metricGroupPattern);
+    assertThat(groups).isPresent();
+    assertThat(
+            METRIC_REPORTER.getMetricsByGroup(groups.get()).keySet().stream()
+                .map(name -> groups.get().getMetricIdentifier(name)))
+        .satisfiesOnlyOnce(
+            fullMetricName -> assertThat(fullMetricName).containsSubsequence(metricName));
   }
 }

@@ -103,6 +103,13 @@ public class DefaultSplitAssigner implements SplitAssigner {
     return pendingSplits.size();
   }
 
+  @Override
+  public long pendingRecords() {
+    return pendingSplits.stream()
+        .map(split -> split.task().estimatedRowsCount())
+        .reduce(0L, Long::sum);
+  }
+
   private synchronized void completeAvailableFuturesIfNeeded() {
     if (availableFuture != null && !pendingSplits.isEmpty()) {
       availableFuture.complete(null);
