@@ -30,16 +30,13 @@ class ValueAggregate<T> extends BoundAggregate<T, T> {
 
   @Override
   public T eval(StructLike struct) {
-    if (struct.size() > 1) {
-      throw new UnsupportedOperationException("Expected struct like of size 1");
-    }
-
-    return (T) struct.get(0, term().type().typeId().javaClass());
+    return term().eval(struct);
   }
 
   @Override
   public T eval(DataFile file) {
-    return (T) evaluateRef(file);
+    valueStruct.setValue(evaluateRef(file));
+    return term().eval(valueStruct);
   }
 
   protected Object evaluateRef(DataFile file) {
@@ -63,7 +60,11 @@ class ValueAggregate<T> extends BoundAggregate<T, T> {
     @Override
     @SuppressWarnings("unchecked")
     public <T> T get(int pos, Class<T> javaClass) {
-      return (T) value;
+      if (javaClass.isAssignableFrom(StructLike.class)) {
+        return (T) this;
+      } else {
+        return (T) value;
+      }
     }
 
     @Override
