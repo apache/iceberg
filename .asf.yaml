@@ -60,3 +60,6 @@ notifications:
     issues:       issues@iceberg.apache.org
     pullrequests: issues@iceberg.apache.org
     jira_options: link label link label
+
+publish:
+    whoami:  asf-site
