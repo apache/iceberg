@@ -56,7 +56,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkExecutorCache;
 import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
@@ -293,12 +292,10 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
 
     private class CachingDeleteLoader extends BaseDeleteLoader {
       private final SparkExecutorCache cache;
-      private final String executionId;
 
       CachingDeleteLoader(Function<DeleteFile, InputFile> loadInputFile) {
         super(loadInputFile);
         this.cache = SparkExecutorCache.getOrCreate();
-        this.executionId = SparkUtil.executionId();
       }
 
       @Override
@@ -308,7 +305,7 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
 
       @Override
       protected <V> V getOrLoad(String key, Supplier<V> valueSupplier, long valueSize) {
-        return cache.getOrLoad(executionId, key, valueSupplier, valueSize);
+        return cache.getOrLoad(table().name(), key, valueSupplier, valueSize);
       }
     }
   }
