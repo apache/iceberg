@@ -82,7 +82,7 @@ public class SparkDistributedDataScan extends BaseDistributedDataScan {
   private Broadcast<Table> tableBroadcast = null;
 
   public SparkDistributedDataScan(SparkSession spark, Table table, SparkReadConf readConf) {
-    this(spark, table, readConf, table.schema(), newTableScanContext(table));
+    this(spark, table, readConf, table.schema(), newTableScanContext(table), null);
   }
 
   private SparkDistributedDataScan(
@@ -90,8 +90,9 @@ public class SparkDistributedDataScan extends BaseDistributedDataScan {
       Table table,
       SparkReadConf readConf,
       Schema schema,
-      TableScanContext context) {
-    super(table, schema, context);
+      TableScanContext context,
+      SparkDistributedDataScan oldScan) {
+    super(table, schema, context, oldScan);
     this.spark = spark;
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.readConf = readConf;
@@ -100,7 +101,7 @@ public class SparkDistributedDataScan extends BaseDistributedDataScan {
   @Override
   protected BatchScan newRefinedScan(
       Table newTable, Schema newSchema, TableScanContext newContext) {
-    return new SparkDistributedDataScan(spark, newTable, readConf, newSchema, newContext);
+    return new SparkDistributedDataScan(spark, newTable, readConf, newSchema, newContext, this);
   }
 
   @Override

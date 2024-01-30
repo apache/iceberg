@@ -118,44 +118,38 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
     }
   }
 
-  protected List<T> addAsDataFilters(
-      List<Expression> partitionBasedBroadcastVar, List<Expression> nonPartitionBasedBroadcastVar) {
-    Set<Integer> specIds = Sets.newHashSet();
-
-    for (PartitionSpec spec : specs()) {
-      specIds.add(spec.specId());
-    }
-    List<Expression> netBroadcastDataFiltersToAdd = new LinkedList<>(nonPartitionBasedBroadcastVar);
-    boolean shouldAddPartitionBroadcastVar = false;
-    if (!partitionBasedBroadcastVar.isEmpty()) {
-      shouldAddPartitionBroadcastVar =
-          specIds.stream()
-              .anyMatch(
-                  id ->
-                      table().specs().get(id).fields().stream()
-                          .anyMatch(pf -> !pf.transform().isIdentity()));
-    }
-    if (shouldAddPartitionBroadcastVar) {
-      netBroadcastDataFiltersToAdd.addAll(partitionBasedBroadcastVar);
-    }
-    if (!netBroadcastDataFiltersToAdd.isEmpty()) {
-      // No point adding the non broadcast partition filters as data filters as their data is not
-      // sorted
-      Expression newCombinedDataFilters =
-          netBroadcastDataFiltersToAdd.stream().reduce(Expressions.alwaysTrue(), Expressions::and);
-      // re-evaluate the scan so that new data filters are added
-      this.addFilterExpression(newCombinedDataFilters);
-      this.scan =
-          (Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>>)
-              this.scan.filter(newCombinedDataFilters);
-      // add the new data filters to existing file tasks
-      return tasks().stream()
-          .parallel()
-          .map(fs -> (T) ((BaseFileScanTask) fs).addFilter(newCombinedDataFilters))
-          .collect(Collectors.toList());
+  protected List<Expression> getPartitionBasedBroadcastVarUsableAsDataFilters(
+      List<Expression> partitionBasedBroadcastVar) {
+    if (partitionBasedBroadcastVar.isEmpty()) {
+      return Collections.emptyList();
     } else {
-      return tasks();
+      Set<Integer> specIds = Sets.newHashSet();
+      for (PartitionSpec spec : table().specs().values()) {
+        specIds.add(spec.specId());
+      }
+      boolean shouldAddPartitionBroadcastVar = false;
+      if (!partitionBasedBroadcastVar.isEmpty()) {
+        shouldAddPartitionBroadcastVar =
+                specIds.stream()
+                        .anyMatch(
+                                id ->
+                                        table().specs().get(id).fields().stream()
+                                                .anyMatch(pf -> !pf.transform().isIdentity()));
+      }
+      // TODO: Asif
+      // ideally we should filter and use only those broadcast var partition filters where transform is not identity
+      if (shouldAddPartitionBroadcastVar) {
+        return partitionBasedBroadcastVar;
+      } else {
+        return Collections.emptyList();
+      }
     }
+  }
+
+  void addFilterAndRecreateScan(Expression filter) {
+    this.addFilterExpression(filter);
+    this.scan =  (Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>>)
+            this.scan.filter(filter);
   }
 
   protected void incrementTaskCreationVersion() {}

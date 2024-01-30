@@ -23,6 +23,7 @@ import static org.apache.iceberg.TableProperties.DATA_PLANNING_MODE;
 import static org.apache.iceberg.TableProperties.DELETE_PLANNING_MODE;
 import static org.apache.iceberg.TableProperties.PLANNING_MODE_DEFAULT;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -63,11 +64,22 @@ abstract class BaseDistributedDataScan
 
   private final int localParallelism;
   private final long localPlanningSizeThreshold;
+  private transient volatile List<ManifestFile> filteredManifestFiles = Collections.emptyList();
+  private transient volatile List<ManifestFile> deleteManifests = Collections.emptyList();
+  private transient volatile boolean mayHaveEqualityDeletes = false;
+  private transient volatile boolean planDeletesLocally = false;
 
-  protected BaseDistributedDataScan(Table table, Schema schema, TableScanContext context) {
+  protected BaseDistributedDataScan(Table table, Schema schema, TableScanContext context,
+      BaseDistributedDataScan oldScan) {
     super(table, schema, context);
     this.localParallelism = PLAN_SCANS_WITH_WORKER_POOL ? ThreadPools.WORKER_THREAD_POOL_SIZE : 1;
     this.localPlanningSizeThreshold = localParallelism * LOCAL_PLANNING_MAX_SLOT_SIZE;
+    if (oldScan != null) {
+      this.filteredManifestFiles = oldScan.filteredManifestFiles;
+      this.deleteManifests = oldScan.deleteManifests;
+      this.mayHaveEqualityDeletes = oldScan.mayHaveEqualityDeletes;
+      this.planDeletesLocally = oldScan.planDeletesLocally;
+    }
   }
 
   /**
@@ -145,18 +157,20 @@ abstract class BaseDistributedDataScan
   @Override
   protected CloseableIterable<ScanTask> doPlanFiles() {
     Snapshot snapshot = snapshot();
+    if (this.filteredManifestFiles == null || this.filteredManifestFiles.isEmpty()) {
+      this.deleteManifests = findMatchingDeleteManifests(snapshot);
+      mayHaveEqualityDeletes = !deleteManifests.isEmpty() && mayHaveEqualityDeletes(snapshot);
+      planDeletesLocally = shouldPlanDeletesLocally(deleteManifests, mayHaveEqualityDeletes);
 
-    List<ManifestFile> deleteManifests = findMatchingDeleteManifests(snapshot);
-    boolean mayHaveEqualityDeletes = !deleteManifests.isEmpty() && mayHaveEqualityDeletes(snapshot);
-    boolean planDeletesLocally = shouldPlanDeletesLocally(deleteManifests, mayHaveEqualityDeletes);
+    }
+    this.filteredManifestFiles = findMatchingDataManifests(snapshot);
 
-    List<ManifestFile> dataManifests = findMatchingDataManifests(snapshot);
     boolean loadColumnStats = mayHaveEqualityDeletes || shouldReturnColumnStats();
-    boolean planDataLocally = shouldPlanDataLocally(dataManifests, loadColumnStats);
+    boolean planDataLocally = shouldPlanDataLocally(this.filteredManifestFiles, loadColumnStats);
     boolean copyDataFiles = shouldCopyDataFiles(planDataLocally, loadColumnStats);
 
     if (planDataLocally && planDeletesLocally) {
-      return planFileTasksLocally(dataManifests, deleteManifests);
+      return planFileTasksLocally(this.filteredManifestFiles, deleteManifests);
     }
 
     ExecutorService monitorPool = newMonitorPool();
@@ -165,7 +179,7 @@ abstract class BaseDistributedDataScan
         newDeletesFuture(deleteManifests, planDeletesLocally, monitorPool);
 
     CompletableFuture<Iterable<CloseableIterable<DataFile>>> dataFuture =
-        newDataFuture(dataManifests, planDataLocally, loadColumnStats, monitorPool);
+        newDataFuture(this.filteredManifestFiles, planDataLocally, loadColumnStats, monitorPool);
 
     try {
       Iterable<CloseableIterable<ScanTask>> fileTasks =
@@ -194,7 +208,13 @@ abstract class BaseDistributedDataScan
   }
 
   private List<ManifestFile> findMatchingDataManifests(Snapshot snapshot) {
-    List<ManifestFile> dataManifests = snapshot.dataManifests(io());
+    List<ManifestFile> dataManifests ;
+    if (this.filteredManifestFiles == null || this.filteredManifestFiles.isEmpty()) {
+      dataManifests = snapshot.dataManifests(io());
+    } else {
+      dataManifests = this.filteredManifestFiles;
+    }
+
     scanMetrics().totalDataManifests().increment(dataManifests.size());
 
     List<ManifestFile> matchingDataManifests = filterManifests(dataManifests);
