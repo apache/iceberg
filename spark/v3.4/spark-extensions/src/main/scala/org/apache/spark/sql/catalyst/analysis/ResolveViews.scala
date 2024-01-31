@@ -22,6 +22,7 @@ package org.apache.spark.sql.catalyst.analysis
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.FunctionIdentifier
 import org.apache.spark.sql.catalyst.expressions.Alias
+import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
 import org.apache.spark.sql.catalyst.expressions.UpCast
 import org.apache.spark.sql.catalyst.parser.ParseException
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
@@ -166,6 +167,11 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
         u.copy(multipartIdentifier = catalogAndNamespace :+ table)
       case u@UnresolvedRelation(parts, _, _) if !isCatalog(parts.head) =>
         u.copy(multipartIdentifier = catalogAndNamespace.head +: parts)
+      case other =>
+        other.transformExpressions {
+          case subquery: SubqueryExpression =>
+            subquery.withNewPlan(qualifyTableIdentifiers(subquery.plan, catalogAndNamespace))
+        }
     }
 
   private def isCatalog(name: String): Boolean = {
