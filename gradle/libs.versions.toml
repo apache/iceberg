@@ -17,6 +17,7 @@
 
 # Rich versions are used for better compatibility with GitHub's automated dependency tools (such as Dependabot and Renovate).
 # Without a rich version definition, dependabot will try to align different versions of the same library.
+# see https://docs.gradle.org/current/userguide/rich_versions.html on how to configure rich versions.
 
 [versions]
 activation = "1.1.1"
@@ -37,25 +38,25 @@ delta-spark = "3.0.0"
 esotericsoftware-kryo = "4.0.2"
 errorprone-annotations = "2.24.1"
 findbugs-jsr305 = "3.0.2"
-flink116 = { strictly = "[1.16, 1.17[", prefer = "1.16.2"}
-flink117 = { strictly = "[1.17, 1.18[", prefer = "1.17.1"}
-flink118 =  { strictly = "[1.18, 1.19[", prefer = "1.18.1"}
+flink116 = { strictly = "1.16.2"}
+flink117 = { strictly = "1.17.1"}
+flink118 =  { strictly = "1.18.1"}
 google-libraries-bom = "26.28.0"
 guava = "33.0.0-jre"
 hadoop2 = "3.3.6"
 hadoop3-client = "3.3.6"
 httpcomponents-httpclient5 = "5.3"
-hive2 = { strictly = "[2, 3[", prefer = "2.3.9"} # see rich version usage explanation above
+hive2 = { strictly = "2.3.9"} # see rich version usage explanation above
 hive3 = "3.1.3"
 immutables-value = "2.10.0"
 jackson-annotations = "2.16.0"
 jackson-bom = "2.14.2"
 jackson-dataformat-xml = "2.16.1"
-jackson211 = { strictly = "[2.11, 2.12[", prefer = "2.11.4"} # see rich version usage explanation above
-jackson212 = { strictly = "[2.12, 2.13[", prefer = "2.12.3"}
-jackson213 = { strictly = "[2.13, 2.14[", prefer = "2.13.4"}
-jackson214 = { strictly = "[2.14, 2.15[", prefer = "2.14.2"}
-jackson215 = { strictly = "[2.15, 2.16[", prefer = "2.15.2"}
+jackson211 = { strictly = "2.11.4"} # see rich version usage explanation above
+jackson212 = { strictly = "2.12.3"}
+jackson213 = { strictly = "2.13.4"}
+jackson214 = { strictly = "2.14.2"}
+jackson215 = { strictly = "2.15.2"}
 jakarta-el-api = "3.0.3"
 jaxb-api = "2.3.1"
 jaxb-runtime = "2.3.3"
@@ -85,7 +86,7 @@ spring-web = "5.3.30"
 sqlite-jdbc = "3.44.0.0"
 testcontainers = "1.19.3"
 tez010 = "0.10.2"
-tez08 = { strictly = "[0.8, 0.9[", prefer = "0.8.4"}  # see rich version usage explanation above
+tez08 = { strictly = "0.8.4"}  # see rich version usage explanation above
 
 [libraries]
 activation = { module = "javax.activation:activation", version.ref = "activation" }

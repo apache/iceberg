@@ -16,19 +16,33 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.exceptions;
 
-import com.google.errorprone.annotations.FormatMethod;
+package org.apache.spark.sql.execution.datasources.v2
 
-/** Exception raised when attempting to load a view that does not exist. */
-public class NoSuchViewException extends RuntimeException implements CleanableFailure {
-  @FormatMethod
-  public NoSuchViewException(String message, Object... args) {
-    super(String.format(message, args));
+import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.analysis.NoSuchViewException
+import org.apache.spark.sql.catalyst.expressions.Attribute
+import org.apache.spark.sql.connector.catalog.Identifier
+import org.apache.spark.sql.connector.catalog.ViewCatalog
+
+
+case class DropV2ViewExec(
+  catalog: ViewCatalog,
+  ident: Identifier,
+  ifExists: Boolean) extends LeafV2CommandExec {
+
+  override lazy val output: Seq[Attribute] = Nil
+
+  override protected def run(): Seq[InternalRow] = {
+    val dropped = catalog.dropView(ident)
+    if (!dropped && !ifExists) {
+      throw new NoSuchViewException(ident)
+    }
+
+    Nil
   }
 
-  @FormatMethod
-  public NoSuchViewException(Throwable cause, String message, Object... args) {
-    super(String.format(message, args), cause);
+  override def simpleString(maxFields: Int): String = {
+    s"DropV2View: ${ident}"
   }
 }

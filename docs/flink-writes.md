@@ -213,7 +213,7 @@ They should have the following key-value tags.
 
  Metric name                | Metric type | Description                                                                                         |
 | ------------------------- |------------|-----------------------------------------------------------------------------------------------------|
-| lastFlushDurationMs       | Gague      | The duration (in milli) that writer subtasks take to flush and upload the files during checkpoint.  |
+| lastFlushDurationMs       | Gauge      | The duration (in milli) that writer subtasks take to flush and upload the files during checkpoint.  |
 | flushedDataFiles          | Counter    | Number of data files flushed and uploaded.                                                          |
 | flushedDeleteFiles        | Counter    | Number of delete files flushed and uploaded.                                                        |
 | flushedReferencedDataFiles| Counter    | Number of data files referenced by the flushed delete files.                                        |
@@ -227,15 +227,15 @@ They should have the following key-value tags.
 
  Metric name                      | Metric type | Description                                                                |
 |---------------------------------|--------|----------------------------------------------------------------------------|
-| lastCheckpointDurationMs        | Gague  | The duration (in milli) that the committer operator checkpoints its state. |
-| lastCommitDurationMs            | Gague  | The duration (in milli) that the Iceberg table commit takes.               |
+| lastCheckpointDurationMs        | Gauge  | The duration (in milli) that the committer operator checkpoints its state. |
+| lastCommitDurationMs            | Gauge  | The duration (in milli) that the Iceberg table commit takes.               |
 | committedDataFilesCount         | Counter | Number of data files committed.                                            |
 | committedDataFilesRecordCount   | Counter | Number of records contained in the committed data files.                   |
 | committedDataFilesByteCount     | Counter | Number of bytes contained in the committed data files.                     |
 | committedDeleteFilesCount       | Counter | Number of delete files committed.                                          |
 | committedDeleteFilesRecordCount | Counter | Number of records contained in the committed delete files.                 |
 | committedDeleteFilesByteCount   | Counter | Number of bytes contained in the committed delete files.                   |
-| elapsedSecondsSinceLastSuccessfulCommit| Gague  | Elapsed time (in seconds) since last successful Iceberg commit.            |
+| elapsedSecondsSinceLastSuccessfulCommit| Gauge  | Elapsed time (in seconds) since last successful Iceberg commit.            |
 
 `elapsedSecondsSinceLastSuccessfulCommit` is an ideal alerting metric
 to detect failed or missing Iceberg commits.

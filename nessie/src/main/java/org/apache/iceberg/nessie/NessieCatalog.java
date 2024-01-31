@@ -60,7 +60,7 @@ import org.slf4j.LoggerFactory;
 
 /** Nessie implementation of Iceberg Catalog. */
 public class NessieCatalog extends BaseMetastoreViewCatalog
-    implements AutoCloseable, SupportsNamespaces, Configurable<Object> {
+    implements SupportsNamespaces, Configurable<Object> {
 
   private static final Logger LOG = LoggerFactory.getLogger(NessieCatalog.class);
   private static final Joiner SLASH = Joiner.on("/");
@@ -176,6 +176,7 @@ public class NessieCatalog extends BaseMetastoreViewCatalog
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(client);
     closeableGroup.addCloseable(fileIO);
+    closeableGroup.addCloseable(metricsReporter());
     closeableGroup.setSuppressCloseFailure(true);
   }
 

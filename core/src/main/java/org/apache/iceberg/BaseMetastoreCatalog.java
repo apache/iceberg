@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -34,7 +36,7 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public abstract class BaseMetastoreCatalog implements Catalog {
+public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(BaseMetastoreCatalog.class);
 
   private MetricsReporter metricsReporter;
@@ -305,11 +307,18 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     return sb.toString();
   }
 
-  private MetricsReporter metricsReporter() {
+  protected MetricsReporter metricsReporter() {
     if (metricsReporter == null) {
       metricsReporter = CatalogUtil.loadMetricsReporter(properties());
     }
 
     return metricsReporter;
+  }
+
+  @Override
+  public void close() throws IOException {
+    if (metricsReporter != null) {
+      metricsReporter.close();
+    }
   }
 }

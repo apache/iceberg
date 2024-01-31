@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.actions;
 
+import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DeleteFile;
@@ -25,6 +26,7 @@ import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,10 +41,16 @@ public class RewritePositionDeletesCommitManager {
 
   private final Table table;
   private final long startingSnapshotId;
+  private final Map<String, String> snapshotProperties;
 
   public RewritePositionDeletesCommitManager(Table table) {
+    this(table, ImmutableMap.of());
+  }
+
+  public RewritePositionDeletesCommitManager(Table table, Map<String, String> snapshotProperties) {
     this.table = table;
     this.startingSnapshotId = table.currentSnapshot().snapshotId();
+    this.snapshotProperties = snapshotProperties;
   }
 
   /**
@@ -63,6 +71,8 @@ public class RewritePositionDeletesCommitManager {
         rewriteFiles.addFile(file, group.maxRewrittenDataSequenceNumber());
       }
     }
+
+    snapshotProperties.forEach(rewriteFiles::set);
 
     rewriteFiles.commit();
   }
