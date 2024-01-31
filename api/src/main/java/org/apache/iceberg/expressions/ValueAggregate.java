@@ -60,7 +60,11 @@ class ValueAggregate<T> extends BoundAggregate<T, T> {
     @Override
     @SuppressWarnings("unchecked")
     public <T> T get(int pos, Class<T> javaClass) {
-      return (T) value;
+      if (javaClass.isAssignableFrom(StructLike.class)) {
+        return (T) this;
+      } else {
+        return (T) value;
+      }
     }
 
     @Override
