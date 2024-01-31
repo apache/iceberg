@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.spark.SparkExecutorCache;
 import org.apache.spark.util.KnownSizeEstimation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,6 +68,7 @@ public class SerializableTableWithSize extends SerializableTable
       LOG.info("Releasing resources");
       io().close();
     }
+    invalidateCache(name());
   }
 
   public static class SerializableMetadataTableWithSize extends SerializableMetadataTable
@@ -93,6 +95,14 @@ public class SerializableTableWithSize extends SerializableTable
         LOG.info("Releasing resources");
         io().close();
       }
+      invalidateCache(name());
+    }
+  }
+
+  private static void invalidateCache(String name) {
+    SparkExecutorCache cache = SparkExecutorCache.get();
+    if (cache != null) {
+      cache.invalidate(name);
     }
   }
 }
