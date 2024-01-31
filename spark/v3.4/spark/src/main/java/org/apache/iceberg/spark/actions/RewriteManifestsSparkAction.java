@@ -179,7 +179,7 @@ public class RewriteManifestsSparkAction
     Dataset<Row> manifestEntryDF = buildManifestEntryDF(matchingManifests);
 
     List<ManifestFile> newManifests;
-    if (spec.fields().size() < 1) {
+    if (spec.isUnpartitioned()) {
       newManifests = writeManifestsForUnpartitionedTable(manifestEntryDF, targetNumManifests);
     } else {
       newManifests = writeManifestsForPartitionedTable(manifestEntryDF, targetNumManifests);
