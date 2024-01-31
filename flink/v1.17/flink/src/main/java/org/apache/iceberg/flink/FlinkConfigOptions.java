@@ -104,4 +104,10 @@ public class FlinkConfigOptions {
                           SplitAssignerType.SIMPLE
                               + ": simple assigner that doesn't provide any guarantee on order or locality."))
                   .build());
+
+  public static final ConfigOption<String> TABLE_EXEC_ICEBERG_MODIFICATION_MODE =
+      ConfigOptions.key("table.exec.iceberg.modification-mode")
+          .stringType()
+          .noDefaultValue()
+          .withDescription("Row level modification mode ('copy-on-write' or 'merge-on-read')");
 }
