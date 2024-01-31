@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.io.Serializable;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -488,6 +489,23 @@ public interface MetadataUpdate extends Serializable {
     @Override
     public void applyTo(ViewMetadata.Builder viewMetadataBuilder) {
       viewMetadataBuilder.setCurrentVersionId(versionId);
+    }
+  }
+
+  class AppendFilesUpdate implements MetadataUpdate {
+    private final List<String> addedManifests;
+
+    public AppendFilesUpdate(List<String> addedManifests) {
+      this.addedManifests = addedManifests;
+    }
+
+    public List<String> getAddedManifests() {
+      return addedManifests;
+    }
+
+    @Override
+    public void applyTo(TableMetadata.Builder tableMetadataBuilder) {
+      tableMetadataBuilder.appendFiles(addedManifests);
     }
   }
 }
