@@ -167,6 +167,12 @@ public class SparkParquetWriters {
 
       @Override
       public Optional<ParquetValueWriter<?>> visit(
+          LogicalTypeAnnotation.UUIDLogicalTypeAnnotation uuidLogicalType) {
+        return Optional.of(uuids(desc));
+      }
+
+      @Override
+      public Optional<ParquetValueWriter<?>> visit(
           LogicalTypeAnnotation.MapLogicalTypeAnnotation mapLogicalType) {
         return LogicalTypeAnnotation.LogicalTypeAnnotationVisitor.super.visit(mapLogicalType);
       }
