@@ -89,6 +89,7 @@ public class RewriteDataFilesSparkAction
   private final Table table;
 
   private Expression filter = Expressions.alwaysTrue();
+  private Expression partitionFilter = Expressions.alwaysTrue();
   private int maxConcurrentFileGroupRewrites;
   private int maxCommits;
   private boolean partialProgressEnabled;
@@ -147,6 +148,12 @@ public class RewriteDataFilesSparkAction
   }
 
   @Override
+  public RewriteDataFilesSparkAction partitionFilter(Expression expression) {
+    partitionFilter = Expressions.and(partitionFilter, expression);
+    return this;
+  }
+
+  @Override
   public RewriteDataFiles.Result execute() {
     if (table.currentSnapshot() == null) {
       return EMPTY_RESULT;
@@ -185,6 +192,7 @@ public class RewriteDataFilesSparkAction
             .newScan()
             .useSnapshot(startingSnapshotId)
             .filter(filter)
+            .partitionFilter(partitionFilter)
             .ignoreResiduals()
             .planFiles();
 
