@@ -33,6 +33,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
 import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.ResidualEvaluator;
@@ -168,7 +169,8 @@ abstract class BaseDistributedDataScan
       boolean copyDataFiles = shouldCopyDataFiles(planDataLocally, loadColumnStats);
 
       if (planDataLocally && planDeletesLocally) {
-        return planFileTasksLocally(dataManifests, deleteManifests);
+        this.filteredScanTasks = planFileTasksLocally(dataManifests, deleteManifests);
+        return this.filteredScanTasks;
       }
 
       ExecutorService monitorPool = newMonitorPool();
@@ -184,10 +186,11 @@ abstract class BaseDistributedDataScan
             toFileTasks(dataFuture, deletesFuture, copyDataFiles);
 
         if (shouldPlanWithExecutor() && (planDataLocally || mayHaveEqualityDeletes)) {
-          return new ParallelIterable<>(fileTasks, planExecutor());
+          this.filteredScanTasks = new ParallelIterable<>(fileTasks, planExecutor());
         } else {
-          return CloseableIterable.concat(fileTasks);
+          this.filteredScanTasks = CloseableIterable.concat(fileTasks);
         }
+        return this.filteredScanTasks;
 
       } catch (CompletionException e) {
         deletesFuture.cancel(true /* may interrupt */);
@@ -204,18 +207,18 @@ abstract class BaseDistributedDataScan
 
   private CloseableIterable<ScanTask> filterScanTasksUsingNewDataFilters(
       CloseableIterable<ScanTask> fileScanTasks) {
-    Expression fileFilter = filter();
-    if (fileFilter != null && fileFilter != Expressions.alwaysTrue()) {
+    Expression dataFilter = filter();
+    if (dataFilter != null && dataFilter != Expressions.alwaysTrue()) {
       Map<Integer, ResidualEvaluator> residualCache = specCache(this::newResidualEvaluator);
-      Evaluator evaluator =
-          new Evaluator(
-              DataFile.getType(ManifestGroup.EMPTY_STRUCT), fileFilter, isCaseSensitive());
+
+      InclusiveMetricsEvaluator metricsEvaluator = new InclusiveMetricsEvaluator(this.schema(), dataFilter, this.isCaseSensitive());
+
       CloseableIterable<ScanTask> filteredScanTasks =
           CloseableIterable.filter(
               fileScanTasks,
               task -> {
                 GenericDataFile gdf = (GenericDataFile) task.asFileScanTask().file();
-                return evaluator.eval(gdf);
+                return metricsEvaluator.eval(gdf);
               });
       CloseableIterable<ScanTask> newFilteredTasks =
           CloseableIterable.transform(
