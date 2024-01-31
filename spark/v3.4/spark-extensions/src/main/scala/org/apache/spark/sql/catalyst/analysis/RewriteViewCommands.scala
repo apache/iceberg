@@ -25,9 +25,11 @@ import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
 import org.apache.spark.sql.catalyst.plans.logical.CreateView
 import org.apache.spark.sql.catalyst.plans.logical.DropView
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.ShowViews
 import org.apache.spark.sql.catalyst.plans.logical.View
 import org.apache.spark.sql.catalyst.plans.logical.views.CreateIcebergView
 import org.apache.spark.sql.catalyst.plans.logical.views.DropIcebergView
+import org.apache.spark.sql.catalyst.plans.logical.views.ShowIcebergViews
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.connector.catalog.CatalogManager
 import org.apache.spark.sql.connector.catalog.CatalogPlugin
@@ -60,6 +62,13 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
         properties = properties,
         allowExisting = allowExisting,
         replace = replace)
+
+    case ShowViews(UnresolvedNamespace(Seq()), pattern, output) if isViewCatalog(catalogManager.currentCatalog) =>
+      ShowIcebergViews(ResolvedNamespace(catalogManager.currentCatalog, Seq.empty), pattern, output)
+
+    case ShowViews(UnresolvedNamespace(CatalogAndNamespace(catalog, ns)), pattern, output)
+      if isViewCatalog(catalog) =>
+      ShowIcebergViews(ResolvedNamespace(catalog, ns), pattern, output)
   }
 
   private def isTempView(nameParts: Seq[String]): Boolean = {
