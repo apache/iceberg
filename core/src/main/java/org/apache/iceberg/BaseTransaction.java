@@ -194,6 +194,16 @@ public class BaseTransaction implements Transaction {
   }
 
   @Override
+  public StreamingUpdate newStreamingUpdate() {
+    checkLastOperationCommitted("StreamingUpdate");
+    StreamingUpdate streamingUpdate =
+        new BaseStreamingUpdate(tableName, transactionOps).reportWith(reporter);
+    streamingUpdate.deleteWith(enqueueDelete);
+    updates.add(streamingUpdate);
+    return streamingUpdate;
+  }
+
+  @Override
   public RewriteManifests rewriteManifests() {
     checkLastOperationCommitted("RewriteManifests");
     RewriteManifests rewrite = new BaseRewriteManifests(transactionOps).reportWith(reporter);
@@ -710,6 +720,11 @@ public class BaseTransaction implements Transaction {
     @Override
     public RewriteFiles newRewrite() {
       return BaseTransaction.this.newRewrite();
+    }
+
+    @Override
+    public StreamingUpdate newStreamingUpdate() {
+      return BaseTransaction.this.newStreamingUpdate();
     }
 
     @Override
