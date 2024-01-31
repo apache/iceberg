@@ -27,6 +27,7 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.Strategy
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.analysis.ResolvedIdentifier
+import org.apache.spark.sql.catalyst.analysis.ResolvedNamespace
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
 import org.apache.spark.sql.catalyst.expressions.PredicateHelper
@@ -34,6 +35,7 @@ import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.Call
 import org.apache.spark.sql.catalyst.plans.logical.CreateOrReplaceBranch
 import org.apache.spark.sql.catalyst.plans.logical.CreateOrReplaceTag
+import org.apache.spark.sql.catalyst.plans.logical.DescribeRelation
 import org.apache.spark.sql.catalyst.plans.logical.DropBranch
 import org.apache.spark.sql.catalyst.plans.logical.DropIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
@@ -47,11 +49,14 @@ import org.apache.spark.sql.catalyst.plans.logical.ReplaceIcebergData
 import org.apache.spark.sql.catalyst.plans.logical.ReplacePartitionField
 import org.apache.spark.sql.catalyst.plans.logical.SetIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering
+import org.apache.spark.sql.catalyst.plans.logical.ShowCreateTable
+import org.apache.spark.sql.catalyst.plans.logical.ShowTableProperties
 import org.apache.spark.sql.catalyst.plans.logical.UpdateRows
 import org.apache.spark.sql.catalyst.plans.logical.WriteIcebergDelta
 import org.apache.spark.sql.catalyst.plans.logical.views.CreateIcebergView
 import org.apache.spark.sql.catalyst.plans.logical.views.DropIcebergView
 import org.apache.spark.sql.catalyst.plans.logical.views.ResolvedV2View
+import org.apache.spark.sql.catalyst.plans.logical.views.ShowIcebergViews
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.TableCatalog
 import org.apache.spark.sql.connector.catalog.ViewCatalog
@@ -149,6 +154,18 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
         properties = properties,
         allowExisting = allowExisting,
         replace = replace) :: Nil
+
+    case DescribeRelation(ResolvedV2View(catalog, ident), _, isExtended, output) =>
+      DescribeV2ViewExec(output, catalog.loadView(ident), isExtended) :: Nil
+
+    case ShowTableProperties(ResolvedV2View(catalog, ident), propertyKey, output) =>
+      ShowV2ViewPropertiesExec(output, catalog.loadView(ident), propertyKey) :: Nil
+
+    case ShowIcebergViews(ResolvedNamespace(catalog: ViewCatalog, namespace), pattern, output) =>
+      ShowV2ViewsExec(output, catalog, namespace, pattern) :: Nil
+
+    case ShowCreateTable(ResolvedV2View(catalog, ident), _, output) =>
+      ShowCreateV2ViewExec(output, catalog.loadView(ident)) :: Nil
 
     case _ => Nil
   }
