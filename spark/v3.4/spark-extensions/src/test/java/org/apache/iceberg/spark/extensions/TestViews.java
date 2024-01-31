@@ -877,6 +877,9 @@ public class TestViews extends SparkExtensionsTestBase {
             v1SessionCatalog()
                 .tableExists(new org.apache.spark.sql.catalyst.TableIdentifier(v1View)))
         .isFalse();
+
+    sql("USE spark_catalog");
+    sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
   private SessionCatalog v1SessionCatalog() {
@@ -1147,6 +1150,56 @@ public class TestViews extends SparkExtensionsTestBase {
         .hasMessageContaining(
             String.format(
                 "because it references to the temporary object global_temp.%s", globalTempView));
+  }
+
+  @Test
+  public void createViewWithSubqueryExpressionInFilterThatIsRewritten()
+      throws NoSuchTableException {
+    insertRows(5);
+    String viewName = viewName("viewWithSubqueryExpression");
+    String sql =
+        String.format(
+            "SELECT id FROM %s WHERE id = (SELECT max(id) FROM %s)", tableName, tableName);
+
+    sql("CREATE VIEW %s AS %s", viewName, sql);
+
+    assertThat(sql("SELECT * FROM %s", viewName)).hasSize(1).containsExactly(row(5));
+
+    sql("USE spark_catalog");
+
+    assertThatThrownBy(() -> sql(sql))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(String.format("The table or view `%s` cannot be found", tableName));
+
+    // the underlying SQL in the View should be rewritten to have catalog & namespace
+    assertThat(sql("SELECT * FROM %s.%s.%s", catalogName, "default", viewName))
+        .hasSize(1)
+        .containsExactly(row(5));
+  }
+
+  @Test
+  public void createViewWithSubqueryExpressionInQueryThatIsRewritten() throws NoSuchTableException {
+    insertRows(3);
+    String viewName = viewName("viewWithSubqueryExpression");
+    String sql =
+        String.format("SELECT (SELECT max(id) FROM %s) max_id FROM %s", tableName, tableName);
+
+    sql("CREATE VIEW %s AS %s", viewName, sql);
+
+    assertThat(sql("SELECT * FROM %s", viewName))
+        .hasSize(3)
+        .containsExactly(row(3), row(3), row(3));
+
+    sql("USE spark_catalog");
+
+    assertThatThrownBy(() -> sql(sql))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(String.format("The table or view `%s` cannot be found", tableName));
+
+    // the underlying SQL in the View should be rewritten to have catalog & namespace
+    assertThat(sql("SELECT * FROM %s.%s.%s", catalogName, "default", viewName))
+        .hasSize(3)
+        .containsExactly(row(3), row(3), row(3));
   }
 
   private void insertRows(int numRows) throws NoSuchTableException {
