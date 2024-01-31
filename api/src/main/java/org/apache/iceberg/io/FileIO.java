@@ -21,6 +21,10 @@ package org.apache.iceberg.io;
 import java.io.Closeable;
 import java.io.Serializable;
 import java.util.Map;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * Pluggable module for reading, writing, and deleting files.
@@ -40,6 +44,30 @@ public interface FileIO extends Serializable, Closeable {
    */
   default InputFile newInputFile(String path, long length) {
     return newInputFile(path);
+  }
+
+  default InputFile newInputFile(DataFile file) {
+    Preconditions.checkArgument(
+        file.keyMetadata() == null,
+        "Cannot decrypt data file: {} (use DecryptingFileIO)",
+        file.path());
+    return newInputFile(file.path().toString());
+  }
+
+  default InputFile newInputFile(DeleteFile file) {
+    Preconditions.checkArgument(
+        file.keyMetadata() == null,
+        "Cannot decrypt delete file: {} (use DecryptingFileIO)",
+        file.path());
+    return newInputFile(file.path().toString());
+  }
+
+  default InputFile newInputFile(ManifestFile manifest) {
+    Preconditions.checkArgument(
+        manifest.keyMetadata() == null,
+        "Cannot decrypt manifest: {} (use DecryptingFileIO)",
+        manifest.path());
+    return newInputFile(manifest.path());
   }
 
   /** Get a {@link OutputFile} instance to write bytes to the file at the given path. */
