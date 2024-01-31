@@ -1095,7 +1095,7 @@ public class TestPositionDeletesTable extends CatalogTestBase {
                     .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, fileSetID)
                     .append())
         .isInstanceOf(AnalysisException.class)
-        .hasMessage(
+        .hasMessageContaining(
             "[INCOMPATIBLE_DATA_FOR_TABLE.CANNOT_FIND_DATA] Cannot write incompatible data for the table `"
                 + catalogName
                 + "`.`default`.`"

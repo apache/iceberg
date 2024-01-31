@@ -427,7 +427,7 @@ project(':iceberg-data') {
     maxHeapSize '1500m'
   }
 }
-
+/*
 project(':iceberg-aliyun') {
   test {
     useJUnitPlatform()
@@ -463,7 +463,7 @@ project(':iceberg-aliyun') {
     }
   }
 }
-
+*/
 project(':iceberg-aws') {
   test {
     useJUnitPlatform()

@@ -46,11 +46,11 @@ project(':iceberg-hive-runtime') {
     }
     implementation project(':iceberg-aws')
     implementation project(':iceberg-azure')
-    implementation(project(':iceberg-aliyun')) {
+  /*  implementation(project(':iceberg-aliyun')) {
       exclude group: 'edu.umd.cs.findbugs', module: 'findbugs'
       exclude group: 'org.apache.httpcomponents', module: 'httpclient'
       exclude group: 'commons-logging', module: 'commons-logging'
-    }
+    } */
     implementation project(':iceberg-gcp')
   }
 
