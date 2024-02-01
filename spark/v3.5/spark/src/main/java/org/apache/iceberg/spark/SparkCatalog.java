@@ -585,7 +585,7 @@ public class SparkCatalog extends BaseCatalog
         Map<String, String> props =
             ImmutableMap.<String, String>builder()
                 .putAll(Spark3Util.rebuildCreateProperties(properties))
-                .put("queryColumnNames", joiner.toString())
+                .put("spark.query-column-names", joiner.toString())
                 .build();
         org.apache.iceberg.view.View view =
             asViewCatalog
@@ -620,11 +620,11 @@ public class SparkCatalog extends BaseCatalog
         for (ViewChange change : changes) {
           if (change instanceof ViewChange.SetProperty) {
             ViewChange.SetProperty property = (ViewChange.SetProperty) change;
-            verifyNonReservedProperty(property.property());
+            verifyNonReservedPropertyIsSet(property.property());
             updateViewProperties.set(property.property(), property.value());
           } else if (change instanceof ViewChange.RemoveProperty) {
             ViewChange.RemoveProperty remove = (ViewChange.RemoveProperty) change;
-            verifyNonReservedProperty(remove.property());
+            verifyNonReservedPropertyIsUnset(remove.property());
             updateViewProperties.remove(remove.property());
           }
         }
@@ -641,11 +641,18 @@ public class SparkCatalog extends BaseCatalog
         "Altering a view is not supported by catalog: " + catalogName);
   }
 
-  private static void verifyNonReservedProperty(String property) {
+  private static void verifyNonReservedProperty(String property, String errorMsg) {
     if (SparkView.RESERVED_PROPERTIES.contains(property)) {
-      throw new UnsupportedOperationException(
-          String.format("Cannot specify '%s' because it's a reserved view property", property));
+      throw new UnsupportedOperationException(String.format(errorMsg, property));
     }
+  }
+
+  private static void verifyNonReservedPropertyIsUnset(String property) {
+    verifyNonReservedProperty(property, "Cannot unset reserved property: '%s'");
+  }
+
+  private static void verifyNonReservedPropertyIsSet(String property) {
+    verifyNonReservedProperty(property, "Cannot set reserved property: '%s'");
   }
 
   @Override

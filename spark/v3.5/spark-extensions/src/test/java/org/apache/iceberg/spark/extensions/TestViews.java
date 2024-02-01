@@ -994,7 +994,7 @@ public class TestViews extends SparkExtensionsTestBase {
         viewName, tableName);
 
     View view = viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName));
-    assertThat(view.properties()).containsEntry("queryColumnNames", "id,data");
+    assertThat(view.properties()).containsEntry("spark.query-column-names", "id,data");
 
     assertThat(view.schema().columns()).hasSize(2);
     Types.NestedField first = view.schema().columns().get(0);
@@ -1404,14 +1404,15 @@ public class TestViews extends SparkExtensionsTestBase {
     assertThatThrownBy(
             () -> sql("ALTER VIEW %s SET TBLPROPERTIES ('format-version' = '99')", viewName))
         .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining(
-            "Cannot specify 'format-version' because it's a reserved view property");
+        .hasMessageContaining("Cannot set reserved property: 'format-version'");
 
     assertThatThrownBy(
-            () -> sql("ALTER VIEW %s SET TBLPROPERTIES ('queryColumnNames' = 'a,b,c')", viewName))
+            () ->
+                sql(
+                    "ALTER VIEW %s SET TBLPROPERTIES ('spark.query-column-names' = 'a,b,c')",
+                    viewName))
         .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining(
-            "Cannot specify 'queryColumnNames' because it's a reserved view property");
+        .hasMessageContaining("Cannot set reserved property: 'spark.query-column-names'");
   }
 
   @Test
@@ -1442,7 +1443,7 @@ public class TestViews extends SparkExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("ALTER VIEW %s UNSET TBLPROPERTIES ('unknown-key')", viewName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("Attempted to unset non-existing property 'unknown-key'");
+        .hasMessageContaining("Cannot remove property that is not set: 'unknown-key'");
 
     assertThatNoException()
         .isThrownBy(
@@ -1467,20 +1468,22 @@ public class TestViews extends SparkExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("ALTER VIEW %s UNSET TBLPROPERTIES ('format-version')", viewName))
         .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining(
-            "Cannot specify 'format-version' because it's a reserved view property");
+        .hasMessageContaining("Cannot unset reserved property: 'format-version'");
 
-    // queryColumnNames is only used internally, so it technically doesn't exist on a Spark VIEW
+    // spark.query-column-names is only used internally, so it technically doesn't exist on a Spark
+    // VIEW
     assertThatThrownBy(
-            () -> sql("ALTER VIEW %s UNSET TBLPROPERTIES ('queryColumnNames')", viewName))
+            () -> sql("ALTER VIEW %s UNSET TBLPROPERTIES ('spark.query-column-names')", viewName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("Attempted to unset non-existing property 'queryColumnNames'");
+        .hasMessageContaining("Cannot remove property that is not set: 'spark.query-column-names'");
 
     assertThatThrownBy(
-            () -> sql("ALTER VIEW %s UNSET TBLPROPERTIES IF EXISTS ('queryColumnNames')", viewName))
+            () ->
+                sql(
+                    "ALTER VIEW %s UNSET TBLPROPERTIES IF EXISTS ('spark.query-column-names')",
+                    viewName))
         .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining(
-            "Cannot specify 'queryColumnNames' because it's a reserved view property");
+        .hasMessageContaining("Cannot unset reserved property: 'spark.query-column-names'");
   }
 
   private void insertRows(int numRows) throws NoSuchTableException {
