@@ -118,4 +118,9 @@ public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
    * @return this for method chaining
    */
   ExpireSnapshots cleanExpiredFiles(boolean clean);
+
+  /** Returns number of expired snapshots */
+  default long expiredSnapshotsCount() {
+    return 0L;
+  }
 }

@@ -79,6 +79,7 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   private Consumer<String> deleteFunc = null;
   private ExecutorService deleteExecutorService = null;
   private Dataset<FileInfo> expiredFileDS = null;
+  private long expiredSnapshotsCount = 0;
 
   ExpireSnapshotsSparkAction(SparkSession spark, Table table) {
     super(spark);
@@ -159,6 +160,8 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
       }
 
       expireSnapshots.cleanExpiredFiles(false).commit();
+
+      this.expiredSnapshotsCount = expireSnapshots.expiredSnapshotsCount();
 
       // fetch valid files after expiration
       TableMetadata updatedMetadata = ops.refresh();
@@ -259,6 +262,7 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
     LOG.info("Deleted {} total files", summary.totalFilesCount());
 
     return ImmutableExpireSnapshots.Result.builder()
+        .deletedSnapshotsCount(expiredSnapshotsCount)
         .deletedDataFilesCount(summary.dataFilesCount())
         .deletedPositionDeleteFilesCount(summary.positionDeleteFilesCount())
         .deletedEqualityDeleteFilesCount(summary.equalityDeleteFilesCount())

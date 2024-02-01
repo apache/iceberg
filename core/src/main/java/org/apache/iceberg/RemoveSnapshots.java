@@ -85,6 +85,8 @@ class RemoveSnapshots implements ExpireSnapshots {
   private ExecutorService planExecutorService = ThreadPools.getWorkerPool();
   private Boolean incrementalCleanup;
 
+  private Set<Snapshot> expiredSnapshots;
+
   RemoveSnapshots(TableOperations ops) {
     this.ops = ops;
     this.base = ops.current();
@@ -104,6 +106,8 @@ class RemoveSnapshots implements ExpireSnapshots {
 
     this.defaultMaxRefAgeMs =
         PropertyUtil.propertyAsLong(base.properties(), MAX_REF_AGE_MS, MAX_REF_AGE_MS_DEFAULT);
+
+    this.expiredSnapshots = Sets.newHashSet();
   }
 
   @Override
@@ -159,11 +163,8 @@ class RemoveSnapshots implements ExpireSnapshots {
 
   @Override
   public List<Snapshot> apply() {
-    TableMetadata updated = internalApply();
-    List<Snapshot> removed = Lists.newArrayList(base.snapshots());
-    removed.removeAll(updated.snapshots());
-
-    return removed;
+    internalApply();
+    return Lists.newArrayList(expiredSnapshots);
   }
 
   private TableMetadata internalApply() {
@@ -207,7 +208,10 @@ class RemoveSnapshots implements ExpireSnapshots {
         .forEach(idsToRemove::add);
     updatedMetaBuilder.removeSnapshots(idsToRemove);
 
-    return updatedMetaBuilder.build();
+    TableMetadata updated = updatedMetaBuilder.build();
+    expiredSnapshots.addAll(base.snapshots());
+    updated.snapshots().forEach(expiredSnapshots::remove);
+    return updated;
   }
 
   private Map<String, SnapshotRef> computeRetainedRefs(Map<String, SnapshotRef> refs) {
@@ -311,6 +315,11 @@ class RemoveSnapshots implements ExpireSnapshots {
     if (cleanExpiredFiles) {
       cleanExpiredSnapshots();
     }
+  }
+
+  @Override
+  public long expiredSnapshotsCount() {
+    return expiredSnapshots.size();
   }
 
   ExpireSnapshots withIncrementalCleanup(boolean useIncrementalCleanup) {
