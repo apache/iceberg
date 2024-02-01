@@ -148,6 +148,71 @@ t.newAppend().appendFile(data).commit();
 t.commitTransaction();
 ```
 
+### Writing Data
+
+The Java API can be used to write data into Iceberg tables
+
+The following example will demonstrate how to write data files into Iceberg tables
+
+The structure of this table is the same as the demo table in java-api-quickstart
+
+```java
+/**
+ * Schema schema = new Schema(
+ *       Types.NestedField.required(1, "level", Types.StringType.get()),
+ *       Types.NestedField.required(2, "event_time", Types.TimestampType.withZone()),
+ *       Types.NestedField.required(3, "message", Types.StringType.get()),
+ *       Types.NestedField.optional(4, "call_stack", Types.ListType.ofRequired(5, Types.StringType.get()))
+ *   );
+ * PartitionSpec spec = PartitionSpec.builderFor(schema)
+ *       .hour("event_time")
+ *       .identity("level")
+ *       .build();
+ */
+
+GenericAppenderFactory appenderFactory =
+    new GenericAppenderFactory(table.schema(), table.spec());
+
+FileFormat fileFormat =
+    FileFormat.valueOf(
+        table.properties().getOrDefault("write.format.default", "parquet").toUpperCase());
+
+int partitionId = 1;
+int taskId = 1;
+OutputFileFactory outputFileFactory =
+    OutputFileFactory.builderFor(table, partitionId, taskId).format(fileFormat).build();
+
+// TaskWriter write records into file. (the same is ok for unpartition table)
+long targetFileSizeInBytes = 50L * 1024 * 1024;
+GenericTaskWriter<Record> genericTaskWriter =
+    new GenericTaskWriter(
+        table.spec(),
+        fileFormat,
+        appenderFactory,
+        outputFileFactory,
+        table.io(),
+        targetFileSizeInBytes);
+
+GenericRecord genericRecord = GenericRecord.create(table.schema());
+// Write 1000 records
+for (int i = 0; i < 1000; i++) {
+    GenericRecord record = genericRecord.copy();
+    record.setField("level", i % 6 == 0 ? "error" : "info");
+    record.setField("event_time", OffsetDateTime.now());
+    record.setField("message", "Iceberg is a great table format");
+    record.setField("call_stack", Collections.singletonList("NullPointerException"));
+    genericTaskWriter.write(record);
+}
+
+// Call the AppendFiles API on each of the data files
+AppendFiles appendFiles = table.newAppend();
+for (DataFile dataFile : genericTaskWriter.dataFiles()) {
+    appendFiles.appendFile(dataFile);
+}
+// Commit the AppendFiles operation
+appendFiles.commit();
+```
+
 ## Types
 
 Iceberg data types are located in the [`org.apache.iceberg.types` package](../../../javadoc/{{% icebergVersion %}}/index.html?org/apache/iceberg/types/package-summary.html).
