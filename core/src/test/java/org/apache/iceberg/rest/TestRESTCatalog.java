@@ -1851,6 +1851,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             });
   }
 
+  @Test
   public void testCatalogTokenRefreshDisabledWithToken() {
     String token = "some-token";
     Map<String, String> catalogHeaders = ImmutableMap.of("Authorization", "Bearer " + token);
