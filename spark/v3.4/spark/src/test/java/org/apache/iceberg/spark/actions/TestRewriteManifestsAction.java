@@ -38,10 +38,15 @@ import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileMetadata;
+import org.apache.iceberg.Files;
+import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestWriter;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StructLike;
@@ -49,6 +54,9 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.actions.RewriteManifests;
+import org.apache.iceberg.data.FileHelpers;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.OutputFile;
@@ -61,6 +69,8 @@ import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.CharSequenceSet;
+import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -649,6 +659,255 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     assertThat(manifests).hasSizeGreaterThanOrEqualTo(2);
   }
 
+  @Test
+  public void testRewriteSmallDeleteManifestsNonPartitionedTable() throws IOException {
+    assumeThat(formatVersion).isGreaterThan(1);
+
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
+    options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
+
+    // commit data records
+    List<ThreeColumnRecord> records =
+        Lists.newArrayList(
+            new ThreeColumnRecord(1, null, "AAAA"),
+            new ThreeColumnRecord(2, "BBBBBBBBBB", "BBBB"),
+            new ThreeColumnRecord(3, "CCCCCCCCCC", "CCCC"),
+            new ThreeColumnRecord(4, "DDDDDDDDDD", "DDDD"));
+    writeRecords(records);
+
+    // commit a position delete file to remove records where c1 = 1 OR c1 = 2
+    List<Pair<CharSequence, Long>> posDeletes = generatePosDeletes("c1 = 1 OR c1 = 2");
+    Pair<DeleteFile, CharSequenceSet> posDeleteWriteResult = writePosDeletes(table, posDeletes);
+    table
+        .newRowDelta()
+        .addDeletes(posDeleteWriteResult.first())
+        .validateDataFilesExist(posDeleteWriteResult.second())
+        .commit();
+
+    // commit an equality delete file to remove all records where c1 = 3
+    DeleteFile eqDeleteFile = writeEqDeletes(table, "c1", 3);
+    table.newRowDelta().addDeletes(eqDeleteFile).commit();
+
+    // the current snapshot should contain 1 data manifest and 2 delete manifests
+    List<ManifestFile> originalManifests = table.currentSnapshot().allManifests(table.io());
+    assertThat(originalManifests).hasSize(3);
+
+    SparkActions actions = SparkActions.get();
+
+    RewriteManifests.Result result =
+        actions
+            .rewriteManifests(table)
+            .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
+            .execute();
+
+    // the original delete manifests must be combined
+    assertThat(result.rewrittenManifests())
+        .hasSize(2)
+        .allMatch(m -> m.content() == ManifestContent.DELETES);
+    assertThat(result.addedManifests())
+        .hasSize(1)
+        .allMatch(m -> m.content() == ManifestContent.DELETES);
+    assertManifestsLocation(result.addedManifests());
+
+    // the new delete manifest must only contain files with status EXISTING
+    ManifestFile deleteManifest =
+        Iterables.getOnlyElement(table.currentSnapshot().deleteManifests(table.io()));
+    assertThat(deleteManifest.existingFilesCount()).isEqualTo(2);
+    assertThat(deleteManifest.hasAddedFiles()).isFalse();
+    assertThat(deleteManifest.hasDeletedFiles()).isFalse();
+
+    // the preserved data manifest must only contain files with status ADDED
+    ManifestFile dataManifest =
+        Iterables.getOnlyElement(table.currentSnapshot().dataManifests(table.io()));
+    assertThat(dataManifest.hasExistingFiles()).isFalse();
+    assertThat(dataManifest.hasAddedFiles()).isTrue();
+    assertThat(dataManifest.hasDeletedFiles()).isFalse();
+
+    // the table must produce expected records after the rewrite
+    List<ThreeColumnRecord> expectedRecords =
+        Lists.newArrayList(new ThreeColumnRecord(4, "DDDDDDDDDD", "DDDD"));
+    assertThat(actualRecords()).isEqualTo(expectedRecords);
+  }
+
+  @Test
+  public void testRewriteSmallDeleteManifestsPartitionedTable() throws IOException {
+    assumeThat(formatVersion).isGreaterThan(1);
+
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c3").build();
+    Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
+    options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
+    options.put(TableProperties.MANIFEST_MERGE_ENABLED, "false");
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
+
+    // commit data records
+    List<ThreeColumnRecord> records =
+        Lists.newArrayList(
+            new ThreeColumnRecord(1, null, "AAAA"),
+            new ThreeColumnRecord(2, "BBBBBBBBBB", "BBBB"),
+            new ThreeColumnRecord(3, "CCCCCCCCCC", "CCCC"),
+            new ThreeColumnRecord(4, "DDDDDDDDDD", "DDDD"),
+            new ThreeColumnRecord(5, "EEEEEEEEEE", "EEEE"));
+    writeRecords(records);
+
+    // commit the first position delete file to remove records where c1 = 1
+    List<Pair<CharSequence, Long>> posDeletes1 = generatePosDeletes("c1 = 1");
+    Pair<DeleteFile, CharSequenceSet> posDeleteWriteResult1 =
+        writePosDeletes(table, TestHelpers.Row.of("AAAA"), posDeletes1);
+    table
+        .newRowDelta()
+        .addDeletes(posDeleteWriteResult1.first())
+        .validateDataFilesExist(posDeleteWriteResult1.second())
+        .commit();
+
+    // commit the second position delete file to remove records where c1 = 2
+    List<Pair<CharSequence, Long>> posDeletes2 = generatePosDeletes("c1 = 2");
+    Pair<DeleteFile, CharSequenceSet> positionDeleteWriteResult2 =
+        writePosDeletes(table, TestHelpers.Row.of("BBBB"), posDeletes2);
+    table
+        .newRowDelta()
+        .addDeletes(positionDeleteWriteResult2.first())
+        .validateDataFilesExist(positionDeleteWriteResult2.second())
+        .commit();
+
+    // commit the first equality delete file to remove records where c1 = 3
+    DeleteFile eqDeleteFile1 = writeEqDeletes(table, TestHelpers.Row.of("CCCC"), "c1", 3);
+    table.newRowDelta().addDeletes(eqDeleteFile1).commit();
+
+    // commit the second equality delete file to remove records where c1 = 4
+    DeleteFile eqDeleteFile2 = writeEqDeletes(table, TestHelpers.Row.of("DDDD"), "c1", 4);
+    table.newRowDelta().addDeletes(eqDeleteFile2).commit();
+
+    // the table must have 1 data manifest and 4 delete manifests
+    List<ManifestFile> originalManifests = table.currentSnapshot().allManifests(table.io());
+    assertThat(originalManifests).hasSize(5);
+
+    // set the target manifest size to have 2 manifests with 2 entries in each after the rewrite
+    List<ManifestFile> originalDeleteManifests =
+        table.currentSnapshot().deleteManifests(table.io());
+    long manifestEntrySizeBytes = computeManifestEntrySizeBytes(originalDeleteManifests);
+    long targetManifestSizeBytes = (long) (1.05 * 2 * manifestEntrySizeBytes);
+
+    table
+        .updateProperties()
+        .set(TableProperties.MANIFEST_TARGET_SIZE_BYTES, String.valueOf(targetManifestSizeBytes))
+        .commit();
+
+    SparkActions actions = SparkActions.get();
+
+    RewriteManifests.Result result =
+        actions
+            .rewriteManifests(table)
+            .rewriteIf(manifest -> manifest.content() == ManifestContent.DELETES)
+            .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
+            .execute();
+
+    // the original 4 delete manifests must be replaced with 2 new delete manifests
+    assertThat(result.rewrittenManifests())
+        .hasSize(4)
+        .allMatch(m -> m.content() == ManifestContent.DELETES);
+    assertThat(result.addedManifests())
+        .hasSize(2)
+        .allMatch(m -> m.content() == ManifestContent.DELETES);
+    assertManifestsLocation(result.addedManifests());
+
+    List<ManifestFile> deleteManifests = table.currentSnapshot().deleteManifests(table.io());
+    assertThat(deleteManifests).hasSize(2);
+
+    // the first new delete manifest must only contain files with status EXISTING
+    ManifestFile deleteManifest1 = deleteManifests.get(0);
+    assertThat(deleteManifest1.existingFilesCount()).isEqualTo(2);
+    assertThat(deleteManifest1.hasAddedFiles()).isFalse();
+    assertThat(deleteManifest1.hasDeletedFiles()).isFalse();
+
+    // the second new delete manifest must only contain files with status EXISTING
+    ManifestFile deleteManifest2 = deleteManifests.get(1);
+    assertThat(deleteManifest2.existingFilesCount()).isEqualTo(2);
+    assertThat(deleteManifest2.hasAddedFiles()).isFalse();
+    assertThat(deleteManifest2.hasDeletedFiles()).isFalse();
+
+    // the table must produce expected records after the rewrite
+    List<ThreeColumnRecord> expectedRecords =
+        Lists.newArrayList(new ThreeColumnRecord(5, "EEEEEEEEEE", "EEEE"));
+    assertThat(actualRecords()).isEqualTo(expectedRecords);
+  }
+
+  @Test
+  public void testRewriteLargeDeleteManifestsPartitionedTable() throws IOException {
+    assumeThat(formatVersion).isGreaterThan(1);
+
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c3").build();
+    Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
+    options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
+
+    // generate enough delete files to have a reasonably sized manifest
+    List<DeleteFile> deleteFiles = Lists.newArrayList();
+    for (int fileOrdinal = 0; fileOrdinal < 1000; fileOrdinal++) {
+      DeleteFile deleteFile = newDeleteFile(table, "c3=" + fileOrdinal);
+      deleteFiles.add(deleteFile);
+    }
+
+    // commit delete files
+    RowDelta rowDelta = table.newRowDelta();
+    for (DeleteFile deleteFile : deleteFiles) {
+      rowDelta.addDeletes(deleteFile);
+    }
+    rowDelta.commit();
+
+    // the current snapshot should contain only 1 delete manifest
+    List<ManifestFile> originalDeleteManifests =
+        table.currentSnapshot().deleteManifests(table.io());
+    ManifestFile originalDeleteManifest = Iterables.getOnlyElement(originalDeleteManifests);
+
+    // set the target manifest size to a small value to force splitting records into multiple files
+    table
+        .updateProperties()
+        .set(
+            TableProperties.MANIFEST_TARGET_SIZE_BYTES,
+            String.valueOf(originalDeleteManifest.length() / 2))
+        .commit();
+
+    SparkActions actions = SparkActions.get();
+
+    String stagingLocation = temp.newFolder().toString();
+
+    RewriteManifests.Result result =
+        actions
+            .rewriteManifests(table)
+            .rewriteIf(manifest -> true)
+            .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
+            .stagingLocation(stagingLocation)
+            .execute();
+
+    // the action must rewrite the original delete manifest and add at least 2 new ones
+    assertThat(result.rewrittenManifests())
+        .hasSize(1)
+        .allMatch(m -> m.content() == ManifestContent.DELETES);
+    assertThat(result.addedManifests())
+        .hasSizeGreaterThanOrEqualTo(2)
+        .allMatch(m -> m.content() == ManifestContent.DELETES);
+    assertManifestsLocation(result.addedManifests(), stagingLocation);
+
+    // the current snapshot must return the correct number of delete manifests
+    List<ManifestFile> deleteManifests = table.currentSnapshot().deleteManifests(table.io());
+    assertThat(deleteManifests).hasSizeGreaterThanOrEqualTo(2);
+  }
+
+  private List<ThreeColumnRecord> actualRecords() {
+    return spark
+        .read()
+        .format("iceberg")
+        .load(tableLocation)
+        .as(Encoders.bean(ThreeColumnRecord.class))
+        .sort("c1", "c2", "c3")
+        .collectAsList();
+  }
+
   private void writeRecords(List<ThreeColumnRecord> records) {
     Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class);
     writeDF(df);
@@ -720,5 +979,64 @@ public class TestRewriteManifestsAction extends SparkTestBase {
         .withPath("/path/to/data-" + UUID.randomUUID() + ".parquet")
         .withFileSizeInBytes(10)
         .withRecordCount(1);
+  }
+
+  private DeleteFile newDeleteFile(Table table, String partitionPath) {
+    return FileMetadata.deleteFileBuilder(table.spec())
+        .ofPositionDeletes()
+        .withPath("/path/to/pos-deletes-" + UUID.randomUUID() + ".parquet")
+        .withFileSizeInBytes(5)
+        .withPartitionPath(partitionPath)
+        .withRecordCount(1)
+        .build();
+  }
+
+  private List<Pair<CharSequence, Long>> generatePosDeletes(String predicate) {
+    List<Row> rows =
+        spark
+            .read()
+            .format("iceberg")
+            .load(tableLocation)
+            .selectExpr("_file", "_pos")
+            .where(predicate)
+            .collectAsList();
+
+    List<Pair<CharSequence, Long>> deletes = Lists.newArrayList();
+
+    for (Row row : rows) {
+      deletes.add(Pair.of(row.getString(0), row.getLong(1)));
+    }
+
+    return deletes;
+  }
+
+  private Pair<DeleteFile, CharSequenceSet> writePosDeletes(
+      Table table, List<Pair<CharSequence, Long>> deletes) throws IOException {
+    return writePosDeletes(table, null, deletes);
+  }
+
+  private Pair<DeleteFile, CharSequenceSet> writePosDeletes(
+      Table table, StructLike partition, List<Pair<CharSequence, Long>> deletes)
+      throws IOException {
+    OutputFile outputFile = Files.localOutput(temp.newFile());
+    return FileHelpers.writeDeleteFile(table, outputFile, partition, deletes);
+  }
+
+  private DeleteFile writeEqDeletes(Table table, String key, Object... values) throws IOException {
+    return writeEqDeletes(table, null, key, values);
+  }
+
+  private DeleteFile writeEqDeletes(Table table, StructLike partition, String key, Object... values)
+      throws IOException {
+    List<Record> deletes = Lists.newArrayList();
+    Schema deleteSchema = table.schema().select(key);
+    Record delete = GenericRecord.create(deleteSchema);
+
+    for (Object value : values) {
+      deletes.add(delete.copy(key, value));
+    }
+
+    OutputFile outputFile = Files.localOutput(temp.newFile());
+    return FileHelpers.writeDeleteFile(table, outputFile, partition, deletes, deleteSchema);
   }
 }
