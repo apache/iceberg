@@ -20,8 +20,10 @@
 package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.AnalysisException
+import org.apache.spark.sql.catalyst.plans.logical.AlterViewAs
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.views.CreateIcebergView
+import org.apache.spark.sql.catalyst.plans.logical.views.ResolvedV2View
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.ViewCatalog
 import org.apache.spark.sql.internal.SQLConf
@@ -35,6 +37,9 @@ object CheckViews extends (LogicalPlan => Unit) {
       _, _, _, _, _, _) =>
         verifyColumnCount(ident, columnAliases, query)
         SchemaUtils.checkColumnNameDuplication(query.schema.fieldNames, SQLConf.get.resolver)
+
+      case AlterViewAs(ResolvedV2View(_, _), _, _) =>
+        throw new AnalysisException("ALTER VIEW <viewName> AS is not supported. Use CREATE OR REPLACE VIEW instead")
 
       case _ => // OK
     }
