@@ -21,6 +21,7 @@ package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.catalyst.analysis.ViewUtil.IcebergViewHelper
 import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
 import org.apache.spark.sql.catalyst.plans.logical.CreateView
 import org.apache.spark.sql.catalyst.plans.logical.DropView
@@ -33,10 +34,8 @@ import org.apache.spark.sql.catalyst.plans.logical.views.ResolvedV2View
 import org.apache.spark.sql.catalyst.plans.logical.views.ShowIcebergViews
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.connector.catalog.CatalogManager
-import org.apache.spark.sql.connector.catalog.CatalogPlugin
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.LookupCatalog
-import org.apache.spark.sql.connector.catalog.ViewCatalog
 
 /**
  * ResolveSessionCatalog exits early for some v2 View commands,
@@ -47,10 +46,10 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
   protected lazy val catalogManager: CatalogManager = spark.sessionState.catalogManager
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan.resolveOperatorsUp {
-    case DropView(ResolvedView(resolved), ifExists) =>
+    case DropView(ResolvedIdent(resolved), ifExists) =>
       DropIcebergView(resolved, ifExists)
 
-    case CreateView(ResolvedView(resolved), userSpecifiedColumns, comment, properties,
+    case CreateView(ResolvedIdent(resolved), userSpecifiedColumns, comment, properties,
     Some(queryText), query, allowExisting, replace) =>
       val q = CTESubstitution.apply(query)
       verifyTemporaryObjectsDontExist(resolved.identifier, q)
@@ -64,28 +63,32 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
         allowExisting = allowExisting,
         replace = replace)
 
-    case ShowViews(UnresolvedNamespace(Seq()), pattern, output) if isViewCatalog(catalogManager.currentCatalog) =>
+    case ShowViews(UnresolvedNamespace(Seq()), pattern, output)
+      if ViewUtil.isViewCatalog(catalogManager.currentCatalog) =>
       ShowIcebergViews(ResolvedNamespace(catalogManager.currentCatalog, Seq.empty), pattern, output)
 
     case ShowViews(UnresolvedNamespace(CatalogAndNamespace(catalog, ns)), pattern, output)
-      if isViewCatalog(catalog) =>
+      if ViewUtil.isViewCatalog(catalog) =>
       ShowIcebergViews(ResolvedNamespace(catalog, ns), pattern, output)
+
+    // needs to be done here instead of in ResolveViews, so that a V2 view can be resolved before the Analyzer
+    // tries to resolve it, which would result in an error, saying that V2 views aren't supported
+    case u@UnresolvedView(ResolvedView(resolved), _, _, _) =>
+      ViewUtil.loadView(resolved.catalog, resolved.identifier)
+        .map(_ => ResolvedV2View(resolved.catalog.asViewCatalog, resolved.identifier))
+        .getOrElse(u)
   }
 
   private def isTempView(nameParts: Seq[String]): Boolean = {
     catalogManager.v1SessionCatalog.isTempView(nameParts)
   }
 
-  private def isViewCatalog(catalog: CatalogPlugin): Boolean = {
-    catalog.isInstanceOf[ViewCatalog]
-  }
-
-  object ResolvedView {
+  private object ResolvedIdent {
     def unapply(unresolved: UnresolvedIdentifier): Option[ResolvedIdentifier] = unresolved match {
       case UnresolvedIdentifier(nameParts, true) if isTempView(nameParts) =>
         None
 
-      case UnresolvedIdentifier(CatalogAndIdentifier(catalog, ident), _) if isViewCatalog(catalog) =>
+      case UnresolvedIdentifier(CatalogAndIdentifier(catalog, ident), _) if ViewUtil.isViewCatalog(catalog) =>
         Some(ResolvedIdentifier(catalog, ident))
 
       case _ =>
@@ -132,5 +135,18 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
     }
 
     collectTempViews(child)
+  }
+
+  private object ResolvedView {
+    def unapply(identifier: Seq[String]): Option[ResolvedV2View] = identifier match {
+      case nameParts if isTempView(nameParts) =>
+        None
+
+      case CatalogAndIdentifier(catalog, ident) if ViewUtil.isViewCatalog(catalog) =>
+        ViewUtil.loadView(catalog, ident).flatMap(_ => Some(ResolvedV2View(catalog.asViewCatalog, ident)))
+
+      case _ =>
+        None
+    }
   }
 }

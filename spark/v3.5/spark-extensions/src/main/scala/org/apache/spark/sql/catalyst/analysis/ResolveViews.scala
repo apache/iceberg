@@ -21,6 +21,7 @@ package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.FunctionIdentifier
+import org.apache.spark.sql.catalyst.analysis.ViewUtil.IcebergViewHelper
 import org.apache.spark.sql.catalyst.expressions.Alias
 import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
 import org.apache.spark.sql.catalyst.expressions.UpCast
@@ -34,11 +35,8 @@ import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.trees.CurrentOrigin
 import org.apache.spark.sql.catalyst.trees.Origin
 import org.apache.spark.sql.connector.catalog.CatalogManager
-import org.apache.spark.sql.connector.catalog.CatalogPlugin
-import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.LookupCatalog
 import org.apache.spark.sql.connector.catalog.View
-import org.apache.spark.sql.connector.catalog.ViewCatalog
 import org.apache.spark.sql.errors.QueryCompilationErrors
 import org.apache.spark.sql.types.MetadataBuilder
 
@@ -54,12 +52,12 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
       u
 
     case u@UnresolvedRelation(parts@CatalogAndIdentifier(catalog, ident), _, _) =>
-      loadView(catalog, ident)
+      ViewUtil.loadView(catalog, ident)
         .map(createViewRelation(parts, _))
         .getOrElse(u)
 
     case u@UnresolvedTableOrView(CatalogAndIdentifier(catalog, ident), _, _) =>
-      loadView(catalog, ident)
+      ViewUtil.loadView(catalog, ident)
         .map(_ => ResolvedV2View(catalog.asViewCatalog, ident))
         .getOrElse(u)
 
@@ -88,15 +86,6 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
     }
   }
 
-  def loadView(catalog: CatalogPlugin, ident: Identifier): Option[View] = catalog match {
-    case viewCatalog: ViewCatalog =>
-      try {
-        Option(viewCatalog.loadView(ident))
-      } catch {
-        case _: NoSuchViewException => None
-      }
-    case _ => None
-  }
 
   private def createViewRelation(nameParts: Seq[String], view: View): LogicalPlan = {
     val parsed = parseViewText(nameParts.quoted, view.query)
@@ -180,15 +169,5 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
 
   private def isBuiltinFunction(name: String): Boolean = {
     catalogManager.v1SessionCatalog.isBuiltinFunction(FunctionIdentifier(name))
-  }
-
-
-  implicit class IcebergViewHelper(plugin: CatalogPlugin) {
-    def asViewCatalog: ViewCatalog = plugin match {
-      case viewCatalog: ViewCatalog =>
-        viewCatalog
-      case _ =>
-        throw QueryCompilationErrors.missingCatalogAbilityError(plugin, "views")
-    }
   }
 }
