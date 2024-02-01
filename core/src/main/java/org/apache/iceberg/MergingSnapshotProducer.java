@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.TableProperties.MANIFEST_MERGE_COUNT_LIMIT;
+import static org.apache.iceberg.TableProperties.MANIFEST_MERGE_COUNT_LIMIT_DEFAULT;
 import static org.apache.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT;
 import static org.apache.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT_DEFAULT;
 import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES;
@@ -109,15 +111,18 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             .propertyAsLong(MANIFEST_TARGET_SIZE_BYTES, MANIFEST_TARGET_SIZE_BYTES_DEFAULT);
     int minCountToMerge =
         ops.current().propertyAsInt(MANIFEST_MIN_MERGE_COUNT, MANIFEST_MIN_MERGE_COUNT_DEFAULT);
+    int mergeCountLimit =
+        ops.current().propertyAsInt(MANIFEST_MERGE_COUNT_LIMIT, MANIFEST_MERGE_COUNT_LIMIT_DEFAULT);
     boolean mergeEnabled =
         ops.current()
             .propertyAsBoolean(
                 TableProperties.MANIFEST_MERGE_ENABLED,
                 TableProperties.MANIFEST_MERGE_ENABLED_DEFAULT);
-    this.mergeManager = new DataFileMergeManager(targetSizeBytes, minCountToMerge, mergeEnabled);
+    this.mergeManager =
+        new DataFileMergeManager(targetSizeBytes, minCountToMerge, mergeCountLimit, mergeEnabled);
     this.filterManager = new DataFileFilterManager();
     this.deleteMergeManager =
-        new DeleteFileMergeManager(targetSizeBytes, minCountToMerge, mergeEnabled);
+        new DeleteFileMergeManager(targetSizeBytes, minCountToMerge, mergeCountLimit, mergeEnabled);
     this.deleteFilterManager = new DeleteFileFilterManager();
   }
 
@@ -1045,9 +1050,14 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   private class DataFileMergeManager extends ManifestMergeManager<DataFile> {
-    DataFileMergeManager(long targetSizeBytes, int minCountToMerge, boolean mergeEnabled) {
+    DataFileMergeManager(
+        long targetSizeBytes, int minCountToMerge, int mergeCountLimit, boolean mergeEnabled) {
       super(
-          targetSizeBytes, minCountToMerge, mergeEnabled, MergingSnapshotProducer.this::workerPool);
+          targetSizeBytes,
+          minCountToMerge,
+          mergeCountLimit,
+          mergeEnabled,
+          MergingSnapshotProducer.this::workerPool);
     }
 
     @Override
@@ -1098,9 +1108,14 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   private class DeleteFileMergeManager extends ManifestMergeManager<DeleteFile> {
-    DeleteFileMergeManager(long targetSizeBytes, int minCountToMerge, boolean mergeEnabled) {
+    DeleteFileMergeManager(
+        long targetSizeBytes, int minCountToMerge, int mergeCountLimit, boolean mergeEnabled) {
       super(
-          targetSizeBytes, minCountToMerge, mergeEnabled, MergingSnapshotProducer.this::workerPool);
+          targetSizeBytes,
+          minCountToMerge,
+          mergeCountLimit,
+          mergeEnabled,
+          MergingSnapshotProducer.this::workerPool);
     }
 
     @Override

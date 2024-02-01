@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -42,19 +43,32 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
   private final long targetSizeBytes;
   private final int minCountToMerge;
   private final boolean mergeEnabled;
+  private final int mergeCountLimit;
 
   // cache merge results to reuse when retrying
   private final Map<List<ManifestFile>, ManifestFile> mergedManifests = Maps.newConcurrentMap();
 
   private final Supplier<ExecutorService> workerPoolSupplier;
 
+  /** @deprecated since 1.5.0, will be removed in 1.6.0 */
+  @Deprecated
   ManifestMergeManager(
       long targetSizeBytes,
       int minCountToMerge,
       boolean mergeEnabled,
       Supplier<ExecutorService> executorSupplier) {
+    this(targetSizeBytes, minCountToMerge, Integer.MAX_VALUE, mergeEnabled, executorSupplier);
+  }
+
+  ManifestMergeManager(
+      long targetSizeBytes,
+      int minCountToMerge,
+      int mergeCountLimit,
+      boolean mergeEnabled,
+      Supplier<ExecutorService> executorSupplier) {
     this.targetSizeBytes = targetSizeBytes;
     this.minCountToMerge = minCountToMerge;
+    this.mergeCountLimit = mergeCountLimit;
     this.mergeEnabled = mergeEnabled;
     this.workerPoolSupplier = executorSupplier;
   }
@@ -77,10 +91,11 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
 
     ManifestFile first = manifestIter.next();
 
+    AtomicInteger mergeLimit = new AtomicInteger(mergeCountLimit);
     List<ManifestFile> merged = Lists.newArrayList();
     ListMultimap<Integer, ManifestFile> groups = groupBySpec(first, manifestIter);
     for (Integer specId : groups.keySet()) {
-      Iterables.addAll(merged, mergeGroup(first, specId, groups.get(specId)));
+      Iterables.addAll(merged, mergeGroup(first, specId, groups.get(specId), mergeLimit));
     }
 
     return merged;
@@ -114,7 +129,11 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
 
   @SuppressWarnings("unchecked")
   private Iterable<ManifestFile> mergeGroup(
-      ManifestFile first, int specId, List<ManifestFile> group) {
+      ManifestFile first, int specId, List<ManifestFile> group, AtomicInteger mergeLimit) {
+    if (mergeLimit.get() <= 0) {
+      return group;
+    }
+
     // use a lookback of 1 to avoid reordering the manifests. using 1 also means this should pack
     // from the end so that the manifest that gets under-filled is the first one, which will be
     // merged the next time.
@@ -148,11 +167,13 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
               // if the number of manifests is above the minimum count. this is applied only to bins
               // with an in-memory
               // manifest so that large manifests don't prevent merging older groups.
-              if (bin.contains(first) && bin.size() < minCountToMerge) {
+              if ((bin.contains(first) && bin.size() < minCountToMerge)
+                  || bin.size() > mergeLimit.get()) {
                 // not enough to merge, add all manifest files to the output list
                 outputManifests.addAll(bin);
               } else {
                 // merge the group
+                mergeLimit.addAndGet(-1 * bin.size());
                 outputManifests.add(createManifest(specId, bin));
               }
             });
