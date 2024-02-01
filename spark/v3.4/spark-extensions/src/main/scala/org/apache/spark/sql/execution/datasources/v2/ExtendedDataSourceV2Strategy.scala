@@ -48,9 +48,11 @@ import org.apache.spark.sql.catalyst.plans.logical.RenameTable
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceIcebergData
 import org.apache.spark.sql.catalyst.plans.logical.ReplacePartitionField
 import org.apache.spark.sql.catalyst.plans.logical.SetIdentifierFields
+import org.apache.spark.sql.catalyst.plans.logical.SetViewProperties
 import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering
 import org.apache.spark.sql.catalyst.plans.logical.ShowCreateTable
 import org.apache.spark.sql.catalyst.plans.logical.ShowTableProperties
+import org.apache.spark.sql.catalyst.plans.logical.UnsetViewProperties
 import org.apache.spark.sql.catalyst.plans.logical.UpdateRows
 import org.apache.spark.sql.catalyst.plans.logical.WriteIcebergDelta
 import org.apache.spark.sql.catalyst.plans.logical.views.CreateIcebergView
@@ -166,6 +168,12 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
 
     case ShowCreateTable(ResolvedV2View(catalog, ident), _, output) =>
       ShowCreateV2ViewExec(output, catalog.loadView(ident)) :: Nil
+
+    case SetViewProperties(ResolvedV2View(catalog, ident), properties) =>
+      AlterV2ViewSetPropertiesExec(catalog, ident, properties) :: Nil
+
+    case UnsetViewProperties(ResolvedV2View(catalog, ident), propertyKeys, ifExists) =>
+      AlterV2ViewUnsetPropertiesExec(catalog, ident, propertyKeys, ifExists) :: Nil
 
     case _ => Nil
   }
