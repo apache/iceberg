@@ -53,6 +53,13 @@ public interface RewriteDataFiles
   int PARTIAL_PROGRESS_MAX_COMMITS_DEFAULT = 10;
 
   /**
+   * The maximum amount of failed commits that this rewrite is allowed if partial progress is
+   * enabled. By default, all commits are allowed to fail. This setting has no effect if partial
+   * progress is disabled.
+   */
+  String PARTIAL_PROGRESS_MAX_FAILED_COMMITS = "partial-progress.max-failed-commits";
+
+  /**
    * The entire rewrite operation is broken down into pieces based on partitioning and within
    * partitions based on size into groups. These sub-units of the rewrite are referred to as file
    * groups. The largest amount of data that should be compacted in a single group is controlled by
