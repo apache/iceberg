@@ -18,9 +18,17 @@
  */
 package org.apache.iceberg.flink;
 
+import static org.apache.flink.table.api.DataTypes.FIELD;
+import static org.apache.flink.table.api.DataTypes.ROW;
+
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import org.apache.flink.table.api.DataTypes;
+import org.apache.flink.table.api.TableColumn;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.catalog.CatalogTable;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.utils.TypeConversions;
@@ -66,6 +74,42 @@ public class FlinkSchemaUtil {
 
     Schema iSchema = new Schema(converted.asStructType().fields());
     return freshIdentifierFieldIds(iSchema, schema);
+  }
+
+  /** Convert the flink table schema to apache iceberg schema with column comment. */
+  public static Schema convert(TableSchema schema, Map<String, String> columnComments) {
+    List<TableColumn> tableColumns = schema.getTableColumns();
+    // copy from org.apache.flink.table.api.Schema#toRowDataType
+    DataTypes.Field[] fields =
+        tableColumns.stream()
+            .map(
+                column -> {
+                  String columnComment = columnComments.get(column.getName());
+                  if (columnComment != null) {
+                    return FIELD(column.getName(), column.getType(), columnComment);
+                  } else {
+                    return FIELD(column.getName(), column.getType());
+                  }
+                })
+            .toArray(DataTypes.Field[]::new);
+
+    LogicalType schemaType = ROW(fields).notNull().getLogicalType();
+    Preconditions.checkArgument(
+        schemaType instanceof RowType, "Schema logical type should be RowType.");
+
+    RowType root = (RowType) schemaType;
+    Type converted = root.accept(new FlinkTypeToType(root));
+    Schema iSchema = new Schema(converted.asStructType().fields());
+    return freshIdentifierFieldIds(iSchema, schema);
+  }
+
+  public static Map<String, String> getColumnComments(CatalogTable catalogTable) {
+    return catalogTable.getUnresolvedSchema().getColumns().stream()
+        .filter(c -> c.getComment().isPresent())
+        .collect(
+            Collectors.toMap(
+                org.apache.flink.table.api.Schema.UnresolvedColumn::getName,
+                c -> c.getComment().get()));
   }
 
   private static Schema freshIdentifierFieldIds(Schema iSchema, TableSchema schema) {

@@ -397,8 +397,14 @@ public class FlinkCatalog extends AbstractCatalog {
   void createIcebergTable(ObjectPath tablePath, CatalogBaseTable table, boolean ignoreIfExists)
       throws CatalogException, TableAlreadyExistException {
     validateFlinkTable(table);
+    Schema icebergSchema;
+    if (table instanceof CatalogTable) {
+      Map<String, String> columnComments = FlinkSchemaUtil.getColumnComments((CatalogTable) table);
+      icebergSchema = FlinkSchemaUtil.convert(table.getSchema(), columnComments);
+    } else {
+      icebergSchema = FlinkSchemaUtil.convert(table.getSchema());
+    }
 
-    Schema icebergSchema = FlinkSchemaUtil.convert(table.getSchema());
     PartitionSpec spec = toPartitionSpec(((CatalogTable) table).getPartitionKeys(), icebergSchema);
 
     ImmutableMap.Builder<String, String> properties = ImmutableMap.builder();

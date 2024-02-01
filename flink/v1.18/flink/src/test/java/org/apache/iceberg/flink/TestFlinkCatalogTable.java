@@ -227,6 +227,19 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testCreateTableWithColumnComment() {
+    sql("CREATE TABLE tl(id BIGINT COMMENT 'comment - id', data STRING COMMENT 'comment - data')");
+
+    Table table = table("tl");
+    assertThat(table.schema().asStruct())
+        .isEqualTo(
+            new Schema(
+                    Types.NestedField.optional(1, "id", Types.LongType.get(), "comment - id"),
+                    Types.NestedField.optional(2, "data", Types.StringType.get(), "comment - data"))
+                .asStruct());
+  }
+
+  @TestTemplate
   public void testCreateTableWithFormatV2ThroughTableProperty() throws Exception {
     sql("CREATE TABLE tl(id BIGINT) WITH ('format-version'='2')");
 
@@ -307,13 +320,13 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
     assertThat(schemaBefore.asStruct())
         .isEqualTo(
             new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct());
-    sql("ALTER TABLE tl ADD (dt STRING)");
+    sql("ALTER TABLE tl ADD (dt STRING COMMENT 'comment for dt')");
     Schema schemaAfter1 = table("tl").schema();
     assertThat(schemaAfter1.asStruct())
         .isEqualTo(
             new Schema(
                     Types.NestedField.optional(1, "id", Types.LongType.get()),
-                    Types.NestedField.optional(2, "dt", Types.StringType.get()))
+                    Types.NestedField.optional(2, "dt", Types.StringType.get(), "comment for dt"))
                 .asStruct());
     // Add multiple columns
     sql("ALTER TABLE tl ADD (col1 STRING, col2 BIGINT)");
@@ -322,7 +335,7 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
         .isEqualTo(
             new Schema(
                     Types.NestedField.optional(1, "id", Types.LongType.get()),
-                    Types.NestedField.optional(2, "dt", Types.StringType.get()),
+                    Types.NestedField.optional(2, "dt", Types.StringType.get(), "comment for dt"),
                     Types.NestedField.optional(3, "col1", Types.StringType.get()),
                     Types.NestedField.optional(4, "col2", Types.LongType.get()))
                 .asStruct());
