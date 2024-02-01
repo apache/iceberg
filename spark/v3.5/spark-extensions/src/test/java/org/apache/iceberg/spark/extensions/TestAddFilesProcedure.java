@@ -57,7 +57,6 @@ import org.junit.jupiter.api.io.TempDir;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-
 public class TestAddFilesProcedure extends ExtensionsTestBase {
 
   @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}, formatVersion = {3}")
@@ -86,15 +85,15 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
 
   @Parameter(index = 3)
   protected int formatVersion;
+
   private final String sourceTableName = "source_table";
   private File fileTableDir;
 
-  @TempDir
-  protected Path temp;
+  @TempDir protected Path temp;
 
   @BeforeEach
   public void setupTempDirs() {
-      fileTableDir = temp.toFile();
+    fileTableDir = temp.toFile();
   }
 
   @AfterEach
@@ -632,19 +631,18 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
     // TODO when this assert breaks Spark fixed the pushdown issue
     Assertions.assertThat(
             sql(
-                    "SELECT id, `naMe`, dept, subdept from %s WHERE `naMe` = 'John Doe' ORDER BY id",
-                    sourceTableName)
-    ).as("If this assert breaks it means that Spark has fixed the pushdown issue")
-            .hasSize(0);
+                "SELECT id, `naMe`, dept, subdept from %s WHERE `naMe` = 'John Doe' ORDER BY id",
+                sourceTableName))
+        .as("If this assert breaks it means that Spark has fixed the pushdown issue")
+        .hasSize(0);
 
     // Pushdown works for iceberg
     Assertions.assertThat(
             sql(
-                    "SELECT id, `naMe`, dept, subdept FROM %s WHERE `naMe` = 'John Doe' ORDER BY id",
-                    tableName)
-    ).as("We should be able to pushdown mixed case partition keys")
-                    .hasSize(2);
-
+                "SELECT id, `naMe`, dept, subdept FROM %s WHERE `naMe` = 'John Doe' ORDER BY id",
+                tableName))
+        .as("We should be able to pushdown mixed case partition keys")
+        .hasSize(2);
 
     assertEquals(
         "Iceberg table contains correct data",

@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
+
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import org.apache.iceberg.CatalogUtil;
@@ -34,8 +36,6 @@ import org.apache.spark.sql.internal.SQLConf;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
-
 @ExtendWith(ParameterizedTestExtension.class)
 public abstract class ExtensionsTestBase extends CatalogTestBase {
 
@@ -44,14 +44,13 @@ public abstract class ExtensionsTestBase extends CatalogTestBase {
   @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
   protected static Object[][] parameters() {
     return new Object[][] {
-            {
-                    SparkCatalogConfig.HADOOP.catalogName(),
-                    SparkCatalogConfig.HADOOP.implementation(),
-                    SparkCatalogConfig.HADOOP.properties()
-            },
+      {
+        SparkCatalogConfig.HADOOP.catalogName(),
+        SparkCatalogConfig.HADOOP.implementation(),
+        SparkCatalogConfig.HADOOP.properties()
+      },
     };
   }
-
 
   @BeforeAll
   public static void startMetastoreAndSpark() {
