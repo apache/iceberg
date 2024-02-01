@@ -102,12 +102,14 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     Assume.assumeFalse("HadoopCatalog does not support rename table", isHadoopCatalog);
 
     final Schema tableSchema =
-        new Schema(Types.NestedField.optional(0, "id", Types.LongType.get()));
+            new Schema(Types.NestedField.optional(0, "id", Types.LongType.get()));
     validationCatalog.createTable(TableIdentifier.of(icebergNamespace, "tl"), tableSchema);
     sql("ALTER TABLE tl RENAME TO tl2");
+
     Assertions.assertThatThrownBy(() -> getTableEnv().from("tl"))
-        .isInstanceOf(ValidationException.class)
-        .hasMessage("Table `tl` was not found.");
+            .isInstanceOf(ValidationException.class)
+            .hasMessage("Table `tl` was not found.");
+
     Schema actualSchema = FlinkSchemaUtil.convert(getTableEnv().from("tl2").getSchema());
     Assert.assertEquals(tableSchema.asStruct(), actualSchema.asStruct());
   }
