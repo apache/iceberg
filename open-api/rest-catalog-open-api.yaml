@@ -3225,7 +3225,6 @@ components:
         - snapshot-id
         - sequence-number
         - fields
-        - properties
       properties:
         type:
           type: string

@@ -606,7 +606,7 @@ class BlobMetadata(BaseModel):
     snapshot_id: int = Field(..., alias='snapshot-id')
     sequence_number: int = Field(..., alias='sequence-number')
     fields: List[int]
-    properties: Dict[str, Any]
+    properties: Optional[Dict[str, Any]] = None
 
 
 class CreateNamespaceRequest(BaseModel):
