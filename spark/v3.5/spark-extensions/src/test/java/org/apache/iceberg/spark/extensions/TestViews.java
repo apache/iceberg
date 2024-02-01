@@ -1549,6 +1549,45 @@ public class TestViews extends SparkExtensionsTestBase {
             "ALTER VIEW <viewName> AS is not supported. Use CREATE OR REPLACE VIEW instead");
   }
 
+  @Test
+  public void createOrReplaceViewKeepsViewHistory() {
+    String viewName = viewName("viewWithHistoryAfterReplace");
+    String sql = String.format("SELECT id, data FROM %s WHERE id <= 3", tableName);
+    String updatedSql = String.format("SELECT id FROM %s WHERE id > 3", tableName);
+
+    sql(
+        "CREATE VIEW %s (new_id COMMENT 'some ID', new_data COMMENT 'some data') AS %s",
+        viewName, sql);
+
+    View view = viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName));
+    assertThat(view.history()).hasSize(1);
+    assertThat(view.sqlFor("spark").sql()).isEqualTo(sql);
+    assertThat(view.currentVersion().versionId()).isEqualTo(1);
+    assertThat(view.currentVersion().schemaId()).isEqualTo(0);
+    assertThat(view.schemas()).hasSize(1);
+    assertThat(view.schema().asStruct())
+        .isEqualTo(
+            new Schema(
+                    Types.NestedField.optional(0, "new_id", Types.IntegerType.get(), "some ID"),
+                    Types.NestedField.optional(1, "new_data", Types.StringType.get(), "some data"))
+                .asStruct());
+
+    sql("CREATE OR REPLACE VIEW %s (updated_id COMMENT 'updated ID') AS %s", viewName, updatedSql);
+
+    view = viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName));
+    assertThat(view.history()).hasSize(2);
+    assertThat(view.sqlFor("spark").sql()).isEqualTo(updatedSql);
+    assertThat(view.currentVersion().versionId()).isEqualTo(2);
+    assertThat(view.currentVersion().schemaId()).isEqualTo(1);
+    assertThat(view.schemas()).hasSize(2);
+    assertThat(view.schema().asStruct())
+        .isEqualTo(
+            new Schema(
+                    Types.NestedField.optional(
+                        0, "updated_id", Types.IntegerType.get(), "updated ID"))
+                .asStruct());
+  }
+
   private void insertRows(int numRows) throws NoSuchTableException {
     List<SimpleRecord> records = Lists.newArrayListWithCapacity(numRows);
     for (int i = 1; i <= numRows; i++) {

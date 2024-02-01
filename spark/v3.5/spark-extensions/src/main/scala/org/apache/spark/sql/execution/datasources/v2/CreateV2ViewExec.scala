@@ -19,6 +19,7 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
+import org.apache.iceberg.spark.SupportsReplaceView
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.analysis.ViewAlreadyExistsException
 import org.apache.spark.sql.catalyst.expressions.Attribute
@@ -57,20 +58,34 @@ case class CreateV2ViewExec(
 
     if (replace) {
       // CREATE OR REPLACE VIEW
-      if (catalog.viewExists(ident)) {
-        catalog.dropView(ident)
+      catalog match {
+        case c: SupportsReplaceView =>
+          c.replaceView(
+            ident,
+            queryText,
+            currentCatalog,
+            currentNamespace,
+            viewSchema,
+            queryColumnNames.toArray,
+            columnAliases.toArray,
+            columnComments.map(c => c.orNull).toArray,
+            newProperties.asJava)
+        case _ =>
+          if (catalog.viewExists(ident)) {
+            catalog.dropView(ident)
+          }
+
+          catalog.createView(
+            ident,
+            queryText,
+            currentCatalog,
+            currentNamespace,
+            viewSchema,
+            queryColumnNames.toArray,
+            columnAliases.toArray,
+            columnComments.map(c => c.orNull).toArray,
+            newProperties.asJava)
       }
-      // FIXME: replaceView API doesn't exist in Spark 3.5
-      catalog.createView(
-        ident,
-        queryText,
-        currentCatalog,
-        currentNamespace,
-        viewSchema,
-        queryColumnNames.toArray,
-        columnAliases.toArray,
-        columnComments.map(c => c.orNull).toArray,
-        newProperties.asJava)
     } else {
       try {
         // CREATE VIEW [IF NOT EXISTS]
