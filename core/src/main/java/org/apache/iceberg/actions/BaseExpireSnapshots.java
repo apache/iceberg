@@ -30,6 +30,13 @@ interface BaseExpireSnapshots extends ExpireSnapshots {
 
   @Value.Immutable
   interface Result extends ExpireSnapshots.Result {
+
+    @Override
+    @Value.Default
+    default long deletedSnapshotsCount() {
+      return ExpireSnapshots.Result.super.deletedSnapshotsCount();
+    }
+
     @Override
     @Value.Default
     default long deletedStatisticsFilesCount() {

@@ -59,6 +59,7 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
   private static final StructType OUTPUT_TYPE =
       new StructType(
           new StructField[] {
+            new StructField("deleted_snapshots_count", DataTypes.LongType, true, Metadata.empty()),
             new StructField("deleted_data_files_count", DataTypes.LongType, true, Metadata.empty()),
             new StructField(
                 "deleted_position_delete_files_count", DataTypes.LongType, true, Metadata.empty()),
@@ -157,6 +158,7 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
   private InternalRow[] toOutputRows(ExpireSnapshots.Result result) {
     InternalRow row =
         newInternalRow(
+            result.deletedSnapshotsCount(),
             result.deletedDataFilesCount(),
             result.deletedPositionDeleteFilesCount(),
             result.deletedEqualityDeleteFilesCount(),
@@ -168,6 +170,6 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
 
   @Override
   public String description() {
-    return "ExpireSnapshotProcedure";
+    return "ExpireSnapshotsProcedure";
   }
 }
