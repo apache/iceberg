@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.StringJoiner;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
@@ -52,6 +51,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -121,9 +121,10 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  * <p>
  */
 public class SparkCatalog extends BaseCatalog
-    implements org.apache.spark.sql.connector.catalog.ViewCatalog {
+    implements org.apache.spark.sql.connector.catalog.ViewCatalog, SupportsReplaceView {
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
   private static final Splitter COMMA = Splitter.on(",");
+  private static final Joiner COMMA_JOINER = Joiner.on(",");
   private static final Pattern AT_TIMESTAMP = Pattern.compile("at_timestamp_(\\d+)");
   private static final Pattern SNAPSHOT_ID = Pattern.compile("snapshot_id_(\\d+)");
   private static final Pattern BRANCH = Pattern.compile("branch_(.*)");
@@ -578,15 +579,13 @@ public class SparkCatalog extends BaseCatalog
     if (null != asViewCatalog) {
       Schema icebergSchema = SparkSchemaUtil.convert(schema);
 
-      StringJoiner joiner = new StringJoiner(",");
-      Arrays.stream(queryColumnNames).forEach(joiner::add);
-
       try {
         Map<String, String> props =
             ImmutableMap.<String, String>builder()
                 .putAll(Spark3Util.rebuildCreateProperties(properties))
-                .put("spark.query-column-names", joiner.toString())
-                .build();
+                .put(SparkView.QUERY_COLUMN_NAMES, COMMA_JOINER.join(queryColumnNames))
+                .buildKeepingLast();
+
         org.apache.iceberg.view.View view =
             asViewCatalog
                 .buildView(buildIdentifier(ident))
@@ -607,6 +606,48 @@ public class SparkCatalog extends BaseCatalog
 
     throw new UnsupportedOperationException(
         "Creating a view is not supported by catalog: " + catalogName);
+  }
+
+  @Override
+  public View replaceView(
+      Identifier ident,
+      String sql,
+      String currentCatalog,
+      String[] currentNamespace,
+      StructType schema,
+      String[] queryColumnNames,
+      String[] columnAliases,
+      String[] columnComments,
+      Map<String, String> properties)
+      throws NoSuchNamespaceException {
+    if (null != asViewCatalog) {
+      Schema icebergSchema = SparkSchemaUtil.convert(schema);
+
+      try {
+        Map<String, String> props =
+            ImmutableMap.<String, String>builder()
+                .putAll(Spark3Util.rebuildCreateProperties(properties))
+                .put(SparkView.QUERY_COLUMN_NAMES, COMMA_JOINER.join(queryColumnNames))
+                .buildKeepingLast();
+
+        org.apache.iceberg.view.View view =
+            asViewCatalog
+                .buildView(buildIdentifier(ident))
+                .withDefaultCatalog(currentCatalog)
+                .withDefaultNamespace(Namespace.of(currentNamespace))
+                .withQuery("spark", sql)
+                .withSchema(icebergSchema)
+                .withLocation(properties.get("location"))
+                .withProperties(props)
+                .replace();
+        return new SparkView(catalogName, view);
+      } catch (org.apache.iceberg.exceptions.NoSuchNamespaceException e) {
+        throw new NoSuchNamespaceException(currentNamespace);
+      }
+    }
+
+    throw new UnsupportedOperationException(
+        "Replacing a view is not supported by catalog: " + catalogName);
   }
 
   @Override
