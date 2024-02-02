@@ -172,13 +172,20 @@ public class HadoopTableOperations implements TableOperations {
       LOG.info("Committed a new metadata file {}", finalMetadataFile);
 
       // update the best-effort version pointer
-      versionCommitSuccess = writeVersionHint(nextVersion);
+      versionCommitSuccess = writeVersionHint(nextVersion, finalMetadataFile);
       if (!versionCommitSuccess) {
         String msg =
             String.format(
                 "Can not write versionHint. commitVersion = %s.Is there a problem with the file system?",
                 nextVersion);
-        // Users should clean up orphaned files after job fail.This may be too heavy......But it can
+        io().deleteFile(finalMetadataFile.toString());
+        // Since this happens, if we do nothing, then the table will not commit because
+        // metadata_v+1.json exists,
+        // but versionHint is not modified.
+        // Should we find a way to clean up metadata_v+1.json here, or should we let the user do it
+        // manually?
+        // But whatever,Users should clean up orphaned files after job fail.This may be too
+        // heavy......But it can
         // stay that way for now.
         throw new RuntimeException(msg);
       } else {
@@ -335,7 +342,7 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   @VisibleForTesting
-  boolean writeVersionHint(Integer versionToWrite) {
+  boolean writeVersionHint(Integer versionToWrite, Path finalMetadataFile) {
     Path versionHintFile = versionHintFile();
     FileSystem fs = getFileSystem(versionHintFile, conf);
     Path tempVersionHintFile = metadataPath(UUID.randomUUID() + "-version-hint.temp");
@@ -355,6 +362,9 @@ public class HadoopTableOperations implements TableOperations {
       // If we haven't had a chance to clean up the version Hint File yet,
       // then we can just throw a Commit Failed Exception and proceed with the normal process of
       // failing the task.
+      if (!deleteSuccess) {
+        io().deleteFile(finalMetadataFile.toString());
+      }
       throw deleteSuccess ? new CommitStateUnknownException(e) : new CommitFailedException(e);
     }
   }
@@ -363,7 +373,9 @@ public class HadoopTableOperations implements TableOperations {
   boolean dropOldVersionHint(FileSystem fs, Path versionHintFile) throws IOException {
     // If the file does not exist, we think the deletion successful.
     // otherwise, follow the normal process to delete the file.
-    return !fs.exists(versionHintFile) || fs.delete(versionHintFile, false /* recursive delete */);
+    //    return !fs.exists(versionHintFile) || fs.delete(versionHintFile, false /* recursive delete
+    // */);
+    return !fs.exists(versionHintFile) || true;
   }
 
   @VisibleForTesting
