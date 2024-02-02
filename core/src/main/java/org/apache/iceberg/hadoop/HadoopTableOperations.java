@@ -373,9 +373,7 @@ public class HadoopTableOperations implements TableOperations {
   boolean dropOldVersionHint(FileSystem fs, Path versionHintFile) throws IOException {
     // If the file does not exist, we think the deletion successful.
     // otherwise, follow the normal process to delete the file.
-    //    return !fs.exists(versionHintFile) || fs.delete(versionHintFile, false /* recursive delete
-    // */);
-    return !fs.exists(versionHintFile) || true;
+    return !fs.exists(versionHintFile) || fs.delete(versionHintFile, false /* recursive delete*/);
   }
 
   @VisibleForTesting
