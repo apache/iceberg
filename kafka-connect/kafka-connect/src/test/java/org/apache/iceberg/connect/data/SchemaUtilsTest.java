@@ -274,36 +274,34 @@ public class SchemaUtilsTest {
   public void testInferIcebergType() {
     IcebergSinkConfig config = mock(IcebergSinkConfig.class);
 
-    assertThat(SchemaUtils.inferIcebergType(1, config).get()).isInstanceOf(LongType.class);
-    assertThat(SchemaUtils.inferIcebergType(1L, config).get()).isInstanceOf(LongType.class);
-    assertThat(SchemaUtils.inferIcebergType(1.1f, config).get()).isInstanceOf(DoubleType.class);
-    assertThat(SchemaUtils.inferIcebergType(1.1d, config).get()).isInstanceOf(DoubleType.class);
-    assertThat(SchemaUtils.inferIcebergType("foobar", config).get()).isInstanceOf(StringType.class);
-    assertThat(SchemaUtils.inferIcebergType(true, config).get()).isInstanceOf(BooleanType.class);
-    assertThat(SchemaUtils.inferIcebergType(LocalDate.now(), config).get())
-        .isInstanceOf(DateType.class);
-    assertThat(SchemaUtils.inferIcebergType(LocalTime.now(), config).get())
-        .isInstanceOf(TimeType.class);
+    assertThat(SchemaUtils.inferIcebergType(1, config)).isInstanceOf(LongType.class);
+    assertThat(SchemaUtils.inferIcebergType(1L, config)).isInstanceOf(LongType.class);
+    assertThat(SchemaUtils.inferIcebergType(1.1f, config)).isInstanceOf(DoubleType.class);
+    assertThat(SchemaUtils.inferIcebergType(1.1d, config)).isInstanceOf(DoubleType.class);
+    assertThat(SchemaUtils.inferIcebergType("foobar", config)).isInstanceOf(StringType.class);
+    assertThat(SchemaUtils.inferIcebergType(true, config)).isInstanceOf(BooleanType.class);
+    assertThat(SchemaUtils.inferIcebergType(LocalDate.now(), config)).isInstanceOf(DateType.class);
+    assertThat(SchemaUtils.inferIcebergType(LocalTime.now(), config)).isInstanceOf(TimeType.class);
 
-    Type timestampType = SchemaUtils.inferIcebergType(new java.util.Date(), config).get();
+    Type timestampType = SchemaUtils.inferIcebergType(new java.util.Date(), config);
     assertThat(timestampType).isInstanceOf(TimestampType.class);
     assertThat(((TimestampType) timestampType).shouldAdjustToUTC()).isTrue();
 
-    timestampType = SchemaUtils.inferIcebergType(OffsetDateTime.now(), config).get();
+    timestampType = SchemaUtils.inferIcebergType(OffsetDateTime.now(), config);
     assertThat(timestampType).isInstanceOf(TimestampType.class);
     assertThat(((TimestampType) timestampType).shouldAdjustToUTC()).isTrue();
 
-    timestampType = SchemaUtils.inferIcebergType(LocalDateTime.now(), config).get();
+    timestampType = SchemaUtils.inferIcebergType(LocalDateTime.now(), config);
     assertThat(timestampType).isInstanceOf(TimestampType.class);
     assertThat(((TimestampType) timestampType).shouldAdjustToUTC()).isFalse();
 
-    Type decimalType = SchemaUtils.inferIcebergType(new BigDecimal("12.345"), config).get();
+    Type decimalType = SchemaUtils.inferIcebergType(new BigDecimal("12.345"), config);
     assertThat(decimalType).isInstanceOf(DecimalType.class);
     assertThat(((DecimalType) decimalType).scale()).isEqualTo(3);
 
-    assertThat(SchemaUtils.inferIcebergType(ImmutableList.of("foobar"), config).get())
+    assertThat(SchemaUtils.inferIcebergType(ImmutableList.of("foobar"), config))
         .isInstanceOf(ListType.class);
-    assertThat(SchemaUtils.inferIcebergType(ImmutableMap.of("foo", "bar"), config).get())
+    assertThat(SchemaUtils.inferIcebergType(ImmutableMap.of("foo", "bar"), config))
         .isInstanceOf(StructType.class);
   }
 
@@ -312,26 +310,25 @@ public class SchemaUtilsTest {
     IcebergSinkConfig config = mock(IcebergSinkConfig.class);
 
     // skip infer for null
-    assertThat(SchemaUtils.inferIcebergType(null, config)).isNotPresent();
+    assertThat(SchemaUtils.inferIcebergType(null, config)).isNull();
 
     // skip infer for empty list
-    assertThat(SchemaUtils.inferIcebergType(ImmutableList.of(), config)).isNotPresent();
+    assertThat(SchemaUtils.inferIcebergType(ImmutableList.of(), config)).isNull();
     // skip infer for list if first element is null
     List<?> list = Lists.newArrayList();
     list.add(null);
-    assertThat(SchemaUtils.inferIcebergType(list, config)).isNotPresent();
+    assertThat(SchemaUtils.inferIcebergType(list, config)).isNull();
     // skip infer for list if first element is an empty object
-    assertThat(SchemaUtils.inferIcebergType(ImmutableList.of(ImmutableMap.of()), config))
-        .isNotPresent();
+    assertThat(SchemaUtils.inferIcebergType(ImmutableList.of(ImmutableMap.of()), config)).isNull();
 
     // skip infer for empty object
-    assertThat(SchemaUtils.inferIcebergType(ImmutableMap.of(), config)).isNotPresent();
+    assertThat(SchemaUtils.inferIcebergType(ImmutableMap.of(), config)).isNull();
     // skip infer for object if values are null
     Map<String, ?> map = Maps.newHashMap();
     map.put("col", null);
-    assertThat(SchemaUtils.inferIcebergType(map, config)).isNotPresent();
+    assertThat(SchemaUtils.inferIcebergType(map, config)).isNull();
     // skip infer for object if values are empty objects
     assertThat(SchemaUtils.inferIcebergType(ImmutableMap.of("nested", ImmutableMap.of()), config))
-        .isNotPresent();
+        .isNull();
   }
 }

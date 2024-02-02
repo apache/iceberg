@@ -19,7 +19,6 @@
 package org.apache.iceberg.connect;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.regex.Pattern;
 
 public class TableSinkConfig {
@@ -37,8 +36,8 @@ public class TableSinkConfig {
     this.commitBranch = commitBranch;
   }
 
-  public Optional<Pattern> routeRegex() {
-    return Optional.ofNullable(routeRegex);
+  public Pattern routeRegex() {
+    return routeRegex;
   }
 
   public List<String> idColumns() {
@@ -49,7 +48,7 @@ public class TableSinkConfig {
     return partitionBy;
   }
 
-  public Optional<String> commitBranch() {
-    return Optional.ofNullable(commitBranch);
+  public String commitBranch() {
+    return commitBranch;
   }
 }

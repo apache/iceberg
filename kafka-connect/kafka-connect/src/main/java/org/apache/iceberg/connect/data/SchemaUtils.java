@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.connect.data;
 
-import static java.util.stream.Collectors.toList;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -28,9 +26,9 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.UpdateSchema;
@@ -102,19 +100,19 @@ public class SchemaUtils {
     List<AddColumn> addColumns =
         updates.addColumns().stream()
             .filter(addCol -> !columnExists(table.schema(), addCol))
-            .collect(toList());
+            .collect(Collectors.toList());
 
     // filter out columns that have the updated type
     List<UpdateType> updateTypes =
         updates.updateTypes().stream()
             .filter(updateType -> !typeMatches(table.schema(), updateType))
-            .collect(toList());
+            .collect(Collectors.toList());
 
     // filter out columns that have already been made optional
     List<MakeOptional> makeOptionals =
         updates.makeOptionals().stream()
             .filter(makeOptional -> !isOptional(table.schema(), makeOptional))
-            .collect(toList());
+            .collect(Collectors.toList());
 
     if (addColumns.isEmpty() && updateTypes.isEmpty() && makeOptionals.isEmpty()) {
       // no updates to apply
@@ -133,17 +131,7 @@ public class SchemaUtils {
   }
 
   private static boolean columnExists(org.apache.iceberg.Schema schema, AddColumn update) {
-    StructType struct;
-    if (update.parentName() == null) {
-      struct = schema.asStruct();
-    } else {
-      Type type = schema.findType(update.parentName()).asStructType();
-      if (type == null) {
-        return false;
-      }
-      struct = type.asStructType();
-    }
-    return struct.field(update.name()) != null;
+    return schema.findType(update.key()) != null;
   }
 
   private static boolean typeMatches(org.apache.iceberg.Schema schema, UpdateType update) {
@@ -225,7 +213,7 @@ public class SchemaUtils {
     return new SchemaGenerator(config).toIcebergType(valueSchema);
   }
 
-  public static Optional<Type> inferIcebergType(Object value, IcebergSinkConfig config) {
+  public static Type inferIcebergType(Object value, IcebergSinkConfig config) {
     return new SchemaGenerator(config).inferIcebergType(value);
   }
 
@@ -244,7 +232,7 @@ public class SchemaUtils {
         case BOOLEAN:
           return BooleanType.get();
         case BYTES:
-          if (valueSchema.name() != null && valueSchema.name().equals(Decimal.LOGICAL_NAME)) {
+          if (Decimal.LOGICAL_NAME.equals(valueSchema.name())) {
             int scale = Integer.parseInt(valueSchema.parameters().get(Decimal.SCALE_FIELD));
             return DecimalType.of(38, scale);
           }
@@ -253,16 +241,14 @@ public class SchemaUtils {
         case INT16:
           return IntegerType.get();
         case INT32:
-          if (valueSchema.name() != null) {
-            if (valueSchema.name().equals(Date.LOGICAL_NAME)) {
-              return DateType.get();
-            } else if (valueSchema.name().equals(Time.LOGICAL_NAME)) {
-              return TimeType.get();
-            }
+          if (Date.LOGICAL_NAME.equals(valueSchema.name())) {
+            return DateType.get();
+          } else if (Time.LOGICAL_NAME.equals(valueSchema.name())) {
+            return TimeType.get();
           }
           return IntegerType.get();
         case INT64:
-          if (valueSchema.name() != null && valueSchema.name().equals(Timestamp.LOGICAL_NAME)) {
+          if (Timestamp.LOGICAL_NAME.equals(valueSchema.name())) {
             return TimestampType.withZone();
           }
           return LongType.get();
@@ -295,7 +281,7 @@ public class SchemaUtils {
                               config.schemaForceOptional() || field.schema().isOptional(),
                               field.name(),
                               toIcebergType(field.schema())))
-                  .collect(toList());
+                  .collect(Collectors.toList());
           return StructType.of(structFields);
         case STRING:
         default:
@@ -303,12 +289,8 @@ public class SchemaUtils {
       }
     }
 
-    Optional<Type> inferIcebergType(Object value) {
-      return Optional.ofNullable(doInferIcebergType(value));
-    }
-
     @SuppressWarnings("checkstyle:CyclomaticComplexity")
-    private Type doInferIcebergType(Object value) {
+    public Type inferIcebergType(Object value) {
       if (value == null) {
         return null;
       } else if (value instanceof String) {
@@ -318,14 +300,10 @@ public class SchemaUtils {
       } else if (value instanceof BigDecimal) {
         BigDecimal bigDecimal = (BigDecimal) value;
         return DecimalType.of(bigDecimal.precision(), bigDecimal.scale());
-      } else if (value instanceof Number) {
-        Number num = (Number) value;
-        Double dbl = num.doubleValue();
-        if (dbl.equals(Math.floor(dbl))) {
-          return LongType.get();
-        } else {
-          return DoubleType.get();
-        }
+      } else if (value instanceof Integer || value instanceof Long) {
+        return LongType.get();
+      } else if (value instanceof Float || value instanceof Double) {
+        return DoubleType.get();
       } else if (value instanceof LocalDate) {
         return DateType.get();
       } else if (value instanceof LocalTime) {
@@ -339,8 +317,8 @@ public class SchemaUtils {
         if (list.isEmpty()) {
           return null;
         }
-        Optional<Type> elementType = inferIcebergType(list.get(0));
-        return elementType.map(type -> ListType.ofOptional(nextId(), type)).orElse(null);
+        Type elementType = inferIcebergType(list.get(0));
+        return elementType == null ? null : ListType.ofOptional(nextId(), elementType);
       } else if (value instanceof Map) {
         Map<?, ?> map = (Map<?, ?>) value;
         List<NestedField> structFields =
@@ -348,15 +326,13 @@ public class SchemaUtils {
                 .filter(entry -> entry.getKey() != null && entry.getValue() != null)
                 .map(
                     entry -> {
-                      Optional<Type> valueType = inferIcebergType(entry.getValue());
-                      return valueType
-                          .map(
-                              type ->
-                                  NestedField.optional(nextId(), entry.getKey().toString(), type))
-                          .orElse(null);
+                      Type valueType = inferIcebergType(entry.getValue());
+                      return valueType == null
+                          ? null
+                          : NestedField.optional(nextId(), entry.getKey().toString(), valueType);
                     })
                 .filter(Objects::nonNull)
-                .collect(toList());
+                .collect(Collectors.toList());
         if (structFields.isEmpty()) {
           return null;
         }

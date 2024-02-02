@@ -25,8 +25,10 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.connect.IcebergSinkConfig;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.Tasks;
 import org.apache.kafka.connect.errors.DataException;
@@ -69,10 +71,11 @@ public class IcebergWriterFactory {
   Table autoCreateTable(String tableName, SinkRecord sample) {
     StructType structType;
     if (sample.valueSchema() == null) {
-      structType =
-          SchemaUtils.inferIcebergType(sample.value(), config)
-              .orElseThrow(() -> new DataException("Unable to create table from empty object"))
-              .asStructType();
+      Type type = SchemaUtils.inferIcebergType(sample.value(), config);
+      if (type == null) {
+        throw new DataException("Unable to create table from empty object");
+      }
+      structType = type.asStructType();
     } else {
       structType = SchemaUtils.toIcebergType(sample.valueSchema(), config).asStructType();
     }
@@ -100,11 +103,11 @@ public class IcebergWriterFactory {
         .run(
             notUsed -> {
               try {
-                result.set(catalog.loadTable(identifier));
-              } catch (NoSuchTableException e) {
                 result.set(
                     catalog.createTable(
                         identifier, schema, partitionSpec, config.autoCreateProps()));
+              } catch (AlreadyExistsException e) {
+                result.set(catalog.loadTable(identifier));
               }
             });
     return result.get();
