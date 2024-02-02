@@ -18,7 +18,7 @@
 
 set -e
 
-REMOTE="iceberg_docs"
+export REMOTE="iceberg_docs"
 
 # Ensures the presence of a specified remote repository for documentation.
 # If the remote doesn't exist, it adds it using the provided URL.
@@ -33,7 +33,6 @@ create_or_update_docs_remote () {
   # Fetch updates from the remote repository
   git fetch "${REMOTE}"
 }
-
 
 # Pulls updates from a specified branch of a remote repository.
 # Arguments:
@@ -178,8 +177,6 @@ pull_versioned_docs () {
   # Ensure the remote repository for documentation exists and is up-to-date
   create_or_update_docs_remote  
 
-  rm -r docs/docs
-
   # Add local worktrees for documentation and javadoc from the remote repository
   git worktree add -f docs/docs "${REMOTE}/docs"
   git worktree add -f docs/javadoc "${REMOTE}/javadoc"
@@ -205,8 +202,8 @@ clean () {
   rm -rf docs/docs/latest &> /dev/null
   git worktree remove docs/docs &> /dev/null
   git worktree remove docs/javadoc &> /dev/null
-
-  git restore docs/docs
+  
+  rm -f docs/.asf.yaml &> /dev/null
 
   # Remove any additional temporary artifacts (e.g., 'site/' directory)
   rm -rf site/ &> /dev/null

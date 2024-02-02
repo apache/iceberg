@@ -25,7 +25,8 @@ lib/
 
 # web site build
 site/site/
-#site/docs/docs/
+site/docs/docs/
+site/docs/.asf.yaml
 site/docs/javadoc/
 
 # benchmark output
