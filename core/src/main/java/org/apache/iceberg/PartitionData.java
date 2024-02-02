@@ -81,6 +81,15 @@ public class PartitionData
     this.schema = toCopy.schema;
   }
 
+  /** Copy constructor that inherits the state but replaces the partition values */
+  private PartitionData(PartitionData toCopy, StructLike partition) {
+    this.partitionType = toCopy.partitionType;
+    this.size = toCopy.size;
+    this.data = copyData(partitionType, partition);
+    this.stringSchema = toCopy.stringSchema;
+    this.schema = toCopy.schema;
+  }
+
   public Types.StructType getPartitionType() {
     return partitionType;
   }
@@ -134,18 +143,7 @@ public class PartitionData
 
   @Override
   public <T> void set(int pos, T value) {
-    if (value instanceof Utf8) {
-      // Utf8 is not Serializable
-      data[pos] = value.toString();
-    } else if (value instanceof ByteBuffer) {
-      // ByteBuffer is not Serializable
-      ByteBuffer buffer = (ByteBuffer) value;
-      byte[] bytes = new byte[buffer.remaining()];
-      buffer.duplicate().get(bytes);
-      data[pos] = bytes;
-    } else {
-      data[pos] = value;
-    }
+    data[pos] = toInternalValue(value);
   }
 
   @Override
@@ -169,6 +167,10 @@ public class PartitionData
 
   public PartitionData copy() {
     return new PartitionData(this);
+  }
+
+  public PartitionData copyFor(StructLike partition) {
+    return new PartitionData(this, partition);
   }
 
   @Override
@@ -220,5 +222,33 @@ public class PartitionData
     }
 
     return copy;
+  }
+
+  private static Object[] copyData(Types.StructType type, StructLike partition) {
+    List<Types.NestedField> fields = type.fields();
+    Object[] data = new Object[fields.size()];
+
+    for (int pos = 0; pos < fields.size(); pos++) {
+      Types.NestedField field = fields.get(pos);
+      Class<?> javaClass = field.type().typeId().javaClass();
+      data[pos] = toInternalValue(partition.get(pos, javaClass));
+    }
+
+    return data;
+  }
+
+  private static Object toInternalValue(Object value) {
+    if (value instanceof Utf8) {
+      // Utf8 is not Serializable
+      return value.toString();
+    } else if (value instanceof ByteBuffer) {
+      // ByteBuffer is not Serializable
+      ByteBuffer buffer = (ByteBuffer) value;
+      byte[] bytes = new byte[buffer.remaining()];
+      buffer.duplicate().get(bytes);
+      return bytes;
+    } else {
+      return value;
+    }
   }
 }
