@@ -1457,18 +1457,18 @@ components:
       example: "sales"
 
     data-access:
-      name: X-Iceberg-Data-Access
+      name: X-Iceberg-Access-Delegation
       in: header
       description: >
-        Optional signal to the server that the client supports data access via
-        a comma-separated list of access mechanisms.  The server may choose to 
-        supply access via any or none of the requested mechanisms.
+        Optional signal to the server that the client supports delegated access
+        via a comma-separated list of access mechanisms.  The server may choose
+        to supply access via any or none of the requested mechanisms.
       required: false
       schema:
         type: string
         enum:
-          - vended_credentials
-          - remote_signing
+          - vended-credentials
+          - remote-signing
       style: simple
       explode: false
       example: "vended_credentials,remote_signing"
