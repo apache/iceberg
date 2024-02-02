@@ -211,6 +211,7 @@ public class TestStreamScanSql extends CatalogTestBase {
     Row row1 = Row.of(1, "aaa", "2021-01-01");
     Row row2 = Row.of(2, "bbb", "2021-01-01");
     insertRows(table, row1, row2);
+
     Assertions.assertThatThrownBy(
             () ->
                 exec(
@@ -296,6 +297,7 @@ public class TestStreamScanSql extends CatalogTestBase {
       assertRows(ImmutableList.of(row7), iterator);
     }
     result.getJobClient().ifPresent(JobClient::cancel);
+
     Assertions.assertThatThrownBy(
             () ->
                 exec(
