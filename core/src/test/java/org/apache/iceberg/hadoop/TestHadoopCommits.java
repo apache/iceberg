@@ -211,7 +211,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
   }
 
   @Test
-  public void testCommitFailedBeforeChangeVersionHint() throws Exception {
+  public void testCommitFailedBeforeChangeVersionHint() {
     table.newFastAppend().appendFile(FILE_A).commit();
     BaseTable baseTable = (BaseTable) table;
     HadoopTableOperations tableOperations = (HadoopTableOperations) baseTable.operations();
@@ -269,6 +269,26 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     assertThatThrownBy(() -> spyOps.commit(metadataV1, metadataV2))
         .isInstanceOf(CommitFailedException.class)
         .hasMessageContaining("Can't delete version Hint");
+    // commit should not successful.
+    int versionAfter = spyOps.findVersion();
+    assert versionAfter == versionBefore;
+  }
+
+  @Test
+  public void testCommitNotSuccessfulWhenWriteVersionHint() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    BaseTable baseTable = (BaseTable) table;
+    HadoopTableOperations tableOperations = (HadoopTableOperations) baseTable.operations();
+    HadoopTableOperations spyOps = spy(tableOperations);
+    doReturn(false).when(spyOps).writeVersionHint(any(), any());
+    int versionBefore = spyOps.findVersion();
+    TableMetadata metadataV1 = spyOps.current();
+    SortOrder dataSort = SortOrder.builderFor(baseTable.schema()).asc("data").build();
+    TableMetadata metadataV2 = metadataV1.replaceSortOrder(dataSort);
+    // commit func should fail
+    assertThatThrownBy(() -> spyOps.commit(metadataV1, metadataV2))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("Can not write versionHint");
     // commit should not successful.
     int versionAfter = spyOps.findVersion();
     assert versionAfter == versionBefore;
