@@ -133,7 +133,7 @@ public class SparkTable
   public SparkTable(Table icebergTable, String branch, boolean refreshEagerly) {
     this(icebergTable, refreshEagerly);
     this.branch = branch;
-    final Snapshot snapshot = icebergTable.snapshot(branch);
+    Snapshot snapshot = icebergTable.snapshot(branch);
     ValidationException.check(
         branch == null || SnapshotRef.MAIN_BRANCH.equals(branch) || snapshot != null,
         "Cannot use branch (does not exist): %s",
