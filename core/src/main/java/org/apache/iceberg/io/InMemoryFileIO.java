@@ -16,13 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.inmemory;
+package org.apache.iceberg.io;
 
 import java.util.Map;
 import org.apache.iceberg.exceptions.NotFoundException;
-import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
