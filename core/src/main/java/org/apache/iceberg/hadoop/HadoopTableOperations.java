@@ -177,8 +177,11 @@ public class HadoopTableOperations implements TableOperations {
         // If the version Hint write fails, then we should delete the latest submitted metadata.
         // The reason for this is explained in the write Version Hint method.
         // But whatever,Users should clean up orphaned files after job fail.This may be too
-        // heavy......But it can
-        // stay that way for now.
+        // heavy......But it can stay that way for now.
+        // However, please keep in mind that it is not possible to take into account all cases, e.g.
+        // KILL-9.
+        // If a user finds that commit always failed, then user should check the metadata.
+        // Either delete the VersionHintFile or delete the latest metadata.
         String msg =
             String.format(
                 "Can not write versionHint. commitVersion = %s.Is there a problem with the file system?",
