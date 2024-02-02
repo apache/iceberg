@@ -296,9 +296,9 @@ Data files are stored in manifests with a tuple of partition values that are use
 
 Tables are configured with a **partition spec** that defines how to produce a tuple of partition values from a record. A partition spec has a list of fields that consist of:
 
-*   A **source column id** from the table’s schema
+*   A **source column id** or a list of **source column ids** from the table’s schema
 *   A **partition field id** that is used to identify a partition field and is unique within a partition spec. In v2 table metadata, it is unique across all partition specs.
-*   A **transform** that is applied to the source column to produce a partition value
+*   A **transform** that is applied to the source column(s) to produce a partition value
 *   A **partition name**
 
 The source column, selected by id, must be a primitive type and cannot be contained in a map or list, but may be nested in a struct. For details on how to serialize a partition spec to JSON, see Appendix C.
@@ -383,8 +383,8 @@ Users can sort their data within partitions by columns to gain performance. The 
 
 A sort order is defined by a sort order id and a list of sort fields. The order of the sort fields within the list defines the order in which the sort is applied to the data. Each sort field consists of:
 
-*   A **source column id** from the table's schema
-*   A **transform** that is used to produce values to be sorted on from the source column. This is the same transform as described in [partition transforms](#partition-transforms).
+*   A **source column id** or a list of **source column ids** from the table's schema
+*   A **transform** that is used to produce values to be sorted on from the source column(s). This is the same transform as described in [partition transforms](#partition-transforms).
 *   A **sort direction**, that can only be either `asc` or `desc`
 *   A **null order** that describes the order of null values when sorted. Can only be either `nulls-first` or `nulls-last`
 
@@ -1128,11 +1128,16 @@ Each partition field in the fields list is stored as an object. See the table fo
 |**`month`**|`JSON string: "month"`|`"month"`|
 |**`day`**|`JSON string: "day"`|`"day"`|
 |**`hour`**|`JSON string: "hour"`|`"hour"`|
-|**`Partition Field`**|`JSON object: {`<br />&nbsp;&nbsp;`"source-id": <id int>,`<br />&nbsp;&nbsp;`"field-id": <field id int>,`<br />&nbsp;&nbsp;`"name": <name string>,`<br />&nbsp;&nbsp;`"transform": <transform JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"source-id": 1,`<br />&nbsp;&nbsp;`"field-id": 1000,`<br />&nbsp;&nbsp;`"name": "id_bucket",`<br />&nbsp;&nbsp;`"transform": "bucket[16]"`<br />`}`|
+|**`Partition Field`** [1,2]|`JSON object: {`<br />&nbsp;&nbsp;`"source-id": <id int>,`<br />&nbsp;&nbsp;`"field-id": <field id int>,`<br />&nbsp;&nbsp;`"name": <name string>,`<br />&nbsp;&nbsp;`"transform": <transform JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"source-id": 1,`<br />&nbsp;&nbsp;`"field-id": 1000,`<br />&nbsp;&nbsp;`"name": "id_bucket",`<br />&nbsp;&nbsp;`"transform": "bucket[16]"`<br />`}`|
 
 In some cases partition specs are stored using only the field list instead of the object format that includes the spec ID, like the deprecated `partition-spec` field in table metadata. The object format should be used unless otherwise noted in this spec.
 
 The `field-id` property was added for each partition field in v2. In v1, the reference implementation assigned field ids sequentially in each spec starting at 1,000. See Partition Evolution for more details.
+
+Notes:
+
+1. For partition fields with a transform with a single argument, the ID of the source field is set on `source-id`, and `source-ids` is omitted.
+2. For partition fields with a transform of multiple arguments, the IDs of the source fields are set on `source-ids`. To preserve backward compatibility, `source-id` is set to -1.
 
 ### Sort Orders
 
@@ -1147,7 +1152,11 @@ Each sort field in the fields list is stored as an object with the following pro
 
 |Field|JSON representation|Example|
 |--- |--- |--- |
-|**`Sort Field`**|`JSON object: {`<br />&nbsp;&nbsp;`"transform": <transform JSON>,`<br />&nbsp;&nbsp;`"source-id": <source id int>,`<br />&nbsp;&nbsp;`"direction": <direction string>,`<br />&nbsp;&nbsp;`"null-order": <null-order string>`<br />`}`|`{`<br />&nbsp;&nbsp;`  "transform": "bucket[4]",`<br />&nbsp;&nbsp;`  "source-id": 3,`<br />&nbsp;&nbsp;`  "direction": "desc",`<br />&nbsp;&nbsp;`  "null-order": "nulls-last"`<br />`}`|
+|**`Sort Field`** [1,2]|`JSON object: {`<br />&nbsp;&nbsp;`"transform": <transform JSON>,`<br />&nbsp;&nbsp;`"source-id": <source id int>,`<br />&nbsp;&nbsp;`"direction": <direction string>,`<br />&nbsp;&nbsp;`"null-order": <null-order string>`<br />`}`|`{`<br />&nbsp;&nbsp;`  "transform": "bucket[4]",`<br />&nbsp;&nbsp;`  "source-id": 3,`<br />&nbsp;&nbsp;`  "direction": "desc",`<br />&nbsp;&nbsp;`  "null-order": "nulls-last"`<br />`}`|
+
+Notes:
+1. For sort fields with a transform with a single argument, the ID of the source field is set on `source-id`, and `source-ids` is omitted.
+2. For sort fields with a transform of multiple arguments, the IDs of the source fields are set on `source-ids`. To preserve backward compatibility, `source-id` is set to -1.
 
 The following table describes the possible values for the some of the field within sort field: 
 

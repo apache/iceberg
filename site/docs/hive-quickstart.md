@@ -39,7 +39,7 @@ Take a look at the Tags tab in [Apache Hive docker images](https://hub.docker.co
 
 Set the version variable.
 ```sh
-export HIVE_VERSION=4.0.0-alpha-2
+export HIVE_VERSION=4.0.0-beta-1
 ```
 
 Start the container, using the option `--platform linux/amd64` for a Mac with an M-Series chip:

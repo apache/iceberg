@@ -104,7 +104,11 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
 
   private ContinuousEnumerationResult discoverIncrementalSplits(
       IcebergEnumeratorPosition lastPosition) {
-    Snapshot currentSnapshot = table.currentSnapshot();
+    Snapshot currentSnapshot =
+        scanContext.branch() != null
+            ? table.snapshot(scanContext.branch())
+            : table.currentSnapshot();
+
     if (currentSnapshot == null) {
       // empty table
       Preconditions.checkArgument(

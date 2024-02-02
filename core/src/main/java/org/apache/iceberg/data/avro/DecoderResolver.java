@@ -51,6 +51,10 @@ public class DecoderResolver {
     return value;
   }
 
+  public static void clearCache() {
+    DECODER_CACHES.get().clear();
+  }
+
   @VisibleForTesting
   static ResolvingDecoder resolve(Decoder decoder, Schema readSchema, Schema fileSchema)
       throws IOException {

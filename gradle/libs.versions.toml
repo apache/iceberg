@@ -17,44 +17,46 @@
 
 # Rich versions are used for better compatibility with GitHub's automated dependency tools (such as Dependabot and Renovate).
 # Without a rich version definition, dependabot will try to align different versions of the same library.
+# see https://docs.gradle.org/current/userguide/rich_versions.html on how to configure rich versions.
 
 [versions]
 activation = "1.1.1"
 aliyun-sdk-oss = "3.10.2"
 antlr = "4.9.3"
 aircompressor = "0.25"
-arrow = "14.0.1"
+arrow = "14.0.2"
 avro = "1.11.3"
-assertj-core = "3.24.2"
+assertj-core = "3.25.2"
 awaitility = "4.2.0"
-awssdk-bom = "2.21.42"
+awssdk-bom = "2.23.12"
 azuresdk-bom = "1.2.18"
+awssdk-s3accessgrants = "2.0.0"
 caffeine = "2.9.3"
 calcite = "1.10.0"
 delta-standalone = "0.6.0"
 delta-spark = "3.0.0"
 esotericsoftware-kryo = "4.0.2"
-errorprone-annotations = "2.23.0"
+errorprone-annotations = "2.24.1"
 findbugs-jsr305 = "3.0.2"
-flink116 = { strictly = "[1.16, 1.17[", prefer = "1.16.2"}
-flink117 = { strictly = "[1.17, 1.18[", prefer = "1.17.1"}
-flink118 =  { strictly = "[1.18, 1.19[", prefer = "1.18.0"}
+flink116 = { strictly = "1.16.2"}
+flink117 = { strictly = "1.17.1"}
+flink118 =  { strictly = "1.18.1"}
 google-libraries-bom = "26.28.0"
-guava = "32.1.3-jre"
+guava = "33.0.0-jre"
 hadoop2 = "2.7.3"
 hadoop3-client = "3.3.6"
-httpcomponents-httpclient5 = "5.3"
-hive2 = { strictly = "[2, 3[", prefer = "2.3.9"} # see rich version usage explanation above
+httpcomponents-httpclient5 = "5.3.1"
+hive2 = { strictly = "2.3.9"} # see rich version usage explanation above
 hive3 = "3.1.3"
 immutables-value = "2.10.0"
 jackson-annotations = "2.16.0"
 jackson-bom = "2.14.2"
-jackson-dataformat-xml = "2.16.0"
-jackson211 = { strictly = "[2.11, 2.12[", prefer = "2.11.4"} # see rich version usage explanation above
-jackson212 = { strictly = "[2.12, 2.13[", prefer = "2.12.3"}
-jackson213 = { strictly = "[2.13, 2.14[", prefer = "2.13.4"}
-jackson214 = { strictly = "[2.14, 2.15[", prefer = "2.14.2"}
-jackson215 = { strictly = "[2.15, 2.16[", prefer = "2.15.2"}
+jackson-dataformat-xml = "2.16.1"
+jackson211 = { strictly = "2.11.4"} # see rich version usage explanation above
+jackson212 = { strictly = "2.12.3"}
+jackson213 = { strictly = "2.13.4"}
+jackson214 = { strictly = "2.14.2"}
+jackson215 = { strictly = "2.15.2"}
 jakarta-el-api = "3.0.3"
 jaxb-api = "2.3.1"
 jaxb-runtime = "2.3.3"
@@ -64,7 +66,7 @@ kryo-shaded = "4.0.3"
 microprofile-openapi-api = "3.1.1"
 mockito = "4.11.0"
 mockserver = "5.15.0"
-nessie = "0.75.0"
+nessie = "0.76.3"
 netty-buffer = "4.1.97.Final"
 netty-buffer-compat = "4.1.68.Final"
 object-client-bundle = "3.3.2"
@@ -76,7 +78,7 @@ s3mock-junit5 = "2.11.0"
 scala-collection-compat = "2.11.0"
 slf4j = "1.7.36"
 snowflake-jdbc = "3.14.4"
-spark-hive33 = "3.3.3"
+spark-hive33 = "3.3.4"
 spark-hive34 = "3.4.2"
 spark-hive35 = "3.5.0"
 spring-boot = "2.5.4"
@@ -84,7 +86,7 @@ spring-web = "5.3.30"
 sqlite-jdbc = "3.44.0.0"
 testcontainers = "1.19.3"
 tez010 = "0.10.2"
-tez08 = { strictly = "[0.8, 0.9[", prefer = "0.8.4"}  # see rich version usage explanation above
+tez08 = { strictly = "0.8.4"}  # see rich version usage explanation above
 
 [libraries]
 activation = { module = "javax.activation:activation", version.ref = "activation" }
@@ -96,6 +98,7 @@ arrow-memory-netty = { module = "org.apache.arrow:arrow-memory-netty", version.r
 arrow-vector = { module = "org.apache.arrow:arrow-vector", version.ref = "arrow" }
 avro-avro = { module = "org.apache.avro:avro", version.ref = "avro" }
 awssdk-bom = { module = "software.amazon.awssdk:bom", version.ref = "awssdk-bom" }
+awssdk-s3accessgrants = { module = "software.amazon.s3.accessgrants:aws-s3-accessgrants-java-plugin", version.ref = "awssdk-s3accessgrants" }
 azuresdk-bom = { module = "com.azure:azure-sdk-bom", version.ref = "azuresdk-bom" }
 caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "caffeine" }
 calcite-core = { module = "org.apache.calcite:calcite-core", version.ref = "calcite" }

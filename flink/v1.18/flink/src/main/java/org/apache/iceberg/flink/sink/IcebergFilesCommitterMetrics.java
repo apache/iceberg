@@ -21,8 +21,8 @@ package org.apache.iceberg.flink.sink;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.flink.metrics.Counter;
-import org.apache.flink.metrics.Gauge;
 import org.apache.flink.metrics.MetricGroup;
+import org.apache.iceberg.flink.util.ElapsedTimeGauge;
 
 class IcebergFilesCommitterMetrics {
   private final AtomicLong lastCheckpointDurationMs = new AtomicLong();
@@ -69,28 +69,5 @@ class IcebergFilesCommitterMetrics {
     committedDeleteFilesCount.inc(stats.deleteFilesCount());
     committedDeleteFilesRecordCount.inc(stats.deleteFilesRecordCount());
     committedDeleteFilesByteCount.inc(stats.deleteFilesByteCount());
-  }
-
-  /**
-   * This gauge measures the elapsed time between now and last recorded time set by {@link
-   * ElapsedTimeGauge#refreshLastRecordedTime()}.
-   */
-  private static class ElapsedTimeGauge implements Gauge<Long> {
-    private final TimeUnit reportUnit;
-    private volatile long lastRecordedTimeNano;
-
-    ElapsedTimeGauge(TimeUnit timeUnit) {
-      this.reportUnit = timeUnit;
-      this.lastRecordedTimeNano = System.nanoTime();
-    }
-
-    void refreshLastRecordedTime() {
-      this.lastRecordedTimeNano = System.nanoTime();
-    }
-
-    @Override
-    public Long getValue() {
-      return reportUnit.convert(System.nanoTime() - lastRecordedTimeNano, TimeUnit.NANOSECONDS);
-    }
   }
 }

@@ -25,6 +25,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.TableOperations;
@@ -41,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.view.BaseMetastoreViewCatalog;
 import org.apache.iceberg.view.ViewOperations;
 import org.projectnessie.client.NessieClientBuilder;
@@ -57,7 +60,7 @@ import org.slf4j.LoggerFactory;
 
 /** Nessie implementation of Iceberg Catalog. */
 public class NessieCatalog extends BaseMetastoreViewCatalog
-    implements AutoCloseable, SupportsNamespaces, Configurable<Object> {
+    implements SupportsNamespaces, Configurable<Object> {
 
   private static final Logger LOG = LoggerFactory.getLogger(NessieCatalog.class);
   private static final Joiner SLASH = Joiner.on("/");
@@ -102,9 +105,12 @@ public class NessieCatalog extends BaseMetastoreViewCatalog
             .fallbackTo(x -> options.get(removePrefix.apply(x)));
     NessieClientBuilder nessieClientBuilder =
         NessieClientBuilder.createClientBuilderFromSystemSettings(configSource);
-    // default version is set to v1.
-    final String apiVersion =
-        options.getOrDefault(removePrefix.apply(NessieUtil.CLIENT_API_VERSION), "1");
+    // default version is inferred by uri.
+    String apiVersion = options.get(removePrefix.apply(NessieUtil.CLIENT_API_VERSION));
+    if (apiVersion == null) {
+      apiVersion = inferVersionFromURI(options.get(CatalogProperties.URI));
+    }
+
     NessieApiV1 api;
     switch (apiVersion) {
       case "1":
@@ -127,6 +133,25 @@ public class NessieCatalog extends BaseMetastoreViewCatalog
         catalogOptions);
   }
 
+  private static String inferVersionFromURI(String uri) {
+    if (uri == null) {
+      throw new IllegalArgumentException("URI is not specified in the catalog properties");
+    }
+
+    // match for uri ending with /v1, /v2 etc
+    Pattern pattern = Pattern.compile("/v(\\d+)$");
+    Matcher matcher = pattern.matcher(uri);
+    if (matcher.find()) {
+      return matcher.group(1);
+    } else {
+      throw new IllegalArgumentException(
+          String.format(
+              "URI doesn't end with the version: %s. "
+                  + "Please configure `client-api-version` in the catalog properties explicitly.",
+              uri));
+    }
+  }
+
   /**
    * An alternative way to initialize the catalog using a pre-configured {@link NessieIcebergClient}
    * and {@link FileIO} instance.
@@ -147,15 +172,16 @@ public class NessieCatalog extends BaseMetastoreViewCatalog
             .putAll(DEFAULT_CATALOG_OPTIONS)
             .putAll(Preconditions.checkNotNull(catalogOptions, "catalogOptions must be non-null"))
             .buildKeepingLast();
-    this.warehouseLocation = validateWarehouseLocation(name, catalogOptions);
+    this.warehouseLocation = warehouseLocation(name, catalogOptions);
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(client);
     closeableGroup.addCloseable(fileIO);
+    closeableGroup.addCloseable(metricsReporter());
     closeableGroup.setSuppressCloseFailure(true);
   }
 
   @SuppressWarnings("checkstyle:HiddenField")
-  private String validateWarehouseLocation(String name, Map<String, String> catalogOptions) {
+  private String warehouseLocation(String name, Map<String, String> catalogOptions) {
     String warehouseLocation = catalogOptions.get(CatalogProperties.WAREHOUSE_LOCATION);
     if (warehouseLocation == null) {
       // Explicitly log a warning, otherwise the thrown exception can get list in the "silent-ish
@@ -183,7 +209,8 @@ public class NessieCatalog extends BaseMetastoreViewCatalog
           catalogOptions);
       throw new IllegalStateException("Parameter 'warehouse' not set, Nessie can't store data.");
     }
-    return warehouseLocation;
+
+    return LocationUtil.stripTrailingSlash(warehouseLocation);
   }
 
   @Override

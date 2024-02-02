@@ -29,6 +29,8 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.SparkException;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -46,7 +48,7 @@ public class TestCreateTableAsSelect extends SparkCatalogTestBase {
         "CREATE TABLE IF NOT EXISTS %s (id bigint NOT NULL, data string) "
             + "USING iceberg PARTITIONED BY (truncate(id, 3))",
         sourceName);
-    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b'), (3, 'c')", sourceName);
+    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd'), (5, 'e')", sourceName);
   }
 
   @After
@@ -100,6 +102,18 @@ public class TestCreateTableAsSelect extends SparkCatalogTestBase {
         "Should have rows matching the source table",
         sql("SELECT * FROM %s ORDER BY id", sourceName),
         sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void testCTASWriteDistributionModeNotRespected() {
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CREATE TABLE %s USING iceberg PARTITIONED BY (bucket(2, id)) AS SELECT * FROM %s",
+                    tableName, sourceName))
+        .isInstanceOf(SparkException.class)
+        .hasMessageContaining(
+            "Incoming records violate the writer assumption that records are clustered by spec and by partition within each spec");
   }
 
   @Test

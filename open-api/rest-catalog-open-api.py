@@ -342,6 +342,11 @@ class SetCurrentViewVersionUpdate(BaseUpdate):
     )
 
 
+class RemoveStatisticsUpdate(BaseUpdate):
+    action: Literal['remove-statistics']
+    snapshot_id: int = Field(..., alias='snapshot-id')
+
+
 class TableRequirement(BaseModel):
     type: str
 
@@ -605,6 +610,14 @@ class UpdateNamespacePropertiesResponse(BaseModel):
     )
 
 
+class BlobMetadata(BaseModel):
+    type: str
+    snapshot_id: int = Field(..., alias='snapshot-id')
+    sequence_number: int = Field(..., alias='sequence-number')
+    fields: List[int]
+    properties: Optional[Dict[str, Any]] = None
+
+
 class CreateNamespaceRequest(BaseModel):
     namespace: Namespace
     properties: Optional[Dict[str, str]] = Field(
@@ -629,8 +642,22 @@ class ReportMetricsRequest2(CommitReport):
     report_type: str = Field(..., alias='report-type')
 
 
+class StatisticsFile(BaseModel):
+    snapshot_id: int = Field(..., alias='snapshot-id')
+    statistics_path: str = Field(..., alias='statistics-path')
+    file_size_in_bytes: int = Field(..., alias='file-size-in-bytes')
+    file_footer_size_in_bytes: int = Field(..., alias='file-footer-size-in-bytes')
+    blob_metadata: List[BlobMetadata] = Field(..., alias='blob-metadata')
+
+
 class Term(BaseModel):
     __root__: Union[Reference, TransformTerm]
+
+
+class SetStatisticsUpdate(BaseUpdate):
+    action: Literal['set-statistics']
+    snapshot_id: int = Field(..., alias='snapshot-id')
+    statistics: StatisticsFile
 
 
 class UnaryExpression(BaseModel):
@@ -767,6 +794,8 @@ class TableUpdate(BaseModel):
         SetLocationUpdate,
         SetPropertiesUpdate,
         RemovePropertiesUpdate,
+        SetStatisticsUpdate,
+        RemoveStatisticsUpdate,
     ]
 
 

@@ -28,8 +28,19 @@ on:
   pull_request:
     paths-ignore:
       - '.github/ISSUE_TEMPLATE/**'
+      - '.github/workflows/api-binary-compatibility.yml'
       - '.github/workflows/flink-ci.yml'
       - '.github/workflows/hive-ci.yml'
+      - '.github/workflows/java-ci.yml'
+      - '.github/workflows/jmh-benchmarks-ci.yml'
+      - '.github/workflows/labeler.yml'
+      - '.github/workflows/licence-check.yml'
+      - '.github/workflows/open-api.yml'
+      - '.github/workflows/publish-snapshot.yml'
+      - '.github/workflows/recurring-jmh-benchmarks.yml'
+      - '.github/workflows/site-ci.yml'
+      - '.github/workflows/spark-ci.yml'
+      - '.github/workflows/stale.yml'
       - '.gitignore'
       - '.asf.yml'
       - 'dev/**'
@@ -66,7 +77,7 @@ jobs:
         with:
           distribution: zulu
           java-version: ${{ matrix.jvm }}
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
@@ -75,7 +86,7 @@ jobs:
           restore-keys: ${{ runner.os }}-gradle-
       - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
       - run: ./gradlew -DsparkVersions=3.5 -DscalaVersion=2.12 -DhiveVersions= -DflinkVersions= :iceberg-delta-lake:check -Pquick=true -x javadoc
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: test logs
@@ -95,7 +106,7 @@ jobs:
         with:
           distribution: zulu
           java-version: ${{ matrix.jvm }}
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
@@ -104,7 +115,7 @@ jobs:
           restore-keys: ${{ runner.os }}-gradle-
       - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
       - run: ./gradlew -DsparkVersions=3.5 -DscalaVersion=2.13 -DhiveVersions= -DflinkVersions= :iceberg-delta-lake:check -Pquick=true -x javadoc
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: test logs

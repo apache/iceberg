@@ -2150,6 +2150,8 @@ components:
           remove-properties: '#/components/schemas/RemovePropertiesUpdate'
           add-view-version: '#/components/schemas/AddViewVersionUpdate'
           set-current-view-version: '#/components/schemas/SetCurrentViewVersionUpdate'
+          set-statistics: '#/components/schemas/SetStatisticsUpdate'
+          remove-statistics: '#/components/schemas/RemoveStatisticsUpdate'
       type: object
       required:
         - action
@@ -2394,6 +2396,37 @@ components:
           type: integer
           description: The view version id to set as current, or -1 to set last added view version id
 
+    SetStatisticsUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+      required:
+        - action
+        - snapshot-id
+        - statistics
+      properties:
+        action:
+          type: string
+          enum: [ "set-statistics" ]
+        snapshot-id:
+          type: integer
+          format: int64
+        statistics:
+          $ref: '#/components/schemas/StatisticsFile'
+
+    RemoveStatisticsUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+      required:
+        - action
+        - snapshot-id
+      properties:
+        action:
+          type: string
+          enum: [ "remove-statistics" ]
+        snapshot-id:
+          type: integer
+          format: int64
+
     TableUpdate:
       anyOf:
         - $ref: '#/components/schemas/AssignUUIDUpdate'
@@ -2411,6 +2444,8 @@ components:
         - $ref: '#/components/schemas/SetLocationUpdate'
         - $ref: '#/components/schemas/SetPropertiesUpdate'
         - $ref: '#/components/schemas/RemovePropertiesUpdate'
+        - $ref: '#/components/schemas/SetStatisticsUpdate'
+        - $ref: '#/components/schemas/RemoveStatisticsUpdate'
 
     ViewUpdate:
       anyOf:
@@ -3158,6 +3193,54 @@ components:
         metadata:
           $ref: '#/components/schemas/TableMetadata'
 
+    StatisticsFile:
+      type: object
+      required:
+        - snapshot-id
+        - statistics-path
+        - file-size-in-bytes
+        - file-footer-size-in-bytes
+        - blob-metadata
+      properties:
+        snapshot-id:
+          type: integer
+          format: int64
+        statistics-path:
+          type: string
+        file-size-in-bytes:
+          type: integer
+          format: int64
+        file-footer-size-in-bytes:
+          type: integer
+          format: int64
+        blob-metadata:
+          type: array
+          items:
+            $ref: '#/components/schemas/BlobMetadata'
+
+    BlobMetadata:
+      type: object
+      required:
+        - type
+        - snapshot-id
+        - sequence-number
+        - fields
+      properties:
+        type:
+          type: string
+        snapshot-id:
+          type: integer
+          format: int64
+        sequence-number:
+          type: integer
+          format: int64
+        fields:
+          type: array
+          items:
+            type: integer
+        properties:
+          type: object
+
 
   #############################
   # Reusable Response Objects #
@@ -3546,6 +3629,10 @@ components:
         For unauthorized requests, services should return an appropriate 401 or
         403 response. Implementations must not return altered success (200)
         responses when a request is unauthenticated or unauthorized.
+
+        If a separate authorization server is used, substitute the tokenUrl with 
+        the full token path of the external authorization server, and use the 
+        resulting token to access the resources defined in the spec.
       flows:
         clientCredentials:
           tokenUrl: /v1/oauth/tokens

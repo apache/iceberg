@@ -22,9 +22,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ContentFile;
-import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Pair;
@@ -72,18 +70,12 @@ abstract class BaseFileRewriteCoordinator<F extends ContentFile<F>> {
 
   public Set<String> fetchSetIds(Table table) {
     return resultMap.keySet().stream()
-        .filter(e -> e.first().equals(tableUUID(table)))
+        .filter(e -> e.first().equals(Spark3Util.baseTableUUID(table)))
         .map(Pair::second)
         .collect(Collectors.toSet());
   }
 
   private Pair<String, String> toId(Table table, String setId) {
-    String tableUUID = tableUUID(table);
-    return Pair.of(tableUUID, setId);
-  }
-
-  private String tableUUID(Table table) {
-    TableOperations ops = ((HasTableOperations) table).operations();
-    return ops.current().uuid();
+    return Pair.of(Spark3Util.baseTableUUID(table), setId);
   }
 }

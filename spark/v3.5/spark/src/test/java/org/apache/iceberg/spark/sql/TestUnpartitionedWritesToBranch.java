@@ -18,20 +18,15 @@
  */
 package org.apache.iceberg.spark.sql;
 
-import java.util.Map;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.assertj.core.api.Assertions;
-import org.junit.Test;
+import org.junit.jupiter.api.TestTemplate;
 
 public class TestUnpartitionedWritesToBranch extends UnpartitionedWritesTestBase {
 
   private static final String BRANCH = "test";
-
-  public TestUnpartitionedWritesToBranch(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
 
   @Override
   public void createTables() {
@@ -51,9 +46,9 @@ public class TestUnpartitionedWritesToBranch extends UnpartitionedWritesTestBase
     return String.format("%s VERSION AS OF '%s'", tableName, BRANCH);
   }
 
-  @Test
+  @TestTemplate
   public void testInsertIntoNonExistingBranchFails() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> sql("INSERT INTO %s.branch_not_exist VALUES (4, 'd'), (5, 'e')", tableName))
         .isInstanceOf(ValidationException.class)
         .hasMessage("Cannot use branch (does not exist): not_exist");

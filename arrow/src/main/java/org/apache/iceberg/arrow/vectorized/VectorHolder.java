@@ -119,12 +119,6 @@ public class VectorHolder {
     return new ConstantVectorHolder<>(icebergField, numRows, constantValue);
   }
 
-  /** @deprecated since 1.4.0, will be removed in 1.5.0; use typed constant holders instead. */
-  @Deprecated
-  public static <T> VectorHolder constantHolder(int numRows, T constantValue) {
-    return new ConstantVectorHolder<>(numRows, constantValue);
-  }
-
   public static VectorHolder deletedVectorHolder(int numRows) {
     return new DeletedVectorHolder(numRows);
   }
@@ -148,13 +142,6 @@ public class VectorHolder {
     public ConstantVectorHolder(int numRows) {
       this.numRows = numRows;
       this.constantValue = null;
-    }
-
-    /** @deprecated since 1.4.0, will be removed in 1.5.0; use typed constant holders instead. */
-    @Deprecated
-    public ConstantVectorHolder(int numRows, T constantValue) {
-      this.numRows = numRows;
-      this.constantValue = constantValue;
     }
 
     public ConstantVectorHolder(Types.NestedField icebergField, int numRows, T constantValue) {

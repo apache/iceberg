@@ -51,7 +51,7 @@ public class TestGlueCatalogNamespace extends GlueTestBase {
         .hasMessageContaining("not found");
     Map<String, String> properties =
         ImmutableMap.of(
-            IcebergToGlueConverter.GLUE_DB_DESCRIPTION_KEY,
+            IcebergToGlueConverter.GLUE_DESCRIPTION_KEY,
             "description",
             IcebergToGlueConverter.GLUE_DB_LOCATION_KEY,
             "s3://location",
@@ -117,7 +117,7 @@ public class TestGlueCatalogNamespace extends GlueTestBase {
     properties.put("key", "val");
     properties.put("key2", "val2");
     properties.put(IcebergToGlueConverter.GLUE_DB_LOCATION_KEY, "s3://test");
-    properties.put(IcebergToGlueConverter.GLUE_DB_DESCRIPTION_KEY, "description");
+    properties.put(IcebergToGlueConverter.GLUE_DESCRIPTION_KEY, "description");
     glueCatalog.setProperties(Namespace.of(namespace), properties);
     Database database =
         glue.getDatabase(GetDatabaseRequest.builder().name(namespace).build()).database();
@@ -133,7 +133,7 @@ public class TestGlueCatalogNamespace extends GlueTestBase {
         Sets.newHashSet(
             "key",
             IcebergToGlueConverter.GLUE_DB_LOCATION_KEY,
-            IcebergToGlueConverter.GLUE_DB_DESCRIPTION_KEY));
+            IcebergToGlueConverter.GLUE_DESCRIPTION_KEY));
     database = glue.getDatabase(GetDatabaseRequest.builder().name(namespace).build()).database();
     Assert.assertFalse(database.parameters().containsKey("key"));
     Assert.assertTrue(database.parameters().containsKey("key2"));
@@ -144,7 +144,7 @@ public class TestGlueCatalogNamespace extends GlueTestBase {
     properties = Maps.newHashMap();
     properties.put("key", "val");
     properties.put(IcebergToGlueConverter.GLUE_DB_LOCATION_KEY, "s3://test2");
-    properties.put(IcebergToGlueConverter.GLUE_DB_DESCRIPTION_KEY, "description2");
+    properties.put(IcebergToGlueConverter.GLUE_DESCRIPTION_KEY, "description2");
     glueCatalog.setProperties(Namespace.of(namespace), properties);
     database = glue.getDatabase(GetDatabaseRequest.builder().name(namespace).build()).database();
     Assert.assertTrue(database.parameters().containsKey("key"));

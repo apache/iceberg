@@ -21,9 +21,12 @@ package org.apache.iceberg.spark.source;
 import static org.apache.iceberg.spark.SparkSchemaUtil.convert;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
@@ -48,13 +51,10 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.assertj.core.api.Assertions;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestWriteMetricsConfig {
 
@@ -73,18 +73,18 @@ public class TestWriteMetricsConfig {
                   required(4, "id", Types.IntegerType.get()),
                   required(5, "data", Types.StringType.get()))));
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
   private static SparkSession spark = null;
   private static JavaSparkContext sc = null;
 
-  @BeforeClass
+  @BeforeAll
   public static void startSpark() {
     TestWriteMetricsConfig.spark = SparkSession.builder().master("local[2]").getOrCreate();
     TestWriteMetricsConfig.sc = JavaSparkContext.fromSparkContext(spark.sparkContext());
   }
 
-  @AfterClass
+  @AfterAll
   public static void stopSpark() {
     SparkSession currentSpark = TestWriteMetricsConfig.spark;
     TestWriteMetricsConfig.spark = null;
@@ -94,7 +94,7 @@ public class TestWriteMetricsConfig {
 
   @Test
   public void testFullMetricsCollectionForParquet() throws IOException {
-    String tableLocation = temp.newFolder("iceberg-table").toString();
+    String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -116,16 +116,17 @@ public class TestWriteMetricsConfig {
 
     for (FileScanTask task : table.newScan().includeColumnStats().planFiles()) {
       DataFile file = task.file();
-      Assert.assertEquals(2, file.nullValueCounts().size());
-      Assert.assertEquals(2, file.valueCounts().size());
-      Assert.assertEquals(2, file.lowerBounds().size());
-      Assert.assertEquals(2, file.upperBounds().size());
+
+      assertThat(file.nullValueCounts()).hasSize(2);
+      assertThat(file.valueCounts()).hasSize(2);
+      assertThat(file.lowerBounds()).hasSize(2);
+      assertThat(file.upperBounds()).hasSize(2);
     }
   }
 
   @Test
   public void testCountMetricsCollectionForParquet() throws IOException {
-    String tableLocation = temp.newFolder("iceberg-table").toString();
+    String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -147,16 +148,16 @@ public class TestWriteMetricsConfig {
 
     for (FileScanTask task : table.newScan().includeColumnStats().planFiles()) {
       DataFile file = task.file();
-      Assert.assertEquals(2, file.nullValueCounts().size());
-      Assert.assertEquals(2, file.valueCounts().size());
-      Assert.assertTrue(file.lowerBounds().isEmpty());
-      Assert.assertTrue(file.upperBounds().isEmpty());
+      assertThat(file.nullValueCounts()).hasSize(2);
+      assertThat(file.valueCounts()).hasSize(2);
+      assertThat(file.lowerBounds()).isEmpty();
+      assertThat(file.upperBounds()).isEmpty();
     }
   }
 
   @Test
   public void testNoMetricsCollectionForParquet() throws IOException {
-    String tableLocation = temp.newFolder("iceberg-table").toString();
+    String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -178,16 +179,16 @@ public class TestWriteMetricsConfig {
 
     for (FileScanTask task : table.newScan().includeColumnStats().planFiles()) {
       DataFile file = task.file();
-      Assert.assertTrue(file.nullValueCounts().isEmpty());
-      Assert.assertTrue(file.valueCounts().isEmpty());
-      Assert.assertTrue(file.lowerBounds().isEmpty());
-      Assert.assertTrue(file.upperBounds().isEmpty());
+      assertThat(file.nullValueCounts()).isEmpty();
+      assertThat(file.valueCounts()).isEmpty();
+      assertThat(file.lowerBounds()).isEmpty();
+      assertThat(file.upperBounds()).isEmpty();
     }
   }
 
   @Test
   public void testCustomMetricCollectionForParquet() throws IOException {
-    String tableLocation = temp.newFolder("iceberg-table").toString();
+    String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -212,18 +213,16 @@ public class TestWriteMetricsConfig {
     Types.NestedField id = schema.findField("id");
     for (FileScanTask task : table.newScan().includeColumnStats().planFiles()) {
       DataFile file = task.file();
-      Assert.assertEquals(2, file.nullValueCounts().size());
-      Assert.assertEquals(2, file.valueCounts().size());
-      Assert.assertEquals(1, file.lowerBounds().size());
-      Assert.assertTrue(file.lowerBounds().containsKey(id.fieldId()));
-      Assert.assertEquals(1, file.upperBounds().size());
-      Assert.assertTrue(file.upperBounds().containsKey(id.fieldId()));
+      assertThat(file.nullValueCounts()).hasSize(2);
+      assertThat(file.valueCounts()).hasSize(2);
+      assertThat(file.lowerBounds()).hasSize(1).containsKey(id.fieldId());
+      assertThat(file.upperBounds()).hasSize(1).containsKey(id.fieldId());
     }
   }
 
   @Test
   public void testBadCustomMetricCollectionForParquet() throws IOException {
-    String tableLocation = temp.newFolder("iceberg-table").toString();
+    String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -231,8 +230,7 @@ public class TestWriteMetricsConfig {
     properties.put(TableProperties.DEFAULT_WRITE_METRICS_MODE, "counts");
     properties.put("write.metadata.metrics.column.ids", "full");
 
-    Assertions.assertThatThrownBy(
-            () -> tables.create(SIMPLE_SCHEMA, spec, properties, tableLocation))
+    assertThatThrownBy(() -> tables.create(SIMPLE_SCHEMA, spec, properties, tableLocation))
         .isInstanceOf(ValidationException.class)
         .hasMessageStartingWith(
             "Invalid metrics config, could not find column ids from table prop write.metadata.metrics.column.ids in schema table");
@@ -240,7 +238,7 @@ public class TestWriteMetricsConfig {
 
   @Test
   public void testCustomMetricCollectionForNestedParquet() throws IOException {
-    String tableLocation = temp.newFolder("iceberg-table").toString();
+    String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.builderFor(COMPLEX_SCHEMA).identity("strCol").build();
@@ -271,28 +269,30 @@ public class TestWriteMetricsConfig {
       DataFile file = task.file();
 
       Map<Integer, Long> nullValueCounts = file.nullValueCounts();
-      Assert.assertEquals(3, nullValueCounts.size());
-      Assert.assertTrue(nullValueCounts.containsKey(longCol.fieldId()));
-      Assert.assertTrue(nullValueCounts.containsKey(recordId.fieldId()));
-      Assert.assertTrue(nullValueCounts.containsKey(recordData.fieldId()));
+      assertThat(nullValueCounts)
+          .hasSize(3)
+          .containsKey(longCol.fieldId())
+          .containsKey(recordId.fieldId())
+          .containsKey(recordData.fieldId());
 
       Map<Integer, Long> valueCounts = file.valueCounts();
-      Assert.assertEquals(3, valueCounts.size());
-      Assert.assertTrue(valueCounts.containsKey(longCol.fieldId()));
-      Assert.assertTrue(valueCounts.containsKey(recordId.fieldId()));
-      Assert.assertTrue(valueCounts.containsKey(recordData.fieldId()));
+      assertThat(valueCounts)
+          .hasSize(3)
+          .containsKey(longCol.fieldId())
+          .containsKey(recordId.fieldId())
+          .containsKey(recordData.fieldId());
 
       Map<Integer, ByteBuffer> lowerBounds = file.lowerBounds();
-      Assert.assertEquals(2, lowerBounds.size());
-      Assert.assertTrue(lowerBounds.containsKey(recordId.fieldId()));
+      assertThat(lowerBounds).hasSize(2).containsKey(recordId.fieldId());
+
       ByteBuffer recordDataLowerBound = lowerBounds.get(recordData.fieldId());
-      Assert.assertEquals(2, ByteBuffers.toByteArray(recordDataLowerBound).length);
+      assertThat(ByteBuffers.toByteArray(recordDataLowerBound)).hasSize(2);
 
       Map<Integer, ByteBuffer> upperBounds = file.upperBounds();
-      Assert.assertEquals(2, upperBounds.size());
-      Assert.assertTrue(upperBounds.containsKey(recordId.fieldId()));
+      assertThat(upperBounds).hasSize(2).containsKey(recordId.fieldId());
+
       ByteBuffer recordDataUpperBound = upperBounds.get(recordData.fieldId());
-      Assert.assertEquals(2, ByteBuffers.toByteArray(recordDataUpperBound).length);
+      assertThat(ByteBuffers.toByteArray(recordDataUpperBound)).hasSize(2);
     }
   }
 }

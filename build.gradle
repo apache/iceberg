@@ -132,6 +132,11 @@ allprojects {
 }
 
 subprojects {
+  if (it.name == 'iceberg-bom') {
+    // the BOM does not build anything, the code below expects "source code"
+    return
+  }
+
   apply plugin: 'java-library'
 
   if (project.name in REVAPI_PROJECTS) {
@@ -408,6 +413,7 @@ project(':iceberg-data') {
   }
 
   test {
+    useJUnitPlatform()
     // Only for TestSplitScan as of Gradle 5.0+
     maxHeapSize '1500m'
   }
@@ -466,6 +472,7 @@ project(':iceberg-aws') {
     implementation "com.fasterxml.jackson.core:jackson-core"
 
     compileOnly(platform(libs.awssdk.bom))
+    compileOnly(libs.awssdk.s3accessgrants)
     compileOnly("software.amazon.awssdk:url-connection-client")
     compileOnly("software.amazon.awssdk:apache-client")
     compileOnly("software.amazon.awssdk:auth")
@@ -488,6 +495,7 @@ project(':iceberg-aws') {
     testImplementation(platform(libs.awssdk.bom))
     testImplementation("software.amazon.awssdk:iam")
     testImplementation("software.amazon.awssdk:s3control")
+    testImplementation("software.amazon.s3.accessgrants:aws-s3-accessgrants-java-plugin")
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation(libs.s3mock.junit5) {
       exclude module: "spring-boot-starter-logging"
@@ -898,7 +906,9 @@ project(':iceberg-nessie') {
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-    implementation libs.nessie.client
+    implementation(libs.nessie.client) {
+      exclude group: 'com.fasterxml.jackson'
+    }
     implementation platform(libs.jackson.bom)
     implementation "com.fasterxml.jackson.core:jackson-databind"
     implementation "com.fasterxml.jackson.core:jackson-core"
@@ -1020,3 +1030,41 @@ apply from: 'baseline.gradle'
 apply from: 'deploy.gradle'
 apply from: 'tasks.gradle'
 
+project(':iceberg-bom') {
+  apply plugin: 'java-platform'
+
+  dependencies {
+    constraints {
+      // The Iceberg-Build builds for only one Scala version at a time, so the BOM would also
+      // only contain artifacts for that single Scala version. The following code ensures that
+      // the BOM references the artifacts for all Scala versions.
+      def sparkScalaPattern = ~"(.*)-([0-9][.][0-9]+)_([0-9][.][0-9]+)"
+      def sparkScalaVersions = [
+        "3.3": ["2.12", "2.13"],
+        "3.4": ["2.12", "2.13"],
+        "3.5": ["2.12", "2.13"],
+      ]
+      rootProject.allprojects.forEach {
+        // Do not include ':iceberg-spark', the bom itself and the root project.
+        if (it.name != 'iceberg-bom' && it != rootProject && it.childProjects.isEmpty()) {
+          if (it.name.startsWith("iceberg-spark-")) {
+            def sparkScalaMatcher = sparkScalaPattern.matcher(it.name)
+            if (!sparkScalaMatcher.find()) {
+              throw new GradleException("Expected a Spark/Scala version combination in Gradle project name ${it.name}")
+            }
+            def prjName = sparkScalaMatcher.group(1)
+            def sparkVer = sparkScalaMatcher.group(2)
+            for (def scalaVer in sparkScalaVersions[sparkVer]) {
+              add("api", "${it.group}:$prjName-${sparkVer}_$scalaVer:${it.version}")
+            }
+          } else {
+            add("api", project(it.path))
+          }
+        }
+      }
+    }
+  }
+
+  // Needed to get the "faked" Scala artifacts into the bom
+  javaPlatform { allowDependencies() }
+}
