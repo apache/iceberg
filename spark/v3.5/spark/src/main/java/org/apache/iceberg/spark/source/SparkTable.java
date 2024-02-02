@@ -133,11 +133,11 @@ public class SparkTable
   public SparkTable(Table icebergTable, String branch, boolean refreshEagerly) {
     this(icebergTable, refreshEagerly);
     this.branch = branch;
+    if (SnapshotRef.MAIN_BRANCH.equals(branch)) {
+      return;
+    }
     Snapshot snapshot = icebergTable.snapshot(branch);
-    ValidationException.check(
-        branch == null || SnapshotRef.MAIN_BRANCH.equals(branch) || snapshot != null,
-        "Cannot use branch (does not exist): %s",
-        branch);
+    ValidationException.check(snapshot != null, "Cannot use branch (does not exist): %s", branch);
     this.snapshotId = snapshot.snapshotId();
   }
 
@@ -286,7 +286,9 @@ public class SparkTable
   @Override
   public WriteBuilder newWriteBuilder(LogicalWriteInfo info) {
     Preconditions.checkArgument(
-        snapshotId == null, "Cannot write to table at a specific snapshot: %s", snapshotId);
+        branch != null || snapshotId == null,
+        "Cannot write to table at a specific snapshot: %s",
+        snapshotId);
 
     if (icebergTable instanceof PositionDeletesTable) {
       return new SparkPositionDeletesRewriteBuilder(sparkSession(), icebergTable, branch, info);
@@ -303,7 +305,9 @@ public class SparkTable
   @Override
   public boolean canDeleteWhere(Predicate[] predicates) {
     Preconditions.checkArgument(
-        snapshotId == null, "Cannot delete from table at a specific snapshot: %s", snapshotId);
+        branch != null || snapshotId == null,
+        "Cannot delete from table at a specific snapshot: %s",
+        snapshotId);
 
     Expression deleteExpr = Expressions.alwaysTrue();
 
