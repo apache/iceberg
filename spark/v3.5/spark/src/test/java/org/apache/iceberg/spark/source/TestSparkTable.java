@@ -64,8 +64,8 @@ public class TestSparkTable extends CatalogTestBase {
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
     SparkTable table1 = (SparkTable) catalog.loadTable(identifier);
-    final long version1Snapshot = table1.table().currentSnapshot().snapshotId();
-    final String version1 = "VERSION_1";
+    long version1Snapshot = table1.table().currentSnapshot().snapshotId();
+    String version1 = "VERSION_1";
     table1.table().manageSnapshots().createTag(version1, version1Snapshot).commit();
 
     SparkTable firstSnapshotTable = table1.copyWithSnapshotId(version1Snapshot);
@@ -74,8 +74,8 @@ public class TestSparkTable extends CatalogTestBase {
     sql("UPDATE %s SET data = 'b'", tableName);
 
     SparkTable table2 = (SparkTable) catalog.loadTable(identifier);
-    final long version2Snapshot = table2.table().currentSnapshot().snapshotId();
-    final String version2 = "VERSION_2";
+    long version2Snapshot = table2.table().currentSnapshot().snapshotId();
+    String version2 = "VERSION_2";
     table2.table().manageSnapshots().createTag(version2, version2Snapshot).commit();
 
     SparkTable secondTagTable = table2.copyWithBranch(version2);
