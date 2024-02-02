@@ -491,6 +491,8 @@ paths:
         create operation include changes like AddSchemaUpdate and SetCurrentSchemaUpdate that set the initial
         table state.
       operationId: createTable
+      parameters:
+        - $ref: '#/components/parameters/data-access'
       requestBody:
         content:
           application/json:
@@ -610,6 +612,7 @@ paths:
         for table requests. Otherwise, a token may be passed using a RFC 8693 token type as a configuration
         key. For example, "urn:ietf:params:oauth:token-type:jwt=<JWT-token>".
       parameters:
+        - $ref: '#/components/parameters/data-access'
         - in: query
           name: snapshots
           description:
@@ -1452,6 +1455,23 @@ components:
       schema:
         type: string
       example: "sales"
+
+    data-access:
+      name: X-Iceberg-Data-Access
+      in: header
+      description: >
+        Optional signal to the server that the client supports data access via
+        a comma-separated list of access mechanisms.  The server may choose to 
+        supply access via any or none of the requested mechanisms.
+      required: false
+      schema:
+        type: string
+        enum:
+          - vended_credentials
+          - remote_signing
+      style: simple
+      explode: false
+      example: "vended_credentials,remote_signing"
 
   ##############################
   # Application Schema Objects #
