@@ -23,34 +23,18 @@ import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import org.apache.iceberg.CatalogUtil;
-import org.apache.iceberg.ParameterizedTestExtension;
-import org.apache.iceberg.Parameters;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.CatalogTestBase;
-import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.internal.SQLConf;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.extension.ExtendWith;
 
-@ExtendWith(ParameterizedTestExtension.class)
 public abstract class ExtensionsTestBase extends CatalogTestBase {
 
   private static final Random RANDOM = ThreadLocalRandom.current();
-
-  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
-  protected static Object[][] parameters() {
-    return new Object[][] {
-      {
-        SparkCatalogConfig.HADOOP.catalogName(),
-        SparkCatalogConfig.HADOOP.implementation(),
-        SparkCatalogConfig.HADOOP.properties()
-      },
-    };
-  }
 
   @BeforeAll
   public static void startMetastoreAndSpark() {
