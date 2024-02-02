@@ -190,7 +190,7 @@ public class HadoopTableOperations implements TableOperations {
         throw new RuntimeException(msg);
       } else {
         // In fact, we don't really care if the metadata cleanup succeeds or not,
-        // if it fails this time, then it goes to the next cleanup.
+        // if it fails this time, we can execute it in the next commit method call..
         // So we should fix the shouldRefresh flag first.
         this.shouldRefresh = versionCommitSuccess;
         deleteRemovedMetadataFiles(base, metadata);
