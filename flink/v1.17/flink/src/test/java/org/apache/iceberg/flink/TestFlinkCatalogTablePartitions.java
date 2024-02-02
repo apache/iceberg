@@ -53,7 +53,7 @@ public class TestFlinkCatalogTablePartitions extends CatalogTestBase {
     for (FileFormat format :
         new FileFormat[] {FileFormat.ORC, FileFormat.AVRO, FileFormat.PARQUET}) {
       for (Boolean cacheEnabled : new Boolean[] {true, false}) {
-        for (Object[] catalogParams : FlinkCatalogTestBase.parameters()) {
+        for (Object[] catalogParams : CatalogTestBase.parameters()) {
           String catalogName = (String) catalogParams[0];
           Namespace baseNamespace = (Namespace) catalogParams[1];
           parameters.add(new Object[] {catalogName, baseNamespace, format, cacheEnabled});

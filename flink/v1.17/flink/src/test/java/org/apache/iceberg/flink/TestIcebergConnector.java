@@ -280,7 +280,7 @@ public class TestIcebergConnector extends FlinkTestBase {
     catalogProps.put("type", "iceberg");
     if (isHiveCatalog()) {
       catalogProps.put("catalog-type", "hive");
-      catalogProps.put(CatalogProperties.URI, FlinkCatalogTestBase.getURI(hiveConf));
+      catalogProps.put(CatalogProperties.URI, CatalogTestBase.getURI(hiveConf));
     } else {
       catalogProps.put("catalog-type", "hadoop");
     }
@@ -315,7 +315,7 @@ public class TestIcebergConnector extends FlinkTestBase {
     tableProps.put("catalog-name", catalogName);
     tableProps.put(CatalogProperties.WAREHOUSE_LOCATION, createWarehouse());
     if (isHiveCatalog()) {
-      tableProps.put(CatalogProperties.URI, FlinkCatalogTestBase.getURI(hiveConf));
+      tableProps.put(CatalogProperties.URI, CatalogTestBase.getURI(hiveConf));
     }
     return tableProps;
   }
@@ -337,7 +337,7 @@ public class TestIcebergConnector extends FlinkTestBase {
   }
 
   private String toWithClause(Map<String, String> props) {
-    return FlinkCatalogTestBase.toWithClause(props);
+    return CatalogTestBase.toWithClause(props);
   }
 
   private static String createWarehouse() {
