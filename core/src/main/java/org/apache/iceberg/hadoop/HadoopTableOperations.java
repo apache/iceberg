@@ -174,19 +174,16 @@ public class HadoopTableOperations implements TableOperations {
       // update the best-effort version pointer
       versionCommitSuccess = writeVersionHint(nextVersion, finalMetadataFile);
       if (!versionCommitSuccess) {
+        // If the version Hint write fails, then we should delete the latest submitted metadata.
+        // The reason for this is explained in the write Version Hint method.
+        // But whatever,Users should clean up orphaned files after job fail.This may be too
+        // heavy......But it can
+        // stay that way for now.
         String msg =
             String.format(
                 "Can not write versionHint. commitVersion = %s.Is there a problem with the file system?",
                 nextVersion);
         io().deleteFile(finalMetadataFile.toString());
-        // Since this happens, if we do nothing, then the table will not commit because
-        // metadata_v+1.json exists,
-        // but versionHint is not modified.
-        // Should we find a way to clean up metadata_v+1.json here, or should we let the user do it
-        // manually?
-        // But whatever,Users should clean up orphaned files after job fail.This may be too
-        // heavy......But it can
-        // stay that way for now.
         throw new RuntimeException(msg);
       } else {
         // In fact, we don't really care if the metadata cleanup succeeds or not,
@@ -343,25 +340,32 @@ public class HadoopTableOperations implements TableOperations {
 
   @VisibleForTesting
   boolean writeVersionHint(Integer versionToWrite, Path finalMetadataFile) {
-    Path versionHintFile = versionHintFile();
-    FileSystem fs = getFileSystem(versionHintFile, conf);
-    Path tempVersionHintFile = metadataPath(UUID.randomUUID() + "-version-hint.temp");
-    writeVersionToPath(fs, tempVersionHintFile, versionToWrite);
     boolean deleteSuccess = false;
     try {
+      Path versionHintFile = versionHintFile();
+      FileSystem fs = getFileSystem(versionHintFile, conf);
+      Path tempVersionHintFile = metadataPath(UUID.randomUUID() + "-version-hint.temp");
+      writeVersionToPath(fs, tempVersionHintFile, versionToWrite);
       deleteSuccess = dropOldVersionHint(fs, versionHintFile);
       if (!deleteSuccess) {
         throw new RuntimeException("Can't delete version Hint, something wrong with File System?");
       }
       return renameVersionHint(fs, tempVersionHintFile, versionHintFile);
     } catch (Exception e) {
-      // This is the most dangerous situation because we cleaned up the version Hint and didn't have
-      // time to rewrite the version Hint.
-      // If we cleaned up the data file we just committed at this point, we would lose the data.
-      // So we need to throw a Commit State Unknown Exception to avoid cleaning up the data file.
-      // If we haven't had a chance to clean up the version Hint File yet,
-      // then we can just throw a Commit Failed Exception and proceed with the normal process of
-      // failing the task.
+      // This is the most dangerous scenario. There are two possibilities:
+      // 1. We wrote to metadata-v+1.json, but didn't have time to change the versionHint, the
+      // content in VersionHint is old. If we do nothing, then all commits after this table will
+      // fail because versionHint points to the old version, but metadata-v+1.json exists and rename
+      // will fail.
+      // 2. We deleted the versionHint, but did not have time to write a new versionHint. At this
+      // point, because VersionHint is lost, all clients can only traverse the metadata-json to find
+      // the latest version, that is: as long as the versionHint is deleted, then in fact, commit
+      // will be succeeded.
+      // For case 1, we'd better clean up the metadata-v+1.json to ensure that the next commit will
+      // be successful.
+      // For case 2, Since the commit was successful, we can't clean up the data files associated
+      // with this commit.we need to throw a CommitStateUnknownException to skip the data file
+      // cleanup.
       if (!deleteSuccess) {
         io().deleteFile(finalMetadataFile.toString());
       }
