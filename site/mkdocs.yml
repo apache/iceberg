@@ -93,6 +93,9 @@ extra:
       link: 'https://join.slack.com/t/apache-iceberg/shared_invite/zt-287g3akar-K9Oe_En5j1UL7Y_Ikpai3A'
       title: slack
 
+exclude_docs: |
+  !.asf.yaml
+
 extra_css:
   - assets/stylesheets/extra.css
   - assets/stylesheets/bootstrap-grid.css
