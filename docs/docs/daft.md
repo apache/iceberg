@@ -29,7 +29,7 @@ For Python users, Daft is complementary to PyIceberg as a pure query engine laye
 * **PyIceberg:** catalog/table management tasks (e.g. creation of tables, modifying table schemas)
 * **Daft:** querying tables (e.g. previewing tables, data ETL and analysis)
 
-In database terms, PyIceberg is the Data Description Language (DDL) for database administration and Daft is the Data Manipulation Language (DML) for querying data
+In database terms, PyIceberg is the Data Description Language (DDL) for database administration and Daft is the Data Manipulation Language (DML) for querying data.
 
 ## Enabling Iceberg support in Daft
 
