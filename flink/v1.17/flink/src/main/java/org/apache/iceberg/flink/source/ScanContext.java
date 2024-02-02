@@ -153,11 +153,6 @@ public class ScanContext implements Serializable {
       }
 
       Preconditions.checkArgument(
-          branch == null,
-          String.format(
-              "Cannot scan table using ref %s configured for streaming reader yet", branch));
-
-      Preconditions.checkArgument(
           tag == null,
           String.format("Cannot scan table using ref %s configured for streaming reader", tag));
     }
