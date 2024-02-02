@@ -581,10 +581,12 @@ class GetNamespaceResponse(BaseModel):
 
 
 class ListTablesResponse(BaseModel):
+    next_page_token: Optional[str] = Field(None, alias='next-page-token')
     identifiers: Optional[List[TableIdentifier]] = Field(None, unique_items=True)
 
 
 class ListNamespacesResponse(BaseModel):
+    next_page_token: Optional[str] = Field(None, alias='next-page-token')
     namespaces: Optional[List[Namespace]] = Field(None, unique_items=True)
 
 
