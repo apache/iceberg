@@ -108,7 +108,10 @@ public class HadoopCatalog extends BaseMetastoreCatalog
         "Cannot initialize HadoopCatalog because warehousePath must not be null or empty");
 
     this.catalogName = name;
-    this.warehouseLocation = LocationUtil.stripTrailingSlash(inputWarehouseLocation);
+    this.warehouseLocation = inputWarehouseLocation;
+    if (!warehouseLocation.endsWith("://")) {
+        warehouseLocation = LocationUtil.stripTrailingSlash(warehouseLocation);
+    }
     this.fs = Util.getFs(new Path(warehouseLocation), conf);
 
     String fileIOImpl =
