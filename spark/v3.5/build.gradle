@@ -172,6 +172,10 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
     antlr libs.antlr.antlr4
   }
 
+  test {
+    useJUnitPlatform()
+  }
+
   generateGrammarSource {
     maxHeapSize = "64m"
     arguments += ['-visitor', '-package', 'org.apache.spark.sql.catalyst.parser.extensions']

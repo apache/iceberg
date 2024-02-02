@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.nio.file.Path;
@@ -35,6 +36,7 @@ import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.io.DatumWriter;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -49,14 +51,15 @@ import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.assertj.core.api.Assertions;
-import org.assertj.core.api.Assumptions;
 import org.joda.time.DateTime;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestAddFilesProcedure extends ExtensionsTestBase {
 
   @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}, formatVersion = {3}")
@@ -161,7 +164,7 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
             "CALL %s.system.add_files('%s', '`orc`.`%s`')",
             catalogName, tableName, fileTableDir.getAbsolutePath());
 
-    Assertions.assertThat(result).isEqualTo(2L);
+    assertThat(result).isEqualTo(2L);
 
     assertEquals(
         "Iceberg table contains correct data",
@@ -173,7 +176,7 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
   public void addAvroFile() throws Exception {
     // Spark Session Catalog cannot load metadata tables
     // with "The namespace in session catalog must have exactly one name part"
-    Assumptions.assumeThat(catalogName).isNotEqualTo("spark_catalog");
+    assumeThat(catalogName).isNotEqualTo("spark_catalog");
 
     // Create an Avro file
 
@@ -475,7 +478,7 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
 
     // verify manifest file name has uuid pattern
     String manifestPath = (String) sql("select path from %s.manifests", tableName).get(0)[0];
-    System.out.println(manifestPath);
+
     Pattern uuidPattern = Pattern.compile("[a-f0-9]{8}(?:-[a-f0-9]{4}){4}[a-f0-9]{8}");
 
     Matcher matcher = uuidPattern.matcher(manifestPath);
