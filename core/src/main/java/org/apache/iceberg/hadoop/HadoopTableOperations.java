@@ -132,6 +132,33 @@ public class HadoopTableOperations implements TableOperations {
 
   @Override
   public void commit(TableMetadata base, TableMetadata metadata) {
+    // findOldVersionHint-------------------->isFirstRun------->JobFail
+    //       |                 NOT EXISTS        |        NO
+    //       |                                   |
+    //       | yes                               |
+    //       ↓                                   |YES
+    // dropOldVersionHint----------->JobFail     |
+    //       |                 NO                |
+    //       |<----------------------------------|
+    //       | yes
+    //       ↓
+    // writeNewVersionMeta-------------------->JobFail
+    //       |                 NO
+    //       |
+    //       | yes
+    //       ↓
+    // writeNewVersionHint--------------->|
+    //       |                  NO        |
+    //       |                            |
+    //       | yes                        |
+    //       ↓                            |
+    // cleanOldMeta---------------------->|
+    //       |                NO          |
+    //       |                            |
+    //       | yes                        |
+    //       ↓                            |
+    //    SUCCESS<------------------------|
+
     Pair<Integer, TableMetadata> current = versionAndMetadata();
     if (base != current.second()) {
       throw new CommitFailedException("Cannot commit changes based on stale table metadata");
