@@ -27,6 +27,7 @@ import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StringType;
@@ -63,6 +64,9 @@ public class TableReference implements IndexedRecord {
   }
 
   public TableReference(String catalog, List<String> namespace, String name) {
+    Preconditions.checkNotNull(catalog, "Catalog cannot be null");
+    Preconditions.checkNotNull(namespace, "Namespace cannot be null");
+    Preconditions.checkNotNull(name, "Name cannot be null");
     this.catalog = catalog;
     this.namespace = namespace;
     this.name = name;

@@ -23,6 +23,7 @@ import java.util.UUID;
 import org.apache.avro.Schema;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
@@ -62,6 +63,8 @@ public class DataWritten implements Payload {
       TableReference tableReference,
       List<DataFile> dataFiles,
       List<DeleteFile> deleteFiles) {
+    Preconditions.checkNotNull(commitId, "Commit ID cannot be null");
+    Preconditions.checkNotNull(tableReference, "Table reference cannot be null");
     this.partitionType = partitionType;
     this.commitId = commitId;
     this.tableReference = tableReference;
