@@ -57,7 +57,6 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.exceptions.CommitFailedException;
-import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -211,7 +210,27 @@ public class TestHadoopCommits extends HadoopTableTestBase {
   }
 
   @Test
-  public void testCommitFailedBeforeChangeVersionHint() {
+  public void testCanNotDeleteChangeVersionHint() throws IOException {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    BaseTable baseTable = (BaseTable) table;
+    HadoopTableOperations tableOperations = (HadoopTableOperations) baseTable.operations();
+    HadoopTableOperations spyOps = spy(tableOperations);
+    doReturn(false).when(spyOps).dropOldVersionHint(any(), any());
+    int versionBefore = spyOps.findVersion();
+    TableMetadata metadataV1 = spyOps.current();
+    SortOrder dataSort = SortOrder.builderFor(baseTable.schema()).asc("data").build();
+    TableMetadata metadataV2 = metadataV1.replaceSortOrder(dataSort);
+    // commit func should fail
+    assertThatThrownBy(() -> spyOps.commit(metadataV1, metadataV2))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("Can not drop old versionHint");
+    // commit should not successful.
+    int versionAfter = spyOps.findVersion();
+    assert versionBefore == versionAfter;
+  }
+
+  @Test
+  public void testCommitFailedBeforeChangeVersionHint() throws IOException {
     table.newFastAppend().appendFile(FILE_A).commit();
     BaseTable baseTable = (BaseTable) table;
     HadoopTableOperations tableOperations = (HadoopTableOperations) baseTable.operations();
@@ -230,91 +249,6 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     // commit should not successful.
     int versionAfter = spyOps.findVersion();
     assert versionBefore == versionAfter;
-  }
-
-  @Test
-  public void testCommitFailedBeforeDeleteVersionHint() throws Exception {
-    table.newFastAppend().appendFile(FILE_A).commit();
-    BaseTable baseTable = (BaseTable) table;
-    HadoopTableOperations tableOperations = (HadoopTableOperations) baseTable.operations();
-    HadoopTableOperations spyOps = spy(tableOperations);
-    doThrow(new RuntimeException("FileSystem crash!"))
-        .when(spyOps)
-        .dropOldVersionHint(any(), any());
-    int versionBefore = spyOps.findVersion();
-    TableMetadata metadataV1 = spyOps.current();
-    SortOrder dataSort = SortOrder.builderFor(baseTable.schema()).asc("data").build();
-    TableMetadata metadataV2 = metadataV1.replaceSortOrder(dataSort);
-    // commit func should fail
-    assertThatThrownBy(() -> spyOps.commit(metadataV1, metadataV2))
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessageContaining("FileSystem crash!");
-    // commit should not successful.
-    int versionAfter = spyOps.findVersion();
-    assert versionAfter == versionBefore;
-  }
-
-  @Test
-  public void testCommitNotSuccessfulWhenDeleteVersionHint() throws Exception {
-    table.newFastAppend().appendFile(FILE_A).commit();
-    BaseTable baseTable = (BaseTable) table;
-    HadoopTableOperations tableOperations = (HadoopTableOperations) baseTable.operations();
-    HadoopTableOperations spyOps = spy(tableOperations);
-    doReturn(false).when(spyOps).dropOldVersionHint(any(), any());
-    int versionBefore = spyOps.findVersion();
-    TableMetadata metadataV1 = spyOps.current();
-    SortOrder dataSort = SortOrder.builderFor(baseTable.schema()).asc("data").build();
-    TableMetadata metadataV2 = metadataV1.replaceSortOrder(dataSort);
-    // commit func should fail
-    assertThatThrownBy(() -> spyOps.commit(metadataV1, metadataV2))
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessageContaining("Can't delete version Hint");
-    // commit should not successful.
-    int versionAfter = spyOps.findVersion();
-    assert versionAfter == versionBefore;
-  }
-
-  @Test
-  public void testCommitNotSuccessfulWhenWriteVersionHint() {
-    table.newFastAppend().appendFile(FILE_A).commit();
-    BaseTable baseTable = (BaseTable) table;
-    HadoopTableOperations tableOperations = (HadoopTableOperations) baseTable.operations();
-    HadoopTableOperations spyOps = spy(tableOperations);
-    doReturn(false).when(spyOps).writeVersionHint(any(), any());
-    int versionBefore = spyOps.findVersion();
-    TableMetadata metadataV1 = spyOps.current();
-    SortOrder dataSort = SortOrder.builderFor(baseTable.schema()).asc("data").build();
-    TableMetadata metadataV2 = metadataV1.replaceSortOrder(dataSort);
-    // commit func should fail
-    assertThatThrownBy(() -> spyOps.commit(metadataV1, metadataV2))
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessageContaining("Can not write versionHint");
-    // commit should not successful.
-    int versionAfter = spyOps.findVersion();
-    assert versionAfter == versionBefore;
-  }
-
-  @Test
-  public void testCommitNotSuccessfulAndVersionHintDeleted() throws Exception {
-    table.newFastAppend().appendFile(FILE_A).commit();
-    BaseTable baseTable = (BaseTable) table;
-    HadoopTableOperations tableOperations = (HadoopTableOperations) baseTable.operations();
-    HadoopTableOperations spyOps = spy(tableOperations);
-    doThrow(new RuntimeException("FileSystem crash!"))
-        .when(spyOps)
-        .renameVersionHint(any(), any(), any());
-    int versionBefore = spyOps.findVersion();
-    TableMetadata metadataV1 = spyOps.current();
-    SortOrder dataSort = SortOrder.builderFor(baseTable.schema()).asc("data").build();
-    TableMetadata metadataV2 = metadataV1.replaceSortOrder(dataSort);
-    // commit func should fail
-    assertThatThrownBy(() -> spyOps.commit(metadataV1, metadataV2))
-        .isInstanceOf(CommitStateUnknownException.class)
-        .hasMessageContaining("FileSystem crash!");
-    // The commit should actually success
-    int versionAfter = spyOps.findVersion();
-    assert versionAfter > versionBefore;
-    assert versionAfter - versionBefore == 1;
   }
 
   @Test
