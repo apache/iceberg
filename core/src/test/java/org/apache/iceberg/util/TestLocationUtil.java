@@ -46,6 +46,21 @@ public class TestLocationUtil {
     assertThat(LocationUtil.stripTrailingSlash(pathWithOnlySlash))
         .as("Should have no trailing slashes")
         .isEmpty();
+
+    String rootPath = "blobstore://";
+    assertThat(LocationUtil.stripTrailingSlash(rootPath))
+        .as("Should be root path")
+        .isEqualTo(rootPath);
+
+    String rootPathWithTrailingSlash = rootPath + "/";
+    assertThat(LocationUtil.stripTrailingSlash(rootPathWithTrailingSlash))
+        .as("Should be root path")
+        .isEqualTo(rootPath);
+
+    String rootPathWithMultipleTrailingSlash = rootPath + "///";
+    assertThat(LocationUtil.stripTrailingSlash(rootPathWithMultipleTrailingSlash))
+        .as("Should be root path")
+        .isEqualTo(rootPath);
   }
 
   @Test
