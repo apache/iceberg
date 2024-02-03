@@ -166,25 +166,7 @@ public class HadoopTableOperations implements TableOperations {
     FileSystem fs = getFileSystem(tempMetadataFile, conf);
     boolean versionCommitSuccess = false;
     try {
-      // In order to be compatible with scenarios where the iceberg table has just been created or
-      // the last time there was no versionHint due to an unplanned interruption,
-      // we need to ignore the lack of versionHint when the task is executed for the first time.
-      // Otherwise, if we can't find the versionHint, there must be another task running in parallel
-      // with us.
-      // By contending for the right to manipulate the versionHint, we can keep only one client
-      // running.
-      // It can't handle scenarios where multiple clients are running at the same time for the first
-      // time.
-      // But we will block them in the next step.
-      boolean dropVersionHintSuccess = dropOldVersionHint(fs, versionHintFile());
-      boolean canNotFindVersionHintAndNotFirstRun = !dropVersionHintSuccess && !isFirstRun();
-      if (canNotFindVersionHintAndNotFirstRun) {
-        String msg =
-            String.format(
-                "Can not drop old versionHint. commitVersion = %s.Do you have multiple tasks working on this table at the same time, or is your file system failing?",
-                nextVersion);
-        throw new RuntimeException(msg);
-      }
+      dropOldVersionHint(fs, versionHintFile(), nextVersion);
       // This renames operation is the atomic commit operation.
       // Since fs.rename() cannot overwrite existing files, in case of concurrent operations, only
       // one client will execute renameToFinal() successfully.
@@ -383,8 +365,45 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   @VisibleForTesting
-  boolean dropOldVersionHint(FileSystem fs, Path versionHintFile) throws IOException {
-    return fs.exists(versionHintFile) && fs.delete(versionHintFile, false /* recursive delete*/);
+  void dropOldVersionHint(FileSystem fs, Path versionHintFile, Integer nextVersion)
+      throws IOException {
+    // In order to be compatible with scenarios where the iceberg table has just been created or
+    // the last time there was no versionHint due to an unplanned interruption,
+    // we need to ignore the lack of versionHint when the task is executed for the first time.
+    // Otherwise, if we can't find the versionHint, there must be another task running in parallel
+    // with us.
+    // By contending for the right to manipulate the versionHint, we can keep only one client
+    // running.
+    // It can't handle scenarios where multiple clients are running at the same time for the first
+    // time and versionHint not exists.
+    // But we will block them in the next step.
+    boolean versionHintExists = versionHintExists(fs, versionHintFile);
+    boolean canNotFindVersionHintAndNotFirstRun = !versionHintExists && !isFirstRun();
+    if (canNotFindVersionHintAndNotFirstRun) {
+      String msg =
+          String.format(
+              "Can not find old versionHint. commitVersion = %s.Do you have multiple tasks working on this table at the same time, or is your file system failing?",
+              nextVersion);
+      throw new RuntimeException(msg);
+    }
+    boolean deleteFailed = !deleteVersionHint(fs);
+    if (versionHintExists && deleteFailed) {
+      String msg =
+          String.format(
+              "Can not drop old versionHint. commitVersion = %s.Do you have multiple tasks working on this table at the same time, or is your file system failing?",
+              nextVersion);
+      throw new RuntimeException(msg);
+    }
+  }
+
+  @VisibleForTesting
+  boolean deleteVersionHint(FileSystem fs) throws IOException {
+    return fs.delete(versionHintFile(), false /* recursive delete*/);
+  }
+
+  @VisibleForTesting
+  boolean versionHintExists(FileSystem fs, Path versionHintFile) throws IOException {
+    return fs.exists(versionHintFile);
   }
 
   @VisibleForTesting
