@@ -1464,8 +1464,10 @@ components:
         via a comma-separated list of access mechanisms.  The server may choose
         to supply access via any or none of the requested mechanisms.
         
+        
         Specific properties and handling for `vended-credentials` is documented
         in the `LoadTableResult` schema section of this spec document.
+        
         
         The protocol and specification for `remote-signing` is documented in 
         the `s3-signer-open-api.yaml` OpenApi spec in the `aws` module.
