@@ -1463,6 +1463,13 @@ components:
         Optional signal to the server that the client supports delegated access
         via a comma-separated list of access mechanisms.  The server may choose
         to supply access via any or none of the requested mechanisms.
+        
+        Specific properties and handling for `vended-credentials` is documented
+        in the `LoadTableResult` schema section of this spec document.
+        
+        The protocol and specification for `remote-signing` is documented in 
+        the `s3-signer-open-api.yaml` OpenApi spec in the `aws` module.
+
       required: false
       schema:
         type: string
@@ -1471,7 +1478,7 @@ components:
           - remote-signing
       style: simple
       explode: false
-      example: "vended_credentials,remote_signing"
+      example: "vended-credentials,remote-signing"
 
   ##############################
   # Application Schema Objects #
