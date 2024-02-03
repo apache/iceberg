@@ -130,6 +130,16 @@ public class HadoopTableOperations implements TableOperations {
     }
   }
 
+  /**
+   * findOldVersionHint-------------------->isFirstRun------->JobFail | NOT EXISTS | NO | | | yes |
+   * ↓ |YES dropOldVersionHint----------->JobFail | | NO | |<----------------------------------| |
+   * yes ↓ writeNewVersionMeta-------------------->JobFail | NO | | yes ↓
+   * writeNewVersionHint--------------->| | NO | | | | yes | ↓ |
+   * cleanOldMeta---------------------->| | NO | | | | yes | ↓ | SUCCESS<-----------------------|
+   *
+   * @param base table metadata on which changes were based
+   * @param metadata new table metadata with updates
+   */
   @Override
   public void commit(TableMetadata base, TableMetadata metadata) {
     Pair<Integer, TableMetadata> current = versionAndMetadata();

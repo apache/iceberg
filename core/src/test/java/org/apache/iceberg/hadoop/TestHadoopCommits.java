@@ -234,7 +234,10 @@ public class TestHadoopCommits extends HadoopTableTestBase {
   }
 
   private void assertCommitNotChangeVersion(
-      BaseTable baseTable, HadoopTableOperations spyOps, Class<? extends RuntimeException> exceptionClass, String msg) {
+      BaseTable baseTable,
+      HadoopTableOperations spyOps,
+      Class<? extends RuntimeException> exceptionClass,
+      String msg) {
     int versionBefore = spyOps.findVersion();
     TableMetadata metadataV1 = spyOps.current();
     SortOrder dataSort = SortOrder.builderFor(baseTable.schema()).asc("data").build();
