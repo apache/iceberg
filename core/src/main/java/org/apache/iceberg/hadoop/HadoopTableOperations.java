@@ -200,6 +200,9 @@ public class HadoopTableOperations implements TableOperations {
       // This renames operation is the atomic commit operation.
       // Since fs.rename() cannot overwrite existing files, in case of concurrent operations, only
       // one client will execute renameToFinal() successfully.
+      // However, if the client submits a very old metadata and the user has configured a very short
+      // TTL,then the commit will succeed and the version will be messed up.
+      // Therefore, it is important to troubleshoot these issues before performing this step.
       versionCommitSuccess = commitNewVersion(fs, tempMetadataFile, finalMetadataFile, nextVersion);
       if (!versionCommitSuccess) {
         // Users should clean up orphaned files after job fail.This may be too heavy.
