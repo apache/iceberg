@@ -18,9 +18,6 @@
  */
 package org.apache.iceberg.flink;
 
-import static org.apache.flink.table.api.DataTypes.FIELD;
-import static org.apache.flink.table.api.DataTypes.ROW;
-
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -86,14 +83,14 @@ public class FlinkSchemaUtil {
                 column -> {
                   String columnComment = columnComments.get(column.getName());
                   if (columnComment != null) {
-                    return FIELD(column.getName(), column.getType(), columnComment);
+                    return DataTypes.FIELD(column.getName(), column.getType(), columnComment);
                   } else {
-                    return FIELD(column.getName(), column.getType());
+                    return DataTypes.FIELD(column.getName(), column.getType());
                   }
                 })
             .toArray(DataTypes.Field[]::new);
 
-    LogicalType schemaType = ROW(fields).notNull().getLogicalType();
+    LogicalType schemaType = DataTypes.ROW(fields).notNull().getLogicalType();
     Preconditions.checkArgument(
         schemaType instanceof RowType, "Schema logical type should be RowType.");
 
