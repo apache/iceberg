@@ -133,13 +133,17 @@ public class HadoopTableOperations implements TableOperations {
   @Override
   public void commit(TableMetadata base, TableMetadata metadata) {
     // findOldVersionHint-------------------->isFirstRun------->JobFail
-    //       |                 NOT EXISTS        |        NO
-    //       |                                   |
-    //       | yes                               |
-    //       ↓                                   |YES
-    // dropOldVersionHint----------->JobFail     |
-    //       |                 NO                |
-    //       |<----------------------------------|
+    //       |                 NOT EXISTS         |        NO
+    //       | yes                                |
+    //       |                                    |
+    //       ↓                   NO               |
+    // checkNextVersionIsLatest------>JobFail     |
+    //       |                                    |
+    //       | yes                                |
+    //       ↓              NO                    |YES
+    // dropOldVersionHint----------->JobFail      |
+    //       |                                    |
+    //       |<-----------------------------------|
     //       | yes
     //       ↓
     // writeNewVersionMeta-------------------->JobFail
@@ -158,7 +162,6 @@ public class HadoopTableOperations implements TableOperations {
     //       | yes                        |
     //       ↓                            |
     //    SUCCESS<------------------------|
-
     Pair<Integer, TableMetadata> current = versionAndMetadata();
     if (base != current.second()) {
       throw new CommitFailedException("Cannot commit changes based on stale table metadata");
@@ -413,14 +416,21 @@ public class HadoopTableOperations implements TableOperations {
               nextVersion);
       throw new RuntimeException(msg);
     }
-    boolean deleteFailed = !deleteVersionHint(fs);
-    if (versionHintExists && deleteFailed) {
+    // Because the user always configures an expiration policy for the metadata.
+    // If we don't do any checking, then the user can resubmit a version that has already expired.
+    // So we need to check that the next commit is up-to-date.
+    if (versionHintExists && (!nextVersionIsLatest(nextVersion) || !deleteVersionHint(fs))) {
       String msg =
           String.format(
               "Can not drop old versionHint. commitVersion = %s.Do you have multiple tasks working on this table at the same time, or is your file system failing?",
               nextVersion);
       throw new RuntimeException(msg);
     }
+  }
+
+  @VisibleForTesting
+  boolean nextVersionIsLatest(Integer nextVersion) {
+    return nextVersion == (findVersion() + 1);
   }
 
   @VisibleForTesting

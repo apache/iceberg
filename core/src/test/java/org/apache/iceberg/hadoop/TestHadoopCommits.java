@@ -226,11 +226,16 @@ public class TestHadoopCommits extends HadoopTableTestBase {
         baseTable, spyOps2, CommitFailedException.class, "Can not drop old versionHint");
 
     HadoopTableOperations spyOps3 = spy(tableOperations);
+    doReturn(false).when(spyOps3).nextVersionIsLatest(any());
+    assertCommitNotChangeVersion(
+        baseTable, spyOps3, CommitFailedException.class, "Can not drop old versionHint");
+
+    HadoopTableOperations spyOps4 = spy(tableOperations);
     doThrow(new RuntimeException("FileSystem crash!"))
-        .when(spyOps3)
+        .when(spyOps4)
         .renameToFinal(any(), any(), any(), any());
     assertCommitNotChangeVersion(
-        baseTable, spyOps3, CommitFailedException.class, "FileSystem crash!");
+        baseTable, spyOps4, CommitFailedException.class, "FileSystem crash!");
   }
 
   private void assertCommitNotChangeVersion(
