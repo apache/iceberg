@@ -15,19 +15,32 @@
 # specific language governing permissions and limitations
 # under the License.
 
+INHERIT: ./nav.yml
+
+copyright: |
+  Apache Iceberg, Iceberg, Apache, the Apache feather logo, and the Apache Iceberg project logo are</br>either registered trademarks or trademarks of The Apache Software Foundation. Copyright &copy; 2023</br>The Apache Software Foundation, Licensed under the <a href="https://www.apache.org/licenses/">Apache License, Version 2.0</a>.</br></br>
 site_name: Apache Iceberg
 
 theme:
+  custom_dir: overrides
+  static_templates:
+    - home.html
   name: material
   language: en
-  logo: assets/images/iceberg-logo-icon.png
+  logo: assets/images/Iceberg-logo.svg
   favicon: assets/images/favicon-96x96.png
+  font:
+    text: Nunito Sans
+  palette:
+    scheme: iceberg  
   features:
     - navigation.tabs
+    - navigation.tabs.sticky
     - navigation.path
     - navigation.top
     - navigation.tracking
     - toc.follow
+    - offline
     - search.suggest
     - search.highlight
     - content.tabs.link
@@ -36,40 +49,10 @@ theme:
 
 plugins:
   - search
-  - macros:
-      include_yaml:
-        - variables.yml
+  - macros
   - monorepo
-
-nav:
-  - Quickstart:
-    - Spark: spark-quickstart.md
-    - Hive: hive-quickstart.md
-  - Docs: 
-    - nightly: '!include docs/docs/nightly/mkdocs.yml'
-#    - latest: '!include docs/docs/latest/mkdocs.yml'
-#    - 1.3.1: '!include docs/docs/1.3.1/mkdocs.yml'
-#    - 1.3.0: '!include docs/docs/1.3.0/mkdocs.yml'
-  - Releases: releases.md
-  - Roadmap: roadmap.md
-  - Blogs: blogs.md
-  - Talks: talks.md
-  - Vendors: vendors.md
-  - Project: 
-    - Join: community.md
-    - Spec: spec.md
-    - View spec: view-spec.md
-    - Puffin spec: puffin-spec.md
-    - Multi-engine support: multi-engine-support.md
-    - How to release: how-to-release.md
-    - Terms: terms.md
-  - ASF:
-    - community.md 
-    - Sponsorship: https://www.apache.org/foundation/sponsorship.html
-    - Events: https://www.apache.org/events/current-event.html
-    - License: https://www.apache.org/licenses/
-    - Security: https://www.apache.org/security/
-    - Sponsors: https://www.apache.org/foundation/thanks.html
+  - offline:
+      enabled: !ENV [OFFLINE, false]
 
 markdown_extensions:
   - pymdownx.highlight:
@@ -87,10 +70,41 @@ markdown_extensions:
   - pymdownx.mark
   - attr_list
   - pymdownx.emoji:
-      emoji_index: !!python/name:materialx.emoji.twemoji
-      emoji_generator: !!python/name:materialx.emoji.to_svg
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
   - tables
+  - md_in_html
+  - toc:
+      permalink: 🔗
 
+extra:
+  icebergVersion: '1.4.3'
+  social:
+    - icon: fontawesome/regular/comments
+      link: 'https://iceberg.apache.org/community/'
+      title: community
+    - icon: fontawesome/brands/github
+      link: 'https://github.com/apache/iceberg'
+      title: github
+    - icon: fontawesome/brands/youtube
+      link: 'https://www.youtube.com/@ApacheIceberg'
+      title: youtube
+    - icon: fontawesome/brands/slack
+      link: 'https://join.slack.com/t/apache-iceberg/shared_invite/zt-287g3akar-K9Oe_En5j1UL7Y_Ikpai3A'
+      title: slack
 
-copyright: |
-  Apache Iceberg, Iceberg, Apache, the Apache feather logo, and the Apache Iceberg project logo are</br>either registered trademarks or trademarks of The Apache Software Foundation. Copyright &copy; 2023</br>The Apache Software Foundation, Licensed under the <a href="https://www.apache.org/licenses/">Apache License, Version 2.0</a>.</br></br>
+exclude_docs: |
+  !.asf.yaml
+
+extra_css:
+  - assets/stylesheets/extra.css
+  - assets/stylesheets/bootstrap-grid.css
+  - assets/stylesheets/bootstrap-buttons.css
+  - assets/stylesheets/home.css
+  
+extra_javascript:
+  - assets/javascript/extra.js
+
+watch:
+  - nav.yml
+  - overrides

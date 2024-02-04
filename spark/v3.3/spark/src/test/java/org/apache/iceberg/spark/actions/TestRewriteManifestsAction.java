@@ -24,6 +24,7 @@ import static org.apache.iceberg.ValidationHelpers.files;
 import static org.apache.iceberg.ValidationHelpers.snapshotIds;
 import static org.apache.iceberg.ValidationHelpers.validateDataManifest;
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
@@ -92,6 +93,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
   private final String snapshotIdInheritanceEnabled;
   private final String useCaching;
   private final int formatVersion;
+  private final boolean shouldStageManifests;
   private String tableLocation = null;
 
   public TestRewriteManifestsAction(
@@ -99,6 +101,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     this.snapshotIdInheritanceEnabled = snapshotIdInheritanceEnabled;
     this.useCaching = useCaching;
     this.formatVersion = formatVersion;
+    this.shouldStageManifests = formatVersion == 1 && snapshotIdInheritanceEnabled.equals("false");
   }
 
   @Before
@@ -166,6 +169,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
         "Action should rewrite 2 manifests", 2, Iterables.size(result.rewrittenManifests()));
     Assert.assertEquals(
         "Action should add 1 manifests", 1, Iterables.size(result.addedManifests()));
+    assertManifestsLocation(result.addedManifests());
 
     table.refresh();
 
@@ -312,6 +316,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
         "Action should rewrite 4 manifests", 4, Iterables.size(result.rewrittenManifests()));
     Assert.assertEquals(
         "Action should add 2 manifests", 2, Iterables.size(result.addedManifests()));
+    assertManifestsLocation(result.addedManifests());
 
     table.refresh();
 
@@ -376,12 +381,14 @@ public class TestRewriteManifestsAction extends SparkTestBase {
 
       SparkActions actions = SparkActions.get();
 
+      String rewriteStagingLocation = temp.newFolder().toString();
+
       RewriteManifests.Result result =
           actions
               .rewriteManifests(table)
               .rewriteIf(manifest -> true)
               .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
-              .stagingLocation(temp.newFolder().toString())
+              .stagingLocation(rewriteStagingLocation)
               .execute();
 
       Assert.assertEquals(
@@ -390,6 +397,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
           result.rewrittenManifests());
       Assert.assertEquals(
           "Action should add 1 manifest", 1, Iterables.size(result.addedManifests()));
+      assertManifestsLocation(result.addedManifests(), rewriteStagingLocation);
 
     } finally {
       spark.sql("DROP TABLE parquet_table");
@@ -428,18 +436,21 @@ public class TestRewriteManifestsAction extends SparkTestBase {
 
     SparkActions actions = SparkActions.get();
 
+    String stagingLocation = temp.newFolder().toString();
+
     RewriteManifests.Result result =
         actions
             .rewriteManifests(table)
             .rewriteIf(manifest -> true)
             .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
-            .stagingLocation(temp.newFolder().toString())
+            .stagingLocation(stagingLocation)
             .execute();
 
     Assert.assertEquals(
         "Action should rewrite 1 manifest", 1, Iterables.size(result.rewrittenManifests()));
     Assert.assertEquals(
         "Action should add 2 manifests", 2, Iterables.size(result.addedManifests()));
+    assertManifestsLocation(result.addedManifests(), stagingLocation);
 
     table.refresh();
 
@@ -481,6 +492,8 @@ public class TestRewriteManifestsAction extends SparkTestBase {
 
     SparkActions actions = SparkActions.get();
 
+    String stagingLocation = temp.newFolder().toString();
+
     // rewrite only the first manifest
     RewriteManifests.Result result =
         actions
@@ -489,7 +502,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
                 manifest ->
                     (manifest.path().equals(manifests.get(0).path())
                         || (manifest.path().equals(manifests.get(1).path()))))
-            .stagingLocation(temp.newFolder().toString())
+            .stagingLocation(stagingLocation)
             .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
             .execute();
 
@@ -497,6 +510,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
         "Action should rewrite 2 manifest", 2, Iterables.size(result.rewrittenManifests()));
     Assert.assertEquals(
         "Action should add 1 manifests", 1, Iterables.size(result.addedManifests()));
+    assertManifestsLocation(result.addedManifests(), stagingLocation);
 
     table.refresh();
 
@@ -560,6 +574,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
         "Action should rewrite 2 manifests", 2, Iterables.size(result.rewrittenManifests()));
     Assert.assertEquals(
         "Action should add 1 manifests", 1, Iterables.size(result.addedManifests()));
+    assertManifestsLocation(result.addedManifests());
 
     table.refresh();
 
@@ -615,5 +630,17 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     }
 
     return totalSize / numEntries;
+  }
+
+  private void assertManifestsLocation(Iterable<ManifestFile> manifests) {
+    assertManifestsLocation(manifests, null);
+  }
+
+  private void assertManifestsLocation(Iterable<ManifestFile> manifests, String stagingLocation) {
+    if (shouldStageManifests && stagingLocation != null) {
+      assertThat(manifests).allMatch(manifest -> manifest.path().startsWith(stagingLocation));
+    } else {
+      assertThat(manifests).allMatch(manifest -> manifest.path().startsWith(tableLocation));
+    }
   }
 }

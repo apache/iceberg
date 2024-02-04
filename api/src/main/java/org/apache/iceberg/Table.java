@@ -24,6 +24,7 @@ import java.util.UUID;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 /** Represents a table. */
 public interface Table {
@@ -287,6 +288,17 @@ public interface Table {
   }
 
   /**
+   * Create a new {@link UpdatePartitionStatistics update partition statistics API} to add or remove
+   * partition statistics files in this table.
+   *
+   * @return a new {@link UpdatePartitionStatistics}
+   */
+  default UpdatePartitionStatistics updatePartitionStatistics() {
+    throw new UnsupportedOperationException(
+        "Updating partition statistics is not supported by " + getClass().getName());
+  }
+
+  /**
    * Create a new {@link ExpireSnapshots expire API} to manage snapshots in this table and commit.
    *
    * @return a new {@link ExpireSnapshots}
@@ -326,6 +338,11 @@ public interface Table {
    * @return the current statistics files for the table
    */
   List<StatisticsFile> statisticsFiles();
+
+  /** Returns the current partition statistics files for the table. */
+  default List<PartitionStatisticsFile> partitionStatisticsFiles() {
+    return ImmutableList.of();
+  }
 
   /**
    * Returns the current refs for the table

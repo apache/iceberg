@@ -60,9 +60,12 @@ public class ReaderUtil {
       FileFormat fileFormat,
       FileAppenderFactory<Record> appenderFactory)
       throws IOException {
-    try (FileAppender<Record> appender =
-        appenderFactory.newAppender(Files.localOutput(file), fileFormat)) {
+    FileAppender<Record> appender =
+        appenderFactory.newAppender(Files.localOutput(file), fileFormat);
+    try {
       appender.addAll(records);
+    } finally {
+      appender.close();
     }
 
     DataFile dataFile =
@@ -71,6 +74,7 @@ public class ReaderUtil {
             .withFileSizeInBytes(file.length())
             .withPath(file.toString())
             .withFormat(fileFormat)
+            .withMetrics(appender.metrics())
             .build();
 
     ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(Expressions.alwaysTrue());

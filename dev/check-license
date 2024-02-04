@@ -58,7 +58,7 @@ else
     declare java_cmd=java
 fi
 
-export RAT_VERSION=0.15
+export RAT_VERSION=0.16.1
 export rat_jar="$FWDIR"/lib/apache-rat-${RAT_VERSION}.jar
 mkdir -p "$FWDIR"/lib
 
@@ -68,7 +68,7 @@ mkdir -p "$FWDIR"/lib
 }
 
 mkdir -p build
-$java_cmd -jar "$rat_jar" -E "$FWDIR"/dev/.rat-excludes -d "$FWDIR" > build/rat-results.txt
+$java_cmd -jar "$rat_jar" --scan-hidden-directories -E "$FWDIR"/dev/.rat-excludes -d "$FWDIR" > build/rat-results.txt
 
 if [ $? -ne 0 ]; then
    echo "RAT exited abnormally"

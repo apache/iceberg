@@ -19,6 +19,8 @@
 package org.apache.iceberg.spark;
 
 import java.util.Map;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 public enum SparkCatalogConfig {
@@ -41,7 +43,17 @@ public enum SparkCatalogConfig {
           "parquet-enabled", "true",
           "cache-enabled",
               "false" // Spark will delete tables using v1, leaving the cache out of sync
-          ));
+          )),
+  SPARK_WITH_VIEWS(
+      "spark_with_views",
+      SparkCatalog.class.getName(),
+      ImmutableMap.of(
+          CatalogProperties.CATALOG_IMPL,
+          InMemoryCatalog.class.getName(),
+          "default-namespace",
+          "default",
+          "cache-enabled",
+          "false"));
 
   private final String catalogName;
   private final String implementation;

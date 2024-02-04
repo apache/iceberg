@@ -37,10 +37,10 @@ import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.Database;
@@ -52,7 +52,6 @@ import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
@@ -64,10 +63,10 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -82,12 +81,18 @@ import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 import org.apache.thrift.TException;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-public class TestHiveCatalog extends HiveMetastoreTest {
+/**
+ * Run all the tests from abstract of {@link CatalogTests} with few specific tests related to HIVE.
+ */
+public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
   private static ImmutableMap meta =
       ImmutableMap.of(
           "owner", "apache",
@@ -95,6 +100,54 @@ public class TestHiveCatalog extends HiveMetastoreTest {
           "comment", "iceberg  hiveCatalog test");
 
   @TempDir private Path temp;
+
+  private HiveCatalog catalog;
+  private static final String DB_NAME = "hivedb";
+
+  @RegisterExtension
+  private static final HiveMetastoreExtension HIVE_METASTORE_EXTENSION =
+      HiveMetastoreExtension.builder().build();
+
+  @BeforeEach
+  public void before() throws TException {
+    catalog =
+        (HiveCatalog)
+            CatalogUtil.loadCatalog(
+                HiveCatalog.class.getName(),
+                CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE,
+                ImmutableMap.of(
+                    CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS,
+                    String.valueOf(TimeUnit.SECONDS.toMillis(10))),
+                HIVE_METASTORE_EXTENSION.hiveConf());
+    String dbPath = HIVE_METASTORE_EXTENSION.metastore().getDatabasePath(DB_NAME);
+    Database db = new Database(DB_NAME, "description", dbPath, Maps.newHashMap());
+    HIVE_METASTORE_EXTENSION.metastoreClient().createDatabase(db);
+  }
+
+  @AfterEach
+  public void cleanup() throws Exception {
+    HIVE_METASTORE_EXTENSION.metastore().reset();
+  }
+
+  @Override
+  protected boolean requiresNamespaceCreate() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsNamesWithSlashes() {
+    return false;
+  }
+
+  @Override
+  protected boolean supportsNamesWithDot() {
+    return false;
+  }
+
+  @Override
+  protected HiveCatalog catalog() {
+    return catalog;
+  }
 
   private Schema getTestSchema() {
     return new Schema(
@@ -166,8 +219,8 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     assertThatNoException()
         .isThrownBy(
             () -> {
-              HiveCatalog catalog = new HiveCatalog();
-              catalog.initialize("hive", Maps.newHashMap());
+              HiveCatalog hiveCatalog = new HiveCatalog();
+              hiveCatalog.initialize("hive", Maps.newHashMap());
             });
   }
 
@@ -176,8 +229,8 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     assertThatNoException()
         .isThrownBy(
             () -> {
-              HiveCatalog catalog = new HiveCatalog();
-              catalog.toString();
+              HiveCatalog hiveCatalog = new HiveCatalog();
+              hiveCatalog.toString();
             });
   }
 
@@ -186,11 +239,12 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     Map<String, String> properties = Maps.newHashMap();
     properties.put("uri", "thrift://examplehost:9083");
     properties.put("warehouse", "/user/hive/testwarehouse");
-    HiveCatalog catalog = new HiveCatalog();
-    catalog.initialize("hive", properties);
+    HiveCatalog hiveCatalog = new HiveCatalog();
+    hiveCatalog.initialize("hive", properties);
 
-    assertThat(catalog.getConf().get("hive.metastore.uris")).isEqualTo("thrift://examplehost:9083");
-    assertThat(catalog.getConf().get("hive.metastore.warehouse.dir"))
+    assertThat(hiveCatalog.getConf().get("hive.metastore.uris"))
+        .isEqualTo("thrift://examplehost:9083");
+    assertThat(hiveCatalog.getConf().get("hive.metastore.warehouse.dir"))
         .isEqualTo("/user/hive/testwarehouse");
   }
 
@@ -292,7 +346,8 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     String location = temp.resolve(tbl).toString();
     try {
       Table table = catalog.createTable(tableIdent, schema, spec, location, properties);
-      org.apache.hadoop.hive.metastore.api.Table hmsTable = metastoreClient.getTable(db, tbl);
+      org.apache.hadoop.hive.metastore.api.Table hmsTable =
+          HIVE_METASTORE_EXTENSION.metastoreClient().getTable(db, tbl);
       assertThat(hmsTable.getOwner()).isEqualTo(owner);
       Map<String, String> hmsTableParams = hmsTable.getParameters();
       assertThat(hmsTableParams).doesNotContainKey(HiveCatalog.HMS_TABLE_OWNER);
@@ -354,10 +409,11 @@ public class TestHiveCatalog extends HiveMetastoreTest {
   }
 
   @Test
-  public void testCreateNamespace() throws Exception {
+  public void testDatabaseAndNamespaceWithLocation() throws Exception {
     Namespace namespace1 = Namespace.of("noLocation");
     catalog.createNamespace(namespace1, meta);
-    Database database1 = metastoreClient.getDatabase(namespace1.toString());
+    Database database1 =
+        HIVE_METASTORE_EXTENSION.metastoreClient().getDatabase(namespace1.toString());
 
     assertThat(database1.getParameters()).containsEntry("owner", "apache");
     assertThat(database1.getParameters()).containsEntry("group", "iceberg");
@@ -368,7 +424,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
 
     assertThatThrownBy(() -> catalog.createNamespace(namespace1))
         .isInstanceOf(AlreadyExistsException.class)
-        .hasMessage("Namespace '" + namespace1 + "' already exists!");
+        .hasMessage(String.format("Namespace already exists: %s", namespace1));
     String hiveLocalDir = temp.toFile().toURI().toString();
     // remove the trailing slash of the URI
     hiveLocalDir = hiveLocalDir.substring(0, hiveLocalDir.length() - 1);
@@ -380,7 +436,8 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     Namespace namespace2 = Namespace.of("haveLocation");
 
     catalog.createNamespace(namespace2, newMeta);
-    Database database2 = metastoreClient.getDatabase(namespace2.toString());
+    Database database2 =
+        HIVE_METASTORE_EXTENSION.metastoreClient().getDatabase(namespace2.toString());
     assertThat(hiveLocalDir)
         .as("There no same location for db and namespace")
         .isEqualTo(database2.getLocationUri());
@@ -460,25 +517,10 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     Namespace namespace = Namespace.of(name);
 
     catalog.createNamespace(namespace, prop);
-    Database db = metastoreClient.getDatabase(namespace.toString());
+    Database db = HIVE_METASTORE_EXTENSION.metastoreClient().getDatabase(namespace.toString());
 
     assertThat(db.getOwnerName()).isEqualTo(expectedOwner);
     assertThat(db.getOwnerType()).isEqualTo(expectedOwnerType);
-  }
-
-  @Test
-  public void testListNamespace() throws TException {
-    List<Namespace> namespaces;
-    Namespace namespace1 = Namespace.of("dbname1");
-    catalog.createNamespace(namespace1, meta);
-    namespaces = catalog.listNamespaces(namespace1);
-    assertThat(namespaces).as("Hive db not hive the namespace 'dbname1'").isEmpty();
-
-    Namespace namespace2 = Namespace.of("dbname2");
-    catalog.createNamespace(namespace2, meta);
-    namespaces = catalog.listNamespaces();
-
-    assertThat(namespaces).as("Hive db not hive the namespace 'dbname2'").contains(namespace2);
   }
 
   @Test
@@ -505,30 +547,6 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     assertThat(catalog.namespaceExists(Namespace.of("db2", "db2", "ns2")))
         .as("Should false to namespace doesn't exist")
         .isFalse();
-  }
-
-  @Test
-  public void testSetNamespaceProperties() throws TException {
-    Namespace namespace = Namespace.of("dbname_set");
-
-    catalog.createNamespace(namespace, meta);
-    catalog.setProperties(
-        namespace,
-        ImmutableMap.of(
-            "owner", "alter_apache",
-            "test", "test",
-            "location", "file:/data/tmp",
-            "comment", "iceberg test"));
-
-    Database database = metastoreClient.getDatabase(namespace.level(0));
-    assertThat(database.getParameters()).containsEntry("owner", "alter_apache");
-    assertThat(database.getParameters()).containsEntry("test", "test");
-    assertThat(database.getParameters()).containsEntry("group", "iceberg");
-
-    assertThatThrownBy(
-            () -> catalog.setProperties(Namespace.of("db2", "db2", "ns2"), ImmutableMap.of()))
-        .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessage("Namespace does not exist: db2.db2.ns2");
   }
 
   @Test
@@ -706,31 +724,10 @@ public class TestHiveCatalog extends HiveMetastoreTest {
         name, propToCreate, expectedOwnerPostCreate, expectedOwnerTypePostCreate);
 
     catalog.setProperties(Namespace.of(name), propToSet);
-    Database database = metastoreClient.getDatabase(name);
+    Database database = HIVE_METASTORE_EXTENSION.metastoreClient().getDatabase(name);
 
     assertThat(database.getOwnerName()).isEqualTo(expectedOwnerPostSet);
     assertThat(database.getOwnerType()).isEqualTo(expectedOwnerTypePostSet);
-  }
-
-  @Test
-  public void testRemoveNamespaceProperties() throws TException {
-    Namespace namespace = Namespace.of("dbname_remove");
-
-    catalog.createNamespace(namespace, meta);
-
-    catalog.removeProperties(namespace, ImmutableSet.of("comment", "owner"));
-
-    Database database = metastoreClient.getDatabase(namespace.level(0));
-
-    assertThat(database.getParameters()).doesNotContainKey("owner");
-    assertThat(database.getParameters()).containsEntry("group", "iceberg");
-
-    assertThatThrownBy(
-            () ->
-                catalog.removeProperties(
-                    Namespace.of("db2", "db2", "ns2"), ImmutableSet.of("comment", "owner")))
-        .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessage("Namespace does not exist: db2.db2.ns2");
   }
 
   @Test
@@ -852,14 +849,14 @@ public class TestHiveCatalog extends HiveMetastoreTest {
 
     catalog.removeProperties(Namespace.of(name), propToRemove);
 
-    Database database = metastoreClient.getDatabase(name);
+    Database database = HIVE_METASTORE_EXTENSION.metastoreClient().getDatabase(name);
 
     assertThat(database.getOwnerName()).isEqualTo(expectedOwnerPostRemove);
     assertThat(database.getOwnerType()).isEqualTo(expectedOwnerTypePostRemove);
   }
 
   @Test
-  public void testDropNamespace() throws TException {
+  public void dropNamespace() {
     Namespace namespace = Namespace.of("dbname_drop");
     TableIdentifier identifier = TableIdentifier.of(namespace, "table");
     Schema schema = getTestSchema();
@@ -922,7 +919,9 @@ public class TestHiveCatalog extends HiveMetastoreTest {
   }
 
   private String defaultUri(Namespace namespace) throws TException {
-    return metastoreClient.getConfigValue("hive.metastore.warehouse.dir", "")
+    return HIVE_METASTORE_EXTENSION
+            .metastoreClient()
+            .getConfigValue("hive.metastore.warehouse.dir", "")
         + "/"
         + namespace.level(0)
         + ".db";
@@ -1098,7 +1097,8 @@ public class TestHiveCatalog extends HiveMetastoreTest {
   }
 
   private Map<String, String> hmsTableParameters() throws TException {
-    org.apache.hadoop.hive.metastore.api.Table hmsTable = metastoreClient.getTable(DB_NAME, "tbl");
+    org.apache.hadoop.hive.metastore.api.Table hmsTable =
+        HIVE_METASTORE_EXTENSION.metastoreClient().getTable(DB_NAME, "tbl");
     return hmsTable.getParameters();
   }
 
@@ -1131,7 +1131,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
             HiveCatalog.class.getName(),
             CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE,
             catalogProps,
-            hiveConf);
+            HIVE_METASTORE_EXTENSION.hiveConf());
 
     try {
       Table table =
@@ -1172,42 +1172,11 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     // With a trailing slash
     conf.set("hive.metastore.warehouse.dir", "s3://bucket/");
 
-    HiveCatalog catalog = new HiveCatalog();
-    catalog.setConf(conf);
+    HiveCatalog hiveCatalog = new HiveCatalog();
+    hiveCatalog.setConf(conf);
 
-    Database database = catalog.convertToDatabase(Namespace.of("database"), ImmutableMap.of());
+    Database database = hiveCatalog.convertToDatabase(Namespace.of("database"), ImmutableMap.of());
 
     assertThat(database.getLocationUri()).isEqualTo("s3://bucket/database.db");
-  }
-
-  @Test
-  public void testRegisterTable() {
-    TableIdentifier identifier = TableIdentifier.of(DB_NAME, "t1");
-    catalog.createTable(identifier, getTestSchema());
-    Table registeringTable = catalog.loadTable(identifier);
-    catalog.dropTable(identifier, false);
-    TableOperations ops = ((HasTableOperations) registeringTable).operations();
-    String metadataLocation = ((HiveTableOperations) ops).currentMetadataLocation();
-    Table registeredTable = catalog.registerTable(identifier, metadataLocation);
-    assertThat(registeredTable).isNotNull();
-    TestHelpers.assertSerializedAndLoadedMetadata(registeringTable, registeredTable);
-    String expectedMetadataLocation =
-        ((HasTableOperations) registeredTable).operations().current().metadataFileLocation();
-    assertThat(metadataLocation).isEqualTo(expectedMetadataLocation);
-    assertThat(catalog.loadTable(identifier)).isNotNull();
-    assertThat(catalog.dropTable(identifier)).isTrue();
-  }
-
-  @Test
-  public void testRegisterExistingTable() {
-    TableIdentifier identifier = TableIdentifier.of(DB_NAME, "t1");
-    catalog.createTable(identifier, getTestSchema());
-    Table registeringTable = catalog.loadTable(identifier);
-    TableOperations ops = ((HasTableOperations) registeringTable).operations();
-    String metadataLocation = ((HiveTableOperations) ops).currentMetadataLocation();
-    assertThatThrownBy(() -> catalog.registerTable(identifier, metadataLocation))
-        .isInstanceOf(AlreadyExistsException.class)
-        .hasMessage("Table already exists: hivedb.t1");
-    assertThat(catalog.dropTable(identifier, true)).isTrue();
   }
 }

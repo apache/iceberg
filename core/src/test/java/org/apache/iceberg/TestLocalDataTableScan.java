@@ -21,10 +21,6 @@ package org.apache.iceberg;
 public class TestLocalDataTableScan
     extends DataTableScanTestBase<TableScan, FileScanTask, CombinedScanTask> {
 
-  public TestLocalDataTableScan(int formatVersion) {
-    super(formatVersion);
-  }
-
   @Override
   protected TableScan useRef(TableScan scan, String ref) {
     return scan.useRef(ref);

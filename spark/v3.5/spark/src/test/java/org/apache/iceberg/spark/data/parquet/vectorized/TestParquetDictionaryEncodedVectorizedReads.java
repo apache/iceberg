@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.data.parquet.vectorized;
 
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -32,9 +33,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.data.RandomData;
-import org.junit.Assert;
-import org.junit.Ignore;
-import org.junit.Test;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 
 public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVectorizedReads {
 
@@ -52,14 +52,14 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
 
   @Test
   @Override
-  @Ignore // Ignored since this code path is already tested in TestParquetVectorizedReads
+  @Disabled // Ignored since this code path is already tested in TestParquetVectorizedReads
   public void testVectorizedReadsWithNewContainers() throws IOException {}
 
   @Test
   public void testMixedDictionaryNonDictionaryReads() throws IOException {
     Schema schema = new Schema(SUPPORTED_PRIMITIVES.fields());
-    File dictionaryEncodedFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", dictionaryEncodedFile.delete());
+    File dictionaryEncodedFile = File.createTempFile("junit", null, temp.toFile());
+    assertThat(dictionaryEncodedFile.delete()).as("Delete should succeed").isTrue();
     Iterable<GenericData.Record> dictionaryEncodableData =
         RandomData.generateDictionaryEncodableData(
             schema, 10000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE);
@@ -68,8 +68,8 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
       writer.addAll(dictionaryEncodableData);
     }
 
-    File plainEncodingFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", plainEncodingFile.delete());
+    File plainEncodingFile = File.createTempFile("junit", null, temp.toFile());
+    assertThat(plainEncodingFile.delete()).as("Delete should succeed").isTrue();
     Iterable<GenericData.Record> nonDictionaryData =
         RandomData.generate(schema, 10000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE);
     try (FileAppender<GenericData.Record> writer = getParquetWriter(schema, plainEncodingFile)) {
@@ -77,8 +77,8 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
     }
 
     int rowGroupSize = PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT;
-    File mixedFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", mixedFile.delete());
+    File mixedFile = File.createTempFile("junit", null, temp.toFile());
+    assertThat(mixedFile.delete()).as("Delete should succeed").isTrue();
     Parquet.concat(
         ImmutableList.of(dictionaryEncodedFile, plainEncodingFile, dictionaryEncodedFile),
         mixedFile,

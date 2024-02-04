@@ -21,6 +21,7 @@ package org.apache.iceberg.deletes;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -36,9 +37,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.CharSequenceMap;
 import org.apache.iceberg.util.Filter;
+import org.apache.iceberg.util.ParallelIterable;
 import org.apache.iceberg.util.SortedMerge;
 import org.apache.iceberg.util.StructLikeSet;
+import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -125,8 +129,44 @@ public class Deletes {
     }
   }
 
+  /**
+   * Builds a map of position delete indexes by path.
+   *
+   * <p>Unlike {@link #toPositionIndex(CharSequence, List)}, this method builds a position delete
+   * index for each referenced data file and does not filter deletes. This can be useful when the
+   * entire delete file content is needed (e.g. caching).
+   *
+   * @param posDeletes position deletes
+   * @return the map of position delete indexes by path
+   */
+  public static <T extends StructLike> CharSequenceMap<PositionDeleteIndex> toPositionIndexes(
+      CloseableIterable<T> posDeletes) {
+    CharSequenceMap<PositionDeleteIndex> indexes = CharSequenceMap.create();
+
+    try (CloseableIterable<T> deletes = posDeletes) {
+      for (T delete : deletes) {
+        CharSequence filePath = (CharSequence) FILENAME_ACCESSOR.get(delete);
+        long position = (long) POSITION_ACCESSOR.get(delete);
+        PositionDeleteIndex index =
+            indexes.computeIfAbsent(filePath, key -> new BitmapPositionDeleteIndex());
+        index.delete(position);
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to close position delete source", e);
+    }
+
+    return indexes;
+  }
+
   public static <T extends StructLike> PositionDeleteIndex toPositionIndex(
       CharSequence dataLocation, List<CloseableIterable<T>> deleteFiles) {
+    return toPositionIndex(dataLocation, deleteFiles, ThreadPools.getDeleteWorkerPool());
+  }
+
+  public static <T extends StructLike> PositionDeleteIndex toPositionIndex(
+      CharSequence dataLocation,
+      List<CloseableIterable<T>> deleteFiles,
+      ExecutorService deleteWorkerPool) {
     DataFileFilter<T> locationFilter = new DataFileFilter<>(dataLocation);
     List<CloseableIterable<Long>> positions =
         Lists.transform(
@@ -134,7 +174,11 @@ public class Deletes {
             deletes ->
                 CloseableIterable.transform(
                     locationFilter.filter(deletes), row -> (Long) POSITION_ACCESSOR.get(row)));
-    return toPositionIndex(CloseableIterable.concat(positions));
+    if (positions.size() > 1 && deleteWorkerPool != null) {
+      return toPositionIndex(new ParallelIterable<>(positions, deleteWorkerPool));
+    } else {
+      return toPositionIndex(CloseableIterable.concat(positions));
+    }
   }
 
   public static PositionDeleteIndex toPositionIndex(CloseableIterable<Long> posDeletes) {

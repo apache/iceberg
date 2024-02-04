@@ -57,6 +57,8 @@ public class MetadataUpdateParser {
   static final String REMOVE_STATISTICS = "remove-statistics";
   static final String ADD_VIEW_VERSION = "add-view-version";
   static final String SET_CURRENT_VIEW_VERSION = "set-current-view-version";
+  static final String SET_PARTITION_STATISTICS = "set-partition-statistics";
+  static final String REMOVE_PARTITION_STATISTICS = "remove-partition-statistics";
 
   // AssignUUID
   private static final String UUID = "uuid";
@@ -85,6 +87,9 @@ public class MetadataUpdateParser {
 
   // SetStatistics
   private static final String STATISTICS = "statistics";
+
+  // SetPartitionStatistics
+  private static final String PARTITION_STATISTICS = "partition-statistics";
 
   // AddSnapshot
   private static final String SNAPSHOT = "snapshot";
@@ -133,6 +138,8 @@ public class MetadataUpdateParser {
           .put(MetadataUpdate.SetDefaultSortOrder.class, SET_DEFAULT_SORT_ORDER)
           .put(MetadataUpdate.SetStatistics.class, SET_STATISTICS)
           .put(MetadataUpdate.RemoveStatistics.class, REMOVE_STATISTICS)
+          .put(MetadataUpdate.SetPartitionStatistics.class, SET_PARTITION_STATISTICS)
+          .put(MetadataUpdate.RemovePartitionStatistics.class, REMOVE_PARTITION_STATISTICS)
           .put(MetadataUpdate.AddSnapshot.class, ADD_SNAPSHOT)
           .put(MetadataUpdate.RemoveSnapshot.class, REMOVE_SNAPSHOTS)
           .put(MetadataUpdate.RemoveSnapshotRef.class, REMOVE_SNAPSHOT_REF)
@@ -197,6 +204,14 @@ public class MetadataUpdateParser {
         break;
       case REMOVE_STATISTICS:
         writeRemoveStatistics((MetadataUpdate.RemoveStatistics) metadataUpdate, generator);
+        break;
+      case SET_PARTITION_STATISTICS:
+        writeSetPartitionStatistics(
+            (MetadataUpdate.SetPartitionStatistics) metadataUpdate, generator);
+        break;
+      case REMOVE_PARTITION_STATISTICS:
+        writeRemovePartitionStatistics(
+            (MetadataUpdate.RemovePartitionStatistics) metadataUpdate, generator);
         break;
       case ADD_SNAPSHOT:
         writeAddSnapshot((MetadataUpdate.AddSnapshot) metadataUpdate, generator);
@@ -275,6 +290,10 @@ public class MetadataUpdateParser {
         return readSetStatistics(jsonNode);
       case REMOVE_STATISTICS:
         return readRemoveStatistics(jsonNode);
+      case SET_PARTITION_STATISTICS:
+        return readSetPartitionStatistics(jsonNode);
+      case REMOVE_PARTITION_STATISTICS:
+        return readRemovePartitionStatistics(jsonNode);
       case ADD_SNAPSHOT:
         return readAddSnapshot(jsonNode);
       case REMOVE_SNAPSHOTS:
@@ -352,6 +371,17 @@ public class MetadataUpdateParser {
 
   private static void writeRemoveStatistics(
       MetadataUpdate.RemoveStatistics update, JsonGenerator gen) throws IOException {
+    gen.writeNumberField(SNAPSHOT_ID, update.snapshotId());
+  }
+
+  private static void writeSetPartitionStatistics(
+      MetadataUpdate.SetPartitionStatistics update, JsonGenerator gen) throws IOException {
+    gen.writeFieldName(PARTITION_STATISTICS);
+    PartitionStatisticsFileParser.toJson(update.partitionStatisticsFile(), gen);
+  }
+
+  private static void writeRemovePartitionStatistics(
+      MetadataUpdate.RemovePartitionStatistics update, JsonGenerator gen) throws IOException {
     gen.writeNumberField(SNAPSHOT_ID, update.snapshotId());
   }
 
@@ -476,6 +506,18 @@ public class MetadataUpdateParser {
   private static MetadataUpdate readRemoveStatistics(JsonNode node) {
     long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, node);
     return new MetadataUpdate.RemoveStatistics(snapshotId);
+  }
+
+  private static MetadataUpdate readSetPartitionStatistics(JsonNode node) {
+    JsonNode partitionStatisticsFileNode = JsonUtil.get(PARTITION_STATISTICS, node);
+    PartitionStatisticsFile partitionStatisticsFile =
+        PartitionStatisticsFileParser.fromJson(partitionStatisticsFileNode);
+    return new MetadataUpdate.SetPartitionStatistics(partitionStatisticsFile);
+  }
+
+  private static MetadataUpdate readRemovePartitionStatistics(JsonNode node) {
+    long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, node);
+    return new MetadataUpdate.RemovePartitionStatistics(snapshotId);
   }
 
   private static MetadataUpdate readAddSnapshot(JsonNode node) {

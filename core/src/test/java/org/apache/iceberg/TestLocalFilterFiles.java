@@ -18,20 +18,17 @@
  */
 package org.apache.iceberg;
 
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import java.util.Arrays;
+import java.util.List;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestLocalFilterFiles
     extends FilterFilesTestBase<TableScan, FileScanTask, CombinedScanTask> {
 
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
-  }
-
-  public TestLocalFilterFiles(int formatVersion) {
-    super(formatVersion);
+  @Parameters(name = "formatVersion = {0}")
+  public static List<Object> parameters() {
+    return Arrays.asList(1, 2);
   }
 
   @Override

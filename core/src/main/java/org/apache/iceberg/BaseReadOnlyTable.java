@@ -101,6 +101,12 @@ abstract class BaseReadOnlyTable implements Table {
   }
 
   @Override
+  public UpdatePartitionStatistics updatePartitionStatistics() {
+    throw new UnsupportedOperationException(
+        "Cannot update partition statistics of a " + descriptor + " table");
+  }
+
+  @Override
   public ExpireSnapshots expireSnapshots() {
     throw new UnsupportedOperationException(
         "Cannot expire snapshots from a " + descriptor + " table");

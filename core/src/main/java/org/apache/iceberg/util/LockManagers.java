@@ -18,9 +18,11 @@
  */
 package org.apache.iceberg.util;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -154,6 +156,20 @@ public class LockManagers {
               CatalogProperties.LOCK_HEARTBEAT_THREADS,
               CatalogProperties.LOCK_HEARTBEAT_THREADS_DEFAULT);
     }
+
+    @Override
+    public void close() throws Exception {
+      if (scheduler != null) {
+        List<Runnable> tasks = scheduler.shutdownNow();
+        tasks.forEach(
+            task -> {
+              if (task instanceof Future) {
+                ((Future<?>) task).cancel(true);
+              }
+            });
+        scheduler = null;
+      }
+    }
   }
 
   /**
@@ -260,10 +276,11 @@ public class LockManagers {
     }
 
     @Override
-    public void close() {
+    public void close() throws Exception {
       HEARTBEATS.values().forEach(future -> future.cancel(false));
       HEARTBEATS.clear();
       LOCKS.clear();
+      super.close();
     }
   }
 

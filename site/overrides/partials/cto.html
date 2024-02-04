@@ -1,0 +1,21 @@
+<div class="cto">
+    <div class="container">
+        <span> Apache Iceberg, Iceberg, Apache, the Apache feather logo, and the Apache Iceberg project logo
+            are</br>either registered trademarks or trademarks of The Apache Software Foundation. Copyright &copy;
+            2023</br>The Apache Software Foundation, Licensed under the <a
+                href="https://www.apache.org/licenses/">Apache License, Version 2.0</a>.</br></br>
+        </span>
+        <ul class="list-inline intro-social-buttons">
+          {% for social in config.extra.social %}
+          <li>
+            <a class="btn btn-default btn-lg" href="{{ social.link }}" target="_blank">
+              <span class="fa fa-fw">
+                {% include ".icons/" ~ social.icon ~ ".svg" %}
+              </span>
+              <span class="network-name"> {{ social.title }}</span>
+            </a>
+          </li>
+          {% endfor %}
+       </ul>
+    </div>
+</div>

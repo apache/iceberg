@@ -281,18 +281,15 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
   }
 
   /**
-   * Update a column in the schema to a new primitive type.
+   * Update the documentation string for a column.
    *
    * <p>The name is used to find the column to update using {@link Schema#findField(String)}.
    *
-   * <p>Columns may be updated and renamed in the same schema update.
-   *
-   * @param name name of the column to rename
+   * @param name name of the column to update the documentation string for
    * @param newDoc replacement documentation string for the column
    * @return this for method chaining
-   * @throws IllegalArgumentException If name doesn't identify a column in the schema or if this
-   *     change introduces a type incompatibility or if it conflicts with other additions, renames,
-   *     or updates.
+   * @throws IllegalArgumentException If name doesn't identify a column in the schema or if the
+   *     column will be deleted
    */
   UpdateSchema updateColumnDoc(String name, String newDoc);
 

@@ -31,15 +31,17 @@ Background and documentation is available at <https://iceberg.apache.org>
 
 Iceberg is under active development at the Apache Software Foundation.
 
-The core Java library that tracks table snapshots and metadata is complete, but still evolving. Current work is focused on adding row-level deletes and upserts, and integration work with new engines like Flink and Hive.
+The [Iceberg format specification][iceberg-spec] is stable and new features are added with each version.
 
-The [Iceberg format specification][iceberg-spec] is being actively updated and is open for comment. Until the specification is complete and released, it carries no compatibility guarantees. The spec is currently evolving as the Java reference implementation changes.
+The core Java library is located in this repository and is the reference implementation for other libraries.
 
-[Java API javadocs][iceberg-javadocs] are available for the main.
+[Documentation][iceberg-docs] is available for all libraries and integrations.
 
-[iceberg-javadocs]: https://iceberg.apache.org/javadoc/latest
+Current work is tracked in the [roadmap][roadmap].
+
+[iceberg-docs]: https://iceberg.apache.org/docs/latest/
 [iceberg-spec]: https://iceberg.apache.org/spec
-
+[roadmap]: https://iceberg.apache.org/roadmap/
 
 ## Collaboration
 

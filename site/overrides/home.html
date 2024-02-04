@@ -1,0 +1,321 @@
+{% extends "main.html" %} 
+
+{% block tabs %}
+  {{ super() }} 
+
+  <link
+    href="https://cdn.jsdelivr.net/gh/ines/termynal@9b301892db6f8d403abfce7adf65888dffed72ea/termynal.css"
+    rel="stylesheet"
+  />
+  
+  <!-- disable side bars for home page -->
+  <style>
+    /* Hide main content for now */
+    .md-content {
+      display: none;
+    }
+
+    /* Hide table of contents */
+    @media screen and (min-width: 60em) {
+      .md-sidebar--secondary {
+        display: none;
+      }
+    }
+
+    /* Hide navigation */
+    @media screen and (min-width: 76.25em) {
+      .md-sidebar--primary {
+        display: none;
+      }
+    }
+  </style>
+  <section class="mdx-container">
+    <div class="container">
+      <div class="d-flex flex-row">
+        <div class="col-lg-12">
+          <div class="intro-message">
+            <h1>Apache Iceberg</h1>
+            <h3>The open table format for analytic datasets.</h3>
+            <hr class="intro-divider" />
+              <ul class="list-inline intro-social-buttons">
+                {% for social in config.extra.social %}
+                <li>
+                  <a class="btn btn-default btn-lg" href="{{ social.link }}" target="_blank">
+                    <span class="fa fa-fw">
+                      {% include ".icons/" ~ social.icon ~ ".svg" %}
+                    </span>
+                    <span class="network-name">{{ social.title }}</span>
+                  </a>
+                </li>
+              {% endfor %}
+             </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  
+  <section id="about">
+    <div class="container">
+      <div class="d-flex flex-row">
+        <div class="col-lg-2"></div>
+        <div class="col-lg-8">
+          <br /><br />
+          <h2>What is Iceberg?</h2>
+          <br />
+  
+          <p>
+            Iceberg is a high-performance format for huge analytic tables. Iceberg
+            brings the reliability and simplicity of SQL tables to big data, while
+            making it possible for engines like Spark, Trino, Flink, Presto, Hive
+            and Impala to safely work with the same tables, at the same time.
+          </p>
+          <div class="button-box">
+            <ul class="list-inline intro-social-buttons">
+              <li>
+                <a href="./spark-quickstart" class="btn btn-default btn-lg">
+                  <span class="network-name">Learn More</span>
+                </a>
+              </li>
+              <ul></ul>
+            </ul>
+          </div>
+          <br />
+        </div>
+      </div>
+    </div>
+  </section>
+  
+  <section id="services ">
+    <div class="content-section-a">
+      <div class="container">
+        <div class="d-flex flex-column flex-lg-row justify-content-around">
+          <div class="col-lg-5 col-sm-6 d-flex flex-column">
+            <hr class="section-heading-spacer" />
+            <div class="clearfix"></div>
+            <h2 class="section-heading">Expressive SQL</h2>
+            <p>
+              Iceberg supports flexible SQL commands to merge new data, update
+              existing rows, and perform targeted deletes. Iceberg can eagerly
+              rewrite data files for read performance, or it can use delete deltas
+              for faster updates.
+            </p>
+  
+            <ul class="list-inline intro-social-buttons">
+              <li>
+                <a href="./docs/latest/spark-writes/" class="btn btn-default btn-lg">
+                  <span class="network-name">Learn More</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+          <div class="col-lg-5 col-lg col-sm-6">
+            <div id="termynal-expressive-sql"
+              data-termynal=""
+              data-ty-startdelay="2000"
+              data-ty-typedelay="20"
+              data-ty-linedelay="500"
+              style="width: 445px; min-height: 338.5px">
+  
+              <span data-ty="input" data-ty-prompt="sql>">MERGE INTO prod.nyc.taxis pt
+              </span>
+              <span data-ty="input" data-ty-prompt="">USING (SELECT * FROM staging.nyc.taxis) st
+              </span>
+              <span data-ty="input" data-ty-prompt="">ON pt.id = st.id
+              </span>
+              <span data-ty="input" data-ty-prompt="">WHEN NOT MATCHED THEN INSERT *;
+              </span>
+              <span data-ty="">Done!</span>
+              <span data-ty="input" data-ty-prompt="sql>"></span>
+  
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="content-section-b">
+      <div class="container">
+        <div class="d-flex flex-column flex-lg-row-reverse justify-content-around">
+          <div class="col-lg-5 col-lg-offset-1 col-sm-push-6 d-flex flex-column">
+            <hr class="section-heading-spacer" />
+            <div class="clearfix"></div>
+            <h2 class="section-heading">Full Schema Evolution</h2>
+            <p>
+              Schema evolution just works. Adding a column won't bring back
+              "zombie" data. Columns can be renamed and reordered. Best of all,
+              schema changes never require rewriting your table.
+            </p>
+  
+            <ul class="list-inline intro-social-buttons">
+              <li>
+                <a href="./docs/latest/evolution/" class="btn btn-default btn-lg">
+                  <span class="network-name">Learn More</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+          <div class="col-lg-5 col-sm-pull-6 col-sm-6">
+            <div id="termynal"
+              data-termynal=""
+              data-ty-startdelay="4000"
+              data-ty-typedelay="20"
+              data-ty-linedelay="500"
+              style="width: 445px; min-height: 484.5px">
+  
+              <span data-ty="input" data-ty-prompt="sql>">ALTER TABLE taxis
+              </span>
+              <span data-ty="input" data-ty-prompt="">ALTER COLUMN trip_distance
+              </span>
+              <span data-ty="input" data-ty-prompt="" data-ty-delay="2500">TYPE double;
+              </span>
+              <span data-ty="">Done!</span>
+  
+              <span data-ty="input" data-ty-prompt="sql>">ALTER TABLE taxis
+              </span>
+              <span data-ty="input" data-ty-prompt="">ALTER COLUMN trip_distance
+              </span>
+              <span data-ty="input" data-ty-prompt="">AFTER fare;
+              </span>
+              <span data-ty="">Done!</span>
+  
+              <span data-ty="input" data-ty-prompt="sql>">ALTER TABLE taxis
+              </span>
+              <span data-ty="input" data-ty-prompt="">RENAME COLUMN trip_distance
+              </span>
+              <span data-ty="input" data-ty-prompt="">TO distance;
+              </span>
+              <span data-ty="">Done!</span>
+  
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="content-section-a">
+      <div class="container">
+        <div class="d-flex flex-column flex-lg-row justify-content-around">
+          <div class="col-lg-5 col-sm-12 d-flex flex-column">
+            <hr class="section-heading-spacer" />
+            <div class="clearfix"></div>
+            <h2 class="section-heading">Hidden Partitioning</h2>
+            <p>
+              Iceberg handles the tedious and error-prone task of producing
+              partition values for rows in a table and skips unnecessary
+              partitions and files automatically. No extra filters are needed for
+              fast queries, and table layout can be updated as data or queries
+              change.
+            </p>
+  
+            <ul class="list-inline intro-social-buttons">
+              <li>
+                <a href="./docs/latest/partitioning/#icebergs-hidden-partitioning" class="btn btn-default btn-lg">
+                  <span class="network-name">Learn More</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+          <div class="col-lg-5 col-lg col-sm-12">
+            <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
+            <lottie-player src="https://iceberg.apache.org/lottie/hidden-partitioning-animation.json"
+              background="transparent"
+              speed="0.5"
+              style="width: 430px; height: 400px"
+              loop=""
+              autoplay="">
+            </lottie-player>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="content-section-b">
+      <div class="container">
+        <div class="d-flex flex-column flex-lg-row-reverse justify-content-around">
+          <div class="col-lg-5 col-lg-offset-1 col-sm-push-6 d-flex flex-column">
+            <hr class="section-heading-spacer" />
+            <div class="clearfix"></div>
+            <h2 class="section-heading">Time Travel and Rollback</h2>
+            <p>
+              Time-travel enables reproducible queries that use exactly the same
+              table snapshot, or lets users easily examine changes. Version
+              rollback allows users to quickly correct problems by resetting
+              tables to a good state.
+            </p>
+  
+            <ul class="list-inline intro-social-buttons">
+              <li>
+                <a href="./docs/latest/spark-queries/#time-travel" class="btn btn-default btn-lg">
+                  <span class="network-name">Learn More</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+          <div class="col-lg-5 col-sm-pull-6">
+            <div class="termynal-container">
+              <div id="termynal-time-travel"
+                data-termynal=""
+                data-ty-startdelay="6000"
+                data-ty-typedelay="20"
+                data-ty-linedelay="500"
+                style="width: 445px; min-height: 391.9px">
+  
+                <span data-ty="input" data-ty-prompt="sql>">SELECT count(*) FROM nyc.taxis
+                </span>
+                <span data-ty="">2,853,020</span>
+  
+                <span data-ty="input" data-ty-prompt="sql>">SELECT count(*) FROM nyc.taxis FOR VERSION AS OF 2188465307835585443
+                </span>
+                <span data-ty="">2,798,371</span>
+                <span data-ty="input" data-ty-prompt="sql>">SELECT count(*) FROM nyc.taxis FOR TIMESTAMP AS OF TIMESTAMP '2022-01-01 00:00:00.000000 Z'
+                </span>
+                <span data-ty="">2,798,371</span>
+  
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="content-section-a">
+      <div class="container">
+        <div class="d-flex flex-column flex-lg-row justify-content-around">
+          <div class="col-lg-5 d-flex flex-column">
+            <hr class="section-heading-spacer" />
+            <div class="clearfix"></div>
+            <h2 class="section-heading">Data Compaction</h2>
+            <p>
+              Data compaction is supported out-of-the-box and you can choose from
+              different rewrite strategies such as bin-packing or sorting to
+              optimize file layout and size.
+            </p>
+          </div>
+          <div class="col-lg-5 col-lg">
+            <div id="termynal-data-compaction"
+              data-termynal=""
+              data-ty-startdelay="8000"
+              data-ty-typedelay="20"
+              data-ty-linedelay="500"
+              style="width: 445px; min-height: 192.7px">
+  
+              <span data-ty="input" data-ty-prompt="sql>">CALL system.rewrite_data_files("nyc.taxis");
+              </span>
+  
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  
+  <script
+    src="https://cdn.jsdelivr.net/gh/ines/termynal@9b301892db6f8d403abfce7adf65888dffed72ea/termynal.js"
+    data-termynal-container="#termynal|#termynal-data-compaction|#termynal-expressive-sql|#termynal-time-travel">
+  </script>
+{% endblock %}
+
+{% block content %}
+  {{ super() }} 
+{% endblock %}
+
+{% block footer%} 
+  {% include "partials/cto.html" %} 
+{% endblock %}

@@ -18,8 +18,10 @@
  */
 package org.apache.iceberg.delta;
 
+import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.current_date;
 import static org.apache.spark.sql.functions.date_add;
+import static org.apache.spark.sql.functions.date_format;
 import static org.apache.spark.sql.functions.expr;
 
 import io.delta.standalone.DeltaLog;
@@ -34,7 +36,6 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.Timestamp;
 import java.util.Iterator;
@@ -42,7 +43,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.net.URLCodec;
 import org.apache.iceberg.Snapshot;
@@ -62,10 +62,8 @@ import org.apache.spark.sql.delta.catalog.DeltaCatalog;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   private static final String SNAPSHOT_SOURCE_PROP = "snapshot_source";
@@ -74,31 +72,22 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   private static final String NAMESPACE = "delta_conversion_test";
   private static final String defaultSparkCatalog = "spark_catalog";
   private static final String icebergCatalogName = "iceberg_hive";
+  private static final Map<String, String> config =
+      ImmutableMap.of(
+          "type", "hive",
+          "default-namespace", "default",
+          "parquet-enabled", "true",
+          "cache-enabled",
+              "false" // Spark will delete tables using v1, leaving the cache out of sync
+          );
   private static Dataset<Row> typeTestDataFrame;
   private static Dataset<Row> nestedDataFrame;
 
-  static Stream<Arguments> parameters() {
-    return Stream.of(
-        Arguments.of(
-            icebergCatalogName,
-            SparkCatalog.class.getName(),
-            ImmutableMap.of(
-                "type",
-                "hive",
-                "default-namespace",
-                "default",
-                "parquet-enabled",
-                "true",
-                "cache-enabled",
-                "false" // Spark will delete tables using v1, leaving the cache out of sync
-                )));
-  }
+  @TempDir private File tempA;
+  @TempDir private File tempB;
 
-  @TempDir private Path temp;
-
-  public TestSnapshotDeltaLakeTable(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
+  public TestSnapshotDeltaLakeTable() {
+    super(icebergCatalogName, SparkCatalog.class.getName(), config);
     spark.conf().set("spark.sql.catalog." + defaultSparkCatalog, DeltaCatalog.class.getName());
   }
 
@@ -115,7 +104,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
             .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
             .withColumn("dateCol", date_add(current_date(), 1))
             .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
-            .withColumn("stringCol", expr("CAST(timestampCol AS STRING)"))
+            .withColumn("timestampStrCol", expr("CAST(timestampCol AS STRING)"))
+            .withColumn("stringCol", date_format(col("timestampCol"), "yyyy/M/d"))
             .withColumn("booleanCol", expr("longCol > 5"))
             .withColumn("binaryCol", expr("CAST(longCol AS BINARY)"))
             .withColumn("byteCol", expr("CAST(longCol AS BYTE)"))
@@ -160,11 +150,10 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     spark.sql(String.format("DROP DATABASE IF EXISTS %s CASCADE", NAMESPACE));
   }
 
-  @ParameterizedTest(name = "Catalog Name {0} - Options {2}")
-  @MethodSource("parameters")
+  @Test
   public void testBasicSnapshotPartitioned() {
     String partitionedIdentifier = destName(defaultSparkCatalog, "partitioned_table");
-    String partitionedLocation = temp.toFile().toURI().toString();
+    String partitionedLocation = tempA.toURI().toString();
 
     writeDeltaTable(nestedDataFrame, partitionedIdentifier, partitionedLocation, "id");
     spark.sql("DELETE FROM " + partitionedIdentifier + " WHERE id=3");
@@ -182,13 +171,12 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     checkIcebergTableLocation(newTableIdentifier, partitionedLocation);
   }
 
-  @ParameterizedTest(name = "Catalog Name {0} - Options {2}")
-  @MethodSource("parameters")
+  @Test
   public void testBasicSnapshotUnpartitioned() {
     String unpartitionedIdentifier = destName(defaultSparkCatalog, "unpartitioned_table");
-    String unpartitionedLocation = temp.toFile().toURI().toString();
+    String unpartitionedLocation = tempA.toURI().toString();
 
-    writeDeltaTable(nestedDataFrame, unpartitionedIdentifier, unpartitionedLocation, null);
+    writeDeltaTable(nestedDataFrame, unpartitionedIdentifier, unpartitionedLocation);
     spark.sql("DELETE FROM " + unpartitionedIdentifier + " WHERE id=3");
     spark.sql("UPDATE " + unpartitionedIdentifier + " SET id=3 WHERE id=1");
 
@@ -204,12 +192,11 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     checkIcebergTableLocation(newTableIdentifier, unpartitionedLocation);
   }
 
-  @ParameterizedTest(name = "Catalog Name {0} - Options {2}")
-  @MethodSource("parameters")
+  @Test
   public void testSnapshotWithNewLocation() {
     String partitionedIdentifier = destName(defaultSparkCatalog, "partitioned_table");
-    String partitionedLocation = temp.toFile().toURI().toString();
-    String newIcebergTableLocation = temp.toFile().toURI().toString();
+    String partitionedLocation = tempA.toURI().toString();
+    String newIcebergTableLocation = tempB.toURI().toString();
 
     writeDeltaTable(nestedDataFrame, partitionedIdentifier, partitionedLocation, "id");
     spark.sql("DELETE FROM " + partitionedIdentifier + " WHERE id=3");
@@ -228,13 +215,12 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     checkIcebergTableLocation(newTableIdentifier, newIcebergTableLocation);
   }
 
-  @ParameterizedTest(name = "Catalog Name {0} - Options {2}")
-  @MethodSource("parameters")
+  @Test
   public void testSnapshotWithAdditionalProperties() {
     String unpartitionedIdentifier = destName(defaultSparkCatalog, "unpartitioned_table");
-    String unpartitionedLocation = temp.toFile().toURI().toString();
+    String unpartitionedLocation = tempA.toURI().toString();
 
-    writeDeltaTable(nestedDataFrame, unpartitionedIdentifier, unpartitionedLocation, null);
+    writeDeltaTable(nestedDataFrame, unpartitionedIdentifier, unpartitionedLocation);
     spark.sql("DELETE FROM " + unpartitionedIdentifier + " WHERE id=3");
     spark.sql("UPDATE " + unpartitionedIdentifier + " SET id=3 WHERE id=1");
 
@@ -267,20 +253,18 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
         unpartitionedLocation);
   }
 
-  @ParameterizedTest(name = "Catalog Name {0} - Options {2}")
-  @MethodSource("parameters")
+  @Test
   public void testSnapshotTableWithExternalDataFiles() {
     String unpartitionedIdentifier = destName(defaultSparkCatalog, "unpartitioned_table");
     String externalDataFilesIdentifier = destName(defaultSparkCatalog, "external_data_files_table");
-    String unpartitionedLocation = temp.toFile().toURI().toString();
-    String externalDataFilesTableLocation = temp.toFile().toURI().toString();
+    String unpartitionedLocation = tempA.toURI().toString();
+    String externalDataFilesTableLocation = tempB.toURI().toString();
 
-    writeDeltaTable(nestedDataFrame, unpartitionedIdentifier, unpartitionedLocation, null);
+    writeDeltaTable(nestedDataFrame, unpartitionedIdentifier, unpartitionedLocation);
     spark.sql("DELETE FROM " + unpartitionedIdentifier + " WHERE id=3");
     spark.sql("UPDATE " + unpartitionedIdentifier + " SET id=3 WHERE id=1");
 
-    writeDeltaTable(
-        nestedDataFrame, externalDataFilesIdentifier, externalDataFilesTableLocation, null);
+    writeDeltaTable(nestedDataFrame, externalDataFilesIdentifier, externalDataFilesTableLocation);
     // Add parquet files to default.external_data_files_table. The newly added parquet files
     // are not at the same location as the table.
     addExternalDatafiles(externalDataFilesTableLocation, unpartitionedLocation);
@@ -297,13 +281,19 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     checkDataFilePathsIntegrity(newTableIdentifier, externalDataFilesTableLocation);
   }
 
-  @ParameterizedTest(name = "Catalog Name {0} - Options {2}")
-  @MethodSource("parameters")
+  @Test
   public void testSnapshotSupportedTypes() {
     String typeTestIdentifier = destName(defaultSparkCatalog, "type_test_table");
-    String typeTestTableLocation = temp.toFile().toURI().toString();
+    String typeTestTableLocation = tempA.toURI().toString();
 
-    writeDeltaTable(typeTestDataFrame, typeTestIdentifier, typeTestTableLocation, "stringCol");
+    writeDeltaTable(
+        typeTestDataFrame,
+        typeTestIdentifier,
+        typeTestTableLocation,
+        "stringCol",
+        "timestampStrCol",
+        "booleanCol",
+        "longCol");
     String newTableIdentifier = destName(icebergCatalogName, "iceberg_type_test_table");
     SnapshotDeltaLakeTable.Result result =
         DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeTable(
@@ -316,13 +306,12 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     checkIcebergTableProperties(newTableIdentifier, ImmutableMap.of(), typeTestTableLocation);
   }
 
-  @ParameterizedTest(name = "Catalog Name {0} - Options {2}")
-  @MethodSource("parameters")
+  @Test
   public void testSnapshotVacuumTable() throws IOException {
     String vacuumTestIdentifier = destName(defaultSparkCatalog, "vacuum_test_table");
-    String vacuumTestTableLocation = temp.toFile().toURI().toString();
+    String vacuumTestTableLocation = tempA.toURI().toString();
 
-    writeDeltaTable(nestedDataFrame, vacuumTestIdentifier, vacuumTestTableLocation, null);
+    writeDeltaTable(nestedDataFrame, vacuumTestIdentifier, vacuumTestTableLocation);
     Random random = new Random();
     for (int i = 0; i < 13; i++) {
       spark.sql(
@@ -352,11 +341,10 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     checkIcebergTableLocation(newTableIdentifier, vacuumTestTableLocation);
   }
 
-  @ParameterizedTest(name = "Catalog Name {0} - Options {2}")
-  @MethodSource("parameters")
+  @Test
   public void testSnapshotLogCleanTable() throws IOException {
     String logCleanTestIdentifier = destName(defaultSparkCatalog, "log_clean_test_table");
-    String logCleanTestTableLocation = temp.toFile().toURI().toString();
+    String logCleanTestTableLocation = tempA.toURI().toString();
 
     writeDeltaTable(nestedDataFrame, logCleanTestIdentifier, logCleanTestTableLocation, "id");
     Random random = new Random();
@@ -549,14 +537,14 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   }
 
   private void writeDeltaTable(
-      Dataset<Row> df, String identifier, String path, String partitionColumn) {
+      Dataset<Row> df, String identifier, String path, String... partitionColumns) {
     spark.sql(String.format("DROP TABLE IF EXISTS %s", identifier));
-    if (partitionColumn != null) {
+    if (partitionColumns.length > 0) {
       df.write()
           .format("delta")
           .mode(SaveMode.Append)
           .option("path", path)
-          .partitionBy(partitionColumn)
+          .partitionBy(partitionColumns)
           .saveAsTable(identifier);
     } else {
       df.write().format("delta").mode(SaveMode.Append).option("path", path).saveAsTable(identifier);

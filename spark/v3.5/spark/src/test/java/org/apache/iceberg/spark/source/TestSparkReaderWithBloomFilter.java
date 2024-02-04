@@ -24,10 +24,13 @@ import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.Closeable;
+import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +41,9 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
@@ -62,18 +68,15 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.SparkSession;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestSparkReaderWithBloomFilter {
 
   protected String tableName = null;
@@ -84,13 +87,12 @@ public class TestSparkReaderWithBloomFilter {
   private static TestHiveMetastore metastore = null;
   protected static SparkSession spark = null;
   protected static HiveCatalog catalog = null;
-  protected final boolean vectorized;
-  protected final boolean useBloomFilter;
 
-  public TestSparkReaderWithBloomFilter(boolean vectorized, boolean useBloomFilter) {
-    this.vectorized = vectorized;
-    this.useBloomFilter = useBloomFilter;
-  }
+  @Parameter(index = 0)
+  protected boolean vectorized;
+
+  @Parameter(index = 1)
+  protected boolean useBloomFilter;
 
   // Schema passed to create tables
   public static final Schema SCHEMA =
@@ -114,9 +116,9 @@ public class TestSparkReaderWithBloomFilter {
   private static final float FLOAT_BASE = 100000F;
   private static final String BINARY_PREFIX = "BINARY测试_";
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
-  @Before
+  @BeforeEach
   public void writeTestDataFile() throws IOException {
     this.tableName = "test";
     createTable(tableName, SCHEMA);
@@ -151,22 +153,26 @@ public class TestSparkReaderWithBloomFilter {
                   new BigDecimal(String.valueOf(99.99)))));
     }
 
-    this.dataFile = writeDataFile(Files.localOutput(temp.newFile()), Row.of(0), records);
+    this.dataFile =
+        writeDataFile(
+            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Row.of(0),
+            records);
 
     table.newAppend().appendFile(dataFile).commit();
   }
 
-  @After
+  @AfterEach
   public void cleanup() throws IOException {
     dropTable("test");
   }
 
-  @Parameterized.Parameters(name = "vectorized = {0}, useBloomFilter = {1}")
+  @Parameters(name = "vectorized = {0}, useBloomFilter = {1}")
   public static Object[][] parameters() {
     return new Object[][] {{false, false}, {true, false}, {false, true}, {true, true}};
   }
 
-  @BeforeClass
+  @BeforeAll
   public static void startMetastoreAndSpark() {
     metastore = new TestHiveMetastore();
     metastore.start();
@@ -191,7 +197,7 @@ public class TestSparkReaderWithBloomFilter {
     }
   }
 
-  @AfterClass
+  @AfterAll
   public static void stopMetastoreAndSpark() throws Exception {
     catalog = null;
     metastore.stop();
@@ -334,7 +340,7 @@ public class TestSparkReaderWithBloomFilter {
     return FileFormat.fromString(formatString);
   }
 
-  @Test
+  @TestTemplate
   public void testReadWithFilter() {
     Dataset<org.apache.spark.sql.Row> df =
         spark
@@ -349,9 +355,8 @@ public class TestSparkReaderWithBloomFilter {
 
     Record record = SparkValueConverter.convert(table.schema(), df.collectAsList().get(0));
 
-    Assert.assertEquals("Table should contain 1 row", 1, df.collectAsList().size());
-
-    Assert.assertEquals("Table should contain expected rows", record.get(0), 30);
+    assertThat(df.collectAsList()).as("Table should contain 1 row").hasSize(1);
+    assertThat(record.get(0)).as("Table should contain expected rows").isEqualTo(30);
 
     df =
         spark
@@ -366,8 +371,7 @@ public class TestSparkReaderWithBloomFilter {
 
     record = SparkValueConverter.convert(table.schema(), df.collectAsList().get(0));
 
-    Assert.assertEquals("Table should contain 1 row", 1, df.collectAsList().size());
-
-    Assert.assertEquals("Table should contain expected rows", record.get(0), 250);
+    assertThat(df.collectAsList()).as("Table should contain 1 row").hasSize(1);
+    assertThat(record.get(0)).as("Table should contain expected rows").isEqualTo(250);
   }
 }

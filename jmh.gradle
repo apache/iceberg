@@ -18,16 +18,12 @@
  */
 
 if (jdkVersion != '8' && jdkVersion != '11' && jdkVersion != '17') {
-  throw new GradleException("The JMH benchamrks must be run with JDK 8 or JDK 11 or JDK 17")
+  throw new GradleException("The JMH benchmarks must be run with JDK 8 or JDK 11 or JDK 17")
 }
 
 def sparkVersions = (System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")).split(",")
 def scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
-def jmhProjects = [project(":iceberg-core")]
-
-if (sparkVersions.contains("3.2")) {
-  jmhProjects.add(project(":iceberg-spark:iceberg-spark-3.2_${scalaVersion}"))
-}
+def jmhProjects = [project(":iceberg-core"), project(":iceberg-data")]
 
 if (sparkVersions.contains("3.3")) {
   jmhProjects.add(project(":iceberg-spark:iceberg-spark-3.3_${scalaVersion}"))
@@ -44,8 +40,6 @@ if (sparkVersions.contains("3.5")) {
   jmhProjects.add(project(":iceberg-spark:iceberg-spark-extensions-3.5_${scalaVersion}"))
 }
 
-jmhProjects.add(project(":iceberg-data"))
-
 configure(jmhProjects) {
   apply plugin: 'me.champeau.jmh'
   apply plugin: 'io.morethan.jmhreport'
@@ -54,7 +48,7 @@ configure(jmhProjects) {
   mkdir(file(jmhReportDir))
 
   jmh {
-    jmhVersion = '1.32'
+    jmhVersion = '1.37'
     failOnError = true
     forceGC = true
     includeTests = true

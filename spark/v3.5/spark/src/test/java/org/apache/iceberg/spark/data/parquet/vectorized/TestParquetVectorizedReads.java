@@ -20,6 +20,9 @@ package org.apache.iceberg.spark.data.parquet.vectorized;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -46,11 +49,8 @@ import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Ignore;
-import org.junit.Test;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 
 public class TestParquetVectorizedReads extends AvroDataTest {
   private static final int NUM_ROWS = 200_000;
@@ -80,19 +80,19 @@ public class TestParquetVectorizedReads extends AvroDataTest {
       Function<GenericData.Record, GenericData.Record> transform)
       throws IOException {
     // Write test data
-    Assume.assumeTrue(
-        "Parquet Avro cannot write non-string map keys",
-        null
-            == TypeUtil.find(
+    assumeThat(
+            TypeUtil.find(
                 schema,
-                type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()));
+                type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()))
+        .as("Parquet Avro cannot write non-string map keys")
+        .isNull();
 
     Iterable<GenericData.Record> expected =
         generateData(schema, numRecords, seed, nullPercentage, transform);
 
     // write a test parquet file using iceberg writer
-    File testFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", testFile.delete());
+    File testFile = File.createTempFile("junit", null, temp.toFile());
+    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     try (FileAppender<GenericData.Record> writer = getParquetWriter(schema, testFile)) {
       writer.addAll(expected);
@@ -157,49 +157,49 @@ public class TestParquetVectorizedReads extends AvroDataTest {
         numRowsRead += batch.numRows();
         TestHelpers.assertEqualsBatch(schema.asStruct(), expectedIter, batch);
       }
-      Assert.assertEquals(expectedSize, numRowsRead);
+      assertThat(numRowsRead).isEqualTo(expectedSize);
     }
   }
 
   @Override
   @Test
-  @Ignore
+  @Disabled
   public void testArray() {}
 
   @Override
   @Test
-  @Ignore
+  @Disabled
   public void testArrayOfStructs() {}
 
   @Override
   @Test
-  @Ignore
+  @Disabled
   public void testMap() {}
 
   @Override
   @Test
-  @Ignore
+  @Disabled
   public void testNumericMapKey() {}
 
   @Override
   @Test
-  @Ignore
+  @Disabled
   public void testComplexMapKey() {}
 
   @Override
   @Test
-  @Ignore
+  @Disabled
   public void testMapOfStructs() {}
 
   @Override
   @Test
-  @Ignore
+  @Disabled
   public void testMixedTypes() {}
 
   @Test
   @Override
   public void testNestedStruct() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 VectorizedSparkParquetReaders.buildReader(
                     TypeUtil.assignIncreasingFreshIds(
@@ -274,8 +274,8 @@ public class TestParquetVectorizedReads extends AvroDataTest {
             optional(102, "float_data", Types.FloatType.get()),
             optional(103, "decimal_data", Types.DecimalType.of(10, 5)));
 
-    File dataFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", dataFile.delete());
+    File dataFile = File.createTempFile("junit", null, temp.toFile());
+    assertThat(dataFile.delete()).as("Delete should succeed").isTrue();
     Iterable<GenericData.Record> data =
         generateData(writeSchema, 30000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE, IDENTITY);
     try (FileAppender<GenericData.Record> writer = getParquetWriter(writeSchema, dataFile)) {
@@ -303,8 +303,8 @@ public class TestParquetVectorizedReads extends AvroDataTest {
             optional(103, "double_data", Types.DoubleType.get()),
             optional(104, "decimal_data", Types.DecimalType.of(25, 5)));
 
-    File dataFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", dataFile.delete());
+    File dataFile = File.createTempFile("junit", null, temp.toFile());
+    assertThat(dataFile.delete()).as("Delete should succeed").isTrue();
     Iterable<GenericData.Record> data =
         generateData(schema, 30000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE, IDENTITY);
     try (FileAppender<GenericData.Record> writer = getParquetV2Writer(schema, dataFile)) {
@@ -318,15 +318,14 @@ public class TestParquetVectorizedReads extends AvroDataTest {
     // Longs, ints, string types etc use delta encoding and which are not supported for vectorized
     // reads
     Schema schema = new Schema(SUPPORTED_PRIMITIVES.fields());
-    File dataFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", dataFile.delete());
+    File dataFile = File.createTempFile("junit", null, temp.toFile());
+    assertThat(dataFile.delete()).as("Delete should succeed").isTrue();
     Iterable<GenericData.Record> data =
         generateData(schema, 30000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE, IDENTITY);
     try (FileAppender<GenericData.Record> writer = getParquetV2Writer(schema, dataFile)) {
       writer.addAll(data);
     }
-    Assertions.assertThatThrownBy(
-            () -> assertRecordsMatch(schema, 30000, data, dataFile, false, BATCH_SIZE))
+    assertThatThrownBy(() -> assertRecordsMatch(schema, 30000, data, dataFile, false, BATCH_SIZE))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessageStartingWith("Cannot support vectorized reads for column")
         .hasMessageEndingWith("Disable vectorized reads to read this table/file");

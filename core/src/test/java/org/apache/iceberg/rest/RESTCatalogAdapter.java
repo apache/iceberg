@@ -31,6 +31,7 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -39,6 +40,7 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.UnprocessableEntityException;
@@ -49,6 +51,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
+import org.apache.iceberg.rest.requests.CreateViewRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
@@ -61,6 +64,7 @@ import org.apache.iceberg.rest.responses.GetNamespaceResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
+import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.Pair;
@@ -79,6 +83,7 @@ public class RESTCatalogAdapter implements RESTClient {
           .put(ForbiddenException.class, 403)
           .put(NoSuchNamespaceException.class, 404)
           .put(NoSuchTableException.class, 404)
+          .put(NoSuchViewException.class, 404)
           .put(NoSuchIcebergTableException.class, 404)
           .put(UnsupportedOperationException.class, 406)
           .put(AlreadyExistsException.class, 409)
@@ -89,11 +94,13 @@ public class RESTCatalogAdapter implements RESTClient {
 
   private final Catalog catalog;
   private final SupportsNamespaces asNamespaceCatalog;
+  private final ViewCatalog asViewCatalog;
 
   public RESTCatalogAdapter(Catalog catalog) {
     this.catalog = catalog;
     this.asNamespaceCatalog =
         catalog instanceof SupportsNamespaces ? (SupportsNamespaces) catalog : null;
+    this.asViewCatalog = catalog instanceof ViewCatalog ? (ViewCatalog) catalog : null;
   }
 
   enum HTTPMethod {
@@ -128,7 +135,7 @@ public class RESTCatalogAdapter implements RESTClient {
         CreateTableRequest.class,
         LoadTableResponse.class),
     LOAD_TABLE(
-        HTTPMethod.GET, "v1/namespaces/{namespace}/tables/{table}", null, LoadTableResponse.class),
+        HTTPMethod.GET, "v1/namespaces/{namespace}/tables/{name}", null, LoadTableResponse.class),
     REGISTER_TABLE(
         HTTPMethod.POST,
         "v1/namespaces/{namespace}/register",
@@ -136,18 +143,33 @@ public class RESTCatalogAdapter implements RESTClient {
         LoadTableResponse.class),
     UPDATE_TABLE(
         HTTPMethod.POST,
-        "v1/namespaces/{namespace}/tables/{table}",
+        "v1/namespaces/{namespace}/tables/{name}",
         UpdateTableRequest.class,
         LoadTableResponse.class),
-    DROP_TABLE(HTTPMethod.DELETE, "v1/namespaces/{namespace}/tables/{table}"),
+    DROP_TABLE(HTTPMethod.DELETE, "v1/namespaces/{namespace}/tables/{name}"),
     RENAME_TABLE(HTTPMethod.POST, "v1/tables/rename", RenameTableRequest.class, null),
     REPORT_METRICS(
         HTTPMethod.POST,
-        "v1/namespaces/{namespace}/tables/{table}/metrics",
+        "v1/namespaces/{namespace}/tables/{name}/metrics",
         ReportMetricsRequest.class,
         null),
     COMMIT_TRANSACTION(
-        HTTPMethod.POST, "v1/transactions/commit", CommitTransactionRequest.class, null);
+        HTTPMethod.POST, "v1/transactions/commit", CommitTransactionRequest.class, null),
+    LIST_VIEWS(HTTPMethod.GET, "v1/namespaces/{namespace}/views", null, ListTablesResponse.class),
+    LOAD_VIEW(
+        HTTPMethod.GET, "v1/namespaces/{namespace}/views/{name}", null, LoadViewResponse.class),
+    CREATE_VIEW(
+        HTTPMethod.POST,
+        "v1/namespaces/{namespace}/views",
+        CreateViewRequest.class,
+        LoadViewResponse.class),
+    UPDATE_VIEW(
+        HTTPMethod.POST,
+        "v1/namespaces/{namespace}/views/{name}",
+        UpdateTableRequest.class,
+        LoadViewResponse.class),
+    RENAME_VIEW(HTTPMethod.POST, "v1/views/rename", RenameTableRequest.class, null),
+    DROP_VIEW(HTTPMethod.DELETE, "v1/namespaces/{namespace}/views/{name}");
 
     private final HTTPMethod method;
     private final int requiredLength;
@@ -253,7 +275,8 @@ public class RESTCatalogAdapter implements RESTClient {
     }
   }
 
-  @SuppressWarnings("MethodLength")
+
+  @SuppressWarnings({"MethodLength", "checkstyle:CyclomaticComplexity"})
   public <T extends RESTResponse> T handleRequest(
       Route route, Map<String, String> vars, Object body, Class<T> responseType) {
     switch (route) {
@@ -384,6 +407,65 @@ public class RESTCatalogAdapter implements RESTClient {
           CommitTransactionRequest request = castRequest(CommitTransactionRequest.class, body);
           commitTransaction(catalog, request);
           return null;
+        }
+
+      case LIST_VIEWS:
+        {
+          if (null != asViewCatalog) {
+            Namespace namespace = namespaceFromPathVars(vars);
+            return castResponse(responseType, CatalogHandlers.listViews(asViewCatalog, namespace));
+          }
+          break;
+        }
+
+      case CREATE_VIEW:
+        {
+          if (null != asViewCatalog) {
+            Namespace namespace = namespaceFromPathVars(vars);
+            CreateViewRequest request = castRequest(CreateViewRequest.class, body);
+            return castResponse(
+                responseType, CatalogHandlers.createView(asViewCatalog, namespace, request));
+          }
+          break;
+        }
+
+      case LOAD_VIEW:
+        {
+          if (null != asViewCatalog) {
+            TableIdentifier ident = identFromPathVars(vars);
+            return castResponse(responseType, CatalogHandlers.loadView(asViewCatalog, ident));
+          }
+          break;
+        }
+
+      case UPDATE_VIEW:
+        {
+          if (null != asViewCatalog) {
+            TableIdentifier ident = identFromPathVars(vars);
+            UpdateTableRequest request = castRequest(UpdateTableRequest.class, body);
+            return castResponse(
+                responseType, CatalogHandlers.updateView(asViewCatalog, ident, request));
+          }
+          break;
+        }
+
+      case RENAME_VIEW:
+        {
+          if (null != asViewCatalog) {
+            RenameTableRequest request = castRequest(RenameTableRequest.class, body);
+            CatalogHandlers.renameView(asViewCatalog, request);
+            return null;
+          }
+          break;
+        }
+
+      case DROP_VIEW:
+        {
+          if (null != asViewCatalog) {
+            CatalogHandlers.dropView(asViewCatalog, identFromPathVars(vars));
+            return null;
+          }
+          break;
         }
 
       default:
@@ -568,6 +650,6 @@ public class RESTCatalogAdapter implements RESTClient {
 
   private static TableIdentifier identFromPathVars(Map<String, String> pathVars) {
     return TableIdentifier.of(
-        namespaceFromPathVars(pathVars), RESTUtil.decodeString(pathVars.get("table")));
+        namespaceFromPathVars(pathVars), RESTUtil.decodeString(pathVars.get("name")));
   }
 }

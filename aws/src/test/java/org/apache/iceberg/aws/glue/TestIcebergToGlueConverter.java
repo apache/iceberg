@@ -100,7 +100,7 @@ public class TestIcebergToGlueConverter {
   public void testToDatabaseInput() {
     Map<String, String> properties =
         ImmutableMap.of(
-            IcebergToGlueConverter.GLUE_DB_DESCRIPTION_KEY,
+            IcebergToGlueConverter.GLUE_DESCRIPTION_KEY,
             "description",
             IcebergToGlueConverter.GLUE_DB_LOCATION_KEY,
             "s3://location",
@@ -132,8 +132,7 @@ public class TestIcebergToGlueConverter {
   @Test
   public void testToDatabaseInputEmptyLocation() {
     Map<String, String> properties =
-        ImmutableMap.of(
-            IcebergToGlueConverter.GLUE_DB_DESCRIPTION_KEY, "description", "key", "val");
+        ImmutableMap.of(IcebergToGlueConverter.GLUE_DESCRIPTION_KEY, "description", "key", "val");
     DatabaseInput databaseInput =
         IcebergToGlueConverter.toDatabaseInput(Namespace.of("ns"), properties, false);
     Assertions.assertThat(databaseInput.locationUri()).as("Location should not be set").isNull();
@@ -288,5 +287,28 @@ public class TestIcebergToGlueConverter {
     Assertions.assertThat(actualTableInput.storageDescriptor().columns())
         .as("Columns should match")
         .isEqualTo(expectedTableInput.storageDescriptor().columns());
+  }
+
+  @Test
+  public void testSetTableDescription() {
+    String tableDescription = "hello world!";
+    Map<String, String> tableProperties =
+        ImmutableMap.<String, String>builder()
+            .putAll((tableLocationProperties))
+            .put(IcebergToGlueConverter.GLUE_DESCRIPTION_KEY, tableDescription)
+            .build();
+    TableInput.Builder actualTableInputBuilder = TableInput.builder();
+    Schema schema =
+        new Schema(Types.NestedField.required(1, "x", Types.StringType.get(), "comment1"));
+    TableMetadata tableMetadata =
+        TableMetadata.newTableMetadata(
+            schema, PartitionSpec.unpartitioned(), "s3://test", tableProperties);
+
+    IcebergToGlueConverter.setTableInputInformation(actualTableInputBuilder, tableMetadata);
+    TableInput actualTableInput = actualTableInputBuilder.build();
+
+    Assertions.assertThat(actualTableInput.description())
+        .as("description should match")
+        .isEqualTo(tableDescription);
   }
 }

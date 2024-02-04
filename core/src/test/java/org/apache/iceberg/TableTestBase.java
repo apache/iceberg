@@ -212,6 +212,15 @@ public class TableTestBase {
                         && Files.getFileExtension(name).equalsIgnoreCase("avro")));
   }
 
+  List<File> listManifestLists(String tableDirToList) {
+    return Lists.newArrayList(
+        new File(tableDirToList, "metadata")
+            .listFiles(
+                (dir, name) ->
+                    name.startsWith("snap")
+                        && Files.getFileExtension(name).equalsIgnoreCase("avro")));
+  }
+
   public static long countAllMetadataFiles(File tableDir) {
     return Arrays.stream(new File(tableDir, "metadata").listFiles())
         .filter(f -> f.isFile())
@@ -328,19 +337,19 @@ public class TableTestBase {
     return writer.toManifestFile();
   }
 
-  ManifestEntry<DataFile> manifestEntry(
-      ManifestEntry.Status status, Long snapshotId, DataFile file) {
+  <F extends ContentFile<F>> ManifestEntry<F> manifestEntry(
+      ManifestEntry.Status status, Long snapshotId, F file) {
     return manifestEntry(status, snapshotId, 0L, 0L, file);
   }
 
-  ManifestEntry<DataFile> manifestEntry(
+  <F extends ContentFile<F>> ManifestEntry<F> manifestEntry(
       ManifestEntry.Status status,
       Long snapshotId,
       Long dataSequenceNumber,
       Long fileSequenceNumber,
-      DataFile file) {
+      F file) {
 
-    GenericManifestEntry<DataFile> entry = new GenericManifestEntry<>(table.spec().partitionType());
+    GenericManifestEntry<F> entry = new GenericManifestEntry<>(table.spec().partitionType());
     switch (status) {
       case ADDED:
         if (dataSequenceNumber != null && dataSequenceNumber != 0) {

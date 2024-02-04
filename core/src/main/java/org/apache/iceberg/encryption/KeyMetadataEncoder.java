@@ -29,18 +29,18 @@ import org.apache.avro.io.EncoderFactory;
 import org.apache.avro.message.MessageEncoder;
 import org.apache.iceberg.avro.GenericAvroWriter;
 
-class KeyMetadataEncoder implements MessageEncoder<KeyMetadata> {
+class KeyMetadataEncoder implements MessageEncoder<StandardKeyMetadata> {
   private static final ThreadLocal<BufferOutputStream> TEMP =
       ThreadLocal.withInitial(BufferOutputStream::new);
   private static final ThreadLocal<BinaryEncoder> ENCODER = new ThreadLocal<>();
 
   private final byte schemaVersion;
   private final boolean copyOutputBytes;
-  private final DatumWriter<KeyMetadata> writer;
+  private final DatumWriter<StandardKeyMetadata> writer;
 
   /**
-   * Creates a new {@link MessageEncoder} that will deconstruct {@link KeyMetadata} instances
-   * described by the schema version.
+   * Creates a new {@link MessageEncoder} that will deconstruct {@link StandardKeyMetadata}
+   * instances described by the schema version.
    *
    * <p>Buffers returned by {@code encode} are copied and will not be modified by future calls to
    * {@code encode}.
@@ -50,8 +50,8 @@ class KeyMetadataEncoder implements MessageEncoder<KeyMetadata> {
   }
 
   /**
-   * Creates a new {@link MessageEncoder} that will deconstruct {@link KeyMetadata} instances
-   * described by the schema version.
+   * Creates a new {@link MessageEncoder} that will deconstruct {@link StandardKeyMetadata}
+   * instances described by the schema version.
    *
    * <p>If {@code shouldCopy} is true, then buffers returned by {@code encode} are copied and will
    * not be modified by future calls to {@code encode}.
@@ -62,7 +62,7 @@ class KeyMetadataEncoder implements MessageEncoder<KeyMetadata> {
    * next call to {@code encode}.
    */
   KeyMetadataEncoder(byte schemaVersion, boolean shouldCopy) {
-    Schema writeSchema = KeyMetadata.supportedAvroSchemaVersions().get(schemaVersion);
+    Schema writeSchema = StandardKeyMetadata.supportedAvroSchemaVersions().get(schemaVersion);
 
     if (writeSchema == null) {
       throw new UnsupportedOperationException(
@@ -75,7 +75,7 @@ class KeyMetadataEncoder implements MessageEncoder<KeyMetadata> {
   }
 
   @Override
-  public ByteBuffer encode(KeyMetadata datum) throws IOException {
+  public ByteBuffer encode(StandardKeyMetadata datum) throws IOException {
     BufferOutputStream temp = TEMP.get();
     temp.reset();
     temp.write(schemaVersion);
@@ -89,7 +89,7 @@ class KeyMetadataEncoder implements MessageEncoder<KeyMetadata> {
   }
 
   @Override
-  public void encode(KeyMetadata datum, OutputStream stream) throws IOException {
+  public void encode(StandardKeyMetadata datum, OutputStream stream) throws IOException {
     BinaryEncoder encoder = EncoderFactory.get().directBinaryEncoder(stream, ENCODER.get());
     ENCODER.set(encoder);
     writer.write(datum, encoder);

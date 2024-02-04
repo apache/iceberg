@@ -21,6 +21,7 @@ package org.apache.iceberg.aws.s3.signer;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.net.URI;
 import java.util.Arrays;
+import java.util.Collections;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -70,9 +71,9 @@ public class TestS3SignResponseParser {
                     "amz-sdk-request",
                     Arrays.asList("attempt=1", "max=4"),
                     "Content-Length",
-                    Arrays.asList("191"),
+                    Collections.singletonList("191"),
                     "Content-Type",
-                    Arrays.asList("application/json"),
+                    Collections.singletonList("application/json"),
                     "User-Agent",
                     Arrays.asList("aws-sdk-java/2.20.18", "Linux/5.4.0-126")))
             .build();

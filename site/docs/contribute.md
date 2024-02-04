@@ -53,7 +53,7 @@ Iceberg is built using Gradle with Java 8 or Java 11.
 * To invoke a build and run tests: `./gradlew build`
 * To skip tests: `./gradlew build -x test -x integrationTest`
 * To fix code style: `./gradlew spotlessApply`
-* To build particular Spark/Flink Versions: `./gradlew build -DsparkVersions=3.2,3.3 -DflinkVersions=1.14`
+* To build particular Spark/Flink Versions: `./gradlew build -DsparkVersions=3.4,3.5 -DflinkVersions=1.14`
 
 Iceberg table support is organized in library modules:
 
@@ -149,8 +149,6 @@ Example:
 ## Iceberg Code Contribution Guidelines
 
 ### Style
-
-For Python, please use the tox command `tox -e format` to apply autoformatting to the project.
 
 Java code adheres to the [Google style](https://google.github.io/styleguide/javaguide.html), which will be verified via `./gradlew spotlessCheck` during builds.
 In order to automatically fix Java code style issues, please use `./gradlew spotlessApply`.

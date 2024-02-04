@@ -22,6 +22,7 @@ import java.util.List;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.SortingPositionOnlyDeleteWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -41,6 +42,7 @@ public class FanoutPositionOnlyDeleteWriter<T>
   private final OutputFileFactory fileFactory;
   private final FileIO io;
   private final long targetFileSizeInBytes;
+  private final DeleteGranularity granularity;
   private final List<DeleteFile> deleteFiles;
   private final CharSequenceSet referencedDataFiles;
 
@@ -49,10 +51,20 @@ public class FanoutPositionOnlyDeleteWriter<T>
       OutputFileFactory fileFactory,
       FileIO io,
       long targetFileSizeInBytes) {
+    this(writerFactory, fileFactory, io, targetFileSizeInBytes, DeleteGranularity.PARTITION);
+  }
+
+  public FanoutPositionOnlyDeleteWriter(
+      FileWriterFactory<T> writerFactory,
+      OutputFileFactory fileFactory,
+      FileIO io,
+      long targetFileSizeInBytes,
+      DeleteGranularity granularity) {
     this.writerFactory = writerFactory;
     this.fileFactory = fileFactory;
     this.io = io;
     this.targetFileSizeInBytes = targetFileSizeInBytes;
+    this.granularity = granularity;
     this.deleteFiles = Lists.newArrayList();
     this.referencedDataFiles = CharSequenceSet.empty();
   }
@@ -60,10 +72,11 @@ public class FanoutPositionOnlyDeleteWriter<T>
   @Override
   protected FileWriter<PositionDelete<T>, DeleteWriteResult> newWriter(
       PartitionSpec spec, StructLike partition) {
-    FileWriter<PositionDelete<T>, DeleteWriteResult> delegate =
-        new RollingPositionDeleteWriter<>(
-            writerFactory, fileFactory, io, targetFileSizeInBytes, spec, partition);
-    return new SortingPositionOnlyDeleteWriter<>(delegate);
+    return new SortingPositionOnlyDeleteWriter<>(
+        () ->
+            new RollingPositionDeleteWriter<>(
+                writerFactory, fileFactory, io, targetFileSizeInBytes, spec, partition),
+        granularity);
   }
 
   @Override

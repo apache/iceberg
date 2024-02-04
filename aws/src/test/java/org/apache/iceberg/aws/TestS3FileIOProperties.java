@@ -249,4 +249,36 @@ public class TestS3FileIOProperties {
         builder.overrideConfiguration().advancedOption(SdkAdvancedClientOption.SIGNER);
     Assertions.assertThat(signer).isNotPresent();
   }
+
+  @Test
+  public void testS3AccessGrantsEnabled() {
+    // Explicitly true
+    Map<String, String> properties =
+        ImmutableMap.of(S3FileIOProperties.S3_ACCESS_GRANTS_ENABLED, "true");
+    S3FileIOProperties s3Properties = new S3FileIOProperties(properties);
+    S3ClientBuilder builder = S3Client.builder();
+
+    s3Properties.applyS3AccessGrantsConfigurations(builder);
+    Assertions.assertThat(builder.plugins().size()).isEqualTo(1);
+  }
+
+  @Test
+  public void testS3AccessGrantsDisabled() {
+    // Explicitly false
+    Map<String, String> properties =
+        ImmutableMap.of(S3FileIOProperties.S3_ACCESS_GRANTS_ENABLED, "false");
+    S3FileIOProperties s3Properties = new S3FileIOProperties(properties);
+    S3ClientBuilder builder = S3Client.builder();
+
+    s3Properties.applyS3AccessGrantsConfigurations(builder);
+    Assertions.assertThat(builder.plugins().size()).isEqualTo(0);
+
+    // Implicitly false
+    properties = ImmutableMap.of();
+    s3Properties = new S3FileIOProperties(properties);
+    builder = S3Client.builder();
+
+    s3Properties.applyS3AccessGrantsConfigurations(builder);
+    Assertions.assertThat(builder.plugins().size()).isEqualTo(0);
+  }
 }

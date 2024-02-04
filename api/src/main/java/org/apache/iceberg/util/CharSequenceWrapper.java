@@ -44,6 +44,7 @@ public class CharSequenceWrapper implements CharSequence, Serializable {
   }
 
   @Override
+  @SuppressWarnings("UndefinedEquals")
   public boolean equals(Object other) {
     if (this == other) {
       return true;
@@ -52,6 +53,15 @@ public class CharSequenceWrapper implements CharSequence, Serializable {
     }
 
     CharSequenceWrapper that = (CharSequenceWrapper) other;
+
+    if (wrapped instanceof String && that.wrapped instanceof String) {
+      return wrapped.equals(that.wrapped);
+    }
+
+    if (length() != that.length()) {
+      return false;
+    }
+
     return Comparators.charSequences().compare(wrapped, that.wrapped) == 0;
   }
 

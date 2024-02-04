@@ -18,7 +18,8 @@
  */
 package org.apache.iceberg.spark;
 
-import java.util.Map;
+import static org.assertj.core.api.Assertions.assertThat;
+
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -27,28 +28,23 @@ import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableChange;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructField;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
 
-public class TestSparkCatalogOperations extends SparkCatalogTestBase {
-  public TestSparkCatalogOperations(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
+public class TestSparkCatalogOperations extends CatalogTestBase {
 
-  @Before
+  @BeforeEach
   public void createTable() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
   }
 
-  @After
+  @AfterEach
   public void removeTable() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testAlterTable() throws NoSuchTableException {
     BaseCatalog catalog = (BaseCatalog) spark.sessionState().catalogManager().catalog(catalogName);
     Identifier identifier = Identifier.of(tableIdent.namespace().levels(), tableIdent.name());
@@ -62,24 +58,20 @@ public class TestSparkCatalogOperations extends SparkCatalogTestBase {
             TableChange.addColumn(new String[] {fieldName}, DataTypes.StringType, true),
             TableChange.setProperty(propsKey, propsValue));
 
-    Assert.assertNotNull("Should return updated table", table);
+    assertThat(table).as("Should return updated table").isNotNull();
 
     StructField expectedField = DataTypes.createStructField(fieldName, DataTypes.StringType, true);
-    Assert.assertEquals(
-        "Adding a column to a table should return the updated table with the new column",
-        table.schema().fields()[2],
-        expectedField);
+    assertThat(table.schema().fields()[2])
+        .as("Adding a column to a table should return the updated table with the new column")
+        .isEqualTo(expectedField);
 
-    Assert.assertTrue(
-        "Adding a property to a table should return the updated table with the new property",
-        table.properties().containsKey(propsKey));
-    Assert.assertEquals(
-        "Altering a table to add a new property should add the correct value",
-        propsValue,
-        table.properties().get(propsKey));
+    assertThat(table.properties())
+        .as(
+            "Adding a property to a table should return the updated table with the new property with the new correct value")
+        .containsEntry(propsKey, propsValue);
   }
 
-  @Test
+  @TestTemplate
   public void testInvalidateTable() {
     // load table to CachingCatalog
     sql("SELECT count(1) FROM %s", tableName);

@@ -109,6 +109,7 @@ public class TableMetadataParser {
   static final String METADATA_FILE = "metadata-file";
   static final String METADATA_LOG = "metadata-log";
   static final String STATISTICS = "statistics";
+  static final String PARTITION_STATISTICS = "partition-statistics";
 
   public static void overwrite(TableMetadata metadata, OutputFile outputFile) {
     internalWrite(metadata, outputFile, true);
@@ -228,6 +229,12 @@ public class TableMetadataParser {
     generator.writeArrayFieldStart(STATISTICS);
     for (StatisticsFile statisticsFile : metadata.statisticsFiles()) {
       StatisticsFileParser.toJson(statisticsFile, generator);
+    }
+    generator.writeEndArray();
+
+    generator.writeArrayFieldStart(PARTITION_STATISTICS);
+    for (PartitionStatisticsFile partitionStatisticsFile : metadata.partitionStatisticsFiles()) {
+      PartitionStatisticsFileParser.toJson(partitionStatisticsFile, generator);
     }
     generator.writeEndArray();
 
@@ -481,6 +488,13 @@ public class TableMetadataParser {
       statisticsFiles = ImmutableList.of();
     }
 
+    List<PartitionStatisticsFile> partitionStatisticsFiles;
+    if (node.has(PARTITION_STATISTICS)) {
+      partitionStatisticsFiles = partitionStatsFilesFromJson(node.get(PARTITION_STATISTICS));
+    } else {
+      partitionStatisticsFiles = ImmutableList.of();
+    }
+
     ImmutableList.Builder<HistoryEntry> entries = ImmutableList.builder();
     if (node.has(SNAPSHOT_LOG)) {
       Iterator<JsonNode> logIterator = node.get(SNAPSHOT_LOG).elements();
@@ -528,6 +542,7 @@ public class TableMetadataParser {
         metadataEntries.build(),
         refs,
         statisticsFiles,
+        partitionStatisticsFiles,
         ImmutableList.of() /* no changes from the file */);
   }
 
@@ -560,5 +575,19 @@ public class TableMetadataParser {
     }
 
     return statisticsFilesBuilder.build();
+  }
+
+  private static List<PartitionStatisticsFile> partitionStatsFilesFromJson(JsonNode filesList) {
+    Preconditions.checkArgument(
+        filesList.isArray(),
+        "Cannot parse partition statistics files from non-array: %s",
+        filesList);
+
+    ImmutableList.Builder<PartitionStatisticsFile> statsFileBuilder = ImmutableList.builder();
+    for (JsonNode partitionStatsFile : filesList) {
+      statsFileBuilder.add(PartitionStatisticsFileParser.fromJson(partitionStatsFile));
+    }
+
+    return statsFileBuilder.build();
   }
 }

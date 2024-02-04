@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import static org.apache.iceberg.TaskCheckHelper.assertEquals;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
@@ -35,6 +36,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.file.Path;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.io.FileAppender;
@@ -48,11 +50,8 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.SparkConf;
 import org.apache.spark.serializer.KryoSerializer;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestDataFileSerialization {
 
@@ -102,12 +101,12 @@ public class TestDataFileSerialization {
           .withSortOrder(SortOrder.unsorted())
           .build();
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
   @Test
   public void testDataFileKryoSerialization() throws Exception {
-    File data = temp.newFile();
-    Assert.assertTrue(data.delete());
+    File data = File.createTempFile("junit", null, temp.toFile());
+    assertThat(data.delete()).isTrue();
     Kryo kryo = new KryoSerializer(new SparkConf()).newKryo();
 
     try (Output out = new Output(new FileOutputStream(data))) {
@@ -118,7 +117,7 @@ public class TestDataFileSerialization {
     try (Input in = new Input(new FileInputStream(data))) {
       for (int i = 0; i < 2; i += 1) {
         Object obj = kryo.readClassAndObject(in);
-        Assertions.assertThat(obj).as("Should be a DataFile").isInstanceOf(DataFile.class);
+        assertThat(obj).as("Should be a DataFile").isInstanceOf(DataFile.class);
         assertEquals(DATA_FILE, (DataFile) obj);
       }
     }
@@ -136,7 +135,7 @@ public class TestDataFileSerialization {
         new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
       for (int i = 0; i < 2; i += 1) {
         Object obj = in.readObject();
-        Assertions.assertThat(obj).as("Should be a DataFile").isInstanceOf(DataFile.class);
+        assertThat(obj).as("Should be a DataFile").isInstanceOf(DataFile.class);
         assertEquals(DATA_FILE, (DataFile) obj);
       }
     }
@@ -146,7 +145,7 @@ public class TestDataFileSerialization {
   public void testParquetWriterSplitOffsets() throws IOException {
     Iterable<InternalRow> records = RandomData.generateSpark(DATE_SCHEMA, 1, 33L);
     File parquetFile =
-        new File(temp.getRoot(), FileFormat.PARQUET.addExtension(UUID.randomUUID().toString()));
+        new File(temp.toFile(), FileFormat.PARQUET.addExtension(UUID.randomUUID().toString()));
     FileAppender<InternalRow> writer =
         Parquet.write(Files.localOutput(parquetFile))
             .schema(DATE_SCHEMA)
@@ -161,7 +160,7 @@ public class TestDataFileSerialization {
     }
 
     Kryo kryo = new KryoSerializer(new SparkConf()).newKryo();
-    File dataFile = temp.newFile();
+    File dataFile = File.createTempFile("junit", null, temp.toFile());
     try (Output out = new Output(new FileOutputStream(dataFile))) {
       kryo.writeClassAndObject(out, writer.splitOffsets());
     }

@@ -45,26 +45,38 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
+import org.apache.iceberg.rest.requests.CreateViewRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
+import org.apache.iceberg.rest.responses.ImmutableLoadViewResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
+import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.view.BaseView;
+import org.apache.iceberg.view.SQLViewRepresentation;
+import org.apache.iceberg.view.View;
+import org.apache.iceberg.view.ViewBuilder;
+import org.apache.iceberg.view.ViewMetadata;
+import org.apache.iceberg.view.ViewOperations;
+import org.apache.iceberg.view.ViewRepresentation;
 
 public class CatalogHandlers {
   private static final Schema EMPTY_SCHEMA = new Schema();
@@ -359,6 +371,131 @@ public class CatalogHandlers {
                 request.updates().forEach(update -> update.applyTo(metadataBuilder));
 
                 TableMetadata updated = metadataBuilder.build();
+                if (updated.changes().isEmpty()) {
+                  // do not commit if the metadata has not changed
+                  return;
+                }
+
+                // commit
+                taskOps.commit(base, updated);
+              });
+
+    } catch (ValidationFailureException e) {
+      throw e.wrapped();
+    }
+
+    return ops.current();
+  }
+
+  private static BaseView asBaseView(View view) {
+    Preconditions.checkState(
+        view instanceof BaseView, "Cannot wrap catalog that does not produce BaseView");
+    return (BaseView) view;
+  }
+
+  public static ListTablesResponse listViews(ViewCatalog catalog, Namespace namespace) {
+    return ListTablesResponse.builder().addAll(catalog.listViews(namespace)).build();
+  }
+
+  public static LoadViewResponse createView(
+      ViewCatalog catalog, Namespace namespace, CreateViewRequest request) {
+    request.validate();
+
+    ViewBuilder viewBuilder =
+        catalog
+            .buildView(TableIdentifier.of(namespace, request.name()))
+            .withSchema(request.schema())
+            .withProperties(request.properties())
+            .withDefaultNamespace(request.viewVersion().defaultNamespace())
+            .withDefaultCatalog(request.viewVersion().defaultCatalog())
+            .withLocation(request.location());
+
+    Set<String> unsupportedRepresentations =
+        request.viewVersion().representations().stream()
+            .filter(r -> !(r instanceof SQLViewRepresentation))
+            .map(ViewRepresentation::type)
+            .collect(Collectors.toSet());
+
+    if (!unsupportedRepresentations.isEmpty()) {
+      throw new IllegalStateException(
+          String.format("Found unsupported view representations: %s", unsupportedRepresentations));
+    }
+
+    request.viewVersion().representations().stream()
+        .filter(SQLViewRepresentation.class::isInstance)
+        .map(SQLViewRepresentation.class::cast)
+        .forEach(r -> viewBuilder.withQuery(r.dialect(), r.sql()));
+
+    View view = viewBuilder.create();
+
+    return viewResponse(view);
+  }
+
+  private static LoadViewResponse viewResponse(View view) {
+    ViewMetadata metadata = asBaseView(view).operations().current();
+    return ImmutableLoadViewResponse.builder()
+        .metadata(metadata)
+        .metadataLocation(metadata.metadataFileLocation())
+        .build();
+  }
+
+  public static LoadViewResponse loadView(ViewCatalog catalog, TableIdentifier viewIdentifier) {
+    View view = catalog.loadView(viewIdentifier);
+    return viewResponse(view);
+  }
+
+  public static LoadViewResponse updateView(
+      ViewCatalog catalog, TableIdentifier ident, UpdateTableRequest request) {
+    View view = catalog.loadView(ident);
+    ViewMetadata metadata = commit(asBaseView(view).operations(), request);
+
+    return ImmutableLoadViewResponse.builder()
+        .metadata(metadata)
+        .metadataLocation(metadata.metadataFileLocation())
+        .build();
+  }
+
+  public static void renameView(ViewCatalog catalog, RenameTableRequest request) {
+    catalog.renameView(request.source(), request.destination());
+  }
+
+  public static void dropView(ViewCatalog catalog, TableIdentifier viewIdentifier) {
+    boolean dropped = catalog.dropView(viewIdentifier);
+    if (!dropped) {
+      throw new NoSuchViewException("View does not exist: %s", viewIdentifier);
+    }
+  }
+
+  static ViewMetadata commit(ViewOperations ops, UpdateTableRequest request) {
+    AtomicBoolean isRetry = new AtomicBoolean(false);
+    try {
+      Tasks.foreach(ops)
+          .retry(COMMIT_NUM_RETRIES_DEFAULT)
+          .exponentialBackoff(
+              COMMIT_MIN_RETRY_WAIT_MS_DEFAULT,
+              COMMIT_MAX_RETRY_WAIT_MS_DEFAULT,
+              COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT,
+              2.0 /* exponential */)
+          .onlyRetryOn(CommitFailedException.class)
+          .run(
+              taskOps -> {
+                ViewMetadata base = isRetry.get() ? taskOps.refresh() : taskOps.current();
+                isRetry.set(true);
+
+                // validate requirements
+                try {
+                  request.requirements().forEach(requirement -> requirement.validate(base));
+                } catch (CommitFailedException e) {
+                  // wrap and rethrow outside of tasks to avoid unnecessary retry
+                  throw new ValidationFailureException(e);
+                }
+
+                // apply changes
+                ViewMetadata.Builder metadataBuilder = ViewMetadata.buildFrom(base);
+                request.updates().forEach(update -> update.applyTo(metadataBuilder));
+
+                ViewMetadata updated = metadataBuilder.build();
+
                 if (updated.changes().isEmpty()) {
                   // do not commit if the metadata has not changed
                   return;
