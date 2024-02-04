@@ -60,7 +60,7 @@ import org.slf4j.LoggerFactory;
  */
 public class HadoopTableOperations implements TableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(HadoopTableOperations.class);
-  private static final Pattern VERSION_PATTERN = Pattern.compile("v([^\\.]*)\\..*");
+  private static final Pattern VERSION_PATTERN = Pattern.compile("v([^.]*)\\..*");
 
   private final Configuration conf;
   private final Path location;
@@ -402,11 +402,11 @@ public class HadoopTableOperations implements TableOperations {
     // we need to ignore the lack of versionHint when the task is executed for the first time.
     // Otherwise, if we can't find the versionHint, there must be another task running in parallel
     // with us.
-    // By contending for the right to manipulate the versionHint, we can keep only one client
-    // running.
+    // If multiple clients delete the same version Hint at the same time, only one client will
+    // succeed.
+    // By doing this, we solve the concurrency problem.
     // It can't handle scenarios where multiple clients are running at the same time for the first
-    // time and versionHint not exists.
-    // But we will block them in the next step.
+    // time and versionHint not exists. But we will block them in the next step.
     boolean versionHintExists = versionHintExists(fs, versionHintFile);
     boolean canNotFindVersionHintAndNotFirstRun = !versionHintExists && !isFirstRun();
     if (canNotFindVersionHintAndNotFirstRun) {
