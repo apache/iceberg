@@ -64,9 +64,9 @@ Iceberg supplies two implementations:
 
 Both catalogs are configured using properties nested under the catalog name. Common configuration properties for Hive and Hadoop are:
 
-| Property                                           | Values                        | Description                                                          |
-| -------------------------------------------------- | ----------------------------- | -------------------------------------------------------------------- |
-| spark.sql.catalog._catalog-name_.type              | `hive`, `hadoop` or `rest`    | The underlying Iceberg catalog implementation, `HiveCatalog`, `HadoopCatalog`, `RESTCatalog` or left unset if using a custom catalog |
+| Property                                           | Values                                             | Description                                                                                                                                                          |
+| -------------------------------------------------- |----------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| spark.sql.catalog._catalog-name_.type              | `hive`, `hadoop`, `rest`, `glue`, `jdbc` or `nessie` | The underlying Iceberg catalog implementation, `HiveCatalog`, `HadoopCatalog`, `RESTCatalog`, `GlueCatalog`, `JdbcCatalog`, `NessieCatalog` or left unset if using a custom catalog |
 | spark.sql.catalog._catalog-name_.catalog-impl      |                               | The custom Iceberg catalog implementation. If `type` is null, `catalog-impl` must not be null. |
 | spark.sql.catalog._catalog-name_.io-impl                      |                               | The custom FileIO implementation. |
 | spark.sql.catalog._catalog-name_.metrics-reporter-impl        |                               | The custom MetricsReporter implementation.  |

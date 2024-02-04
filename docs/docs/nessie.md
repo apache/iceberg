@@ -76,7 +76,7 @@ and in Spark:
 conf.set("spark.sql.catalog.nessie.warehouse", "/path/to/warehouse");
 conf.set("spark.sql.catalog.nessie.uri", "http://localhost:19120/api/v2")
 conf.set("spark.sql.catalog.nessie.ref", "main")
-conf.set("spark.sql.catalog.nessie.catalog-impl", "org.apache.iceberg.nessie.NessieCatalog")
+conf.set("spark.sql.catalog.nessie.type", "nessie")
 conf.set("spark.sql.catalog.nessie", "org.apache.iceberg.spark.SparkCatalog")
 conf.set("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions,org.projectnessie.spark.extensions.NessieSparkSessionExtensions")
 ```
@@ -93,14 +93,14 @@ table_env = StreamTableEnvironment.create(env)
 
 table_env.execute_sql("CREATE CATALOG nessie_catalog WITH ("
                       "'type'='iceberg', "
-                      "'catalog-impl'='org.apache.iceberg.nessie.NessieCatalog', "
+                      "'type'='nessie', "
                       "'uri'='http://localhost:19120/api/v2', "
                       "'ref'='main', "
                       "'warehouse'='/path/to/warehouse')")
 ```
 
 There is nothing special above about the `nessie` name. A spark catalog can have any name, the important parts are the 
-settings for the `catalog-impl` and the required config to start Nessie correctly.
+settings for the `type` or `catalog-impl` and the required config to start Nessie correctly.
 Once you have a Nessie catalog you have access to your entire Nessie repo. You can then perform create/delete/merge
 operations on branches and perform commits on branches. Each Iceberg table in a Nessie Catalog is identified by an
 arbitrary length namespace and table name (eg `data.base.name.table`). These namespaces must be explicitly created 
