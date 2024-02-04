@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.connect;
 
-import static java.util.stream.Collectors.toList;
-
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -28,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -72,7 +71,9 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String TABLES_DEFAULT_COMMIT_BRANCH = "iceberg.tables.default-commit-branch";
   private static final String TABLES_DEFAULT_ID_COLUMNS = "iceberg.tables.default-id-columns";
   private static final String TABLES_DEFAULT_PARTITION_BY = "iceberg.tables.default-partition-by";
-  // FIXME: add config for CDC and upsert mode
+  private static final String TABLES_CDC_FIELD_PROP = "iceberg.tables.cdc-field";
+  private static final String TABLES_UPSERT_MODE_ENABLED_PROP =
+      "iceberg.tables.upsert-mode-enabled";
   private static final String TABLES_AUTO_CREATE_ENABLED_PROP =
       "iceberg.tables.auto-create-enabled";
   private static final String TABLES_EVOLVE_SCHEMA_ENABLED_PROP =
@@ -151,6 +152,18 @@ public class IcebergSinkConfig extends AbstractConfig {
         null,
         Importance.MEDIUM,
         "Default partition spec to use when creating tables, comma-separated");
+    configDef.define(
+        TABLES_CDC_FIELD_PROP,
+        ConfigDef.Type.STRING,
+        null,
+        Importance.MEDIUM,
+        "Source record field that identifies the type of operation (insert, update, or delete)");
+    configDef.define(
+        TABLES_UPSERT_MODE_ENABLED_PROP,
+        ConfigDef.Type.BOOLEAN,
+        false,
+        Importance.MEDIUM,
+        "Set to true to treat all appends as upserts, false otherwise");
     configDef.define(
         TABLES_AUTO_CREATE_ENABLED_PROP,
         ConfigDef.Type.BOOLEAN,
@@ -365,7 +378,7 @@ public class IcebergSinkConfig extends AbstractConfig {
       return ImmutableList.of();
     }
 
-    return Arrays.stream(value.split(regex)).map(String::trim).collect(toList());
+    return Arrays.stream(value.split(regex)).map(String::trim).collect(Collectors.toList());
   }
 
   public String controlTopic() {
@@ -407,6 +420,14 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public String hadoopConfDir() {
     return getString(HADDOP_CONF_DIR_PROP);
+  }
+
+  public String tablesCdcField() {
+    return getString(TABLES_CDC_FIELD_PROP);
+  }
+
+  public boolean upsertModeEnabled() {
+    return getBoolean(TABLES_UPSERT_MODE_ENABLED_PROP);
   }
 
   public boolean autoCreateEnabled() {

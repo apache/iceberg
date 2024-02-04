@@ -18,10 +18,9 @@
  */
 package org.apache.iceberg.connect.events;
 
-import static java.util.stream.Collectors.toList;
-
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.util.Utf8;
@@ -96,7 +95,9 @@ public class TableReference implements IndexedRecord {
         return;
       case NAMESPACE:
         this.namespace =
-            v == null ? null : ((List<Utf8>) v).stream().map(Utf8::toString).collect(toList());
+            v == null
+                ? null
+                : ((List<Utf8>) v).stream().map(Utf8::toString).collect(Collectors.toList());
         return;
       case NAME:
         this.name = v == null ? null : v.toString();
