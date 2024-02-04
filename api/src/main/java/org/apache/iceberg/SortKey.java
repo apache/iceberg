@@ -50,7 +50,7 @@ public class SortKey extends StructTransform {
 
   private static List<FieldTransform> fieldTransform(SortOrder sortOrder) {
     return sortOrder.fields().stream()
-        .map(sortField -> new FieldTransform(sortField.sourceId(), sortField.transform()))
+        .map(sortField -> new FieldTransform(sortField.sourceIds(), sortField.transform()))
         .collect(Collectors.toList());
   }
 }

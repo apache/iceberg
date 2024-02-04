@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ListMultimap;
@@ -103,7 +104,11 @@ public class PartitionSpec implements Serializable {
 
     for (PartitionField field : fields) {
       builder.addField(
-          field.transform().toString(), field.sourceId(), field.fieldId(), field.name());
+          field.transform().toString(),
+          field.sourceId(),
+          field.sourceIds(),
+          field.fieldId(),
+          field.name());
     }
 
     return builder.build();
@@ -354,24 +359,20 @@ public class PartitionSpec implements Serializable {
       return lastAssignedFieldId.incrementAndGet();
     }
 
-    private void checkAndAddPartitionName(String name) {
-      checkAndAddPartitionName(name, null);
-    }
-
     Builder checkConflicts(boolean check) {
       checkConflicts = check;
       return this;
     }
 
-    private void checkAndAddPartitionName(String name, Integer sourceColumnId) {
+    private void checkAndAddPartitionName(String name, int... sourceIds) {
       Types.NestedField schemaField = schema.findField(name);
       if (checkConflicts) {
-        if (sourceColumnId != null) {
+        if (sourceIds.length == 1) {
           // for identity transform case we allow conflicts between partition and schema field name
           // as
           //   long as they are sourced from the same schema field
           Preconditions.checkArgument(
-              schemaField == null || schemaField.fieldId() == sourceColumnId,
+              schemaField == null || schemaField.fieldId() == sourceIds[0],
               "Cannot create identity partition sourced from different field in schema: %s",
               name);
         } else {
@@ -485,6 +486,20 @@ public class PartitionSpec implements Serializable {
       return hour(sourceName, sourceName + "_hour");
     }
 
+    public Builder bucket(String[] sourceNames, int numBuckets, String targetName) {
+      Types.NestedField[] sourceColumns = new Types.NestedField[sourceNames.length];
+      int[] sourceColumnIds = new int[sourceNames.length];
+      for (int i = 0; i < sourceNames.length; i++) {
+        sourceColumns[i] = findSourceColumn(sourceNames[i]);
+        sourceColumnIds[i] = sourceColumns[i].fieldId();
+      }
+      Types.StructType type = Types.StructType.of(sourceColumns);
+      fields.add(
+          new PartitionField(
+              sourceColumnIds, nextFieldId(), targetName, Transforms.bucket(type, numBuckets)));
+      return this;
+    }
+
     public Builder bucket(String sourceName, int numBuckets, String targetName) {
       checkAndAddPartitionName(targetName);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
@@ -496,6 +511,16 @@ public class PartitionSpec implements Serializable {
 
     public Builder bucket(String sourceName, int numBuckets) {
       return bucket(sourceName, numBuckets, sourceName + "_bucket");
+    }
+
+    public Builder bucket(String[] sourceNames, int numBuckets) {
+      Preconditions.checkArgument(sourceNames != null && sourceNames.length >= 1);
+      if (sourceNames.length == 1) {
+        return bucket(sourceNames[0], numBuckets);
+      } else {
+        String targetName = Joiner.on("_").join(sourceNames);
+        return bucket(sourceNames, numBuckets, targetName + "_bucket");
+      }
     }
 
     public Builder truncate(String sourceName, int width, String targetName) {
@@ -531,9 +556,20 @@ public class PartitionSpec implements Serializable {
       return add(sourceId, nextFieldId(), name, transform);
     }
 
+    Builder add(int[] sourceIds, String name, Transform<?, ?> transform) {
+      return add(sourceIds, nextFieldId(), name, transform);
+    }
+
     Builder add(int sourceId, int fieldId, String name, Transform<?, ?> transform) {
       checkAndAddPartitionName(name, sourceId);
       fields.add(new PartitionField(sourceId, fieldId, name, transform));
+      lastAssignedFieldId.getAndAccumulate(fieldId, Math::max);
+      return this;
+    }
+
+    Builder add(int[] sourceIds, int fieldId, String name, Transform<?, ?> transform) {
+      checkAndAddPartitionName(name, sourceIds);
+      fields.add(new PartitionField(sourceIds, fieldId, name, transform));
       lastAssignedFieldId.getAndAccumulate(fieldId, Math::max);
       return this;
     }
@@ -551,25 +587,28 @@ public class PartitionSpec implements Serializable {
 
   static void checkCompatibility(PartitionSpec spec, Schema schema) {
     for (PartitionField field : spec.fields) {
-      Type sourceType = schema.findType(field.sourceId());
       Transform<?, ?> transform = field.transform();
-      // In the case of a Version 1 partition-spec field gets deleted,
-      // it is replaced with a void transform, see:
-      // https://iceberg.apache.org/spec/#partition-transforms
-      // We don't care about the source type since a VoidTransform is always compatible and skip the
-      // checks
-      if (!transform.equals(Transforms.alwaysNull())) {
-        ValidationException.check(
-            sourceType != null, "Cannot find source column for partition field: %s", field);
-        ValidationException.check(
-            sourceType.isPrimitiveType(),
-            "Cannot partition by non-primitive source field: %s",
-            sourceType);
-        ValidationException.check(
-            transform.canTransform(sourceType),
-            "Invalid source type %s for transform: %s",
-            sourceType,
-            transform);
+      for (int id : field.sourceIds()) {
+        Type sourceType = schema.findType(id);
+        // In the case of a Version 1 partition-spec field gets deleted,
+        // it is replaced with a void transform, see:
+        // https://iceberg.apache.org/spec/#partition-transforms
+        // We don't care about the source type since a VoidTransform is always compatible and skip
+        // the
+        // checks
+        if (!transform.equals(Transforms.alwaysNull())) {
+          ValidationException.check(
+              sourceType != null, "Cannot find source column for partition field: %s", field);
+          ValidationException.check(
+              sourceType.isPrimitiveType(),
+              "Cannot partition by non-primitive source field: %s",
+              sourceType);
+          ValidationException.check(
+              transform.canTransform(sourceType),
+              "Invalid source type %s for transform: %s",
+              sourceType,
+              transform);
+        }
       }
     }
   }

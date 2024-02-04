@@ -78,4 +78,15 @@ class CopySortOrderFields implements SortOrderVisitor<Void> {
     builder.sortBy(Expressions.hour(sourceName), direction, nullOrder);
     return null;
   }
+
+  @Override
+  public Void zOrder(
+      String[] sourceNames,
+      int[] sourceIds,
+      int varTypeSize,
+      SortDirection direction,
+      NullOrder nullOrder) {
+    builder.sortBy(Expressions.zOrder(varTypeSize, sourceNames), direction, nullOrder);
+    return null;
+  }
 }

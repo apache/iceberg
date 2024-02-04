@@ -873,6 +873,15 @@ acceptedBreaks:
       new: "method void org.apache.iceberg.encryption.Ciphers::<init>()"
       justification: "Static utility class - should not have public constructor"
   "1.4.0":
+    org.apache.iceberg:iceberg-api:
+    - code: "java.class.defaultSerializationChanged"
+      old: "class org.apache.iceberg.PartitionField"
+      new: "class org.apache.iceberg.PartitionField"
+      justification: "Added a new field"
+    - code: "java.class.defaultSerializationChanged"
+      old: "class org.apache.iceberg.SortField"
+      new: "class org.apache.iceberg.SortField"
+      justification: "Added a new field"
     org.apache.iceberg:iceberg-core:
     - code: "java.class.defaultSerializationChanged"
       old: "class org.apache.iceberg.PartitionData"

@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -123,10 +124,22 @@ public class TableMetadata implements Serializable {
     PartitionSpec.Builder specBuilder =
         PartitionSpec.builderFor(freshSchema).withSpecId(INITIAL_SPEC_ID);
     for (PartitionField field : spec.fields()) {
-      // look up the name of the source field in the old schema to get the new schema's id
-      String sourceName = schema.findColumnName(field.sourceId());
-      // reassign all partition fields with fresh partition field Ids to ensure consistency
-      specBuilder.add(freshSchema.findField(sourceName).fieldId(), field.name(), field.transform());
+      if (field.sourceIds().length == 1) {
+        // look up the name of the source field in the old schema to get the new schema's id
+        String sourceName = schema.findColumnName(field.sourceId());
+        // reassign all partition fields with fresh partition field Ids to ensure consistency
+        specBuilder.add(
+            freshSchema.findField(sourceName).fieldId(), field.name(), field.transform());
+      } else {
+        int[] originalSourceIds = field.sourceIds();
+        int[] sourceIds =
+            Arrays.stream(originalSourceIds)
+                .mapToObj(schema::findColumnName)
+                .map(x -> freshSchema.findField(x).fieldId())
+                .mapToInt(x -> x)
+                .toArray();
+        specBuilder.add(sourceIds, field.name(), field.transform());
+      }
     }
     PartitionSpec freshSpec = specBuilder.build();
 
@@ -753,18 +766,33 @@ public class TableMetadata implements Serializable {
     UnboundPartitionSpec.Builder specBuilder = UnboundPartitionSpec.builder().withSpecId(specId);
 
     for (PartitionField field : partitionSpec.fields()) {
-      // look up the name of the source field in the old schema to get the new schema's id
-      String sourceName = partitionSpec.schema().findColumnName(field.sourceId());
+      if (field.sourceIds().length == 1) { // single arg transform
+        // look up the name of the source field in the old schema to get the new schema's id
+        String sourceName = partitionSpec.schema().findColumnName(field.sourceId());
 
-      final int fieldId;
-      if (sourceName != null) {
-        fieldId = schema.findField(sourceName).fieldId();
-      } else {
-        // In the case of a null sourceName, the column has been deleted.
-        // This only happens in V1 tables where the reference is still around as a void transform
-        fieldId = field.sourceId();
+        final int sourceId;
+        if (sourceName != null) {
+          sourceId = schema.findField(sourceName).fieldId();
+        } else {
+          // In the case of a null sourceName, the column has been deleted.
+          // This only happens in V1 tables where the reference is still around as a void transform
+          sourceId = field.sourceId();
+        }
+        final int[] sourceIds = new int[] {sourceId};
+        // todo: handle spec evolution
+        specBuilder.addField(
+            field.transform().toString(), sourceId, sourceIds, field.fieldId(), field.name());
+      } else { // multi-args transform
+        int[] originalSourceIds = field.sourceIds();
+        int[] sourceIds =
+            Arrays.stream(originalSourceIds)
+                .mapToObj(x -> partitionSpec.schema().findColumnName(x))
+                .map(x -> schema.findField(x).fieldId())
+                .mapToInt(x -> x)
+                .toArray();
+        specBuilder.addField(
+            field.transform().toString(), -1, sourceIds, field.fieldId(), field.name());
       }
-      specBuilder.addField(field.transform().toString(), fieldId, field.fieldId(), field.name());
     }
 
     return specBuilder.build().bind(schema);
@@ -778,12 +806,22 @@ public class TableMetadata implements Serializable {
     }
 
     for (SortField field : sortOrder.fields()) {
-      // look up the name of the source field in the old schema to get the new schema's id
-      String sourceName = sortOrder.schema().findColumnName(field.sourceId());
-      // reassign all sort fields with fresh sort field IDs
-      int newSourceId = schema.findField(sourceName).fieldId();
+      int[] newSourceIds = new int[field.sourceIds().length];
+      int idx = 0;
+      for (int sourceId : field.sourceIds()) {
+        // look up the name of the source field in the old schema to get the new schema's id
+        String sourceName = sortOrder.schema().findColumnName(sourceId);
+        // reassign all sort fields with fresh sort field IDs
+        int newSourceId = schema.findField(sourceName).fieldId();
+        newSourceIds[idx++] = newSourceId;
+      }
+      int newSourceId = newSourceIds.length > 1 ? -1 : newSourceIds[0];
       builder.addSortField(
-          field.transform().toString(), newSourceId, field.direction(), field.nullOrder());
+          field.transform().toString(),
+          newSourceId,
+          newSourceIds,
+          field.direction(),
+          field.nullOrder());
     }
 
     return builder.build().bind(schema);

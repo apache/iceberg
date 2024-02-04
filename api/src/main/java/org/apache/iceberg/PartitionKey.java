@@ -68,7 +68,7 @@ public class PartitionKey extends StructTransform {
     return spec.fields().stream()
         .map(
             partitionField ->
-                new FieldTransform(partitionField.sourceId(), partitionField.transform()))
+                new FieldTransform(partitionField.sourceIds(), partitionField.transform()))
         .collect(Collectors.toList());
   }
 }

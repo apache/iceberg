@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.transforms;
 
+import java.nio.ByteBuffer;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -291,6 +292,10 @@ public class Transforms {
    */
   public static <T> Transform<T, T> truncate(int width) {
     return Truncate.get(width);
+  }
+
+  public static <T> Transform<T, ByteBuffer> zOrder(int varTypeSize) {
+    return ZOrder.get(varTypeSize);
   }
 
   /**

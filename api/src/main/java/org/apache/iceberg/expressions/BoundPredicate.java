@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.util.List;
 import org.apache.iceberg.StructLike;
 
 public abstract class BoundPredicate<T> extends Predicate<T, BoundTerm<T>>
@@ -40,6 +41,11 @@ public abstract class BoundPredicate<T> extends Predicate<T, BoundTerm<T>>
   @Override
   public BoundReference<?> ref() {
     return term().ref();
+  }
+
+  @Override
+  public List<BoundReference<?>> refs() {
+    return term().refs();
   }
 
   public boolean isUnaryPredicate() {
