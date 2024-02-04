@@ -275,7 +275,6 @@ public class RESTCatalogAdapter implements RESTClient {
     }
   }
 
-
   @SuppressWarnings({"MethodLength", "checkstyle:CyclomaticComplexity"})
   public <T extends RESTResponse> T handleRequest(
       Route route, Map<String, String> vars, Object body, Class<T> responseType) {
