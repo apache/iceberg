@@ -225,44 +225,40 @@ public class RESTCatalogAdapter implements RESTClient {
     }
   }
 
+  private static OAuthTokenResponse handleOAuthRequest(Object body) {
+    Map<String, String> request = (Map<String, String>) castRequest(Map.class, body);
+    String grantType = request.get("grant_type");
+    switch (grantType) {
+      case "client_credentials":
+        return OAuthTokenResponse.builder()
+            .withToken("client-credentials-token:sub=" + request.get("client_id"))
+            .withIssuedTokenType("urn:ietf:params:oauth:token-type:access_token")
+            .withTokenType("Bearer")
+            .build();
+
+      case "urn:ietf:params:oauth:grant-type:token-exchange":
+        String actor = request.get("actor_token");
+        String token =
+            String.format(
+                "token-exchange-token:sub=%s%s",
+                request.get("subject_token"), actor != null ? ",act=" + actor : "");
+        return OAuthTokenResponse.builder()
+            .withToken(token)
+            .withIssuedTokenType("urn:ietf:params:oauth:token-type:access_token")
+            .withTokenType("Bearer")
+            .build();
+
+      default:
+        throw new UnsupportedOperationException("Unsupported grant_type: " + grantType);
+    }
+  }
+
   @SuppressWarnings("MethodLength")
   public <T extends RESTResponse> T handleRequest(
       Route route, Map<String, String> vars, Object body, Class<T> responseType) {
     switch (route) {
       case TOKENS:
-      case SEPARATE_AUTH_TOKENS_URI:
-        {
-          @SuppressWarnings("unchecked")
-          Map<String, String> request = (Map<String, String>) castRequest(Map.class, body);
-          String grantType = request.get("grant_type");
-          switch (grantType) {
-            case "client_credentials":
-              return castResponse(
-                  responseType,
-                  OAuthTokenResponse.builder()
-                      .withToken("client-credentials-token:sub=" + request.get("client_id"))
-                      .withIssuedTokenType("urn:ietf:params:oauth:token-type:access_token")
-                      .withTokenType("Bearer")
-                      .build());
-
-            case "urn:ietf:params:oauth:grant-type:token-exchange":
-              String actor = request.get("actor_token");
-              String token =
-                  String.format(
-                      "token-exchange-token:sub=%s%s",
-                      request.get("subject_token"), actor != null ? ",act=" + actor : "");
-              return castResponse(
-                  responseType,
-                  OAuthTokenResponse.builder()
-                      .withToken(token)
-                      .withIssuedTokenType("urn:ietf:params:oauth:token-type:access_token")
-                      .withTokenType("Bearer")
-                      .build());
-
-            default:
-              throw new UnsupportedOperationException("Unsupported grant_type: " + grantType);
-          }
-        }
+        return castResponse(responseType, handleOAuthRequest(body));
 
       case CONFIG:
         return castResponse(responseType, ConfigResponse.builder().build());
@@ -391,6 +387,9 @@ public class RESTCatalogAdapter implements RESTClient {
         }
 
       default:
+        if (responseType == OAuthTokenResponse.class) {
+          return castResponse(responseType, handleOAuthRequest(body));
+        }
     }
 
     return null;
