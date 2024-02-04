@@ -1136,6 +1136,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
           new IcebergFilesCommitter(
               new TestTableLoader(tablePath),
               false,
+              false,
               Collections.singletonMap("flink.test", TestIcebergFilesCommitter.class.getName()),
               ThreadPools.WORKER_THREAD_POOL_SIZE,
               branch,

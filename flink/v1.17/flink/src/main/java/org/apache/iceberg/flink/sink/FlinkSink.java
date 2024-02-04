@@ -220,6 +220,13 @@ public class FlinkSink {
       return this;
     }
 
+    public Builder overwriteAllPartitions(boolean newOverwriteAllPartitions) {
+      writeOptions.put(
+          FlinkWriteOptions.OVERWRITE_ALL_PARTITIONS.key(),
+          Boolean.toString(newOverwriteAllPartitions));
+      return this;
+    }
+
     public Builder flinkConf(ReadableConfig config) {
       this.readableConfig = config;
       return this;
@@ -431,6 +438,7 @@ public class FlinkSink {
           new IcebergFilesCommitter(
               tableLoader,
               flinkWriteConf.overwriteMode(),
+              flinkWriteConf.overwriteAllPartitions(),
               snapshotProperties,
               flinkWriteConf.workerPoolSize(),
               flinkWriteConf.branch(),

@@ -152,6 +152,7 @@ INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
 | target-file-size-bytes | As per table property                      | Overrides this table's write.target-file-size-bytes          |
 | upsert-enabled         | Table write.upsert.enabled                 | Overrides this table's write.upsert.enabled                  |
 | overwrite-enabled      | false                                      | Overwrite the table's data, overwrite mode shouldn't be enable when configuring to use UPSERT data stream. |
+| overwrite_all_partitions | false                                    | Overwrite all partitions instead of just effected partitions. Only works when overwrite-enabled is turned on
 | distribution-mode      | Table write.distribution-mode              | Overrides this table's write.distribution-mode               |
 | compression-codec      | Table write.(fileformat).compression-codec | Overrides this table's compression codec for this write      |
 | compression-level      | Table write.(fileformat).compression-level | Overrides this table's compression level for Parquet and Avro tables for this write |
