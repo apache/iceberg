@@ -509,7 +509,8 @@ public class HadoopTableOperations implements TableOperations {
    * @param dst the destination file
    */
   @VisibleForTesting
-  boolean commitNewVersion(FileSystem fs, Path src, Path dst, Integer nextVersion) throws IOException {
+  boolean commitNewVersion(FileSystem fs, Path src, Path dst, Integer nextVersion)
+      throws IOException {
     try {
       if (!lockManager.acquire(dst.toString(), dst.toString())) {
         throw new CommitFailedException(
