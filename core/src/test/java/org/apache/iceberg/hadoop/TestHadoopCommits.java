@@ -233,7 +233,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     HadoopTableOperations spyOps4 = spy(tableOperations);
     doThrow(new RuntimeException("FileSystem crash!"))
         .when(spyOps4)
-        .renameToFinal(any(), any(), any(), any());
+        .commitNewVersion(any(), any(), any(), any());
     assertCommitNotChangeVersion(
         baseTable, spyOps4, CommitFailedException.class, "FileSystem crash!");
   }

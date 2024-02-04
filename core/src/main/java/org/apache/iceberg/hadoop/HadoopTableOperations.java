@@ -196,11 +196,11 @@ public class HadoopTableOperations implements TableOperations {
     FileSystem fs = getFileSystem(tempMetadataFile, conf);
     boolean versionCommitSuccess = false;
     try {
-      dropOldVersionHint(fs, versionHintFile(), nextVersion);
+      deleteOldVersionHint(fs, versionHintFile(), nextVersion);
       // This renames operation is the atomic commit operation.
       // Since fs.rename() cannot overwrite existing files, in case of concurrent operations, only
       // one client will execute renameToFinal() successfully.
-      versionCommitSuccess = renameToFinal(fs, tempMetadataFile, finalMetadataFile, nextVersion);
+      versionCommitSuccess = commitNewVersion(fs, tempMetadataFile, finalMetadataFile, nextVersion);
       if (!versionCommitSuccess) {
         // Users should clean up orphaned files after job fail.This may be too heavy.
         // But it can stay that way for now.
@@ -395,7 +395,7 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   @VisibleForTesting
-  void dropOldVersionHint(FileSystem fs, Path versionHintFile, Integer nextVersion)
+  void deleteOldVersionHint(FileSystem fs, Path versionHintFile, Integer nextVersion)
       throws IOException {
     // In order to be compatible with scenarios where the iceberg table has just been created or
     // the last time there was no versionHint due to an unplanned interruption,
@@ -509,7 +509,7 @@ public class HadoopTableOperations implements TableOperations {
    * @param dst the destination file
    */
   @VisibleForTesting
-  boolean renameToFinal(FileSystem fs, Path src, Path dst, Integer nextVersion) throws IOException {
+  boolean commitNewVersion(FileSystem fs, Path src, Path dst, Integer nextVersion) throws IOException {
     try {
       if (!lockManager.acquire(dst.toString(), dst.toString())) {
         throw new CommitFailedException(
