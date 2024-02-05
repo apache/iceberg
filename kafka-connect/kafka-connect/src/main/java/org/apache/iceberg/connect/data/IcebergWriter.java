@@ -58,7 +58,6 @@ public class IcebergWriter implements RecordWriter {
   public void write(SinkRecord record) {
     try {
       // TODO: config to handle tombstones instead of always ignoring?
-      // TODO: config to handle tombstones instead of always ignoring?
       if (record.value() != null) {
         Record row = convertToRow(record);
         String cdcField = config.tablesCdcField();
