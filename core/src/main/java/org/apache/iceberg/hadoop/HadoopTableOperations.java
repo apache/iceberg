@@ -393,7 +393,7 @@ public class HadoopTableOperations implements TableOperations {
       if (fs.exists(versionHintFile) || findVersion() != versionToWrite) {
         throw new CommitStateUnknownException(
             new RuntimeException(
-                "Failed to write a new versionHintFile,You are writing to an old-version-Hint,Are there other clients running in parallel?"));
+                "Failed to write a new versionHintFile,You are writing to an old-version-Hint,Are there other clients running in parallel with the current task?"));
       }
       return renameVersionHint(fs, tempVersionHintFile, versionHintFile);
     } catch (Exception e) {
