@@ -205,8 +205,8 @@ public class HadoopTableOperations implements TableOperations {
       // Therefore, it is important to troubleshoot these issues before performing this step.
       versionCommitSuccess = commitNewVersion(fs, tempMetadataFile, finalMetadataFile, nextVersion);
       if (!versionCommitSuccess) {
-        // Users should clean up orphaned files after job fail.This may be too heavy.
-        // But it can stay that way for now.
+        // Users should clean up orphaned files after job fail.
+        // This may be too heavy. But it can stay that way for now.
         String msg =
             String.format(
                 "Can not write versionHint. commitVersion = %s.Is there a problem with the file system?",
