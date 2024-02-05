@@ -39,32 +39,25 @@ import org.junit.jupiter.api.extension.ExtendWith;
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestAlterTablePartitionFields extends ExtensionsTestBase {
 
-  @Parameters(
-      name =
-          "catalogName = {0}, implementation = {1}, config = {2}, catalogConfig = {3}, formatVersion = {4}")
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}, formatVersion = {3}")
   public static Object[][] parameters() {
     return new Object[][] {
       {
         SparkCatalogConfig.HIVE.catalogName(),
         SparkCatalogConfig.HIVE.implementation(),
         SparkCatalogConfig.HIVE.properties(),
-        SparkCatalogConfig.HIVE,
         1
       },
       {
         SparkCatalogConfig.SPARK.catalogName(),
         SparkCatalogConfig.SPARK.implementation(),
         SparkCatalogConfig.SPARK.properties(),
-        SparkCatalogConfig.SPARK,
         2
       }
     };
   }
 
   @Parameter(index = 3)
-  SparkCatalogConfig catalogConfig;
-
-  @Parameter(index = 4)
   private int formatVersion;
 
   @AfterEach
