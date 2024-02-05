@@ -33,10 +33,11 @@ A catalog is almost always configured through the processing engine which passes
 Iceberg catalogs are flexible and can be implemented using almost any backend system. They can be plugged into any Iceberg runtime, and allow any processing engine that supports Iceberg to load the tracked Iceberg tables. Iceberg also comes with a number of catalog implementations that are ready to use out of the box.
 
 This includes:
-- REST - a server-side catalog that’s exposed through a REST API
-- Hive Metastore - tracks namespaces and tables using a Hive metastore
-- JDBC - tracks namespaces and tables in a simple JDBC database
-- Nessie - a transactional catalog that tracks namespaces and tables in a database with git-like version control
+
+* REST: a server-side catalog that’s exposed through a REST API
+* Hive Metastore: tracks namespaces and tables using a Hive metastore
+* JDBC: tracks namespaces and tables in a simple JDBC database
+* Nessie: a transactional catalog that tracks namespaces and tables in a database with git-like version control
 
 There are more catalog types in addition to the ones listed here as well as custom catalogs that are developed to include specialized functionality.
 
