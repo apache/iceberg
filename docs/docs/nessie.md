@@ -57,7 +57,7 @@ One major feature introduced in release `0.11.0` is the ability to easily intera
 To use the Nessie Catalog the following properties are required:
 
 * `warehouse`. Like most other catalogs the warehouse property is a file path to where this catalog should store tables.
-* `uri`. This is the Nessie server base uri. Eg `http://localhost:19120/api/v1`.
+* `uri`. This is the Nessie server base uri. Eg `http://localhost:19120/api/v2`.
 * `ref` (optional). This is the Nessie branch or tag you want to work in.
 
 To run directly in Java this looks like:
@@ -66,7 +66,7 @@ To run directly in Java this looks like:
 Map<String, String> options = new HashMap<>();
 options.put("warehouse", "/path/to/warehouse");
 options.put("ref", "main");
-options.put("uri", "https://localhost:19120/api/v1");
+options.put("uri", "https://localhost:19120/api/v2");
 Catalog nessieCatalog = CatalogUtil.loadCatalog("org.apache.iceberg.nessie.NessieCatalog", "nessie", options, hadoopConfig);
 ```
 
@@ -74,7 +74,7 @@ and in Spark:
 
 ``` java
 conf.set("spark.sql.catalog.nessie.warehouse", "/path/to/warehouse");
-conf.set("spark.sql.catalog.nessie.uri", "http://localhost:19120/api/v1")
+conf.set("spark.sql.catalog.nessie.uri", "http://localhost:19120/api/v2")
 conf.set("spark.sql.catalog.nessie.ref", "main")
 conf.set("spark.sql.catalog.nessie.catalog-impl", "org.apache.iceberg.nessie.NessieCatalog")
 conf.set("spark.sql.catalog.nessie", "org.apache.iceberg.spark.SparkCatalog")
@@ -94,7 +94,7 @@ table_env = StreamTableEnvironment.create(env)
 table_env.execute_sql("CREATE CATALOG nessie_catalog WITH ("
                       "'type'='iceberg', "
                       "'catalog-impl'='org.apache.iceberg.nessie.NessieCatalog', "
-                      "'uri'='http://localhost:19120/api/v1', "
+                      "'uri'='http://localhost:19120/api/v2', "
                       "'ref'='main', "
                       "'warehouse'='/path/to/warehouse')")
 ```
