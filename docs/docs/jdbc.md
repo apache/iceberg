@@ -47,7 +47,7 @@ You can start a Spark session with a MySQL JDBC connection using the following c
 spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }} \
     --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \
-    --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.jdbc.JdbcCatalog \
+    --conf spark.sql.catalog.my_catalog.type=jdbc \
     --conf spark.sql.catalog.my_catalog.uri=jdbc:mysql://test.1234567890.us-west-2.rds.amazonaws.com:3306/default \
     --conf spark.sql.catalog.my_catalog.jdbc.verifyServerCertificate=true \
     --conf spark.sql.catalog.my_catalog.jdbc.useSSL=true \
