@@ -222,7 +222,7 @@ public class HadoopTableOperations implements TableOperations {
         }
         LOG.info("Committed a new metadata file {}", finalMetadataFile);
         // update the best-effort version pointer
-        boolean writeVersionHintSuccess = writeVersionHint(nextVersion);
+        boolean writeVersionHintSuccess = writeVersionHint(fs, nextVersion);
         if (!writeVersionHintSuccess) {
           LOG.warn(
               "Failed to write a new versionHintFile,commit version is [{}], is there a problem with the file system?",
@@ -383,12 +383,18 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   @VisibleForTesting
-  boolean writeVersionHint(Integer versionToWrite) throws Exception {
+  boolean writeVersionHint(FileSystem fs, Integer versionToWrite) throws Exception {
     Path versionHintFile = versionHintFile();
-    FileSystem fs = getFileSystem(versionHintFile, conf);
     Path tempVersionHintFile = metadataPath(UUID.randomUUID() + "-version-hint.temp");
     try {
       writeVersionToPath(fs, tempVersionHintFile, versionToWrite);
+      // We can accept that version Hint fails to write, but we can't accept that version Hint
+      // writes the wrong version.
+      if (fs.exists(versionHintFile) || findVersion() != versionToWrite) {
+        throw new CommitStateUnknownException(
+            new RuntimeException(
+                "Failed to write a new versionHintFile,You are writing to an old-version-Hint,Are there other clients running in parallel?"));
+      }
       return renameVersionHint(fs, tempVersionHintFile, versionHintFile);
     } catch (Exception e) {
       // Cleaning up temporary files.
@@ -522,6 +528,10 @@ public class HadoopTableOperations implements TableOperations {
 
       if (fs.exists(dst)) {
         throw new CommitFailedException("Version %d already exists: %s", nextVersion, dst);
+      }
+      if (fs.exists(versionHintFile())) {
+        throw new CommitFailedException(
+            "Another client is executing in parallel with the current task.");
       }
       if (isFirstRun() && !nextVersionIsLatest(nextVersion)) {
         // In the case of concurrent execution,
