@@ -523,7 +523,7 @@ public class HadoopTableOperations implements TableOperations {
       if (fs.exists(dst)) {
         throw new CommitFailedException("Version %d already exists: %s", nextVersion, dst);
       }
-      if (isFirstRun() && (findVersion() + 1) != nextVersion) {
+      if (isFirstRun() && !nextVersionIsLatest(nextVersion)) {
         // In the case of concurrent execution,
         // verify that the version that is ready to be committed at a time is the latest version.
         throw new CommitFailedException("Version %d too old: %s", nextVersion, dst);
