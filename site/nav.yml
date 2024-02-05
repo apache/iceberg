@@ -32,18 +32,18 @@ nav:
   - Talks: talks.md
   - Vendors: vendors.md
   - Project: 
-    - Join: community.md
+    - Community: community.md
     - Spec: spec.md
     - View spec: view-spec.md
     - Puffin spec: puffin-spec.md
     - Multi-engine support: multi-engine-support.md
     - How to release: how-to-release.md
     - Terms: terms.md
-  - Concepts:
-    - Catalogs: catalog.md
-  - ASF:
-    - Sponsorship: https://www.apache.org/foundation/sponsorship.html
-    - Events: https://www.apache.org/events/current-event.html
-    - License: https://www.apache.org/licenses/
-    - Security: https://www.apache.org/security/
-    - Sponsors: https://www.apache.org/foundation/thanks.html
+    - ASF: 
+      - Sponsorship: https://www.apache.org/foundation/sponsorship.html
+      - Events: https://www.apache.org/events/current-event.html
+      - License: https://www.apache.org/licenses/
+      - Security: https://www.apache.org/security/
+      - Sponsors: https://www.apache.org/foundation/thanks.html
+  - Concepts: 
+    - Catalogs: concepts/catalog.md
