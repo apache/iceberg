@@ -46,7 +46,21 @@ public class TestLocationUtil {
     assertThat(LocationUtil.stripTrailingSlash(pathWithOnlySlash))
         .as("Should have no trailing slashes")
         .isEmpty();
+  }
 
+  @Test
+  public void testStripTrailingSlashWithInvalidPath() {
+    String[] invalidPaths = new String[] {null, ""};
+
+    for (String invalidPath : invalidPaths) {
+      Assertions.assertThatThrownBy(() -> LocationUtil.stripTrailingSlash(invalidPath))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("path must not be null or empty");
+    }
+  }
+
+  @Test
+  void testStripTrailingSlashForRootPaths() {
     String rootPath = "blobstore://";
     assertThat(LocationUtil.stripTrailingSlash(rootPath))
         .as("Should be root path")
@@ -61,16 +75,5 @@ public class TestLocationUtil {
     assertThat(LocationUtil.stripTrailingSlash(rootPathWithMultipleTrailingSlash))
         .as("Should be root path")
         .isEqualTo(rootPath);
-  }
-
-  @Test
-  public void testStripTrailingSlashWithInvalidPath() {
-    String[] invalidPaths = new String[] {null, ""};
-
-    for (String invalidPath : invalidPaths) {
-      Assertions.assertThatThrownBy(() -> LocationUtil.stripTrailingSlash(invalidPath))
-          .isInstanceOf(IllegalArgumentException.class)
-          .hasMessage("path must not be null or empty");
-    }
   }
 }
