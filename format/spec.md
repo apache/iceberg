@@ -1117,7 +1117,17 @@ Partition specs are serialized as a JSON object with the following fields:
 |**`spec-id`**|`JSON int`|`0`|
 |**`fields`**|`JSON list: [`<br />&nbsp;&nbsp;`<partition field JSON>,`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"source-id": 4,`<br />&nbsp;&nbsp;`"field-id": 1000,`<br />&nbsp;&nbsp;`"name": "ts_day",`<br />&nbsp;&nbsp;`"transform": "day"`<br />`}, {`<br />&nbsp;&nbsp;`"source-id": 1,`<br />&nbsp;&nbsp;`"field-id": 1001,`<br />&nbsp;&nbsp;`"name": "id_bucket",`<br />&nbsp;&nbsp;`"transform": "bucket[16]"`<br />`} ]`|
 
-Each partition field in the fields list is stored as an object. See the table for more detail:
+Each partition field in the `fields` is stored as a JSON object with the following properties.
+
+| V1       | V2       | V3       | Field            | JSON representation | Example      |
+|----------|----------|----------|------------------|---------------------|--------------|
+| required | required | required | **`source-id`**  | `JSON int`          | 1            |
+|          |          | optional | **`source-ids`** | `JSON list`         | `[1,2]`      |
+|          | required | required | **`field-id`**   | `JSON int`          | 1000         |
+| required | required | required | **`name`**       | `JSON string`       | `id_bucket`  |
+| required | required | required | **`transform`**  | `JSON string`       | `bucket[16]` |
+
+Supported partition transforms are listed below.
 
 |Transform or Field|JSON representation|Example|
 |--- |--- |--- |
@@ -1130,14 +1140,11 @@ Each partition field in the fields list is stored as an object. See the table fo
 |**`hour`**|`JSON string: "hour"`|`"hour"`|
 |**`Partition Field`** [1,2]|`JSON object: {`<br />&nbsp;&nbsp;`"source-id": <id int>,`<br />&nbsp;&nbsp;`"field-id": <field id int>,`<br />&nbsp;&nbsp;`"name": <name string>,`<br />&nbsp;&nbsp;`"transform": <transform JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"source-id": 1,`<br />&nbsp;&nbsp;`"field-id": 1000,`<br />&nbsp;&nbsp;`"name": "id_bucket",`<br />&nbsp;&nbsp;`"transform": "bucket[16]"`<br />`}`|
 
-In some cases partition specs are stored using only the field list instead of the object format that includes the spec ID, like the deprecated `partition-spec` field in table metadata. The object format should be used unless otherwise noted in this spec.
-
-The `field-id` property was added for each partition field in v2. In v1, the reference implementation assigned field ids sequentially in each spec starting at 1,000. See Partition Evolution for more details.
-
 Notes:
-
-1. For partition fields with a transform with a single argument, the ID of the source field is set on `source-id`, and `source-ids` is omitted.
-2. For partition fields with a transform of multiple arguments, the IDs of the source fields are set on `source-ids`. To preserve backward compatibility, `source-id` is set to -1.
+1. In some cases partition specs are stored using only the field list instead of the object format that includes the spec ID, like the deprecated `partition-spec` field in table metadata. The object format should be used unless otherwise noted in this spec.
+2. The `field-id` property was added for each partition field in v2. In v1, the reference implementation assigned field ids sequentially in each spec starting at 1,000. See Partition Evolution for more details.
+3. For partition fields with a transform with a single argument, the ID of the source field is set on `source-id`, and `source-ids` is omitted.
+4. For partition fields with a transform with multiple arguments (allowed in tables of version >=V3 or if compatibility.multi-arg-transform.enabled is true), the IDs of the source fields are set on `source-ids`, and `source-id` is set to -1.
 
 ### Sort Orders
 
@@ -1150,13 +1157,17 @@ Sort orders are serialized as a list of JSON object, each of which contains the 
 
 Each sort field in the fields list is stored as an object with the following properties:
 
-|Field|JSON representation|Example|
-|--- |--- |--- |
-|**`Sort Field`** [1,2]|`JSON object: {`<br />&nbsp;&nbsp;`"transform": <transform JSON>,`<br />&nbsp;&nbsp;`"source-id": <source id int>,`<br />&nbsp;&nbsp;`"direction": <direction string>,`<br />&nbsp;&nbsp;`"null-order": <null-order string>`<br />`}`|`{`<br />&nbsp;&nbsp;`  "transform": "bucket[4]",`<br />&nbsp;&nbsp;`  "source-id": 3,`<br />&nbsp;&nbsp;`  "direction": "desc",`<br />&nbsp;&nbsp;`  "null-order": "nulls-last"`<br />`}`|
+| V1       | V2       | V3       | Field            | JSON representation | Example     |
+|----------|----------|----------|------------------|---------------------|-------------|
+| required | required | required | **`transform`**  | `JSON string`       | `bucket[4]` |
+| required | required | required | **`source-id`**  | `JSON int`          | 1           |
+|          |          | optional | **`source-ids`** | `JSON list`         | `[1,2]`     |
+| required | required | required | **`direction`**  | `JSON string`       | `asc`       |
+| required | required | required | **`null-order`** | `JSON string`       | `nulls-last`|
 
 Notes:
 1. For sort fields with a transform with a single argument, the ID of the source field is set on `source-id`, and `source-ids` is omitted.
-2. For sort fields with a transform of multiple arguments, the IDs of the source fields are set on `source-ids`. To preserve backward compatibility, `source-id` is set to -1.
+2. For sort fields with a transform with multiple arguments (allowed in tables of version >=V3 or if compatibility.multi-arg-transform.enabled is true), the IDs of the source fields are set on `source-ids`, and `source-id` is set to -1.
 
 The following table describes the possible values for the some of the field within sort field: 
 
