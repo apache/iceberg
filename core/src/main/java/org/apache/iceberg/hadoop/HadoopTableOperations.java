@@ -533,7 +533,8 @@ public class HadoopTableOperations implements TableOperations {
         throw new CommitFailedException(
             "Another client is executing in parallel with the current task.");
       }
-      if (isFirstRun() && !nextVersionIsLatest(nextVersion)) {
+      // maybe too heavy.....?
+      if (!nextVersionIsLatest(nextVersion)) {
         // In the case of concurrent execution,
         // verify that the version that is ready to be committed at a time is the latest version.
         throw new CommitFailedException("Version %d too old: %s", nextVersion, dst);
