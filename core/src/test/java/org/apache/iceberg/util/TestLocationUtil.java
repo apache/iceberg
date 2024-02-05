@@ -60,17 +60,25 @@ public class TestLocationUtil {
   }
 
   @Test
-  void testStripTrailingSlashForRootPaths() {
+  void testStripTrailingSlashForRootPath() {
     String rootPath = "blobstore://";
     assertThat(LocationUtil.stripTrailingSlash(rootPath))
         .as("Should be root path")
         .isEqualTo(rootPath);
+  }
 
+  @Test
+  void testStripTrailingSlashForRootPathWithTrailingSlash() {
+    String rootPath = "blobstore://";
     String rootPathWithTrailingSlash = rootPath + "/";
     assertThat(LocationUtil.stripTrailingSlash(rootPathWithTrailingSlash))
         .as("Should be root path")
         .isEqualTo(rootPath);
+  }
 
+  @Test
+  void testStripTrailingSlashForRootPathWithTrailingSlashes() {
+    String rootPath = "blobstore://";
     String rootPathWithMultipleTrailingSlash = rootPath + "///";
     assertThat(LocationUtil.stripTrailingSlash(rootPathWithMultipleTrailingSlash))
         .as("Should be root path")
