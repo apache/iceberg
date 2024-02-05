@@ -907,6 +907,22 @@ public class TestViews extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void createOrReplaceView() throws NoSuchTableException {
+    insertRows(6);
+    String viewName = viewName("simpleView");
+
+    sql("CREATE OR REPLACE VIEW %s AS SELECT id FROM %s WHERE id <= 3", viewName, tableName);
+    assertThat(sql("SELECT id FROM %s", viewName))
+        .hasSize(3)
+        .containsExactlyInAnyOrder(row(1), row(2), row(3));
+
+    sql("CREATE OR REPLACE VIEW %s AS SELECT id FROM %s WHERE id > 3", viewName, tableName);
+    assertThat(sql("SELECT id FROM %s", viewName))
+        .hasSize(3)
+        .containsExactlyInAnyOrder(row(4), row(5), row(6));
+  }
+
+  @Test
   public void createViewWithInvalidSQL() {
     assertThatThrownBy(() -> sql("CREATE VIEW simpleViewWithInvalidSQL AS invalid SQL"))
         .isInstanceOf(AnalysisException.class)
