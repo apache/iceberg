@@ -639,7 +639,7 @@ public class SparkCatalog extends BaseCatalog
                 .withSchema(icebergSchema)
                 .withLocation(properties.get("location"))
                 .withProperties(props)
-                .replace();
+                .createOrReplace();
         return new SparkView(catalogName, view);
       } catch (org.apache.iceberg.exceptions.NoSuchNamespaceException e) {
         throw new NoSuchNamespaceException(currentNamespace);
