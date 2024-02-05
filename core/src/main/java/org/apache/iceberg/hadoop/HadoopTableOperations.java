@@ -133,35 +133,35 @@ public class HadoopTableOperations implements TableOperations {
   @Override
   public void commit(TableMetadata base, TableMetadata metadata) {
     // findOldVersionHint-------------------->isFirstRun------->JobFail
-    //       |                 NOT EXISTS         |        NO
-    //       | yes                                |
-    //       |                                    |
-    //       ↓                   NO               |
-    // checkNextVersionIsLatest------>JobFail     |
-    //       |                                    |
-    //       | yes                                |
-    //       ↓              NO                    |YES
+    //        |                 NOT EXISTS        |        NO
+    //        | yes                               |
+    //        |                                   |YES
+    //        ↓                 NO                |
+    // checkNextVersionIsLatest----->JobFail      ↓
+    //        |                              nextVersionIsLatest------->JobFail
+    //        | yes                               |                NO
+    //        ↓              NO                   |YES
     // dropOldVersionHint----------->JobFail      |
-    //       |                                    |
-    //       |<-----------------------------------|
-    //       | yes
-    //       ↓
+    //        |                                   |
+    //        |<----------------------------------|
+    //        | yes
+    //        ↓
     // writeNewVersionMeta-------------------->JobFail
-    //       |                 NO
-    //       |
-    //       | yes
-    //       ↓
+    //        |                 NO
+    //        |
+    //        | yes
+    //        ↓
     // writeNewVersionHint--------------->|
-    //       |                  NO        |
-    //       |                            |
-    //       | yes                        |
-    //       ↓                            |
+    //        |                  NO       |
+    //        |                           |
+    //        | yes                       |
+    //        ↓                           |
     // cleanOldMeta---------------------->|
-    //       |                NO          |
-    //       |                            |
-    //       | yes                        |
-    //       ↓                            |
-    //    SUCCESS<------------------------|
+    //        |                NO         |
+    //        |                           |
+    //        | yes                       |
+    //        ↓                           |
+    //     SUCCESS<-----------------------|
     Pair<Integer, TableMetadata> current = versionAndMetadata();
     if (base != current.second()) {
       throw new CommitFailedException("Cannot commit changes based on stale table metadata");
