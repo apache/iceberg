@@ -30,13 +30,15 @@ The Hive catalog connects to a Hive metastore to keep track of Iceberg tables.
 You can initialize a Hive catalog with a name and some properties.
 (see: [Catalog properties](configuration.md#catalog-properties))
 
-**Note:** Currently, `setConf` is always required for hive catalogs, but this will change in the future.
 
 ```java
+import java.util.HashMap
+import java.util.Map
+
 import org.apache.iceberg.hive.HiveCatalog;
 
 HiveCatalog catalog = new HiveCatalog();
-catalog.setConf(spark.sparkContext().hadoopConfiguration());  // Configure using Spark's Hadoop configuration
+catalog.setConf(spark.sparkContext().hadoopConfiguration());  // Optionally use Spark's Hadoop configuration
 
 Map <String, String> properties = new HashMap<String, String>();
 properties.put("warehouse", "...");
@@ -45,8 +47,7 @@ properties.put("uri", "...");
 catalog.initialize("hive", properties);
 ```
 
-The `Catalog` interface defines methods for working with tables, like `createTable`, `loadTable`, `renameTable`, and `dropTable`. `HiveCatalog` implements the `Catalog` interface.
-
+`HiveCatalog` implements the `Catalog` interface, which defines methods for working with tables, like `createTable`, `loadTable`, `renameTable`, and `dropTable`.
 To create a table, pass an `Identifier` and a `Schema` along with other initial metadata:
 
 ```java
@@ -57,10 +58,10 @@ TableIdentifier name = TableIdentifier.of("logging", "logs");
 Table table = catalog.createTable(name, schema, spec);
 
 // or to load an existing table, use the following line
-// Table table = catalog.loadTable(name);
+Table table = catalog.loadTable(name);
 ```
 
-The logs [schema](#create-a-schema) and [partition spec](#create-a-partition-spec) are created below.
+The table's [schema](#create-a-schema) and [partition spec](#create-a-partition-spec) are created below.
 
 
 ### Using a Hadoop catalog
@@ -88,45 +89,26 @@ TableIdentifier name = TableIdentifier.of("logging", "logs");
 Table table = catalog.createTable(name, schema, spec);
 
 // or to load an existing table, use the following line
-// Table table = catalog.loadTable(name);
+Table table = catalog.loadTable(name);
 ```
 
-The logs [schema](#create-a-schema) and [partition spec](#create-a-partition-spec) are created below.
-
-
-### Using Hadoop tables
-
-Iceberg also supports tables that are stored in a directory in HDFS. Concurrent writes with a Hadoop tables are not safe when stored in the local FS or S3. Directory tables don't support all catalog operations, like rename, so they use the `Tables` interface instead of `Catalog`.
-
-To create a table in HDFS, use `HadoopTables`:
-
-```java
-import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.hadoop.HadoopTables;
-import org.apache.iceberg.Table;
-
-Configuration conf = new Configuration();
-HadoopTables tables = new HadoopTables(conf);
-Table table = tables.create(schema, spec, table_location);
-
-// or to load an existing table, use the following line
-// Table table = tables.load(table_location);
-```
-
-!!! danger
-    Hadoop tables shouldn't be used with file systems that do not support atomic rename. Iceberg relies on rename to synchronize concurrent commits for directory tables.
+The table's [schema](#create-a-schema) and [partition spec](#create-a-partition-spec) are created below.
 
 
 ### Tables in Spark
 
-Spark uses both `HiveCatalog` and `HadoopTables` to load tables. Hive is used when the identifier passed to `load` or `save` is not a path, otherwise Spark assumes it is a path-based table.
+Spark can work with table by name using `HiveCatalog`.
 
-To read and write to tables from Spark see:
+```java
+// spark.sql.catalog.hive_prod = org.apache.iceberg.spark.SparkCatalog
+// spark.sql.catalog.hive_prod.type = hive
+spark.table("logging.logs");
+```
 
-* [SQL queries in Spark](spark-queries.md#querying-with-sql)
-* [`INSERT INTO` in Spark](spark-writes.md#insert-into)
-* [`MERGE INTO` in Spark](spark-writes.md#merge-into)
-
+Spark can also load table created by `HadoopCatalog` by path.
+```java
+spark.read.format("iceberg").load("hdfs://host:8020/warehouse_path/logging/logs");
+```
 
 ## Schemas
 
@@ -170,7 +152,7 @@ To create an Iceberg schema from an existing table, use converters in `SparkSche
 ```java
 import org.apache.iceberg.spark.SparkSchemaUtil;
 
-Schema schema = SparkSchemaUtil.schemaForTable(sparkSession, table_name);
+Schema schema = SparkSchemaUtil.schemaForTable(sparkSession, tableName);
 ```
 
 ## Partitioning
@@ -240,9 +222,9 @@ table.newRowDelta()
     .commit();
 
 
-// Perform a rewrite operation replacing small_file_1 and small_file_2 on "test-branch" with compacted_file.
+// Perform a rewrite operation replacing SMALL_FILE_1 and SMALL_FILE_2 on "test-branch" with compactedFile.
 table.newRewrite()
-    .rewriteFiles(ImmutableSet.of(small_file_1,small_file_2), ImmutableSet.of(compacted_file))
+    .rewriteFiles(ImmutableSet.of(SMALL_FILE_1, SMALL_FILE_2), ImmutableSet.of(compactedFile))
     .toBranch(branch)
     .commit();
 

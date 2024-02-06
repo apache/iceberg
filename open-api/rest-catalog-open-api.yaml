@@ -491,6 +491,8 @@ paths:
         create operation include changes like AddSchemaUpdate and SetCurrentSchemaUpdate that set the initial
         table state.
       operationId: createTable
+      parameters:
+        - $ref: '#/components/parameters/data-access'
       requestBody:
         content:
           application/json:
@@ -610,6 +612,7 @@ paths:
         for table requests. Otherwise, a token may be passed using a RFC 8693 token type as a configuration
         key. For example, "urn:ietf:params:oauth:token-type:jwt=<JWT-token>".
       parameters:
+        - $ref: '#/components/parameters/data-access'
         - in: query
           name: snapshots
           description:
@@ -1452,6 +1455,32 @@ components:
       schema:
         type: string
       example: "sales"
+
+    data-access:
+      name: X-Iceberg-Access-Delegation
+      in: header
+      description: >
+        Optional signal to the server that the client supports delegated access
+        via a comma-separated list of access mechanisms.  The server may choose
+        to supply access via any or none of the requested mechanisms.
+        
+        
+        Specific properties and handling for `vended-credentials` is documented
+        in the `LoadTableResult` schema section of this spec document.
+        
+        
+        The protocol and specification for `remote-signing` is documented in 
+        the `s3-signer-open-api.yaml` OpenApi spec in the `aws` module.
+
+      required: false
+      schema:
+        type: string
+        enum:
+          - vended-credentials
+          - remote-signing
+      style: simple
+      explode: false
+      example: "vended-credentials,remote-signing"
 
   ##############################
   # Application Schema Objects #

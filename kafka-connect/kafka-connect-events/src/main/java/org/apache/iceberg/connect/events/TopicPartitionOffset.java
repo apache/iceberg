@@ -21,6 +21,7 @@ package org.apache.iceberg.connect.events;
 import java.time.OffsetDateTime;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.NestedField;
@@ -58,6 +59,7 @@ public class TopicPartitionOffset implements IndexedRecord {
   }
 
   public TopicPartitionOffset(String topic, int partition, Long offset, OffsetDateTime timestamp) {
+    Preconditions.checkNotNull(topic, "Topic cannot be null");
     this.topic = topic;
     this.partition = partition;
     this.offset = offset;

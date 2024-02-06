@@ -40,6 +40,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
@@ -138,12 +139,10 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     properties.put(JdbcCatalog.PROPERTY_PREFIX + "password", "password");
     warehouseLocation = this.tableDir.toAbsolutePath().toString();
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation);
+    properties.put("type", "jdbc");
     properties.putAll(props);
 
-    JdbcCatalog jdbcCatalog = new JdbcCatalog();
-    jdbcCatalog.setConf(conf);
-    jdbcCatalog.initialize(catalogName, properties);
-    return jdbcCatalog;
+    return (JdbcCatalog) CatalogUtil.buildIcebergCatalog(catalogName, properties, conf);
   }
 
   @Test

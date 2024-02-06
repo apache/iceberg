@@ -33,6 +33,7 @@ import org.apache.flink.table.api.config.TableConfigOptions;
 import org.apache.flink.types.Row;
 import org.apache.flink.util.CloseableIterator;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -98,6 +99,11 @@ public class TestStreamScanSql extends CatalogTestBase {
   }
 
   private void insertRows(String partition, Table table, Row... rows) throws IOException {
+    insertRows(partition, SnapshotRef.MAIN_BRANCH, table, rows);
+  }
+
+  private void insertRows(String partition, String branch, Table table, Row... rows)
+      throws IOException {
     GenericAppenderHelper appender = new GenericAppenderHelper(table, FORMAT, temporaryDirectory);
 
     GenericRecord gRecord = GenericRecord.create(table.schema());
@@ -111,10 +117,14 @@ public class TestStreamScanSql extends CatalogTestBase {
     }
 
     if (partition != null) {
-      appender.appendToTable(TestHelpers.Row.of(partition, 0), records);
+      appender.appendToTable(TestHelpers.Row.of(partition, 0), branch, records);
     } else {
-      appender.appendToTable(records);
+      appender.appendToTable(branch, records);
     }
+  }
+
+  private void insertRowsInBranch(String branch, Table table, Row... rows) throws IOException {
+    insertRows(null, branch, table, rows);
   }
 
   private void insertRows(Table table, Row... rows) throws IOException {
@@ -205,19 +215,130 @@ public class TestStreamScanSql extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testConsumeFilesWithBranch() throws Exception {
+  /**
+   * Insert records on the main branch. Then, insert in a named branch. Reads from the main branch
+   * and assert that the only records from main are returned
+   */
+  public void testConsumeFilesFromMainBranch() throws Exception {
     sql("CREATE TABLE %s (id INT, data VARCHAR, dt VARCHAR)", TABLE);
     Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE));
+
+    // Produce two snapshots on main branch
     Row row1 = Row.of(1, "aaa", "2021-01-01");
     Row row2 = Row.of(2, "bbb", "2021-01-01");
+
     insertRows(table, row1, row2);
-    Assertions.assertThatThrownBy(
-            () ->
-                exec(
-                    "SELECT * FROM %s /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s', 'branch'='b1')*/",
-                    TABLE))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot scan table using ref b1 configured for streaming reader yet");
+    String branchName = "b1";
+    table.manageSnapshots().createBranch(branchName).commit();
+
+    // insert on the 'b1' branch
+    Row row3 = Row.of(3, "ccc", "2021-01-01");
+    Row row4 = Row.of(4, "ddd", "2021-01-01");
+
+    insertRowsInBranch(branchName, table, row3, row4);
+
+    // read from main
+    TableResult result =
+        exec("SELECT * FROM %s /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s')*/", TABLE);
+
+    try (CloseableIterator<Row> iterator = result.collect()) {
+      // the start snapshot(row2) is exclusive.
+      assertRows(ImmutableList.of(row1, row2), iterator);
+
+      Row row5 = Row.of(5, "eee", "2021-01-01");
+      Row row6 = Row.of(6, "fff", "2021-01-01");
+      insertRows(table, row5, row6);
+      assertRows(ImmutableList.of(row5, row6), iterator);
+
+      Row row7 = Row.of(7, "ggg", "2021-01-01");
+      insertRows(table, row7);
+      assertRows(ImmutableList.of(row7), iterator);
+    }
+    result.getJobClient().ifPresent(JobClient::cancel);
+  }
+
+  @TestTemplate
+  /**
+   * Insert records on the main branch. Creates a named branch. Insert record on named branch. Then
+   * select from the named branch and assert all the records are returned.
+   */
+  public void testConsumeFilesFromBranch() throws Exception {
+    sql("CREATE TABLE %s (id INT, data VARCHAR, dt VARCHAR)", TABLE);
+    Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE));
+
+    // Produce two snapshots on main branch
+    Row row1 = Row.of(1, "aaa", "2021-01-01");
+    Row row2 = Row.of(2, "bbb", "2021-01-01");
+
+    insertRows(table, row1, row2);
+    String branchName = "b1";
+    table.manageSnapshots().createBranch(branchName).commit();
+
+    TableResult result =
+        exec(
+            "SELECT * FROM %s  /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s', 'branch'='%s')*/ ",
+            TABLE, branchName);
+
+    try (CloseableIterator<Row> iterator = result.collect()) {
+      assertRows(ImmutableList.of(row1, row2), iterator);
+      // insert on the 'b1' branch
+      Row row3 = Row.of(3, "ccc", "2021-01-01");
+      Row row4 = Row.of(4, "ddd", "2021-01-01");
+      insertRowsInBranch(branchName, table, row3, row4);
+      assertRows(ImmutableList.of(row3, row4), iterator);
+    }
+    result.getJobClient().ifPresent(JobClient::cancel);
+  }
+
+  @TestTemplate
+  /**
+   * Insert records on branch b1. Then insert record on b2. Then select from each branch and assert
+   * the correct records are returned
+   */
+  public void testConsumeFilesFromTwoBranches() throws Exception {
+    sql("CREATE TABLE %s (id INT, data VARCHAR, dt VARCHAR)", TABLE);
+    Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE));
+
+    String branch1 = "b1";
+    String branch2 = "b2";
+    table.manageSnapshots().createBranch(branch1).commit();
+    table.manageSnapshots().createBranch(branch2).commit();
+
+    // Produce two snapshots on main branch
+    Row row1Branch1 = Row.of(1, "b1", "2021-01-01");
+    Row row2Branch1 = Row.of(2, "b1", "2021-01-01");
+
+    Row row1Branch2 = Row.of(2, "b2", "2021-01-01");
+    Row row2Branch2 = Row.of(3, "b3", "2021-01-01");
+
+    insertRowsInBranch(branch1, table, row1Branch1, row2Branch1);
+    insertRowsInBranch(branch2, table, row1Branch2, row2Branch2);
+
+    TableResult resultBranch1 =
+        exec(
+            "SELECT * FROM %s  /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s', 'branch'='%s')*/ ",
+            TABLE, branch1);
+
+    try (CloseableIterator<Row> iterator = resultBranch1.collect()) {
+      assertRows(ImmutableList.of(row1Branch1, row2Branch1), iterator);
+      Row another = Row.of(4, "ccc", "2021-01-01");
+      insertRowsInBranch(branch1, table, another);
+      assertRows(ImmutableList.of(another), iterator);
+    }
+
+    TableResult resultBranch2 =
+        exec(
+            "SELECT * FROM %s  /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s', 'branch'='%s')*/ ",
+            TABLE, branch2);
+    try (CloseableIterator<Row> iterator = resultBranch2.collect()) {
+      assertRows(ImmutableList.of(row1Branch2, row2Branch2), iterator);
+      Row another = Row.of(4, "ccc", "2021-01-01");
+      insertRowsInBranch(branch2, table, another);
+      assertRows(ImmutableList.of(another), iterator);
+    }
+
+    resultBranch1.getJobClient().ifPresent(JobClient::cancel);
+    resultBranch2.getJobClient().ifPresent(JobClient::cancel);
   }
 
   @TestTemplate
@@ -296,6 +417,7 @@ public class TestStreamScanSql extends CatalogTestBase {
       assertRows(ImmutableList.of(row7), iterator);
     }
     result.getJobClient().ifPresent(JobClient::cancel);
+
     Assertions.assertThatThrownBy(
             () ->
                 exec(

@@ -78,7 +78,7 @@ To scaffold the versioned docs and build the project, run the `build` recipe.
 make build
 ```
 
-This step will generate the following layout:
+This step will generate the staged source code which blends into the original source code above:
 
 ```
 ./site/
@@ -88,11 +88,12 @@ This step will generate the following layout:
     │   ├── 1.4.0 
     │   ├── 1.3.1
     │   └── ...
-    └── javadoc
-        ├── latest
-        ├── 1.4.0
-        ├── 1.3.1
-        └── ...
+    ├── javadoc
+    │   ├── latest
+    │   ├── 1.4.0
+    │   ├── 1.3.1
+    │   └── ...
+    └─.asf.yaml
 ```
 
 To run this, run the `serve` recipe, which runs the `build` recipe and calls `mkdocs serve`. This will run locally at <http://localhost:8000>.

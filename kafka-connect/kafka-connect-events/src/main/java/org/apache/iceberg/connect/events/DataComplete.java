@@ -21,6 +21,7 @@ package org.apache.iceberg.connect.events;
 import java.util.List;
 import java.util.UUID;
 import org.apache.avro.Schema;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
@@ -55,6 +56,7 @@ public class DataComplete implements Payload {
   }
 
   public DataComplete(UUID commitId, List<TopicPartitionOffset> assignments) {
+    Preconditions.checkNotNull(commitId, "Commit ID cannot be null");
     this.commitId = commitId;
     this.assignments = assignments;
     this.avroSchema = AVRO_SCHEMA;
