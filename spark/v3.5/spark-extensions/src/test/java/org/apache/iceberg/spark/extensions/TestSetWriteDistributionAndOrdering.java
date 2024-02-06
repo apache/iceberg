@@ -29,7 +29,6 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.spark.sql.internal.SQLConf;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -48,7 +47,7 @@ public class TestSetWriteDistributionAndOrdering extends ExtensionsTestBase {
         "CREATE TABLE %s (id bigint NOT NULL, category string, ts timestamp, data string) USING iceberg",
         tableName);
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertTrue("Table should start unsorted", table.sortOrder().isUnsorted());
+    assertThat(table.sortOrder().isUnsorted()).as("Table should start unsorted").isTrue();
 
     sql("ALTER TABLE %s WRITE ORDERED BY category, id", tableName);
 
@@ -143,7 +142,7 @@ public class TestSetWriteDistributionAndOrdering extends ExtensionsTestBase {
         "CREATE TABLE %s (id bigint NOT NULL, category string, ts timestamp, data string) USING iceberg",
         tableName);
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertTrue("Table should start unsorted", table.sortOrder().isUnsorted());
+    assertThat(table.sortOrder().isUnsorted()).isTrue();
 
     sql("ALTER TABLE %s WRITE ORDERED BY category DESC, bucket(16, id), id", tableName);
 
@@ -239,7 +238,7 @@ public class TestSetWriteDistributionAndOrdering extends ExtensionsTestBase {
         "CREATE TABLE %s (id bigint NOT NULL, category string) USING iceberg PARTITIONED BY (category)",
         tableName);
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertTrue("Table should start unsorted", table.sortOrder().isUnsorted());
+    assertThat(table.sortOrder().isUnsorted()).as("Table should start unsorted").isTrue();
 
     sql("ALTER TABLE %s WRITE DISTRIBUTED BY PARTITION LOCALLY ORDERED BY id", tableName);
 
