@@ -81,6 +81,7 @@ import org.apache.kafka.connect.json.JsonConverter;
 import org.apache.kafka.connect.json.JsonConverterConfig;
 import org.apache.kafka.connect.storage.ConverterConfig;
 import org.apache.kafka.connect.storage.ConverterType;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -190,7 +191,10 @@ public class RecordConverterTest {
 
   private static final JsonConverter JSON_CONVERTER = new JsonConverter();
 
-  static {
+  private IcebergSinkConfig config;
+
+  @BeforeAll
+  public static void beforeAll() {
     JSON_CONVERTER.configure(
         ImmutableMap.of(
             JsonConverterConfig.SCHEMAS_ENABLE_CONFIG,
@@ -198,8 +202,6 @@ public class RecordConverterTest {
             ConverterConfig.TYPE_CONFIG,
             ConverterType.VALUE.getName()));
   }
-
-  private IcebergSinkConfig config;
 
   @BeforeEach
   public void before() {
