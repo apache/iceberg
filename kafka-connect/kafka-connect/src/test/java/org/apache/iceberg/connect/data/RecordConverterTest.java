@@ -54,20 +54,23 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.BinaryType;
+import org.apache.iceberg.types.Types.BooleanType;
 import org.apache.iceberg.types.Types.DateType;
 import org.apache.iceberg.types.Types.DecimalType;
 import org.apache.iceberg.types.Types.DoubleType;
+import org.apache.iceberg.types.Types.FixedType;
 import org.apache.iceberg.types.Types.FloatType;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.MapType;
+import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.TimeType;
 import org.apache.iceberg.types.Types.TimestampType;
+import org.apache.iceberg.types.Types.UUIDType;
 import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
@@ -89,59 +92,59 @@ public class RecordConverterTest {
 
   private static final org.apache.iceberg.Schema SCHEMA =
       new org.apache.iceberg.Schema(
-          Types.NestedField.required(21, "i", IntegerType.get()),
-          Types.NestedField.required(22, "l", LongType.get()),
-          Types.NestedField.required(23, "d", DateType.get()),
-          Types.NestedField.required(24, "t", TimeType.get()),
-          Types.NestedField.required(25, "ts", TimestampType.withoutZone()),
-          Types.NestedField.required(26, "tsz", TimestampType.withZone()),
-          Types.NestedField.required(27, "fl", FloatType.get()),
-          Types.NestedField.required(28, "do", DoubleType.get()),
-          Types.NestedField.required(29, "dec", DecimalType.of(9, 2)),
-          Types.NestedField.required(30, "s", StringType.get()),
-          Types.NestedField.required(31, "u", Types.UUIDType.get()),
-          Types.NestedField.required(32, "f", Types.FixedType.ofLength(3)),
-          Types.NestedField.required(33, "b", BinaryType.get()),
-          Types.NestedField.required(34, "li", ListType.ofRequired(35, StringType.get())),
-          Types.NestedField.required(
+          NestedField.required(20, "i", IntegerType.get()),
+          NestedField.required(21, "l", LongType.get()),
+          NestedField.required(22, "d", DateType.get()),
+          NestedField.required(23, "t", TimeType.get()),
+          NestedField.required(24, "ts", TimestampType.withoutZone()),
+          NestedField.required(25, "tsz", TimestampType.withZone()),
+          NestedField.required(26, "fl", FloatType.get()),
+          NestedField.required(27, "do", DoubleType.get()),
+          NestedField.required(28, "dec", DecimalType.of(9, 2)),
+          NestedField.required(29, "s", StringType.get()),
+          NestedField.required(30, "b", BooleanType.get()),
+          NestedField.required(31, "u", UUIDType.get()),
+          NestedField.required(32, "f", FixedType.ofLength(3)),
+          NestedField.required(33, "bi", BinaryType.get()),
+          NestedField.required(34, "li", ListType.ofRequired(35, StringType.get())),
+          NestedField.required(
               36, "ma", MapType.ofRequired(37, 38, StringType.get(), StringType.get())),
-          Types.NestedField.optional(39, "extra", StringType.get()));
+          NestedField.optional(39, "extra", StringType.get()));
 
   // we have 1 unmapped column so exclude that from the count
   private static final int MAPPED_CNT = SCHEMA.columns().size() - 1;
 
   private static final org.apache.iceberg.Schema NESTED_SCHEMA =
       new org.apache.iceberg.Schema(
-          Types.NestedField.required(1, "ii", IntegerType.get()),
-          Types.NestedField.required(2, "st", SCHEMA.asStruct()));
+          NestedField.required(1, "ii", IntegerType.get()),
+          NestedField.required(2, "st", SCHEMA.asStruct()));
 
   private static final org.apache.iceberg.Schema SIMPLE_SCHEMA =
       new org.apache.iceberg.Schema(
-          Types.NestedField.required(1, "ii", IntegerType.get()),
-          Types.NestedField.required(2, "st", StringType.get()));
+          NestedField.required(1, "ii", IntegerType.get()),
+          NestedField.required(2, "st", StringType.get()));
 
   private static final org.apache.iceberg.Schema ID_SCHEMA =
-      new org.apache.iceberg.Schema(Types.NestedField.required(1, "ii", IntegerType.get()));
+      new org.apache.iceberg.Schema(NestedField.required(1, "ii", IntegerType.get()));
 
   private static final org.apache.iceberg.Schema STRUCT_IN_LIST_SCHEMA =
       new org.apache.iceberg.Schema(
-          Types.NestedField.required(
-              100, "stli", ListType.ofRequired(101, NESTED_SCHEMA.asStruct())));
+          NestedField.required(100, "stli", ListType.ofRequired(101, NESTED_SCHEMA.asStruct())));
 
   private static final org.apache.iceberg.Schema STRUCT_IN_LIST_BASIC_SCHEMA =
       new org.apache.iceberg.Schema(
-          Types.NestedField.required(100, "stli", ListType.ofRequired(101, ID_SCHEMA.asStruct())));
+          NestedField.required(100, "stli", ListType.ofRequired(101, ID_SCHEMA.asStruct())));
 
   private static final org.apache.iceberg.Schema STRUCT_IN_MAP_SCHEMA =
       new org.apache.iceberg.Schema(
-          Types.NestedField.required(
+          NestedField.required(
               100,
               "stma",
               MapType.ofRequired(101, 102, StringType.get(), NESTED_SCHEMA.asStruct())));
 
   private static final org.apache.iceberg.Schema STRUCT_IN_MAP_BASIC_SCHEMA =
       new org.apache.iceberg.Schema(
-          Types.NestedField.required(
+          NestedField.required(
               100, "stma", MapType.ofRequired(101, 102, StringType.get(), ID_SCHEMA.asStruct())));
 
   private static final Schema CONNECT_SCHEMA =
@@ -156,9 +159,10 @@ public class RecordConverterTest {
           .field("do", Schema.FLOAT64_SCHEMA)
           .field("dec", Decimal.schema(2))
           .field("s", Schema.STRING_SCHEMA)
+          .field("b", Schema.BOOLEAN_SCHEMA)
           .field("u", Schema.STRING_SCHEMA)
           .field("f", Schema.BYTES_SCHEMA)
-          .field("b", Schema.BYTES_SCHEMA)
+          .field("bi", Schema.BYTES_SCHEMA)
           .field("li", SchemaBuilder.array(Schema.STRING_SCHEMA))
           .field("ma", SchemaBuilder.map(Schema.STRING_SCHEMA, Schema.STRING_SCHEMA));
 
@@ -509,7 +513,7 @@ public class RecordConverterTest {
     converter.convert(data, consumer);
     Collection<AddColumn> addCols = consumer.addColumns();
 
-    assertThat(addCols).hasSize(15);
+    assertThat(addCols).hasSize(MAPPED_CNT);
 
     Map<String, AddColumn> newColMap = Maps.newHashMap();
     addCols.forEach(addCol -> newColMap.put(addCol.name(), addCol));
@@ -537,7 +541,7 @@ public class RecordConverterTest {
     assertThat(addCol.name()).isEqualTo("st");
 
     StructType addedType = addCol.type().asStructType();
-    assertThat(addedType.fields()).hasSize(15);
+    assertThat(addedType.fields()).hasSize(MAPPED_CNT);
     assertTypesAddedFromMap(col -> addedType.field(col).type());
   }
 
@@ -560,7 +564,7 @@ public class RecordConverterTest {
     assertThat(addCol.name()).isEqualTo("st");
 
     StructType nestedElementType = addCol.type().asStructType();
-    assertThat(nestedElementType.fields()).hasSize(15);
+    assertThat(nestedElementType.fields()).hasSize(MAPPED_CNT);
     assertTypesAddedFromMap(col -> nestedElementType.field(col).type());
   }
 
@@ -575,9 +579,10 @@ public class RecordConverterTest {
     assertThat(fn.apply("do")).isInstanceOf(DoubleType.class);
     assertThat(fn.apply("dec")).isInstanceOf(StringType.class);
     assertThat(fn.apply("s")).isInstanceOf(StringType.class);
+    assertThat(fn.apply("b")).isInstanceOf(BooleanType.class);
     assertThat(fn.apply("u")).isInstanceOf(StringType.class);
     assertThat(fn.apply("f")).isInstanceOf(StringType.class);
-    assertThat(fn.apply("b")).isInstanceOf(StringType.class);
+    assertThat(fn.apply("bi")).isInstanceOf(StringType.class);
     assertThat(fn.apply("li")).isInstanceOf(ListType.class);
     assertThat(fn.apply("ma")).isInstanceOf(StructType.class);
   }
@@ -593,7 +598,7 @@ public class RecordConverterTest {
     converter.convert(data, consumer);
     Collection<AddColumn> addCols = consumer.addColumns();
 
-    assertThat(addCols).hasSize(15);
+    assertThat(addCols).hasSize(MAPPED_CNT);
 
     Map<String, AddColumn> newColMap = Maps.newHashMap();
     addCols.forEach(addCol -> newColMap.put(addCol.name(), addCol));
@@ -618,7 +623,7 @@ public class RecordConverterTest {
     assertThat(addCol.name()).isEqualTo("st");
 
     StructType addedType = addCol.type().asStructType();
-    assertThat(addedType.fields()).hasSize(15);
+    assertThat(addedType.fields()).hasSize(MAPPED_CNT);
     assertTypesAddedFromStruct(col -> addedType.field(col).type());
   }
 
@@ -643,7 +648,7 @@ public class RecordConverterTest {
     assertThat(addCol.name()).isEqualTo("st");
 
     StructType nestedElementType = addCol.type().asStructType();
-    assertThat(nestedElementType.fields()).hasSize(15);
+    assertThat(nestedElementType.fields()).hasSize(MAPPED_CNT);
     assertTypesAddedFromStruct(col -> nestedElementType.field(col).type());
   }
 
@@ -668,7 +673,7 @@ public class RecordConverterTest {
     assertThat(addCol.name()).isEqualTo("st");
 
     StructType nestedValueType = addCol.type().asStructType();
-    assertThat(nestedValueType.fields()).hasSize(15);
+    assertThat(nestedValueType.fields()).hasSize(MAPPED_CNT);
     assertTypesAddedFromStruct(col -> nestedValueType.field(col).type());
   }
 
@@ -683,9 +688,10 @@ public class RecordConverterTest {
     assertThat(fn.apply("do")).isInstanceOf(DoubleType.class);
     assertThat(fn.apply("dec")).isInstanceOf(DecimalType.class);
     assertThat(fn.apply("s")).isInstanceOf(StringType.class);
+    assertThat(fn.apply("b")).isInstanceOf(BooleanType.class);
     assertThat(fn.apply("u")).isInstanceOf(StringType.class);
     assertThat(fn.apply("f")).isInstanceOf(BinaryType.class);
-    assertThat(fn.apply("b")).isInstanceOf(BinaryType.class);
+    assertThat(fn.apply("bi")).isInstanceOf(BinaryType.class);
     assertThat(fn.apply("li")).isInstanceOf(ListType.class);
     assertThat(fn.apply("ma")).isInstanceOf(MapType.class);
   }
@@ -694,8 +700,8 @@ public class RecordConverterTest {
   public void testEvolveTypeDetectionStruct() {
     org.apache.iceberg.Schema tableSchema =
         new org.apache.iceberg.Schema(
-            Types.NestedField.required(1, "ii", IntegerType.get()),
-            Types.NestedField.required(2, "ff", FloatType.get()));
+            NestedField.required(1, "ii", IntegerType.get()),
+            NestedField.required(2, "ff", FloatType.get()));
 
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(tableSchema);
@@ -722,13 +728,13 @@ public class RecordConverterTest {
   public void testEvolveTypeDetectionStructNested() {
     org.apache.iceberg.Schema structColSchema =
         new org.apache.iceberg.Schema(
-            Types.NestedField.required(1, "ii", IntegerType.get()),
-            Types.NestedField.required(2, "ff", FloatType.get()));
+            NestedField.required(1, "ii", IntegerType.get()),
+            NestedField.required(2, "ff", FloatType.get()));
 
     org.apache.iceberg.Schema tableSchema =
         new org.apache.iceberg.Schema(
-            Types.NestedField.required(3, "i", IntegerType.get()),
-            Types.NestedField.required(4, "st", structColSchema.asStruct()));
+            NestedField.required(3, "i", IntegerType.get()),
+            NestedField.required(4, "st", structColSchema.asStruct()));
 
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(tableSchema);
@@ -766,9 +772,10 @@ public class RecordConverterTest {
         .put("do", 2.2d)
         .put("dec", DEC_VAL.toString())
         .put("s", STR_VAL)
+        .put("b", true)
         .put("u", UUID_VAL.toString())
         .put("f", Base64.getEncoder().encodeToString(BYTES_VAL.array()))
-        .put("b", Base64.getEncoder().encodeToString(BYTES_VAL.array()))
+        .put("bi", Base64.getEncoder().encodeToString(BYTES_VAL.array()))
         .put("li", LIST_VAL)
         .put("ma", MAP_VAL)
         .build();
@@ -790,9 +797,10 @@ public class RecordConverterTest {
         .put("do", 2.2d)
         .put("dec", DEC_VAL)
         .put("s", STR_VAL)
+        .put("b", true)
         .put("u", UUID_VAL.toString())
         .put("f", BYTES_VAL.array())
-        .put("b", BYTES_VAL.array())
+        .put("bi", BYTES_VAL.array())
         .put("li", LIST_VAL)
         .put("ma", MAP_VAL);
   }
@@ -813,9 +821,10 @@ public class RecordConverterTest {
     assertThat(rec.getField("do")).isEqualTo(2.2d);
     assertThat(rec.getField("dec")).isEqualTo(DEC_VAL);
     assertThat(rec.getField("s")).isEqualTo(STR_VAL);
+    assertThat(rec.getField("b")).isEqualTo(true);
     assertThat(rec.getField("u")).isEqualTo(UUID_VAL);
     assertThat(rec.getField("f")).isEqualTo(BYTES_VAL);
-    assertThat(rec.getField("b")).isEqualTo(BYTES_VAL);
+    assertThat(rec.getField("bi")).isEqualTo(BYTES_VAL);
     assertThat(rec.getField("li")).isEqualTo(LIST_VAL);
     assertThat(rec.getField("ma")).isEqualTo(MAP_VAL);
   }
