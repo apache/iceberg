@@ -77,7 +77,11 @@ Apache Iceberg 1.4.3 was released on December 27, 2023. The main issue it solves
 - Core: Expired Snapshot files in a transaction should be deleted by [@bartash](https://github.com/bartash) in [#9223](https://github.com/apache/iceberg/pull/9223)
 - Core: Fix missing delete files from transaction by [@nastra](https://github.com/nastra) in [#9356](https://github.com/apache/iceberg/pull/9356)
 
-    
+## Schedule
+
+- Regular release cycle is to provide quarterly releases.
+- Patch releases (for blocking issues or CVE for example) can be made immediately at request independenly of the release cycle.
+
 ## Past releases
 
 ### 1.4.2 Release
