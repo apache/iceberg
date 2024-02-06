@@ -459,12 +459,14 @@ ALTER TABLE t set TBLPROPERTIES ('metadata_location'='<path>/hivemetadata/00003-
 
 ### SELECT
 Select statements work the same on Iceberg tables in Hive. You will see the Iceberg benefits over Hive in compilation and execution:
+
 * **No file system listings** - especially important on blob stores, like S3
 * **No partition listing from** the Metastore
 * **Advanced partition filtering** - the partition keys are not needed in the queries when they could be calculated
 * Could handle **higher number of partitions** than normal Hive tables
 
 Here are the features highlights for Iceberg Hive read support:
+
 1. **Predicate pushdown**: Pushdown of the Hive SQL `WHERE` clause has been implemented so that these filters are used at the Iceberg `TableScan` level as well as by the Parquet and ORC Readers.
 2. **Column projection**: Columns from the Hive SQL `SELECT` clause are projected down to the Iceberg readers to reduce the number of columns read.
 3. **Hive query engines**:

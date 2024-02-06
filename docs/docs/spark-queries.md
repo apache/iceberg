@@ -295,11 +295,11 @@ SELECT * FROM prod.db.table.files;
 | 1 | s3:/.../table/data/00081-4-a9aa8b24-20bc-4d56-93b0-6b7675782bb5-00001-deletes.parquet | PARQUET | 0 | 1 | 1560 | {2147483545:46,2147483546:152} | {2147483545:1,2147483546:1} | {2147483545:0,2147483546:0} | {} | {2147483545:,2147483546:s3:/.../table/data/00000-0-f9709213-22ca-4196-8733-5cb15d2afeb9-00001.parquet} | {2147483545:,2147483546:s3:/.../table/data/00000-0-f9709213-22ca-4196-8733-5cb15d2afeb9-00001.parquet} | NULL | [4] | NULL | NULL | {"data":{"column_size":null,"value_count":null,"null_value_count":null,"nan_value_count":null,"lower_bound":null,"upper_bound":null},"id":{"column_size":null,"value_count":null,"null_value_count":null,"nan_value_count":null,"lower_bound":null,"upper_bound":null}} |
 | 2 | s3:/.../table/data/00047-25-833044d0-127b-415c-b874-038a4f978c29-00612.parquet | PARQUET | 0 | 126506 | 28613985 | {100:135377,101:11314} | {100:126506,101:126506} | {100:105434,101:11} | {} | {100:0,101:17} | {100:404455227527,101:23} | NULL | NULL | [1] | 0 | {"id":{"column_size":135377,"value_count":126506,"null_value_count":105434,"nan_value_count":null,"lower_bound":0,"upper_bound":404455227527},"data":{"column_size":11314,"value_count":126506,"null_value_count": 11,"nan_value_count":null,"lower_bound":17,"upper_bound":23}} |
 
-!!!info
-   Content refers to type of content stored by the data file:
-     0  Data
-     1  Position Deletes
-     2  Equality Deletes
+!!! info
+    Content refers to type of content stored by the data file:
+      * 0  Data
+      * 1  Position Deletes
+      * 2  Equality Deletes
 
 To show only data files or delete files, query `prod.db.table.data_files` and `prod.db.table.delete_files` respectively.
 To show all files, data files and delete files across all tracked snapshots, query `prod.db.table.all_files`, `prod.db.table.all_data_files` and `prod.db.table.all_delete_files` respectively.
@@ -317,6 +317,7 @@ SELECT * FROM prod.db.table.manifests;
 | s3://.../table/metadata/45b5290b-ee61-4788-b324-b1e2735c0e10-m0.avro | 4479   | 0                 | 6668963634911763636 | 8                      | 0                         | 0                        | [[false,null,2019-05-13,2019-05-15]] |
 
 Note:
+
 1. Fields within `partition_summaries` column of the manifests table correspond to `field_summary` structs within [manifest list](../../spec.md#manifest-lists), with the following order:
     - `contains_null`
     - `contains_nan`
@@ -341,6 +342,7 @@ SELECT * FROM prod.db.table.partitions;
 | {20211002, 10} | 0       | 3             | 2          | 400                      | 0                            | 0                          | 1                            | 1                          | 1633169159489000    | 6941468797545315876      |
 
 Note:
+
 1. For unpartitioned tables, the partitions table will not contain the partition and spec_id fields.
 
 2. The partitions metadata table shows partitions with data files or delete files in the current snapshot. However, delete files are not applied, and so in some cases partitions may be shown even though all their data rows are marked deleted by delete files.
@@ -416,6 +418,7 @@ SELECT * FROM prod.db.table.all_manifests;
 | s3://.../metadata/a85f78c5-3222-4b37-b7e4-faf944425d48-m0.avro | 6376 | 0 | 6272782676904868561 | 2 | 0 | 0 |[{false, false, 20210101, 20210101}]|
 
 Note:
+
 1. Fields within `partition_summaries` column of the manifests table correspond to `field_summary` structs within [manifest list](../../spec.md#manifest-lists), with the following order:
     - `contains_null`
     - `contains_nan`

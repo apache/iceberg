@@ -222,6 +222,7 @@ Any struct, including a top-level schema, can evolve through deleting fields, ad
 Grouping a subset of a struct’s fields into a nested struct is **not** allowed, nor is moving fields from a nested struct into its immediate parent struct (`struct<a, b, c> ↔ struct<a, struct<b, c>>`). Evolving primitive types to structs is **not** allowed, nor is evolving a single-field struct to a primitive (`map<string, int> ↔ map<string, struct<int>>`).
 
 Struct evolution requires the following rules for default values:
+
 * The `initial-default` must be set when a field is added and cannot change
 * The `write-default` must be set when a field is added and may change
 * When a required field is added, both defaults must be set to a non-null value
@@ -1217,6 +1218,7 @@ This serialization scheme is for storing single values as individual binary valu
 ### Version 3
 
 Default values are added to struct fields in v3.
+
 * The `write-default` is a forward-compatible change because it is only used at write time. Old writers will fail because the field is missing.
 * Tables with `initial-default` will be read correctly by older readers if `initial-default` is always null for optional fields. Otherwise, old readers will default optional columns with null. Old readers will fail to read required fields which are populated by `initial-default` because that default is not supported.
 

@@ -36,6 +36,7 @@ The `iceberg-delta-lake` module is not bundled with Spark and Flink engine runti
 
 ### Compatibilities
 The module is built and tested with `Delta Standalone:0.6.0` and supports Delta Lake tables with the following protocol version:
+
 * `minReaderVersion`: 1
 * `minWriterVersion`: 2
 
@@ -44,6 +45,7 @@ Please refer to [Delta Lake Table Protocol Versioning](https://docs.delta.io/lat
 ### API
 The `iceberg-delta-lake` module provides an interface named `DeltaLakeToIcebergMigrationActionsProvider`, which contains actions that helps converting from Delta Lake to Iceberg.
 The supported actions are:
+
 * `snapshotDeltaLakeTable`: snapshot an existing Delta Lake table to an Iceberg table
 
 ### Default Implementation

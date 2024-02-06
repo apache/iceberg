@@ -26,6 +26,7 @@ As of 1.1.0 Iceberg supports the [`MetricsReporter`](../../javadoc/{{ icebergVer
 
 ### ScanReport
 A [`ScanReport`](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/metrics/ScanReport.html) carries metrics being collected during scan planning against a given table. Amongst some general information about the involved table, such as the snapshot id or the table name, it includes metrics like:
+
 * total scan planning duration
 * number of data/delete files included in the result
 * number of data/delete manifests scanned/skipped
@@ -35,6 +36,7 @@ A [`ScanReport`](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/metrics/S
 
 ### CommitReport
 A [`CommitReport`](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/metrics/CommitReport.html) carries metrics being collected after committing changes to a table (aka producing a snapshot). Amongst some general information about the involved table, such as the snapshot id or the table name, it includes metrics like:
+
 * total duration
 * number of attempts required for the commit to succeed
 * number of added/removed data/delete files

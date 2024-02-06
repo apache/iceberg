@@ -157,6 +157,7 @@ Here are the catalog properties related to locking. They are used by some catalo
 
 The following properties from the Hadoop configuration are used by the Hive Metastore connector.
 The HMS table locking is a 2-step process:
+
 1. Lock Creation: Create lock in HMS and queue for acquisition
 2. Lock Check: Check if lock successfully acquired
 
@@ -180,6 +181,7 @@ Hive Metastore before the lock is retried from Iceberg.
 
 Warn: Setting `iceberg.engine.hive.lock-enabled`=`false` will cause HiveCatalog to commit to tables without using Hive locks.
 This should only be set to `false` if all following conditions are met:
+
  - [HIVE-26882](https://issues.apache.org/jira/browse/HIVE-26882)
 is available on the Hive Metastore server
  - All other HiveCatalogs committing to tables that this HiveCatalog commits to are also on Iceberg 1.3 or later
