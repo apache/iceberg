@@ -164,7 +164,7 @@ public class RecordProjection implements Record {
 
   @Override
   public <T> void set(int pos, T value) {
-    throw new UnsupportedOperationException();
+    throw new UnsupportedOperationException("RecordProjection.set(int, Object) is not supported");
   }
 
   @Override
@@ -174,12 +174,13 @@ public class RecordProjection implements Record {
 
   @Override
   public Object getField(String name) {
-    throw new UnsupportedOperationException();
+    throw new UnsupportedOperationException("RecordProjection.getField(String) is not supported");
   }
 
   @Override
   public void setField(String name, Object value) {
-    throw new UnsupportedOperationException();
+    throw new UnsupportedOperationException(
+        "RecordProjection.setField(String, Object) is not supported");
   }
 
   @Override
@@ -189,11 +190,11 @@ public class RecordProjection implements Record {
 
   @Override
   public Record copy() {
-    throw new UnsupportedOperationException();
+    throw new UnsupportedOperationException("RecordProjection.copy() is not supported");
   }
 
   @Override
   public Record copy(Map<String, Object> overwriteValues) {
-    throw new UnsupportedOperationException();
+    throw new UnsupportedOperationException("RecordProjection.copy(Map) is not supported");
   }
 }
