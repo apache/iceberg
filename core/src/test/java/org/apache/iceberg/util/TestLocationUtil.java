@@ -60,7 +60,7 @@ public class TestLocationUtil {
   }
 
   @Test
-  void testStripTrailingSlashForRootPath() {
+  void testDoNotStripTrailingSlashForRootPath() {
     String rootPath = "blobstore://";
     assertThat(LocationUtil.stripTrailingSlash(rootPath))
         .as("Should be root path")
