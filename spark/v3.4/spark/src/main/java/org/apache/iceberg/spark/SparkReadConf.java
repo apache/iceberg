@@ -333,4 +333,24 @@ public class SparkReadConf {
     SparkConf sparkConf = spark.sparkContext().conf();
     return sparkConf.getSizeAsBytes(DRIVER_MAX_RESULT_SIZE, DRIVER_MAX_RESULT_SIZE_DEFAULT);
   }
+
+  public boolean executorCacheLocalityEnabled() {
+    return executorCacheEnabled() && executorCacheLocalityEnabledInternal();
+  }
+
+  private boolean executorCacheEnabled() {
+    return confParser
+        .booleanConf()
+        .sessionConf(SparkSQLProperties.EXECUTOR_CACHE_ENABLED)
+        .defaultValue(SparkSQLProperties.EXECUTOR_CACHE_ENABLED_DEFAULT)
+        .parse();
+  }
+
+  private boolean executorCacheLocalityEnabledInternal() {
+    return confParser
+        .booleanConf()
+        .sessionConf(SparkSQLProperties.EXECUTOR_CACHE_LOCALITY_ENABLED)
+        .defaultValue(SparkSQLProperties.EXECUTOR_CACHE_LOCALITY_ENABLED_DEFAULT)
+        .parse();
+  }
 }
