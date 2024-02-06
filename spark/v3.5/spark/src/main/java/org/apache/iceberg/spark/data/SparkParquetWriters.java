@@ -209,6 +209,7 @@ public class SparkParquetWriters {
         if (timeLogicalType.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS) {
           return Optional.of(ParquetValueWriters.longs(desc));
         }
+
         return Optional.empty();
       }
 
