@@ -28,7 +28,7 @@ public class LocationUtil {
     Preconditions.checkArgument(!Strings.isNullOrEmpty(path), "path must not be null or empty");
 
     String result = path;
-    while (result.endsWith("/")) {
+    while (!result.endsWith("://") && result.endsWith("/")) {
       result = result.substring(0, result.length() - 1);
     }
     return result;
