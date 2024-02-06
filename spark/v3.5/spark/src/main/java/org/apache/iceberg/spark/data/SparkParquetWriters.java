@@ -89,7 +89,6 @@ public class SparkParquetWriters {
         writers.add(newOption(struct.getType(i), fieldWriters.get(i)));
         sparkTypes.add(sparkFields[i].dataType());
       }
-
       return new InternalRowWriter(writers, sparkTypes);
     }
 
@@ -209,7 +208,6 @@ public class SparkParquetWriters {
         if (timeLogicalType.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS) {
           return Optional.of(ParquetValueWriters.longs(desc));
         }
-
         return Optional.empty();
       }
 
