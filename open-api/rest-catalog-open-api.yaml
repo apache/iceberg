@@ -201,6 +201,8 @@ paths:
         If `parent` is not provided, all top-level namespaces should be listed.
       operationId: listNamespaces
       parameters:
+        - $ref: '#/components/parameters/page-token'
+        - $ref: '#/components/parameters/page-size'
         - name: parent
           in: query
           description:
@@ -212,34 +214,6 @@ paths:
           schema:
             type: string
           example: "accounting%1Ftax"
-        - name: pageToken
-          in: query
-          description:
-            Allows clients to make use of pagination by signaling to the service that they would
-            prefer requests to be paginated to a “reasonable” number of results.
-            
-            New Clients always start the request by sending a required empty “pageToken” e.g. GET /tables?continuationToken=””
-            Servers supporting pagination would recognize pagination is requested due to the presence of the pageToken
-            and honor the contracts specified above by returning a non-empty continuation token
-            if there are more results available, or an empty token or missing field indicating no more results.
-            Servers that are non-pagination aware will ignore the token and return all results as they previously did.
-            
-            Old clients should not be specifying the new parameters
-            For servers that support pagination, they would notice the lack of “continuationToken”
-            in the query string and return all results at once (mimicking existing behavior).
-            For servers not supporting pagination, this is the current state and they would return all values at once.
-          required: false
-          allowEmptyValue: true
-          schema:
-            type: string
-        - name: pageSize
-          in: query
-          description:
-            An upper bound on the number of results to return on the next page.
-          required: false
-          allowEmptyValue: true
-          schema:
-            type: string
       responses:
         200:
           $ref: '#/components/responses/ListNamespacesResponse'
@@ -477,34 +451,8 @@ paths:
       description: Return all table identifiers under this namespace
       operationId: listTables
       parameters:
-        - name: pageToken
-          in: query
-          description:
-            Allows clients to make use of pagination by signaling to the service that they would
-            prefer requests to be paginated to a “reasonable” number of results.
-  
-            New Clients always start the request by sending a required empty “pageToken” e.g. GET /tables?continuationToken=””
-            Servers supporting pagination would recognize pagination is requested due to the presence of the pageToken
-            and honor the contracts specified above by returning a non-empty continuation token
-            if there are more results available, or an empty token or missing field indicating no more results.
-            Servers that are non-pagination aware will ignore the token and return all results as they previously did.
-  
-            Old clients should not be specifying the new parameters
-            For servers that support pagination, they would notice the lack of “continuationToken”
-            in the query string and return all results at once (mimicking existing behavior).
-            For servers not supporting pagination, this is the current state and they would return all values at once.
-          required: false
-          allowEmptyValue: true
-          schema:
-            type: string
-        - name: pageSize
-          in: query
-          description:
-            An upper bound on the number of results to return on the next page.
-          required: false
-          allowEmptyValue: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/page-token'
+        - $ref: '#/components/parameters/page-size'
       responses:
         200:
           $ref: '#/components/responses/ListTablesResponse'
@@ -1128,34 +1076,8 @@ paths:
       description: Return all view identifiers under this namespace
       operationId: listViews
       parameters:
-        - name: pageToken
-          in: query
-          description:
-            Allows clients to make use of pagination by signaling to the service that they would
-            prefer requests to be paginated to a “reasonable” number of results.
-            
-            New Clients always start the request by sending a required empty “pageToken” e.g. GET /tables?continuationToken=””
-            Servers supporting pagination would recognize pagination is requested due to the presence of the pageToken
-            and honor the contracts specified above by returning a non-empty continuation token
-            if there are more results available, or an empty token or missing field indicating no more results.
-            Servers that are non-pagination aware will ignore the token and return all results as they previously did.
-            
-            Old clients should not be specifying the new parameters
-            For servers that support pagination, they would notice the lack of “continuationToken”
-            in the query string and return all results at once (mimicking existing behavior).
-            For servers not supporting pagination, this is the current state and they would return all values at once.
-          required: false
-          allowEmptyValue: true
-          schema:
-            type: string
-        - name: pageSize
-          in: query
-          description:
-            An upper bound on the number of results to return on the next page.
-          required: false
-          allowEmptyValue: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/page-token'
+        - $ref: '#/components/parameters/page-size'
       responses:
         200:
           $ref: '#/components/responses/ListTablesResponse'
@@ -1567,6 +1489,38 @@ components:
       style: simple
       explode: false
       example: "vended-credentials,remote-signing"
+
+    page-token:
+      name: pageToken
+      in: query
+      description:
+        A unique token which allows clients to make use of pagination by signaling to the service that they would
+        prefer requests to be paginated based on the number of items specified by pageSize.
+        
+        New Clients always start the request by sending a required empty pageToken e.g. GET /tables?pageToken
+        Servers supporting pagination would recognize pagination is requested due to the presence of the pageToken
+        and honor the contracts specified above by returning a non-empty next pageToken 
+        if there are more results available, or an empty next pageToken indicating no more results.
+        Servers that are non-pagination aware will ignore the token and return all results as they previously did.
+        
+        Old clients should not be specifying the new parameters
+        For servers that support pagination, they would notice the lack of the pageToken
+        in the query string and return all results at once (mimicking existing behavior).
+        For servers not supporting pagination, this is the current state and they would return all values at once.
+      required: false
+      allowEmptyValue: true
+      schema:
+        type: string
+
+    page-size:
+      name: pageSize
+      in: query
+      description:
+        An upper bound on the number of results to return on the next page.
+      required: false
+      allowEmptyValue: true
+      schema:
+        type: string
 
   ##############################
   # Application Schema Objects #
@@ -3257,8 +3211,9 @@ components:
       properties:
         next-page-token:
           description:
-            A non-empty next page token indicates more results. An absent or emptyPageToken indicates the returned results are complete.
-            This should be used in the next request for the query parameter “pageToken"
+            A unique next page token, when non-empty this indicates that more results can be returned by server,
+            and when empty this indicates the returned results are complete.
+            This should be used in the next request for the query parameter of pageToken.
           type: string
         identifiers:
           type: array
@@ -3271,8 +3226,9 @@ components:
       properties:
         next-page-token:
           description:
-            A non-empty next page token indicates more results. An absent or emptyPageToken indicates the returned results are complete.
-            This should be used in the next request for the query parameter “pageToken"
+            A unique next page token, when non-empty this indicates that more results can be returned by server, 
+            and when empty this indicates the returned results are complete.
+            This should be used in the next request for the query parameter of pageToken.
           type: string
         namespaces:
           type: array
