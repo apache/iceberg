@@ -530,7 +530,7 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
-  /v1/{prefix}/namespaces/{namespace}/tables/{table}/scans:
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}/preplan:
     parameters:
       - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
@@ -538,18 +538,20 @@ paths:
     post:
       tags:
         - Catalog API
-      summary: Create a table scan for the table
+      summary: Intiate a preplanning process on the table to find plan-tasks relevant to a specific query.
       description:
-        Creates a table scan for the table.
-      operationId: createScan
+        When a user submits a query, we can do a "preplan" to find the relevant plan-tasks 
+        based on the user's selected columns, and filters. The plan-tasks can then be used during "plan" 
+        for distributed planning for performance gain.
+      operationId: prePlan
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateScanRequest'
+              $ref: '#/components/schemas/PrePlanTableRequest'
       responses:
         200:
-          $ref: '#/components/responses/CreateScanResponse'
+          $ref: '#/components/responses/PrePlanTableResponse'
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
@@ -579,38 +581,28 @@ paths:
 
 
 
-  /v1/{prefix}/namespaces/{namespace}/tables/{table}/scans/{scan}:
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}/plan/:
     parameters:
       - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
       - $ref: '#/components/parameters/table'
-      - $ref: '#/components/parameters/scan'
-    get:
+    post:
       tags:
         - Catalog API
-      summary: Gets a list of FileScanTasks
-      operationId: getScanTasks
+      summary: Initiate plan on table to find relevant file scan tasks for a specific query.
+      operationId: planTable
       description:
-        Gets a list of FileScanTasks
-      parameters:
-        - in: query
-          name: shard
-          description:
-            Reads a single or multiple shards in parallel, to obtain a list of file scan tasks.
-          required: true
-          schema:
-            type: string
-        - in: query
-          name: next
-          description:
-            Used for obtaining the next batch of fileScanTasks
-          required: false
-          allowEmptyValue: true
-          schema:
-            type: string
+        When a user submits a query, we can do a "plan" to find the relevant file scan tasks
+        based on the user's selected columns, and filters. Passing the param plan-tasks can be used 
+        for enhanced query performance, by distributing the planning work.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanTableRequest'
       responses:
         200:
-          $ref: '#/components/responses/GetScanTasksResponse'
+          $ref: '#/components/responses/PlanTableResponse'
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
@@ -2144,6 +2136,13 @@ components:
         metadata-log:
           $ref: '#/components/schemas/MetadataLog'
 
+    PlanTask:
+      description:
+        A flexible JSON object that contains information provided by the server, 
+        to be utilized by clients for distributed planning. However it is recommended that servers 
+        provide a plan-task-id, as well as a location to a manifest.
+      type: object
+
     FileScanTask:
       type: object
       required:
@@ -2272,9 +2271,9 @@ components:
     FileContent:
       type: string
       enum:
-        - DATA
-        - POSITION_DELETES
-        - EQUALITY_DELETES
+        - data
+        - position-deletes
+        - equality-deletes
 
     SQLViewRepresentation:
       type: object
@@ -2796,22 +2795,23 @@ components:
           additionalProperties:
             type: string
 
-    CreateScanResult:
+    PrePlanTableResult:
+      description:
+        When doing prePlan the result is a list of plan-tasks.
       type: object
-      description: create scan response
       required:
-        - scan
-        - shards
+        - plan-tasks
       properties:
-        scan:
-          type: string
-        shards:
+        expiration-time-ms:
+          type: integer
+          format: int64
+        plan-tasks:
           type: array
           items:
-            type: string
+            $ref: '#/components/schemas/PlanTask'
 
-    GetScanTasksResult:
-      description: Result of when attempting to get file scan tasks from a scan.
+    PlanTableResult:
+      description: Result of getting file-scan-tasks from a plan operation.
       type: object
       required:
         - file-scan-tasks
@@ -2820,8 +2820,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/FileScanTask'
-        next:
-          type: string
 
     CommitTableRequest:
       type: object
@@ -2888,22 +2886,57 @@ components:
           additionalProperties:
             type: string
 
-    CreateScanRequest:
+    PrePlanTableRequest:
       type: object
       required:
         - select
         - options
       properties:
         select:
+          description: A list of the selected columns that user specifies during a query.
           type: array
           items:
             type: string
         filter:
-          type: string
+          $ref: '#/components/schemas/Expression'
         options:
           type: object
           additionalProperties:
             type: string
+        snapshot-id:
+          type: integer
+          format: int64
+        timestamp-ms:
+          type: integer
+          format: int64
+
+    PlanTableRequest:
+      type: object
+      required:
+        - select
+        - options
+      properties:
+        select:
+          description: A list of the selected columns that user specifies during a query.
+          type: array
+          items:
+            type: string
+        filter:
+          $ref: '#/components/schemas/Expression'
+        options:
+          type: object
+          additionalProperties:
+            type: string
+        plan-tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanTask'
+        snapshot-id:
+          type: integer
+          format: int64
+        timestamp-ms:
+          type: integer
+          format: int64
 
     RegisterTableRequest:
       type: object
@@ -3582,19 +3615,19 @@ components:
           schema:
             $ref: '#/components/schemas/LoadTableResult'
 
-    CreateScanResponse:
-      description: Create Scan Response
+    PrePlanTableResponse:
+      description: PrePlanTable Response
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/CreateScanResult'
+            $ref: '#/components/schemas/PrePlanTableResult'
 
-    GetScanTasksResponse:
-      description: get scan tasks response
+    PlanTableResponse:
+      description: PlanTable Response
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/GetScanTasksResult'
+            $ref: '#/components/schemas/PlanTableResult'
 
     LoadTableResponse:
       description: Table metadata result when loading a table
