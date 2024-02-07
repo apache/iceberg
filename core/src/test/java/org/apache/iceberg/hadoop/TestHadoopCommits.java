@@ -210,6 +210,17 @@ public class TestHadoopCommits extends HadoopTableTestBase {
   }
 
   @Test
+  public void testVersionHintCorrupted() throws IOException {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    BaseTable baseTable = (BaseTable) table;
+    HadoopTableOperations tableOperations = (HadoopTableOperations) baseTable.operations();
+    HadoopTableOperations spyOps = spy(tableOperations);
+    doReturn(true).when(spyOps).versionHintIsCorrupted(any(), any());
+    assertCommitNotChangeVersion(
+        baseTable, spyOps, CommitFailedException.class, "The version Hint was corrupted.");
+  }
+
+  @Test
   public void testCommitFailedBeforeChangeVersionHint() throws IOException {
     table.newFastAppend().appendFile(FILE_A).commit();
     BaseTable baseTable = (BaseTable) table;
@@ -226,7 +237,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
         baseTable, spyOps2, CommitFailedException.class, "Can not drop old versionHint");
 
     HadoopTableOperations spyOps3 = spy(tableOperations);
-    doReturn(false).when(spyOps3).nextVersionIsLatest(any());
+    doReturn(false).when(spyOps3).nextVersionIsLatest(any(), any());
     assertCommitNotChangeVersion(
         baseTable, spyOps3, CommitFailedException.class, "Can not drop old versionHint");
 

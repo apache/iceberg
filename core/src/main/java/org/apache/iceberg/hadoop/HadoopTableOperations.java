@@ -45,7 +45,6 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
-import org.apache.iceberg.relocated.com.google.common.annotations.Beta;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -230,7 +229,6 @@ public class HadoopTableOperations implements TableOperations {
               "Failed to write a new versionHintFile,commit version is [{}], is there a problem with the file system?",
               nextVersion);
         }
-        cleanVersionHintIfOld(fs);
         deleteRemovedMetadataFiles(base, metadata);
       }
     } catch (CommitStateUnknownException | CommitFailedException e) {
@@ -255,25 +253,6 @@ public class HadoopTableOperations implements TableOperations {
         cleanUncommittedMeta(tempMetadataFile);
         throw new CommitFailedException(e);
       }
-    }
-  }
-
-  @VisibleForTesting
-  @Beta
-  void cleanVersionHintIfOld(FileSystem fs) throws IOException {
-    // Is it worth it? Because it doesn't exactly solve the problem.
-    // In the extreme case, we're bound to run into this problem.
-    // Do we need to pass on some of the maintenance costs to the user?
-    // After all, the user's data isn't corrupted, they just can't submit a new version.
-    Path versionHintFile = versionHintFile();
-    // With multiple clients operating concurrently,
-    // in some extreme cases we may be submitting an older version of versionHint.
-    // We should do our best to handle this situation.
-    // If the version in the versionHint is old.
-    // Then we should clean up the wrong versionHint.
-    if (fs.exists(versionHintFile)
-        && findVersionWithOutVersionHint(fs) > findVersionByUsingVersionHint(fs, versionHintFile)) {
-      io().deleteFile(versionHintFile.toString());
     }
   }
 
@@ -412,7 +391,7 @@ public class HadoopTableOperations implements TableOperations {
       writeVersionToPath(fs, tempVersionHintFile, versionToWrite);
       // We can accept that version Hint fails to write, but we can't accept that version Hint
       // writes the wrong version.
-      if (fs.exists(versionHintFile) || findVersion() != versionToWrite) {
+      if (fs.exists(versionHintFile) || findVersionWithOutVersionHint(fs) != versionToWrite) {
         throw new AlreadyExistsException(
             "Failed to write a new versionHintFile,You are writing to an old-version-Hint,Are there other clients running in parallel with the current task?");
       }
@@ -434,7 +413,7 @@ public class HadoopTableOperations implements TableOperations {
     // with us.
     // If multiple clients delete the same version Hint at the same time, only one client will
     // succeed.
-    // By doing this, we solve the concurrency problem.
+    // By doing this, We have solved the concurrency problem to some extent.
     // It can't handle scenarios where multiple clients are running at the same time for the first
     // time and versionHint not exists. But we will block them in the next step.
     boolean versionHintExists = versionHintExists(fs, versionHintFile);
@@ -449,18 +428,31 @@ public class HadoopTableOperations implements TableOperations {
     // Because the user always configures an expiration policy for the metadata.
     // If we don't do any checking, then the user can resubmit a version that has already expired.
     // So we need to check that the next commit is up-to-date.
-    if (versionHintExists && (!nextVersionIsLatest(nextVersion) || !deleteVersionHint(fs))) {
-      String msg =
-          String.format(
-              "Can not drop old versionHint. commitVersion = %s.Do you have multiple tasks working on this table at the same time, or is your file system failing?",
-              nextVersion);
-      throw new RuntimeException(msg);
+    if (versionHintExists) {
+      if (versionHintIsCorrupted(fs, versionHintFile)) {
+        io().deleteFile(versionHintFile.toString());
+        String msg =
+            "The version Hint was corrupted. We have cleaned up the corrupted version Hint and blocked this commit. Please resubmit the task.";
+        throw new RuntimeException(msg);
+      }
+      if (!nextVersionIsLatest(nextVersion, fs) || !deleteVersionHint(fs)) {
+        String msg =
+            String.format(
+                "Can not drop old versionHint. commitVersion = %s.Do you have multiple tasks working on this table at the same time, or is your file system failing?",
+                nextVersion);
+        throw new RuntimeException(msg);
+      }
     }
   }
 
   @VisibleForTesting
-  boolean nextVersionIsLatest(Integer nextVersion) {
-    return nextVersion == (findVersion() + 1);
+  boolean versionHintIsCorrupted(FileSystem fs, Path versionHintFile) throws IOException {
+    return findVersionWithOutVersionHint(fs) != findVersionByUsingVersionHint(fs, versionHintFile);
+  }
+
+  @VisibleForTesting
+  boolean nextVersionIsLatest(Integer nextVersion, FileSystem fs) {
+    return nextVersion == (findVersionWithOutVersionHint(fs) + 1);
   }
 
   @VisibleForTesting
@@ -562,7 +554,7 @@ public class HadoopTableOperations implements TableOperations {
             "Another client is executing in parallel with the current task.");
       }
       // maybe too heavy.....?
-      if (!nextVersionIsLatest(nextVersion)) {
+      if (!nextVersionIsLatest(nextVersion, fs)) {
         // In the case of concurrent execution,
         // verify that the version that is ready to be committed at a time is the latest version.
         throw new CommitFailedException("Version %d too old: %s", nextVersion, dst);
