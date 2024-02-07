@@ -198,12 +198,6 @@ public class HadoopTableOperations implements TableOperations {
     boolean versionCommitSuccess = false;
     try {
       deleteOldVersionHint(fs, versionHintFile(), nextVersion);
-      // This renames operation is the atomic commit operation.
-      // Since fs.rename() cannot overwrite existing files, in case of concurrent operations, only
-      // one client will execute renameToFinal() successfully.
-      // However, if the client submits a very old metadata and the user has configured a very short
-      // TTL,then the commit will succeed and the version will be messed up.
-      // Therefore, it is important to troubleshoot these issues before performing this step.
       versionCommitSuccess = commitNewVersion(fs, tempMetadataFile, finalMetadataFile, nextVersion);
       if (!versionCommitSuccess) {
         // Users should clean up orphaned files after job fail.
@@ -429,6 +423,10 @@ public class HadoopTableOperations implements TableOperations {
     // If we don't do any checking, then the user can resubmit a version that has already expired.
     // So we need to check that the next commit is up-to-date.
     if (versionHintExists) {
+      // Although we do our best to avoid concurrency problems, we may still encounter some
+      // surprises.
+      // In the case of large concurrency, versionHint is very susceptible to corruption.
+      // We can't stop this from happening, but we can fix it.
       if (versionHintIsCorrupted(fs, versionHintFile)) {
         io().deleteFile(versionHintFile.toString());
         String msg =
@@ -540,6 +538,12 @@ public class HadoopTableOperations implements TableOperations {
   @VisibleForTesting
   boolean commitNewVersion(FileSystem fs, Path src, Path dst, Integer nextVersion)
       throws IOException {
+    // This renames operation is the atomic commit operation.
+    // Since fs.rename() cannot overwrite existing files, in case of concurrent operations, only
+    // one client will execute renameToFinal() successfully.
+    // However, if the client submits a very old metadata and the user has configured a very short
+    // TTL,then the commit will succeed and the version will be messed up.
+    // Therefore, it is important to troubleshoot these issues before performing this step.
     try {
       if (!lockManager.acquire(dst.toString(), dst.toString())) {
         throw new CommitFailedException(
