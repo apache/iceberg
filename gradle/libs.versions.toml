@@ -35,7 +35,7 @@ caffeine = "2.9.3"
 calcite = "1.10.0"
 delta-standalone = "0.6.0"
 delta-spark = "3.1.0"
-esotericsoftware-kryo = "4.0.2"
+esotericsoftware-kryo = "5.6.0"
 errorprone-annotations = "2.24.1"
 findbugs-jsr305 = "3.0.2"
 flink116 = { strictly = "1.16.2"}
