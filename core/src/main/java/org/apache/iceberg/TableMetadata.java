@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg;
 
-import java.io.Serializable;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -47,7 +46,7 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableSupplier;
 
 /** Metadata for a table. */
-public class TableMetadata implements Serializable {
+public class TableMetadata implements BaseMetadata {
   static final long INITIAL_SEQUENCE_NUMBER = 0;
   static final long INVALID_SEQUENCE_NUMBER = -1;
   static final int DEFAULT_TABLE_FORMAT_VERSION = 2;
@@ -390,6 +389,7 @@ public class TableMetadata implements Serializable {
     return formatVersion;
   }
 
+  @Override
   public String metadataFileLocation() {
     return metadataFileLocation;
   }
@@ -414,6 +414,7 @@ public class TableMetadata implements Serializable {
     return lastColumnId;
   }
 
+  @Override
   public Schema schema() {
     return schemasById.get(currentSchemaId);
   }
@@ -470,28 +471,14 @@ public class TableMetadata implements Serializable {
     return sortOrdersById;
   }
 
+  @Override
   public String location() {
     return location;
   }
 
+  @Override
   public Map<String, String> properties() {
     return properties;
-  }
-
-  public String property(String property, String defaultValue) {
-    return properties.getOrDefault(property, defaultValue);
-  }
-
-  public boolean propertyAsBoolean(String property, boolean defaultValue) {
-    return PropertyUtil.propertyAsBoolean(properties, property, defaultValue);
-  }
-
-  public int propertyAsInt(String property, int defaultValue) {
-    return PropertyUtil.propertyAsInt(properties, property, defaultValue);
-  }
-
-  public long propertyAsLong(String property, long defaultValue) {
-    return PropertyUtil.propertyAsLong(properties, property, defaultValue);
   }
 
   public Snapshot snapshot(long snapshotId) {

@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.view;
 
-import java.io.Serializable;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +27,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
+import org.apache.iceberg.BaseMetadata;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -44,7 +44,7 @@ import org.slf4j.LoggerFactory;
 @SuppressWarnings("ImmutablesStyle")
 @Value.Immutable(builder = false)
 @Value.Style(allParameters = true, visibilityString = "PACKAGE")
-public interface ViewMetadata extends Serializable {
+public interface ViewMetadata extends BaseMetadata {
   Logger LOG = LoggerFactory.getLogger(ViewMetadata.class);
   int SUPPORTED_VIEW_FORMAT_VERSION = 1;
   int DEFAULT_VIEW_FORMAT_VERSION = 1;
@@ -53,6 +53,7 @@ public interface ViewMetadata extends Serializable {
 
   int formatVersion();
 
+  @Override
   String location();
 
   default Integer currentSchemaId() {
@@ -76,10 +77,12 @@ public interface ViewMetadata extends Serializable {
 
   List<ViewHistoryEntry> history();
 
+  @Override
   Map<String, String> properties();
 
   List<MetadataUpdate> changes();
 
+  @Override
   @Nullable
   String metadataFileLocation();
 
@@ -119,6 +122,7 @@ public interface ViewMetadata extends Serializable {
     return builder.build();
   }
 
+  @Override
   default Schema schema() {
     return schemasById().get(currentSchemaId());
   }
