@@ -31,8 +31,10 @@ import org.apache.spark.sql.catalyst.analysis.NamespaceAlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchFunctionException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.analysis.NoSuchViewException;
 import org.apache.spark.sql.catalyst.analysis.NonEmptyNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
+import org.apache.spark.sql.catalyst.analysis.ViewAlreadyExistsException;
 import org.apache.spark.sql.connector.catalog.CatalogExtension;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.FunctionCatalog;
@@ -44,6 +46,9 @@ import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.TableChange;
+import org.apache.spark.sql.connector.catalog.View;
+import org.apache.spark.sql.connector.catalog.ViewCatalog;
+import org.apache.spark.sql.connector.catalog.ViewChange;
 import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
@@ -55,13 +60,16 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  * @param <T> CatalogPlugin class to avoid casting to TableCatalog, FunctionCatalog and
  *     SupportsNamespaces.
  */
-public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & SupportsNamespaces>
+public class SparkSessionCatalog<
+        T extends TableCatalog & FunctionCatalog & SupportsNamespaces & ViewCatalog>
     extends BaseCatalog implements CatalogExtension {
   private static final String[] DEFAULT_NAMESPACE = new String[] {"default"};
 
   private String catalogName = null;
   private TableCatalog icebergCatalog = null;
   private StagingTableCatalog asStagingCatalog = null;
+  private ViewCatalog asViewCatalog = null;
+  private SupportsNamespaces asNamespaceCatalog = null;
   private T sessionCatalog = null;
   private boolean createParquetAsIceberg = false;
   private boolean createAvroAsIceberg = false;
@@ -100,30 +108,56 @@ public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & Supp
 
   @Override
   public boolean namespaceExists(String[] namespace) {
-    return getSessionCatalog().namespaceExists(namespace);
+    boolean exists = getSessionCatalog().namespaceExists(namespace);
+    //    if (null != asNamespaceCatalog && asNamespaceCatalog.namespaceExists(namespace)) {
+    if (null != asNamespaceCatalog) {
+      return asNamespaceCatalog.namespaceExists(namespace) && exists;
+    }
+
+    return exists;
   }
 
   @Override
   public Map<String, String> loadNamespaceMetadata(String[] namespace)
       throws NoSuchNamespaceException {
+    if (null != asNamespaceCatalog && asNamespaceCatalog.namespaceExists(namespace)) {
+      return asNamespaceCatalog.loadNamespaceMetadata(namespace);
+    }
+
     return getSessionCatalog().loadNamespaceMetadata(namespace);
   }
 
   @Override
   public void createNamespace(String[] namespace, Map<String, String> metadata)
       throws NamespaceAlreadyExistsException {
+    try {
+      getSessionCatalog().createNamespace(namespace, metadata);
+    } finally {
+      if (null != asNamespaceCatalog && !asNamespaceCatalog.namespaceExists(namespace)) {
+        asNamespaceCatalog.createNamespace(namespace, metadata);
+      }
+    }
+
     getSessionCatalog().createNamespace(namespace, metadata);
   }
 
   @Override
   public void alterNamespace(String[] namespace, NamespaceChange... changes)
       throws NoSuchNamespaceException {
+    if (null != asNamespaceCatalog && asNamespaceCatalog.namespaceExists(namespace)) {
+      asNamespaceCatalog.alterNamespace(namespace, changes);
+    }
+
     getSessionCatalog().alterNamespace(namespace, changes);
   }
 
   @Override
   public boolean dropNamespace(String[] namespace, boolean cascade)
       throws NoSuchNamespaceException, NonEmptyNamespaceException {
+    if (null != asNamespaceCatalog && asNamespaceCatalog.namespaceExists(namespace)) {
+      asNamespaceCatalog.dropNamespace(namespace, cascade);
+    }
+
     return getSessionCatalog().dropNamespace(namespace, cascade);
   }
 
@@ -319,6 +353,14 @@ public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & Supp
       this.asStagingCatalog = (StagingTableCatalog) icebergCatalog;
     }
 
+    if (icebergCatalog instanceof ViewCatalog) {
+      this.asViewCatalog = (ViewCatalog) icebergCatalog;
+    }
+
+    if (icebergCatalog instanceof SupportsNamespaces) {
+      this.asNamespaceCatalog = (SupportsNamespaces) icebergCatalog;
+    }
+
     this.createParquetAsIceberg = options.getBoolean("parquet-enabled", createParquetAsIceberg);
     this.createAvroAsIceberg = options.getBoolean("avro-enabled", createAvroAsIceberg);
     this.createOrcAsIceberg = options.getBoolean("orc-enabled", createOrcAsIceberg);
@@ -389,12 +431,167 @@ public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & Supp
     return ((HasIcebergCatalog) icebergCatalog).icebergCatalog();
   }
 
+  private boolean isViewCatalog() {
+    return getSessionCatalog() instanceof ViewCatalog;
+  }
+
   @Override
   public UnboundFunction loadFunction(Identifier ident) throws NoSuchFunctionException {
     try {
       return super.loadFunction(ident);
     } catch (NoSuchFunctionException e) {
       return getSessionCatalog().loadFunction(ident);
+    }
+  }
+
+  @Override
+  public Identifier[] listViews(String... namespace) {
+    try {
+      if (null != asViewCatalog) {
+        return asViewCatalog.listViews(namespace);
+      } else if (isViewCatalog()) {
+        getSessionCatalog().listViews(namespace);
+      }
+    } catch (NoSuchNamespaceException e) {
+      throw new RuntimeException(e);
+    }
+
+    return new Identifier[0];
+  }
+
+  @Override
+  public View loadView(Identifier ident) throws NoSuchViewException {
+    if (null != asViewCatalog && asViewCatalog.viewExists(ident)) {
+      return asViewCatalog.loadView(ident);
+    } else if (isViewCatalog() && getSessionCatalog().viewExists(ident)) {
+      return getSessionCatalog().loadView(ident);
+    }
+
+    throw new NoSuchViewException(ident);
+  }
+
+  @Override
+  public View createView(
+      Identifier ident,
+      String sql,
+      String currentCatalog,
+      String[] currentNamespace,
+      StructType schema,
+      String[] queryColumnNames,
+      String[] columnAliases,
+      String[] columnComments,
+      Map<String, String> properties)
+      throws ViewAlreadyExistsException, NoSuchNamespaceException {
+    if (null != asViewCatalog) {
+      return asViewCatalog.createView(
+          ident,
+          sql,
+          currentCatalog,
+          currentNamespace,
+          schema,
+          queryColumnNames,
+          columnAliases,
+          columnComments,
+          properties);
+    } else if (isViewCatalog()) {
+      return getSessionCatalog()
+          .createView(
+              ident,
+              sql,
+              currentCatalog,
+              currentNamespace,
+              schema,
+              queryColumnNames,
+              columnAliases,
+              columnComments,
+              properties);
+    }
+
+    throw new UnsupportedOperationException(
+        "Creating a view is not supported by catalog: " + catalogName);
+  }
+
+  @Override
+  public View replaceView(
+      Identifier ident,
+      String sql,
+      String currentCatalog,
+      String[] currentNamespace,
+      StructType schema,
+      String[] queryColumnNames,
+      String[] columnAliases,
+      String[] columnComments,
+      Map<String, String> properties)
+      throws NoSuchNamespaceException, NoSuchViewException {
+    if (asViewCatalog instanceof SupportsReplaceView) {
+      return ((SupportsReplaceView) asViewCatalog)
+          .replaceView(
+              ident,
+              sql,
+              currentCatalog,
+              currentNamespace,
+              schema,
+              queryColumnNames,
+              columnAliases,
+              columnComments,
+              properties);
+    } else if (isViewCatalog()) {
+      try {
+        getSessionCatalog().dropView(ident);
+        return getSessionCatalog()
+            .createView(
+                ident,
+                sql,
+                currentCatalog,
+                currentNamespace,
+                schema,
+                queryColumnNames,
+                columnAliases,
+                columnComments,
+                properties);
+      } catch (ViewAlreadyExistsException e) {
+        throw new RuntimeException(e);
+      }
+    }
+
+    throw new UnsupportedOperationException(
+        "Replacing a view is not supported by catalog: " + catalogName);
+  }
+
+  @Override
+  public View alterView(Identifier ident, ViewChange... changes)
+      throws NoSuchViewException, IllegalArgumentException {
+    if (null != asViewCatalog && asViewCatalog.viewExists(ident)) {
+      return asViewCatalog.alterView(ident, changes);
+    } else if (isViewCatalog()) {
+      return getSessionCatalog().alterView(ident, changes);
+    }
+
+    throw new UnsupportedOperationException(
+        "Altering a view is not supported by catalog: " + catalogName);
+  }
+
+  @Override
+  public boolean dropView(Identifier ident) {
+    if (null != asViewCatalog && asViewCatalog.viewExists(ident)) {
+      return asViewCatalog.dropView(ident);
+    } else if (isViewCatalog()) {
+      return getSessionCatalog().dropView(ident);
+    }
+
+    return false;
+  }
+
+  @Override
+  public void renameView(Identifier fromIdentifier, Identifier toIdentifier)
+      throws NoSuchViewException, ViewAlreadyExistsException {
+    if (null != asViewCatalog && asViewCatalog.viewExists(fromIdentifier)) {
+      asViewCatalog.renameView(fromIdentifier, toIdentifier);
+    } else if (isViewCatalog()) {
+      getSessionCatalog().renameView(fromIdentifier, toIdentifier);
+    } else {
+      throw new UnsupportedOperationException(
+          "Renaming a view is not supported by catalog: " + catalogName);
     }
   }
 }
