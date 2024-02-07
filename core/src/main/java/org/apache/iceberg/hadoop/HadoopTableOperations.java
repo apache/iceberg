@@ -45,6 +45,7 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.relocated.com.google.common.annotations.Beta;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -229,6 +230,7 @@ public class HadoopTableOperations implements TableOperations {
               "Failed to write a new versionHintFile,commit version is [{}], is there a problem with the file system?",
               nextVersion);
         }
+        cleanVersionHintIfOld(fs);
         deleteRemovedMetadataFiles(base, metadata);
       }
     } catch (CommitStateUnknownException | CommitFailedException e) {
@@ -253,6 +255,25 @@ public class HadoopTableOperations implements TableOperations {
         cleanUncommittedMeta(tempMetadataFile);
         throw new CommitFailedException(e);
       }
+    }
+  }
+
+  @VisibleForTesting
+  @Beta
+  void cleanVersionHintIfOld(FileSystem fs) throws IOException {
+    // Is it worth it? Because it doesn't exactly solve the problem.
+    // In the extreme case, we're bound to run into this problem.
+    // Do we need to pass on some of the maintenance costs to the user?
+    // After all, the user's data isn't corrupted, they just can't submit a new version.
+    Path versionHintFile = versionHintFile();
+    // With multiple clients operating concurrently,
+    // in some extreme cases we may be submitting an older version of versionHint.
+    // We should do our best to handle this situation.
+    // If the version in the versionHint is old.
+    // Then we should clean up the wrong versionHint.
+    if (fs.exists(versionHintFile)
+        && findVersionWithOutVersionHint(fs) > findVersionByUsingVersionHint(fs, versionHintFile)) {
+      io().deleteFile(versionHintFile.toString());
     }
   }
 
@@ -466,46 +487,53 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   @VisibleForTesting
-  int findVersion() {
-    Path versionHintFile = versionHintFile();
-    FileSystem fs = getFileSystem(versionHintFile, conf);
-
+  int findVersionByUsingVersionHint(FileSystem fs, Path versionHintFile) throws IOException {
+    if (!fs.exists(versionHintFile)) {
+      throw new IOException("VersionHintNotExists!");
+    }
     try (InputStreamReader fsr =
             new InputStreamReader(fs.open(versionHintFile), StandardCharsets.UTF_8);
         BufferedReader in = new BufferedReader(fsr)) {
       return Integer.parseInt(in.readLine().replace("\n", ""));
+    }
+  }
 
-    } catch (Exception e) {
-      try {
-        if (fs.exists(metadataRoot())) {
-          LOG.warn("Error reading version hint file {}", versionHintFile, e);
-        } else {
-          // Either the table has just been created, or there has been a corruption which we will
-          // not consider.
-          LOG.warn("Metadata for table not found in directory [{}]", metadataRoot(), e);
-          return 0;
-        }
-
-        // List the metadata directory to find the version files, and try to recover the max
-        // available version
-        FileStatus[] files =
-            fs.listStatus(
-                metadataRoot(), name -> VERSION_PATTERN.matcher(name.getName()).matches());
-        int maxVersion = 0;
-
-        for (FileStatus file : files) {
-          int currentVersion = version(file.getPath().getName());
-          if (currentVersion > maxVersion && getMetadataFile(currentVersion) != null) {
-            maxVersion = currentVersion;
-          }
-        }
-
-        return maxVersion;
-      } catch (IOException io) {
-        LOG.warn("Error trying to recover version-hint.txt data for {}", versionHintFile, e);
-        // We failed to retrieve the version files, we should throw the exception
-        throw new RuntimeIOException(io);
+  @VisibleForTesting
+  int findVersionWithOutVersionHint(FileSystem fs) {
+    try {
+      if (fs.exists(metadataRoot())) {
+        LOG.warn("Error reading version hint file {}", versionHintFile());
+      } else {
+        // Either the table has just been created, or there has been a corruption which we will
+        // not consider.
+        LOG.warn("Metadata for table not found in directory [{}]", metadataRoot());
+        return 0;
       }
+      // List the metadata directory to find the version files, and try to recover the max
+      // available version
+      FileStatus[] files =
+          fs.listStatus(metadataRoot(), name -> VERSION_PATTERN.matcher(name.getName()).matches());
+      int maxVersion = 0;
+      for (FileStatus file : files) {
+        int currentVersion = version(file.getPath().getName());
+        if (currentVersion > maxVersion && getMetadataFile(currentVersion) != null) {
+          maxVersion = currentVersion;
+        }
+      }
+      return maxVersion;
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @VisibleForTesting
+  int findVersion() {
+    Path versionHintFile = versionHintFile();
+    FileSystem fs = getFileSystem(versionHintFile, conf);
+    try {
+      return findVersionByUsingVersionHint(fs, versionHintFile);
+    } catch (Exception e) {
+      return findVersionWithOutVersionHint(fs);
     }
   }
 
