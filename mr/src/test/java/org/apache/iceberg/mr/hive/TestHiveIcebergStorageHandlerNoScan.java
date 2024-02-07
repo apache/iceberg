@@ -971,22 +971,33 @@ public class TestHiveIcebergStorageHandlerNoScan {
   public void testCreateTableWithPercentInName() throws IOException {
     TableIdentifier identifier = TableIdentifier.of("default", "[|]#&%_@");
 
-    shell.executeStatement("CREATE EXTERNAL TABLE `[|]#&%_@` " +
-        "STORED BY ICEBERG " +
-        testTables.locationForCreateTableSQL(identifier) +
-        "TBLPROPERTIES ('" + InputFormatConfig.TABLE_SCHEMA + "'='" +
-        SchemaParser.toJson(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA) + "', " +
-        "'" + InputFormatConfig.PARTITION_SPEC + "'='" +
-        PartitionSpecParser.toJson(PartitionSpec.unpartitioned()) + "', " +
-        "'dummy'='test', " +
-        "'" + InputFormatConfig.EXTERNAL_TABLE_PURGE + "'='TRUE', " +
-        "'" + InputFormatConfig.CATALOG_NAME + "'='" + testTables.catalogName() + "')");
+    shell.executeStatement(
+        "CREATE EXTERNAL TABLE `[|]#&%_@` "
+            + "STORED BY ICEBERG "
+            + testTables.locationForCreateTableSQL(identifier)
+            + "TBLPROPERTIES ('"
+            + InputFormatConfig.TABLE_SCHEMA
+            + "'='"
+            + SchemaParser.toJson(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA)
+            + "', '"
+            + InputFormatConfig.PARTITION_SPEC
+            + "'='"
+            + PartitionSpecParser.toJson(PartitionSpec.unpartitioned())
+            + "', 'dummy'='test', '"
+            + InputFormatConfig.EXTERNAL_TABLE_PURGE
+            + "'='TRUE', '"
+            + InputFormatConfig.CATALOG_NAME
+            + "'='"
+            + testTables.catalogName()
+            + "')");
 
     // Check the Iceberg table data
     org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
-    Assume.assumeTrue("This test is only for hive catalog", 
+    Assume.assumeTrue(
+        "This test is only for hive catalog", 
         testTableType == TestTables.TestTableType.HIVE_CATALOG);
-    Assert.assertEquals(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA.asStruct(),
+    Assert.assertEquals(
+        HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA.asStruct(),
         icebergTable.schema().asStruct());
     Assert.assertEquals(PartitionSpec.unpartitioned(), icebergTable.spec());
   }
