@@ -563,7 +563,13 @@ public class HadoopTableOperations implements TableOperations {
         // verify that the version that is ready to be committed at a time is the latest version.
         throw new CommitFailedException("Version %d too old: %s", nextVersion, dst);
       }
-      return fs.rename(src, dst);
+      try {
+        // The most important step. There must be no mistakes in this step.
+        // Even if it does, we should stop everything.
+        return fs.rename(src, dst);
+      } catch (Throwable e) {
+        throw new CommitStateUnknownException(e);
+      }
     } finally {
       if (!lockManager.release(dst.toString(), dst.toString())) {
         LOG.warn("Failed to release lock on file: {} with owner: {}", dst, src);
