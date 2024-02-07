@@ -204,7 +204,7 @@ public class HadoopTableOperations implements TableOperations {
         // This may be too heavy. But it can stay that way for now.
         String msg =
             String.format(
-                "Can not write versionHint. commitVersion = %s.Is there a problem with the file system?",
+                "Can not write newMetaData. commitVersion = %s.Are there other clients running in parallel with the current task?",
                 nextVersion);
         throw new RuntimeException(msg);
       } else {
@@ -220,7 +220,7 @@ public class HadoopTableOperations implements TableOperations {
         boolean writeVersionHintSuccess = writeVersionHint(fs, nextVersion);
         if (!writeVersionHintSuccess) {
           LOG.warn(
-              "Failed to write a new versionHintFile,commit version is [{}], is there a problem with the file system?",
+              "Failed to write a new versionHintFile,commit version is [{}], Are there other clients running in parallel with the current task?",
               nextVersion);
         }
         deleteRemovedMetadataFiles(base, metadata);
