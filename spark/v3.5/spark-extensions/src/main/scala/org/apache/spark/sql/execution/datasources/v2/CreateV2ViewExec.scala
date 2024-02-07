@@ -21,6 +21,7 @@ package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.iceberg.spark.SupportsReplaceView
 import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.analysis.NoSuchViewException
 import org.apache.spark.sql.catalyst.analysis.ViewAlreadyExistsException
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.connector.catalog.Identifier
@@ -59,51 +60,63 @@ case class CreateV2ViewExec(
       // CREATE OR REPLACE VIEW
       catalog match {
         case c: SupportsReplaceView =>
-          c.replaceView(
-            ident,
-            queryText,
-            currentCatalog,
-            currentNamespace,
-            viewSchema,
-            queryColumnNames.toArray,
-            columnAliases.toArray,
-            columnComments.map(c => c.orNull).toArray,
-            newProperties.asJava)
+          try {
+            replaceView(c, currentCatalog, currentNamespace, newProperties)
+          } catch {
+            // view might have been concurrently dropped during replace
+            case _: NoSuchViewException =>
+              replaceView(c, currentCatalog, currentNamespace, newProperties)
+          }
         case _ =>
           if (catalog.viewExists(ident)) {
             catalog.dropView(ident)
           }
 
-          catalog.createView(
-            ident,
-            queryText,
-            currentCatalog,
-            currentNamespace,
-            viewSchema,
-            queryColumnNames.toArray,
-            columnAliases.toArray,
-            columnComments.map(c => c.orNull).toArray,
-            newProperties.asJava)
+          createView(currentCatalog, currentNamespace, newProperties)
       }
     } else {
       try {
         // CREATE VIEW [IF NOT EXISTS]
-        catalog.createView(
-          ident,
-          queryText,
-          currentCatalog,
-          currentNamespace,
-          viewSchema,
-          queryColumnNames.toArray,
-          columnAliases.toArray,
-          columnComments.map(c => c.orNull).toArray,
-          newProperties.asJava)
+        createView(currentCatalog, currentNamespace, newProperties)
       } catch {
         case _: ViewAlreadyExistsException if allowExisting => // Ignore
       }
     }
 
     Nil
+  }
+
+  private def replaceView(
+    supportsReplaceView: SupportsReplaceView,
+    currentCatalog: String,
+    currentNamespace: Array[String],
+    newProperties: Map[String, String]) = {
+    supportsReplaceView.replaceView(
+      ident,
+      queryText,
+      currentCatalog,
+      currentNamespace,
+      viewSchema,
+      queryColumnNames.toArray,
+      columnAliases.toArray,
+      columnComments.map(c => c.orNull).toArray,
+      newProperties.asJava)
+  }
+
+  private def createView(
+    currentCatalog: String,
+    currentNamespace: Array[String],
+    newProperties: Map[String, String]) = {
+    catalog.createView(
+      ident,
+      queryText,
+      currentCatalog,
+      currentNamespace,
+      viewSchema,
+      queryColumnNames.toArray,
+      columnAliases.toArray,
+      columnComments.map(c => c.orNull).toArray,
+      newProperties.asJava)
   }
 
   override def simpleString(maxFields: Int): String = {
