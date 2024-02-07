@@ -619,7 +619,7 @@ public class SparkCatalog extends BaseCatalog
       String[] columnAliases,
       String[] columnComments,
       Map<String, String> properties)
-      throws NoSuchNamespaceException {
+      throws NoSuchNamespaceException, NoSuchViewException {
     if (null != asViewCatalog) {
       Schema icebergSchema = SparkSchemaUtil.convert(schema);
 
@@ -643,6 +643,8 @@ public class SparkCatalog extends BaseCatalog
         return new SparkView(catalogName, view);
       } catch (org.apache.iceberg.exceptions.NoSuchNamespaceException e) {
         throw new NoSuchNamespaceException(currentNamespace);
+      } catch (org.apache.iceberg.exceptions.NoSuchViewException e) {
+        throw new NoSuchViewException(ident);
       }
     }
 
