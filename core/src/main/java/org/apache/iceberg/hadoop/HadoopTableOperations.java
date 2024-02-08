@@ -464,8 +464,15 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   @VisibleForTesting
-  boolean renameVersionHint(FileSystem fs, Path src, Path target) throws IOException {
-    return fs.rename(src, target);
+  boolean renameMetaDataFile(FileSystem fs, Path tempMetaData, Path finalMetaData)
+      throws IOException {
+    return fs.rename(tempMetaData, finalMetaData);
+  }
+
+  @VisibleForTesting
+  boolean renameVersionHint(FileSystem fs, Path tempVersionHintFile, Path versionHintFile)
+      throws IOException {
+    return fs.rename(tempVersionHintFile, versionHintFile);
   }
 
   private void writeVersionToPath(FileSystem fs, Path path, int versionToWrite) {
@@ -563,13 +570,7 @@ public class HadoopTableOperations implements TableOperations {
         // verify that the version that is ready to be committed at a time is the latest version.
         throw new CommitFailedException("Version %d too old: %s", nextVersion, dst);
       }
-      try {
-        // The most important step. There must be no mistakes in this step.
-        // Even if it does, we should stop everything.
-        return fs.rename(src, dst);
-      } catch (Throwable e) {
-        throw new CommitStateUnknownException(e);
-      }
+      return renameMetaDataFileAndCheck(fs, src, dst);
     } finally {
       if (!lockManager.release(dst.toString(), dst.toString())) {
         LOG.warn("Failed to release lock on file: {} with owner: {}", dst, src);
@@ -583,6 +584,37 @@ public class HadoopTableOperations implements TableOperations {
 
   protected FileSystem getFileSystem(Path path, Configuration hadoopConf) {
     return Util.getFs(path, hadoopConf);
+  }
+
+  @VisibleForTesting
+  boolean renameMetaDataFileAndCheck(FileSystem fs, Path src, Path dst) {
+    try {
+      // The most important step. There must be no mistakes in this step.
+      // Even if it does, we should stop everything.
+      return renameMetaDataFile(fs, src, dst);
+    } catch (Throwable e) {
+      try {
+        if (newMetadataExists(fs, dst) && !tempMetadataExists(fs, src)) {
+          return true;
+        } else {
+          throw new CommitFailedException(e);
+        }
+      } catch (CommitFailedException e1) {
+        throw e1;
+      } catch (Throwable e2) {
+        throw new CommitStateUnknownException(e2);
+      }
+    }
+  }
+
+  @VisibleForTesting
+  boolean newMetadataExists(FileSystem fs, Path newMetadata) throws IOException {
+    return fs.exists(newMetadata);
+  }
+
+  @VisibleForTesting
+  boolean tempMetadataExists(FileSystem fs, Path tempMetadata) throws IOException {
+    return fs.exists(tempMetadata);
   }
 
   /**

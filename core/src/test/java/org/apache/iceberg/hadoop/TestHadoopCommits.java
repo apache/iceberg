@@ -57,6 +57,7 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -244,9 +245,71 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     HadoopTableOperations spyOps4 = spy(tableOperations);
     doThrow(new RuntimeException("FileSystem crash!"))
         .when(spyOps4)
-        .commitNewVersion(any(), any(), any(), any());
+        .renameMetaDataFile(any(), any(), any());
     assertCommitNotChangeVersion(
         baseTable, spyOps4, CommitFailedException.class, "FileSystem crash!");
+
+    HadoopTableOperations spyOps5 = spy(tableOperations);
+    doThrow(new RuntimeException("FileSystem crash!"))
+        .when(spyOps5)
+        .renameMetaDataFile(any(), any(), any());
+    assertCommitNotChangeVersion(
+        baseTable, spyOps5, CommitFailedException.class, "FileSystem crash!");
+  }
+
+  @Test
+  public void testCommitFailedAndCheckFailed() throws IOException {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    BaseTable baseTable = (BaseTable) table;
+    HadoopTableOperations tableOperations = (HadoopTableOperations) baseTable.operations();
+    HadoopTableOperations spyOps = spy(tableOperations);
+    doThrow(new RuntimeException("FileSystem crash!"))
+        .when(spyOps)
+        .renameMetaDataFile(any(), any(), any());
+    doThrow(new RuntimeException("Can not check new Metadata!"))
+        .when(spyOps)
+        .newMetadataExists(any(), any());
+    assertCommitNotChangeVersion(
+        baseTable, spyOps, CommitStateUnknownException.class, "Can not check new Metadata!");
+  }
+
+  @Test
+  public void testCommitFailedAndRenameNotSuccess() throws IOException {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    BaseTable baseTable = (BaseTable) table;
+    HadoopTableOperations tableOperations = (HadoopTableOperations) baseTable.operations();
+    HadoopTableOperations spyOps = spy(tableOperations);
+    doThrow(new RuntimeException("FileSystem crash!"))
+        .when(spyOps)
+        .renameMetaDataFile(any(), any(), any());
+    doReturn(true).when(spyOps).newMetadataExists(any(), any());
+    doReturn(true).when(spyOps).tempMetadataExists(any(), any());
+    assertCommitNotChangeVersion(
+        baseTable, spyOps, CommitFailedException.class, "FileSystem crash!");
+  }
+
+  @Test
+  public void testCommitFailedButActualSuccess() throws IOException {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    BaseTable baseTable = (BaseTable) table;
+    HadoopTableOperations tableOperations = (HadoopTableOperations) baseTable.operations();
+    HadoopTableOperations spyOps = spy(tableOperations);
+    doThrow(new RuntimeException("FileSystem crash!"))
+        .when(spyOps)
+        .renameMetaDataFile(any(), any(), any());
+    doReturn(true).when(spyOps).newMetadataExists(any(), any());
+    doReturn(false).when(spyOps).tempMetadataExists(any(), any());
+    int versionBefore = spyOps.findVersion();
+    TableMetadata metadataV1 = spyOps.current();
+    SortOrder dataSort = SortOrder.builderFor(baseTable.schema()).asc("data").build();
+    TableMetadata metadataV2 = metadataV1.replaceSortOrder(dataSort);
+    spyOps.commit(metadataV1, metadataV2);
+    int versionAfter = spyOps.findVersion();
+    // Since the rename MetaData File method doesn't actually execute at all (spyOps),
+    // it's difficult to simulate locally how the filesystem would behave in extreme cases.
+    // This verification is admittedly not very accurate,
+    // but I can't think of a way to accurately verify this scenario at the moment.
+    assert versionAfter == versionBefore;
   }
 
   private void assertCommitNotChangeVersion(
