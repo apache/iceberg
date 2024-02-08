@@ -387,7 +387,7 @@ public class HadoopTableOperations implements TableOperations {
       // writes the wrong version.
       if (fs.exists(versionHintFile) || findVersionWithOutVersionHint(fs) != versionToWrite) {
         throw new AlreadyExistsException(
-            "Failed to write a new versionHintFile,You are writing to an old-version-Hint,Are there other clients running in parallel with the current task?");
+            "Failed to write a new versionHintFile,User is writing to a corrupted version-Hint-File,Are there other clients running in parallel with the current task?");
       }
       return renameVersionHint(fs, tempVersionHintFile, versionHintFile);
     } catch (Exception e) {
