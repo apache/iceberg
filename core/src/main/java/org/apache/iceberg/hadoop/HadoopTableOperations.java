@@ -38,7 +38,6 @@ import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.encryption.EncryptionManager;
-import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -386,7 +385,7 @@ public class HadoopTableOperations implements TableOperations {
       // We can accept that version Hint fails to write, but we can't accept that version Hint
       // writes the wrong version.
       if (fs.exists(versionHintFile) || findVersionWithOutVersionHint(fs) != versionToWrite) {
-        throw new AlreadyExistsException(
+        throw new IllegalStateException(
             "Failed to write a new versionHintFile,User is writing to a corrupted version-Hint-File,Are there other clients running in parallel with the current task?");
       }
       return renameVersionHint(fs, tempVersionHintFile, versionHintFile);
