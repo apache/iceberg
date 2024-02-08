@@ -286,8 +286,6 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
     // The commit should actually success
     int versionAfterSecond = spyOps.findVersion();
-    assert versionAfterSecond != versionBefore;
-    assert versionAfterSecond > versionBefore;
     assert versionAfterSecond - versionBefore == 1;
 
     // second commit
@@ -298,8 +296,6 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
     // The commit should actually success
     int versionAfterThird = spyOps.findVersion();
-    assert versionAfterThird != versionAfterSecond;
-    assert versionAfterThird > versionAfterSecond;
     assert versionAfterThird - versionBefore == 2;
   }
 
