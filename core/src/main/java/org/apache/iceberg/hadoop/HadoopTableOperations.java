@@ -226,8 +226,11 @@ public class HadoopTableOperations implements TableOperations {
       }
     } catch (CommitStateUnknownException | CommitFailedException e) {
       // These exceptions are thrown under our manual control.
-      // When these two exceptions are thrown, the metadata should not be submitted successfully.
-      this.shouldRefresh = versionCommitSuccess;
+      // When a CommitFailedException is thrown, the metadata should not be submitted successfully.
+      // If a CommitStateUnknownException is thrown,
+      // this means that we don't actually know whether the commit succeeded or failed.
+      // We should be ready to refresh.
+      this.shouldRefresh = e instanceof CommitStateUnknownException || versionCommitSuccess;
       throw e;
     } catch (Throwable e) {
       // If new version metadata wrote, we consider the commit to have actually succeeded.
