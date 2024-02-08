@@ -463,9 +463,9 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   @VisibleForTesting
-  boolean renameMetaDataFile(FileSystem fs, Path tempMetaData, Path finalMetaData)
+  boolean renameMetaDataFile(FileSystem fs, Path tempMetaDataFile, Path finalMetaDataFile)
       throws IOException {
-    return fs.rename(tempMetaData, finalMetaData);
+    return fs.rename(tempMetaDataFile, finalMetaDataFile);
   }
 
   @VisibleForTesting
@@ -538,11 +538,12 @@ public class HadoopTableOperations implements TableOperations {
    * an attempt will be made to delete the source file.
    *
    * @param fs the filesystem used for the rename
-   * @param src the source file
-   * @param dst the destination file
+   * @param tempMetaDataFile the source file
+   * @param finalMetaDataFile the destination file
    */
   @VisibleForTesting
-  boolean commitNewVersion(FileSystem fs, Path src, Path dst, Integer nextVersion)
+  boolean commitNewVersion(
+      FileSystem fs, Path tempMetaDataFile, Path finalMetaDataFile, Integer nextVersion)
       throws IOException {
     // This renames operation is the atomic commit operation.
     // Since fs.rename() cannot overwrite existing files, in case of concurrent operations, only
@@ -551,13 +552,15 @@ public class HadoopTableOperations implements TableOperations {
     // TTL,then the commit will succeed and the version will be messed up.
     // Therefore, it is important to troubleshoot these issues before performing this step.
     try {
-      if (!lockManager.acquire(dst.toString(), dst.toString())) {
+      if (!lockManager.acquire(finalMetaDataFile.toString(), finalMetaDataFile.toString())) {
         throw new CommitFailedException(
-            "Failed to acquire lock on file: %s with owner: %s", dst, src);
+            "Failed to acquire lock on file: %s with owner: %s",
+            finalMetaDataFile, tempMetaDataFile);
       }
 
-      if (fs.exists(dst)) {
-        throw new CommitFailedException("Version %d already exists: %s", nextVersion, dst);
+      if (fs.exists(finalMetaDataFile)) {
+        throw new CommitFailedException(
+            "Version %d already exists: %s", nextVersion, finalMetaDataFile);
       }
       if (fs.exists(versionHintFile())) {
         throw new CommitFailedException(
@@ -567,12 +570,15 @@ public class HadoopTableOperations implements TableOperations {
       if (!nextVersionIsLatest(nextVersion, fs)) {
         // In the case of concurrent execution,
         // verify that the version that is ready to be committed at a time is the latest version.
-        throw new CommitFailedException("Version %d too old: %s", nextVersion, dst);
+        throw new CommitFailedException("Version %d too old: %s", nextVersion, finalMetaDataFile);
       }
-      return renameMetaDataFileAndCheck(fs, src, dst);
+      return renameMetaDataFileAndCheck(fs, tempMetaDataFile, finalMetaDataFile);
     } finally {
-      if (!lockManager.release(dst.toString(), dst.toString())) {
-        LOG.warn("Failed to release lock on file: {} with owner: {}", dst, src);
+      if (!lockManager.release(finalMetaDataFile.toString(), finalMetaDataFile.toString())) {
+        LOG.warn(
+            "Failed to release lock on file: {} with owner: {}",
+            finalMetaDataFile,
+            tempMetaDataFile);
       }
     }
   }
@@ -586,14 +592,15 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   @VisibleForTesting
-  boolean renameMetaDataFileAndCheck(FileSystem fs, Path src, Path dst) {
+  boolean renameMetaDataFileAndCheck(FileSystem fs, Path tempMetaDataFile, Path finalMetaDataFile) {
     try {
       // The most important step. There must be no mistakes in this step.
       // Even if it does, we should stop everything.
-      return renameMetaDataFile(fs, src, dst);
+      return renameMetaDataFile(fs, tempMetaDataFile, finalMetaDataFile);
     } catch (Throwable e) {
+      LOG.error("There were some problems with submitting the new version.", e);
       try {
-        if (newMetadataExists(fs, dst) && !tempMetadataExists(fs, src)) {
+        if (newMetadataExists(fs, finalMetaDataFile) && !tempMetadataExists(fs, tempMetaDataFile)) {
           return true;
         } else {
           throw new CommitFailedException(e);
