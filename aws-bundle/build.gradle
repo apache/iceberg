@@ -35,6 +35,7 @@ project(":iceberg-aws-bundle") {
     implementation "software.amazon.awssdk:sts"
     implementation "software.amazon.awssdk:dynamodb"
     implementation "software.amazon.awssdk:lakeformation"
+    implementation "software.amazon.awssdk:url-connection-client"
   }
 
   shadowJar {
