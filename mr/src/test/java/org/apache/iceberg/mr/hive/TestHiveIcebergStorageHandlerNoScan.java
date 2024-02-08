@@ -973,7 +973,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
 
     shell.executeStatement(
         "CREATE EXTERNAL TABLE `[|]#&%_@` "
-            + "STORED BY ICEBERG "
+            + "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' "
             + testTables.locationForCreateTableSQL(identifier)
             + "TBLPROPERTIES ('"
             + InputFormatConfig.TABLE_SCHEMA
