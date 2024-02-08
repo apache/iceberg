@@ -59,8 +59,7 @@ IOMETE is a fully-managed ready to use, batteries included Data Platform. IOMETE
 PuppyGraph is a cloud-native graph analytics engine that enables users to query one or more relational data stores as a unified graph model. This eliminates the overhead of deploying and maintaining a siloed graph database system, with no ETL required. [PuppyGraph’s native Apache Iceberg integration](https://docs.puppygraph.com/user-manual/getting-started/iceberg) adds native graph capabilities to your existing data lake in an easy and performant way.
 
 ### [Snowflake](http://snowflake.com/)
-
-[Snowflake](https://www.snowflake.com/data-cloud/) is a single, cross-cloud platform that enables every organization to mobilize their data with Snowflake’s Data Cloud. Snowflake supports Apache Iceberg by offering [native support for Iceberg Tables](https://www.snowflake.com/blog/iceberg-tables-powering-open-standards-with-snowflake-innovations/) for full DML as well as connectors to [External Tables](https://www.snowflake.com/blog/expanding-the-data-cloud-with-apache-iceberg/) for read-only access.
+[Snowflake](https://www.snowflake.com/en/) is a single, cross-cloud platform that enables every organization to mobilize their data with Snowflake’s Data Cloud. Snowflake supports Apache Iceberg by offering [Snowflake-managed Iceberg Tables](https://docs.snowflake.com/en/user-guide/tables-iceberg#use-snowflake-as-the-iceberg-catalog) for full DML as well as [externally managed Iceberg Tables with catalog integrations](https://docs.snowflake.com/en/user-guide/tables-iceberg#use-a-catalog-integration) for read-only access.
 
 ### [Starburst](http://starburst.io)
 
