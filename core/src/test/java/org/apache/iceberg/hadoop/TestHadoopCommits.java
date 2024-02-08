@@ -211,36 +211,25 @@ public class TestHadoopCommits extends HadoopTableTestBase {
   }
 
   @Test
-  public void testVersionHintCorrupted() throws IOException {
-    table.newFastAppend().appendFile(FILE_A).commit();
-    BaseTable baseTable = (BaseTable) table;
-    HadoopTableOperations tableOperations = (HadoopTableOperations) baseTable.operations();
-    HadoopTableOperations spyOps = spy(tableOperations);
-    doReturn(true).when(spyOps).versionHintIsCorrupted(any(), any());
-    assertCommitNotChangeVersion(
-        baseTable, spyOps, CommitFailedException.class, "The version Hint was corrupted.");
-  }
-
-  @Test
   public void testCommitFailedBeforeChangeVersionHint() throws IOException {
     table.newFastAppend().appendFile(FILE_A).commit();
     BaseTable baseTable = (BaseTable) table;
     HadoopTableOperations tableOperations = (HadoopTableOperations) baseTable.operations();
-
-    HadoopTableOperations spyOps1 = spy(tableOperations);
-    doReturn(false).when(spyOps1).versionHintExists(any(), any());
-    assertCommitNotChangeVersion(
-        baseTable, spyOps1, CommitFailedException.class, "Can not find old versionHint");
 
     HadoopTableOperations spyOps2 = spy(tableOperations);
     doReturn(false).when(spyOps2).deleteVersionHint(any());
     assertCommitNotChangeVersion(
         baseTable, spyOps2, CommitFailedException.class, "Can not drop old versionHint");
 
+    HadoopTableOperations spyOps1 = spy(tableOperations);
+    doReturn(true).when(spyOps1).versionHintExists(any(), any());
+    doReturn(true).when(spyOps1).versionHintIsCorrupted(any(), any());
+    assertCommitNotChangeVersion(
+        baseTable, spyOps1, CommitFailedException.class, "VersionHint is corrupted!");
+
     HadoopTableOperations spyOps3 = spy(tableOperations);
     doReturn(false).when(spyOps3).nextVersionIsLatest(any(), any());
-    assertCommitNotChangeVersion(
-        baseTable, spyOps3, CommitFailedException.class, "Can not drop old versionHint");
+    assertCommitNotChangeVersion(baseTable, spyOps3, CommitFailedException.class, "too old");
 
     HadoopTableOperations spyOps4 = spy(tableOperations);
     doThrow(new RuntimeException("FileSystem crash!"))
@@ -305,11 +294,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     TableMetadata metadataV2 = metadataV1.replaceSortOrder(dataSort);
     spyOps.commit(metadataV1, metadataV2);
     int versionAfter = spyOps.findVersion();
-    // Since the rename MetaData File method doesn't actually execute at all (spyOps),
-    // it's difficult to simulate locally how the filesystem would behave in extreme cases.
-    // This verification is admittedly not very accurate,
-    // but I can't think of a way to accurately verify this scenario at the moment.
-    assert versionAfter == versionBefore;
+    assert versionAfter - versionBefore == 1;
   }
 
   private void assertCommitNotChangeVersion(

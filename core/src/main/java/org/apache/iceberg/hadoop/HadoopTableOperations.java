@@ -72,7 +72,6 @@ public class HadoopTableOperations implements TableOperations {
   private volatile TableMetadata currentMetadata = null;
   private volatile Integer version = null;
   private volatile boolean shouldRefresh = true;
-  private volatile boolean firstRun;
 
   protected HadoopTableOperations(
       Path location, FileIO fileIO, Configuration conf, LockManager lockManager) {
@@ -80,7 +79,6 @@ public class HadoopTableOperations implements TableOperations {
     this.location = location;
     this.fileIO = fileIO;
     this.lockManager = lockManager;
-    this.firstRun = true;
   }
 
   @Override
@@ -134,18 +132,9 @@ public class HadoopTableOperations implements TableOperations {
 
   @Override
   public void commit(TableMetadata base, TableMetadata metadata) {
-    // findOldVersionHint-------------------->isFirstRun------->JobFail
-    //        |                 NOT EXISTS        |        NO
-    //        | yes                               |
-    //        |                                   |YES
-    //        ↓                 NO                |
-    // checkNextVersionIsLatest----->JobFail      ↓
-    //        |                              nextVersionIsLatest------->JobFail
-    //        | yes                               |                NO
-    //        ↓              NO                   |YES
-    // dropOldVersionHint----------->JobFail      |
-    //        |                                   |
-    //        |<----------------------------------|
+    // dropOldVersionHint----------->JobFail
+    //        |              NO
+    //        |
     //        | yes
     //        ↓
     // writeNewVersionMeta-------------------->JobFail
@@ -201,31 +190,17 @@ public class HadoopTableOperations implements TableOperations {
       deleteOldVersionHint(fs, versionHintFile(), nextVersion);
       versionCommitSuccess = commitNewVersion(fs, tempMetadataFile, finalMetadataFile, nextVersion);
       if (!versionCommitSuccess) {
-        // Users should clean up orphaned files after job fail.
-        // This may be too heavy. But it can stay that way for now.
         String msg =
             String.format(
                 "Can not write newMetaData. commitVersion = %s.Are there other clients running in parallel with the current task?",
                 nextVersion);
         throw new RuntimeException(msg);
-      } else {
-        this.shouldRefresh = versionCommitSuccess;
-        // In fact, we don't really care if the metadata cleanup/update succeeds or not,
-        // if it fails this time, we can execute it in the next commit method call.
-        // So we should fix the shouldRefresh flag first.
-        if (this.firstRun) {
-          this.firstRun = false;
-        }
-        LOG.info("Committed a new metadata file {}", finalMetadataFile);
-        // update the best-effort version pointer
-        boolean writeVersionHintSuccess = writeVersionHint(fs, nextVersion);
-        if (!writeVersionHintSuccess) {
-          LOG.warn(
-              "Failed to write a new versionHintFile,commit version is [{}], Are there other clients running in parallel with the current task?",
-              nextVersion);
-        }
-        deleteRemovedMetadataFiles(base, metadata);
       }
+      this.shouldRefresh = versionCommitSuccess;
+      LOG.info("Committed a new metadata file {}", finalMetadataFile);
+      // update the best-effort version pointer
+      writeVersionHint(fs, nextVersion);
+      deleteRemovedMetadataFiles(base, metadata);
     } catch (CommitStateUnknownException | CommitFailedException e) {
       // These exceptions are thrown under our manual control.
       // When a CommitFailedException is thrown, the metadata should not be submitted successfully.
@@ -240,9 +215,6 @@ public class HadoopTableOperations implements TableOperations {
       // Otherwise, we will throw a CommitFailedException.
       this.shouldRefresh = versionCommitSuccess;
       if (versionCommitSuccess) {
-        if (this.firstRun) {
-          this.firstRun = false;
-        }
         LOG.warn(
             "The commit actually successfully, "
                 + "but something unexpected happened after the commit was completed.",
@@ -317,11 +289,6 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   @VisibleForTesting
-  boolean isFirstRun() {
-    return firstRun;
-  }
-
-  @VisibleForTesting
   Path getMetadataFile(Integer metadataVersion) throws IOException {
     // TODO:This is not compatible with the scenario where the user modifies the metadata file
     // compression codec arbitrarily.
@@ -382,18 +349,12 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   @VisibleForTesting
-  boolean writeVersionHint(FileSystem fs, Integer versionToWrite) throws Exception {
+  void writeVersionHint(FileSystem fs, Integer versionToWrite) throws Exception {
     Path versionHintFile = versionHintFile();
     Path tempVersionHintFile = metadataPath(UUID.randomUUID() + "-version-hint.temp");
     try {
       writeVersionToPath(fs, tempVersionHintFile, versionToWrite);
-      // We can accept that version Hint fails to write, but we can't accept that version Hint
-      // writes the wrong version.
-      if (fs.exists(versionHintFile) || findVersionWithOutVersionHint(fs) != versionToWrite) {
-        throw new IllegalStateException(
-            "Failed to write a new versionHintFile,User is writing to a corrupted version-Hint-File,Are there other clients running in parallel with the current task?");
-      }
-      return renameVersionHint(fs, tempVersionHintFile, versionHintFile);
+      renameVersionHint(fs, tempVersionHintFile, versionHintFile);
     } catch (Exception e) {
       // Cleaning up temporary files.
       io().deleteFile(tempVersionHintFile.toString());
@@ -404,43 +365,15 @@ public class HadoopTableOperations implements TableOperations {
   @VisibleForTesting
   void deleteOldVersionHint(FileSystem fs, Path versionHintFile, Integer nextVersion)
       throws IOException {
-    // In order to be compatible with scenarios where the iceberg table has just been created or
-    // the last time there was no versionHint due to an unplanned interruption,
-    // we need to ignore the lack of versionHint when the task is executed for the first time.
-    // Otherwise, if we can't find the versionHint, there must be another task running in parallel
-    // with us.
-    // If multiple clients delete the same version Hint at the same time, only one client will
-    // succeed.
-    // By doing this, We have solved the concurrency problem to some extent.
-    // It can't handle scenarios where multiple clients are running at the same time for the first
-    // time and versionHint not exists. But we will block them in the next step.
-    boolean versionHintExists = versionHintExists(fs, versionHintFile);
-    boolean canNotFindVersionHintAndNotFirstRun = !versionHintExists && !isFirstRun();
-    if (canNotFindVersionHintAndNotFirstRun) {
-      String msg =
-          String.format(
-              "Can not find old versionHint. commitVersion = %s.Do you have multiple tasks working on this table at the same time, or is your file system failing?",
-              nextVersion);
-      throw new RuntimeException(msg);
-    }
-    // Because the user always configures an expiration policy for the metadata.
-    // If we don't do any checking, then the user can resubmit a version that has already expired.
-    // So we need to check that the next commit is up-to-date.
-    if (versionHintExists) {
-      // Although we do our best to avoid concurrency problems, we may still encounter some
-      // surprises.
-      // In the case of large concurrency, versionHint is very susceptible to corruption.
-      // We can't stop this from happening, but we can fix it.
+    if (versionHintExists(fs, versionHintFile)) {
       if (versionHintIsCorrupted(fs, versionHintFile)) {
-        io().deleteFile(versionHintFile.toString());
-        String msg =
-            "The version Hint was corrupted. We have cleaned up the corrupted version Hint and blocked this commit. Please resubmit the task.";
-        throw new RuntimeException(msg);
+        deleteVersionHint(fs);
+        throw new RuntimeException("VersionHint is corrupted! We will reject this commit.");
       }
-      if (!nextVersionIsLatest(nextVersion, fs) || !deleteVersionHint(fs)) {
+      if (!deleteVersionHint(fs)) {
         String msg =
             String.format(
-                "Can not drop old versionHint. commitVersion = %s.Do you have multiple tasks working on this table at the same time, or is your file system failing?",
+                "Can not drop old versionHint. commitVersion = %s.Do you have multiple tasks working on this table at the same time?",
                 nextVersion);
         throw new RuntimeException(msg);
       }
@@ -474,9 +407,9 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   @VisibleForTesting
-  boolean renameVersionHint(FileSystem fs, Path tempVersionHintFile, Path versionHintFile)
+  void renameVersionHint(FileSystem fs, Path tempVersionHintFile, Path versionHintFile)
       throws IOException {
-    return fs.rename(tempVersionHintFile, versionHintFile);
+    fs.rename(tempVersionHintFile, versionHintFile);
   }
 
   private void writeVersionToPath(FileSystem fs, Path path, int versionToWrite) {
@@ -550,12 +483,6 @@ public class HadoopTableOperations implements TableOperations {
   boolean commitNewVersion(
       FileSystem fs, Path tempMetaDataFile, Path finalMetaDataFile, Integer nextVersion)
       throws IOException {
-    // This renames operation is the atomic commit operation.
-    // Since fs.rename() cannot overwrite existing files, in case of concurrent operations, only
-    // one client will execute renameToFinal() successfully.
-    // However, if the client submits a very old metadata and the user has configured a very short
-    // TTL,then the commit will succeed and the version will be messed up.
-    // Therefore, it is important to troubleshoot these issues before performing this step.
     try {
       if (!lockManager.acquire(finalMetaDataFile.toString(), finalMetaDataFile.toString())) {
         throw new CommitFailedException(
@@ -566,10 +493,6 @@ public class HadoopTableOperations implements TableOperations {
       if (fs.exists(finalMetaDataFile)) {
         throw new CommitFailedException(
             "Version %d already exists: %s", nextVersion, finalMetaDataFile);
-      }
-      if (fs.exists(versionHintFile())) {
-        throw new CommitFailedException(
-            "Another client is executing in parallel with the current task.");
       }
       // maybe too heavy.....?
       if (!nextVersionIsLatest(nextVersion, fs)) {
