@@ -659,6 +659,14 @@ public class Spark3Util {
           return sqlString(pred.term()) + " LIKE '" + pred.literal().value() + "%'";
         case NOT_STARTS_WITH:
           return sqlString(pred.term()) + " NOT LIKE '" + pred.literal().value() + "%'";
+        case ENDS_WITH:
+          return sqlString(pred.term()) + " LIKE '%" + pred.literal().value() + "'";
+        case NOT_ENDS_WITH:
+          return sqlString(pred.term()) + " NOT LIKE '%" + pred.literal().value() + "'";
+        case CONTAINS:
+          return sqlString(pred.term()) + " LIKE '%" + pred.literal().value() + "%'";
+        case NOT_CONTAINS:
+          return sqlString(pred.term()) + " NOT LIKE '%" + pred.literal().value() + "%'";
         case IN:
           return sqlString(pred.term()) + " IN (" + sqlString(pred.literals()) + ")";
         case NOT_IN:

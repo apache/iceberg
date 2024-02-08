@@ -87,6 +87,14 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
         return String.valueOf(value).startsWith((String) literal.value());
       case NOT_STARTS_WITH:
         return !String.valueOf(value).startsWith((String) literal.value());
+      case ENDS_WITH:
+        return String.valueOf(value).endsWith((String) literal.value());
+      case NOT_ENDS_WITH:
+        return !String.valueOf(value).endsWith((String) literal.value());
+      case CONTAINS:
+        return String.valueOf(value).contains((String) literal.value());
+      case NOT_CONTAINS:
+        return !String.valueOf(value).contains((String) literal.value());
       default:
         throw new IllegalStateException("Invalid operation for BoundLiteralPredicate: " + op());
     }
@@ -158,6 +166,14 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
         return term() + " startsWith \"" + literal + "\"";
       case NOT_STARTS_WITH:
         return term() + " notStartsWith \"" + literal + "\"";
+      case ENDS_WITH:
+        return term() + " endsWith \"" + literal + "\"";
+      case NOT_ENDS_WITH:
+        return term() + " notEndsWith \"" + literal + "\"";
+      case CONTAINS:
+        return term() + " contains \"" + literal + "\"";
+      case NOT_CONTAINS:
+        return term() + " notContains \"" + literal + "\"";
       case IN:
         return term() + " in { " + literal + " }";
       case NOT_IN:
