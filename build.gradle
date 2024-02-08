@@ -41,6 +41,7 @@ buildscript {
     classpath 'com.palantir.gradle.revapi:gradle-revapi:1.7.0'
     classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.4.1'
     classpath 'com.palantir.gradle.gitversion:gradle-git-version:3.0.0'
+    classpath 'org.openapitools:openapi-generator-gradle-plugin:6.6.0'
   }
 }
 
@@ -531,6 +532,13 @@ project(':iceberg-aws') {
     classpath = sourceSets.integration.runtimeClasspath
     jvmArgs += project.property('extraJvmArgs')
   }
+
+  def s3SignerSpec = "$projectDir/src/main/resources/s3-signer-open-api.yaml"
+  tasks.register('validateS3SignerSpec', org.openapitools.generator.gradle.plugin.tasks.ValidateTask) {
+    inputSpec.set(s3SignerSpec)
+    recommend.set(true)
+  }
+  check.dependsOn('validateS3SignerSpec')
 }
 
 project(':iceberg-azure') {
@@ -962,6 +970,15 @@ project(':iceberg-snowflake') {
     testImplementation libs.mockito.junit.jupiter
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
   }
+}
+
+project(':iceberg-open-api') {
+  def restCatalogSpec = "$projectDir/rest-catalog-open-api.yaml"
+  tasks.register('validateRESTCatalogSpec', org.openapitools.generator.gradle.plugin.tasks.ValidateTask) {
+    inputSpec.set(restCatalogSpec)
+    recommend.set(true)
+  }
+  check.dependsOn('validateRESTCatalogSpec')
 }
 
 @Memoized
