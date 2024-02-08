@@ -198,8 +198,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
     Tuple<Expression, Expression> allFilterExprs = convertRuntimeFilters(predicates);
     // this may contain partition & non partition filters
     Expression broadcastVarTypeFilters = allFilterExprs.getElement1();
-    Expression nonBroadcastVarPartitionFilters = allFilterExprs.getElement2();
-    // non broadcast runtime filters are surely partition based
+   // non broadcast runtime filters are surely partition based
     // but of the broadcast type some may be partition based, we need to find out
     List<Expression> netNewBroadcastVarFilters = Collections.emptyList();
 
@@ -454,6 +453,11 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
   }
 
   @Override
+  public void postAllBroadcastVarsPushed() {
+    this.taskGroups();
+  }
+
+  @Override
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public boolean equals(Object o) {
     if (this == o) {
@@ -509,6 +513,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
 
   private String getUnusedBroadcastVarString() {
     int taskVersionNum = this.taskCreationVersionNum;
+
     return this.broadcastVarAdded.entrySet().stream()
         .filter(entry -> entry.getValue() > taskVersionNum)
         .map(e -> e.getKey().toString())

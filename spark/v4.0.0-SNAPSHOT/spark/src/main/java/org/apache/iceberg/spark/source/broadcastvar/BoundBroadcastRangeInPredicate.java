@@ -37,7 +37,6 @@ import org.apache.iceberg.expressions.UnBoundCreator;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.spark.source.Tuple;
 import org.apache.iceberg.spark.source.broadcastvar.broadcastutils.LiteralListWrapper;
 import org.apache.iceberg.spark.source.broadcastvar.broadcastutils.NavigableSetWrapper;
 import org.apache.spark.sql.catalyst.bcvar.BroadcastedJoinKeysWrapper;
@@ -47,8 +46,23 @@ public class BoundBroadcastRangeInPredicate<T> extends BoundSetPredicate<T>
   private final BroadcastedJoinKeysWrapper bcVar;
   private transient volatile WeakReference<NavigableSet<T>> transientLitSet;
 
-  static final LoadingCache<BroadcastedJoinKeysWrapper, List<Literal[]>>
+  static final LoadingCache<IdempotKeyForHashedRelationDeser, List<Literal[]>>
       idempotentializer2DLiterals =
+          Caffeine.newBuilder()
+              .expireAfterWrite(Duration.ofSeconds(BroadcastedJoinKeysWrapper.CACHE_EXPIRY))
+              .maximumSize(BroadcastedJoinKeysWrapper.CACHE_SIZE)
+              .weakValues()
+              .build(
+                  key -> {
+                    // lets check the initialization here.
+                    // TODO: figure out a better way to initialize
+                    BroadcastVarReaper.checkInitialized();
+                    List<Literal[]> temp = BroadcastUtil.evaluateLiteralFor2D(key.bcjk);
+                    return temp;
+                  });
+
+  private static final LoadingCache<BroadcastedJoinKeysWrapper, NavigableSet>
+      idempotentializer =
           Caffeine.newBuilder()
               .expireAfterWrite(Duration.ofSeconds(BroadcastedJoinKeysWrapper.CACHE_EXPIRY))
               .maximumSize(BroadcastedJoinKeysWrapper.CACHE_SIZE)
@@ -58,29 +72,13 @@ public class BoundBroadcastRangeInPredicate<T> extends BoundSetPredicate<T>
                     // lets check the initialization here.
                     // TODO: figure out a better way to initialize
                     BroadcastVarReaper.checkInitialized();
-                    List<Literal[]> temp = BroadcastUtil.evaluateLiteralFor2D(bcj);
-                    return temp;
-                  });
-
-  private static final LoadingCache<Tuple<BroadcastedJoinKeysWrapper, Integer>, NavigableSet>
-      idempotentializer =
-          Caffeine.newBuilder()
-              .expireAfterWrite(Duration.ofSeconds(BroadcastedJoinKeysWrapper.CACHE_EXPIRY))
-              .maximumSize(BroadcastedJoinKeysWrapper.CACHE_SIZE)
-              .weakValues()
-              .build(
-                  tuple -> {
-                    // lets check the initialization here.
-                    // TODO: figure out a better way to initialize
-                    BroadcastVarReaper.checkInitialized();
-                    BroadcastedJoinKeysWrapper bcj = tuple.getElement1();
-                    int relativeIndx = tuple.getElement2();
+                    int relativeIndx = bcj.getRelativeKeyIndex();
                     if (bcj.getTupleLength() == 1) {
                       Stream<Literal<Object>> temp = BroadcastUtil.evaluateLiteral(bcj);
                       Iterator<Literal<Object>> iter = temp.iterator();
                       return createNavigableSet(iter);
                     } else {
-                      List<Literal[]> temp = idempotentializer2DLiterals.get(bcj);
+                      List<Literal[]> temp = idempotentializer2DLiterals.get(new IdempotKeyForHashedRelationDeser(bcj));
                       Iterator<Literal[]> iter = temp.iterator();
                       return new NavigableSetWrapper(relativeIndx, iter);
                     }
@@ -119,13 +117,12 @@ public class BoundBroadcastRangeInPredicate<T> extends BoundSetPredicate<T>
     if (transientLiterals != null) {
       NavigableSet<T> actualLitset =
           idempotentializer.get(
-              new Tuple<>(bcVar, bcVar.getRelativeKeyIndex()),
-              tuple -> {
+              bcVar,
+              bcj -> {
                 // lets check the initialization here.
                 // TODO: figure out a better way to initialize
                 BroadcastVarReaper.checkInitialized();
-                BroadcastedJoinKeysWrapper bcj = tuple.getElement1();
-                int relativeKeyIndex = tuple.getElement2();
+                int relativeKeyIndex = bcj.getRelativeKeyIndex();
                 if (bcj.getTupleLength() == 1) {
                   return createNavigableSet(transientLiterals.iterator());
                 } else {
@@ -165,9 +162,7 @@ public class BoundBroadcastRangeInPredicate<T> extends BoundSetPredicate<T>
 
     NavigableSet<T> actualLitset = this.transientLitSet != null ? this.transientLitSet.get() : null;
     if (actualLitset == null) {
-      actualLitset =
-          (NavigableSet<T>)
-              idempotentializer.get(new Tuple<>(this.bcVar, this.bcVar.getRelativeKeyIndex()));
+      actualLitset =(NavigableSet<T>)idempotentializer.get(this.bcVar);
       this.transientLitSet = new WeakReference<>(actualLitset);
     }
     return actualLitset;
@@ -209,13 +204,13 @@ public class BoundBroadcastRangeInPredicate<T> extends BoundSetPredicate<T>
   }
 
   static void removeBroadcast(long id) {
-    Set<Tuple<BroadcastedJoinKeysWrapper, Integer>> keySetBefore =
+    Set<BroadcastedJoinKeysWrapper> keySetBefore =
         idempotentializer.asMap().keySet();
     int totalSizeBefore = keySetBefore.size();
     keySetBefore.stream()
-        .filter(tuple -> tuple.getElement1().getBroadcastVarId() == id)
+        .filter(key -> key.getBroadcastVarId() == id)
         .forEach(idempotentializer::invalidate);
-    Set<Tuple<BroadcastedJoinKeysWrapper, Integer>> keySetAfter =
+    Set<BroadcastedJoinKeysWrapper> keySetAfter =
         idempotentializer.asMap().keySet();
     int totalSizeAfter = keySetAfter.size();
     if (totalSizeBefore > totalSizeAfter) {
@@ -223,7 +218,7 @@ public class BoundBroadcastRangeInPredicate<T> extends BoundSetPredicate<T>
       // System.out.println("removed element");
     }
     idempotentializer2DLiterals.asMap().keySet().stream()
-        .filter(bcj -> bcj.getBroadcastVarId() == id)
+        .filter(key -> key.bcjk.getBroadcastVarId() == id)
         .forEach(idempotentializer2DLiterals::invalidate);
   }
 
