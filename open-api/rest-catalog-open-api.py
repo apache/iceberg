@@ -754,6 +754,9 @@ class TableMetadata(BaseModel):
     last_sequence_number: Optional[int] = Field(None, alias='last-sequence-number')
     snapshot_log: Optional[SnapshotLog] = Field(None, alias='snapshot-log')
     metadata_log: Optional[MetadataLog] = Field(None, alias='metadata-log')
+    statistics_files: Optional[List[StatisticsFile]] = Field(
+        None, alias='statistics-files'
+    )
 
 
 class ViewMetadata(BaseModel):

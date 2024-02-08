@@ -2058,6 +2058,11 @@ components:
           $ref: '#/components/schemas/SnapshotLog'
         metadata-log:
           $ref: '#/components/schemas/MetadataLog'
+        # statistics
+        statistics-files:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatisticsFile'
 
     SQLViewRepresentation:
       type: object
