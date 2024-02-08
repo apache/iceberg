@@ -335,6 +335,10 @@ public class ExpressionVisitors {
             return endsWith(pred.term(), literalPred.literal());
           case NOT_ENDS_WITH:
             return notEndsWith(pred.term(), literalPred.literal());
+          case CONTAINS:
+            return contains(pred.term(), literalPred.literal());
+          case NOT_CONTAINS:
+            return notContains(pred.term(), literalPred.literal());
           default:
             throw new IllegalStateException(
                 "Invalid operation for BoundLiteralPredicate: " + pred.op());

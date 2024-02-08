@@ -195,10 +195,28 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
         ImmutableList.of(row(1, 100, "d1")));
 
     checkFilters(
-        "dep LIKE '%d5' AND id IN (1, 5)" /* query predicate */,
-        "EndsWith(dep, d5) AND id IN (1,5)" /* Spark post scan filter */,
-        "dep IS NOT NULL, id IN (1, 5)" /* Iceberg scan filters */,
+        "dep LIKE '%d5' AND id = 5" /* query predicate */,
+        "isnotnull(id) AND (id = 5)" /* Spark post scan filter */,
+        "dep IS NOT NULL, id IS NOT NULL, dep LIKE '%d5', id = 5" /* Iceberg scan filters */,
         ImmutableList.of(row(5, 500, "d5")));
+
+    checkFilters(
+        "dep NOT LIKE '%d5' AND (id = 1 OR id = 5)" /* query predicate */,
+        "(id = 1) OR (id = 5)" /* Spark post scan filter */,
+        "dep IS NOT NULL, NOT (dep LIKE '%d5'), (id = 1 OR id = 5)" /* Iceberg scan filters */,
+        ImmutableList.of(row(1, 100, "d1")));
+
+    checkFilters(
+        "dep LIKE '%d%' AND (id = 1 OR id = 5)" /* query predicate */,
+        "(id = 1) OR (id = 5)" /* Spark post scan filter */,
+        "dep IS NOT NULL, dep LIKE '%d%', (id = 1 OR id = 5)" /* Iceberg scan filters */,
+        ImmutableList.of(row(1, 100, "d1"), row(5, 500, "d5")));
+
+    checkFilters(
+        "dep NOT LIKE '%d5%' AND (id = 1 OR id = 5)" /* query predicate */,
+        "(id = 1) OR (id = 5)" /* Spark post scan filter */,
+        "dep IS NOT NULL, NOT (dep LIKE '%d5%'), (id = 1 OR id = 5)" /* Iceberg scan filters */,
+        ImmutableList.of(row(1, 100, "d1")));
   }
 
   @TestTemplate
