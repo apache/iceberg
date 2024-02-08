@@ -994,7 +994,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
     // Check the Iceberg table data
     org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
     Assume.assumeTrue(
-        "This test is only for hive catalog", 
+        "This test is only for hive catalog",
         testTableType == TestTables.TestTableType.HIVE_CATALOG);
     Assert.assertEquals(
         HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA.asStruct(),
