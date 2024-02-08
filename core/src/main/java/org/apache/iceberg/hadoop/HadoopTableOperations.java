@@ -54,7 +54,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * TableOperations implementation for file systems that support atomic rename.
+ * TableOperations implementation for file systems that support atomic rename. It should only be
+ * used with posix-compliant file systems. For object storage systems, the user should use some
+ * other posix-compliant middleware for proxy access. Make access to the object store atomic.
  *
  * <p>This maintains metadata in a "metadata" folder under the table location.
  */
