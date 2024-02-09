@@ -219,8 +219,9 @@ public class TestFilteredScan {
     SparkScanBuilder builder =
         new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
     DataType dt = ObjectType.apply(DummyBroadcastedJoinKeysWrapper.class);
-    BroadcastedJoinKeysWrapper actualData = new DummyBroadcastedJoinKeysWrapper(
-        IntegerType, new Object[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, 1);
+    BroadcastedJoinKeysWrapper actualData =
+        new DummyBroadcastedJoinKeysWrapper(
+            IntegerType, new Object[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, 1);
     Literal embedAsLiteral = Literal.create(actualData, dt);
 
     Filter filter = In.apply("id", new Object[] {embedAsLiteral});

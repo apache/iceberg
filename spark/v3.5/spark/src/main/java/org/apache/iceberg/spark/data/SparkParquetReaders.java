@@ -64,6 +64,7 @@ import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.CalendarInterval;
 import org.apache.spark.unsafe.types.UTF8String;
+import org.apache.spark.unsafe.types.VariantVal;
 
 public class SparkParquetReaders {
   private SparkParquetReaders() {}
@@ -766,6 +767,11 @@ public class SparkParquetReaders {
     @Override
     public CalendarInterval getInterval(int ordinal) {
       return (CalendarInterval) values[ordinal];
+    }
+
+    @Override
+    public VariantVal getVariant(int ordinal) {
+      return (VariantVal) values[ordinal];
     }
 
     @Override

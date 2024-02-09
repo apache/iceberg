@@ -32,7 +32,6 @@ import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.NamedReference;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.expressions.UnboundTerm;
-import org.apache.iceberg.spark.source.Tuple;
 import org.apache.iceberg.spark.source.UncomparableLiteralException;
 import org.apache.iceberg.spark.source.broadcastvar.broadcastutils.LiteralListWrapper;
 import org.apache.iceberg.types.Type;
@@ -41,20 +40,19 @@ import org.apache.spark.sql.catalyst.bcvar.BroadcastedJoinKeysWrapper;
 
 public class BroadcastHRUnboundPredicate<T> extends UnboundPredicate<T>
     implements BroadcastVarPredicate {
-  private static final LoadingCache<Tuple<BroadcastedJoinKeysWrapper, Integer>, List>
+  private static final LoadingCache<BroadcastedJoinKeysWrapper, List>
       idempotentializer =
           Caffeine.newBuilder()
               .expireAfterWrite(Duration.ofSeconds(BroadcastedJoinKeysWrapper.CACHE_EXPIRY))
               .maximumSize(BroadcastedJoinKeysWrapper.CACHE_SIZE)
               .weakValues()
               .build(
-                  tuple -> {
+                  bcj -> {
                     // lets check the initialization here.
                     // TODO: figure out a better way to initialize
                     BroadcastVarReaper.checkInitialized();
-                    BroadcastedJoinKeysWrapper bcj = tuple.getElement1();
                     try {
-                      int relativeKeyIndex = tuple.getElement2();
+                      int relativeKeyIndex = bcj.getRelativeKeyIndex();
                       if (bcj.getTupleLength() == 1) {
                         List<Literal<Object>> transientLiterals = new LinkedList<>();
                         BroadcastUtil.evaluateLiteral(bcj)
@@ -67,7 +65,8 @@ public class BroadcastHRUnboundPredicate<T> extends UnboundPredicate<T>
                         return transientLiterals;
                       } else {
                         List<Literal[]> underlying2DList =
-                            BoundBroadcastRangeInPredicate.idempotentializer2DLiterals.get(bcj);
+                            BoundBroadcastRangeInPredicate.idempotentializer2DLiterals.get(
+                                    new IdempotKeyForHashedRelationDeser(bcj));
                         return new LiteralListWrapper(
                             relativeKeyIndex, underlying2DList, bcj.getTupleLength());
                       }
@@ -104,7 +103,7 @@ public class BroadcastHRUnboundPredicate<T> extends UnboundPredicate<T>
 
   static void removeBroadcast(final long id) {
     idempotentializer.asMap().keySet().stream()
-        .filter(tuple -> tuple.getElement1().getBroadcastVarId() == id)
+        .filter(bcjk -> bcjk.getBroadcastVarId() == id)
         .forEach(idempotentializer::invalidate);
   }
 
@@ -124,7 +123,7 @@ public class BroadcastHRUnboundPredicate<T> extends UnboundPredicate<T>
     if (actualList == null) {
       actualList =
           (List<Literal<T>>)
-              idempotentializer.get(new Tuple<>(this.bcVar, this.bcVar.getRelativeKeyIndex()));
+              idempotentializer.get(this.bcVar);
       this.transientLiterals = new WeakReference<>(actualList);
     }
     return actualList;

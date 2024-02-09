@@ -47,9 +47,7 @@ import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.sources.In;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.ObjectType;
-
 import org.junit.Assert;
-
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -108,7 +106,6 @@ public class TestBroadcastVarRuntimeFiltering extends TestRuntimeFiltering {
         new BroadcastHRUnboundPredicate<>(
             "i`d", new DummyBroadcastedJoinKeysWrapper(LongType, new Object[] {1L}, 1)));
   }
-
 
   @Override
   @AfterEach

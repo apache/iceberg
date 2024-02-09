@@ -45,7 +45,6 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.metrics.ScanReport;
@@ -81,6 +80,8 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
   private volatile boolean hasPushedBroadcastVar = false;
   private final Map<BroadcastHRUnboundPredicate<?>, Integer> broadcastVarAdded = Maps.newHashMap();
   private volatile int taskCreationVersionNum = 0;
+
+  private volatile NamedReference[] partitionAttributes = null;
 
   SparkBatchQueryScan(
       SparkSession spark,
@@ -139,6 +140,32 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
         .toArray(NamedReference[]::new);
   }
 
+  @Override
+  public NamedReference[] partitionAttributes() {
+    if (this.partitionAttributes == null) {
+      Set<Integer> partitionFieldSourceIds = Sets.newHashSet();
+
+      for (PartitionSpec spec : table().specs().values()) {
+        for (PartitionField field : spec.fields()) {
+          partitionFieldSourceIds.add(field.sourceId());
+        }
+      }
+
+      Map<Integer, String> quotedNameById = SparkSchemaUtil.indexQuotedNameById(expectedSchema());
+
+      // the optimizer will look for an equality condition with filter attributes in a join
+      // as the scan has been already planned, filtering can only be done on projected attributes
+      // that's why only partition source fields that are part of the read schema can be reported
+
+      this.partitionAttributes =
+          partitionFieldSourceIds.stream()
+              .filter(fieldId -> expectedSchema().findField(fieldId) != null)
+              .map(fieldId -> Spark3Util.toNamedReference(quotedNameById.get(fieldId)))
+              .toArray(NamedReference[]::new);
+    }
+    return this.partitionAttributes;
+  }
+
   private List<Expression> collectRangeInExpressions(Expression nonpart) {
     List<Expression> rangeInExprs = new LinkedList<>();
     boolean keepGoing = true;
@@ -171,8 +198,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
     Tuple<Expression, Expression> allFilterExprs = convertRuntimeFilters(predicates);
     // this may contain partition & non partition filters
     Expression broadcastVarTypeFilters = allFilterExprs.getElement1();
-    Expression nonBroadcastVarPartitionFilters = allFilterExprs.getElement2();
-    // non broadcast runtime filters are surely partition based
+   // non broadcast runtime filters are surely partition based
     // but of the broadcast type some may be partition based, we need to find out
     List<Expression> netNewBroadcastVarFilters = Collections.emptyList();
 
@@ -192,7 +218,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
       }
     }
     Set<String> partitionColNames =
-        Arrays.stream(filterAttributes())
+        Arrays.stream(partitionAttributes())
             .flatMap(x -> Arrays.stream(x.fieldNames()))
             .collect(Collectors.toSet());
 
@@ -206,35 +232,54 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
         partitionAndNonPartitionBased.getOrDefault(Boolean.TRUE, Collections.emptyList());
     List<Expression> nonPartitionBasedBroadcastVar =
         partitionAndNonPartitionBased.getOrDefault(Boolean.FALSE, Collections.emptyList());
-    List<PartitionScanTask> filteredTasks =
-        addAsDataFilters(partitionBasedBroadcastVar, nonPartitionBasedBroadcastVar);
-
-    // first filter tasks on the basis of partition filters
-    Expression netPartitionFilter = Expressions.alwaysTrue();
-    if (nonBroadcastVarPartitionFilters != Expressions.alwaysTrue()
-        || !partitionBasedBroadcastVar.isEmpty()) {
-      netPartitionFilter =
-          Expressions.and(
-              nonBroadcastVarPartitionFilters,
-              partitionBasedBroadcastVar.stream()
-                  .reduce(Expressions.alwaysTrue(), Expressions::and));
+    List<Expression> partitionBasedBroadcastVarUsableAsDataFilter =
+        getPartitionBasedBroadcastVarUsableAsDataFilters(partitionBasedBroadcastVar);
+    List<Expression> totalNewDataFilters = new LinkedList<>();
+    totalNewDataFilters.addAll(partitionBasedBroadcastVarUsableAsDataFilter);
+    totalNewDataFilters.addAll(nonPartitionBasedBroadcastVar);
+    if (!totalNewDataFilters.isEmpty()) {
+      Expression netFilter =
+          totalNewDataFilters.stream().reduce(Expressions.alwaysTrue(), Expressions::and);
+      addFilterAndRecreateScan(netFilter);
+      this.resetTasks(null);
     }
 
-    filteredTasks =
-        filterFilesAtManifestLevelAndAddToRuntimeFilters(filteredTasks, netPartitionFilter);
-    filteredTasks =
-        filterFilesAtDataFileLevelUsingBounds(
-            netNewBroadcastVarFilters, nonPartitionBasedBroadcastVar, filteredTasks);
-    LOG.info(
-        "{} of {} task(s) for table {} matched runtime filter {}",
-        filteredTasks.size(),
-        tasks().size(),
-        table().name(),
-        ExpressionUtil.toSanitizedString(netPartitionFilter));
+    // first filter tasks on the basis of partition filters
+    Expression netPartitionFilter =
+        partitionBasedBroadcastVar.stream().reduce(Expressions.alwaysTrue(), Expressions::and);
+    if (netPartitionFilter != Expressions.alwaysTrue()) {
+      Map<Integer, Evaluator> evaluatorsBySpecId = Maps.newHashMap();
 
-    // don't invalidate tasks if the runtime filter had no effect to avoid planning splits again
-    if (filteredTasks.size() < tasks().size()) {
-      resetTasks(filteredTasks);
+      for (PartitionSpec spec : specs()) {
+        Expression inclusiveExpr =
+            Projections.inclusive(spec, caseSensitive()).project(netPartitionFilter);
+        Evaluator inclusive = new Evaluator(spec.partitionType(), inclusiveExpr);
+        evaluatorsBySpecId.put(spec.specId(), inclusive);
+      }
+
+      List<PartitionScanTask> filteredTasks =
+          tasks().stream()
+              .filter(
+                  task -> {
+                    Evaluator evaluator = evaluatorsBySpecId.get(task.spec().specId());
+                    return evaluator.eval(task.partition());
+                  })
+              .collect(Collectors.toList());
+
+      LOG.info(
+          "{} of {} task(s) for table {} matched runtime filter {}",
+          filteredTasks.size(),
+          tasks().size(),
+          table().name(),
+          ExpressionUtil.toSanitizedString(netPartitionFilter));
+
+      // don't invalidate tasks if the runtime filter had no effect to avoid planning splits again
+      if (filteredTasks.size() < tasks().size()) {
+        resetTasks(filteredTasks);
+      }
+
+      // save the evaluated filter for equals/hashCode
+      runtimeFilterExpressions.add(netPartitionFilter);
     }
   }
 
@@ -261,7 +306,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
   protected void incrementTaskCreationVersion() {
     ++this.taskCreationVersionNum;
   }
-
+  /*
   private List<PartitionScanTask> filterFilesAtDataFileLevelUsingBounds(
       List<Expression> netNewBroadcastVarFilters,
       List<Expression> nonPartitionBasedBroadcastVar,
@@ -319,7 +364,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
     }
     return filteredTasks;
   }
-
+  */
   // at this moment, Spark can only pass IN filters for a single attribute
   // if there are multiple filter attributes, Spark will pass two separate IN filters
 
@@ -408,6 +453,11 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
   }
 
   @Override
+  public void postAllBroadcastVarsPushed() {
+    this.taskGroups();
+  }
+
+  @Override
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public boolean equals(Object o) {
     if (this == o) {
@@ -463,6 +513,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
 
   private String getUnusedBroadcastVarString() {
     int taskVersionNum = this.taskCreationVersionNum;
+
     return this.broadcastVarAdded.entrySet().stream()
         .filter(entry -> entry.getValue() > taskVersionNum)
         .map(e -> e.getKey().toString())

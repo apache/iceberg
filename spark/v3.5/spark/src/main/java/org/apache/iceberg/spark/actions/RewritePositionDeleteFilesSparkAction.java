@@ -215,7 +215,7 @@ public class RewritePositionDeleteFilesSparkAction
   }
 
   private RewritePositionDeletesCommitManager commitManager() {
-    return new RewritePositionDeletesCommitManager(table, commitSummary());
+    return new RewritePositionDeletesCommitManager(table);
   }
 
   private Result doExecute(

@@ -31,7 +31,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.expressions.UnboundTerm;
-import org.apache.iceberg.spark.source.Triple;
+import org.apache.iceberg.spark.source.Tuple;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.bcvar.BroadcastedJoinKeysWrapper;
 
@@ -39,20 +39,20 @@ public class BroadcastHRUnboundPredWithTransform<S, T> extends UnboundPredicate<
     implements BroadcastVarPredicate {
 
   static final ThreadLocal<Boolean> fixDateFlag = ThreadLocal.withInitial(() -> false);
-  static final LoadingCache<Triple<BroadcastedJoinKeysWrapper, Function, Integer>, List>
+  static final LoadingCache<Tuple<BroadcastedJoinKeysWrapper, Function>, List>
       idempotentializer =
           Caffeine.newBuilder()
               .expireAfterWrite(Duration.ofSeconds(BroadcastedJoinKeysWrapper.CACHE_EXPIRY))
               .maximumSize(BroadcastedJoinKeysWrapper.CACHE_SIZE)
               .weakValues()
               .build(
-                  triple -> {
+                  tuple -> {
                     // lets check the initialization here.
                     // TODO: figure out a better way to initialize
                     BroadcastVarReaper.checkInitialized();
-                    BroadcastedJoinKeysWrapper bcj = triple.getElement1();
-                    Function tf = triple.getElement2();
-                    int relativeKeyIndex = triple.getElement3();
+                    BroadcastedJoinKeysWrapper bcj = tuple.getElement1();
+                    Function tf = tuple.getElement2();
+                    int relativeKeyIndex = bcj.getRelativeKeyIndex();
                     Stream<Object> str;
                     boolean fixDate = fixDateFlag.get();
                     if (bcj.getTupleLength() == 1) {
@@ -96,7 +96,7 @@ public class BroadcastHRUnboundPredWithTransform<S, T> extends UnboundPredicate<
       try {
         actualLits =
             idempotentializer.get(
-                new Triple<>(this.bcVar, this.transform, this.bcVar.getRelativeKeyIndex()));
+                new Tuple<>(this.bcVar, this.transform));
       } finally {
         fixDateFlag.set(false);
       }

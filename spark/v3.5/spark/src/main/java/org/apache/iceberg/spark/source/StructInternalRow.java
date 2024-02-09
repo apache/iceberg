@@ -60,6 +60,7 @@ import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.TimestampType;
 import org.apache.spark.unsafe.types.CalendarInterval;
 import org.apache.spark.unsafe.types.UTF8String;
+import org.apache.spark.unsafe.types.VariantVal;
 
 class StructInternalRow extends InternalRow {
   private final Types.StructType type;
@@ -200,6 +201,11 @@ class StructInternalRow extends InternalRow {
   @Override
   public CalendarInterval getInterval(int ordinal) {
     throw new UnsupportedOperationException("Unsupported type: interval");
+  }
+
+  @Override
+  public VariantVal getVariant(int ordinal) {
+    throw new UnsupportedOperationException("Unsupported type: VariantVal");
   }
 
   @Override

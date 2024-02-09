@@ -49,7 +49,6 @@ import org.apache.iceberg.PositionDeletesScanTask;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -612,39 +611,6 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     List<Object[]> actualRecords = records(table);
     assertEquals("Rows must match", expectedRecords, actualRecords);
-  }
-
-  @TestTemplate
-  public void testSnapshotProperty() throws Exception {
-    Table table = createTableUnpartitioned(2, SCALE);
-    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
-    writePosDeletesForFiles(table, 2, DELETES_SCALE, dataFiles);
-    assertThat(dataFiles).hasSize(2);
-
-    List<DeleteFile> deleteFiles = deleteFiles(table);
-    assertThat(deleteFiles).hasSize(2);
-
-    Result ignored =
-        SparkActions.get(spark)
-            .rewritePositionDeletes(table)
-            .snapshotProperty("key", "value")
-            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
-            .execute();
-    assertThat(table.currentSnapshot().summary())
-        .containsAllEntriesOf(ImmutableMap.of("key", "value"));
-
-    // make sure internal produced properties are not lost
-    String[] commitMetricsKeys =
-        new String[] {
-          SnapshotSummary.ADDED_DELETE_FILES_PROP,
-          SnapshotSummary.ADDED_POS_DELETES_PROP,
-          SnapshotSummary.CHANGED_PARTITION_COUNT_PROP,
-          SnapshotSummary.REMOVED_DELETE_FILES_PROP,
-          SnapshotSummary.REMOVED_POS_DELETES_PROP,
-          SnapshotSummary.TOTAL_DATA_FILES_PROP,
-          SnapshotSummary.TOTAL_DELETE_FILES_PROP,
-        };
-    assertThat(table.currentSnapshot().summary()).containsKeys(commitMetricsKeys);
   }
 
   private Table createTablePartitioned(int partitions, int files, int numRecords) {

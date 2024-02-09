@@ -37,7 +37,7 @@ import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.UnBoundCreator;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.spark.source.Triple;
+import org.apache.iceberg.spark.source.Tuple;
 import org.apache.spark.sql.catalyst.bcvar.BroadcastedJoinKeysWrapper;
 
 public class BoundBroadcastPredicateWithTransform<S, T> extends BoundSetPredicate<T>
@@ -50,21 +50,21 @@ public class BoundBroadcastPredicateWithTransform<S, T> extends BoundSetPredicat
   private final boolean fixDate;
 
   private static final LoadingCache<
-          Triple<BroadcastedJoinKeysWrapper, Function, Integer>, NavigableSet>
+          Tuple<BroadcastedJoinKeysWrapper, Function>, NavigableSet>
       idempotentializer =
           Caffeine.newBuilder()
               .expireAfterWrite(Duration.ofSeconds(BroadcastedJoinKeysWrapper.CACHE_EXPIRY))
               .maximumSize(BroadcastedJoinKeysWrapper.CACHE_SIZE)
               .weakValues()
               .build(
-                  triple -> {
+                  tuple -> {
                     // lets check the initialization here.
                     // TODO: figure out a better way to initialize
                     BroadcastVarReaper.checkInitialized();
-                    BroadcastedJoinKeysWrapper bcj = triple.getElement1();
-                    Function tf = triple.getElement2();
+                    BroadcastedJoinKeysWrapper bcj = tuple.getElement1();
+                    Function tf = tuple.getElement2();
                     boolean fixDate = BroadcastHRUnboundPredWithTransform.fixDateFlag.get();
-                    int relativeKeyIndex = triple.getElement3();
+                    int relativeKeyIndex = bcj.getRelativeKeyIndex();
                     Stream<Literal<Object>> temp;
                     if (bcj.getTupleLength() == 1) {
                       temp = BroadcastUtil.evaluateLiteralWithTransform(bcj, tf, fixDate);
@@ -116,7 +116,7 @@ public class BoundBroadcastPredicateWithTransform<S, T> extends BoundSetPredicat
       try {
         actualLitset =
             idempotentializer.get(
-                new Triple<>(this.bcVar, this.transform, this.bcVar.getRelativeKeyIndex()));
+                new Tuple<>(this.bcVar, this.transform));
         this.transientLitSet = new WeakReference<>(actualLitset);
         return actualLitset;
       } finally {
