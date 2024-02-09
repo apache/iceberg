@@ -78,8 +78,7 @@ class ReadConf<T> {
       NameMapping nameMapping,
       boolean reuseContainers,
       boolean caseSensitive,
-      Integer bSize,
-      boolean alreadyPushedFilters) {
+      Integer bSize) {
     this.file = file;
     this.options = options;
     this.reader = newReader(file, options);
@@ -105,10 +104,9 @@ class ReadConf<T> {
     Map<Long, Long> offsetToStartPos = generateOffsetToStartPos(expectedSchema);
 
     long computedTotalValues = 0L;
+    LOG.info("Filters pushed : {}", options.getRecordFilter());
 
-    LOG.info("Filters pushed status, alreadyPushed: {}", alreadyPushedFilters);
-
-    if (!alreadyPushedFilters) {
+    if (options.getRecordFilter() == null) {
       LOG.warn("Filters not pushed yet, checking on row groups");
 
       ParquetMetricsRowGroupFilter statsFilter = null;
@@ -138,7 +136,12 @@ class ReadConf<T> {
       }
     }
 
-    this.totalValues = reader.getFilteredRecordCount();
+    if (filter != null) {
+      this.totalValues = reader.getFilteredRecordCount();
+    } else {
+      this.totalValues = computedTotalValues;
+    }
+
     if (readerFunc != null) {
       this.model = (ParquetValueReader<T>) readerFunc.apply(typeWithIds);
       this.vectorizedModel = null;
@@ -167,6 +170,10 @@ class ReadConf<T> {
     this.vectorizedModel = toCopy.vectorizedModel;
     this.columnChunkMetaDataForRowGroups = toCopy.columnChunkMetaDataForRowGroups;
     this.startRowPositions = toCopy.startRowPositions;
+  }
+
+  boolean hasRecordFilter() {
+    return options.getRecordFilter() != null;
   }
 
   ParquetFileReader reader() {

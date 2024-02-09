@@ -77,6 +77,7 @@ import org.apache.iceberg.encryption.NativeEncryptionInputFile;
 import org.apache.iceberg.encryption.NativeEncryptionOutputFile;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
@@ -104,7 +105,9 @@ import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.column.ParquetProperties.WriterVersion;
 import org.apache.parquet.crypto.FileDecryptionProperties;
 import org.apache.parquet.crypto.FileEncryptionProperties;
-import org.apache.parquet.hadoop.*;
+import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.ParquetFileWriter;
+import org.apache.parquet.hadoop.ParquetOutputFormat;
 import org.apache.parquet.hadoop.ParquetReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.api.ReadSupport;
@@ -1162,36 +1165,15 @@ public class Parquet {
           optionsBuilder.withDecryption(fileDecryptionProperties);
         }
 
-        boolean pushedFilters = true;
-        ParquetReadOptions options = optionsBuilder.build();
-
-        if (filter != null) {
-          // TODO: should not need to get the schema to push down before opening the file.
-          // Parquet should allow setting a filter inside its read support
-          ParquetReadOptions decryptOptions =
-              ParquetReadOptions.builder().withDecryption(fileDecryptionProperties).build();
-          MessageType type;
-          try (ParquetFileReader schemaReader =
-              ParquetFileReader.open(ParquetIO.file(file), decryptOptions)) {
-            type = schemaReader.getFileMetaData().getSchema();
-          } catch (IOException e) {
-            throw new RuntimeIOException(e);
-          }
-
-          Schema fileSchema = ParquetSchemaUtil.convert(type);
-
-          try {
-            optionsBuilder.useRecordFilter(filterRecords);
-            optionsBuilder.withRecordFilter(
-                ParquetFilters.convert(fileSchema, filter, caseSensitive));
-            ParquetReadOptions optionsWithRecordFilter = optionsBuilder.build();
-            ParquetFileReader.open(ParquetIO.file(file), optionsWithRecordFilter);
-            options = optionsWithRecordFilter;
-          } catch (Exception e) {
-            pushedFilters = false;
-            LOG.warn("Failed to push down filters to parquet file {}", file.location(), e);
-          }
+        if (filter != null
+            && !filter.equals(Expressions.alwaysTrue())
+            && ParquetFilters.isSupportedFilter(filter)) {
+          optionsBuilder.useRecordFilter(filterRecords);
+          optionsBuilder.withRecordFilter(
+              ParquetFilters.convert(getSchemaFromFile(), filter, caseSensitive));
         }
+
+        ParquetReadOptions options = optionsBuilder.build();
 
         if (batchedReaderFunc != null) {
           return new VectorizedParquetReader<>(
@@ -1203,8 +1185,7 @@ public class Parquet {
               filter,
               reuseContainers,
               caseSensitive,
-              maxRecordsPerBatch,
-              pushedFilters);
+              maxRecordsPerBatch);
         } else {
           return new org.apache.iceberg.parquet.ParquetReader<>(
               file,
@@ -1285,6 +1266,16 @@ public class Parquet {
       }
 
       return new ParquetIterable<>(builder);
+    }
+
+    private Schema getSchemaFromFile() {
+      MessageType type;
+      try (ParquetFileReader schemaReader = ParquetFileReader.open(ParquetIO.file(file))) {
+        type = schemaReader.getFileMetaData().getSchema();
+      } catch (IOException e) {
+        throw new RuntimeIOException(e);
+      }
+      return ParquetSchemaUtil.convert(type);
     }
   }
 
