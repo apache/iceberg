@@ -367,7 +367,6 @@ public class HadoopTableOperations implements TableOperations {
       throws IOException {
     if (versionHintExists(fs, versionHintFile)) {
       if (versionHintIsCorrupted(fs, versionHintFile)) {
-        deleteVersionHint(fs);
         throw new RuntimeException("VersionHint is corrupted! We will reject this commit.");
       }
       if (!deleteVersionHint(fs)) {
