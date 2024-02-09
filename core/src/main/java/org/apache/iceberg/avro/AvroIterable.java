@@ -82,7 +82,7 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
             .setRowPositionSupplier(
                 Suppliers.memoize(() -> AvroIO.findStartingRowPos(file::newStream, start)));
       }
-      fileReader = new AvroRangeIterator<>(fileReader, start, end);
+      fileReader = new AvroRangeIterator<>(fileReader, file, start, end);
     } else if (reader instanceof SupportsRowPosition) {
       ((SupportsRowPosition) reader).setRowPositionSupplier(() -> 0L);
     }
@@ -90,7 +90,7 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
     addCloseable(fileReader);
 
     if (reuseContainers) {
-      return new AvroReuseIterator<>(fileReader);
+      return new AvroReuseIterator<>(fileReader, file);
     }
 
     return CloseableIterator.withClose(fileReader);
@@ -108,15 +108,18 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
   private static class AvroRangeIterator<D> implements FileReader<D> {
     private final FileReader<D> reader;
     private final long end;
+    private final InputFile file;
 
-    AvroRangeIterator(FileReader<D> reader, long start, long end) {
+
+    AvroRangeIterator(FileReader<D> reader, InputFile file, long start, long end) {
       this.reader = reader;
+      this.file = file;
       this.end = end;
 
       try {
         reader.sync(start);
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to find sync past position %d", start);
+        throw new RuntimeIOException(e, "Failed to find sync past position %d at file: %s", start, file);
       }
     }
 
@@ -130,7 +133,7 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
       try {
         return reader.hasNext() && !reader.pastSync(end);
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to check range end: %d", end);
+        throw new RuntimeIOException(e, "Failed to check range end: %d at file: %s", end, file);
       }
     }
 
@@ -150,7 +153,7 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
       try {
         return reader.next(reuse);
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to read next record");
+        throw new RuntimeIOException(e, "Failed to read next record at file: %s", file);
       }
     }
 
@@ -182,10 +185,13 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
 
   private static class AvroReuseIterator<D> implements CloseableIterator<D> {
     private final FileReader<D> reader;
+    private final InputFile file;
     private D reused = null;
 
-    AvroReuseIterator(FileReader<D> reader) {
+    AvroReuseIterator(FileReader<D> reader, InputFile file) {
+
       this.reader = reader;
+      this.file = file;
     }
 
     @Override
@@ -203,7 +209,7 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
         this.reused = reader.next(reused);
         return reused;
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to read next record");
+        throw new RuntimeIOException(e, "Failed to read next record at file: %s", file);
       }
     }
 
