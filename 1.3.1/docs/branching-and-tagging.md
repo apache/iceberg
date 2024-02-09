@@ -58,14 +58,14 @@ Tags can be used for retaining important historical snapshots for auditing purpo
 
 ![Historical Tags](../img/historical-snapshot-tag.png)
 
-The above diagram demonstrates retaininig important historical snapshot with the following retention policy, defined 
+The above diagram demonstrates retaining important historical snapshot with the following retention policy, defined 
 via Spark SQL.
 
 1. Retain 1 snapshot per week for 1 month. This can be achieved by tagging the weekly snapshot and setting the tag retention to be a month.
 snapshots will be kept, and the branch reference itself will be retained for 1 week. 
 ```sql
 -- Create a tag for the first end of week snapshot. Retain the snapshot for a week
-ALTER TABLE prod.db.table CREATE TAG 'EOW-01' AS OF VERSION 7 RETAIN 7 DAYS
+ALTER TABLE prod.db.table CREATE TAG `EOW-01` AS OF VERSION 7 RETAIN 7 DAYS
 ```
 
 2. Retain 1 snapshot per month for 6 months. This can be achieved by tagging the monthly snapshot and setting the tag retention to be 6 months.
@@ -95,7 +95,7 @@ The above diagram shows an example of using an audit branch for validating a wri
 1. First ensure `write.wap.enabled` is set.
 ```sql
 ALTER TABLE db.table SET TBLPROPERTIES (
-    'write.wap.enabled''true'
+    'write.wap.enabled='true'
 )
 ```
 2. Create `audit-branch` starting from snapshot 3, which will be written to and retained for 1 week.
