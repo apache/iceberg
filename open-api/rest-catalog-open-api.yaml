@@ -2058,6 +2058,15 @@ components:
           $ref: '#/components/schemas/SnapshotLog'
         metadata-log:
           $ref: '#/components/schemas/MetadataLog'
+        # statistics
+        statistics-files:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatisticsFile'
+        partition-statistics-files:
+          type: array
+          items:
+            $ref: '#/components/schemas/PartitionStatisticsFile'
 
     SQLViewRepresentation:
       type: object
@@ -2181,6 +2190,8 @@ components:
           set-current-view-version: '#/components/schemas/SetCurrentViewVersionUpdate'
           set-statistics: '#/components/schemas/SetStatisticsUpdate'
           remove-statistics: '#/components/schemas/RemoveStatisticsUpdate'
+          set-partition-statistics: '#/components/schemas/SetPartitionStatisticsUpdate'
+          remove-partition-statistics: '#/components/schemas/RemovePartitionStatisticsUpdate'
       type: object
       required:
         - action
@@ -2452,6 +2463,33 @@ components:
         action:
           type: string
           enum: [ "remove-statistics" ]
+        snapshot-id:
+          type: integer
+          format: int64
+
+    SetPartitionStatisticsUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+      required:
+        - action
+        - partition-statistics
+      properties:
+        action:
+          type: string
+          enum: [ "set-partition-statistics" ]
+        partition-statistics:
+          $ref: '#/components/schemas/PartitionStatisticsFile'
+
+    RemovePartitionStatisticsUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+      required:
+        - action
+        - snapshot-id
+      properties:
+        action:
+          type: string
+          enum: [ "remove-partition-statistics" ]
         snapshot-id:
           type: integer
           format: int64
@@ -3269,6 +3307,22 @@ components:
             type: integer
         properties:
           type: object
+
+    PartitionStatisticsFile:
+      type: object
+      required:
+        - snapshot-id
+        - statistics-path
+        - file-size-in-bytes
+      properties:
+        snapshot-id:
+          type: integer
+          format: int64
+        statistics-path:
+          type: string
+        file-size-in-bytes:
+          type: integer
+          format: int64
 
 
   #############################
