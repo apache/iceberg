@@ -347,6 +347,11 @@ class RemoveStatisticsUpdate(BaseUpdate):
     snapshot_id: int = Field(..., alias='snapshot-id')
 
 
+class RemovePartitionStatisticsUpdate(BaseUpdate):
+    action: Literal['remove-partition-statistics']
+    snapshot_id: int = Field(..., alias='snapshot-id')
+
+
 class TableRequirement(BaseModel):
     type: str
 
@@ -618,6 +623,12 @@ class BlobMetadata(BaseModel):
     properties: Optional[Dict[str, Any]] = None
 
 
+class PartitionStatisticsFile(BaseModel):
+    snapshot_id: int = Field(..., alias='snapshot-id')
+    statistics_path: str = Field(..., alias='statistics-path')
+    file_size_in_bytes: int = Field(..., alias='file-size-in-bytes')
+
+
 class CreateNamespaceRequest(BaseModel):
     namespace: Namespace
     properties: Optional[Dict[str, str]] = Field(
@@ -636,6 +647,13 @@ class TransformTerm(BaseModel):
     type: Literal['transform']
     transform: Transform
     term: Reference
+
+
+class SetPartitionStatisticsUpdate(BaseUpdate):
+    action: Literal['set-partition-statistics']
+    partition_statistics: PartitionStatisticsFile = Field(
+        ..., alias='partition-statistics'
+    )
 
 
 class ReportMetricsRequest2(CommitReport):
@@ -754,6 +772,12 @@ class TableMetadata(BaseModel):
     last_sequence_number: Optional[int] = Field(None, alias='last-sequence-number')
     snapshot_log: Optional[SnapshotLog] = Field(None, alias='snapshot-log')
     metadata_log: Optional[MetadataLog] = Field(None, alias='metadata-log')
+    statistics_files: Optional[List[StatisticsFile]] = Field(
+        None, alias='statistics-files'
+    )
+    partition_statistics_files: Optional[List[PartitionStatisticsFile]] = Field(
+        None, alias='partition-statistics-files'
+    )
 
 
 class ViewMetadata(BaseModel):
