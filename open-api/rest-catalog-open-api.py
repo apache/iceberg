@@ -80,7 +80,7 @@ class Namespace(BaseModel):
 class PageToken(BaseModel):
     __root__: Optional[str] = Field(
         None,
-        description='An opaque token that allows clients to make use of pagination for list APIs (e.g. ListTables). Clients may initiate the first paginated request by sending an empty query parameter `pageToken` to the server.\nServers that support pagination should identify the `pageToken` parameter and return a `next-page-token` in the response if there are more results available.  After the initial request, the value of `next-page-token` from each response must be used as the `pageToken` parameter value for the next request. The server must return `null` value for the `next-page-token` in the last response.\nServers that support pagination must return all results in a single response with the value of `next-page-token` set to `null` if the query parameter `pageToken` is not set in the request.\nServers that do not support pagination should ignore the `pageToken` parameter and return all results in a single response. The `next-page-token` must be omitted from the response.\nClients must interpret either `null` or missing response value of `next-page-token` as the end of the listing results.',
+        description='An opaque token that allows clients to make use of pagination for list APIs (e.g. ListTables) as well as for scan-planning APIs (e.g PlanTable). Clients may initiate the first paginated request by sending an empty query parameter `pageToken` to the server.\nServers that support pagination should identify the `pageToken` parameter and return a `next-page-token` in the response if there are more results available.  After the initial request, the value of `next-page-token` from each response must be used as the `pageToken` parameter value for the next request. The server must return `null` value for the `next-page-token` in the last response.\nServers that support pagination must return all results in a single response with the value of `next-page-token` set to `null` if the query parameter `pageToken` is not set in the request.\nServers that do not support pagination should ignore the `pageToken` parameter and return all results in a single response. The `next-page-token` must be omitted from the response.\nClients must interpret either `null` or missing response value of `next-page-token` as the end of the listing results.',
     )
 
 
@@ -97,6 +97,8 @@ class ExpressionType(BaseModel):
     __root__: str = Field(
         ...,
         example=[
+            'true',
+            'false',
             'eq',
             'and',
             'or',
@@ -116,6 +118,14 @@ class ExpressionType(BaseModel):
             'not-nan',
         ],
     )
+
+
+class TrueExpression(BaseModel):
+    type: ExpressionType
+
+
+class FalseExpression(BaseModel):
+    type: ExpressionType
 
 
 class Reference(BaseModel):
@@ -777,8 +787,8 @@ class ContentFile(BaseModel):
     file_path: str = Field(..., alias='file-path')
     file_format: FileFormat = Field(..., alias='file-format')
     spec_id: int = Field(..., alias='spec-id')
-    partition: Optional[List[PrimitiveTypeValue]] = Field(
-        None,
+    partition: List[PrimitiveTypeValue] = Field(
+        ...,
         description='A list of partition field values ordered based on the fields of the partition spec specified by the `spec-id`',
         example=[1, 'bar'],
     )
@@ -806,6 +816,34 @@ class EqualityDeleteFile(ContentFile):
     equality_ids: Optional[List[int]] = Field(
         None, alias='equality-ids', description='List of equality field IDs'
     )
+
+
+class BaseTableScanContext(BaseModel):
+    type: str
+
+
+class FieldName(BaseModel):
+    __root__: str = Field(
+        ...,
+        description='A field name that follows the Iceberg naming standard, and can be used in APIs like Java `Schema#findField(String name)`.\nThe nested field name follows these rules - nested struct fields are named by concatenating field names at each struct level using dot (`.`) delimiter, e.g. employer.contact_info.address.zip_code - nested fields in a map key are named using the keyword `key`, e.g. employee_address_map.key.first_name - nested fields in a map value are named using the keyword `value`, e.g. employee_address_map.value.zip_code - nested fields in a list are named using the keyword `element`, e.g. employees.element.first_name',
+    )
+
+
+class SelectedFieldNames(BaseModel):
+    """
+    A list of fields in schema that are selected in a table scan. When not specified, all columns in the requested schema should be selected.
+    """
+
+    __root__: List[FieldName] = Field(
+        ...,
+        description='A list of fields in schema that are selected in a table scan. When not specified, all columns in the requested schema should be selected.',
+    )
+
+
+class PlanTask(BaseModel):
+    """
+    An opaque JSON object that contains information provided by the REST server to be utilized by clients for distributed table scan planning; should be supplied as input in `PlanTable` operation.
+    """
 
 
 class CreateNamespaceRequest(BaseModel):
@@ -850,6 +888,11 @@ class TableRequirement(BaseModel):
 
 class ViewRequirement(BaseModel):
     __root__: AssertViewUUID = Field(..., discriminator='type')
+
+
+class PreplanTableResult(BaseModel):
+    plan_tasks: List[PlanTask] = Field(..., alias='plan-tasks')
+    next_page_token: Optional[PageToken] = Field(None, alias='next-page-token')
 
 
 class ReportMetricsRequest2(CommitReport):
@@ -968,6 +1011,8 @@ class Type(BaseModel):
 
 class Expression(BaseModel):
     __root__: Union[
+        TrueExpression,
+        FalseExpression,
         AndOrExpression,
         NotExpression,
         SetExpression,
@@ -1111,6 +1156,11 @@ class LoadTableResult(BaseModel):
     config: Optional[Dict[str, str]] = None
 
 
+class PlanTableResult(BaseModel):
+    file_scan_tasks: List[FileScanTask] = Field(..., alias='file-scan-tasks')
+    next_page_token: Optional[PageToken] = Field(None, alias='next-page-token')
+
+
 class CommitTableRequest(BaseModel):
     identifier: Optional[TableIdentifier] = Field(
         None,
@@ -1197,11 +1247,109 @@ class CommitTableResponse(BaseModel):
     metadata: TableMetadata
 
 
+class PreplanTableRequest(BaseModel):
+    table_scan_context: TableScanContext = Field(..., alias='table-scan-context')
+
+
+class PlanTableRequest(BaseModel):
+    table_scan_context: TableScanContext = Field(..., alias='table-scan-context')
+    plan_task: Optional[PlanTask] = Field(None, alias='plan-task')
+    stats_fields: Optional[List[FieldName]] = Field(
+        None,
+        alias='stats-fields',
+        description='A list of fields that the client requests the server to send statistics in each `FileScanTask` returned in the response',
+    )
+
+
+class TableScanContext(BaseModel):
+    __root__: Union[SnapshotScanContext, IncrementalSnapshotScanContext]
+
+
+class SnapshotScanContext(BaseTableScanContext):
+    """
+    context for scanning data in a specific snapshot
+    """
+
+    type: Literal['snapshot-scan']
+    select: Optional[SelectedFieldNames] = None
+    filter: Optional[Filter] = None
+    case_sensitive: Optional[bool] = Field(
+        True,
+        alias='case-sensitive',
+        description='If field selection and filtering should be case sensitive',
+    )
+    snapshot_id: Optional[int] = Field(
+        None,
+        alias='snapshot-id',
+        description='The ID of the snapshot to use for the table scan. If not specified, the snapshot at the main branch head will be used.',
+    )
+    use_snapshot_schema: Optional[bool] = Field(
+        False,
+        alias='use-snapshot-schema',
+        description='If the schema of the specific snapshot should be used instead of the table schema.',
+    )
+
+
+class IncrementalSnapshotScanContext(BaseTableScanContext):
+    """
+    Context for scanning data appended in a range of snapshots. The scan always follows the schema of the snapshot at the main branch head.
+    """
+
+    type: Literal['incremental-snapshot-scan']
+    select: Optional[SelectedFieldNames] = None
+    filter: Optional[Filter] = None
+    case_sensitive: Optional[bool] = Field(
+        True,
+        alias='case-sensitive',
+        description='If field selection and filtering should be case sensitive',
+    )
+    start_snapshot_id: int = Field(
+        ...,
+        alias='start-snapshot-id',
+        description='The ID of the starting snapshot of the incremental scan',
+    )
+    inclusive_start: Optional[bool] = Field(
+        False,
+        alias='inclusive-start',
+        description='If the data appended in the start snapshot should be included in the scan',
+    )
+    end_snapshot_id: Optional[int] = Field(
+        None,
+        alias='end-snapshot-id',
+        description='The ID of the inclusive ending snapshot of the incremental scan. If not specified, the snapshot at the main branch head will be used as the end snapshot.',
+    )
+
+
+class FileScanTask(BaseModel):
+    data_file: DataFile = Field(..., alias='data-file')
+    position_delete_files: Optional[List[PositionDeleteFile]] = Field(
+        None,
+        alias='position-delete-files',
+        description='a list of position delete files that should be applied to the data file during a scan',
+    )
+    equality_delete_files: Optional[List[EqualityDeleteFile]] = Field(
+        None,
+        alias='equality-delete-files',
+        description='a list of equality delete files that should be applied to the data file during a scan',
+    )
+    residual_filter: Filter = Field(
+        ...,
+        alias='residual-filter',
+        description='the filters should be applied to rows in this file scan task',
+    )
+
+
 class Schema(StructType):
     schema_id: Optional[int] = Field(None, alias='schema-id')
     identifier_field_ids: Optional[List[int]] = Field(
         None, alias='identifier-field-ids'
     )
+
+
+class Filter(BaseModel):
+    """
+    an unbounded expression to describe the filters to apply to a table scan, default to `TrueExpression` meaning that nothing is filtered.
+    """
 
 
 class ReportMetricsRequest1(ScanReport):
@@ -1215,6 +1363,14 @@ Expression.update_forward_refs()
 TableMetadata.update_forward_refs()
 ViewMetadata.update_forward_refs()
 AddSchemaUpdate.update_forward_refs()
+PlanTableResult.update_forward_refs()
 CreateTableRequest.update_forward_refs()
 CreateViewRequest.update_forward_refs()
 ReportMetricsRequest.update_forward_refs()
+PreplanTableRequest.update_forward_refs()
+PlanTableRequest.update_forward_refs()
+TableScanContext.update_forward_refs()
+SnapshotScanContext.update_forward_refs()
+IncrementalSnapshotScanContext.update_forward_refs()
+FileScanTask.update_forward_refs()
+Filter.update_forward_refs()

@@ -541,6 +541,130 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}/preplan:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/table'
+    post:
+      tags:
+        - Catalog API
+      summary: Prepare a list of tasks that can be used to distribute table scan planning
+      description:
+        Prepare a list of tasks that can be used to distribute table scan planning based on a set of table scan criteria
+        such as selected columns, filters, snapshot range, case sensitivity, etc.
+        
+        This API returns a list of `plan-task`s, and each of them can be used in the `PlanTable` API
+        to request a subset of all file scan tasks in a table scan.
+        This mechanism allows clients to distribute and parallelize the entire table scan planning process.
+      operationId: PreplanTable
+      parameters:
+        - $ref: '#/components/parameters/page-token'
+        - $ref: '#/components/parameters/page-size'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PreplanTableRequest'
+      responses:
+        200:
+          $ref: '#/components/responses/PreplanTableResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description:
+            Not Found
+            - NoSuchTableException, the table does not exist
+            - NoSuchNamespaceException, the namespace does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                TableDoesNotExist:
+                  $ref: '#/components/examples/NoSuchTableError'
+                NamespaceDoesNotExist:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        406:
+          $ref: '#/components/responses/UnsupportedOperationResponse'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}/plan:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/table'
+    post:
+      tags:
+        - Catalog API
+      summary: Perform scan planning against a table
+      operationId: PlanTable
+      parameters:
+        - $ref: '#/components/parameters/page-token'
+        - $ref: '#/components/parameters/page-size'
+      description:
+        Perform scan planning against a table based on a set of table scan criteria such as selected columns, filters,
+        snapshot range, case sensitivity, etc.
+        
+        An optional `plan-task` can be provided to request only a subset of file scan tasks.
+        The `plan-task` can be retrieved by invoking the `PreplanTable` endpoint.
+        
+        If preplanning using the `PreplanTable` endpoint is required before hitting this endpoint but the client fails
+        to supply a `plan-task` in the request, then a `421 Misdirected Request` response should be returned to
+        indicate this requirement.
+        
+        If planning a table scan produces too many file scan tasks and the server is unable to return them within its
+        response size limit, then a `422 Unprocessable Content` response should be returned to indicate that the client
+        should first attempt to preplan the specific table scan to distribute the planning process and make the content
+        processable by the server.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanTableRequest'
+      responses:
+        200:
+          $ref: '#/components/responses/PlanTableResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description:
+            Not Found
+            - NoSuchTableException, the table does not exist
+            - NoSuchNamespaceException, the namespace does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                TableDoesNotExist:
+                  $ref: '#/components/examples/NoSuchTableError'
+                NamespaceDoesNotExist:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        421:
+          $ref: '#/components/responses/MisdirectedRequestResponse'
+        422:
+          $ref: '#/components/responses/UnprocessableContentResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
   /v1/{prefix}/namespaces/{namespace}/register:
     parameters:
       - $ref: '#/components/parameters/prefix'
@@ -629,7 +753,7 @@ paths:
             The snapshots to return in the body of the metadata. Setting the value to `all` would
             return the full set of snapshots currently valid for the table. Setting the value to
             `refs` would load all snapshots referenced by branches or tags.
-          
+
             Default if no param is provided is `all`.
           required: false
           schema:
@@ -1618,8 +1742,8 @@ components:
 
     PageToken:
       description:
-        An opaque token that allows clients to make use of pagination for list APIs
-        (e.g. ListTables). Clients may initiate the first paginated request by sending an empty
+        An opaque token that allows clients to make use of pagination for list APIs (e.g. ListTables) 
+        as well as for scan-planning APIs (e.g PlanTable). Clients may initiate the first paginated request by sending an empty
         query parameter `pageToken` to the server.
         
         Servers that support pagination should identify the `pageToken` parameter and return a
@@ -1758,6 +1882,8 @@ components:
 
     Expression:
       oneOf:
+        - $ref: '#/components/schemas/TrueExpression'
+        - $ref: '#/components/schemas/FalseExpression'
         - $ref: '#/components/schemas/AndOrExpression'
         - $ref: '#/components/schemas/NotExpression'
         - $ref: '#/components/schemas/SetExpression'
@@ -1767,6 +1893,8 @@ components:
     ExpressionType:
       type: string
       example:
+        - "true"
+        - "false"
         - "eq"
         - "and"
         - "or"
@@ -1784,6 +1912,24 @@ components:
         - "not-null"
         - "is-nan"
         - "not-nan"
+
+    TrueExpression:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          $ref: '#/components/schemas/ExpressionType'
+          enum: ["true"]
+
+    FalseExpression:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          $ref: '#/components/schemas/ExpressionType'
+          enum: ["false"]
 
     AndOrExpression:
       type: object
@@ -2774,6 +2920,30 @@ components:
           additionalProperties:
             type: string
 
+    PreplanTableResult:
+      type: object
+      required:
+        - plan-tasks
+      properties:
+        plan-tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanTask'
+        next-page-token:
+          $ref: '#/components/schemas/PageToken'
+
+    PlanTableResult:
+      type: object
+      required:
+        - file-scan-tasks
+      properties:
+        file-scan-tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileScanTask'
+        next-page-token:
+          $ref: '#/components/schemas/PageToken'
+
     CommitTableRequest:
       type: object
       required:
@@ -3544,6 +3714,7 @@ components:
       type: object
       required:
         - spec-id
+        - partition
         - content
         - file-path
         - file-format
@@ -3646,6 +3817,176 @@ components:
           items:
             type: integer
           description: "List of equality field IDs"
+
+    PreplanTableRequest:
+      type: object
+      required:
+        - table-scan-context
+      properties:
+        table-scan-context:
+          $ref: '#/components/schemas/TableScanContext'
+
+    PlanTableRequest:
+      type: object
+      required:
+        - table-scan-context
+      properties:
+        table-scan-context:
+          $ref: '#/components/schemas/TableScanContext'
+        plan-task:
+          $ref: '#/components/schemas/PlanTask'
+        stats-fields:
+          description:
+            A list of fields that the client requests the server to send statistics
+            in each `FileScanTask` returned in the response
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldName'
+
+    TableScanContext:
+      anyOf:
+        - $ref: '#/components/schemas/SnapshotScanContext'
+        - $ref: '#/components/schemas/IncrementalSnapshotScanContext'
+
+    BaseTableScanContext:
+      discriminator:
+        propertyName: type
+        mapping:
+          snapshot-scan: '#/components/schemas/SnapshotScanContext'
+          incremental-snapshot-scan: '#/components/schemas/IncrementalSnapshotScanContext'
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+
+    SnapshotScanContext:
+      description: context for scanning data in a specific snapshot
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/BaseTableScanContext'
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum: ["snapshot-scan"]
+        select:
+          $ref: '#/components/schemas/SelectedFieldNames'
+        filter:
+          $ref: '#/components/schemas/Filter'
+        case-sensitive:
+          description: If field selection and filtering should be case sensitive
+          type: boolean
+          default: true
+        snapshot-id:
+          description:
+            The ID of the snapshot to use for the table scan.
+            If not specified, the snapshot at the main branch head will be used.
+          type: integer
+          format: int64
+        use-snapshot-schema:
+          description:
+            If the schema of the specific snapshot should be used instead of the table schema.
+          type: boolean
+          default: false
+
+    IncrementalSnapshotScanContext:
+      description:
+        Context for scanning data appended in a range of snapshots.
+        The scan always follows the schema of the snapshot at the main branch head.
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/BaseTableScanContext'
+      required:
+        - type
+        - start-snapshot-id
+      properties:
+        type:
+          type: string
+          enum: ["incremental-snapshot-scan"]
+        select:
+          $ref: '#/components/schemas/SelectedFieldNames'
+        filter:
+          $ref: '#/components/schemas/Filter'
+        case-sensitive:
+          description: If field selection and filtering should be case sensitive
+          type: boolean
+          default: true
+        start-snapshot-id:
+          description: The ID of the starting snapshot of the incremental scan
+          type: integer
+          format: int64
+        inclusive-start:
+          description: If the data appended in the start snapshot should be included in the scan
+          type: boolean
+          default: false
+        end-snapshot-id:
+          description:
+            The ID of the inclusive ending snapshot of the incremental scan.
+            If not specified, the snapshot at the main branch head will be used as the end snapshot.
+          type: integer
+          format: int64
+
+    FieldName:
+      description:
+        A field name that follows the Iceberg naming standard, and can be used in APIs like
+        Java `Schema#findField(String name)`.
+
+        The nested field name follows these rules
+        - nested struct fields are named by concatenating field names at each struct level using dot (`.`) delimiter,
+        e.g. employer.contact_info.address.zip_code
+        - nested fields in a map key are named using the keyword `key`, e.g. employee_address_map.key.first_name
+        - nested fields in a map value are named using the keyword `value`, e.g. employee_address_map.value.zip_code
+        - nested fields in a list are named using the keyword `element`, e.g. employees.element.first_name
+      type: string
+
+    SelectedFieldNames:
+      description:
+        A list of fields in schema that are selected in a table scan.
+        When not specified, all columns in the requested schema should be selected.
+      type: array
+      items:
+        $ref: '#/components/schemas/FieldName'
+
+    Filter:
+      description:
+        an unbounded expression to describe the filters to apply to a table scan, 
+        default to `TrueExpression` meaning that nothing is filtered.
+      allOf:
+        - $ref: '#/components/schemas/Expression'
+      default: { "type": "true" }
+
+    PlanTask:
+      description:
+        An opaque JSON object that contains information provided by the REST server
+        to be utilized by clients for distributed table scan planning; should be supplied
+        as input in `PlanTable` operation.
+      type: object
+
+    FileScanTask:
+      type: object
+      required:
+        - data-file
+        - residual-filter
+      properties:
+        data-file:
+          $ref: '#/components/schemas/DataFile'
+        position-delete-files:
+          description: a list of position delete files that should be applied to the data file during a scan
+          type: array
+          items:
+            $ref: '#/components/schemas/PositionDeleteFile'
+        equality-delete-files:
+          description: a list of equality delete files that should be applied to the data file during a scan
+          type: array
+          items:
+            $ref: '#/components/schemas/EqualityDeleteFile'
+        residual-filter:
+          description: the filters should be applied to rows in this file scan task
+          allOf:
+            - $ref: '#/components/schemas/Filter'
 
   #############################
   # Reusable Response Objects #
@@ -3809,6 +4150,41 @@ components:
             }
           }
 
+    #  Note that this is a representative example response for use as a shorthand in the spec.
+    #  The fields `message` and `type` as indicated here are not presently prescriptive.
+    MisdirectedRequestResponse:
+      description:
+        Misdirected Request. The request was directed to a server that is not able to produce a response.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/IcebergErrorResponse'
+          example: {
+            "error": {
+              "message": "Fail to plan table scan: must perform preplan before planning a table scan",
+              "type": "PreplanTableRequiredException",
+              "code": 421
+            }
+          }
+
+    #  Note that this is a representative example response for use as a shorthand in the spec.
+    #  The fields `message` and `type` as indicated here are not presently prescriptive.
+    UnprocessableContentResponse:
+      description:
+        Unprocessable Content. The server understands the content type of the request entity, and the syntax of the
+        request entity is correct, but it was unable to process the contained instructions.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/IcebergErrorResponse'
+          example: {
+            "error": {
+              "message": "Fail to plan table scan: too many file scan tasks. Please use preplan to distribute table scan.",
+              "type": "TooManyFileScanTasksException",
+              "code": 422
+            }
+          }
+
     ServiceUnavailableResponse:
       description:
         The service is not ready to handle the request. The client should wait and retry.
@@ -3862,6 +4238,20 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/LoadTableResult'
+
+    PreplanTableResponse:
+      description: Result of preplanning a table scan
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PreplanTableResult'
+
+    PlanTableResponse:
+      description: Result of planning a table scan
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PlanTableResult'
 
     LoadTableResponse:
       description: Table metadata result when loading a table
