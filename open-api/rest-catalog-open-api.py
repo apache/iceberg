@@ -218,6 +218,16 @@ class MetadataLog(BaseModel):
     __root__: List[MetadataLogItem]
 
 
+class PlanTask(BaseModel):
+    """
+    A JSON object that contains information provided by the server, to be utilized by clients for distributed planning, should be supplied as is for input in PlanTable operation.
+    """
+
+
+class FileContent(BaseModel):
+    __root__: Literal['data', 'position-deletes', 'equality-deletes']
+
+
 class SQLViewRepresentation(BaseModel):
     type: str
     sql: str
@@ -448,6 +458,10 @@ class AssertViewUUID(ViewRequirement):
 
     type: Literal['assert-view-uuid']
     uuid: str
+
+
+class PreplanTableResult(BaseModel):
+    plan_tasks: List[PlanTask] = Field(..., alias='plan-tasks')
 
 
 class RegisterTableRequest(BaseModel):
@@ -756,6 +770,30 @@ class CountMap(BaseModel):
     )
 
 
+class FileFormat(BaseModel):
+    __root__: Literal['avro', 'orc', 'parquet']
+
+
+class CreateNamespaceRequest(BaseModel):
+    namespace: Namespace
+    properties: Optional[Dict[str, str]] = Field(
+        {},
+        description='Configured string to string map of properties for the namespace',
+        example={'owner': 'Hank Bendickson'},
+    )
+
+
+class RenameTableRequest(BaseModel):
+    source: TableIdentifier
+    destination: TableIdentifier
+
+
+class TransformTerm(BaseModel):
+    type: Literal['transform']
+    transform: Transform
+    term: Reference
+
+
 class PrimitiveTypeValue(BaseModel):
     __root__: Union[
         BooleanTypeValue,
@@ -775,10 +813,6 @@ class PrimitiveTypeValue(BaseModel):
         FixedTypeValue,
         BinaryTypeValue,
     ]
-
-
-class FileFormat(BaseModel):
-    __root__: Literal['avro', 'orc', 'parquet']
 
 
 class ContentFile(BaseModel):
@@ -804,37 +838,6 @@ class ContentFile(BaseModel):
         None, alias='split-offsets', description='List of splittable offsets'
     )
     sort_order_id: Optional[int] = Field(None, alias='sort-order-id')
-
-
-class PositionDeleteFile(ContentFile):
-    content: Literal['position-deletes']
-
-
-class EqualityDeleteFile(ContentFile):
-    content: Literal['equality-deletes']
-    equality_ids: Optional[List[int]] = Field(
-        None, alias='equality-ids', description='List of equality field IDs'
-    )
-
-
-class CreateNamespaceRequest(BaseModel):
-    namespace: Namespace
-    properties: Optional[Dict[str, str]] = Field(
-        {},
-        description='Configured string to string map of properties for the namespace',
-        example={'owner': 'Hank Bendickson'},
-    )
-
-
-class RenameTableRequest(BaseModel):
-    source: TableIdentifier
-    destination: TableIdentifier
-
-
-class TransformTerm(BaseModel):
-    type: Literal['transform']
-    transform: Transform
-    term: Reference
 
 
 class SetPartitionStatisticsUpdate(BaseUpdate):
@@ -894,6 +897,17 @@ class DataFile(ContentFile):
         None,
         alias='upper-bounds',
         description='Map of column id to upper bound primitive type values',
+    )
+
+
+class PositionDeleteFile(ContentFile):
+    content: Literal['position-deletes']
+
+
+class EqualityDeleteFile(ContentFile):
+    content: Literal['equality-deletes']
+    equality_ids: Optional[List[int]] = Field(
+        None, alias='equality-ids', description='List of equality field IDs'
     )
 
 
@@ -1009,6 +1023,33 @@ class TableMetadata(BaseModel):
     )
 
 
+class FileScanTask(BaseModel):
+    data_file: ContentFile = Field(..., alias='data-file')
+    start: float
+    length: float
+    delete_files: Optional[List[ContentFile]] = Field(None, alias='delete-files')
+    schema_: Schema = Field(..., alias='schema', description='Table Schema')
+    spec: PartitionSpec
+    residual_filter: Optional[Expression] = Field(
+        None,
+        alias='residual-filter',
+        description='An optional residual filter provided by a service, if not present clients shall calculate this residual or use the original filter.',
+    )
+
+
+class TypeValue(BaseModel):
+    __root__: Union[PrimitiveTypeValue, MapTypeValue, StructTypeValue]
+
+
+class MapTypeValue(BaseModel):
+    keys: Optional[List[TypeValue]] = None
+    values: Optional[List[TypeValue]] = None
+
+
+class StructTypeValue(BaseModel):
+    __root__: Optional[Dict[str, TypeValue]] = None
+
+
 class ViewMetadata(BaseModel):
     view_uuid: str = Field(..., alias='view-uuid')
     format_version: int = Field(..., alias='format-version', ge=1, le=1)
@@ -1103,6 +1144,10 @@ class LoadTableResult(BaseModel):
     config: Optional[Dict[str, str]] = None
 
 
+class PlanTableResult(BaseModel):
+    file_scan_tasks: List[FileScanTask] = Field(..., alias='file-scan-tasks')
+
+
 class CommitTableRequest(BaseModel):
     identifier: Optional[TableIdentifier] = Field(
         None,
@@ -1132,6 +1177,42 @@ class CreateTableRequest(BaseModel):
     write_order: Optional[SortOrder] = Field(None, alias='write-order')
     stage_create: Optional[bool] = Field(None, alias='stage-create')
     properties: Optional[Dict[str, str]] = None
+
+
+class PreplanTableRequest(BaseModel):
+    select: List[str] = Field(..., description='A list of the selected column names')
+    filter: Expression
+    case_sensitive: bool = Field(
+        ...,
+        alias='case-sensitive',
+        description='Indicates whether column selection and filtering should be case sensitive',
+    )
+    snapshot_id: Optional[int] = Field(
+        None,
+        alias='snapshot-id',
+        description="an int64 snapshot ID (if snapshot-range is not present); optional and defaults to the table's current snapshot",
+    )
+    snapshot_range: Optional[List[int]] = Field(
+        None,
+        alias='snapshot-range',
+        description='a JSON list containing exactly 2 int64 snapshot IDs (if snapshot-id is not present) representing the start (exclusive) and end (inclusive) snapshots',
+    )
+
+
+class PlanTableRequest(BaseModel):
+    select: List[str] = Field(..., description='A list of the selected column names')
+    filter: Expression
+    case_sensitive: bool = Field(
+        ...,
+        alias='case-sensitive',
+        description='Indicates whether column selection and filtering should be case sensitive',
+    )
+    stats_fields: Optional[List[str]] = Field(
+        None,
+        alias='stats-fields',
+        description='a list of string field names for which stats should be included',
+    )
+    plan_task: Optional[PlanTask] = Field(None, alias='plan-task')
 
 
 class CreateViewRequest(BaseModel):
@@ -1205,6 +1286,8 @@ ListType.update_forward_refs()
 MapType.update_forward_refs()
 Expression.update_forward_refs()
 TableMetadata.update_forward_refs()
+FileScanTask.update_forward_refs()
+TypeValue.update_forward_refs()
 ViewMetadata.update_forward_refs()
 AddSchemaUpdate.update_forward_refs()
 CreateTableRequest.update_forward_refs()

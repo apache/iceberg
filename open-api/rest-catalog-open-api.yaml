@@ -537,6 +537,108 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}/preplan:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/table'
+    post:
+      tags:
+        - Catalog API
+      summary: Find plan-tasks based on a plan context.
+      description:
+        Scan pre-planning creates a set of opaque planning tasks for a set of scan configuration options. 
+        Each task can be passed to the plan endpoint to fetch a (disjoint) subset of the file scan tasks for the scan.
+
+        Scan pre-planning enables breaking scan planning across multiple tasks. 
+        This can be used to parallelize scan planning requests, use fewer resources in each planning request,
+        or to delay parts of scan planning that may not be needed.
+      operationId: PreplanTable
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PreplanTableRequest'
+      responses:
+        200:
+          $ref: '#/components/responses/PreplanTableResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description:
+            Not Found
+            - NoSuchTableException, the table does not exist
+            - NoSuchNamespaceException, the namespace does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+              examples:
+                TableDoesNotExist:
+                  $ref: '#/components/examples/NoSuchTableError'
+                NamespaceDoesNotExist:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}/plan:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/table'
+    post:
+      tags:
+        - Catalog API
+      summary: Initiate plan on table to find relevant file scan tasks for a specific query.
+      operationId: PlanTable
+      description:
+        When a user submits a query, a plan will be initiated to find the relevant file scan tasks
+        based on the user's selected columns, and filters. For enhanced query performance, 
+        users can provide a plan-task which will distribute the planning work.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanTableRequest'
+      responses:
+        200:
+          $ref: '#/components/responses/PlanTableResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description:
+            Not Found - NoSuchTableException, table to load does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                TableToLoadDoesNotExist:
+                  $ref: '#/components/examples/NoSuchTableError'
+
+        413:
+          $ref: '#/components/responses/PayLoadTooLargeResponse'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        422:
+          $ref: '#/components/responses/UnprocessableEntityResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
   /v1/{prefix}/namespaces/{namespace}/register:
     parameters:
       - $ref: '#/components/parameters/prefix'
@@ -2106,6 +2208,41 @@ components:
           items:
             $ref: '#/components/schemas/PartitionStatisticsFile'
 
+    PlanTask:
+      description:
+        A JSON object that contains information provided by the server,
+        to be utilized by clients for distributed planning, should be supplied
+        as is for input in PlanTable operation.
+      type: object
+
+    FileScanTask:
+      type: object
+      required:
+        - schema
+        - spec
+        - start
+        - length
+        - data-file
+      properties:
+        data-file:
+          $ref: '#/components/schemas/ContentFile'
+        start:
+          type: number
+        length:
+          type: number
+        delete-files:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContentFile'
+        schema:
+          description: Table Schema
+          $ref: '#/components/schemas/Schema'
+        spec:
+          $ref: '#/components/schemas/PartitionSpec'
+        residual-filter:
+          description: An optional residual filter provided by a service, if not present clients shall calculate this residual or use the original filter.
+          $ref: '#/components/schemas/Expression'
+
     SQLViewRepresentation:
       type: object
       required:
@@ -2612,7 +2749,7 @@ components:
       allOf:
         - $ref: "#/components/schemas/TableRequirement"
       description:
-        The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; 
+        The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`;
         if `snapshot-id` is `null` or missing, the ref must not already exist
       required:
         - type
@@ -2769,6 +2906,26 @@ components:
           additionalProperties:
             type: string
 
+    PreplanTableResult:
+      type: object
+      required:
+        - plan-tasks
+      properties:
+        plan-tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanTask'
+
+    PlanTableResult:
+      type: object
+      required:
+        - file-scan-tasks
+      properties:
+        file-scan-tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileScanTask'
+
     CommitTableRequest:
       type: object
       required:
@@ -2837,6 +2994,59 @@ components:
           type: object
           additionalProperties:
             type: string
+
+    PreplanTableRequest:
+      type: object
+      required:
+        - select
+        - filter
+        - case-sensitive
+      properties:
+        select:
+          description: A list of the selected column names
+          type: array
+          items:
+            type: string
+        filter:
+          $ref: '#/components/schemas/Expression'
+        case-sensitive:
+          description: Indicates whether column selection and filtering should be case sensitive
+          type: boolean
+        snapshot-id:
+          description: an int64 snapshot ID (if snapshot-range is not present); optional and defaults to the table's current snapshot
+          type: integer
+          format: int64
+        snapshot-range:
+          description: a JSON list containing exactly 2 int64 snapshot IDs (if snapshot-id is not present) representing the start (exclusive) and end (inclusive) snapshots
+          type: array
+          items:
+            type: integer
+            format: int64
+
+    PlanTableRequest:
+      type: object
+      required:
+        - select
+        - filter
+        - case-sensitive
+      properties:
+        select:
+          description: A list of the selected column names
+          type: array
+          items:
+            type: string
+        filter:
+          $ref: '#/components/schemas/Expression'
+        case-sensitive:
+          description: Indicates whether column selection and filtering should be case sensitive
+          type: boolean
+        stats-fields:
+          description: a list of string field names for which stats should be included
+          type: array
+          items:
+            type: string
+        plan-task:
+          $ref: '#/components/schemas/PlanTask'
 
     RegisterTableRequest:
       type: object
@@ -3789,6 +3999,21 @@ components:
             EmptyResponse:
               $ref: '#/components/examples/ListNamespacesEmptyExample'
 
+    PayLoadTooLargeResponse:
+      description:
+        Payload is too large, clients should leverage the preplan endpoint and provide a plan-task before doing a plan.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/IcebergErrorResponse'
+          example: {
+            "error": {
+              "message": " Payload is too large, client should obtain a plan-task by using the preplan endpoint.",
+              "type": "PayLoadTooLargeException",
+              "code": 413
+            }
+          }
+
     AuthenticationTimeoutResponse:
       description:
         Credentials have timed out. If possible, the client should refresh credentials and retry.
@@ -3801,6 +4026,21 @@ components:
               "message": "Credentials have timed out",
               "type": "AuthenticationTimeoutException",
               "code": 419
+            }
+          }
+
+    UnprocessableEntityResponse:
+      description:
+        Clients are required to do preplanning and provide a plan-task, before initiating a plan.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/IcebergErrorResponse'
+          example: {
+            "error": {
+              "message": " Unprocessable entity, clients are required to do preplanning, before initiating a plan.",
+              "type": "UnprocessableEntityException",
+              "code": 422
             }
           }
 
@@ -3857,6 +4097,20 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/LoadTableResult'
+
+    PreplanTableResponse:
+      description: Result of getting plan-tasks from preplanning a table.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PreplanTableResult'
+
+    PlanTableResponse:
+      description: Result of getting file-scan-tasks from planning a table.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PlanTableResult'
 
     LoadTableResponse:
       description: Table metadata result when loading a table
