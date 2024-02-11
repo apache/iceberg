@@ -223,6 +223,34 @@ public class ResidualEvaluator implements Serializable {
     }
 
     @Override
+    public <T> Expression endsWith(BoundReference<T> ref, Literal<T> lit) {
+      return ((String) ref.eval(struct)).endsWith((String) lit.value())
+          ? alwaysTrue()
+          : alwaysFalse();
+    }
+
+    @Override
+    public <T> Expression notEndsWith(BoundReference<T> ref, Literal<T> lit) {
+      return ((String) ref.eval(struct)).endsWith((String) lit.value())
+          ? alwaysFalse()
+          : alwaysTrue();
+    }
+
+    @Override
+    public <T> Expression contains(BoundReference<T> ref, Literal<T> lit) {
+      return ((String) ref.eval(struct)).contains((String) lit.value())
+          ? alwaysTrue()
+          : alwaysFalse();
+    }
+
+    @Override
+    public <T> Expression notContains(BoundReference<T> ref, Literal<T> lit) {
+      return ((String) ref.eval(struct)).contains((String) lit.value())
+          ? alwaysFalse()
+          : alwaysTrue();
+    }
+
+    @Override
     @SuppressWarnings("unchecked")
     public <T> Expression predicate(BoundPredicate<T> pred) {
       // Get the strict projection and inclusive projection of this predicate in partition data,
