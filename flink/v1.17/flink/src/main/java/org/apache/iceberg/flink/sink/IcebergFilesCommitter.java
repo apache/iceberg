@@ -79,6 +79,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   // id will be attached to iceberg's meta when committing the iceberg transaction.
   private static final String MAX_COMMITTED_CHECKPOINT_ID = "flink.max-committed-checkpoint-id";
   static final String MAX_CONTINUOUS_EMPTY_COMMITS = "flink.max-continuous-empty-commits";
+  static final String SINGLE_PHASE_COMMIT_ENABLED = "flink.single-phase-commit-enabled";
 
   // TableLoader to load iceberg table lazily.
   private final TableLoader tableLoader;
@@ -108,6 +109,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   private transient long maxCommittedCheckpointId;
   private transient int continuousEmptyCheckpoints;
   private transient int maxContinuousEmptyCommits;
+  private transient boolean singlePhaseCommitEnabled;
   // There're two cases that we restore from flink checkpoints: the first case is restoring from
   // snapshot created by the same flink job; another case is restoring from snapshot created by
   // another different job. For the second case, we need to maintain the old flink job's id in flink
@@ -155,6 +157,9 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
         PropertyUtil.propertyAsInt(table.properties(), MAX_CONTINUOUS_EMPTY_COMMITS, 10);
     Preconditions.checkArgument(
         maxContinuousEmptyCommits > 0, MAX_CONTINUOUS_EMPTY_COMMITS + " must be positive");
+
+    singlePhaseCommitEnabled =
+            PropertyUtil.propertyAsBoolean(table.properties(), SINGLE_PHASE_COMMIT_ENABLED, false);
 
     int subTaskId = getRuntimeContext().getIndexOfThisSubtask();
     int attemptId = getRuntimeContext().getAttemptNumber();
@@ -224,11 +229,23 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     writeResultsOfCurrentCkpt.clear();
     committerMetrics.checkpointDuration(
         TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano));
+
+    if(singlePhaseCommitEnabled) {
+      LOG.info(
+              "Doing single phase commit for table: {}, checkpointId: {}",
+              table,
+              checkpointId);
+      commitCheckpoint(checkpointId);
+    }
   }
 
   @Override
   public void notifyCheckpointComplete(long checkpointId) throws Exception {
     super.notifyCheckpointComplete(checkpointId);
+    commitCheckpoint(checkpointId);
+  }
+
+  private void commitCheckpoint(long checkpointId) throws Exception {
     // It's possible that we have the following events:
     //   1. snapshotState(ckpId);
     //   2. snapshotState(ckpId+1);
@@ -243,9 +260,9 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       this.maxCommittedCheckpointId = checkpointId;
     } else {
       LOG.info(
-          "Skipping committing checkpoint {}. {} is already committed.",
-          checkpointId,
-          maxCommittedCheckpointId);
+              "Skipping committing checkpoint {}. {} is already committed.",
+              checkpointId,
+              maxCommittedCheckpointId);
     }
 
     // reload the table in case new configuration is needed
