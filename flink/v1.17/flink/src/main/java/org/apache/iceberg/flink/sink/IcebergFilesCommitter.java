@@ -231,13 +231,21 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
         TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano));
 
     if(singlePhaseCommitEnabled) {
-      notifyCheckpointComplete(context.getCheckpointId());
+      LOG.info(
+              "Doing single phase commit for table: {}, checkpointId: {}",
+              table,
+              checkpointId);
+      commitCheckpoint(checkpointId);
     }
   }
 
   @Override
   public void notifyCheckpointComplete(long checkpointId) throws Exception {
     super.notifyCheckpointComplete(checkpointId);
+    commitCheckpoint(checkpointId);
+  }
+
+  private void commitCheckpoint(long checkpointId) throws Exception {
     // It's possible that we have the following events:
     //   1. snapshotState(ckpId);
     //   2. snapshotState(ckpId+1);
@@ -252,9 +260,9 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       this.maxCommittedCheckpointId = checkpointId;
     } else {
       LOG.info(
-          "Skipping committing checkpoint {}. {} is already committed.",
-          checkpointId,
-          maxCommittedCheckpointId);
+              "Skipping committing checkpoint {}. {} is already committed.",
+              checkpointId,
+              maxCommittedCheckpointId);
     }
 
     // reload the table in case new configuration is needed
