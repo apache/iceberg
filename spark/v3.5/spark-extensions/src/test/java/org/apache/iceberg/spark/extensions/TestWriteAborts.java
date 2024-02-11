@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark.extensions;
 
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
@@ -44,7 +43,6 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestWriteAborts extends ExtensionsTestBase {
@@ -76,8 +74,6 @@ public class TestWriteAborts extends ExtensionsTestBase {
       }
     };
   }
-
-  @TempDir private Path temp;
 
   @AfterEach
   public void removeTables() {

@@ -27,6 +27,7 @@ import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.apache.spark.sql.functions.lit;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.Arrays;
@@ -46,7 +47,7 @@ import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.ManifestFile;
-import org.apache.iceberg.PlanningMode;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
@@ -57,7 +58,6 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.spark.Spark3Util;
@@ -77,42 +77,20 @@ import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.execution.datasources.v2.OptimizeMetadataOnlyDeleteFromTable;
 import org.apache.spark.sql.internal.SQLConf;
 import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
-  public TestDelete(
-      String catalogName,
-      String implementation,
-      Map<String, String> config,
-      String fileFormat,
-      Boolean vectorized,
-      String distributionMode,
-      boolean fanoutEnabled,
-      String branch,
-      PlanningMode planningMode) {
-    super(
-        catalogName,
-        implementation,
-        config,
-        fileFormat,
-        vectorized,
-        distributionMode,
-        fanoutEnabled,
-        branch,
-        planningMode);
-  }
-
-  @BeforeClass
+  @BeforeAll
   public static void setupSparkConf() {
     spark.conf().set("spark.sql.shuffle.partitions", "4");
   }
 
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS deleted_id");
@@ -120,7 +98,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     sql("DROP TABLE IF EXISTS parquet_table");
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteWithVectorizedReads() throws NoSuchTableException {
     assumeThat(supportsVectorization()).isTrue();
 
@@ -135,7 +113,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     assertAllBatchScansVectorized(plan);
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).as("Should have 3 snapshots").hasSize(3);
 
     Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
     if (mode(table) == COPY_ON_WRITE) {
@@ -150,7 +128,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testCoalesceDelete() throws Exception {
     createAndInitUnpartitionedTable();
 
@@ -193,7 +171,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         () -> {
           SparkPlan plan =
               executeAndKeepPlan("DELETE FROM %s WHERE mod(id, 2) = 0", commitTarget());
-          Assertions.assertThat(plan.toString()).contains("REBALANCE_PARTITIONS_BY_COL");
+          assertThat(plan.toString()).contains("REBALANCE_PARTITIONS_BY_COL");
         });
 
     Table table = validationCatalog.loadTable(tableIdent);
@@ -214,11 +192,12 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
       validateProperty(snapshot, SnapshotSummary.ADDED_DELETE_FILES_PROP, "1");
     }
 
-    Assert.assertEquals(
-        "Row count must match", 200L, scalarSql("SELECT COUNT(*) FROM %s", commitTarget()));
+    assertThat(scalarSql("SELECT COUNT(*) FROM %s", commitTarget()))
+        .as("Row count must match")
+        .isEqualTo(200L);
   }
 
-  @Test
+  @TestTemplate
   public void testSkewDelete() throws Exception {
     createAndInitPartitionedTable();
 
@@ -261,7 +240,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         () -> {
           SparkPlan plan =
               executeAndKeepPlan("DELETE FROM %s WHERE mod(id, 2) = 0", commitTarget());
-          Assertions.assertThat(plan.toString()).contains("REBALANCE_PARTITIONS_BY_COL");
+          assertThat(plan.toString()).contains("REBALANCE_PARTITIONS_BY_COL");
         });
 
     Table table = validationCatalog.loadTable(tableIdent);
@@ -283,11 +262,12 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
       validateProperty(snapshot, SnapshotSummary.ADDED_DELETE_FILES_PROP, "4");
     }
 
-    Assert.assertEquals(
-        "Row count must match", 200L, scalarSql("SELECT COUNT(*) FROM %s", commitTarget()));
+    assertThat(scalarSql("SELECT COUNT(*) FROM %s", commitTarget()))
+        .as("Row count must match")
+        .isEqualTo(200L);
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteWithoutScanningTable() throws Exception {
     createAndInitPartitionedTable();
 
@@ -322,9 +302,11 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteFileThenMetadataDelete() throws Exception {
-    Assume.assumeFalse("Avro does not support metadata delete", fileFormat.equals("avro"));
+    assumeThat(fileFormat.equalsIgnoreCase("avro"))
+        .as("Avro does not support metadata delete")
+        .isFalse();
     createAndInitUnpartitionedTable();
     createBranchIfNeeded();
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", commitTarget());
@@ -339,8 +321,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     sql("DELETE FROM %s AS t WHERE t.id = 1", commitTarget());
 
     List<DataFile> dataFilesAfter = TestHelpers.dataFiles(table, branch);
-    Assert.assertTrue(
-        "Data file should have been removed", dataFilesBefore.size() > dataFilesAfter.size());
+    assertThat(dataFilesBefore.size() > dataFilesAfter.size())
+        .as("Data file should have been removed")
+        .isTrue();
 
     assertEquals(
         "Should have expected rows",
@@ -348,7 +331,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteWithPartitionedTable() throws Exception {
     createAndInitPartitionedTable();
 
@@ -364,8 +347,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
     List<Row> rowLevelDeletePartitions =
         spark.sql("SELECT * FROM " + tableName + ".partitions ").collectAsList();
-    Assert.assertEquals(
-        "row level delete does not reduce number of partition", 2, rowLevelDeletePartitions.size());
+    assertThat(rowLevelDeletePartitions)
+        .as("row level delete does not reduce number of partition")
+        .hasSize(2);
 
     // partition aligned delete
     sql("DELETE FROM %s WHERE dep = 'hr'", tableName);
@@ -376,11 +360,10 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
     List<Row> actualPartitions =
         spark.sql("SELECT * FROM " + tableName + ".partitions ").collectAsList();
-    Assert.assertEquals(
-        "partition aligned delete results in 1 partition", 1, actualPartitions.size());
+    assertThat(actualPartitions).as("partition aligned delete results in 1 partition").hasSize(1);
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteWithFalseCondition() {
     createAndInitUnpartitionedTable();
 
@@ -390,7 +373,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     sql("DELETE FROM %s WHERE id = 1 AND id > 20", commitTarget());
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should have 2 snapshots", 2, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).as("Should have 2 snapshots").hasSize(2);
 
     assertEquals(
         "Should have expected rows",
@@ -398,16 +381,16 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteFromEmptyTable() {
-    Assume.assumeFalse("Custom branch does not exist for empty table", "test".equals(branch));
+    assumeThat("test".equals(branch)).as("Custom branch does not exist for empty table").isFalse();
     createAndInitUnpartitionedTable();
 
     sql("DELETE FROM %s WHERE id IN (1)", commitTarget());
     sql("DELETE FROM %s WHERE dep = 'hr'", commitTarget());
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should have 2 snapshots", 2, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).as("Should have 2 snapshots").hasSize(2);
 
     assertEquals(
         "Should have expected rows",
@@ -415,9 +398,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteFromNonExistingCustomBranch() {
-    Assume.assumeTrue("Test only applicable to custom branch", "test".equals(branch));
+    assumeThat("test".equals(branch)).as("Test only applicable to custom branch").isTrue();
     createAndInitUnpartitionedTable();
 
     Assertions.assertThatThrownBy(() -> sql("DELETE FROM %s WHERE id IN (1)", commitTarget()))
@@ -425,7 +408,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         .hasMessage("Cannot use branch (does not exist): test");
   }
 
-  @Test
+  @TestTemplate
   public void testExplain() {
     createAndInitUnpartitionedTable();
 
@@ -437,7 +420,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     sql("EXPLAIN DELETE FROM %s WHERE true", commitTarget());
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should have 1 snapshot", 1, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).as("Should have 1 snapshot").hasSize(1);
 
     assertEquals(
         "Should have expected rows",
@@ -445,7 +428,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", commitTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteWithAlias() {
     createAndInitUnpartitionedTable();
 
@@ -460,7 +443,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteWithDynamicFileFiltering() throws NoSuchTableException {
     createAndInitPartitionedTable();
 
@@ -471,7 +454,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     sql("DELETE FROM %s WHERE id = 2", commitTarget());
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).as("Should have 3 snapshots").hasSize(3);
 
     Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
     if (mode(table) == COPY_ON_WRITE) {
@@ -486,7 +469,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id, dep", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteNonExistingRecords() {
     createAndInitPartitionedTable();
 
@@ -496,7 +479,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     sql("DELETE FROM %s AS t WHERE t.id > 10", commitTarget());
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should have 2 snapshots", 2, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).as("Should have 2 snapshots").hasSize(2);
 
     Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
 
@@ -516,7 +499,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteWithoutCondition() {
     createAndInitPartitionedTable();
 
@@ -528,7 +511,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     sql("DELETE FROM %s", commitTarget());
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should have 4 snapshots", 4, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).as("Should have 4 snapshots").hasSize(4);
 
     // should be a delete instead of an overwrite as it is done through a metadata operation
     Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
@@ -538,7 +521,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         "Should have expected rows", ImmutableList.of(), sql("SELECT * FROM %s", commitTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteUsingMetadataWithComplexCondition() {
     createAndInitPartitionedTable();
 
@@ -552,7 +535,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         commitTarget());
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should have 4 snapshots", 4, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).as("Should have 4 snapshots").hasSize(4);
 
     // should be a delete instead of an overwrite as it is done through a metadata operation
     Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
@@ -564,7 +547,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteWithArbitraryPartitionPredicates() {
     createAndInitPartitionedTable();
 
@@ -577,7 +560,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     sql("DELETE FROM %s WHERE id = 10 OR dep LIKE '%%ware'", commitTarget());
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should have 4 snapshots", 4, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).as("Should have 4 snapshots").hasSize(4);
 
     // should be an overwrite since cannot be executed using a metadata operation
     Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
@@ -593,7 +576,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteWithNonDeterministicCondition() {
     createAndInitPartitionedTable();
 
@@ -606,7 +589,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         .hasMessageContaining("The operator expects a deterministic expression");
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteWithFoldableConditions() {
     createAndInitPartitionedTable();
 
@@ -642,10 +625,10 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should have 2 snapshots", 2, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).as("Should have 2 snapshots").hasSize(2);
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteWithNullConditions() {
     createAndInitPartitionedTable();
 
@@ -677,13 +660,13 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).as("Should have 3 snapshots").hasSize(3);
 
     Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
     validateDelete(currentSnapshot, "1", "1");
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteWithInAndNotInConditions() {
     createAndInitUnpartitionedTable();
 
@@ -709,9 +692,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteWithMultipleRowGroupsParquet() throws NoSuchTableException {
-    Assume.assumeTrue(fileFormat.equalsIgnoreCase("parquet"));
+    assumeThat(fileFormat.equalsIgnoreCase("parquet")).isTrue();
 
     createAndInitPartitionedTable();
 
@@ -732,15 +715,15 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     df.coalesce(1).writeTo(tableName).append();
     createBranchIfNeeded();
 
-    Assert.assertEquals(200, spark.table(commitTarget()).count());
+    assertThat(spark.table(commitTarget()).count()).isEqualTo(200);
 
     // delete a record from one of two row groups and copy over the second one
     sql("DELETE FROM %s WHERE id IN (200, 201)", commitTarget());
 
-    Assert.assertEquals(199, spark.table(commitTarget()).count());
+    assertThat(spark.table(commitTarget()).count()).isEqualTo(199);
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteWithConditionOnNestedColumn() {
     createAndInitNestedColumnsTable();
 
@@ -759,7 +742,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         "Should have expected rows", ImmutableList.of(), sql("SELECT id FROM %s", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteWithInSubquery() throws NoSuchTableException {
     createAndInitUnpartitionedTable();
 
@@ -806,7 +789,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteWithMultiColumnInSubquery() throws NoSuchTableException {
     createAndInitUnpartitionedTable();
 
@@ -824,7 +807,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteWithNotInSubquery() throws NoSuchTableException {
     createAndInitUnpartitionedTable();
 
@@ -884,9 +867,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteOnNonIcebergTableNotSupported() {
-    Assume.assumeTrue(catalogName.equalsIgnoreCase("spark_catalog"));
+    assumeThat(catalogName.equalsIgnoreCase("spark_catalog")).isTrue();
 
     sql("CREATE TABLE parquet_table (c1 INT, c2 INT) USING parquet");
 
@@ -895,7 +878,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         .hasMessageContaining("does not support DELETE");
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteWithExistSubquery() throws NoSuchTableException {
     createAndInitUnpartitionedTable();
 
@@ -940,7 +923,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteWithNotExistsSubquery() throws NoSuchTableException {
     createAndInitUnpartitionedTable();
 
@@ -976,7 +959,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteWithScalarSubquery() throws NoSuchTableException {
     createAndInitUnpartitionedTable();
 
@@ -997,7 +980,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         });
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteThatRequiresGroupingBeforeWrite() throws NoSuchTableException {
     createAndInitPartitionedTable();
 
@@ -1015,20 +998,21 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
       spark.conf().set("spark.sql.shuffle.partitions", "1");
 
       sql("DELETE FROM %s t WHERE id IN (SELECT * FROM deleted_id)", commitTarget());
-      Assert.assertEquals(
-          "Should have expected num of rows", 8L, spark.table(commitTarget()).count());
+      assertThat(spark.table(commitTarget()).count())
+          .as("Should have expected num of rows")
+          .isEqualTo(8L);
     } finally {
       spark.conf().set("spark.sql.shuffle.partitions", originalNumOfShufflePartitions);
     }
   }
 
-  @Test
+  @TestTemplate
   public synchronized void testDeleteWithSerializableIsolation() throws InterruptedException {
     // cannot run tests with concurrency for Hadoop tables without atomic renames
-    Assume.assumeFalse(catalogName.equalsIgnoreCase("testhadoop"));
+    assumeThat(catalogName.equalsIgnoreCase("testhadoop")).isFalse();
     // if caching is off, the table is eagerly refreshed during runtime filtering
     // this can cause a validation exception as concurrent changes would be visible
-    Assume.assumeTrue(cachingCatalogEnabled());
+    assumeThat(cachingCatalogEnabled()).isTrue();
 
     createAndInitUnpartitionedTable();
     createOrReplaceView("deleted_id", Collections.singletonList(1), Encoders.INT());
@@ -1109,17 +1093,17 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     }
 
     executorService.shutdown();
-    Assert.assertTrue("Timeout", executorService.awaitTermination(2, TimeUnit.MINUTES));
+    assertThat(executorService.awaitTermination(2, TimeUnit.MINUTES)).as("Timeout").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public synchronized void testDeleteWithSnapshotIsolation()
       throws InterruptedException, ExecutionException {
     // cannot run tests with concurrency for Hadoop tables without atomic renames
-    Assume.assumeFalse(catalogName.equalsIgnoreCase("testhadoop"));
+    assumeThat(catalogName.equalsIgnoreCase("testhadoop")).isFalse();
     // if caching is off, the table is eagerly refreshed during runtime filtering
     // this can cause a validation exception as concurrent changes would be visible
-    Assume.assumeTrue(cachingCatalogEnabled());
+    assumeThat(cachingCatalogEnabled()).isTrue();
 
     createAndInitUnpartitionedTable();
     createOrReplaceView("deleted_id", Collections.singletonList(1), Encoders.INT());
@@ -1196,10 +1180,10 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     }
 
     executorService.shutdown();
-    Assert.assertTrue("Timeout", executorService.awaitTermination(2, TimeUnit.MINUTES));
+    assertThat(executorService.awaitTermination(2, TimeUnit.MINUTES)).as("Timeout").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteRefreshesRelationCache() throws NoSuchTableException {
     createAndInitPartitionedTable();
 
@@ -1220,7 +1204,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     sql("DELETE FROM %s WHERE id = 1", commitTarget());
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).as("Should have 3 snapshots").hasSize(3);
 
     Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
     if (mode(table) == COPY_ON_WRITE) {
@@ -1241,7 +1225,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     spark.sql("UNCACHE TABLE tmp");
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteWithMultipleSpecs() {
     createAndInitTable("id INT, dep STRING, category STRING");
 
@@ -1267,7 +1251,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     sql("DELETE FROM %s WHERE id IN (1, 3, 5, 7)", commitTarget());
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should have 5 snapshots", 5, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).as("Should have 5 snapshots").hasSize(5);
 
     Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
     if (mode(table) == COPY_ON_WRITE) {
@@ -1282,9 +1266,11 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteToWapBranch() throws NoSuchTableException {
-    Assume.assumeTrue("WAP branch only works for table identifier without branch", branch == null);
+    assumeThat(branch == null)
+        .as("WAP branch only works for table identifier without branch")
+        .isTrue();
 
     createAndInitPartitionedTable();
     sql(
@@ -1296,40 +1282,36 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, "wap"),
         () -> {
           sql("DELETE FROM %s t WHERE id=0", tableName);
-          Assert.assertEquals(
-              "Should have expected num of rows when reading table",
-              2L,
-              spark.table(tableName).count());
-          Assert.assertEquals(
-              "Should have expected num of rows when reading WAP branch",
-              2L,
-              spark.table(tableName + ".branch_wap").count());
-          Assert.assertEquals(
-              "Should not modify main branch", 3L, spark.table(tableName + ".branch_main").count());
+          assertThat(spark.table(tableName).count())
+              .as("Should have expected num of rows when reading table")
+              .isEqualTo(2L);
+          assertThat(spark.table(tableName + ".branch_wap").count())
+              .as("Should have expected num of rows when reading WAP branch")
+              .isEqualTo(2L);
+          assertThat(spark.table(tableName + ".branch_main").count())
+              .as("Should not modify main branch")
+              .isEqualTo(3L);
         });
 
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, "wap"),
         () -> {
           sql("DELETE FROM %s t WHERE id=1", tableName);
-          Assert.assertEquals(
-              "Should have expected num of rows when reading table with multiple writes",
-              1L,
-              spark.table(tableName).count());
-          Assert.assertEquals(
-              "Should have expected num of rows when reading WAP branch with multiple writes",
-              1L,
-              spark.table(tableName + ".branch_wap").count());
-          Assert.assertEquals(
-              "Should not modify main branch with multiple writes",
-              3L,
-              spark.table(tableName + ".branch_main").count());
+          assertThat(spark.table(tableName).count())
+              .as("Should have expected num of rows when reading table with multiple writes")
+              .isEqualTo(1L);
+          assertThat(spark.table(tableName + ".branch_wap").count())
+              .as("Should have expected num of rows when reading WAP branch with multiple writes")
+              .isEqualTo(1L);
+          assertThat(spark.table(tableName + ".branch_main").count())
+              .as("Should not modify main branch with multiple writes")
+              .isEqualTo(3L);
         });
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteToWapBranchWithTableBranchIdentifier() throws NoSuchTableException {
-    Assume.assumeTrue("Test must have branch name part in table identifier", branch != null);
+    assumeThat(branch != null).as("Test must have branch name part in table identifier").isTrue();
 
     createAndInitPartitionedTable();
     sql(
@@ -1349,7 +1331,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
                         branch)));
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteToCustomWapBranchWithoutWhereClause() throws NoSuchTableException {
     assumeThat(branch)
         .as("Run only if custom WAP branch is not main")
@@ -1367,9 +1349,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, branch),
         () -> {
           sql("DELETE FROM %s t WHERE id=1", tableName);
-          Assertions.assertThat(spark.table(tableName).count()).isEqualTo(2L);
-          Assertions.assertThat(spark.table(tableName + ".branch_" + branch).count()).isEqualTo(2L);
-          Assertions.assertThat(spark.table(tableName + ".branch_main").count())
+          assertThat(spark.table(tableName).count()).isEqualTo(2L);
+          assertThat(spark.table(tableName + ".branch_" + branch).count()).isEqualTo(2L);
+          assertThat(spark.table(tableName + ".branch_main").count())
               .as("Should not modify main branch")
               .isEqualTo(3L);
         });
@@ -1377,9 +1359,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, branch),
         () -> {
           sql("DELETE FROM %s t", tableName);
-          Assertions.assertThat(spark.table(tableName).count()).isEqualTo(0L);
-          Assertions.assertThat(spark.table(tableName + ".branch_" + branch).count()).isEqualTo(0L);
-          Assertions.assertThat(spark.table(tableName + ".branch_main").count())
+          assertThat(spark.table(tableName).count()).isEqualTo(0L);
+          assertThat(spark.table(tableName + ".branch_" + branch).count()).isEqualTo(0L);
+          assertThat(spark.table(tableName + ".branch_main").count())
               .as("Should not modify main branch")
               .isEqualTo(3L);
         });

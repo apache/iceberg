@@ -47,7 +47,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
-import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
@@ -79,28 +78,6 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
-
-  public TestUpdate(
-      String catalogName,
-      String implementation,
-      Map<String, String> config,
-      String fileFormat,
-      boolean vectorized,
-      String distributionMode,
-      boolean fanoutEnabled,
-      String branch,
-      PlanningMode planningMode) {
-    super(
-        catalogName,
-        implementation,
-        config,
-        fileFormat,
-        vectorized,
-        distributionMode,
-        fanoutEnabled,
-        branch,
-        planningMode);
-  }
 
   @BeforeClass
   public static void setupSparkConf() {

@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.extensions;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
-import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -33,28 +32,6 @@ import org.apache.iceberg.util.SnapshotUtil;
 import org.junit.Test;
 
 public class TestMergeOnReadUpdate extends TestUpdate {
-
-  public TestMergeOnReadUpdate(
-      String catalogName,
-      String implementation,
-      Map<String, String> config,
-      String fileFormat,
-      boolean vectorized,
-      String distributionMode,
-      boolean fanoutEnabled,
-      String branch,
-      PlanningMode planningMode) {
-    super(
-        catalogName,
-        implementation,
-        config,
-        fileFormat,
-        vectorized,
-        distributionMode,
-        fanoutEnabled,
-        branch,
-        planningMode);
-  }
 
   @Override
   protected Map<String, String> extraTableProperties() {
