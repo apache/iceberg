@@ -22,7 +22,7 @@
 [versions]
 activation = "1.1.1"
 aliyun-sdk-oss = "3.10.2"
-antlr = "4.9.3"
+antlr = "4.13.1"
 aircompressor = "0.25"
 arrow = "14.0.2"
 avro = "1.11.3"
