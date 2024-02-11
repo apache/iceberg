@@ -18,27 +18,30 @@
  */
 package org.apache.iceberg.mr.hive;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestHiveIcebergStorageHandlerWithMultipleCatalogs {
 
   private static final String[] EXECUTION_ENGINES = new String[] {"tez", "mr"};
@@ -46,32 +49,32 @@ public class TestHiveIcebergStorageHandlerWithMultipleCatalogs {
   private static final String OTHERCATALOGNAME = "table2_catalog";
   private static TestHiveShell shell;
 
-  @Parameterized.Parameter(0)
+  @Parameter(index = 0)
   public FileFormat fileFormat1;
 
-  @Parameterized.Parameter(1)
+  @Parameter(index = 1)
   public FileFormat fileFormat2;
 
-  @Parameterized.Parameter(2)
+  @Parameter(index = 2)
   public String executionEngine;
 
-  @Parameterized.Parameter(3)
+  @Parameter(index = 3)
   public TestTables.TestTableType testTableType1;
 
-  @Parameterized.Parameter(4)
+  @Parameter(index = 4)
   public String table1CatalogName;
 
-  @Parameterized.Parameter(5)
+  @Parameter(index = 5)
   public TestTables.TestTableType testTableType2;
 
-  @Parameterized.Parameter(6)
+  @Parameter(index = 6)
   public String table2CatalogName;
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir public Path temp;
   private TestTables testTables1;
   private TestTables testTables2;
 
-  @Parameterized.Parameters(
+  @Parameters(
       name =
           "fileFormat1={0}, fileFormat2={1}, engine={2}, tableType1={3}, catalogName1={4}, "
               + "tableType2={5}, catalogName2={6}")
@@ -102,17 +105,17 @@ public class TestHiveIcebergStorageHandlerWithMultipleCatalogs {
     return testParams;
   }
 
-  @BeforeClass
+  @BeforeAll
   public static void beforeClass() {
     shell = HiveIcebergStorageHandlerTestUtils.shell();
   }
 
-  @AfterClass
+  @AfterAll
   public static void afterClass() throws Exception {
     shell.stop();
   }
 
-  @Before
+  @BeforeEach
   public void before() throws IOException {
     testTables1 =
         HiveIcebergStorageHandlerTestUtils.testTables(
@@ -132,12 +135,12 @@ public class TestHiveIcebergStorageHandlerWithMultipleCatalogs {
         .forEach(e -> shell.setHiveSessionValue(e.getKey(), e.getValue()));
   }
 
-  @After
+  @AfterEach
   public void after() throws Exception {
     HiveIcebergStorageHandlerTestUtils.close(shell);
   }
 
-  @Test
+  @TestTemplate
   public void testJoinTablesFromDifferentCatalogs() throws IOException {
     createAndAddRecords(
         testTables1,
@@ -155,7 +158,7 @@ public class TestHiveIcebergStorageHandlerWithMultipleCatalogs {
             "SELECT c2.customer_id, c2.first_name, c2.last_name "
                 + "FROM default.customers2 c2 JOIN default.customers1 c1 ON c2.customer_id = c1.customer_id "
                 + "ORDER BY c2.customer_id");
-    Assert.assertEquals(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS.size(), rows.size());
+    assertThat(rows).hasSameSizeAs(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
     HiveIcebergTestUtils.validateData(
         Lists.newArrayList(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS),
         HiveIcebergTestUtils.valueForRow(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, rows),
