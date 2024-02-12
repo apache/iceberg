@@ -1494,7 +1494,7 @@ components:
       name: pageToken
       in: query
       description:
-        A unique token which allows clients to make use of pagination by signaling to the service that they would
+        An opaque token which allows clients to make use of pagination by signaling to the service that they would
         prefer requests to be paginated based on the number of items specified by pageSize.
         
         Clients that support pagination initiate the request by sending an empty pageToken e.g. GET /tables?pageToken
