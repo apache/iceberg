@@ -401,8 +401,8 @@ public class RecordConverterTest {
     ImmutableList.of("123", 123.0f, 123.0d, 123L, expectedInt)
         .forEach(
             input -> {
-              int i = converter.convertInt(input);
-              assertThat(i).isEqualTo(expectedInt);
+              int val = converter.convertInt(input);
+              assertThat(val).isEqualTo(expectedInt);
             });
   }
 
@@ -418,8 +418,8 @@ public class RecordConverterTest {
     ImmutableList.of("123", 123.0f, 123.0d, 123, expectedLong)
         .forEach(
             input -> {
-              long l = converter.convertLong(input);
-              assertThat(l).isEqualTo(expectedLong);
+              long val = converter.convertLong(input);
+              assertThat(val).isEqualTo(expectedLong);
             });
   }
 
@@ -435,8 +435,8 @@ public class RecordConverterTest {
     ImmutableList.of("123", 123, 123L, 123d, expectedFloat)
         .forEach(
             input -> {
-              float f = converter.convertFloat(input);
-              assertThat(f).isEqualTo(expectedFloat);
+              float val = converter.convertFloat(input);
+              assertThat(val).isEqualTo(expectedFloat);
             });
   }
 
@@ -452,8 +452,8 @@ public class RecordConverterTest {
     ImmutableList.of("123", 123, 123L, 123f, expectedDouble)
         .forEach(
             input -> {
-              double d = converter.convertDouble(input);
-              assertThat(d).isEqualTo(expectedDouble);
+              double val = converter.convertDouble(input);
+              assertThat(val).isEqualTo(expectedDouble);
             });
   }
 
