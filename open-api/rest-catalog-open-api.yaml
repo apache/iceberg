@@ -2192,6 +2192,7 @@ components:
           remove-statistics: '#/components/schemas/RemoveStatisticsUpdate'
           set-partition-statistics: '#/components/schemas/SetPartitionStatisticsUpdate'
           remove-partition-statistics: '#/components/schemas/RemovePartitionStatisticsUpdate'
+          append-data-files: '#/components/schemas/AppendDataFileUpdate'
       type: object
       required:
         - action
@@ -2494,6 +2495,28 @@ components:
           type: integer
           format: int64
 
+    AppendDataFileUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+      required:
+        - action
+        - added-data-files
+        - schema
+        - spec
+      properties:
+        action:
+          type: string
+          enum: [ "append-data-files" ]
+        added-data-files:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContentFile'
+          description: List of datafiles to be appended to a table
+        schema:
+          $ref: '#/components/schemas/Schema'
+        spec:
+          $ref: '#/components/schemas/PartitionSpec'
+
     TableUpdate:
       anyOf:
         - $ref: '#/components/schemas/AssignUUIDUpdate'
@@ -2513,6 +2536,7 @@ components:
         - $ref: '#/components/schemas/RemovePropertiesUpdate'
         - $ref: '#/components/schemas/SetStatisticsUpdate'
         - $ref: '#/components/schemas/RemoveStatisticsUpdate'
+        - $ref: '#/components/schemas/AppendDataFileUpdate'
 
     ViewUpdate:
       anyOf:
@@ -3323,6 +3347,97 @@ components:
         file-size-in-bytes:
           type: integer
           format: int64
+
+    TypeValue:
+      oneOf:
+        - $ref: '#/components/schemas/PrimitiveTypeValue'
+        - $ref: '#/components/schemas/MapTypeValue'
+        - $ref: '#/components/schemas/StructTypeValue'
+
+    MapTypeValue:
+      type: object
+      properties:
+        keys:
+          type: array
+          items:
+            $ref: '#/components/schemas/TypeValue'
+        values:
+          type: array
+          items:
+            $ref: '#/components/schemas/TypeValue'
+
+    StructTypeValue:
+      type: object
+      additionalProperties:
+        oneOf:
+          - $ref: '#/components/schemas/TypeValue'
+
+    PrimitiveTypeValue:
+      oneOf:
+        - type: boolean
+        - type: integer
+        - type: integer
+          format: int64
+        - type: number
+        - type: string
+        - type: string
+          format: byte
+        - type: array
+          items:
+            $ref: '#/components/schemas/TypeValue'
+
+    ContentFile:
+      type: object
+      required:
+        - spec-id
+        - content
+        - file-path
+        - file-format
+        - file-size-in-bytes
+        - record-count
+      properties:
+        spec-id:
+          type: integer
+        content:
+          type: string
+        file-path:
+          type: string
+        file-format:
+          type: string
+        partition:
+          $ref: '#/components/schemas/StructTypeValue'
+        file-size-in-bytes:
+          type: integer
+          format: int64
+        record-count:
+          type: integer
+          format: int64
+        column-sizes:
+          $ref: '#/components/schemas/MapTypeValue'
+        value-counts:
+          $ref: '#/components/schemas/MapTypeValue'
+        null-value-counts:
+          $ref: '#/components/schemas/MapTypeValue'
+        nan-value-counts:
+          $ref: '#/components/schemas/MapTypeValue'
+        lower-bounds:
+          $ref: '#/components/schemas/MapTypeValue'
+        upper-bounds:
+          $ref: '#/components/schemas/MapTypeValue'
+        key-metadata:
+          type: string
+          format: byte
+        split-offsets:
+          type: array
+          items:
+            type: integer
+            format: int64
+        equality-ids:
+          type: array
+          items:
+            type: integer
+        sort-order-id:
+          type: integer
 
 
   #############################
