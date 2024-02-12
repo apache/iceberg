@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.extensions;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -29,8 +30,10 @@ import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.SnapshotUtil;
-import org.junit.Test;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestMergeOnReadUpdate extends TestUpdate {
 
   @Override
@@ -42,12 +45,12 @@ public class TestMergeOnReadUpdate extends TestUpdate {
         RowLevelOperationMode.MERGE_ON_READ.modeName());
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateFileGranularity() {
     checkUpdateFileGranularity(DeleteGranularity.FILE);
   }
 
-  @Test
+  @TestTemplate
   public void testUpdatePartitionGranularity() {
     checkUpdateFileGranularity(DeleteGranularity.PARTITION);
   }
