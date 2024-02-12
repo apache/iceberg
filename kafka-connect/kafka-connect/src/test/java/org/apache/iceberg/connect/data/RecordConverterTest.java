@@ -390,6 +390,74 @@ public class RecordConverterTest {
   }
 
   @Test
+  public void testIntConversion() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SIMPLE_SCHEMA);
+
+    RecordConverter converter = new RecordConverter(table, config);
+
+    int expectedInt = 123;
+
+    ImmutableList.of("123", 123.0f, 123.0d, 123L, expectedInt)
+        .forEach(
+            input -> {
+              int i = converter.convertInt(input);
+              assertThat(i).isEqualTo(expectedInt);
+            });
+  }
+
+  @Test
+  public void testLongConversion() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SIMPLE_SCHEMA);
+
+    RecordConverter converter = new RecordConverter(table, config);
+
+    long expectedLong = 123L;
+
+    ImmutableList.of("123", 123.0f, 123.0d, 123, expectedLong)
+        .forEach(
+            input -> {
+              long l = converter.convertLong(input);
+              assertThat(l).isEqualTo(expectedLong);
+            });
+  }
+
+  @Test
+  public void testFloatConversion() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SIMPLE_SCHEMA);
+
+    RecordConverter converter = new RecordConverter(table, config);
+
+    float expectedFloat = 123f;
+
+    ImmutableList.of("123", 123, 123L, 123d, expectedFloat)
+        .forEach(
+            input -> {
+              float f = converter.convertFloat(input);
+              assertThat(f).isEqualTo(expectedFloat);
+            });
+  }
+
+  @Test
+  public void testDoubleConversion() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SIMPLE_SCHEMA);
+
+    RecordConverter converter = new RecordConverter(table, config);
+
+    double expectedDouble = 123d;
+
+    ImmutableList.of("123", 123, 123L, 123f, expectedDouble)
+        .forEach(
+            input -> {
+              double d = converter.convertDouble(input);
+              assertThat(d).isEqualTo(expectedDouble);
+            });
+  }
+
+  @Test
   public void testDecimalConversion() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(SIMPLE_SCHEMA);
