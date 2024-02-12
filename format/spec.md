@@ -301,7 +301,7 @@ Tables are configured with a **partition spec** that defines how to produce a tu
 *   A **transform** that is applied to the source column(s) to produce a partition value
 *   A **partition name**
 
-The source column(s), selected by id(s), must be a primitive type and cannot be contained in a map or list, but may be nested in a struct. The ability to have multiple source columns is added in V3, whereas only a single column is allowed in previous versions. For details on how to serialize a partition spec to JSON, see Appendix C.
+The source column(s), selected by id(s), must be a primitive type and cannot be contained in a map or list, but may be nested in a struct. The ability to have multiple source columns was added in V3, whereas previously only a single column was allowed. For details on how to serialize a partition spec to JSON, see Appendix C.
 
 Partition specs capture the transform from table data to partition values. This is used to transform predicates to partition predicates, in addition to transforming data values. Deriving partition predicates from column predicates on the table data is used to separate the logical queries from physical storage: the partitioning can change and the correct partition filters are always derived from column predicates. This simplifies queries because users don’t have to supply both logical predicates and partition predicates. For more information, see Scan Planning below.
 
@@ -388,7 +388,7 @@ A sort order is defined by a sort order id and a list of sort fields. The order 
 *   A **sort direction**, that can only be either `asc` or `desc`
 *   A **null order** that describes the order of null values when sorted. Can only be either `nulls-first` or `nulls-last`
 
-The ability to have multiple source columns is added in V3, whereas only a single column is allowed in previous versions. For details on how to serialize a sort order to JSON, see Appendix C.
+The ability to have multiple source columns was added in V3, whereas previously only a single column was allowed. For details on how to serialize a sort order to JSON, see Appendix C.
 
 Order id `0` is reserved for the unsorted order. 
 
@@ -1145,7 +1145,7 @@ Supported partition transforms are listed below.
 Notes:
 1. In some cases partition specs are stored using only the field list instead of the object format that includes the spec ID, like the deprecated `partition-spec` field in table metadata. The object format should be used unless otherwise noted in this spec.
 2. The `field-id` property was added for each partition field in v2. In v1, the reference implementation assigned field ids sequentially in each spec starting at 1,000. See Partition Evolution for more details.
-3. For tables of version < V3, the ID of the source field of each partition field is set in `source-id`. For tables of version >= V3, the ID(s) of the source field(s) is set on `source-ids`, and `source-id` is omitted.
+3. For tables of version < V3, the ID of the source field of each partition field is set in `source-id`. For tables of version >= V3, the ID(s) of the source field(s) is set on `source-ids`, and `source-id` is omitted. See Appendix E for more details.
 
 ### Sort Orders
 
@@ -1166,7 +1166,7 @@ Each sort field in the fields list is stored as an object with the following pro
 | required | required | required | **`direction`**  | `JSON string`       | `asc`       |
 | required | required | required | **`null-order`** | `JSON string`       | `nulls-last`|
 
-For tables of version < V3, the ID of the source field of each sort field is set in `source-id`. For tables of version >= V3, the ID(s) of the source field(s) is set on `source-ids`, and `source-id` is omitted.
+For tables of version < V3, the ID of the source field of each sort field is set in `source-id`. For tables of version >= V3, the ID(s) of the source field(s) is set on `source-ids`, and `source-id` is omitted. See Appendix E for more detials.
 
 The following table describes the possible values for the some of the field within sort field: 
 
@@ -1324,7 +1324,24 @@ Default values are added to struct fields in v3.
 
 Types `timestamp_ns` and `timestamptz_ns` are added in v3.
 
-Sort field and partition field with multiple source field ids are enabled by default in V3.
+Sort order and partition field with multiple source field ids are enabled in V3.
+
+Writing V3 metadata:
+
+* Partition field JSON:
+    * `source-ids` was added and is required
+    * `source-id` is no longer required and should be omitted; always use `source-ids` instead
+* Sort order JSON:
+    * `source-ids` was added and is required
+    * `source-id` is no longer required and should be omitted; always use `source-ids` instead
+
+Reading older version metadata for V3:
+
+* Partition field and sort order field `source-ids` must default to a single-value list of the value of `source-id`
+
+Writing older version metadata:
+
+* Partition field and sort order field `source-ids` should be omitted; use `source-id` instead (multiple values not allowed)
 
 ### Version 2
 
