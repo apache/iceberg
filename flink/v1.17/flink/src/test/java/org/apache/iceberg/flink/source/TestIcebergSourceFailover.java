@@ -98,9 +98,9 @@ public class TestIcebergSourceFailover {
     return RandomGenericData.generate(schema(), numRecords, seed);
   }
 
-  protected void assertRecords(
-      Table table, List<Record> expectedRecords, Duration interval, int maxCount) throws Exception {
-    SimpleDataUtil.assertTableRecords(table, expectedRecords, interval, maxCount);
+  protected void assertRecords(Table table, List<Record> expectedRecords, Duration timeout)
+      throws Exception {
+    SimpleDataUtil.assertTableRecords(table, expectedRecords, timeout);
   }
 
   @Test
@@ -156,7 +156,7 @@ public class TestIcebergSourceFailover {
         RecordCounterToFail::continueProcessing,
         miniClusterResource.getMiniCluster());
 
-    assertRecords(sinkTableResource.table(), expectedRecords, Duration.ofMillis(10), 12000);
+    assertRecords(sinkTableResource.table(), expectedRecords, Duration.ofSeconds(120));
   }
 
   @Test
@@ -219,7 +219,7 @@ public class TestIcebergSourceFailover {
 
     // wait longer for continuous source to reduce flakiness
     // because CI servers tend to be overloaded.
-    assertRecords(sinkTableResource.table(), expectedRecords, Duration.ofMillis(10), 12000);
+    assertRecords(sinkTableResource.table(), expectedRecords, Duration.ofSeconds(120));
   }
 
   // ------------------------------------------------------------------------

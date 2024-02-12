@@ -24,6 +24,8 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.TestHelpers.CustomRow;
+import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -146,5 +148,41 @@ public class TestStructLikeMap {
     assertThat(map).containsEntry(record3, "aaa");
 
     assertThat(map.remove(record3)).isEqualTo("aaa");
+  }
+
+  @Test
+  public void testEqualsAndHashCode() {
+    Map<StructLike, String> map1 = StructLikeMap.create(STRUCT_TYPE);
+    Map<StructLike, String> map2 = StructLikeMap.create(STRUCT_TYPE);
+
+    assertThat(map1).isEqualTo(map2);
+    assertThat(map1.hashCode()).isEqualTo(map2.hashCode());
+
+    map1.put(CustomRow.of(1, null), "aaa");
+    map1.put(CustomRow.of(2, null), "bbb");
+
+    map2.put(Row.of(1, null), "aaa");
+    map2.put(Row.of(2, null), "bbb");
+
+    assertThat(map1).isEqualTo(map2);
+    assertThat(map1.hashCode()).isEqualTo(map2.hashCode());
+  }
+
+  @Test
+  public void testKeyAndEntrySetEquality() {
+    Map<StructLike, String> map1 = StructLikeMap.create(STRUCT_TYPE);
+    Map<StructLike, String> map2 = StructLikeMap.create(STRUCT_TYPE);
+
+    assertThat(map1.keySet()).isEqualTo(map2.keySet());
+    assertThat(map1.entrySet()).isEqualTo(map2.entrySet());
+
+    map1.put(CustomRow.of(1, null), "aaa");
+    map1.put(CustomRow.of(2, null), "bbb");
+
+    map2.put(Row.of(1, null), "aaa");
+    map2.put(Row.of(2, null), "bbb");
+
+    assertThat(map1.keySet()).isEqualTo(map2.keySet());
+    assertThat(map1.entrySet()).isEqualTo(map2.entrySet());
   }
 }

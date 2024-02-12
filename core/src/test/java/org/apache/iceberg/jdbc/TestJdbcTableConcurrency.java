@@ -26,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -46,6 +47,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Tasks;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -85,21 +87,19 @@ public class TestJdbcTableConcurrency {
             (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
 
     AtomicInteger barrier = new AtomicInteger(0);
-    Tasks.range(2)
+    int threadsCount = 2;
+    Tasks.range(threadsCount)
         .stopOnFailure()
         .throwFailureWhenFinished()
         .executeWith(executorService)
         .run(
             index -> {
               for (int numCommittedFiles = 0; numCommittedFiles < 10; numCommittedFiles++) {
-                while (barrier.get() < numCommittedFiles * 2) {
-                  try {
-                    Thread.sleep(10);
-                  } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                  }
-                }
-
+                final int currentFilesCount = numCommittedFiles;
+                Awaitility.await()
+                    .pollInterval(Duration.ofMillis(10))
+                    .atMost(Duration.ofSeconds(10))
+                    .until(() -> barrier.get() >= currentFilesCount * threadsCount);
                 icebergTable.newFastAppend().appendFile(file).commit();
                 barrier.incrementAndGet();
               }

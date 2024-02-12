@@ -30,12 +30,12 @@ import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.UnknownTransform;
 import org.apache.iceberg.util.Pair;
-import org.apache.spark.sql.RuntimeConfig;
+import org.apache.spark.SparkEnv;
+import org.apache.spark.scheduler.ExecutorCacheTaskLocation;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.expressions.BoundReference;
 import org.apache.spark.sql.catalyst.expressions.EqualTo;
@@ -45,7 +45,12 @@ import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.storage.BlockManager;
+import org.apache.spark.storage.BlockManagerId;
+import org.apache.spark.storage.BlockManagerMaster;
 import org.joda.time.DateTime;
+import scala.collection.JavaConverters;
+import scala.collection.Seq;
 
 public class SparkUtil {
   private static final String SPARK_CATALOG_CONF_PREFIX = "spark.sql.catalog";
@@ -157,40 +162,6 @@ public class SparkUtil {
     return String.format(SPARK_CATALOG_HADOOP_CONF_OVERRIDE_FMT_STR, catalogName);
   }
 
-  public static void validateTimestampWithoutTimezoneConfig(RuntimeConfig conf) {
-    validateTimestampWithoutTimezoneConfig(conf, ImmutableMap.of());
-  }
-
-  /**
-   * Checks for properties both supplied by Spark's RuntimeConfig and the read or write options
-   *
-   * @param conf The RuntimeConfig of the active Spark session
-   * @param options The read or write options supplied when reading/writing a table
-   */
-  public static void validateTimestampWithoutTimezoneConfig(
-      RuntimeConfig conf, Map<String, String> options) {
-    if (conf.contains(SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE)) {
-      throw new UnsupportedOperationException(
-          "Spark configuration "
-              + SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE
-              + " is not supported in Spark 3.4 due to the introduction of native support for timestamp without timezone.");
-    }
-
-    if (options.containsKey(SparkReadOptions.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE)) {
-      throw new UnsupportedOperationException(
-          "Option "
-              + SparkReadOptions.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE
-              + " is not supported in Spark 3.4 due to the introduction of native support for timestamp without timezone.");
-    }
-
-    if (conf.contains(SparkSQLProperties.USE_TIMESTAMP_WITHOUT_TIME_ZONE_IN_NEW_TABLES)) {
-      throw new UnsupportedOperationException(
-          "Spark configuration "
-              + SparkSQLProperties.USE_TIMESTAMP_WITHOUT_TIME_ZONE_IN_NEW_TABLES
-              + " is not supported in Spark 3.4 due to the introduction of native support for timestamp without timezone.");
-    }
-  }
-
   /**
    * Get a List of Spark filter Expression.
    *
@@ -273,5 +244,28 @@ public class SparkUtil {
 
   public static boolean caseSensitive(SparkSession spark) {
     return Boolean.parseBoolean(spark.conf().get("spark.sql.caseSensitive"));
+  }
+
+  public static List<String> executorLocations() {
+    BlockManager driverBlockManager = SparkEnv.get().blockManager();
+    List<BlockManagerId> executorBlockManagerIds = fetchPeers(driverBlockManager);
+    return executorBlockManagerIds.stream()
+        .map(SparkUtil::toExecutorLocation)
+        .sorted()
+        .collect(Collectors.toList());
+  }
+
+  private static List<BlockManagerId> fetchPeers(BlockManager blockManager) {
+    BlockManagerMaster master = blockManager.master();
+    BlockManagerId id = blockManager.blockManagerId();
+    return toJavaList(master.getPeers(id));
+  }
+
+  private static <T> List<T> toJavaList(Seq<T> seq) {
+    return JavaConverters.seqAsJavaListConverter(seq).asJava();
+  }
+
+  private static String toExecutorLocation(BlockManagerId id) {
+    return ExecutorCacheTaskLocation.apply(id.host(), id.executorId()).toString();
   }
 }

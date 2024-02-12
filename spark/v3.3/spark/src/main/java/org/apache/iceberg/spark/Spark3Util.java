@@ -29,6 +29,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.BaseMetadataTable;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
@@ -359,14 +361,18 @@ public class Spark3Util {
           return org.apache.iceberg.expressions.Expressions.ref(colName);
         case "bucket":
           return org.apache.iceberg.expressions.Expressions.bucket(colName, findWidth(transform));
+        case "year":
         case "years":
           return org.apache.iceberg.expressions.Expressions.year(colName);
+        case "month":
         case "months":
           return org.apache.iceberg.expressions.Expressions.month(colName);
         case "date":
+        case "day":
         case "days":
           return org.apache.iceberg.expressions.Expressions.day(colName);
         case "date_hour":
+        case "hour":
         case "hours":
           return org.apache.iceberg.expressions.Expressions.hour(colName);
         case "truncate":
@@ -416,17 +422,21 @@ public class Spark3Util {
         case "bucket":
           builder.bucket(colName, findWidth(transform));
           break;
+        case "year":
         case "years":
           builder.year(colName);
           break;
+        case "month":
         case "months":
           builder.month(colName);
           break;
         case "date":
+        case "day":
         case "days":
           builder.day(colName);
           break;
         case "date_hour":
+        case "hour":
         case "hours":
           builder.hour(colName);
           break;
@@ -935,6 +945,17 @@ public class Spark3Util {
     String table = identifier.name();
     Option<String> database = namespace.length == 1 ? Option.apply(namespace[0]) : Option.empty();
     return org.apache.spark.sql.catalyst.TableIdentifier.apply(table, database);
+  }
+
+  static String baseTableUUID(org.apache.iceberg.Table table) {
+    if (table instanceof HasTableOperations) {
+      TableOperations ops = ((HasTableOperations) table).operations();
+      return ops.current().uuid();
+    } else if (table instanceof BaseMetadataTable) {
+      return ((BaseMetadataTable) table).table().operations().current().uuid();
+    } else {
+      throw new UnsupportedOperationException("Cannot retrieve UUID for table " + table.name());
+    }
   }
 
   private static class DescribeSortOrderVisitor implements SortOrderVisitor<String> {

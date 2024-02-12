@@ -18,21 +18,31 @@
  */
 package org.apache.iceberg.spark;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.spark.network.util.JavaUtils;
 import org.apache.spark.sql.RuntimeConfig;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.internal.SQLConf;
 
 class SparkConfParser {
 
   private final Map<String, String> properties;
   private final RuntimeConfig sessionConf;
   private final Map<String, String> options;
+
+  SparkConfParser() {
+    this.properties = ImmutableMap.of();
+    this.sessionConf = new RuntimeConfig(SQLConf.get());
+    this.options = ImmutableMap.of();
+  }
 
   SparkConfParser(SparkSession spark, Table table, Map<String, String> options) {
     this.properties = table.properties();
@@ -54,6 +64,10 @@ class SparkConfParser {
 
   public StringConfParser stringConf() {
     return new StringConfParser();
+  }
+
+  public DurationConfParser durationConf() {
+    return new DurationConfParser();
   }
 
   class BooleanConfParser extends ConfParser<BooleanConfParser, Boolean> {
@@ -106,7 +120,7 @@ class SparkConfParser {
     }
 
     public Integer parseOptional() {
-      return parse(Integer::parseInt, null);
+      return parse(Integer::parseInt, defaultValue);
     }
   }
 
@@ -129,7 +143,7 @@ class SparkConfParser {
     }
 
     public Long parseOptional() {
-      return parse(Long::parseLong, null);
+      return parse(Long::parseLong, defaultValue);
     }
   }
 
@@ -152,7 +166,34 @@ class SparkConfParser {
     }
 
     public String parseOptional() {
-      return parse(Function.identity(), null);
+      return parse(Function.identity(), defaultValue);
+    }
+  }
+
+  class DurationConfParser extends ConfParser<DurationConfParser, Duration> {
+    private Duration defaultValue;
+
+    @Override
+    protected DurationConfParser self() {
+      return this;
+    }
+
+    public DurationConfParser defaultValue(Duration value) {
+      this.defaultValue = value;
+      return self();
+    }
+
+    public Duration parse() {
+      Preconditions.checkArgument(defaultValue != null, "Default value cannot be null");
+      return parse(this::toDuration, defaultValue);
+    }
+
+    public Duration parseOptional() {
+      return parse(this::toDuration, defaultValue);
+    }
+
+    private Duration toDuration(String time) {
+      return Duration.ofSeconds(JavaUtils.timeStringAsSec(time));
     }
   }
 

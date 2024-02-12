@@ -89,6 +89,8 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
 
+    implementation libs.caffeine
+
     testImplementation(libs.hadoop2.minicluster) {
       exclude group: 'org.apache.avro', module: 'avro'
       // to make sure netty libs only come from project(':iceberg-arrow')
@@ -101,6 +103,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
     testImplementation libs.sqlite.jdbc
+    testImplementation libs.awaitility
   }
 
   test {
@@ -157,6 +160,7 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
     testImplementation project(path: ':iceberg-parquet')
     testImplementation project(path: ':iceberg-hive-metastore')
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     testImplementation project(path: ":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}", configuration: 'testArtifacts')
 
@@ -166,6 +170,10 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
     // Required because we remove antlr plugin dependencies from the compile configuration, see note above
     runtimeOnly libs.antlr.runtime
     antlr libs.antlr.antlr4
+  }
+
+  test {
+    useJUnitPlatform()
   }
 
   generateGrammarSource {

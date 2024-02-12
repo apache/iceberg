@@ -20,12 +20,16 @@ package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED;
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
@@ -34,6 +38,9 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotRef;
@@ -52,65 +59,61 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
-import org.assertj.core.api.Assertions;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestSparkDataWrite {
   private static final Configuration CONF = new Configuration();
-  private final FileFormat format;
-  private final String branch;
+
+  @Parameter(index = 0)
+  private FileFormat format;
+
+  @Parameter(index = 1)
+  private String branch;
+
   private static SparkSession spark = null;
   private static final Schema SCHEMA =
       new Schema(
           optional(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
-  @Parameterized.Parameters(name = "format = {0}, branch = {1}")
-  public static Object[] parameters() {
-    return new Object[] {
-      new Object[] {"parquet", null},
-      new Object[] {"parquet", "main"},
-      new Object[] {"parquet", "testBranch"},
-      new Object[] {"avro", null},
-      new Object[] {"orc", "testBranch"}
+  @Parameters(name = "format = {0}, branch = {1}")
+  public static Object[][] parameters() {
+    return new Object[][] {
+      new Object[] {FileFormat.PARQUET, null},
+      new Object[] {FileFormat.PARQUET, "main"},
+      new Object[] {FileFormat.PARQUET, "testBranch"},
+      new Object[] {FileFormat.AVRO, null},
+      new Object[] {FileFormat.ORC, "testBranch"}
     };
   }
 
-  @BeforeClass
+  @BeforeAll
   public static void startSpark() {
     TestSparkDataWrite.spark = SparkSession.builder().master("local[2]").getOrCreate();
   }
 
-  @Parameterized.AfterParam
-  public static void clearSourceCache() {
+  @AfterEach
+  public void clearSourceCache() {
     ManualSource.clearTables();
   }
 
-  @AfterClass
+  @AfterAll
   public static void stopSpark() {
     SparkSession currentSpark = TestSparkDataWrite.spark;
     TestSparkDataWrite.spark = null;
     currentSpark.stop();
   }
 
-  public TestSparkDataWrite(String format, String branch) {
-    this.format = FileFormat.fromString(format);
-    this.branch = branch;
-  }
-
-  @Test
+  @TestTemplate
   public void testBasicWrite() throws IOException {
-    File parent = temp.newFolder(format.toString());
+    File parent = temp.resolve(format.toString()).toFile();
     File location = new File(parent, "test");
     String targetLocation = locationWithBranch(location);
 
@@ -138,31 +141,31 @@ public class TestSparkDataWrite {
 
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
-    Assert.assertEquals("Result rows should match", expected, actual);
+    assertThat(actual).as("Number of rows should match").hasSameSizeAs(expected);
+    assertThat(actual).as("Result rows should match").isEqualTo(expected);
     for (ManifestFile manifest :
         SnapshotUtil.latestSnapshot(table, branch).allManifests(table.io())) {
       for (DataFile file : ManifestFiles.read(manifest, table.io())) {
         // TODO: avro not support split
         if (!format.equals(FileFormat.AVRO)) {
-          Assert.assertNotNull("Split offsets not present", file.splitOffsets());
+          assertThat(file.splitOffsets()).as("Split offsets not present").isNotNull();
         }
-        Assert.assertEquals("Should have reported record count as 1", 1, file.recordCount());
+        assertThat(file.recordCount()).as("Should have reported record count as 1").isEqualTo(1);
         // TODO: append more metric info
         if (format.equals(FileFormat.PARQUET)) {
-          Assert.assertNotNull("Column sizes metric not present", file.columnSizes());
-          Assert.assertNotNull("Counts metric not present", file.valueCounts());
-          Assert.assertNotNull("Null value counts metric not present", file.nullValueCounts());
-          Assert.assertNotNull("Lower bounds metric not present", file.lowerBounds());
-          Assert.assertNotNull("Upper bounds metric not present", file.upperBounds());
+          assertThat(file.columnSizes()).as("Column sizes metric not present").isNotNull();
+          assertThat(file.valueCounts()).as("Counts metric not present").isNotNull();
+          assertThat(file.nullValueCounts()).as("Null value counts metric not present").isNotNull();
+          assertThat(file.lowerBounds()).as("Lower bounds metric not present").isNotNull();
+          assertThat(file.upperBounds()).as("Upper bounds metric not present").isNotNull();
         }
       }
     }
   }
 
-  @Test
+  @TestTemplate
   public void testAppend() throws IOException {
-    File parent = temp.newFolder(format.toString());
+    File parent = temp.resolve(format.toString()).toFile();
     File location = new File(parent, "test");
     String targetLocation = locationWithBranch(location);
 
@@ -208,13 +211,13 @@ public class TestSparkDataWrite {
 
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
-    Assert.assertEquals("Result rows should match", expected, actual);
+    assertThat(actual).as("Number of rows should match").hasSameSizeAs(expected);
+    assertThat(actual).as("Result rows should match").isEqualTo(expected);
   }
 
-  @Test
+  @TestTemplate
   public void testEmptyOverwrite() throws IOException {
-    File parent = temp.newFolder(format.toString());
+    File parent = temp.resolve(format.toString()).toFile();
     File location = new File(parent, "test");
     String targetLocation = locationWithBranch(location);
 
@@ -254,13 +257,13 @@ public class TestSparkDataWrite {
 
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
-    Assert.assertEquals("Result rows should match", expected, actual);
+    assertThat(actual).as("Number of rows should match").hasSameSizeAs(expected);
+    assertThat(actual).as("Result rows should match").isEqualTo(expected);
   }
 
-  @Test
+  @TestTemplate
   public void testOverwrite() throws IOException {
-    File parent = temp.newFolder(format.toString());
+    File parent = temp.resolve(format.toString()).toFile();
     File location = new File(parent, "test");
     String targetLocation = locationWithBranch(location);
 
@@ -307,13 +310,13 @@ public class TestSparkDataWrite {
 
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
-    Assert.assertEquals("Result rows should match", expected, actual);
+    assertThat(actual).as("Number of rows should match").hasSameSizeAs(expected);
+    assertThat(actual).as("Result rows should match").isEqualTo(expected);
   }
 
-  @Test
+  @TestTemplate
   public void testUnpartitionedOverwrite() throws IOException {
-    File parent = temp.newFolder(format.toString());
+    File parent = temp.resolve(format.toString()).toFile();
     File location = new File(parent, "test");
     String targetLocation = locationWithBranch(location);
 
@@ -350,13 +353,13 @@ public class TestSparkDataWrite {
 
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
-    Assert.assertEquals("Result rows should match", expected, actual);
+    assertThat(actual).as("Number of rows should match").hasSameSizeAs(expected);
+    assertThat(actual).as("Result rows should match").isEqualTo(expected);
   }
 
-  @Test
+  @TestTemplate
   public void testUnpartitionedCreateWithTargetFileSizeViaTableProperties() throws IOException {
-    File parent = temp.newFolder(format.toString());
+    File parent = temp.resolve(format.toString()).toFile();
     File location = new File(parent, "test");
     String targetLocation = locationWithBranch(location);
 
@@ -390,8 +393,8 @@ public class TestSparkDataWrite {
 
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
-    Assert.assertEquals("Result rows should match", expected, actual);
+    assertThat(actual).as("Number of rows should match").hasSameSizeAs(expected);
+    assertThat(actual).as("Result rows should match").isEqualTo(expected);
 
     List<DataFile> files = Lists.newArrayList();
     for (ManifestFile manifest :
@@ -401,33 +404,34 @@ public class TestSparkDataWrite {
       }
     }
 
-    Assert.assertEquals("Should have 4 DataFiles", 4, files.size());
-    Assert.assertTrue(
-        "All DataFiles contain 1000 rows", files.stream().allMatch(d -> d.recordCount() == 1000));
+    assertThat(files).as("Should have 4 DataFiles").hasSize(4);
+    assertThat(files.stream())
+        .as("All DataFiles contain 1000 rows")
+        .allMatch(d -> d.recordCount() == 1000);
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionedCreateWithTargetFileSizeViaOption() throws IOException {
     partitionedCreateWithTargetFileSizeViaOption(IcebergOptionsType.NONE);
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionedFanoutCreateWithTargetFileSizeViaOption() throws IOException {
     partitionedCreateWithTargetFileSizeViaOption(IcebergOptionsType.TABLE);
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionedFanoutCreateWithTargetFileSizeViaOption2() throws IOException {
     partitionedCreateWithTargetFileSizeViaOption(IcebergOptionsType.JOB);
   }
 
-  @Test
+  @TestTemplate
   public void testWriteProjection() throws IOException {
-    Assume.assumeTrue(
-        "Not supported in Spark 3; analysis requires all columns are present",
-        spark.version().startsWith("2"));
+    assumeThat(spark.version())
+        .as("Not supported in Spark 3; analysis requires all columns are present")
+        .startsWith("2");
 
-    File parent = temp.newFolder(format.toString());
+    File parent = temp.resolve(format.toString()).toFile();
     File location = new File(parent, "test");
     String targetLocation = locationWithBranch(location);
 
@@ -455,17 +459,17 @@ public class TestSparkDataWrite {
 
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
-    Assert.assertEquals("Result rows should match", expected, actual);
+    assertThat(actual).as("Number of rows should match").hasSameSizeAs(expected);
+    assertThat(actual).as("Result rows should match").isEqualTo(expected);
   }
 
-  @Test
+  @TestTemplate
   public void testWriteProjectionWithMiddle() throws IOException {
-    Assume.assumeTrue(
-        "Not supported in Spark 3; analysis requires all columns are present",
-        spark.version().startsWith("2"));
+    assumeThat(spark.version())
+        .as("Not supported in Spark 3; analysis requires all columns are present")
+        .startsWith("2");
 
-    File parent = temp.newFolder(format.toString());
+    File parent = temp.resolve(format.toString()).toFile();
     File location = new File(parent, "test");
     String targetLocation = locationWithBranch(location);
 
@@ -500,13 +504,13 @@ public class TestSparkDataWrite {
 
     List<ThreeColumnRecord> actual =
         result.orderBy("c1").as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
-    Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
-    Assert.assertEquals("Result rows should match", expected, actual);
+    assertThat(actual).as("Number of rows should match").hasSameSizeAs(expected);
+    assertThat(actual).as("Result rows should match").isEqualTo(expected);
   }
 
-  @Test
+  @TestTemplate
   public void testViewsReturnRecentResults() throws IOException {
-    File parent = temp.newFolder(format.toString());
+    File parent = temp.resolve(format.toString()).toFile();
     File location = new File(parent, "test");
     String targetLocation = locationWithBranch(location);
 
@@ -536,8 +540,8 @@ public class TestSparkDataWrite {
     List<SimpleRecord> actual1 =
         spark.table("tmp").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     List<SimpleRecord> expected1 = Lists.newArrayList(new SimpleRecord(1, "a"));
-    Assert.assertEquals("Number of rows should match", expected1.size(), actual1.size());
-    Assert.assertEquals("Result rows should match", expected1, actual1);
+    assertThat(actual1).as("Number of rows should match").hasSameSizeAs(expected1);
+    assertThat(actual1).as("Result rows should match").isEqualTo(expected1);
 
     df.select("id", "data")
         .write()
@@ -550,13 +554,13 @@ public class TestSparkDataWrite {
         spark.table("tmp").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     List<SimpleRecord> expected2 =
         Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(1, "a"));
-    Assert.assertEquals("Number of rows should match", expected2.size(), actual2.size());
-    Assert.assertEquals("Result rows should match", expected2, actual2);
+    assertThat(actual2).as("Number of rows should match").hasSameSizeAs(expected2);
+    assertThat(actual2).as("Result rows should match").isEqualTo(expected2);
   }
 
   public void partitionedCreateWithTargetFileSizeViaOption(IcebergOptionsType option)
       throws IOException {
-    File parent = temp.newFolder(format.toString());
+    File parent = temp.resolve(format.toString()).toFile();
     File location = new File(parent, "test");
     String targetLocation = locationWithBranch(location);
 
@@ -619,8 +623,8 @@ public class TestSparkDataWrite {
 
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
-    Assert.assertEquals("Result rows should match", expected, actual);
+    assertThat(actual).as("Number of rows should match").hasSameSizeAs(expected);
+    assertThat(actual).as("Result rows should match").isEqualTo(expected);
 
     List<DataFile> files = Lists.newArrayList();
     for (ManifestFile manifest :
@@ -629,15 +633,15 @@ public class TestSparkDataWrite {
         files.add(file);
       }
     }
-
-    Assert.assertEquals("Should have 8 DataFiles", 8, files.size());
-    Assert.assertTrue(
-        "All DataFiles contain 1000 rows", files.stream().allMatch(d -> d.recordCount() == 1000));
+    assertThat(files).as("Should have 8 DataFiles").hasSize(8);
+    assertThat(files.stream())
+        .as("All DataFiles contain 1000 rows")
+        .allMatch(d -> d.recordCount() == 1000);
   }
 
-  @Test
+  @TestTemplate
   public void testCommitUnknownException() throws IOException {
-    File parent = temp.newFolder(format.toString());
+    File parent = temp.resolve(format.toString()).toFile();
     File location = new File(parent, "commitunknown");
     String targetLocation = locationWithBranch(location);
 
@@ -689,7 +693,7 @@ public class TestSparkDataWrite {
     ManualSource.setTable(manualTableName, sparkTable);
 
     // Although an exception is thrown here, write and commit have succeeded
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 df2.select("id", "data")
                     .sort("data")
@@ -705,9 +709,8 @@ public class TestSparkDataWrite {
     Dataset<Row> result = spark.read().format("iceberg").load(targetLocation);
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    Assert.assertEquals(
-        "Number of rows should match", records.size() + records2.size(), actual.size());
-    Assertions.assertThat(actual)
+    assertThat(actual).as("Number of rows should match").hasSize(records.size() + records2.size());
+    assertThat(actual)
         .describedAs("Result rows should match")
         .containsExactlyInAnyOrder(
             ImmutableList.<SimpleRecord>builder()

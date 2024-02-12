@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.aws.dynamodb;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +48,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -86,7 +86,7 @@ import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 
 /** DynamoDB implementation of Iceberg catalog */
 public class DynamoDbCatalog extends BaseMetastoreCatalog
-    implements Closeable, SupportsNamespaces, Configurable {
+    implements SupportsNamespaces, Configurable {
 
   private static final Logger LOG = LoggerFactory.getLogger(DynamoDbCatalog.class);
   private static final int CATALOG_TABLE_CREATION_WAIT_ATTEMPTS_MAX = 5;
@@ -130,7 +130,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
   void initialize(
       String name, String path, AwsProperties properties, DynamoDbClient client, FileIO io) {
     Preconditions.checkArgument(
-        path != null && path.length() > 0,
+        !Strings.isNullOrEmpty(path),
         "Cannot initialize DynamoDbCatalog because warehousePath must not be null or empty");
 
     this.catalogName = name;
@@ -142,6 +142,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(dynamo);
     closeableGroup.addCloseable(fileIO);
+    closeableGroup.addCloseable(metricsReporter());
     closeableGroup.setSuppressCloseFailure(true);
 
     ensureCatalogTableExistsOrCreate();

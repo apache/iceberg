@@ -21,7 +21,6 @@ package org.apache.iceberg.util;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -167,23 +166,31 @@ public class CharSequenceSet implements Set<CharSequence>, Serializable {
     wrapperSet.clear();
   }
 
+  @SuppressWarnings("CollectionUndefinedEquality")
   @Override
-  public boolean equals(Object o) {
-    if (this == o) {
+  public boolean equals(Object other) {
+    if (this == other) {
       return true;
-    }
-
-    if (o == null || getClass() != o.getClass()) {
+    } else if (!(other instanceof Set)) {
       return false;
     }
 
-    CharSequenceSet that = (CharSequenceSet) o;
-    return wrapperSet.equals(that.wrapperSet);
+    Set<?> that = (Set<?>) other;
+
+    if (size() != that.size()) {
+      return false;
+    }
+
+    try {
+      return containsAll(that);
+    } catch (ClassCastException | NullPointerException unused) {
+      return false;
+    }
   }
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(wrapperSet);
+    return wrapperSet.stream().mapToInt(CharSequenceWrapper::hashCode).sum();
   }
 
   @Override

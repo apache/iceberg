@@ -192,7 +192,7 @@ public class SnapshotSummary {
       setIf(trustPartitionMetrics, builder, CHANGED_PARTITION_COUNT_PROP, changedPartitions.size());
 
       if (trustPartitionMetrics && changedPartitions.size() <= maxChangedPartitionsForSummaries) {
-        setIf(changedPartitions.size() > 0, builder, PARTITION_SUMMARY_PROP, "true");
+        setIf(!changedPartitions.isEmpty(), builder, PARTITION_SUMMARY_PROP, "true");
         for (String key : changedPartitions) {
           setIf(
               !Strings.isNullOrEmpty(key),

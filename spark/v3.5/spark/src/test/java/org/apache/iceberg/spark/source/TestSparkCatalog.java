@@ -31,8 +31,10 @@ import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
+import org.apache.spark.sql.connector.catalog.ViewCatalog;
 
-public class TestSparkCatalog<T extends TableCatalog & FunctionCatalog & SupportsNamespaces>
+public class TestSparkCatalog<
+        T extends TableCatalog & FunctionCatalog & SupportsNamespaces & ViewCatalog>
     extends SparkSessionCatalog<T> {
 
   private static final Map<Identifier, Table> tableMap = Maps.newHashMap();

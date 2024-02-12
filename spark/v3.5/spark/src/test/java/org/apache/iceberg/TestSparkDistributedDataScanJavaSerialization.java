@@ -19,24 +19,19 @@
 package org.apache.iceberg;
 
 import org.apache.spark.sql.SparkSession;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 
 public class TestSparkDistributedDataScanJavaSerialization
     extends SparkDistributedDataScanTestBase {
 
-  public TestSparkDistributedDataScanJavaSerialization(
-      int formatVersion, PlanningMode dataPlanningMode, PlanningMode deletePlanningMode) {
-    super(formatVersion, dataPlanningMode, deletePlanningMode);
-  }
-
-  @BeforeClass
+  @BeforeAll
   public static void startSpark() {
     SparkDistributedDataScanTestBase.spark =
         initSpark("org.apache.spark.serializer.JavaSerializer");
   }
 
-  @AfterClass
+  @AfterAll
   public static void stopSpark() {
     SparkSession currentSpark = SparkDistributedDataScanTestBase.spark;
     SparkDistributedDataScanTestBase.spark = null;

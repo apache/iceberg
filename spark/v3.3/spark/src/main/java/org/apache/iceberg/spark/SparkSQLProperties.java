@@ -63,4 +63,7 @@ public class SparkSQLProperties {
   // Controls the WAP branch used for write-audit-publish workflow.
   // When set, new snapshots will be committed to this branch.
   public static final String WAP_BRANCH = "spark.wap.branch";
+
+  // Controls whether to report locality information to Spark while allocating input partitions
+  public static final String LOCALITY = "spark.sql.iceberg.locality.enabled";
 }

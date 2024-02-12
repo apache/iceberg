@@ -163,12 +163,11 @@ public class TestManifestListVersions {
     Assert.assertEquals("Length", LENGTH, generic.get("manifest_length"));
     Assert.assertEquals("Spec id", SPEC_ID, generic.get("partition_spec_id"));
     Assert.assertEquals("Snapshot id", SNAPSHOT_ID, (long) generic.get("added_snapshot_id"));
+    Assert.assertEquals("Added files count", ADDED_FILES, (int) generic.get("added_files_count"));
     Assert.assertEquals(
-        "Added files count", ADDED_FILES, (int) generic.get("added_data_files_count"));
+        "Existing files count", EXISTING_FILES, (int) generic.get("existing_files_count"));
     Assert.assertEquals(
-        "Existing files count", EXISTING_FILES, (int) generic.get("existing_data_files_count"));
-    Assert.assertEquals(
-        "Deleted files count", DELETED_FILES, (int) generic.get("deleted_data_files_count"));
+        "Deleted files count", DELETED_FILES, (int) generic.get("deleted_files_count"));
     Assert.assertEquals("Added rows count", ADDED_ROWS, (long) generic.get("added_rows_count"));
     Assert.assertEquals(
         "Existing rows count", EXISTING_ROWS, (long) generic.get("existing_rows_count"));
@@ -191,12 +190,11 @@ public class TestManifestListVersions {
     Assert.assertEquals("Length", LENGTH, generic.get("manifest_length"));
     Assert.assertEquals("Spec id", SPEC_ID, generic.get("partition_spec_id"));
     Assert.assertEquals("Snapshot id", SNAPSHOT_ID, (long) generic.get("added_snapshot_id"));
+    Assert.assertEquals("Added files count", ADDED_FILES, (int) generic.get("added_files_count"));
     Assert.assertEquals(
-        "Added files count", ADDED_FILES, (int) generic.get("added_data_files_count"));
+        "Existing files count", EXISTING_FILES, (int) generic.get("existing_files_count"));
     Assert.assertEquals(
-        "Existing files count", EXISTING_FILES, (int) generic.get("existing_data_files_count"));
-    Assert.assertEquals(
-        "Deleted files count", DELETED_FILES, (int) generic.get("deleted_data_files_count"));
+        "Deleted files count", DELETED_FILES, (int) generic.get("deleted_files_count"));
     Assert.assertEquals("Added rows count", ADDED_ROWS, (long) generic.get("added_rows_count"));
     Assert.assertEquals(
         "Existing rows count", EXISTING_ROWS, (long) generic.get("existing_rows_count"));
@@ -218,9 +216,9 @@ public class TestManifestListVersions {
             "manifest_length",
             "partition_spec_id",
             "added_snapshot_id",
-            "added_data_files_count",
-            "existing_data_files_count",
-            "deleted_data_files_count",
+            "added_files_count",
+            "existing_files_count",
+            "deleted_files_count",
             "partitions");
     Schema schemaWithoutRowStats =
         V1Metadata.MANIFEST_LIST_SCHEMA.select(columnNamesWithoutRowStats);
@@ -241,9 +239,9 @@ public class TestManifestListVersions {
               .set("manifest_length", 1024L)
               .set("partition_spec_id", 1)
               .set("added_snapshot_id", 100L)
-              .set("added_data_files_count", 2)
-              .set("existing_data_files_count", 3)
-              .set("deleted_data_files_count", 4)
+              .set("added_files_count", 2)
+              .set("existing_files_count", 3)
+              .set("deleted_files_count", 4)
               .set("partitions", null)
               .build();
       appender.add(withoutRowStats);

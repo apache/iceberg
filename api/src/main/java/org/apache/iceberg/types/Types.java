@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -537,6 +538,7 @@ public class Types {
     private final NestedField[] fields;
 
     // lazy values
+    private transient Schema schema = null;
     private transient List<NestedField> fieldList = null;
     private transient Map<String, NestedField> fieldsByName = null;
     private transient Map<String, NestedField> fieldsByLowerCaseName = null;
@@ -590,6 +592,20 @@ public class Types {
     @Override
     public Types.StructType asStructType() {
       return this;
+    }
+
+    /**
+     * Returns a schema which contains the columns inside struct type. This method can be used to
+     * avoid expensive conversion of StructType containing large number of columns to Schema during
+     * manifest evaluation.
+     *
+     * @return the schema containing columns of struct type.
+     */
+    public Schema asSchema() {
+      if (this.schema == null) {
+        this.schema = new Schema(Arrays.asList(this.fields));
+      }
+      return this.schema;
     }
 
     @Override

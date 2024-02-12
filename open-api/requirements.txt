@@ -15,5 +15,5 @@
 # specific language governing permissions and limitations
 # under the License.
 
-openapi-spec-validator==0.5.2
-git+https://github.com/koxudaxi/datamodel-code-generator/
+openapi-spec-validator==0.7.1
+datamodel-code-generator==0.25.3

@@ -53,11 +53,6 @@ public class SparkWriteOptions {
   // File scan task set ID that indicates which files must be replaced
   public static final String REWRITTEN_FILE_SCAN_TASK_SET_ID = "rewritten-file-scan-task-set-id";
 
-  // Controls whether to allow writing timestamps without zone info
-  @Deprecated
-  public static final String HANDLE_TIMESTAMP_WITHOUT_TIMEZONE =
-      "handle-timestamp-without-timezone";
-
   public static final String OUTPUT_SPEC_ID = "output-spec-id";
 
   public static final String OVERWRITE_MODE = "overwrite-mode";
@@ -85,4 +80,10 @@ public class SparkWriteOptions {
   public static final String COMPRESSION_CODEC = "compression-codec";
   public static final String COMPRESSION_LEVEL = "compression-level";
   public static final String COMPRESSION_STRATEGY = "compression-strategy";
+
+  // Overrides the advisory partition size
+  public static final String ADVISORY_PARTITION_SIZE = "advisory-partition-size";
+
+  // Overrides the delete granularity
+  public static final String DELETE_GRANULARITY = "delete-granularity";
 }

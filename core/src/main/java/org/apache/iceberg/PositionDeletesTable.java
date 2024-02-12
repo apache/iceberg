@@ -132,7 +132,7 @@ public class PositionDeletesTable extends BaseMetadataTable {
                 Types.StringType.get(),
                 MetadataColumns.FILE_PATH_COLUMN_DOC));
 
-    if (partitionType.fields().size() > 0) {
+    if (!partitionType.fields().isEmpty()) {
       return result;
     } else {
       // avoid returning an empty struct, which is not always supported.
@@ -148,12 +148,6 @@ public class PositionDeletesTable extends BaseMetadataTable {
 
     protected PositionDeletesBatchScan(Table table, Schema schema) {
       super(table, schema, TableScanContext.empty());
-    }
-
-    /** @deprecated the API will be removed in v1.5.0 */
-    @Deprecated
-    protected PositionDeletesBatchScan(Table table, Schema schema, TableScanContext context) {
-      super(table, schema, context);
     }
 
     protected PositionDeletesBatchScan(

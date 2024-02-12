@@ -177,12 +177,19 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     // enable AQE and set the advisory partition size big enough to trigger combining
     // set the number of shuffle partitions to 200 to distribute the work across reducers
+    // set the advisory partition size for shuffles small enough to ensure writes override it
     withSQLConf(
         ImmutableMap.of(
-            SQLConf.SHUFFLE_PARTITIONS().key(), "200",
-            SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "true",
-            SQLConf.COALESCE_PARTITIONS_ENABLED().key(), "true",
-            SQLConf.ADVISORY_PARTITION_SIZE_IN_BYTES().key(), "256MB"),
+            SQLConf.SHUFFLE_PARTITIONS().key(),
+            "200",
+            SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(),
+            "true",
+            SQLConf.COALESCE_PARTITIONS_ENABLED().key(),
+            "true",
+            SQLConf.ADVISORY_PARTITION_SIZE_IN_BYTES().key(),
+            "100",
+            SparkSQLProperties.ADVISORY_PARTITION_SIZE,
+            String.valueOf(256 * 1024 * 1024)),
         () -> {
           SparkPlan plan =
               executeAndKeepPlan("DELETE FROM %s WHERE mod(id, 2) = 0", commitTarget());
@@ -238,12 +245,19 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     // enable AQE and set the advisory partition size small enough to trigger a split
     // set the number of shuffle partitions to 2 to only have 2 reducers
+    // set the advisory partition size for shuffles big enough to ensure writes override it
     withSQLConf(
         ImmutableMap.of(
-            SQLConf.SHUFFLE_PARTITIONS().key(), "2",
-            SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "true",
-            SQLConf.ADAPTIVE_OPTIMIZE_SKEWS_IN_REBALANCE_PARTITIONS_ENABLED().key(), "true",
-            SQLConf.ADVISORY_PARTITION_SIZE_IN_BYTES().key(), "100"),
+            SQLConf.SHUFFLE_PARTITIONS().key(),
+            "2",
+            SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(),
+            "true",
+            SQLConf.ADAPTIVE_OPTIMIZE_SKEWS_IN_REBALANCE_PARTITIONS_ENABLED().key(),
+            "true",
+            SQLConf.ADVISORY_PARTITION_SIZE_IN_BYTES().key(),
+            "256MB",
+            SparkSQLProperties.ADVISORY_PARTITION_SIZE,
+            "100"),
         () -> {
           SparkPlan plan =
               executeAndKeepPlan("DELETE FROM %s WHERE mod(id, 2) = 0", commitTarget());
@@ -312,9 +326,8 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   public void testDeleteFileThenMetadataDelete() throws Exception {
     Assume.assumeFalse("Avro does not support metadata delete", fileFormat.equals("avro"));
     createAndInitUnpartitionedTable();
-
-    sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", tableName);
     createBranchIfNeeded();
+    sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", commitTarget());
 
     // MOR mode: writes a delete file as null cannot be deleted by metadata
     sql("DELETE FROM %s AS t WHERE t.id IS NULL", commitTarget());
@@ -333,6 +346,38 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         "Should have expected rows",
         ImmutableList.of(row(2, "hardware")),
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @Test
+  public void testDeleteWithPartitionedTable() throws Exception {
+    createAndInitPartitionedTable();
+
+    append(tableName, new Employee(1, "hr"), new Employee(3, "hr"));
+    append(tableName, new Employee(1, "hardware"), new Employee(2, "hardware"));
+
+    // row level delete
+    sql("DELETE FROM %s WHERE id = 1", tableName);
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(2, "hardware"), row(3, "hr")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+    List<Row> rowLevelDeletePartitions =
+        spark.sql("SELECT * FROM " + tableName + ".partitions ").collectAsList();
+    Assert.assertEquals(
+        "row level delete does not reduce number of partition", 2, rowLevelDeletePartitions.size());
+
+    // partition aligned delete
+    sql("DELETE FROM %s WHERE dep = 'hr'", tableName);
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(2, "hardware")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+    List<Row> actualPartitions =
+        spark.sql("SELECT * FROM " + tableName + ".partitions ").collectAsList();
+    Assert.assertEquals(
+        "partition aligned delete results in 1 partition", 1, actualPartitions.size());
   }
 
   @Test

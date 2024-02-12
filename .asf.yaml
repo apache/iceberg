@@ -27,6 +27,16 @@ github:
     - iceberg
     - apache
     - hacktoberfest
+  
+  enabled_merge_buttons:
+    merge: false
+    squash: true
+    rebase: true
+
+  protected_branches:
+    main:
+      required_linear_history: true
+  
   features:
     wiki: true
     issues: true
@@ -43,10 +53,13 @@ github:
     - bitsondatadev
     - ajantha-bhat
   ghp_branch: gh-pages
-  ghp_path: ~
+  ghp_path: /
 
 notifications:
     commits:      commits@iceberg.apache.org
     issues:       issues@iceberg.apache.org
     pullrequests: issues@iceberg.apache.org
     jira_options: link label link label
+
+publish:
+    whoami:  asf-site

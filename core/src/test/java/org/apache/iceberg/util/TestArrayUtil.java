@@ -41,4 +41,36 @@ public class TestArrayUtil {
     long[] ascendingArray = new long[] {1, 2, 2, 3};
     assertThat(ArrayUtil.isStrictlyAscending(ascendingArray)).isFalse();
   }
+
+  @Test
+  public void testConcatWithDifferentLengthArrays() {
+    Integer[] array1 = {1, 2, 3};
+    Integer[] array2 = {4, 5};
+    Integer[] array3 = {6, 7, 8, 9};
+
+    Integer[] result = ArrayUtil.concat(Integer.class, array1, array2, array3);
+    assertThat(result).isEqualTo(new Integer[] {1, 2, 3, 4, 5, 6, 7, 8, 9});
+  }
+
+  @Test
+  public void testConcatWithEmptyArrays() {
+    String[] array1 = {};
+    String[] array2 = {"a", "b"};
+
+    String[] result = ArrayUtil.concat(String.class, array1, array2);
+    assertThat(result).isEqualTo(new String[] {"a", "b"});
+  }
+
+  @Test
+  public void testConcatWithSingleArray() {
+    Boolean[] array = {true, false};
+    Boolean[] result = ArrayUtil.concat(Boolean.class, array);
+    assertThat(result).isEqualTo(new Boolean[] {true, false});
+  }
+
+  @Test
+  public void testConcatWithNoArray() {
+    Character[] result = ArrayUtil.concat(Character.class);
+    assertThat(result).isEqualTo(new Character[] {});
+  }
 }

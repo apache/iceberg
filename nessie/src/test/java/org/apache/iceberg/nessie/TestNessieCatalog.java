@@ -21,10 +21,14 @@ package org.apache.iceberg.nessie;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
+import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.util.LocationUtil;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -33,7 +37,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 import org.projectnessie.client.api.NessieApiV1;
-import org.projectnessie.client.ext.NessieApiVersion;
 import org.projectnessie.client.ext.NessieApiVersions;
 import org.projectnessie.client.ext.NessieClientFactory;
 import org.projectnessie.client.ext.NessieClientUri;
@@ -63,7 +66,6 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
 
   private NessieCatalog catalog;
   private NessieApiV1 api;
-  private NessieApiVersion apiVersion;
   private Configuration hadoopConfig;
   private String initialHashOfDefaultBranch;
   private String uri;
@@ -72,7 +74,6 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
   public void setUp(NessieClientFactory clientFactory, @NessieClientUri URI nessieUri)
       throws NessieNotFoundException {
     api = clientFactory.make();
-    apiVersion = clientFactory.apiVersion();
     initialHashOfDefaultBranch = api.getDefaultBranch().getHash();
     uri = nessieUri.toASCIIString();
     hadoopConfig = new Configuration();
@@ -111,20 +112,17 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
   }
 
   private NessieCatalog initNessieCatalog(String ref) {
-    NessieCatalog newCatalog = new NessieCatalog();
-    newCatalog.setConf(hadoopConfig);
-    ImmutableMap<String, String> options =
+    Map<String, String> options =
         ImmutableMap.of(
+            "type",
+            "nessie",
             "ref",
             ref,
             CatalogProperties.URI,
             uri,
             CatalogProperties.WAREHOUSE_LOCATION,
-            temp.toUri().toString(),
-            "client-api-version",
-            apiVersion == NessieApiVersion.V2 ? "2" : "1");
-    newCatalog.initialize("nessie", options);
-    return newCatalog;
+            temp.toUri().toString());
+    return (NessieCatalog) CatalogUtil.buildIcebergCatalog("nessie", options, hadoopConfig);
   }
 
   @Override
@@ -159,5 +157,16 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
       "Nessie does not differentiate between table creates & updates, thus a concurrent transaction does not fail")
   public void testConcurrentCreateTransaction() {
     super.testConcurrentCreateTransaction();
+  }
+
+  @Test
+  public void testWarehouseLocationWithTrailingSlash() {
+    Assertions.assertThat(catalog.defaultWarehouseLocation(TABLE))
+        .startsWith(
+            LocationUtil.stripTrailingSlash(temp.toUri().toString())
+                + "/"
+                + TABLE.namespace()
+                + "/"
+                + TABLE.name());
   }
 }

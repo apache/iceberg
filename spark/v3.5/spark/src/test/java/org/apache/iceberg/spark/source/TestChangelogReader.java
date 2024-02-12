@@ -20,8 +20,11 @@ package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ChangelogOperation;
@@ -41,17 +44,15 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.spark.SparkTestBase;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
-public class TestChangelogReader extends SparkTestBase {
+public class TestChangelogReader extends TestBase {
   private static final Schema SCHEMA =
       new Schema(
           required(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
@@ -64,9 +65,9 @@ public class TestChangelogReader extends SparkTestBase {
   private DataFile dataFile1;
   private DataFile dataFile2;
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
-  @Before
+  @BeforeEach
   public void before() throws IOException {
     table = catalog.createTable(TableIdentifier.of("default", "test"), SCHEMA, SPEC);
     // create some data
@@ -85,7 +86,7 @@ public class TestChangelogReader extends SparkTestBase {
     dataFile2 = writeDataFile(records2);
   }
 
-  @After
+  @AfterEach
   public void after() {
     catalog.dropTable(TableIdentifier.of("default", "test"));
   }
@@ -176,7 +177,7 @@ public class TestChangelogReader extends SparkTestBase {
       reader.close();
     }
 
-    Assert.assertEquals("Should have no rows", 0, rows.size());
+    assertThat(rows).as("Should have no rows").hasSize(0);
   }
 
   @Test
@@ -254,6 +255,9 @@ public class TestChangelogReader extends SparkTestBase {
   private DataFile writeDataFile(List<Record> records) throws IOException {
     // records all use IDs that are in bucket id_bucket=0
     return FileHelpers.writeDataFile(
-        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), records);
+        table,
+        Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+        TestHelpers.Row.of(0),
+        records);
   }
 }

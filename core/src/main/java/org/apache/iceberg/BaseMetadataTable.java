@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
@@ -37,12 +38,12 @@ import org.apache.iceberg.transforms.Transforms;
  * the metadata table using a {@link StaticTableOperations}. This way no Catalog related calls are
  * needed when reading the table data after deserialization.
  */
-public abstract class BaseMetadataTable extends BaseReadOnlyTable
-    implements HasTableOperations, Serializable {
+public abstract class BaseMetadataTable extends BaseReadOnlyTable implements Serializable {
   private final PartitionSpec spec = PartitionSpec.unpartitioned();
   private final SortOrder sortOrder = SortOrder.unsorted();
   private final BaseTable table;
   private final String name;
+  private final UUID uuid;
 
   protected BaseMetadataTable(Table table, String name) {
     super("metadata");
@@ -50,6 +51,7 @@ public abstract class BaseMetadataTable extends BaseReadOnlyTable
         table instanceof BaseTable, "Cannot create metadata table for non-data table: %s", table);
     this.table = (BaseTable) table;
     this.name = name;
+    this.uuid = UUID.randomUUID();
   }
 
   /**
@@ -98,15 +100,8 @@ public abstract class BaseMetadataTable extends BaseReadOnlyTable
 
   abstract MetadataTableType metadataTableType();
 
-  protected BaseTable table() {
+  public BaseTable table() {
     return table;
-  }
-
-  /** @deprecated will be removed in 1.4.0; do not use metadata table TableOperations */
-  @Override
-  @Deprecated
-  public TableOperations operations() {
-    return table.operations();
   }
 
   @Override
@@ -195,8 +190,18 @@ public abstract class BaseMetadataTable extends BaseReadOnlyTable
   }
 
   @Override
+  public List<PartitionStatisticsFile> partitionStatisticsFiles() {
+    return ImmutableList.of();
+  }
+
+  @Override
   public Map<String, SnapshotRef> refs() {
     return table().refs();
+  }
+
+  @Override
+  public UUID uuid() {
+    return uuid;
   }
 
   @Override

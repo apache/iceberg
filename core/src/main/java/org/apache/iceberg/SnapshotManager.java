@@ -137,14 +137,14 @@ public class SnapshotManager implements ManageSnapshots {
   }
 
   @Override
-  public ManageSnapshots replaceBranch(String name, String source) {
-    updateSnapshotReferencesOperation().replaceBranch(name, source);
+  public ManageSnapshots replaceBranch(String from, String to) {
+    updateSnapshotReferencesOperation().replaceBranch(from, to);
     return this;
   }
 
   @Override
-  public ManageSnapshots fastForwardBranch(String name, String source) {
-    updateSnapshotReferencesOperation().fastForward(name, source);
+  public ManageSnapshots fastForwardBranch(String from, String to) {
+    updateSnapshotReferencesOperation().fastForward(from, to);
     return this;
   }
 

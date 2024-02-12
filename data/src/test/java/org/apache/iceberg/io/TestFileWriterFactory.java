@@ -76,18 +76,15 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
 
   private final FileFormat fileFormat;
   private final boolean partitioned;
-  private final List<T> dataRows;
 
   private StructLike partition = null;
   private OutputFileFactory fileFactory = null;
+  private List<T> dataRows;
 
   public TestFileWriterFactory(FileFormat fileFormat, boolean partitioned) {
     super(TABLE_FORMAT_VERSION);
     this.fileFormat = fileFormat;
     this.partitioned = partitioned;
-    this.dataRows =
-        ImmutableList.of(
-            toRow(1, "aaa"), toRow(2, "aaa"), toRow(3, "aaa"), toRow(4, "aaa"), toRow(5, "aaa"));
   }
 
   protected abstract StructLikeSet toSet(Iterable<T> records);
@@ -113,6 +110,10 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
     }
 
     this.fileFactory = OutputFileFactory.builderFor(table, 1, 1).format(fileFormat).build();
+
+    this.dataRows =
+        ImmutableList.of(
+            toRow(1, "aaa"), toRow(2, "aaa"), toRow(3, "aaa"), toRow(4, "aaa"), toRow(5, "aaa"));
   }
 
   @Test

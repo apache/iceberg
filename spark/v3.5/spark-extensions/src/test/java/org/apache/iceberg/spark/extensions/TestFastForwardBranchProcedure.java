@@ -188,4 +188,73 @@ public class TestFastForwardBranchProcedure extends SparkExtensionsTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot handle an empty identifier for argument table");
   }
+
+  @Test
+  public void testFastForwardNonExistingToRefFails() {
+    sql("CREATE TABLE %s (id int NOT NULL, data string) USING iceberg", tableName);
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.fast_forward(table => '%s', branch => '%s', to => '%s')",
+                    catalogName, tableIdent, SnapshotRef.MAIN_BRANCH, "non_existing_branch"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Ref does not exist: non_existing_branch");
+  }
+
+  @Test
+  public void testFastForwardNonMain() {
+    sql("CREATE TABLE %s (id int NOT NULL, data string) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    table.refresh();
+
+    String branch1 = "branch1";
+    sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branch1);
+    String tableNameWithBranch1 = String.format("%s.branch_%s", tableName, branch1);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableNameWithBranch1);
+    table.refresh();
+    Snapshot branch1Snapshot = table.snapshot(branch1);
+
+    // Create branch2 from branch1
+    String branch2 = "branch2";
+    sql(
+        "ALTER TABLE %s CREATE BRANCH %s AS OF VERSION %d",
+        tableName, branch2, branch1Snapshot.snapshotId());
+    String tableNameWithBranch2 = String.format("%s.branch_%s", tableName, branch2);
+    sql("INSERT INTO TABLE %s VALUES (3, 'c')", tableNameWithBranch2);
+    table.refresh();
+    Snapshot branch2Snapshot = table.snapshot(branch2);
+    assertThat(
+            sql(
+                "CALL %s.system.fast_forward('%s', '%s', '%s')",
+                catalogName, tableIdent, branch1, branch2))
+        .containsExactly(row(branch1, branch1Snapshot.snapshotId(), branch2Snapshot.snapshotId()));
+  }
+
+  @Test
+  public void testFastForwardNonExistingFromMainCreatesBranch() {
+    sql("CREATE TABLE %s (id int NOT NULL, data string) USING iceberg", tableName);
+    String branch1 = "branch1";
+    sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branch1);
+    String branchIdentifier = String.format("%s.branch_%s", tableName, branch1);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", branchIdentifier);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", branchIdentifier);
+    Table table = validationCatalog.loadTable(tableIdent);
+    table.refresh();
+    Snapshot branch1Snapshot = table.snapshot(branch1);
+
+    assertThat(
+            sql(
+                "CALL %s.system.fast_forward('%s', '%s', '%s')",
+                catalogName, tableIdent, SnapshotRef.MAIN_BRANCH, branch1))
+        .containsExactly(row(SnapshotRef.MAIN_BRANCH, null, branch1Snapshot.snapshotId()));
+
+    // Ensure the same behavior for non-main branches
+    String branch2 = "branch2";
+    assertThat(
+            sql(
+                "CALL %s.system.fast_forward('%s', '%s', '%s')",
+                catalogName, tableIdent, branch2, branch1))
+        .containsExactly(row(branch2, null, branch1Snapshot.snapshotId()));
+  }
 }

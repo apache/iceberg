@@ -23,4 +23,8 @@ import org.apache.avro.io.Decoder;
 
 public interface ValueReader<T> {
   T read(Decoder decoder, Object reuse) throws IOException;
+
+  default void skip(Decoder decoder) throws IOException {
+    read(decoder, null);
+  }
 }

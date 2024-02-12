@@ -18,22 +18,14 @@
  */
 package org.apache.iceberg.spark;
 
+import java.time.Duration;
+
 public class SparkSQLProperties {
 
   private SparkSQLProperties() {}
 
   // Controls whether vectorized reads are enabled
   public static final String VECTORIZATION_ENABLED = "spark.sql.iceberg.vectorization.enabled";
-
-  // Controls whether reading/writing timestamps without timezones is allowed
-  @Deprecated
-  public static final String HANDLE_TIMESTAMP_WITHOUT_TIMEZONE =
-      "spark.sql.iceberg.handle-timestamp-without-timezone";
-
-  // Controls whether timestamp types for new tables should be stored with timezone info
-  @Deprecated
-  public static final String USE_TIMESTAMP_WITHOUT_TIME_ZONE_IN_NEW_TABLES =
-      "spark.sql.iceberg.use-timestamp-without-timezone-in-new-tables";
 
   // Controls whether to perform the nullability check during writes
   public static final String CHECK_NULLABILITY = "spark.sql.iceberg.check-nullability";
@@ -74,4 +66,28 @@ public class SparkSQLProperties {
 
   // Overrides the delete planning mode
   public static final String DELETE_PLANNING_MODE = "spark.sql.iceberg.delete-planning-mode";
+
+  // Overrides the advisory partition size
+  public static final String ADVISORY_PARTITION_SIZE = "spark.sql.iceberg.advisory-partition-size";
+
+  // Controls whether to report locality information to Spark while allocating input partitions
+  public static final String LOCALITY = "spark.sql.iceberg.locality.enabled";
+
+  public static final String EXECUTOR_CACHE_ENABLED = "spark.sql.iceberg.executor-cache.enabled";
+  public static final boolean EXECUTOR_CACHE_ENABLED_DEFAULT = true;
+
+  public static final String EXECUTOR_CACHE_TIMEOUT = "spark.sql.iceberg.executor-cache.timeout";
+  public static final Duration EXECUTOR_CACHE_TIMEOUT_DEFAULT = Duration.ofMinutes(10);
+
+  public static final String EXECUTOR_CACHE_MAX_ENTRY_SIZE =
+      "spark.sql.iceberg.executor-cache.max-entry-size";
+  public static final long EXECUTOR_CACHE_MAX_ENTRY_SIZE_DEFAULT = 64 * 1024 * 1024; // 64 MB
+
+  public static final String EXECUTOR_CACHE_MAX_TOTAL_SIZE =
+      "spark.sql.iceberg.executor-cache.max-total-size";
+  public static final long EXECUTOR_CACHE_MAX_TOTAL_SIZE_DEFAULT = 128 * 1024 * 1024; // 128 MB
+
+  public static final String EXECUTOR_CACHE_LOCALITY_ENABLED =
+      "spark.sql.iceberg.executor-cache.locality.enabled";
+  public static final boolean EXECUTOR_CACHE_LOCALITY_ENABLED_DEFAULT = false;
 }

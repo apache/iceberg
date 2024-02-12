@@ -31,7 +31,7 @@ jobs:
     if: github.repository_owner == 'apache'
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/stale@v8.0.0
+      - uses: actions/stale@v9.0.0
         with:
           stale-issue-label: 'stale'
           exempt-issue-labels: 'not-stale'
@@ -47,3 +47,5 @@ jobs:
           close-issue-message: >
             This issue has been closed because it has not received any activity in the last 14 days
             since being marked as 'stale'
+          ascending: true
+          operations-per-run: 100

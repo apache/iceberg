@@ -409,20 +409,47 @@ public class TestSnapshotManager extends TableTestBase {
   }
 
   @Test
-  public void testReplaceBranchNonExistingTargetBranchFails() {
-    Assertions.assertThatThrownBy(
-            () -> table.manageSnapshots().replaceBranch("non-existing", "other-branch").commit())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Target branch does not exist: non-existing");
-  }
-
-  @Test
-  public void testReplaceBranchNonExistingSourceFails() {
+  public void testReplaceBranchNonExistingToBranchFails() {
     table.newAppend().appendFile(FILE_A).commit();
     long snapshotId = table.currentSnapshot().snapshotId();
     table.manageSnapshots().createBranch("branch1", snapshotId).commit();
     Assertions.assertThatThrownBy(
             () -> table.manageSnapshots().replaceBranch("branch1", "non-existing").commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Ref does not exist: non-existing");
+  }
+
+  @Test
+  public void testFastForwardBranchNonExistingFromBranchCreatesTheBranch() {
+    table.newAppend().appendFile(FILE_A).commit();
+    long snapshotId = table.currentSnapshot().snapshotId();
+    table.manageSnapshots().createBranch("branch1", snapshotId).commit();
+    table.manageSnapshots().fastForwardBranch("new-branch", "branch1").commit();
+
+    Assertions.assertThat(table.ops().current().ref("new-branch").isBranch()).isTrue();
+    Assertions.assertThat(table.ops().current().ref("new-branch").snapshotId())
+        .isEqualTo(snapshotId);
+  }
+
+  @Test
+  public void testReplaceBranchNonExistingFromBranchCreatesTheBranch() {
+    table.newAppend().appendFile(FILE_A).commit();
+    long snapshotId = table.currentSnapshot().snapshotId();
+    table.manageSnapshots().createBranch("branch1", snapshotId).commit();
+    table.manageSnapshots().replaceBranch("new-branch", "branch1").commit();
+
+    Assertions.assertThat(table.ops().current().ref("new-branch").isBranch()).isTrue();
+    Assertions.assertThat(table.ops().current().ref("new-branch").snapshotId())
+        .isEqualTo(snapshotId);
+  }
+
+  @Test
+  public void testFastForwardBranchNonExistingToFails() {
+    table.newAppend().appendFile(FILE_A).commit();
+    long snapshotId = table.currentSnapshot().snapshotId();
+    table.manageSnapshots().createBranch("branch1", snapshotId).commit();
+    Assertions.assertThatThrownBy(
+            () -> table.manageSnapshots().fastForwardBranch("branch1", "non-existing").commit())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Ref does not exist: non-existing");
   }
@@ -445,7 +472,7 @@ public class TestSnapshotManager extends TableTestBase {
   }
 
   @Test
-  public void testFastForwardWhenTargetIsNotAncestorFails() {
+  public void testFastForwardWhenFromIsNotAncestorFails() {
     table.newAppend().appendFile(FILE_A).commit();
 
     table.newAppend().appendFile(FILE_B).set("wap.id", "123456789").stageOnly().commit();

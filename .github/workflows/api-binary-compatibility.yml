@@ -21,7 +21,7 @@ name: "API Binary Compatibility Checks"
 on:
   push:
     branches:
-      - 'master'
+      - 'main'
       - '0.**'
     tags:
       - 'apache-iceberg-**'
@@ -46,14 +46,14 @@ jobs:
           #
           # See https://github.com/actions/checkout/issues/124
           fetch-depth: 0
-      - uses: actions/setup-java@v3
+      - uses: actions/setup-java@v4
         with:
           distribution: zulu
           java-version: 11
       - run: |
           echo "Using the old version tag, as per git describe, of $(git describe)";
       - run: ./gradlew revapi --rerun-tasks
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: test logs

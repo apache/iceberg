@@ -20,20 +20,20 @@ package org.apache.iceberg.flink.sink.shuffle;
 
 import java.util.Map;
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.table.data.RowData;
+import org.apache.iceberg.SortKey;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /** MapDataStatistics uses map to count key frequency */
 @Internal
-class MapDataStatistics implements DataStatistics<MapDataStatistics, Map<RowData, Long>> {
-  private final Map<RowData, Long> statistics;
+class MapDataStatistics implements DataStatistics<MapDataStatistics, Map<SortKey, Long>> {
+  private final Map<SortKey, Long> statistics;
 
   MapDataStatistics() {
     this.statistics = Maps.newHashMap();
   }
 
-  MapDataStatistics(Map<RowData, Long> statistics) {
+  MapDataStatistics(Map<SortKey, Long> statistics) {
     this.statistics = statistics;
   }
 
@@ -43,9 +43,14 @@ class MapDataStatistics implements DataStatistics<MapDataStatistics, Map<RowData
   }
 
   @Override
-  public void add(RowData key) {
-    // increase count of occurrence by one in the dataStatistics map
-    statistics.merge(key, 1L, Long::sum);
+  public void add(SortKey sortKey) {
+    if (statistics.containsKey(sortKey)) {
+      statistics.merge(sortKey, 1L, Long::sum);
+    } else {
+      // clone the sort key before adding to map because input sortKey object can be reused
+      SortKey copiedKey = sortKey.copy();
+      statistics.put(copiedKey, 1L);
+    }
   }
 
   @Override
@@ -54,7 +59,7 @@ class MapDataStatistics implements DataStatistics<MapDataStatistics, Map<RowData
   }
 
   @Override
-  public Map<RowData, Long> statistics() {
+  public Map<SortKey, Long> statistics() {
     return statistics;
   }
 

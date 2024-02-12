@@ -25,19 +25,26 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.iceberg.BaseCombinedScanTask;
+import org.apache.iceberg.BaseFileScanTask;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MergeableScanTask;
 import org.apache.iceberg.MockFileScanTask;
 import org.apache.iceberg.PartitionScanTask;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SplittableScanTask;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.TableTestBase;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -124,6 +131,45 @@ public class TestTableScanUtil {
     CloseableIterable<ScanTaskGroup<ParentTask>> taskGroups =
         TableScanUtil.planTaskGroups(CloseableIterable.withNoopClose(tasks), 128, 10, 4);
     assertThat(taskGroups).as("Must have 3 task groups").hasSize(3);
+  }
+
+  @Test
+  public void testTaskGroupPlanningCorruptedOffset() {
+    DataFile dataFile =
+        DataFiles.builder(TableTestBase.SPEC)
+            .withPath("/path/to/data-a.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .withSplitOffsets(
+                ImmutableList.of(2L, 12L)) // the last offset is beyond the end of the file
+            .build();
+
+    ResidualEvaluator residualEvaluator =
+        ResidualEvaluator.of(TableTestBase.SPEC, Expressions.equal("id", 1), false);
+
+    BaseFileScanTask baseFileScanTask =
+        new BaseFileScanTask(
+            dataFile,
+            null,
+            SchemaParser.toJson(TableTestBase.SCHEMA),
+            PartitionSpecParser.toJson(TableTestBase.SPEC),
+            residualEvaluator);
+
+    List<BaseFileScanTask> baseFileScanTasks = ImmutableList.of(baseFileScanTask);
+
+    int taskCount = 0;
+    for (ScanTaskGroup<BaseFileScanTask> task :
+        TableScanUtil.planTaskGroups(CloseableIterable.withNoopClose(baseFileScanTasks), 1, 1, 0)) {
+      for (FileScanTask fileScanTask : task.tasks()) {
+        DataFile taskDataFile = fileScanTask.file();
+        Assertions.assertThat(taskDataFile.splitOffsets()).isNull();
+        taskCount++;
+      }
+    }
+
+    // 10 tasks since the split offsets are ignored and there are 1 byte splits for a 10 byte file
+    Assertions.assertThat(taskCount).isEqualTo(10);
   }
 
   @Test

@@ -20,8 +20,6 @@ package org.apache.iceberg.view;
 
 import javax.annotation.Nullable;
 import org.immutables.value.Value;
-import org.immutables.value.Value.Style.BuilderVisibility;
-import org.immutables.value.Value.Style.ImplementationVisibility;
 
 /**
  * A version of the view at a point in time.
@@ -34,23 +32,17 @@ import org.immutables.value.Value.Style.ImplementationVisibility;
 @SuppressWarnings("ImmutablesStyle")
 @Value.Style(
     typeImmutable = "ImmutableViewVersion",
-    visibility = ImplementationVisibility.PUBLIC,
-    builderVisibility = BuilderVisibility.PUBLIC)
+    visibilityString = "PUBLIC",
+    builderVisibilityString = "PUBLIC")
 interface BaseViewVersion extends ViewVersion {
 
   @Override
   @Value.Lazy
   default String operation() {
-    return summary().get("operation");
+    return ViewVersion.super.operation();
   }
 
   @Override
   @Nullable
   String defaultCatalog();
-
-  @Override
-  @Value.Check
-  default void check() {
-    ViewVersion.super.check();
-  }
 }

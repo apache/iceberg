@@ -18,11 +18,12 @@
  */
 package org.apache.iceberg.metrics;
 
+import java.io.Closeable;
 import java.util.Map;
 
 /** This interface defines the basic API for reporting metrics for operations to a Table. */
 @FunctionalInterface
-public interface MetricsReporter {
+public interface MetricsReporter extends Closeable {
 
   /**
    * A custom MetricsReporter implementation must have a no-arg constructor, which will be called
@@ -40,4 +41,7 @@ public interface MetricsReporter {
    * @param report The {@link MetricsReport} to report.
    */
   void report(MetricsReport report);
+
+  @Override
+  default void close() {}
 }

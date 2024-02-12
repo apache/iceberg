@@ -44,24 +44,29 @@ import static org.apache.iceberg.spark.SparkSQLProperties.COMPRESSION_LEVEL;
 import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.DELETE;
 import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.MERGE;
 import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.UPDATE;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateProperties;
+import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.apache.spark.sql.internal.SQLConf;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
 
-public class TestSparkWriteConf extends SparkTestBaseWithCatalog {
+public class TestSparkWriteConf extends TestBaseWithCatalog {
 
-  @Before
+  @BeforeEach
   public void before() {
+    super.before();
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
             + "USING iceberg "
@@ -69,12 +74,107 @@ public class TestSparkWriteConf extends SparkTestBaseWithCatalog {
         tableName);
   }
 
-  @After
+  @AfterEach
   public void after() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
+  public void testDurationConf() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    String confName = "spark.sql.iceberg.some-duration-conf";
+
+    withSQLConf(
+        ImmutableMap.of(confName, "10s"),
+        () -> {
+          SparkConfParser parser = new SparkConfParser(spark, table, ImmutableMap.of());
+          Duration duration = parser.durationConf().sessionConf(confName).parseOptional();
+          assertThat(duration).hasSeconds(10);
+        });
+
+    withSQLConf(
+        ImmutableMap.of(confName, "2m"),
+        () -> {
+          SparkConfParser parser = new SparkConfParser(spark, table, ImmutableMap.of());
+          Duration duration = parser.durationConf().sessionConf(confName).parseOptional();
+          assertThat(duration).hasMinutes(2);
+        });
+  }
+
+  @TestTemplate
+  public void testDeleteGranularityDefault() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
+
+    DeleteGranularity value = writeConf.deleteGranularity();
+    assertThat(value).isEqualTo(DeleteGranularity.PARTITION);
+  }
+
+  @TestTemplate
+  public void testDeleteGranularityTableProperty() {
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table
+        .updateProperties()
+        .set(TableProperties.DELETE_GRANULARITY, DeleteGranularity.FILE.toString())
+        .commit();
+
+    SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
+
+    DeleteGranularity value = writeConf.deleteGranularity();
+    assertThat(value).isEqualTo(DeleteGranularity.FILE);
+  }
+
+  @TestTemplate
+  public void testDeleteGranularityWriteOption() {
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table
+        .updateProperties()
+        .set(TableProperties.DELETE_GRANULARITY, DeleteGranularity.PARTITION.toString())
+        .commit();
+
+    Map<String, String> options =
+        ImmutableMap.of(SparkWriteOptions.DELETE_GRANULARITY, DeleteGranularity.FILE.toString());
+
+    SparkWriteConf writeConf = new SparkWriteConf(spark, table, options);
+
+    DeleteGranularity value = writeConf.deleteGranularity();
+    assertThat(value).isEqualTo(DeleteGranularity.FILE);
+  }
+
+  @TestTemplate
+  public void testDeleteGranularityInvalidValue() {
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.updateProperties().set(TableProperties.DELETE_GRANULARITY, "invalid").commit();
+
+    SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
+
+    assertThatThrownBy(writeConf::deleteGranularity)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Unknown delete granularity");
+  }
+
+  @TestTemplate
+  public void testAdvisoryPartitionSize() {
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
+
+    long value1 = writeConf.writeRequirements().advisoryPartitionSize();
+    assertThat(value1).isGreaterThan(64L * 1024 * 1024).isLessThan(2L * 1024 * 1024 * 1024);
+
+    spark.conf().set(SQLConf.ADVISORY_PARTITION_SIZE_IN_BYTES().key(), "2GB");
+    long value2 = writeConf.writeRequirements().advisoryPartitionSize();
+    assertThat(value2).isEqualTo(2L * 1024 * 1024 * 1024);
+
+    spark.conf().set(SQLConf.ADVISORY_PARTITION_SIZE_IN_BYTES().key(), "10MB");
+    long value3 = writeConf.writeRequirements().advisoryPartitionSize();
+    assertThat(value3).isGreaterThan(10L * 1024 * 1024);
+  }
+
+  @TestTemplate
   public void testSparkWriteConfDistributionDefault() {
     Table table = validationCatalog.loadTable(tableIdent);
 
@@ -83,7 +183,7 @@ public class TestSparkWriteConf extends SparkTestBaseWithCatalog {
     checkMode(DistributionMode.HASH, writeConf);
   }
 
-  @Test
+  @TestTemplate
   public void testSparkWriteConfDistributionModeWithWriteOption() {
     Table table = validationCatalog.loadTable(tableIdent);
 
@@ -94,7 +194,7 @@ public class TestSparkWriteConf extends SparkTestBaseWithCatalog {
     checkMode(DistributionMode.NONE, writeConf);
   }
 
-  @Test
+  @TestTemplate
   public void testSparkWriteConfDistributionModeWithSessionConfig() {
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.DISTRIBUTION_MODE, DistributionMode.NONE.modeName()),
@@ -105,7 +205,7 @@ public class TestSparkWriteConf extends SparkTestBaseWithCatalog {
         });
   }
 
-  @Test
+  @TestTemplate
   public void testSparkWriteConfDistributionModeWithTableProperties() {
     Table table = validationCatalog.loadTable(tableIdent);
 
@@ -121,7 +221,7 @@ public class TestSparkWriteConf extends SparkTestBaseWithCatalog {
     checkMode(DistributionMode.NONE, writeConf);
   }
 
-  @Test
+  @TestTemplate
   public void testSparkWriteConfDistributionModeWithTblPropAndSessionConfig() {
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.DISTRIBUTION_MODE, DistributionMode.NONE.modeName()),
@@ -142,7 +242,7 @@ public class TestSparkWriteConf extends SparkTestBaseWithCatalog {
         });
   }
 
-  @Test
+  @TestTemplate
   public void testSparkWriteConfDistributionModeWithWriteOptionAndSessionConfig() {
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.DISTRIBUTION_MODE, DistributionMode.RANGE.modeName()),
@@ -159,7 +259,7 @@ public class TestSparkWriteConf extends SparkTestBaseWithCatalog {
         });
   }
 
-  @Test
+  @TestTemplate
   public void testSparkWriteConfDistributionModeWithEverything() {
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.DISTRIBUTION_MODE, DistributionMode.RANGE.modeName()),
@@ -184,7 +284,7 @@ public class TestSparkWriteConf extends SparkTestBaseWithCatalog {
         });
   }
 
-  @Test
+  @TestTemplate
   public void testSparkConfOverride() {
     List<List<Map<String, String>>> propertiesSuites =
         Lists.newArrayList(
@@ -257,7 +357,7 @@ public class TestSparkWriteConf extends SparkTestBaseWithCatalog {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testDataPropsDefaultsAsDeleteProps() {
     List<List<Map<String, String>>> propertiesSuites =
         Lists.newArrayList(
@@ -326,7 +426,7 @@ public class TestSparkWriteConf extends SparkTestBaseWithCatalog {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteFileWriteConf() {
     List<List<Map<String, String>>> propertiesSuites =
         Lists.newArrayList(
@@ -421,9 +521,9 @@ public class TestSparkWriteConf extends SparkTestBaseWithCatalog {
           SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
           Map<String, String> writeProperties = writeConf.writeProperties();
           Map<String, String> expectedProperties = propertiesSuite.get(2);
-          Assert.assertEquals(expectedProperties.size(), writeConf.writeProperties().size());
+          assertThat(writeConf.writeProperties()).hasSameSizeAs(expectedProperties);
           for (Map.Entry<String, String> entry : writeProperties.entrySet()) {
-            Assert.assertEquals(entry.getValue(), expectedProperties.get(entry.getKey()));
+            assertThat(expectedProperties).containsEntry(entry.getKey(), entry.getValue());
           }
 
           table.refresh();
@@ -437,12 +537,12 @@ public class TestSparkWriteConf extends SparkTestBaseWithCatalog {
   }
 
   private void checkMode(DistributionMode expectedMode, SparkWriteConf writeConf) {
-    Assert.assertEquals(expectedMode, writeConf.distributionMode());
-    Assert.assertEquals(expectedMode, writeConf.copyOnWriteDistributionMode(DELETE));
-    Assert.assertEquals(expectedMode, writeConf.positionDeltaDistributionMode(DELETE));
-    Assert.assertEquals(expectedMode, writeConf.copyOnWriteDistributionMode(UPDATE));
-    Assert.assertEquals(expectedMode, writeConf.positionDeltaDistributionMode(UPDATE));
-    Assert.assertEquals(expectedMode, writeConf.copyOnWriteDistributionMode(MERGE));
-    Assert.assertEquals(expectedMode, writeConf.positionDeltaDistributionMode(MERGE));
+    assertThat(writeConf.distributionMode()).isEqualTo(expectedMode);
+    assertThat(writeConf.copyOnWriteDistributionMode(DELETE)).isEqualTo(expectedMode);
+    assertThat(writeConf.positionDeltaDistributionMode(DELETE)).isEqualTo(expectedMode);
+    assertThat(writeConf.copyOnWriteDistributionMode(UPDATE)).isEqualTo(expectedMode);
+    assertThat(writeConf.positionDeltaDistributionMode(UPDATE)).isEqualTo(expectedMode);
+    assertThat(writeConf.copyOnWriteDistributionMode(MERGE)).isEqualTo(expectedMode);
+    assertThat(writeConf.positionDeltaDistributionMode(MERGE)).isEqualTo(expectedMode);
   }
 }

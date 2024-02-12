@@ -153,6 +153,19 @@ public class TestGlueCatalog {
   }
 
   @Test
+  public void testDefaultWarehouseLocationDbUriTrailingSlash() {
+    Mockito.doReturn(
+            GetDatabaseResponse.builder()
+                .database(Database.builder().name("db").locationUri("s3://bucket2/db/").build())
+                .build())
+        .when(glue)
+        .getDatabase(Mockito.any(GetDatabaseRequest.class));
+    String location = glueCatalog.defaultWarehouseLocation(TableIdentifier.of("db", "table"));
+
+    Assertions.assertThat(location).isEqualTo("s3://bucket2/db/table");
+  }
+
+  @Test
   public void testDefaultWarehouseLocationCustomCatalogId() {
     GlueCatalog catalogWithCustomCatalogId = new GlueCatalog();
     String catalogId = "myCatalogId";
@@ -478,9 +491,15 @@ public class TestGlueCatalog {
   public void testLoadNamespaceMetadata() {
     Map<String, String> parameters = Maps.newHashMap();
     parameters.put("key", "val");
+    parameters.put(IcebergToGlueConverter.GLUE_DB_LOCATION_KEY, "s3://bucket2/db");
     Mockito.doReturn(
             GetDatabaseResponse.builder()
-                .database(Database.builder().name("db1").parameters(parameters).build())
+                .database(
+                    Database.builder()
+                        .name("db1")
+                        .parameters(parameters)
+                        .locationUri("s3://bucket2/db/")
+                        .build())
                 .build())
         .when(glue)
         .getDatabase(Mockito.any(GetDatabaseRequest.class));

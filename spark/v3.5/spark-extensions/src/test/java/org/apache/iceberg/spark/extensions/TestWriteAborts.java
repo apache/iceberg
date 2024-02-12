@@ -112,6 +112,7 @@ public class TestWriteAborts extends SparkExtensionsTestBase {
                     .sortWithinPartitions("id")
                     .writeTo(tableName)
                     .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING, "false")
+                    .option(SparkWriteOptions.FANOUT_ENABLED, "false")
                     .append())
         .isInstanceOf(SparkException.class)
         .hasMessageContaining("Encountered records that belong to already closed files");

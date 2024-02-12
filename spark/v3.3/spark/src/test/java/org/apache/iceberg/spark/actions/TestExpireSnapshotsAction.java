@@ -207,7 +207,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
 
     long t4 = rightAfterSnapshot();
 
-    Set<String> deletedFiles = Sets.newHashSet();
+    Set<String> deletedFiles = ConcurrentHashMap.newKeySet();
     Set<String> deleteThreads = ConcurrentHashMap.newKeySet();
     AtomicInteger deleteThreadsIndex = new AtomicInteger(0);
 

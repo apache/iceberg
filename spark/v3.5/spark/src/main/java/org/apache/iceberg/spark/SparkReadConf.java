@@ -71,8 +71,6 @@ public class SparkReadConf {
     this.branch = branch;
     this.readOptions = readOptions;
     this.confParser = new SparkConfParser(spark, table, readOptions);
-
-    SparkUtil.validateTimestampWithoutTimezoneConfig(spark.conf(), readOptions);
   }
 
   public boolean caseSensitive() {
@@ -81,7 +79,12 @@ public class SparkReadConf {
 
   public boolean localityEnabled() {
     boolean defaultValue = Util.mayHaveBlockLocations(table.io(), table.location());
-    return PropertyUtil.propertyAsBoolean(readOptions, SparkReadOptions.LOCALITY, defaultValue);
+    return confParser
+        .booleanConf()
+        .option(SparkReadOptions.LOCALITY)
+        .sessionConf(SparkSQLProperties.LOCALITY)
+        .defaultValue(defaultValue)
+        .parse();
   }
 
   public Long snapshotId() {
@@ -327,5 +330,25 @@ public class SparkReadConf {
   private long driverMaxResultSize() {
     SparkConf sparkConf = spark.sparkContext().conf();
     return sparkConf.getSizeAsBytes(DRIVER_MAX_RESULT_SIZE, DRIVER_MAX_RESULT_SIZE_DEFAULT);
+  }
+
+  public boolean executorCacheLocalityEnabled() {
+    return executorCacheEnabled() && executorCacheLocalityEnabledInternal();
+  }
+
+  private boolean executorCacheEnabled() {
+    return confParser
+        .booleanConf()
+        .sessionConf(SparkSQLProperties.EXECUTOR_CACHE_ENABLED)
+        .defaultValue(SparkSQLProperties.EXECUTOR_CACHE_ENABLED_DEFAULT)
+        .parse();
+  }
+
+  private boolean executorCacheLocalityEnabledInternal() {
+    return confParser
+        .booleanConf()
+        .sessionConf(SparkSQLProperties.EXECUTOR_CACHE_LOCALITY_ENABLED)
+        .defaultValue(SparkSQLProperties.EXECUTOR_CACHE_LOCALITY_ENABLED_DEFAULT)
+        .parse();
   }
 }

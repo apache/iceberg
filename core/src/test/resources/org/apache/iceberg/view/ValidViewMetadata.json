@@ -2,12 +2,12 @@
   "view-uuid": "fa6506c3-7681-40c8-86dc-e36561f83385",
   "format-version": 1,
   "location": "s3://bucket/test/location",
-  "properties": {"some-key": "some-value"},
-  "current-schema-id": 1,
+  "properties": {"some-key": "some-value", "comment":  "some-comment"},
+  "current-schema-id": 0,
   "schemas": [
     {
       "type": "struct",
-      "schema-id": 1,
+      "schema-id": 0,
       "fields": [
         {
           "id": 1,
@@ -36,8 +36,8 @@
     {
       "version-id": 1,
       "timestamp-ms": 4353,
-      "summary": {"operation":"create"},
-      "schema-id": 1,
+      "summary": {"user": "some-user"},
+      "schema-id": 0,
       "default-catalog": "some-catalog",
       "default-namespace": [],
       "representations": [
@@ -51,8 +51,8 @@
     {
       "version-id": 2,
       "timestamp-ms": 5555,
-      "summary": {"operation": "replace"},
-      "schema-id": 1,
+      "summary": {"user": "some-user"},
+      "schema-id": 0,
       "default-catalog": "some-catalog",
       "default-namespace": [],
       "representations": [

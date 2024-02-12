@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink;
 
+import java.util.concurrent.TimeUnit;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
 import org.apache.iceberg.TableProperties;
@@ -109,4 +110,14 @@ public class FlinkReadOptions {
   public static final String MAX_ALLOWED_PLANNING_FAILURES = "max-allowed-planning-failures";
   public static final ConfigOption<Integer> MAX_ALLOWED_PLANNING_FAILURES_OPTION =
       ConfigOptions.key(PREFIX + MAX_ALLOWED_PLANNING_FAILURES).intType().defaultValue(3);
+
+  public static final String WATERMARK_COLUMN = "watermark-column";
+  public static final ConfigOption<String> WATERMARK_COLUMN_OPTION =
+      ConfigOptions.key(PREFIX + WATERMARK_COLUMN).stringType().noDefaultValue();
+
+  public static final String WATERMARK_COLUMN_TIME_UNIT = "watermark-column-time-unit";
+  public static final ConfigOption<TimeUnit> WATERMARK_COLUMN_TIME_UNIT_OPTION =
+      ConfigOptions.key(PREFIX + WATERMARK_COLUMN_TIME_UNIT)
+          .enumType(TimeUnit.class)
+          .defaultValue(TimeUnit.MICROSECONDS);
 }

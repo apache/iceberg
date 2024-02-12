@@ -202,7 +202,7 @@ public class PartitionsTable extends BaseMetadataTable {
         ManifestFiles.open(manifest, table.io(), table.specs())
             .caseSensitive(scan.isCaseSensitive())
             .select(scanColumns(manifest.content())) // don't select stats columns
-            .entries(),
+            .liveEntries(),
         t ->
             (ManifestEntry<? extends ContentFile<?>>)
                 // defensive copy of manifest entry without stats columns
@@ -314,12 +314,12 @@ public class PartitionsTable extends BaseMetadataTable {
           this.dataFileSizeInBytes += file.fileSizeInBytes();
           break;
         case POSITION_DELETES:
-          this.posDeleteRecordCount = file.recordCount();
+          this.posDeleteRecordCount += file.recordCount();
           this.posDeleteFileCount += 1;
           this.specId = file.specId();
           break;
         case EQUALITY_DELETES:
-          this.eqDeleteRecordCount = file.recordCount();
+          this.eqDeleteRecordCount += file.recordCount();
           this.eqDeleteFileCount += 1;
           this.specId = file.specId();
           break;

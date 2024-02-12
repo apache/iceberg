@@ -40,6 +40,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
@@ -138,12 +139,10 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     properties.put(JdbcCatalog.PROPERTY_PREFIX + "password", "password");
     warehouseLocation = this.tableDir.toAbsolutePath().toString();
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation);
+    properties.put("type", "jdbc");
     properties.putAll(props);
 
-    JdbcCatalog jdbcCatalog = new JdbcCatalog();
-    jdbcCatalog.setConf(conf);
-    jdbcCatalog.initialize(catalogName, properties);
-    return jdbcCatalog;
+    return (JdbcCatalog) CatalogUtil.buildIcebergCatalog(catalogName, properties, conf);
   }
 
   @Test
@@ -610,15 +609,74 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
   public void testCreateNamespace() {
     Namespace testNamespace = Namespace.of("testDb", "ns1", "ns2");
     assertThat(catalog.namespaceExists(testNamespace)).isFalse();
-    // Test with no metadata
+    assertThat(catalog.namespaceExists(Namespace.of("testDb", "ns1"))).isFalse();
     catalog.createNamespace(testNamespace);
     assertThat(catalog.namespaceExists(testNamespace)).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb"))).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb", "ns1"))).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb", "ns1", "ns2"))).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("ns1", "ns2"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb", "ns%"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb", "ns_"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb", "ns1", "ns2", "ns3"))).isFalse();
+  }
+
+  @Test
+  public void testCreateNamespaceWithBackslashCharacter() {
+    Namespace testNamespace = Namespace.of("test\\Db", "ns\\1", "ns3");
+    assertThat(catalog.namespaceExists(testNamespace)).isFalse();
+    catalog.createNamespace(testNamespace);
+    assertThat(catalog.namespaceExists(testNamespace)).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("test\\Db", "ns\\1"))).isTrue();
+    // test that SQL special characters `%`,`.`,`_` are escaped and returns false
+    assertThat(catalog.namespaceExists(Namespace.of("test\\%Db", "ns\\.1"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("test%Db", "ns\\.1"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("test%Db"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("test%"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("test\\%"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("test_Db", "ns\\.1"))).isFalse();
+    // test that backslash with `%` is escaped and treated correctly
+    testNamespace = Namespace.of("test\\%Db2", "ns1");
+    assertThat(catalog.namespaceExists(testNamespace)).isFalse();
+    catalog.createNamespace(testNamespace);
+    assertThat(catalog.namespaceExists(testNamespace)).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("test\\%Db2"))).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("test%Db2"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("test\\_Db2"))).isFalse();
+  }
+
+  @Test
+  public void testCreateNamespaceWithPercentCharacter() {
+    Namespace testNamespace = Namespace.of("testDb%", "ns%1");
+    assertThat(catalog.namespaceExists(testNamespace)).isFalse();
+    catalog.createNamespace(testNamespace);
+    assertThat(catalog.namespaceExists(testNamespace)).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb%"))).isTrue();
+    // test that searching with SQL special characters `\`,`%` are escaped and returns false
+    assertThat(catalog.namespaceExists(Namespace.of("testDb\\%"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("tes%Db%"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb%", "ns%"))).isFalse();
+  }
+
+  @Test
+  public void testCreateNamespaceWithUnderscoreCharacter() {
+    Namespace testNamespace = Namespace.of("test_Db", "ns_1", "ns_");
+    catalog.createNamespace(testNamespace);
+    assertThat(catalog.namespaceExists(testNamespace)).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("test_Db", "ns_1"))).isTrue();
+    // test that searching with SQL special characters `_`,`%` are escaped and returns false
+    assertThat(catalog.namespaceExists(Namespace.of("test_Db"))).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("test_D_"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("test_D%"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("test_Db", "ns_"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("test_Db", "ns_%"))).isFalse();
   }
 
   @Test
   public void testCreateTableInNonExistingNamespace() {
     try (JdbcCatalog jdbcCatalog = initCatalog("non_strict_jdbc_catalog", ImmutableMap.of())) {
-      Namespace namespace = Namespace.of("testDb", "ns1", "ns2");
+      Namespace namespace = Namespace.of("test\\D_b%", "ns1", "ns2");
       TableIdentifier identifier = TableIdentifier.of(namespace, "someTable");
       Assertions.assertThat(jdbcCatalog.namespaceExists(namespace)).isFalse();
       Assertions.assertThat(jdbcCatalog.tableExists(identifier)).isFalse();

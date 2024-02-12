@@ -165,6 +165,10 @@ public class FlinkSplitPlanner {
       refinedScan = refinedScan.includeColumnStats();
     }
 
+    if (context.includeStatsForColumns() != null) {
+      refinedScan = refinedScan.includeColumnStats(context.includeStatsForColumns());
+    }
+
     refinedScan = refinedScan.option(TableProperties.SPLIT_SIZE, context.splitSize().toString());
 
     refinedScan =

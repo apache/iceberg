@@ -50,8 +50,8 @@ jobs:
         run: |
           matrix=$(echo '[${{ github.event.inputs.benchmarks }}]' | jq '.[] | select(endswith("Benchmark")) | .')
           matrix=$(echo $matrix | sed 's/ /,/g' | sed 's/"/\"/g')
-          echo "::set-output name=matrix::[$matrix]"
-          echo "::set-output name=foundlabel::$(echo "[$matrix]" | jq 'if . | length > 0 then true else false end')"
+          echo "matrix=[$matrix]" >> $GITHUB_OUTPUT
+          echo "foundlabel=$(echo "[$matrix]" | jq 'if . | length > 0 then true else false end')" >> $GITHUB_OUTPUT
 
   show-matrix:
     needs: matrix
@@ -79,11 +79,11 @@ jobs:
       with:
         repository: ${{ github.event.inputs.repo }}
         ref: ${{ github.event.inputs.ref }}
-    - uses: actions/setup-java@v3
+    - uses: actions/setup-java@v4
       with:
         distribution: zulu
         java-version: 11
-    - uses: actions/cache@v3
+    - uses: actions/cache@v4
       with:
         path: |
           ~/.gradle/caches
@@ -95,7 +95,7 @@ jobs:
     - name: Run Benchmark
       run: ./gradlew :iceberg-spark:${{ github.event.inputs.spark_version }}:jmh -PjmhIncludeRegex=${{ matrix.benchmark }} -PjmhOutputPath=benchmark/${{ matrix.benchmark }}.txt
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       if: ${{ always() }}
       with:
         name: benchmark-results

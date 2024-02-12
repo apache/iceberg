@@ -35,6 +35,7 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.FunctionIdentifier
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.catalyst.analysis.EliminateSubqueryAliases
+import org.apache.spark.sql.catalyst.analysis.RewriteViewCommands
 import org.apache.spark.sql.catalyst.analysis.UnresolvedRelation
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.parser.ParserInterface
@@ -122,37 +123,7 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
     if (isIcebergCommand(sqlTextAfterSubstitution)) {
       parse(sqlTextAfterSubstitution) { parser => astBuilder.visit(parser.singleStatement()) }.asInstanceOf[LogicalPlan]
     } else {
-      delegate.parsePlan(sqlText)
-    }
-  }
-
-  object UnresolvedIcebergTable {
-
-    def unapply(plan: LogicalPlan): Option[LogicalPlan] = {
-      EliminateSubqueryAliases(plan) match {
-        case UnresolvedRelation(multipartIdentifier, _, _) if isIcebergTable(multipartIdentifier) =>
-          Some(plan)
-        case _ =>
-          None
-      }
-    }
-
-    private def isIcebergTable(multipartIdent: Seq[String]): Boolean = {
-      val catalogAndIdentifier = Spark3Util.catalogAndIdentifier(SparkSession.active, multipartIdent.asJava)
-      catalogAndIdentifier.catalog match {
-        case tableCatalog: TableCatalog =>
-          Try(tableCatalog.loadTable(catalogAndIdentifier.identifier))
-            .map(isIcebergTable)
-            .getOrElse(false)
-
-        case _ =>
-          false
-      }
-    }
-
-    private def isIcebergTable(table: Table): Boolean = table match {
-      case _: SparkTable => true
-      case _ => false
+      RewriteViewCommands(SparkSession.active).apply(delegate.parsePlan(sqlText))
     }
   }
 

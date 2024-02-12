@@ -35,19 +35,39 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.source.metrics.EqualityDeleteFiles;
+import org.apache.iceberg.spark.source.metrics.IndexedDeleteFiles;
 import org.apache.iceberg.spark.source.metrics.NumDeletes;
 import org.apache.iceberg.spark.source.metrics.NumSplits;
-import org.apache.iceberg.spark.source.metrics.ScannedDataFiles;
+import org.apache.iceberg.spark.source.metrics.PositionalDeleteFiles;
+import org.apache.iceberg.spark.source.metrics.ResultDataFiles;
+import org.apache.iceberg.spark.source.metrics.ResultDeleteFiles;
 import org.apache.iceberg.spark.source.metrics.ScannedDataManifests;
+import org.apache.iceberg.spark.source.metrics.ScannedDeleteManifests;
 import org.apache.iceberg.spark.source.metrics.SkippedDataFiles;
 import org.apache.iceberg.spark.source.metrics.SkippedDataManifests;
-import org.apache.iceberg.spark.source.metrics.TaskScannedDataFiles;
+import org.apache.iceberg.spark.source.metrics.SkippedDeleteFiles;
+import org.apache.iceberg.spark.source.metrics.SkippedDeleteManifests;
+import org.apache.iceberg.spark.source.metrics.TaskEqualityDeleteFiles;
+import org.apache.iceberg.spark.source.metrics.TaskIndexedDeleteFiles;
+import org.apache.iceberg.spark.source.metrics.TaskPositionalDeleteFiles;
+import org.apache.iceberg.spark.source.metrics.TaskResultDataFiles;
+import org.apache.iceberg.spark.source.metrics.TaskResultDeleteFiles;
 import org.apache.iceberg.spark.source.metrics.TaskScannedDataManifests;
+import org.apache.iceberg.spark.source.metrics.TaskScannedDeleteManifests;
 import org.apache.iceberg.spark.source.metrics.TaskSkippedDataFiles;
 import org.apache.iceberg.spark.source.metrics.TaskSkippedDataManifests;
-import org.apache.iceberg.spark.source.metrics.TaskTotalFileSize;
+import org.apache.iceberg.spark.source.metrics.TaskSkippedDeleteFiles;
+import org.apache.iceberg.spark.source.metrics.TaskSkippedDeleteManifests;
+import org.apache.iceberg.spark.source.metrics.TaskTotalDataFileSize;
+import org.apache.iceberg.spark.source.metrics.TaskTotalDataManifests;
+import org.apache.iceberg.spark.source.metrics.TaskTotalDeleteFileSize;
+import org.apache.iceberg.spark.source.metrics.TaskTotalDeleteManifests;
 import org.apache.iceberg.spark.source.metrics.TaskTotalPlanningDuration;
-import org.apache.iceberg.spark.source.metrics.TotalFileSize;
+import org.apache.iceberg.spark.source.metrics.TotalDataFileSize;
+import org.apache.iceberg.spark.source.metrics.TotalDataManifests;
+import org.apache.iceberg.spark.source.metrics.TotalDeleteFileSize;
+import org.apache.iceberg.spark.source.metrics.TotalDeleteManifests;
 import org.apache.iceberg.spark.source.metrics.TotalPlanningDuration;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
@@ -200,12 +220,32 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     }
 
     List<CustomTaskMetric> driverMetrics = Lists.newArrayList();
-    driverMetrics.add(TaskTotalFileSize.from(scanReport));
+
+    // common
     driverMetrics.add(TaskTotalPlanningDuration.from(scanReport));
-    driverMetrics.add(TaskSkippedDataFiles.from(scanReport));
-    driverMetrics.add(TaskScannedDataFiles.from(scanReport));
-    driverMetrics.add(TaskSkippedDataManifests.from(scanReport));
+
+    // data manifests
+    driverMetrics.add(TaskTotalDataManifests.from(scanReport));
     driverMetrics.add(TaskScannedDataManifests.from(scanReport));
+    driverMetrics.add(TaskSkippedDataManifests.from(scanReport));
+
+    // data files
+    driverMetrics.add(TaskResultDataFiles.from(scanReport));
+    driverMetrics.add(TaskSkippedDataFiles.from(scanReport));
+    driverMetrics.add(TaskTotalDataFileSize.from(scanReport));
+
+    // delete manifests
+    driverMetrics.add(TaskTotalDeleteManifests.from(scanReport));
+    driverMetrics.add(TaskScannedDeleteManifests.from(scanReport));
+    driverMetrics.add(TaskSkippedDeleteManifests.from(scanReport));
+
+    // delete files
+    driverMetrics.add(TaskTotalDeleteFileSize.from(scanReport));
+    driverMetrics.add(TaskResultDeleteFiles.from(scanReport));
+    driverMetrics.add(TaskEqualityDeleteFiles.from(scanReport));
+    driverMetrics.add(TaskIndexedDeleteFiles.from(scanReport));
+    driverMetrics.add(TaskPositionalDeleteFiles.from(scanReport));
+    driverMetrics.add(TaskSkippedDeleteFiles.from(scanReport));
 
     return driverMetrics.toArray(new CustomTaskMetric[0]);
   }
@@ -213,14 +253,35 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   @Override
   public CustomMetric[] supportedCustomMetrics() {
     return new CustomMetric[] {
+      // task metrics
       new NumSplits(),
       new NumDeletes(),
-      new TotalFileSize(),
+
+      // common
       new TotalPlanningDuration(),
+
+      // data manifests
+      new TotalDataManifests(),
       new ScannedDataManifests(),
       new SkippedDataManifests(),
-      new ScannedDataFiles(),
-      new SkippedDataFiles()
+
+      // data files
+      new ResultDataFiles(),
+      new SkippedDataFiles(),
+      new TotalDataFileSize(),
+
+      // delete manifests
+      new TotalDeleteManifests(),
+      new ScannedDeleteManifests(),
+      new SkippedDeleteManifests(),
+
+      // delete files
+      new TotalDeleteFileSize(),
+      new ResultDeleteFiles(),
+      new EqualityDeleteFiles(),
+      new IndexedDeleteFiles(),
+      new PositionalDeleteFiles(),
+      new SkippedDeleteFiles()
     };
   }
 

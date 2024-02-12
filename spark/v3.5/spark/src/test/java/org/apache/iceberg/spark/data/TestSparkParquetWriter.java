@@ -20,9 +20,11 @@ package org.apache.iceberg.spark.data;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Iterator;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
@@ -32,13 +34,11 @@ import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestSparkParquetWriter {
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
   private static final Schema COMPLEX_SCHEMA =
       new Schema(
@@ -88,8 +88,8 @@ public class TestSparkParquetWriter {
     int numRows = 50_000;
     Iterable<InternalRow> records = RandomData.generateSpark(COMPLEX_SCHEMA, numRows, 19981);
 
-    File testFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", testFile.delete());
+    File testFile = File.createTempFile("junit", null, temp.toFile());
+    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     try (FileAppender<InternalRow> writer =
         Parquet.write(Files.localOutput(testFile))
@@ -110,10 +110,10 @@ public class TestSparkParquetWriter {
       Iterator<InternalRow> expected = records.iterator();
       Iterator<InternalRow> rows = reader.iterator();
       for (int i = 0; i < numRows; i += 1) {
-        Assert.assertTrue("Should have expected number of rows", rows.hasNext());
+        assertThat(rows).as("Should have expected number of rows").hasNext();
         TestHelpers.assertEquals(COMPLEX_SCHEMA, expected.next(), rows.next());
       }
-      Assert.assertFalse("Should not have extra rows", rows.hasNext());
+      assertThat(rows).as("Should not have extra rows").isExhausted();
     }
   }
 }
