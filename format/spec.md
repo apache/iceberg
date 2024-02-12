@@ -301,7 +301,7 @@ Tables are configured with a **partition spec** that defines how to produce a tu
 *   A **transform** that is applied to the source column(s) to produce a partition value
 *   A **partition name**
 
-The source column(s), selected by id(s), must be a primitive type and cannot be contained in a map or list, but may be nested in a struct. The ability to have multiple source columns was added in V3, whereas previously only a single column was allowed. For details on how to serialize a partition spec to JSON, see Appendix C.
+The source column(s), selected by id(s), must be a primitive type and cannot be contained in a map or list, but may be nested in a struct. The ability to have multiple source columns is added in V3, whereas only a single column is allowed in previous versions. For details on how to serialize a partition spec to JSON, see Appendix C.
 
 Partition specs capture the transform from table data to partition values. This is used to transform predicates to partition predicates, in addition to transforming data values. Deriving partition predicates from column predicates on the table data is used to separate the logical queries from physical storage: the partitioning can change and the correct partition filters are always derived from column predicates. This simplifies queries because users don’t have to supply both logical predicates and partition predicates. For more information, see Scan Planning below.
 
@@ -388,7 +388,7 @@ A sort order is defined by a sort order id and a list of sort fields. The order 
 *   A **sort direction**, that can only be either `asc` or `desc`
 *   A **null order** that describes the order of null values when sorted. Can only be either `nulls-first` or `nulls-last`
 
-The ability to have multiple source columns was added in V3, whereas previously only a single source column was allowed. For serialization details, see Appendix C.
+The ability to have multiple source columns is added in V3, whereas only a single column is allowed in previous versions. For details on how to serialize a sort order to JSON, see Appendix C.
 
 Order id `0` is reserved for the unsorted order. 
 
