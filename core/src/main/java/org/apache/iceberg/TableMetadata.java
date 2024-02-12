@@ -886,6 +886,7 @@ public class TableMetadata implements Serializable {
     private final Map<String, SnapshotRef> refs;
     private final Map<Long, List<StatisticsFile>> statisticsFiles;
     private final Map<Long, List<PartitionStatisticsFile>> partitionStatisticsFiles;
+    private boolean suppressHistoricalSnapshots = false;
 
     // change tracking
     private final List<MetadataUpdate> changes;
@@ -1288,6 +1289,7 @@ public class TableMetadata implements Serializable {
      * @return this for method chaining
      */
     public Builder suppressHistoricalSnapshots() {
+      this.suppressHistoricalSnapshots = true;
       Set<Long> refSnapshotIds =
           refs.values().stream().map(SnapshotRef::snapshotId).collect(Collectors.toSet());
       Set<Long> suppressedSnapshotIds = Sets.difference(snapshotsById.keySet(), refSnapshotIds);
@@ -1408,7 +1410,9 @@ public class TableMetadata implements Serializable {
     private boolean hasChanges() {
       return changes.size() != startingChangeCount
           || (discardChanges && !changes.isEmpty())
-          || metadataLocation != null;
+          || metadataLocation != null
+          || suppressHistoricalSnapshots
+          || null != snapshotsSupplier;
     }
 
     public TableMetadata build() {

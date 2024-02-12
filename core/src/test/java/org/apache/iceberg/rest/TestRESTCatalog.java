@@ -814,7 +814,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           LoadTableResponse originalResponse = (LoadTableResponse) invocation.callRealMethod();
           TableMetadata refsMetadata =
               TableMetadata.buildFrom(originalResponse.tableMetadata())
-                  .withMetadataLocation(originalResponse.metadataLocation())
                   .suppressHistoricalSnapshots()
                   .build();
 
@@ -941,7 +940,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           LoadTableResponse originalResponse = (LoadTableResponse) invocation.callRealMethod();
           TableMetadata refsMetadata =
               TableMetadata.buildFrom(originalResponse.tableMetadata())
-                  .withMetadataLocation(originalResponse.metadataLocation())
                   .suppressHistoricalSnapshots()
                   .build();
 
@@ -1059,7 +1057,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           LoadTableResponse originalResponse = (LoadTableResponse) invocation.callRealMethod();
           TableMetadata refsMetadata =
               TableMetadata.buildFrom(originalResponse.tableMetadata())
-                  .withMetadataLocation(originalResponse.metadataLocation())
                   .suppressHistoricalSnapshots()
                   .build();
 
