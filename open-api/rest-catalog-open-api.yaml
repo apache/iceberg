@@ -1497,16 +1497,11 @@ components:
         A unique token which allows clients to make use of pagination by signaling to the service that they would
         prefer requests to be paginated based on the number of items specified by pageSize.
         
-        New Clients always start the request by sending a required empty pageToken e.g. GET /tables?pageToken
+        Clients that support pagination initiate the request by sending an empty pageToken e.g. GET /tables?pageToken
         Servers supporting pagination would recognize pagination is requested due to the presence of the pageToken
         and honor the contracts specified above by returning a non-empty next pageToken 
         if there are more results available, or an empty next pageToken indicating no more results.
-        Servers that are non-pagination aware will ignore the token and return all results as they previously did.
-        
-        Old clients should not be specifying the new parameters
-        For servers that support pagination, they would notice the lack of the pageToken
-        in the query string and return all results at once (mimicking existing behavior).
-        For servers not supporting pagination, this is the current state and they would return all values at once.
+        Servers that are non-pagination aware will ignore the token and return all results.
       required: false
       allowEmptyValue: true
       schema:
@@ -1516,7 +1511,8 @@ components:
       name: pageSize
       in: query
       description:
-        An upper bound on the number of results to return on the next page.
+        The number of results to return on the next page for servers that support pagination.
+        For servers that do not support pagination clients may receive results larger than the indicated pageSize.
       required: false
       allowEmptyValue: true
       schema:
@@ -1620,6 +1616,13 @@ components:
       items:
         type: string
       example: [ "accounting", "tax" ]
+
+    NextPageToken:
+      description:
+        An opaque next page token, when non-empty this indicates that more results can be returned by server,
+        and when empty this indicates the returned results are complete.
+        This should be used in the next request for the query parameter of pageToken.
+      type: string
 
     TableIdentifier:
       type: object
@@ -3210,11 +3213,7 @@ components:
       type: object
       properties:
         next-page-token:
-          description:
-            A unique next page token, when non-empty this indicates that more results can be returned by server,
-            and when empty this indicates the returned results are complete.
-            This should be used in the next request for the query parameter of pageToken.
-          type: string
+          $ref: '#/components/schemas/NextPageToken'
         identifiers:
           type: array
           uniqueItems: true
@@ -3225,11 +3224,7 @@ components:
       type: object
       properties:
         next-page-token:
-          description:
-            A unique next page token, when non-empty this indicates that more results can be returned by server, 
-            and when empty this indicates the returned results are complete.
-            This should be used in the next request for the query parameter of pageToken.
-          type: string
+          $ref: '#/components/schemas/NextPageToken'
         namespaces:
           type: array
           uniqueItems: true

@@ -75,6 +75,13 @@ class Namespace(BaseModel):
     )
 
 
+class NextPageToken(BaseModel):
+    __root__: str = Field(
+        ...,
+        description='An opaque next page token, when non-empty this indicates that more results can be returned by server, and when empty this indicates the returned results are complete. This should be used in the next request for the query parameter of pageToken.',
+    )
+
+
 class TableIdentifier(BaseModel):
     namespace: Namespace
     name: str
@@ -581,12 +588,12 @@ class GetNamespaceResponse(BaseModel):
 
 
 class ListTablesResponse(BaseModel):
-    next_page_token: Optional[str] = Field(None, alias='next-page-token')
+    next_page_token: Optional[NextPageToken] = Field(None, alias='next-page-token')
     identifiers: Optional[List[TableIdentifier]] = Field(None, unique_items=True)
 
 
 class ListNamespacesResponse(BaseModel):
-    next_page_token: Optional[str] = Field(None, alias='next-page-token')
+    next_page_token: Optional[NextPageToken] = Field(None, alias='next-page-token')
     namespaces: Optional[List[Namespace]] = Field(None, unique_items=True)
 
 
@@ -631,7 +638,7 @@ class TransformTerm(BaseModel):
     term: Reference
 
 
-class ReportMetricsRequest2(CommitReport):
+class ReportMetricsRequest1(CommitReport):
     report_type: str = Field(..., alias='report-type')
 
 
@@ -909,8 +916,8 @@ class LoadViewResult(BaseModel):
     config: Optional[Dict[str, str]] = None
 
 
-class ReportMetricsRequest(BaseModel):
-    __root__: Union[ReportMetricsRequest1, ReportMetricsRequest2]
+class ReportMetricsRequest2(BaseModel):
+    __root__: Union[ReportMetricsRequest, ReportMetricsRequest1]
 
 
 class ScanReport(BaseModel):
@@ -936,7 +943,7 @@ class Schema(StructType):
     )
 
 
-class ReportMetricsRequest1(ScanReport):
+class ReportMetricsRequest(ScanReport):
     report_type: str = Field(..., alias='report-type')
 
 
@@ -949,4 +956,4 @@ ViewMetadata.update_forward_refs()
 AddSchemaUpdate.update_forward_refs()
 CreateTableRequest.update_forward_refs()
 CreateViewRequest.update_forward_refs()
-ReportMetricsRequest.update_forward_refs()
+ReportMetricsRequest2.update_forward_refs()
