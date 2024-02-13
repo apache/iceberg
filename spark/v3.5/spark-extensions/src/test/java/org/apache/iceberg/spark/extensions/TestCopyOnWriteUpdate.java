@@ -60,7 +60,7 @@ public class TestCopyOnWriteUpdate extends TestUpdate {
   public synchronized void testUpdateWithConcurrentTableRefresh() throws Exception {
     // this test can only be run with Hive tables as it requires a reliable lock
     // also, the table cache must be enabled so that the same table instance can be reused
-    assumeThat(catalogName.equalsIgnoreCase("testhive")).isTrue();
+    assumeThat(catalogName).isEqualToIgnoringCase("testhive");
 
     createAndInitTable("id INT, dep STRING");
 

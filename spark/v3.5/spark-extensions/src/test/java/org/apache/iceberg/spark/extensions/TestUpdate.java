@@ -48,6 +48,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
@@ -156,7 +157,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         () -> {
           SparkPlan plan =
               executeAndKeepPlan("UPDATE %s SET id = -1 WHERE mod(id, 2) = 0", commitTarget());
-          Assertions.assertThat(plan.toString()).contains("REBALANCE_PARTITIONS_BY_COL");
+          assertThat(plan.toString()).contains("REBALANCE_PARTITIONS_BY_COL");
         });
 
     Table table = validationCatalog.loadTable(tableIdent);
@@ -275,7 +276,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
 
   @TestTemplate
   public void testUpdateEmptyTable() {
-    assumeThat("test".equals(branch)).as("Custom branch does not exist for empty table").isFalse();
+    assumeThat(branch).as("Custom branch does not exist for empty table").isNotEqualTo("test");
     createAndInitTable("id INT, dep STRING");
 
     sql("UPDATE %s SET dep = 'invalid' WHERE id IN (1)", commitTarget());
@@ -292,7 +293,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
 
   @TestTemplate
   public void testUpdateNonExistingCustomBranch() {
-    assumeThat("test".equals(branch)).as("Test only applicable to custom branch").isTrue();
+    assumeThat(branch).as("Test only applicable to custom branch").isEqualTo("test");
     createAndInitTable("id INT, dep STRING");
 
     Assertions.assertThatThrownBy(
@@ -510,7 +511,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
 
   @TestTemplate
   public void testUpdateWithMultipleRowGroupsParquet() throws NoSuchTableException {
-    assumeThat(fileFormat.equalsIgnoreCase("parquet")).isTrue();
+    assumeThat(fileFormat).isEqualTo(FileFormat.PARQUET);
 
     createAndInitTable("id INT, dep STRING");
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
@@ -613,7 +614,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
   @TestTemplate
   public synchronized void testUpdateWithSerializableIsolation() throws InterruptedException {
     // cannot run tests with concurrency for Hadoop tables without atomic renames
-    assumeThat(catalogName.equalsIgnoreCase("testhadoop")).isFalse();
+    assumeThat(catalogName).isNotEqualToIgnoringCase("testhadoop");
     // if caching is off, the table is eagerly refreshed during runtime filtering
     // this can cause a validation exception as concurrent changes would be visible
     assumeThat(cachingCatalogEnabled()).isTrue();
@@ -703,7 +704,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
   public synchronized void testUpdateWithSnapshotIsolation()
       throws InterruptedException, ExecutionException {
     // cannot run tests with concurrency for Hadoop tables without atomic renames
-    assumeThat(catalogName.equalsIgnoreCase("testhadoop")).isFalse();
+    assumeThat(catalogName).isNotEqualToIgnoringCase("testhadoop");
     // if caching is off, the table is eagerly refreshed during runtime filtering
     // this can cause a validation exception as concurrent changes would be visible
     assumeThat(cachingCatalogEnabled()).isTrue();
@@ -1436,9 +1437,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
 
   @TestTemplate
   public void testUpdateToWAPBranch() {
-    assumeThat(branch == null)
-        .as("WAP branch only works for table identifier without branch")
-        .isTrue();
+    assumeThat(branch).as("WAP branch only works for table identifier without branch").isNull();
 
     createAndInitTable(
         "id INT, dep STRING", "{ \"id\": 1, \"dep\": \"hr\" }\n" + "{ \"id\": 2, \"dep\": \"a\" }");
@@ -1479,7 +1478,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
 
   @TestTemplate
   public void testUpdateToWapBranchWithTableBranchIdentifier() {
-    assumeThat(branch != null).as("Test must have branch name part in table identifier").isTrue();
+    assumeThat(branch).as("Test must have branch name part in table identifier").isNotNull();
 
     createAndInitTable("id INT, dep STRING", "{ \"id\": 1, \"dep\": \"hr\" }");
     sql(

@@ -30,7 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.Encoders;
-import org.junit.Test;
+import org.junit.jupiter.api.TestTemplate;
 
 public class TestMergeOnReadMerge extends TestMerge {
 
@@ -43,12 +43,12 @@ public class TestMergeOnReadMerge extends TestMerge {
         RowLevelOperationMode.MERGE_ON_READ.modeName());
   }
 
-  @Test
+  @TestTemplate
   public void testMergeDeleteFileGranularity() {
     checkMergeDeleteGranularity(DeleteGranularity.FILE);
   }
 
-  @Test
+  @TestTemplate
   public void testMergeDeletePartitionGranularity() {
     checkMergeDeleteGranularity(DeleteGranularity.PARTITION);
   }

@@ -46,6 +46,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.RowLevelOperationMode;
@@ -288,10 +289,10 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
           LogicalPlan parsed = parsePlan("DELETE FROM %s WHERE dep = 'hr'", commitTarget());
 
           LogicalPlan analyzed = spark.sessionState().analyzer().execute(parsed);
-          Assertions.assertThat(analyzed).isInstanceOf(RowLevelWrite.class);
+          assertThat(analyzed).isInstanceOf(RowLevelWrite.class);
 
           LogicalPlan optimized = OptimizeMetadataOnlyDeleteFromTable.apply(analyzed);
-          Assertions.assertThat(optimized).isInstanceOf(DeleteFromTableWithFilters.class);
+          assertThat(optimized).isInstanceOf(DeleteFromTableWithFilters.class);
         });
 
     sql("DELETE FROM %s WHERE dep = 'hr'", commitTarget());
@@ -304,9 +305,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
   @TestTemplate
   public void testDeleteFileThenMetadataDelete() throws Exception {
-    assumeThat(fileFormat.equalsIgnoreCase("avro"))
+    assumeThat(fileFormat)
         .as("Avro does not support metadata delete")
-        .isFalse();
+        .isNotEqualTo(FileFormat.AVRO);
     createAndInitUnpartitionedTable();
     createBranchIfNeeded();
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", commitTarget());
@@ -321,9 +322,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     sql("DELETE FROM %s AS t WHERE t.id = 1", commitTarget());
 
     List<DataFile> dataFilesAfter = TestHelpers.dataFiles(table, branch);
-    assertThat(dataFilesBefore.size() > dataFilesAfter.size())
+    assertThat(dataFilesAfter)
         .as("Data file should have been removed")
-        .isTrue();
+        .hasSizeLessThan(dataFilesBefore.size());
 
     assertEquals(
         "Should have expected rows",
@@ -383,7 +384,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
   @TestTemplate
   public void testDeleteFromEmptyTable() {
-    assumeThat("test".equals(branch)).as("Custom branch does not exist for empty table").isFalse();
+    assumeThat(branch).as("Custom branch does not exist for empty table").isNotEqualTo("test");
     createAndInitUnpartitionedTable();
 
     sql("DELETE FROM %s WHERE id IN (1)", commitTarget());
@@ -400,7 +401,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
   @TestTemplate
   public void testDeleteFromNonExistingCustomBranch() {
-    assumeThat("test".equals(branch)).as("Test only applicable to custom branch").isTrue();
+    assumeThat(branch).as("Test only applicable to custom branch").isEqualTo("test");
     createAndInitUnpartitionedTable();
 
     Assertions.assertThatThrownBy(() -> sql("DELETE FROM %s WHERE id IN (1)", commitTarget()))
@@ -483,7 +484,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
 
-    if (fileFormat.equals("orc") || fileFormat.equals("parquet")) {
+    if (fileFormat.equals(FileFormat.ORC) || fileFormat.equals(FileFormat.PARQUET)) {
       validateDelete(currentSnapshot, "0", null);
     } else {
       if (mode(table) == COPY_ON_WRITE) {
@@ -694,7 +695,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
   @TestTemplate
   public void testDeleteWithMultipleRowGroupsParquet() throws NoSuchTableException {
-    assumeThat(fileFormat.equalsIgnoreCase("parquet")).isTrue();
+    assumeThat(fileFormat).isEqualTo(FileFormat.PARQUET);
 
     createAndInitPartitionedTable();
 
@@ -869,7 +870,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
   @TestTemplate
   public void testDeleteOnNonIcebergTableNotSupported() {
-    assumeThat(catalogName.equalsIgnoreCase("spark_catalog")).isTrue();
+    assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
 
     sql("CREATE TABLE parquet_table (c1 INT, c2 INT) USING parquet");
 
@@ -1009,7 +1010,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   @TestTemplate
   public synchronized void testDeleteWithSerializableIsolation() throws InterruptedException {
     // cannot run tests with concurrency for Hadoop tables without atomic renames
-    assumeThat(catalogName.equalsIgnoreCase("testhadoop")).isFalse();
+    assumeThat(catalogName).isNotEqualToIgnoringCase("testhadoop");
     // if caching is off, the table is eagerly refreshed during runtime filtering
     // this can cause a validation exception as concurrent changes would be visible
     assumeThat(cachingCatalogEnabled()).isTrue();
@@ -1100,7 +1101,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   public synchronized void testDeleteWithSnapshotIsolation()
       throws InterruptedException, ExecutionException {
     // cannot run tests with concurrency for Hadoop tables without atomic renames
-    assumeThat(catalogName.equalsIgnoreCase("testhadoop")).isFalse();
+    assumeThat(catalogName).isNotEqualToIgnoringCase("testhadoop");
     // if caching is off, the table is eagerly refreshed during runtime filtering
     // this can cause a validation exception as concurrent changes would be visible
     assumeThat(cachingCatalogEnabled()).isTrue();
@@ -1268,9 +1269,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
   @TestTemplate
   public void testDeleteToWapBranch() throws NoSuchTableException {
-    assumeThat(branch == null)
-        .as("WAP branch only works for table identifier without branch")
-        .isTrue();
+    assumeThat(branch).as("WAP branch only works for table identifier without branch").isNull();
 
     createAndInitPartitionedTable();
     sql(
@@ -1311,7 +1310,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
   @TestTemplate
   public void testDeleteToWapBranchWithTableBranchIdentifier() throws NoSuchTableException {
-    assumeThat(branch != null).as("Test must have branch name part in table identifier").isTrue();
+    assumeThat(branch).as("Test must have branch name part in table identifier").isNotNull();
 
     createAndInitPartitionedTable();
     sql(

@@ -66,7 +66,7 @@ public class TestCopyOnWriteDelete extends TestDelete {
   public synchronized void testDeleteWithConcurrentTableRefresh() throws Exception {
     // this test can only be run with Hive tables as it requires a reliable lock
     // also, the table cache must be enabled so that the same table instance can be reused
-    assumeThat(catalogName.equalsIgnoreCase("testhive")).isTrue();
+    assumeThat(catalogName).isEqualToIgnoringCase("testhive");
 
     createAndInitUnpartitionedTable();
     createOrReplaceView("deleted_id", Collections.singletonList(1), Encoders.INT());

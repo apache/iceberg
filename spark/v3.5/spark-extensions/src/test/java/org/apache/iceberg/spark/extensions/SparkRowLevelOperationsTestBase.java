@@ -80,7 +80,7 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
   private static final Random RANDOM = ThreadLocalRandom.current();
 
   @Parameter(index = 3)
-  protected String fileFormat;
+  protected FileFormat fileFormat;
 
   @Parameter(index = 4)
   protected boolean vectorized;
@@ -110,7 +110,7 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
         ImmutableMap.of(
             "type", "hive",
             "default-namespace", "default"),
-        "orc",
+        FileFormat.ORC,
         true,
         WRITE_DISTRIBUTION_MODE_NONE,
         true,
@@ -123,7 +123,7 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
         ImmutableMap.of(
             "type", "hive",
             "default-namespace", "default"),
-        "parquet",
+        FileFormat.PARQUET,
         true,
         WRITE_DISTRIBUTION_MODE_NONE,
         false,
@@ -134,7 +134,7 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
         "testhadoop",
         SparkCatalog.class.getName(),
         ImmutableMap.of("type", "hadoop"),
-        "parquet",
+        FileFormat.PARQUET,
         RANDOM.nextBoolean(),
         WRITE_DISTRIBUTION_MODE_HASH,
         true,
@@ -152,7 +152,7 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
             "cache-enabled",
                 "false" // Spark will delete tables using v1, leaving the cache out of sync
             ),
-        "avro",
+        FileFormat.AVRO,
         false,
         WRITE_DISTRIBUTION_MODE_RANGE,
         false,
@@ -180,17 +180,17 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
         planningMode.modeName());
 
     switch (fileFormat) {
-      case "parquet":
+      case PARQUET:
         sql(
             "ALTER TABLE %s SET TBLPROPERTIES('%s' '%b')",
             tableName, PARQUET_VECTORIZATION_ENABLED, vectorized);
         break;
-      case "orc":
+      case ORC:
         sql(
             "ALTER TABLE %s SET TBLPROPERTIES('%s' '%b')",
             tableName, ORC_VECTORIZATION_ENABLED, vectorized);
         break;
-      case "avro":
+      case AVRO:
         assertThat(vectorized).isFalse();
         break;
     }
@@ -378,7 +378,7 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
   }
 
   private boolean isParquet() {
-    return fileFormat.equalsIgnoreCase(FileFormat.PARQUET.name());
+    return fileFormat.equals(FileFormat.PARQUET);
   }
 
   private boolean isCopyOnWrite() {
