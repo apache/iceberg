@@ -756,7 +756,8 @@ public class TestHiveIcebergStorageHandlerLocalScan {
                       + "LIMIT 1 OFFSET %d",
                   i));
       assertThat(queryResult.get(0))
-          .containsExactly(expectedInnerStruct.getField("key"), expectedInnerStruct.getField("value"));
+          .containsExactly(
+              expectedInnerStruct.getField("key"), expectedInnerStruct.getField("value"));
     }
   }
 

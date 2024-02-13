@@ -778,14 +778,20 @@ public class TestHiveIcebergStorageHandlerNoScan {
       assertThat(hmsParams).containsEntry(InputFormatConfig.EXTERNAL_TABLE_PURGE, "TRUE");
       assertThat(hmsParams).containsEntry("EXTERNAL", "TRUE");
       assertThat(hmsParams).containsEntry(TableProperties.ENGINE_HIVE_ENABLED, "true");
-      assertThat(hmsParams).containsEntry(hive_metastoreConstants.META_TABLE_STORAGE,
-          HiveIcebergStorageHandler.class.getName());
-      assertThat(hmsParams).containsEntry(BaseMetastoreTableOperations.TABLE_TYPE_PROP,
-          BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase());
-      assertThat(hmsParams).containsEntry(BaseMetastoreTableOperations.METADATA_LOCATION_PROP,
-          getCurrentSnapshotForHiveCatalogTable(icebergTable));
-      assertThat(hmsParams).doesNotContainKey(
-          BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP);
+      assertThat(hmsParams)
+          .containsEntry(
+              hive_metastoreConstants.META_TABLE_STORAGE,
+              HiveIcebergStorageHandler.class.getName());
+      assertThat(hmsParams)
+          .containsEntry(
+              BaseMetastoreTableOperations.TABLE_TYPE_PROP,
+              BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase());
+      assertThat(hmsParams)
+          .containsEntry(
+              BaseMetastoreTableOperations.METADATA_LOCATION_PROP,
+              getCurrentSnapshotForHiveCatalogTable(icebergTable));
+      assertThat(hmsParams)
+          .doesNotContainKey(BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP);
       assertThat(hmsParams).containsKey(hive_metastoreConstants.DDL_TIME);
       assertThat(hmsParams).containsKey(InputFormatConfig.PARTITION_SPEC);
     } else {
@@ -822,10 +828,11 @@ public class TestHiveIcebergStorageHandlerNoScan {
       String prevSnapshot = getCurrentSnapshotForHiveCatalogTable(icebergTable);
       icebergTable.refresh();
       String newSnapshot = getCurrentSnapshotForHiveCatalogTable(icebergTable);
-      assertThat(hmsParams).containsEntry(
-          BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP, prevSnapshot);
-      assertThat(hmsParams).containsEntry(BaseMetastoreTableOperations.METADATA_LOCATION_PROP,
-          newSnapshot);
+      assertThat(hmsParams)
+          .containsEntry(
+              BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP, prevSnapshot);
+      assertThat(hmsParams)
+          .containsEntry(BaseMetastoreTableOperations.METADATA_LOCATION_PROP, newSnapshot);
     } else {
       assertThat(hmsParams).hasSize(8);
     }
