@@ -151,18 +151,18 @@ public class TestHiveIcebergStorageHandlerWithEngine {
   private TestTables testTables;
 
   @Parameter(index = 0)
-  public FileFormat fileFormat;
+  private FileFormat fileFormat;
 
   @Parameter(index = 1)
-  public String executionEngine;
+  private String executionEngine;
 
   @Parameter(index = 2)
-  public TestTables.TestTableType testTableType;
+  private TestTables.TestTableType testTableType;
 
   @Parameter(index = 3)
-  public boolean isVectorized;
+  private boolean isVectorized;
 
-  @TempDir public Path temp;
+  @TempDir private Path temp;
 
   @BeforeAll
   public static void beforeClass() {
@@ -215,10 +215,10 @@ public class TestHiveIcebergStorageHandlerWithEngine {
         shell.executeStatement(
             "SELECT first_name, customer_id FROM default.customers ORDER BY customer_id DESC");
 
-    assertThat(descRows).hasSize(3);
-    assertThat(descRows.get(0)).containsExactly("Trudy", 2L);
-    assertThat(descRows.get(1)).containsExactly("Bob", 1L);
-    assertThat(descRows.get(2)).containsExactly("Alice", 0L);
+    assertThat(descRows).containsExactly(
+        new Object[] {"Trudy", 2L},
+        new Object[] {"Bob", 1L},
+        new Object[] {"Alice", 0L});
   }
 
   @TestTemplate
@@ -233,10 +233,10 @@ public class TestHiveIcebergStorageHandlerWithEngine {
             "SELECT o.order_id, o.customer_id, o.total, p.name "
                 + "FROM default.orders o JOIN default.products p ON o.product_id = p.id ORDER BY o.order_id");
 
-    assertThat(rows).hasSize(3);
-    assertThat(rows.get(0)).containsExactly(100L, 0L, 11.11d, "skirt");
-    assertThat(rows.get(1)).containsExactly(101L, 0L, 22.22d, "tee");
-    assertThat(rows.get(2)).containsExactly(102L, 1L, 33.33d, "watch");
+    assertThat(rows).containsExactly(
+        new Object[] {100L, 0L, 11.11d, "skirt"},
+        new Object[] {101L, 0L, 22.22d, "tee"},
+        new Object[] {102L, 1L, 33.33d, "watch"});
   }
 
   @TestTemplate
@@ -275,10 +275,10 @@ public class TestHiveIcebergStorageHandlerWithEngine {
                 + "FROM default.orders o JOIN default.customers c ON o.customer_id = c.customer_id "
                 + "ORDER BY o.order_id DESC");
 
-    assertThat(rows).hasSize(3);
-    assertThat(rows.get(0)).containsExactly("Bob", 102L);
-    assertThat(rows.get(1)).containsExactly("Alice", 101L);
-    assertThat(rows.get(2)).containsExactly("Alice", 100L);
+    assertThat(rows).containsExactly(
+        new Object[] {"Bob", 102L},
+        new Object[] {"Alice", 101L},
+        new Object[] {"Alice", 100L});
   }
 
   @TestTemplate
@@ -292,10 +292,10 @@ public class TestHiveIcebergStorageHandlerWithEngine {
             "SELECT o1.order_id, o1.customer_id, o1.total "
                 + "FROM default.orders o1 JOIN default.orders o2 ON o1.order_id = o2.order_id ORDER BY o1.order_id");
 
-    assertThat(rows).hasSize(3);
-    assertThat(rows.get(0)).containsExactly(100L, 0L, 11.11d);
-    assertThat(rows.get(1)).containsExactly(101L, 0L, 22.22d);
-    assertThat(rows.get(2)).containsExactly(102L, 1L, 33.33d);
+    assertThat(rows).containsExactly(
+        new Object[] {100L, 0L, 11.11d},
+        new Object[] {101L, 0L, 22.22d},
+        new Object[] {102L, 1L, 33.33d});
   }
 
   @TestTemplate

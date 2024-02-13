@@ -84,12 +84,12 @@ public class TestHiveIcebergStorageHandlerLocalScan {
   private TestTables testTables;
 
   @Parameter(index = 0)
-  public FileFormat fileFormat;
+  private FileFormat fileFormat;
 
   @Parameter(index = 1)
-  public TestTables.TestTableType testTableType;
+  private TestTables.TestTableType testTableType;
 
-  @TempDir public Path temp;
+  @TempDir private Path temp;
 
   @BeforeAll
   public static void beforeClass() {
@@ -135,10 +135,11 @@ public class TestHiveIcebergStorageHandlerLocalScan {
     // Single fetch task: no MR job.
     List<Object[]> rows = shell.executeStatement("SELECT * FROM default.customers");
 
-    assertThat(rows).hasSize(3);
-    assertThat(rows.get(0)).isEqualTo(new Object[] {0L, "Alice", "Brown"});
-    assertThat(rows.get(1)).isEqualTo(new Object[] {1L, "Bob", "Green"});
-    assertThat(rows.get(2)).isEqualTo(new Object[] {2L, "Trudy", "Pink"});
+    assertThat(rows)
+        .containsExactly(
+            new Object[] {0L, "Alice", "Brown"},
+            new Object[] {1L, "Bob", "Green"},
+            new Object[] {2L, "Trudy", "Pink"});
   }
 
   @TestTemplate
@@ -152,19 +153,19 @@ public class TestHiveIcebergStorageHandlerLocalScan {
 
     List<Object[]> rows = shell.executeStatement("SELECT * FROM default.customers");
 
-    assertThat(rows).hasSize(3);
-    assertThat(rows.get(0)).isEqualTo(new Object[] {0L, "Alice", "Brown"});
-    assertThat(rows.get(1)).isEqualTo(new Object[] {1L, "Bob", "Green"});
-    assertThat(rows.get(2)).isEqualTo(new Object[] {2L, "Trudy", "Pink"});
+    assertThat(rows)
+        .containsExactly(
+            new Object[] {0L, "Alice", "Brown"},
+            new Object[] {1L, "Bob", "Green"},
+            new Object[] {2L, "Trudy", "Pink"});
 
     rows =
         shell.executeStatement(
             "SELECT * FROM default.customers where CustomER_Id < 2 "
                 + "and first_name in ('Alice', 'Bob')");
 
-    assertThat(rows).hasSize(2);
-    assertThat(rows.get(0)).isEqualTo(new Object[] {0L, "Alice", "Brown"});
-    assertThat(rows.get(1)).isEqualTo(new Object[] {1L, "Bob", "Green"});
+    assertThat(rows)
+        .containsExactly(new Object[] {0L, "Alice", "Brown"}, new Object[] {1L, "Bob", "Green"});
   }
 
   @TestTemplate
@@ -181,21 +182,16 @@ public class TestHiveIcebergStorageHandlerLocalScan {
     // Use integer literal in predicate
     List<Object[]> rows =
         shell.executeStatement("SELECT * FROM default.dec_test where decimal_field >= 85");
-    assertThat(rows).hasSize(3);
-    assertThat(rows.get(0)).isEqualTo(new Object[] {"85.00"});
-    assertThat(rows.get(1)).isEqualTo(new Object[] {"100.56"});
-    assertThat(rows.get(2)).isEqualTo(new Object[] {"100.57"});
+    assertThat(rows)
+        .containsExactly(new Object[] {"85.00"}, new Object[] {"100.56"}, new Object[] {"100.57"});
 
     // Use decimal literal in predicate with smaller scale than schema type definition
     rows = shell.executeStatement("SELECT * FROM default.dec_test where decimal_field > 99.1");
-    assertThat(rows).hasSize(2);
-    assertThat(rows.get(0)).isEqualTo(new Object[] {"100.56"});
-    assertThat(rows.get(1)).isEqualTo(new Object[] {"100.57"});
+    assertThat(rows).containsExactly(new Object[] {"100.56"}, new Object[] {"100.57"});
 
     // Use decimal literal in predicate with higher scale than schema type definition
     rows = shell.executeStatement("SELECT * FROM default.dec_test where decimal_field > 100.565");
-    assertThat(rows).hasSize(1);
-    assertThat(rows.get(0)).isEqualTo(new Object[] {"100.57"});
+    assertThat(rows).containsExactly(new Object[] {"100.57"});
 
     // Use decimal literal in predicate with the same scale as schema type definition
     rows = shell.executeStatement("SELECT * FROM default.dec_test where decimal_field > 640.34");
@@ -214,34 +210,34 @@ public class TestHiveIcebergStorageHandlerLocalScan {
     List<Object[]> outOfOrderColumns =
         shell.executeStatement("SELECT first_name, customer_id, last_name FROM default.customers");
 
-    assertThat(outOfOrderColumns).hasSize(3);
-    assertThat(outOfOrderColumns.get(0)).isEqualTo(new Object[] {"Alice", 0L, "Brown"});
-    assertThat(outOfOrderColumns.get(1)).isEqualTo(new Object[] {"Bob", 1L, "Green"});
-    assertThat(outOfOrderColumns.get(2)).isEqualTo(new Object[] {"Trudy", 2L, "Pink"});
+    assertThat(outOfOrderColumns)
+        .containsExactly(
+            new Object[] {"Alice", 0L, "Brown"},
+            new Object[] {"Bob", 1L, "Green"},
+            new Object[] {"Trudy", 2L, "Pink"});
 
     List<Object[]> allButFirstColumn =
         shell.executeStatement("SELECT first_name, last_name FROM default.customers");
 
-    assertThat(allButFirstColumn).hasSize(3);
-    assertThat(allButFirstColumn.get(0)).isEqualTo(new Object[] {"Alice", "Brown"});
-    assertThat(allButFirstColumn.get(1)).isEqualTo(new Object[] {"Bob", "Green"});
-    assertThat(allButFirstColumn.get(2)).isEqualTo(new Object[] {"Trudy", "Pink"});
+    assertThat(allButFirstColumn)
+        .containsExactly(
+            new Object[] {"Alice", "Brown"},
+            new Object[] {"Bob", "Green"},
+            new Object[] {"Trudy", "Pink"});
 
     List<Object[]> allButMiddleColumn =
         shell.executeStatement("SELECT customer_id, last_name FROM default.customers");
 
-    assertThat(allButMiddleColumn).hasSize(3);
-    assertThat(allButMiddleColumn.get(0)).isEqualTo(new Object[] {0L, "Brown"});
-    assertThat(allButMiddleColumn.get(1)).isEqualTo(new Object[] {1L, "Green"});
-    assertThat(allButMiddleColumn.get(2)).isEqualTo(new Object[] {2L, "Pink"});
+    assertThat(allButMiddleColumn)
+        .containsExactly(
+            new Object[] {0L, "Brown"}, new Object[] {1L, "Green"}, new Object[] {2L, "Pink"});
 
     List<Object[]> allButLastColumn =
         shell.executeStatement("SELECT customer_id, first_name FROM default.customers");
 
-    assertThat(allButLastColumn).hasSize(3);
-    assertThat(allButLastColumn.get(0)).isEqualTo(new Object[] {0L, "Alice"});
-    assertThat(allButLastColumn.get(1)).isEqualTo(new Object[] {1L, "Bob"});
-    assertThat(allButLastColumn.get(2)).isEqualTo(new Object[] {2L, "Trudy"});
+    assertThat(allButLastColumn)
+        .containsExactly(
+            new Object[] {0L, "Alice"}, new Object[] {1L, "Bob"}, new Object[] {2L, "Trudy"});
   }
 
   @TestTemplate
@@ -256,10 +252,11 @@ public class TestHiveIcebergStorageHandlerLocalScan {
     List<Object[]> columns =
         shell.executeStatement("SELECT first_name, first_name FROM default.customers");
 
-    assertThat(columns).hasSize(3);
-    assertThat(columns.get(0)).isEqualTo(new Object[] {"Alice", "Alice"});
-    assertThat(columns.get(1)).isEqualTo(new Object[] {"Bob", "Bob"});
-    assertThat(columns.get(2)).isEqualTo(new Object[] {"Trudy", "Trudy"});
+    assertThat(columns)
+        .containsExactly(
+            new Object[] {"Alice", "Alice"},
+            new Object[] {"Bob", "Bob"},
+            new Object[] {"Trudy", "Trudy"});
   }
 
   @TestTemplate
@@ -493,9 +490,11 @@ public class TestHiveIcebergStorageHandlerLocalScan {
                         + "OFFSET %d",
                     j, j, j, i));
         GenericRecord genericRecord = (GenericRecord) expectedList.get(j);
-        assertThat(queryResult.get(0)[0]).isEqualTo(genericRecord.getField("something"));
-        assertThat(queryResult.get(0)[1]).isEqualTo(genericRecord.getField("someone"));
-        assertThat(queryResult.get(0)[2]).isEqualTo(genericRecord.getField("somewhere"));
+        assertThat(queryResult.get(0))
+            .containsExactly(
+                genericRecord.getField("something"),
+                genericRecord.getField("someone"),
+                genericRecord.getField("somewhere"));
       }
     }
   }
@@ -616,9 +615,11 @@ public class TestHiveIcebergStorageHandlerLocalScan {
                         + "OFFSET %d",
                     entry.getKey(), entry.getKey(), entry.getKey(), i));
         GenericRecord genericRecord = (GenericRecord) entry.getValue();
-        assertThat(queryResult.get(0)[0]).isEqualTo(genericRecord.getField("something"));
-        assertThat(queryResult.get(0)[1]).isEqualTo(genericRecord.getField("someone"));
-        assertThat(queryResult.get(0)[2]).isEqualTo(genericRecord.getField("somewhere"));
+        assertThat(queryResult.get(0))
+            .containsExactly(
+                genericRecord.getField("something"),
+                genericRecord.getField("someone"),
+                genericRecord.getField("somewhere"));
       }
     }
   }
@@ -643,8 +644,8 @@ public class TestHiveIcebergStorageHandlerLocalScan {
               String.format(
                   "SELECT structofprimitives.key, structofprimitives.value FROM default.structtable LIMIT 1 OFFSET %d",
                   i));
-      assertThat(queryResult.get(0)[0]).isEqualTo(expectedStruct.getField("key"));
-      assertThat(queryResult.get(0)[1]).isEqualTo(expectedStruct.getField("value"));
+      assertThat(queryResult.get(0))
+          .containsExactly(expectedStruct.getField("key"), expectedStruct.getField("value"));
     }
   }
 
@@ -754,8 +755,8 @@ public class TestHiveIcebergStorageHandlerLocalScan {
                   "SELECT structofstructs.struct1.key, structofstructs.struct1.value FROM default.structtable "
                       + "LIMIT 1 OFFSET %d",
                   i));
-      assertThat(queryResult.get(0)[0]).isEqualTo(expectedInnerStruct.getField("key"));
-      assertThat(queryResult.get(0)[1]).isEqualTo(expectedInnerStruct.getField("value"));
+      assertThat(queryResult.get(0))
+          .containsExactly(expectedInnerStruct.getField("key"), expectedInnerStruct.getField("value"));
     }
   }
 

@@ -93,7 +93,7 @@ public class TestIcebergInputFormats {
   private static final PartitionSpec SPEC =
       PartitionSpec.builderFor(SCHEMA).identity("date").bucket("id", 1).build();
 
-  @TempDir public Path temp;
+  @TempDir private Path temp;
 
   // before variables
   private Configuration conf;
@@ -237,7 +237,7 @@ public class TestIcebergInputFormats {
 
     List<Record> outputRecords = testInputFormat.create(builder.conf()).getRecords();
 
-    assertThat(outputRecords.size()).isEqualTo(inputRecords.size());
+    assertThat(outputRecords).hasSameSizeAs(inputRecords);
     assertThat(outputRecords.get(0).struct()).isEqualTo(projection.asStruct());
   }
 
@@ -406,7 +406,6 @@ public class TestIcebergInputFormats {
     }
 
     public interface Factory<T> {
-
       String name();
 
       TestInputFormat<T> create(Configuration conf);

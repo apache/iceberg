@@ -82,9 +82,9 @@ public class TestHiveIcebergStorageHandlerTimezone {
 
   private TestTables testTables;
 
-  @Parameter public String timezoneString;
+  @Parameter private String timezoneString;
 
-  @TempDir public Path temp;
+  @TempDir private Path temp;
 
   @BeforeAll
   public static void beforeClass() {

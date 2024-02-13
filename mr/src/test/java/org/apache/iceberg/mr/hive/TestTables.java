@@ -65,7 +65,6 @@ import org.apache.iceberg.types.Types;
 
 // Helper class for setting up and testing various catalog implementations
 abstract class TestTables {
-
   public static final TestTableType[] ALL_TABLE_TYPES =
       new TestTableType[] {
         TestTableType.HADOOP_TABLE,

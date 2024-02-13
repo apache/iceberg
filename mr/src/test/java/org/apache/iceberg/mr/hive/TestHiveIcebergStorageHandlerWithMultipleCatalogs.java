@@ -50,27 +50,27 @@ public class TestHiveIcebergStorageHandlerWithMultipleCatalogs {
   private static TestHiveShell shell;
 
   @Parameter(index = 0)
-  public FileFormat fileFormat1;
+  private FileFormat fileFormat1;
 
   @Parameter(index = 1)
-  public FileFormat fileFormat2;
+  private FileFormat fileFormat2;
 
   @Parameter(index = 2)
-  public String executionEngine;
+  private String executionEngine;
 
   @Parameter(index = 3)
-  public TestTables.TestTableType testTableType1;
+  private TestTables.TestTableType testTableType1;
 
   @Parameter(index = 4)
-  public String table1CatalogName;
+  private String table1CatalogName;
 
   @Parameter(index = 5)
-  public TestTables.TestTableType testTableType2;
+  private TestTables.TestTableType testTableType2;
 
   @Parameter(index = 6)
-  public String table2CatalogName;
+  private String table2CatalogName;
 
-  @TempDir public Path temp;
+  @TempDir private Path temp;
   private TestTables testTables1;
   private TestTables testTables2;
 
