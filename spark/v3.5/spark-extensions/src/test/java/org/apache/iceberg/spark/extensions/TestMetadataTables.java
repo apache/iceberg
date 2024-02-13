@@ -267,8 +267,6 @@ public class TestMetadataTables extends ExtensionsTestBase {
     assertThat(results).as("Table should be cleared").isEmpty();
 
     Schema entriesTableSchema = Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema();
-    Schema filesTableSchema =
-        Spark3Util.loadIcebergTable(spark, tableName + ".all_data_files").schema();
 
     // Check all data files table
     Dataset<Row> actualDataFilesDs = spark.sql("SELECT * FROM " + tableName + ".all_data_files");

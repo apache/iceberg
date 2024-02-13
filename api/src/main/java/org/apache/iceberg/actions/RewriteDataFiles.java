@@ -19,6 +19,7 @@
 package org.apache.iceberg.actions;
 
 import java.util.List;
+import org.apache.iceberg.RemoveDanglingDeletesMode;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
@@ -105,6 +106,24 @@ public interface RewriteDataFiles
   String USE_STARTING_SEQUENCE_NUMBER = "use-starting-sequence-number";
 
   boolean USE_STARTING_SEQUENCE_NUMBER_DEFAULT = true;
+
+  /**
+   * Remove dangling delete files from the current snapshot after compaction. A delete file is
+   * considered dangling if it does not apply to any non-expired data file.
+   *
+   * <p>
+   *
+   * <ul>
+   *   <li>metadata: dangling delete files will be pruned from iceberg metadata. Pruning apply to
+   *       both position delete and equality delete files.
+   *   <li>none: pruning is disabled.
+   * </ul>
+   *
+   * <p>Defaults to none.
+   */
+  String REMOVE_DANGLING_DELETES = "remove-dangling-deletes";
+
+  String REMOVE_DANGLING_DELETES_DEFAULT = RemoveDanglingDeletesMode.NONE.modeName();
 
   /**
    * Forces the rewrite job order based on the value.
@@ -215,6 +234,10 @@ public interface RewriteDataFiles
 
     default int failedDataFilesCount() {
       return rewriteFailures().stream().mapToInt(FileGroupFailureResult::dataFilesCount).sum();
+    }
+
+    default int removedDeleteFilesCount() {
+      return 0;
     }
   }
 

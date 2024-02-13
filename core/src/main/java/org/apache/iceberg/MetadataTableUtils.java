@@ -19,10 +19,18 @@
 package org.apache.iceberg;
 
 import java.util.Locale;
+import java.util.Set;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 public class MetadataTableUtils {
+  static final String DATA_SEQUENCE_NUMBER = "data_sequence_number";
+
+  public static final Set<String> DERIVED_FIELDS =
+      Sets.newHashSet(MetricsUtil.READABLE_METRICS, DATA_SEQUENCE_NUMBER);
+
   private MetadataTableUtils() {}
 
   public static boolean hasMetadataTableName(TableIdentifier identifier) {
@@ -108,5 +116,69 @@ public class MetadataTableUtils {
 
   private static String metadataTableName(String tableName, MetadataTableType type) {
     return tableName + (tableName.contains("/") ? "#" : ".") + type.name().toLowerCase(Locale.ROOT);
+  }
+
+  static class StructWithDerivedColumns implements StructLike {
+    private final StructLike struct;
+    private final int projectionColumnCount;
+    private final int dataSequenceNumberPosition;
+    private final Long dataSequenceNumber;
+    private final int metricsPosition;
+    private final StructLike readableMetricsStruct;
+
+    /**
+     * Constructs a struct with derived columns
+     *
+     * @param struct struct on which to append derived columns
+     * @param structSize total number of struct columns, including derived columns
+     * @param dataSequenceNumberPosition position of 'dataSequenceNumber' column
+     * @param dataSequenceNumber struct of 'dataSequenceNumber'
+     * @param metricsPosition position of 'readable_metrics' column
+     * @param readableMetrics struct of 'readable_metrics'
+     */
+    StructWithDerivedColumns(
+        StructLike struct,
+        int structSize,
+        int dataSequenceNumberPosition,
+        Long dataSequenceNumber,
+        int metricsPosition,
+        StructLike readableMetrics) {
+      Preconditions.checkArgument(
+          metricsPosition < 0 || metricsPosition > dataSequenceNumberPosition,
+          "Reserve readable metrics as last derived column");
+      this.struct = struct;
+      this.projectionColumnCount = structSize;
+      this.dataSequenceNumberPosition = dataSequenceNumberPosition;
+      this.dataSequenceNumber = dataSequenceNumber;
+      this.metricsPosition = metricsPosition;
+      this.readableMetricsStruct = readableMetrics;
+    }
+
+    @Override
+    public int size() {
+      return projectionColumnCount;
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      if (pos >= dataSequenceNumberPosition) {
+        if (pos == dataSequenceNumberPosition) {
+          return javaClass.cast(dataSequenceNumber);
+        } else if (pos == metricsPosition) {
+          return javaClass.cast(readableMetricsStruct);
+        } else {
+          // columnCount = fileAsStruct column count + the readable metrics field.
+          // When pos is greater than metricsPosition, the actual position of the field in
+          // fileAsStruct should be subtracted by 1.
+          return struct.get(pos - 1, javaClass);
+        }
+      }
+      return struct.get(pos, javaClass);
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("StructWithDerivedColumns is read only");
+    }
   }
 }

@@ -45,7 +45,6 @@ import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
-import org.apache.iceberg.MetricsUtil;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
@@ -285,7 +284,7 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
     List<String> deleteColumns =
         deleteFilesTableSchema.columns().stream()
             .map(Types.NestedField::name)
-            .filter(c -> !c.equals(MetricsUtil.READABLE_METRICS))
+            .filter(c -> !MetadataTableUtils.DERIVED_FIELDS.contains(c))
             .collect(Collectors.toList());
     String deleteNames =
         deleteColumns.stream().map(n -> "`" + n + "`").collect(Collectors.joining(","));
@@ -311,7 +310,7 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
     List<String> columns =
         filesTableSchema.columns().stream()
             .map(Types.NestedField::name)
-            .filter(c -> !c.equals(MetricsUtil.READABLE_METRICS))
+            .filter(c -> !MetadataTableUtils.DERIVED_FIELDS.contains(c))
             .collect(Collectors.toList());
     String names = columns.stream().map(n -> "`" + n + "`").collect(Collectors.joining(","));
 
@@ -384,7 +383,7 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
     List<String> columns =
         filesTableSchema.columns().stream()
             .map(Types.NestedField::name)
-            .filter(c -> !c.equals(MetricsUtil.READABLE_METRICS))
+            .filter(c -> !MetadataTableUtils.DERIVED_FIELDS.contains(c))
             .collect(Collectors.toList());
     String names = columns.stream().map(n -> "`" + n + "`").collect(Collectors.joining(","));
 
@@ -470,7 +469,7 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
     List<String> columns =
         filesTableSchema.columns().stream()
             .map(Types.NestedField::name)
-            .filter(c -> !c.equals(MetricsUtil.READABLE_METRICS))
+            .filter(c -> !MetadataTableUtils.DERIVED_FIELDS.contains(c))
             .collect(Collectors.toList());
     String names = columns.stream().map(n -> "`" + n + "`").collect(Collectors.joining(","));
 
@@ -553,7 +552,7 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
     List<String> columns =
         filesTableSchema.columns().stream()
             .map(Types.NestedField::name)
-            .filter(c -> !c.equals(MetricsUtil.READABLE_METRICS))
+            .filter(c -> !MetadataTableUtils.DERIVED_FIELDS.contains(c))
             .collect(Collectors.toList());
     String names = columns.stream().map(n -> "`" + n + "`").collect(Collectors.joining(","));
 

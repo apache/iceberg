@@ -24,6 +24,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.apache.spark.sql.functions.current_date;
 import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
+import static org.apache.spark.sql.functions.min;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -56,7 +57,9 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.PartitionData;
+import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.RemoveDanglingDeletesMode;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Schema;
@@ -73,7 +76,9 @@ import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.actions.SizeBasedDataRewriter;
 import org.apache.iceberg.actions.SizeBasedFileRewriter;
 import org.apache.iceberg.data.GenericAppenderFactory;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedFiles;
@@ -85,6 +90,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -104,9 +110,11 @@ import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
+import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeMap;
 import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.internal.SQLConf;
 import org.assertj.core.api.Assertions;
@@ -116,6 +124,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
+import scala.Tuple2;
 
 public class TestRewriteDataFilesAction extends TestBase {
 
@@ -127,6 +136,8 @@ public class TestRewriteDataFilesAction extends TestBase {
           optional(1, "c1", Types.IntegerType.get()),
           optional(2, "c2", Types.StringType.get()),
           optional(3, "c3", Types.StringType.get()));
+
+  private static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA).identity("c1").build();
 
   @TempDir private Path temp;
 
@@ -334,6 +345,284 @@ public class TestRewriteDataFilesAction extends TestBase {
     List<Object[]> actualRecords = currentData();
     assertEquals("Rows must match", expectedRecords, actualRecords);
     assertThat(actualRecords).as("7 rows are removed").hasSize(total - 7);
+  }
+
+  @Test
+  public void testRemoveDangledDeletesPartitionEvolution() {
+    Table table =
+        TABLES.create(
+            SCHEMA,
+            SPEC,
+            Collections.singletonMap(TableProperties.FORMAT_VERSION, "2"),
+            tableLocation);
+
+    List<ThreeColumnRecord> records1 =
+        Lists.newArrayList(
+            new ThreeColumnRecord(1, null, "AAAA"), new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB"));
+    writeRecords(records1);
+    List<ThreeColumnRecord> records2 =
+        Lists.newArrayList(
+            new ThreeColumnRecord(0, "CCCCCCCCCC", "CCCC"),
+            new ThreeColumnRecord(0, "DDDDDDDDDD", "DDDD"));
+    writeRecords(records2);
+    table.refresh();
+    shouldHaveFiles(table, 4);
+    writeEqDeleteRecord(table, "c1", 1, "c3", "AAAA");
+    writeEqDeleteRecord(table, "c1", 2, "c3", "CCCC");
+    table.refresh();
+    Set<DeleteFile> existingDeletes = TestHelpers.deleteFiles(table);
+    assertThat(existingDeletes)
+        .as("Only one equality delete c1=1 is used in query planning")
+        .hasSize(1);
+
+    List<Tuple2<Long, String>> afterEqDeletes = sequenceAndFilePathPair(table, "true");
+    System.out.println("After EqDeletes");
+    afterEqDeletes.forEach(System.out::println);
+
+    table.refresh();
+    table.updateSpec().addField(Expressions.ref("c3")).commit();
+    List<ThreeColumnRecord> records3 =
+        Lists.newArrayList(
+            new ThreeColumnRecord(1, "A", "CCCC"), new ThreeColumnRecord(2, "D", "DDDD"));
+    writeRecords(records3);
+    List<Tuple2<Long, String>> afterPartitionedWrite = sequenceAndFilePathPair(table, "true");
+    System.out.println("After partitioned write");
+    afterPartitionedWrite.forEach(System.out::println);
+
+    List<Object[]> originalData = currentData();
+
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .filter(Expressions.equal("c1", 1))
+            .option(
+                RewriteDataFiles.REMOVE_DANGLING_DELETES,
+                RemoveDanglingDeletesMode.METADATA.modeName())
+            .execute();
+
+    List<Tuple2<Long, String>> afterRewrite = sequenceAndFilePathPair(table, "true");
+    System.out.println("After rewrite data files");
+    afterRewrite.forEach(System.out::println);
+
+    existingDeletes = TestHelpers.deleteFiles(table);
+    assertThat(existingDeletes).as("Shall pruned dangling deletes after rewrite").hasSize(0);
+
+    assertThat(result)
+        .extracting(
+            Result::addedDataFilesCount,
+            Result::rewrittenDataFilesCount,
+            Result::removedDeleteFilesCount)
+        .as("Should compact 3 data files and 2 delete files into 2 result data file")
+        .containsExactly(2, 3, 2);
+    shouldHaveMinSequenceNumberInPartition(table, "data_file.partition.c1 == 1", 5);
+
+    List<Object[]> postRewriteData = currentData();
+    assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
+
+    shouldHaveSnapshots(table, 7);
+    shouldHaveFiles(table, 5);
+  }
+
+  @Test
+  public void testRemoveDanglingEqualityDeletesDropped() {
+    Table table =
+        TABLES.create(
+            SCHEMA,
+            SPEC,
+            Collections.singletonMap(TableProperties.FORMAT_VERSION, "2"),
+            tableLocation);
+    // write partition 1 data sequence 1
+    List<ThreeColumnRecord> records1 =
+        Lists.newArrayList(
+            new ThreeColumnRecord(1, null, "AAAA"), new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB"));
+    writeRecords(records1);
+
+    // write partition 2 data sequence 2
+    List<ThreeColumnRecord> records2 =
+        Lists.newArrayList(
+            new ThreeColumnRecord(1, "CCCCCCCCCC", "CCCC"),
+            new ThreeColumnRecord(1, "DDDDDDDDDD", "DDDD"));
+    writeRecords(records2);
+    shouldHaveFiles(table, 4);
+
+    // write equality deletes sequence 3
+    writeEqDeleteRecord(table, "c1", 1, "c3", "AAAA");
+
+    List<Object[]> expectedRecords = currentData();
+    shouldHaveSnapshots(table, 3);
+
+    Result rewriteResult =
+        actions()
+            .rewriteDataFiles(table)
+            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .option(
+                RewriteDataFiles.REMOVE_DANGLING_DELETES,
+                RemoveDanglingDeletesMode.METADATA.modeName())
+            .execute();
+
+    assertThat(rewriteResult)
+        .extracting(
+            Result::addedDataFilesCount,
+            Result::rewrittenDataFilesCount,
+            Result::removedDeleteFilesCount)
+        .as("Should compact 4 data files and 1 delete files into 1 result data file")
+        .containsExactly(1, 4, 1);
+    shouldHaveMinSequenceNumberInPartition(table, "data_file.partition.c1 == 1", 3);
+
+    shouldHaveSnapshots(table, 5);
+    assertThat(table.currentSnapshot().summary().get("total-equality-deletes"))
+        .isEqualTo("0")
+        .as("Expect no equality delete left in other partition");
+    assertEquals("Rows must match", expectedRecords, currentData());
+  }
+
+  @Test
+  public void testRemoveDanglingEqualityDeletesPartiallyDropped() {
+    Table table =
+        TABLES.create(
+            SCHEMA,
+            SPEC,
+            Collections.singletonMap(TableProperties.FORMAT_VERSION, "2"),
+            tableLocation);
+    // write partition 1 data sequence 1
+    List<ThreeColumnRecord> records1 =
+        Lists.newArrayList(
+            new ThreeColumnRecord(1, null, "AAAA"), new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB"));
+    writeRecords(records1);
+
+    // write partition 2 data sequence 2
+    List<ThreeColumnRecord> records2 =
+        Lists.newArrayList(
+            new ThreeColumnRecord(0, "CCCCCCCCCC", "CCCC"),
+            new ThreeColumnRecord(0, "DDDDDDDDDD", "DDDD"));
+    writeRecords(records2);
+    shouldHaveFiles(table, 4);
+
+    // write equality deletes sequence 3
+    writeEqDeleteRecord(table, "c1", 1, "c3", "AAAA");
+    // write equality deletes sequence 4
+    writeEqDeleteRecord(table, "c1", 2, "c3", "CCCC");
+
+    Expression partitionFilter = Expressions.equal("c1", 1);
+    List<Object[]> expectedRecords = currentData();
+    shouldHaveSnapshots(table, 4);
+
+    Result firstRewrite =
+        actions()
+            .rewriteDataFiles(table)
+            .filter(partitionFilter)
+            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .option(
+                RewriteDataFiles.REMOVE_DANGLING_DELETES, RemoveDanglingDeletesMode.NONE.modeName())
+            .execute();
+    assertThat(firstRewrite)
+        .extracting(
+            Result::addedDataFilesCount,
+            Result::rewrittenDataFilesCount,
+            Result::removedDeleteFilesCount)
+        .as("Should rewrite 2 data files into 1 without touch equality delete file")
+        .containsExactly(1, 2, 0);
+    shouldHaveMinSequenceNumberInPartition(table, "data_file.partition.c1 == 1", 3);
+
+    Result secondRewrite =
+        actions()
+            .rewriteDataFiles(table)
+            .filter(partitionFilter)
+            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .option(
+                RewriteDataFiles.REMOVE_DANGLING_DELETES,
+                RemoveDanglingDeletesMode.METADATA.modeName())
+            .execute();
+    assertThat(secondRewrite)
+        .extracting(
+            Result::addedDataFilesCount,
+            Result::rewrittenDataFilesCount,
+            Result::removedDeleteFilesCount)
+        .as("Should compact 1 data files and 1 delete files into 1 result data file")
+        .contains(1, 1, 1);
+    shouldHaveMinSequenceNumberInPartition(table, "data_file.partition.c1 == 1", 5);
+
+    shouldHaveSnapshots(table, 7);
+    assertThat(table.currentSnapshot().summary().get("total-equality-deletes"))
+        .isEqualTo("0")
+        .as("Expect only 1 equality delete left in other partition");
+    shouldHaveMinSequenceNumberInPartition(table, "true", 2);
+
+    assertEquals("Rows must match", expectedRecords, currentData());
+  }
+
+  @Test
+  public void testRemoveDanglingPositionalDeletesPartiallyDropped() {
+    Table table =
+        TABLES.create(
+            SCHEMA,
+            SPEC,
+            Collections.singletonMap(TableProperties.FORMAT_VERSION, "2"),
+            tableLocation);
+    writeRecords(3, SCALE, 2);
+    shouldHaveFiles(table, 6);
+
+    Expression partitionFilter = Expressions.equal("c1", 1);
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
+
+    // write position deletes sequence 2
+    table
+        .newRowDelta()
+        .addDeletes(writePosDeletesToFile(table, dataFiles.get(0), 1).get(0))
+        .commit();
+    // write position deletes sequence 3
+    table
+        .newRowDelta()
+        .addDeletes(writePosDeletesToFile(table, dataFiles.get(3), 1).get(0))
+        .commit();
+
+    List<Object[]> expectedRecords = currentData();
+    shouldHaveSnapshots(table, 3);
+
+    Result firstRewrite =
+        actions()
+            .rewriteDataFiles(table)
+            .filter(partitionFilter)
+            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .option(
+                RewriteDataFiles.REMOVE_DANGLING_DELETES, RemoveDanglingDeletesMode.NONE.modeName())
+            .execute();
+
+    assertThat(firstRewrite)
+        .extracting(
+            Result::addedDataFilesCount,
+            Result::rewrittenDataFilesCount,
+            Result::removedDeleteFilesCount)
+        .as("Should rewrite 3 data files into 1 without touch position delete file")
+        .containsExactly(1, 3, 0);
+    shouldHaveMinSequenceNumberInPartition(table, "data_file.partition.c1 == 1", 3);
+
+    Result secondRewrite =
+        actions()
+            .rewriteDataFiles(table)
+            .filter(partitionFilter)
+            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .option(
+                RewriteDataFiles.REMOVE_DANGLING_DELETES,
+                RemoveDanglingDeletesMode.METADATA.modeName())
+            .execute();
+
+    assertThat(secondRewrite)
+        .extracting(
+            Result::addedDataFilesCount,
+            Result::rewrittenDataFilesCount,
+            Result::removedDeleteFilesCount)
+        .as("Should compact 1 data files and 1 delete files into 1 result data file")
+        .contains(1, 1, 1);
+    shouldHaveMinSequenceNumberInPartition(table, "data_file.partition.c1 == 1", 4);
+
+    shouldHaveSnapshots(table, 6);
+    assertThat(table.currentSnapshot().summary().get("total-position-deletes"))
+        .isEqualTo("1")
+        .as("Expect only 1 position delete left in other partition");
+    shouldHaveMinSequenceNumberInPartition(table, "true", 1);
+
+    assertEquals("Rows must match", expectedRecords, currentData());
   }
 
   @Test
@@ -1663,6 +1952,21 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThat(numFiles).as("Did not have the expected number of files").isEqualTo(numExpected);
   }
 
+  protected long shouldHaveMinSequenceNumberInPartition(
+      Table table, String partitionFilter, long expected) {
+    long actual =
+        SparkTableUtil.loadMetadataTable(spark, table, MetadataTableType.ENTRIES)
+            .filter("status != 2")
+            .filter(partitionFilter)
+            .select("sequence_number")
+            .agg(min("sequence_number"))
+            .as(Encoders.LONG())
+            .collectAsList()
+            .get(0);
+    assertThat(actual).as("Did not have the expected min sequence number").isEqualTo(expected);
+    return actual;
+  }
+
   protected void shouldHaveSnapshots(Table table, int expectedSnapshots) {
     table.refresh();
     int actualSnapshots = Iterables.size(table.snapshots());
@@ -1848,6 +2152,11 @@ public class TestRewriteDataFilesAction extends TestBase {
             .getAsDouble();
   }
 
+  private void writeRecords(List<ThreeColumnRecord> records) {
+    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class);
+    writeDF(df);
+  }
+
   private void writeRecords(int files, int numRecords) {
     writeRecords(files, numRecords, 0);
   }
@@ -1901,7 +2210,10 @@ public class TestRewriteDataFilesAction extends TestBase {
           table
               .io()
               .newOutputFile(
-                  table.locationProvider().newDataLocation(UUID.randomUUID().toString()));
+                  table
+                      .locationProvider()
+                      .newDataLocation(
+                          FileFormat.PARQUET.addExtension(UUID.randomUUID().toString())));
       EncryptedOutputFile encryptedOutputFile =
           EncryptedFiles.encryptedOutput(outputFile, EncryptionKeyMetadata.EMPTY);
 
@@ -1925,6 +2237,78 @@ public class TestRewriteDataFilesAction extends TestBase {
     }
 
     return results;
+  }
+
+  private void writeEqDeleteRecord(
+      Table table, String partCol, Object partVal, String delCol, Object delVal) {
+    List<Integer> equalityFieldIds = Lists.newArrayList(table.schema().findField(delCol).fieldId());
+    Schema eqDeleteRowSchema = table.schema().select(delCol);
+    Record partitionRecord =
+        GenericRecord.create(table.schema().select(partCol))
+            .copy(ImmutableMap.of(partCol, partVal));
+    Record record = GenericRecord.create(eqDeleteRowSchema).copy(ImmutableMap.of(delCol, delVal));
+    writeEqDeleteRecord(table, equalityFieldIds, partitionRecord, eqDeleteRowSchema, record);
+  }
+
+  private void writeEqDeleteRecord(
+      Table table,
+      List<Integer> equalityFieldIds,
+      Record partitionRecord,
+      Schema eqDeleteRowSchema,
+      Record deleteRecord) {
+    OutputFileFactory fileFactory =
+        OutputFileFactory.builderFor(table, 1, 1).format(FileFormat.PARQUET).build();
+    GenericAppenderFactory appenderFactory =
+        new GenericAppenderFactory(
+            table.schema(),
+            table.spec(),
+            ArrayUtil.toIntArray(equalityFieldIds),
+            eqDeleteRowSchema,
+            null);
+
+    EncryptedOutputFile file =
+        createEncryptedOutputFile(createPartitionKey(table, partitionRecord), fileFactory);
+
+    EqualityDeleteWriter<Record> eqDeleteWriter =
+        appenderFactory.newEqDeleteWriter(
+            file, FileFormat.PARQUET, createPartitionKey(table, partitionRecord));
+
+    try (EqualityDeleteWriter<Record> clsEqDeleteWriter = eqDeleteWriter) {
+      clsEqDeleteWriter.write(deleteRecord);
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+    table.newRowDelta().addDeletes(eqDeleteWriter.toDeleteFile()).commit();
+  }
+
+  private PartitionKey createPartitionKey(Table table, Record record) {
+    if (table.spec().isUnpartitioned()) {
+      return null;
+    }
+
+    PartitionKey partitionKey = new PartitionKey(table.spec(), table.schema());
+    partitionKey.partition(record);
+
+    return partitionKey;
+  }
+
+  private EncryptedOutputFile createEncryptedOutputFile(
+      PartitionKey partition, OutputFileFactory fileFactory) {
+    if (partition == null) {
+      return fileFactory.newOutputFile();
+    } else {
+      return fileFactory.newOutputFile(partition);
+    }
+  }
+
+  private List<Tuple2<Long, String>> sequenceAndFilePathPair(Table table, String partitionFilter) {
+    return SparkTableUtil.loadMetadataTable(spark, table, MetadataTableType.ENTRIES)
+        .filter("status != 2")
+        .filter(partitionFilter)
+        .select("sequence_number", "data_file.file_path")
+        .sort("sequence_number", "data_file.file_path")
+        .as(Encoders.tuple(Encoders.LONG(), Encoders.STRING()))
+        .collectAsList();
   }
 
   private SparkActions actions() {

@@ -24,7 +24,6 @@ import java.io.Serializable;
 import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
@@ -276,20 +275,6 @@ public class RewriteManifestsSparkAction
 
   private Dataset<Row> repartitionAndSort(Dataset<Row> df, Column col, int numPartitions) {
     return df.repartitionByRange(numPartitions, col).sortWithinPartitions(col);
-  }
-
-  private <T, U> U withReusableDS(Dataset<T> ds, Function<Dataset<T>, U> func) {
-    boolean useCaching =
-        PropertyUtil.propertyAsBoolean(options(), USE_CACHING, USE_CACHING_DEFAULT);
-    Dataset<T> reusableDS = useCaching ? ds.cache() : ds;
-
-    try {
-      return func.apply(reusableDS);
-    } finally {
-      if (useCaching) {
-        reusableDS.unpersist(false);
-      }
-    }
   }
 
   private List<ManifestFile> findMatchingManifests(ManifestContent content) {
