@@ -28,7 +28,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class InMemoryFileIO implements FileIO {
 
-  private final Map<String, byte[]> inMemoryFiles = Maps.newConcurrentMap();
+  private static final Map<String, byte[]> inMemoryFiles = Maps.newConcurrentMap();
   private boolean closed = false;
 
   public void addFile(String location, byte[] contents) {

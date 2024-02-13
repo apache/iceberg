@@ -180,7 +180,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     restCatalog.initialize(
         "prod",
         ImmutableMap.of(
-            CatalogProperties.URI, httpServer.getURI().toString(), "credential", "catalog:12345"));
+            CatalogProperties.URI,
+            httpServer.getURI().toString(),
+            CatalogProperties.FILE_IO_IMPL,
+            "org.apache.iceberg.inmemory.InMemoryFileIO",
+            "credential",
+            "catalog:12345"));
   }
 
   @SuppressWarnings("unchecked")

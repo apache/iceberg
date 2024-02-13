@@ -27,11 +27,11 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestInMemoryFileIO {
-  String location = "s3://foo/bar.txt";
 
   @Test
   public void testBasicEndToEnd() throws IOException {
     InMemoryFileIO fileIO = new InMemoryFileIO();
+    String location = "s3://foo/bar.txt";
     Assertions.assertThat(fileIO.fileExists(location)).isFalse();
 
     OutputStream outputStream = fileIO.newOutputFile(location).create();
@@ -66,6 +66,7 @@ public class TestInMemoryFileIO {
 
   @Test
   public void testCreateNoOverwrite() {
+    String location = "s3://foo/bar/baz.txt";
     InMemoryFileIO fileIO = new InMemoryFileIO();
     fileIO.addFile(location, "hello world".getBytes());
     Assertions.assertThatExceptionOfType(AlreadyExistsException.class)
@@ -76,6 +77,7 @@ public class TestInMemoryFileIO {
   public void testOverwriteBeforeAndAfterClose() throws IOException {
     byte[] oldData = "old data".getBytes();
     byte[] newData = "new data".getBytes();
+    String location = "s3://foo/bar/baz/qux.txt";
 
     InMemoryFileIO fileIO = new InMemoryFileIO();
     OutputStream outputStream = fileIO.newOutputFile(location).create();
@@ -107,5 +109,15 @@ public class TestInMemoryFileIO {
     inputStream.read(buf);
     inputStream.close();
     Assertions.assertThat(new String(buf)).isEqualTo("new data");
+  }
+
+  @Test
+  public void testFilesAreSharedAcrossMultipleInstances() {
+    String location = "s3://foo/shared.txt";
+    InMemoryFileIO fileIO = new InMemoryFileIO();
+    fileIO.addFile(location, "hello world".getBytes());
+
+    InMemoryFileIO fileIO2 = new InMemoryFileIO();
+    Assertions.assertThat(fileIO2.fileExists(location));
   }
 }
