@@ -1494,13 +1494,12 @@ components:
       name: pageToken
       in: query
       description:
-        An opaque token which allows clients to make use of pagination by signaling to the service that they would
-        prefer requests to be paginated based on the number of items specified by pageSize.
+        An opaque token which allows clients to make use of pagination for a list API (e.g. ListTables) by signaling to the service that they would
+        that they would prefer response to be paginated. If pageSize is specified, the service should return exactly the number of items specified by it.
         
         Clients that support pagination initiate the request by sending an empty pageToken e.g. GET /tables?pageToken
         Servers supporting pagination would recognize pagination is requested due to the presence of the pageToken
-        and honor the contracts specified above by returning a non-empty next pageToken 
-        if there are more results available, or an empty next pageToken indicating no more results.
+        and honor the contracts specified above by returning a NextPageToken in response if there are more results available.
         Servers that are non-pagination aware will ignore the token and return all results.
       required: false
       allowEmptyValue: true
@@ -1619,8 +1618,7 @@ components:
 
     NextPageToken:
       description:
-        An opaque next page token, when non-empty this indicates that more results can be returned by server,
-        and when empty this indicates the returned results are complete.
+        An opaque next page token, when non-empty this indicates that more results can be returned by server.
         This should be used in the next request for the query parameter of pageToken.
       type: string
 
