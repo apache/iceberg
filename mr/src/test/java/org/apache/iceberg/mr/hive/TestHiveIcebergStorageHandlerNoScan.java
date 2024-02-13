@@ -34,6 +34,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.common.StatsSetupConst;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.BaseTable;
@@ -45,6 +46,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -773,30 +775,26 @@ public class TestHiveIcebergStorageHandlerNoScan {
     assertThat(icebergTable.properties()).isEqualTo((expectedIcebergProperties));
 
     if (Catalogs.hiveCatalog(shell.getHiveConf(), tableProperties)) {
-      assertThat(hmsParams).hasSize(14);
-      assertThat(hmsParams).containsEntry("custom_property", "initial_val");
-      assertThat(hmsParams).containsEntry(InputFormatConfig.EXTERNAL_TABLE_PURGE, "TRUE");
-      assertThat(hmsParams).containsEntry("EXTERNAL", "TRUE");
-      assertThat(hmsParams).containsEntry(TableProperties.ENGINE_HIVE_ENABLED, "true");
-      assertThat(hmsParams)
+      assertThat(hmsParams).hasSize(14)
+          .containsEntry("custom_property", "initial_val")
+          .containsEntry(InputFormatConfig.EXTERNAL_TABLE_PURGE, "TRUE")
+          .containsEntry("EXTERNAL", "TRUE")
+          .containsEntry(TableProperties.ENGINE_HIVE_ENABLED, "true")
           .containsEntry(
               hive_metastoreConstants.META_TABLE_STORAGE,
-              HiveIcebergStorageHandler.class.getName());
-      assertThat(hmsParams)
+              HiveIcebergStorageHandler.class.getName())
           .containsEntry(
               BaseMetastoreTableOperations.TABLE_TYPE_PROP,
-              BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase());
-      assertThat(hmsParams)
+              BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase())
           .containsEntry(
               BaseMetastoreTableOperations.METADATA_LOCATION_PROP,
-              getCurrentSnapshotForHiveCatalogTable(icebergTable));
-      assertThat(hmsParams)
-          .doesNotContainKey(BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP);
-      assertThat(hmsParams).containsKey(hive_metastoreConstants.DDL_TIME);
-      assertThat(hmsParams).containsKey(InputFormatConfig.PARTITION_SPEC);
+              getCurrentSnapshotForHiveCatalogTable(icebergTable))
+          .doesNotContainKey(BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP)
+          .containsKey(hive_metastoreConstants.DDL_TIME)
+          .containsKey(InputFormatConfig.PARTITION_SPEC);
     } else {
-      assertThat(hmsParams).hasSize(8);
-      assertThat(hmsParams).doesNotContainKey(TableProperties.ENGINE_HIVE_ENABLED);
+      assertThat(hmsParams).hasSize(8)
+          .doesNotContainKey(TableProperties.ENGINE_HIVE_ENABLED);
     }
 
     // Check HMS inputformat/outputformat/serde
@@ -821,17 +819,16 @@ public class TestHiveIcebergStorageHandlerNoScan {
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
     if (Catalogs.hiveCatalog(shell.getHiveConf(), tableProperties)) {
-      assertThat(hmsParams).hasSize(17);
-      assertThat(hmsParams).containsEntry("new_prop_1", "true");
-      assertThat(hmsParams).containsEntry("new_prop_2", "false");
-      assertThat(hmsParams).containsEntry("custom_property", "new_val");
+      assertThat(hmsParams).hasSize(17)
+          .containsEntry("new_prop_1", "true")
+          .containsEntry("new_prop_2", "false")
+          .containsEntry("custom_property", "new_val");
       String prevSnapshot = getCurrentSnapshotForHiveCatalogTable(icebergTable);
       icebergTable.refresh();
       String newSnapshot = getCurrentSnapshotForHiveCatalogTable(icebergTable);
       assertThat(hmsParams)
           .containsEntry(
-              BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP, prevSnapshot);
-      assertThat(hmsParams)
+              BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP, prevSnapshot)
           .containsEntry(BaseMetastoreTableOperations.METADATA_LOCATION_PROP, newSnapshot);
     } else {
       assertThat(hmsParams).hasSize(8);
@@ -841,9 +838,10 @@ public class TestHiveIcebergStorageHandlerNoScan {
     if (Catalogs.hiveCatalog(shell.getHiveConf(), tableProperties)) {
       icebergTable.updateProperties().remove("custom_property").remove("new_prop_1").commit();
       hmsParams = shell.metastore().getTable("default", "customers").getParameters();
-      assertThat(hmsParams).doesNotContainKey("custom_property");
-      assertThat(hmsParams).doesNotContainKey("new_prop_1");
-      assertThat(hmsParams).containsKey("new_prop_2");
+      assertThat(hmsParams)
+          .doesNotContainKey("custom_property")
+          .doesNotContainKey("new_prop_1")
+          .containsKey("new_prop_2");
     }
 
     // append some data and check whether HMS stats are aligned with snapshot summary
@@ -853,9 +851,10 @@ public class TestHiveIcebergStorageHandlerNoScan {
           shell.getHiveConf(), icebergTable, FileFormat.PARQUET, null, records);
       hmsParams = shell.metastore().getTable("default", "customers").getParameters();
       Map<String, String> summary = icebergTable.currentSnapshot().summary();
-      assertThat(hmsParams).doesNotContainKey("custom_property");
-      assertThat(hmsParams).doesNotContainKey("new_prop_1");
-      assertThat(hmsParams).containsKey("new_prop_2");
+      assertThat(hmsParams)
+          .containsEntry(StatsSetupConst.NUM_FILES, summary.get(SnapshotSummary.TOTAL_DATA_FILES_PROP))
+          .containsEntry(StatsSetupConst.ROW_COUNT, summary.get(SnapshotSummary.TOTAL_RECORDS_PROP))
+          .containsEntry(StatsSetupConst.TOTAL_SIZE, summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP));
     }
   }
 
@@ -882,8 +881,9 @@ public class TestHiveIcebergStorageHandlerNoScan {
 
     // Check that HMS table prop was translated to equivalent Iceberg prop (purge -> gc.enabled)
     org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
-    assertThat(icebergTable.properties()).containsEntry(GC_ENABLED, "false");
-    assertThat(icebergTable.properties()).doesNotContainKey(InputFormatConfig.EXTERNAL_TABLE_PURGE);
+    assertThat(icebergTable.properties())
+        .containsEntry(GC_ENABLED, "false")
+        .doesNotContainKey(InputFormatConfig.EXTERNAL_TABLE_PURGE);
 
     // Change Iceberg prop
     icebergTable.updateProperties().set(GC_ENABLED, "true").commit();
@@ -891,8 +891,9 @@ public class TestHiveIcebergStorageHandlerNoScan {
     // Check that Iceberg prop was translated to equivalent HMS prop (gc.enabled -> purge)
     Map<String, String> hmsParams =
         shell.metastore().getTable("default", "customers").getParameters();
-    assertThat(hmsParams).containsEntry(InputFormatConfig.EXTERNAL_TABLE_PURGE, "true");
-    assertThat(hmsParams).doesNotContainKey(GC_ENABLED);
+    assertThat(hmsParams)
+        .containsEntry(InputFormatConfig.EXTERNAL_TABLE_PURGE, "true")
+        .doesNotContainKey(GC_ENABLED);
   }
 
   @TestTemplate
