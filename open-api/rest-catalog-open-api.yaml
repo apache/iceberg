@@ -1510,8 +1510,8 @@ components:
       name: pageSize
       in: query
       description:
-        The number of results to return on the next page for servers that support pagination.
-        For servers that do not support pagination clients may receive results larger than the indicated pageSize.
+        For servers that support pagination, this signals an upper bound of the number of results that client will receive. 
+        For servers that do not support pagination, clients may receive results larger than the indicated pageSize.
       required: false
       allowEmptyValue: true
       schema:
