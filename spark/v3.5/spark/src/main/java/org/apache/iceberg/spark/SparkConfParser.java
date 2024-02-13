@@ -50,6 +50,10 @@ class SparkConfParser {
     this.options = options;
   }
 
+  public RuntimeConfig getSessionConf() {
+    return sessionConf;
+  }
+
   public BooleanConfParser booleanConf() {
     return new BooleanConfParser();
   }

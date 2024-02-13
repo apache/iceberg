@@ -376,16 +376,20 @@ public class ArrowReader extends CloseableGroup {
      */
     private static ArrowBatchReader buildReader(
         Schema expectedSchema, MessageType fileSchema, boolean setArrowValidityVector) {
+      VectorizedReaderBuilder vectorizedReaderBuilder = new VectorizedReaderBuilder();
+      vectorizedReaderBuilder.initialize(
+          expectedSchema,
+          fileSchema,
+          setArrowValidityVector,
+          ImmutableMap.of(),
+          readers -> {
+            ArrowBatchReader batchReader = new ArrowBatchReader();
+            batchReader.initialize(readers);
+            return batchReader;
+          });
       return (ArrowBatchReader)
           TypeWithSchemaVisitor.visit(
-              expectedSchema.asStruct(),
-              fileSchema,
-              new VectorizedReaderBuilder(
-                  expectedSchema,
-                  fileSchema,
-                  setArrowValidityVector,
-                  ImmutableMap.of(),
-                  ArrowBatchReader::new));
+              expectedSchema.asStruct(), fileSchema, vectorizedReaderBuilder);
     }
   }
 }

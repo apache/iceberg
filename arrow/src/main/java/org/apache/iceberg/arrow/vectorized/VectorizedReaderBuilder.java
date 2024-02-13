@@ -40,15 +40,18 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
+@SuppressWarnings({"VisibilityModifier", "checkstyle:HiddenField"})
 public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedReader<?>> {
-  private final MessageType parquetSchema;
-  private final Schema icebergSchema;
-  private final BufferAllocator rootAllocator;
-  private final Map<Integer, ?> idToConstant;
-  private final boolean setArrowValidityVector;
-  private final Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory;
+  protected MessageType parquetSchema;
+  protected Schema icebergSchema;
+  protected BufferAllocator rootAllocator;
+  protected Map<Integer, ?> idToConstant;
+  protected boolean setArrowValidityVector;
+  protected Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory;
 
-  public VectorizedReaderBuilder(
+  public VectorizedReaderBuilder() {}
+
+  public void initialize(
       Schema expectedSchema,
       MessageType parquetSchema,
       boolean setArrowValidityVector,

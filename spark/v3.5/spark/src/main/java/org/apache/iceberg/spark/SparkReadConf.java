@@ -21,6 +21,7 @@ package org.apache.iceberg.spark;
 import static org.apache.iceberg.PlanningMode.LOCAL;
 
 import java.util.Map;
+import java.util.Properties;
 import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -268,6 +269,38 @@ public class SparkReadConf {
         .sessionConf(SparkSQLProperties.PRESERVE_DATA_GROUPING)
         .defaultValue(SparkSQLProperties.PRESERVE_DATA_GROUPING_DEFAULT)
         .parse();
+  }
+
+  public String getCustomizedVectorizationImpl() {
+    return confParser
+        .stringConf()
+        .sessionConf(SparkSQLProperties.CUSTOMIZED_VECTORIZATION_IMPL)
+        .defaultValue("")
+        .parse();
+  }
+
+  public String getCustomizedVectorizationPropertyPrefix() {
+    return confParser
+        .stringConf()
+        .sessionConf(SparkSQLProperties.CUSTOMIZED_VECTORIZATION_PROPERTY_PREFIX)
+        .defaultValue("")
+        .parse();
+  }
+
+  public Properties getCustomizedVectorizationProperties() {
+    Properties properties = new Properties();
+
+    java.util.Map<String, String> map =
+        scala.collection.JavaConverters.mapAsJavaMapConverter(confParser.getSessionConf().getAll())
+            .asJava();
+
+    for (Map.Entry<String, String> entry : map.entrySet()) {
+      if (entry.getKey().contains(getCustomizedVectorizationPropertyPrefix())) {
+        properties.put(entry.getKey(), entry.getValue());
+      }
+    }
+
+    return properties;
   }
 
   public boolean aggregatePushDownEnabled() {

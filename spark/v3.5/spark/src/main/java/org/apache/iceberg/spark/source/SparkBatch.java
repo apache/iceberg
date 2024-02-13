@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.source;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Properties;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
@@ -115,11 +116,14 @@ class SparkBatch implements Batch {
   public PartitionReaderFactory createReaderFactory() {
     if (useParquetBatchReads()) {
       int batchSize = readConf.parquetBatchSize();
-      return new SparkColumnarReaderFactory(batchSize);
+      return new SparkColumnarReaderFactory(
+          batchSize,
+          readConf.getCustomizedVectorizationImpl(),
+          readConf.getCustomizedVectorizationProperties());
 
     } else if (useOrcBatchReads()) {
       int batchSize = readConf.orcBatchSize();
-      return new SparkColumnarReaderFactory(batchSize);
+      return new SparkColumnarReaderFactory(batchSize, "", new Properties());
 
     } else {
       return new SparkRowReaderFactory();

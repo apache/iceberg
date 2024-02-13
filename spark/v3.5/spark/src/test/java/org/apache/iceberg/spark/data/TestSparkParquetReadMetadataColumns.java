@@ -28,6 +28,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Properties;
 import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -190,7 +191,12 @@ public class TestSparkParquetReadMetadataColumns {
     builder.createBatchedReaderFunc(
         fileSchema ->
             VectorizedSparkParquetReaders.buildReader(
-                PROJECTION_SCHEMA, fileSchema, Maps.newHashMap(), deleteFilter));
+                PROJECTION_SCHEMA,
+                fileSchema,
+                Maps.newHashMap(),
+                deleteFilter,
+                "",
+                new Properties()));
     builder.recordsPerBatch(RECORDS_PER_BATCH);
 
     validate(expectedRowsAfterDelete, builder);
@@ -266,7 +272,7 @@ public class TestSparkParquetReadMetadataColumns {
       builder.createBatchedReaderFunc(
           fileSchema ->
               VectorizedSparkParquetReaders.buildReader(
-                  PROJECTION_SCHEMA, fileSchema, Maps.newHashMap(), null));
+                  PROJECTION_SCHEMA, fileSchema, Maps.newHashMap(), null, "", new Properties()));
       builder.recordsPerBatch(RECORDS_PER_BATCH);
     } else {
       builder =

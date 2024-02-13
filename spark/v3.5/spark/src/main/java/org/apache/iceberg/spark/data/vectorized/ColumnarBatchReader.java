@@ -21,10 +21,11 @@ package org.apache.iceberg.spark.data.vectorized;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.arrow.vectorized.BaseBatchReader;
+import java.util.Properties;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.arrow.vectorized.VectorHolder;
 import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader;
 import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader.DeletedVectorReader;
-import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -41,13 +42,18 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
  * read path. The {@link ColumnarBatch} returned is created by passing in the Arrow vectors
  * populated via delegated read calls to {@linkplain VectorizedArrowReader VectorReader(s)}.
  */
-public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
-  private final boolean hasIsDeletedColumn;
-  private DeleteFilter<InternalRow> deletes = null;
-  private long rowStartPosInBatch = 0;
+public class ColumnarBatchReader extends BaseColumnarBatchReader<ColumnarBatch> {
+  private VectorHolder[] vectorHolders;
 
-  public ColumnarBatchReader(List<VectorizedReader<?>> readers) {
-    super(readers);
+  public ColumnarBatchReader() {}
+
+  @Override
+  public void initialize(List<VectorizedReader<?>> readers, Schema schema, Properties properties) {
+    this.readers =
+        readers.stream()
+            .map(VectorizedArrowReader.class::cast)
+            .toArray(VectorizedArrowReader[]::new);
+    this.vectorHolders = new VectorHolder[readers.size()];
     this.hasIsDeletedColumn =
         readers.stream().anyMatch(reader -> reader instanceof DeletedVectorReader);
   }
@@ -59,8 +65,22 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
     this.rowStartPosInBatch = rowPosition;
   }
 
-  public void setDeleteFilter(DeleteFilter<InternalRow> deleteFilter) {
-    this.deletes = deleteFilter;
+  protected void closeVectors() {
+    for (int i = 0; i < vectorHolders.length; i++) {
+      if (vectorHolders[i] != null) {
+        // Release any resources used by the vector
+        if (vectorHolders[i].vector() != null) {
+          vectorHolders[i].vector().close();
+        }
+        vectorHolders[i] = null;
+      }
+    }
+  }
+
+  @Override
+  public void close() {
+    super.close();
+    closeVectors();
   }
 
   @Override
@@ -120,7 +140,8 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
 
       ColumnVectorBuilder columnVectorBuilder = new ColumnVectorBuilder();
       for (int i = 0; i < readers.length; i += 1) {
-        vectorHolders[i] = readers[i].read(vectorHolders[i], numRowsToRead);
+        vectorHolders[i] =
+            ((VectorizedArrowReader) readers[i]).read(vectorHolders[i], numRowsToRead);
         int numRowsInVector = vectorHolders[i].numValues();
         Preconditions.checkState(
             numRowsInVector == numRowsToRead,

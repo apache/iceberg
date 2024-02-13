@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
@@ -39,6 +40,8 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBatch, T> {
   private final int batchSize;
+  private String customizedVectorizationImpl;
+  private Properties customizedVectorizationProperties;
 
   BaseBatchReader(
       Table table,
@@ -49,6 +52,15 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       int batchSize) {
     super(table, taskGroup, tableSchema, expectedSchema, caseSensitive);
     this.batchSize = batchSize;
+  }
+
+  protected void setCustomizedVectorizationProperties(
+      Properties customizedVectorizationProperties) {
+    this.customizedVectorizationProperties = customizedVectorizationProperties;
+  }
+
+  protected void setCustomizedVectorizationImpl(String customizedVectorizationImpl) {
+    this.customizedVectorizationImpl = customizedVectorizationImpl;
   }
 
   protected CloseableIterable<ColumnarBatch> newBatchIterable(
@@ -88,7 +100,12 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
         .createBatchedReaderFunc(
             fileSchema ->
                 VectorizedSparkParquetReaders.buildReader(
-                    requiredSchema, fileSchema, idToConstant, deleteFilter))
+                    requiredSchema,
+                    fileSchema,
+                    idToConstant,
+                    deleteFilter,
+                    customizedVectorizationImpl,
+                    customizedVectorizationProperties))
         .recordsPerBatch(batchSize)
         .filter(residual)
         .caseSensitive(caseSensitive())

@@ -19,6 +19,7 @@
 package org.apache.iceberg.arrow.vectorized;
 
 import java.util.List;
+import org.apache.iceberg.parquet.BaseBatchReader;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
@@ -27,9 +28,17 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * holders. This class owns the Arrow vectors and is responsible for closing the Arrow vectors.
  */
 class ArrowBatchReader extends BaseBatchReader<ColumnarBatch> {
+  private VectorHolder[] vectorHolders;
 
-  ArrowBatchReader(List<VectorizedReader<?>> readers) {
-    super(readers);
+  ArrowBatchReader() {}
+
+  @Override
+  public void initialize(List<VectorizedReader<?>> readers) {
+    this.readers =
+        readers.stream()
+            .map(VectorizedArrowReader.class::cast)
+            .toArray(VectorizedArrowReader[]::new);
+    this.vectorHolders = new VectorHolder[readers.size()];
   }
 
   @Override
@@ -43,7 +52,7 @@ class ArrowBatchReader extends BaseBatchReader<ColumnarBatch> {
 
     ColumnVector[] columnVectors = new ColumnVector[readers.length];
     for (int i = 0; i < readers.length; i += 1) {
-      vectorHolders[i] = readers[i].read(vectorHolders[i], numRowsToRead);
+      vectorHolders[i] = ((VectorizedArrowReader) readers[i]).read(vectorHolders[i], numRowsToRead);
       int numRowsInVector = vectorHolders[i].numValues();
       Preconditions.checkState(
           numRowsInVector == numRowsToRead,
@@ -54,5 +63,23 @@ class ArrowBatchReader extends BaseBatchReader<ColumnarBatch> {
       columnVectors[i] = new ColumnVector(vectorHolders[i]);
     }
     return new ColumnarBatch(numRowsToRead, columnVectors);
+  }
+
+  protected void closeVectors() {
+    for (int i = 0; i < vectorHolders.length; i++) {
+      if (vectorHolders[i] != null) {
+        // Release any resources used by the vector
+        if (vectorHolders[i].vector() != null) {
+          vectorHolders[i].vector().close();
+        }
+        vectorHolders[i] = null;
+      }
+    }
+  }
+
+  @Override
+  public void close() {
+    super.close();
+    closeVectors();
   }
 }
