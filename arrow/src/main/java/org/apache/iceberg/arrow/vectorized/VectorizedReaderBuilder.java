@@ -51,6 +51,15 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
 
   public VectorizedReaderBuilder() {}
 
+  public VectorizedReaderBuilder(
+      Schema expectedSchema,
+      MessageType parquetSchema,
+      boolean setArrowValidityVector,
+      Map<Integer, ?> idToConstant,
+      Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory) {
+    initialize(expectedSchema, parquetSchema, setArrowValidityVector, idToConstant, readerFactory);
+  }
+
   public void initialize(
       Schema expectedSchema,
       MessageType parquetSchema,

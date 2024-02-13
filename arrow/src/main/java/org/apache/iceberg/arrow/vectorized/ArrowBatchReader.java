@@ -32,6 +32,10 @@ class ArrowBatchReader extends BaseBatchReader<ColumnarBatch> {
 
   ArrowBatchReader() {}
 
+  ArrowBatchReader(List<VectorizedReader<?>> readers) {
+    initialize(readers);
+  }
+
   @Override
   public void initialize(List<VectorizedReader<?>> readers) {
     this.readers =
