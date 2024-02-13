@@ -1150,7 +1150,7 @@ The `field-id` property was added for each partition field in v2. In v1, the ref
 
 Transforms that accept multiple arguments specify source field IDs using `source-ids` instead of `source-id`. Writers producing these transforms in v1 and v2 metadata should additionally produce the `source-id` field by setting it to the first ID from the `source-ids` list. Writers producing these transforms in v3 metadata should populate only the `source-ids` field because v3 readers will fully-support multi-arg transforms by reading this field.
 
-Older versions of the reference implementation can read tables with unknown transforms and will ignore multi-arg transforms, but other implementations may break if they encounter unknown transform names.
+Older versions of the reference implementation can read tables with transforms unknown to it, without the ability to push down filters or write. But other implementations may break if they encounter unknown transforms.
 
 ### Sort Orders
 
