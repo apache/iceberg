@@ -26,6 +26,7 @@ import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.DecimalData;
 import org.apache.flink.table.data.GenericArrayData;
@@ -50,6 +51,7 @@ import org.apache.iceberg.util.ArrayUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
@@ -193,6 +195,122 @@ public class FlinkParquetReaders {
           ParquetValueReaders.option(valueType, valueD, valueReader));
     }
 
+    private static class LogicalTypeAnnotationParquetValueReaderVisitor
+        implements LogicalTypeAnnotation.LogicalTypeAnnotationVisitor<ParquetValueReader<?>> {
+
+      private final PrimitiveType primitive;
+      private final ColumnDescriptor desc;
+      private final org.apache.iceberg.types.Type.PrimitiveType expected;
+
+      LogicalTypeAnnotationParquetValueReaderVisitor(
+          PrimitiveType primitive,
+          ColumnDescriptor desc,
+          org.apache.iceberg.types.Type.PrimitiveType expected) {
+        this.primitive = primitive;
+        this.desc = desc;
+        this.expected = expected;
+      }
+
+      @Override
+      public Optional<ParquetValueReader<?>> visit(
+          LogicalTypeAnnotation.StringLogicalTypeAnnotation stringLogicalType) {
+        return Optional.of(new StringReader(desc));
+      }
+
+      @Override
+      public Optional<ParquetValueReader<?>> visit(
+          LogicalTypeAnnotation.EnumLogicalTypeAnnotation enumLogicalType) {
+        return Optional.of(new StringReader(desc));
+      }
+
+      @Override
+      public Optional<ParquetValueReader<?>> visit(
+          LogicalTypeAnnotation.JsonLogicalTypeAnnotation jsonLogicalType) {
+        return Optional.of(new StringReader(desc));
+      }
+
+      @Override
+      public Optional<ParquetValueReader<?>> visit(
+          DecimalLogicalTypeAnnotation decimalLogicalType) {
+        switch (primitive.getPrimitiveTypeName()) {
+          case BINARY:
+          case FIXED_LEN_BYTE_ARRAY:
+            return Optional.of(
+                new BinaryDecimalReader(
+                    desc, decimalLogicalType.getPrecision(), decimalLogicalType.getScale()));
+          case INT64:
+            return Optional.of(
+                new LongDecimalReader(
+                    desc, decimalLogicalType.getPrecision(), decimalLogicalType.getScale()));
+          case INT32:
+            return Optional.of(
+                new IntegerDecimalReader(
+                    desc, decimalLogicalType.getPrecision(), decimalLogicalType.getScale()));
+        }
+
+        return LogicalTypeAnnotation.LogicalTypeAnnotationVisitor.super.visit(decimalLogicalType);
+      }
+
+      @Override
+      public Optional<ParquetValueReader<?>> visit(
+          LogicalTypeAnnotation.DateLogicalTypeAnnotation dateLogicalType) {
+        return Optional.of(new ParquetValueReaders.UnboxedReader<>(desc));
+      }
+
+      @Override
+      public Optional<ParquetValueReader<?>> visit(
+          LogicalTypeAnnotation.TimeLogicalTypeAnnotation timeLogicalType) {
+        if (timeLogicalType.getUnit() == LogicalTypeAnnotation.TimeUnit.MILLIS) {
+          return Optional.of(new MillisTimeReader(desc));
+        } else if (timeLogicalType.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS) {
+          return Optional.of(new LossyMicrosToMillisTimeReader(desc));
+        }
+
+        return LogicalTypeAnnotation.LogicalTypeAnnotationVisitor.super.visit(timeLogicalType);
+      }
+
+      @Override
+      public Optional<ParquetValueReader<?>> visit(
+          LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestampLogicalType) {
+        if (timestampLogicalType.getUnit() == LogicalTypeAnnotation.TimeUnit.MILLIS) {
+          if (timestampLogicalType.isAdjustedToUTC()) {
+            return Optional.of(new MillisToTimestampTzReader(desc));
+          } else {
+            return Optional.of(new MillisToTimestampReader(desc));
+          }
+        } else if (timestampLogicalType.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS) {
+          if (timestampLogicalType.isAdjustedToUTC()) {
+            return Optional.of(new MicrosToTimestampTzReader(desc));
+          } else {
+            return Optional.of(new MicrosToTimestampReader(desc));
+          }
+        }
+        return LogicalTypeAnnotation.LogicalTypeAnnotationVisitor.super.visit(timestampLogicalType);
+      }
+
+      @Override
+      public Optional<ParquetValueReader<?>> visit(
+          LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogicalType) {
+        int width = intLogicalType.getBitWidth();
+        if (width <= 32) {
+          if (expected.typeId() == Types.LongType.get().typeId()) {
+            return Optional.of(new ParquetValueReaders.IntAsLongReader(desc));
+          } else {
+            return Optional.of(new ParquetValueReaders.UnboxedReader<>(desc));
+          }
+        } else if (width <= 64) {
+          return Optional.of(new ParquetValueReaders.UnboxedReader<>(desc));
+        }
+        return LogicalTypeAnnotation.LogicalTypeAnnotationVisitor.super.visit(intLogicalType);
+      }
+
+      @Override
+      public Optional<ParquetValueReader<?>> visit(
+          LogicalTypeAnnotation.BsonLogicalTypeAnnotation bsonLogicalType) {
+        return Optional.of(new ParquetValueReaders.ByteArrayReader(desc));
+      }
+    }
+
     @Override
     @SuppressWarnings("CyclomaticComplexity")
     public ParquetValueReader<?> primitive(
@@ -202,61 +320,14 @@ public class FlinkParquetReaders {
       }
 
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
-
-      if (primitive.getOriginalType() != null) {
-        switch (primitive.getOriginalType()) {
-          case ENUM:
-          case JSON:
-          case UTF8:
-            return new StringReader(desc);
-          case INT_8:
-          case INT_16:
-          case INT_32:
-            if (expected.typeId() == Types.LongType.get().typeId()) {
-              return new ParquetValueReaders.IntAsLongReader(desc);
-            } else {
-              return new ParquetValueReaders.UnboxedReader<>(desc);
-            }
-          case TIME_MICROS:
-            return new LossyMicrosToMillisTimeReader(desc);
-          case TIME_MILLIS:
-            return new MillisTimeReader(desc);
-          case DATE:
-          case INT_64:
-            return new ParquetValueReaders.UnboxedReader<>(desc);
-          case TIMESTAMP_MICROS:
-            if (((Types.TimestampType) expected).shouldAdjustToUTC()) {
-              return new MicrosToTimestampTzReader(desc);
-            } else {
-              return new MicrosToTimestampReader(desc);
-            }
-          case TIMESTAMP_MILLIS:
-            if (((Types.TimestampType) expected).shouldAdjustToUTC()) {
-              return new MillisToTimestampTzReader(desc);
-            } else {
-              return new MillisToTimestampReader(desc);
-            }
-          case DECIMAL:
-            DecimalLogicalTypeAnnotation decimal =
-                (DecimalLogicalTypeAnnotation) primitive.getLogicalTypeAnnotation();
-            switch (primitive.getPrimitiveTypeName()) {
-              case BINARY:
-              case FIXED_LEN_BYTE_ARRAY:
-                return new BinaryDecimalReader(desc, decimal.getPrecision(), decimal.getScale());
-              case INT64:
-                return new LongDecimalReader(desc, decimal.getPrecision(), decimal.getScale());
-              case INT32:
-                return new IntegerDecimalReader(desc, decimal.getPrecision(), decimal.getScale());
-              default:
-                throw new UnsupportedOperationException(
-                    "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
-            }
-          case BSON:
-            return new ParquetValueReaders.ByteArrayReader(desc);
-          default:
-            throw new UnsupportedOperationException(
-                "Unsupported logical type: " + primitive.getOriginalType());
-        }
+      LogicalTypeAnnotation logicalTypeAnnotation = primitive.getLogicalTypeAnnotation();
+      if (logicalTypeAnnotation != null) {
+        return logicalTypeAnnotation
+            .accept(new LogicalTypeAnnotationParquetValueReaderVisitor(primitive, desc, expected))
+            .orElseThrow(
+                () ->
+                    new UnsupportedOperationException(
+                        "Unsupported logical type: " + primitive.getLogicalTypeAnnotation()));
       }
 
       switch (primitive.getPrimitiveTypeName()) {
