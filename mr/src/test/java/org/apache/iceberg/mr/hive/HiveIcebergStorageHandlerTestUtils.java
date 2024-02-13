@@ -21,6 +21,7 @@ package org.apache.iceberg.mr.hive;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -31,7 +32,6 @@ import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.OrcConf;
-import org.junit.rules.TemporaryFolder;
 
 public class HiveIcebergStorageHandlerTestUtils {
   static final FileFormat[] FILE_FORMATS =
@@ -78,22 +78,17 @@ public class HiveIcebergStorageHandlerTestUtils {
   }
 
   static TestTables testTables(
-      TestHiveShell shell, TestTables.TestTableType testTableType, TemporaryFolder temp)
-      throws IOException {
+      TestHiveShell shell, TestTables.TestTableType testTableType, Path temp) throws IOException {
     return testTables(shell, testTableType, temp, Catalogs.ICEBERG_DEFAULT_CATALOG_NAME);
   }
 
   static TestTables testTables(
-      TestHiveShell shell,
-      TestTables.TestTableType testTableType,
-      TemporaryFolder temp,
-      String catalogName)
+      TestHiveShell shell, TestTables.TestTableType testTableType, Path temp, String catalogName)
       throws IOException {
     return testTableType.instance(shell.metastore().hiveConf(), temp, catalogName);
   }
 
-  static void init(
-      TestHiveShell shell, TestTables testTables, TemporaryFolder temp, String engine) {
+  static void init(TestHiveShell shell, TestTables testTables, Path temp, String engine) {
     shell.openSession();
 
     for (Map.Entry<String, String> property : testTables.properties().entrySet()) {
@@ -101,8 +96,8 @@ public class HiveIcebergStorageHandlerTestUtils {
     }
 
     shell.setHiveSessionValue("hive.execution.engine", engine);
-    shell.setHiveSessionValue("hive.jar.directory", temp.getRoot().getAbsolutePath());
-    shell.setHiveSessionValue("tez.staging-dir", temp.getRoot().getAbsolutePath());
+    shell.setHiveSessionValue("hive.jar.directory", temp.toAbsolutePath().toString());
+    shell.setHiveSessionValue("tez.staging-dir", temp.toAbsolutePath().toString());
   }
 
   static void close(TestHiveShell shell) throws Exception {

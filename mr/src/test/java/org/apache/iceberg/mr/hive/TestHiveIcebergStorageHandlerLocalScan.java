@@ -19,16 +19,19 @@
 package org.apache.iceberg.mr.hive;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.junit.runners.Parameterized.Parameter;
-import static org.junit.runners.Parameterized.Parameters;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
@@ -45,18 +48,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestHiveIcebergStorageHandlerLocalScan {
 
   @Parameters(name = "fileFormat={0}, catalog={1}")
@@ -83,25 +83,25 @@ public class TestHiveIcebergStorageHandlerLocalScan {
 
   private TestTables testTables;
 
-  @Parameter(0)
-  public FileFormat fileFormat;
+  @Parameter(index = 0)
+  private FileFormat fileFormat;
 
-  @Parameter(1)
-  public TestTables.TestTableType testTableType;
+  @Parameter(index = 1)
+  private TestTables.TestTableType testTableType;
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
-  @BeforeClass
+  @BeforeAll
   public static void beforeClass() {
     shell = HiveIcebergStorageHandlerTestUtils.shell();
   }
 
-  @AfterClass
+  @AfterAll
   public static void afterClass() throws Exception {
     shell.stop();
   }
 
-  @Before
+  @BeforeEach
   public void before() throws IOException {
     testTables = HiveIcebergStorageHandlerTestUtils.testTables(shell, testTableType, temp);
     // Uses spark as an engine so we can detect if we unintentionally try to use any execution
@@ -109,21 +109,21 @@ public class TestHiveIcebergStorageHandlerLocalScan {
     HiveIcebergStorageHandlerTestUtils.init(shell, testTables, temp, "spark");
   }
 
-  @After
+  @AfterEach
   public void after() throws Exception {
     HiveIcebergStorageHandlerTestUtils.close(shell);
   }
 
-  @Test
+  @TestTemplate
   public void testScanEmptyTable() throws IOException {
     Schema emptySchema = new Schema(required(1, "empty", Types.StringType.get()));
     testTables.createTable(shell, "empty", emptySchema, fileFormat, ImmutableList.of());
 
     List<Object[]> rows = shell.executeStatement("SELECT * FROM default.empty");
-    Assert.assertEquals(0, rows.size());
+    assertThat(rows).isEmpty();
   }
 
-  @Test
+  @TestTemplate
   public void testScanTable() throws IOException {
     testTables.createTable(
         shell,
@@ -135,13 +135,14 @@ public class TestHiveIcebergStorageHandlerLocalScan {
     // Single fetch task: no MR job.
     List<Object[]> rows = shell.executeStatement("SELECT * FROM default.customers");
 
-    Assert.assertEquals(3, rows.size());
-    Assert.assertArrayEquals(new Object[] {0L, "Alice", "Brown"}, rows.get(0));
-    Assert.assertArrayEquals(new Object[] {1L, "Bob", "Green"}, rows.get(1));
-    Assert.assertArrayEquals(new Object[] {2L, "Trudy", "Pink"}, rows.get(2));
+    assertThat(rows)
+        .containsExactly(
+            new Object[] {0L, "Alice", "Brown"},
+            new Object[] {1L, "Bob", "Green"},
+            new Object[] {2L, "Trudy", "Pink"});
   }
 
-  @Test
+  @TestTemplate
   public void testScanTableCaseInsensitive() throws IOException {
     testTables.createTable(
         shell,
@@ -152,22 +153,22 @@ public class TestHiveIcebergStorageHandlerLocalScan {
 
     List<Object[]> rows = shell.executeStatement("SELECT * FROM default.customers");
 
-    Assert.assertEquals(3, rows.size());
-    Assert.assertArrayEquals(new Object[] {0L, "Alice", "Brown"}, rows.get(0));
-    Assert.assertArrayEquals(new Object[] {1L, "Bob", "Green"}, rows.get(1));
-    Assert.assertArrayEquals(new Object[] {2L, "Trudy", "Pink"}, rows.get(2));
+    assertThat(rows)
+        .containsExactly(
+            new Object[] {0L, "Alice", "Brown"},
+            new Object[] {1L, "Bob", "Green"},
+            new Object[] {2L, "Trudy", "Pink"});
 
     rows =
         shell.executeStatement(
             "SELECT * FROM default.customers where CustomER_Id < 2 "
                 + "and first_name in ('Alice', 'Bob')");
 
-    Assert.assertEquals(2, rows.size());
-    Assert.assertArrayEquals(new Object[] {0L, "Alice", "Brown"}, rows.get(0));
-    Assert.assertArrayEquals(new Object[] {1L, "Bob", "Green"}, rows.get(1));
+    assertThat(rows)
+        .containsExactly(new Object[] {0L, "Alice", "Brown"}, new Object[] {1L, "Bob", "Green"});
   }
 
-  @Test
+  @TestTemplate
   public void testDecimalTableWithPredicateLiterals() throws IOException {
     Schema schema = new Schema(required(1, "decimal_field", Types.DecimalType.of(7, 2)));
     List<Record> records =
@@ -181,28 +182,23 @@ public class TestHiveIcebergStorageHandlerLocalScan {
     // Use integer literal in predicate
     List<Object[]> rows =
         shell.executeStatement("SELECT * FROM default.dec_test where decimal_field >= 85");
-    Assert.assertEquals(3, rows.size());
-    Assert.assertArrayEquals(new Object[] {"85.00"}, rows.get(0));
-    Assert.assertArrayEquals(new Object[] {"100.56"}, rows.get(1));
-    Assert.assertArrayEquals(new Object[] {"100.57"}, rows.get(2));
+    assertThat(rows)
+        .containsExactly(new Object[] {"85.00"}, new Object[] {"100.56"}, new Object[] {"100.57"});
 
     // Use decimal literal in predicate with smaller scale than schema type definition
     rows = shell.executeStatement("SELECT * FROM default.dec_test where decimal_field > 99.1");
-    Assert.assertEquals(2, rows.size());
-    Assert.assertArrayEquals(new Object[] {"100.56"}, rows.get(0));
-    Assert.assertArrayEquals(new Object[] {"100.57"}, rows.get(1));
+    assertThat(rows).containsExactly(new Object[] {"100.56"}, new Object[] {"100.57"});
 
     // Use decimal literal in predicate with higher scale than schema type definition
     rows = shell.executeStatement("SELECT * FROM default.dec_test where decimal_field > 100.565");
-    Assert.assertEquals(1, rows.size());
-    Assert.assertArrayEquals(new Object[] {"100.57"}, rows.get(0));
+    assertThat(rows).containsExactly(new Object[] {"100.57"});
 
     // Use decimal literal in predicate with the same scale as schema type definition
     rows = shell.executeStatement("SELECT * FROM default.dec_test where decimal_field > 640.34");
-    Assert.assertEquals(0, rows.size());
+    assertThat(rows).isEmpty();
   }
 
-  @Test
+  @TestTemplate
   public void testColumnSelection() throws IOException {
     testTables.createTable(
         shell,
@@ -214,37 +210,37 @@ public class TestHiveIcebergStorageHandlerLocalScan {
     List<Object[]> outOfOrderColumns =
         shell.executeStatement("SELECT first_name, customer_id, last_name FROM default.customers");
 
-    Assert.assertEquals(3, outOfOrderColumns.size());
-    Assert.assertArrayEquals(new Object[] {"Alice", 0L, "Brown"}, outOfOrderColumns.get(0));
-    Assert.assertArrayEquals(new Object[] {"Bob", 1L, "Green"}, outOfOrderColumns.get(1));
-    Assert.assertArrayEquals(new Object[] {"Trudy", 2L, "Pink"}, outOfOrderColumns.get(2));
+    assertThat(outOfOrderColumns)
+        .containsExactly(
+            new Object[] {"Alice", 0L, "Brown"},
+            new Object[] {"Bob", 1L, "Green"},
+            new Object[] {"Trudy", 2L, "Pink"});
 
     List<Object[]> allButFirstColumn =
         shell.executeStatement("SELECT first_name, last_name FROM default.customers");
 
-    Assert.assertEquals(3, allButFirstColumn.size());
-    Assert.assertArrayEquals(new Object[] {"Alice", "Brown"}, allButFirstColumn.get(0));
-    Assert.assertArrayEquals(new Object[] {"Bob", "Green"}, allButFirstColumn.get(1));
-    Assert.assertArrayEquals(new Object[] {"Trudy", "Pink"}, allButFirstColumn.get(2));
+    assertThat(allButFirstColumn)
+        .containsExactly(
+            new Object[] {"Alice", "Brown"},
+            new Object[] {"Bob", "Green"},
+            new Object[] {"Trudy", "Pink"});
 
     List<Object[]> allButMiddleColumn =
         shell.executeStatement("SELECT customer_id, last_name FROM default.customers");
 
-    Assert.assertEquals(3, allButMiddleColumn.size());
-    Assert.assertArrayEquals(new Object[] {0L, "Brown"}, allButMiddleColumn.get(0));
-    Assert.assertArrayEquals(new Object[] {1L, "Green"}, allButMiddleColumn.get(1));
-    Assert.assertArrayEquals(new Object[] {2L, "Pink"}, allButMiddleColumn.get(2));
+    assertThat(allButMiddleColumn)
+        .containsExactly(
+            new Object[] {0L, "Brown"}, new Object[] {1L, "Green"}, new Object[] {2L, "Pink"});
 
     List<Object[]> allButLastColumn =
         shell.executeStatement("SELECT customer_id, first_name FROM default.customers");
 
-    Assert.assertEquals(3, allButLastColumn.size());
-    Assert.assertArrayEquals(new Object[] {0L, "Alice"}, allButLastColumn.get(0));
-    Assert.assertArrayEquals(new Object[] {1L, "Bob"}, allButLastColumn.get(1));
-    Assert.assertArrayEquals(new Object[] {2L, "Trudy"}, allButLastColumn.get(2));
+    assertThat(allButLastColumn)
+        .containsExactly(
+            new Object[] {0L, "Alice"}, new Object[] {1L, "Bob"}, new Object[] {2L, "Trudy"});
   }
 
-  @Test
+  @TestTemplate
   public void selectSameColumnTwice() throws IOException {
     testTables.createTable(
         shell,
@@ -256,13 +252,14 @@ public class TestHiveIcebergStorageHandlerLocalScan {
     List<Object[]> columns =
         shell.executeStatement("SELECT first_name, first_name FROM default.customers");
 
-    Assert.assertEquals(3, columns.size());
-    Assert.assertArrayEquals(new Object[] {"Alice", "Alice"}, columns.get(0));
-    Assert.assertArrayEquals(new Object[] {"Bob", "Bob"}, columns.get(1));
-    Assert.assertArrayEquals(new Object[] {"Trudy", "Trudy"}, columns.get(2));
+    assertThat(columns)
+        .containsExactly(
+            new Object[] {"Alice", "Alice"},
+            new Object[] {"Bob", "Bob"},
+            new Object[] {"Trudy", "Trudy"});
   }
 
-  @Test
+  @TestTemplate
   public void testCreateTableWithColumnSpecification() throws IOException {
     TableIdentifier identifier = TableIdentifier.of("default", "customers");
     Map<StructLike, List<Record>> data = Maps.newHashMapWithExpectedSize(1);
@@ -283,7 +280,7 @@ public class TestHiveIcebergStorageHandlerLocalScan {
         data);
   }
 
-  @Test
+  @TestTemplate
   public void testCreateTableWithColumnSpecificationPartitioned() throws IOException {
     TableIdentifier identifier = TableIdentifier.of("default", "customers");
     PartitionSpec spec =
@@ -313,7 +310,7 @@ public class TestHiveIcebergStorageHandlerLocalScan {
         identifier, createSql, HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, spec, data);
   }
 
-  @Test
+  @TestTemplate
   public void testCreatePartitionedTableByProperty() throws IOException {
     TableIdentifier identifier = TableIdentifier.of("default", "customers");
     PartitionSpec spec =
@@ -355,7 +352,7 @@ public class TestHiveIcebergStorageHandlerLocalScan {
         identifier, createSql, HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, spec, data);
   }
 
-  @Test
+  @TestTemplate
   public void testCreateTableWithColumnSpecificationMultilevelPartitioned() throws IOException {
     TableIdentifier identifier = TableIdentifier.of("default", "customers");
     PartitionSpec spec =
@@ -387,7 +384,7 @@ public class TestHiveIcebergStorageHandlerLocalScan {
         identifier, createSql, HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, spec, data);
   }
 
-  @Test
+  @TestTemplate
   public void testArrayOfPrimitivesInTable() throws IOException {
     Schema schema =
         new Schema(
@@ -404,12 +401,12 @@ public class TestHiveIcebergStorageHandlerLocalScan {
                 String.format(
                     "SELECT arrayofprimitives[%d] FROM default.arraytable " + "LIMIT 1 OFFSET %d",
                     j, i));
-        Assert.assertEquals(expectedList.get(j), queryResult.get(0)[0]);
+        assertThat(queryResult.get(0)[0]).isEqualTo(expectedList.get(j));
       }
     }
   }
 
-  @Test
+  @TestTemplate
   public void testArrayOfArraysInTable() throws IOException {
     Schema schema =
         new Schema(
@@ -430,13 +427,13 @@ public class TestHiveIcebergStorageHandlerLocalScan {
                   String.format(
                       "SELECT arrayofarrays[%d][%d] FROM default.arraytable " + "LIMIT 1 OFFSET %d",
                       j, k, i));
-          Assert.assertEquals(expectedInnerList.get(k).toString(), queryResult.get(0)[0]);
+          assertThat(queryResult.get(0)[0]).isEqualTo(expectedInnerList.get(k).toString());
         }
       }
     }
   }
 
-  @Test
+  @TestTemplate
   public void testArrayOfMapsInTable() throws IOException {
     Schema schema =
         new Schema(
@@ -460,13 +457,13 @@ public class TestHiveIcebergStorageHandlerLocalScan {
                   String.format(
                       "SELECT arrayofmaps[%d][\"%s\"] FROM default.arraytable LIMIT 1 OFFSET %d",
                       j, entry.getKey(), i));
-          Assert.assertEquals(entry.getValue(), queryResult.get(0)[0]);
+          assertThat(queryResult.get(0)[0]).isEqualTo(entry.getValue());
         }
       }
     }
   }
 
-  @Test
+  @TestTemplate
   public void testArrayOfStructsInTable() throws IOException {
     Schema schema =
         new Schema(
@@ -493,14 +490,16 @@ public class TestHiveIcebergStorageHandlerLocalScan {
                         + "OFFSET %d",
                     j, j, j, i));
         GenericRecord genericRecord = (GenericRecord) expectedList.get(j);
-        Assert.assertEquals(genericRecord.getField("something"), queryResult.get(0)[0]);
-        Assert.assertEquals(genericRecord.getField("someone"), queryResult.get(0)[1]);
-        Assert.assertEquals(genericRecord.getField("somewhere"), queryResult.get(0)[2]);
+        assertThat(queryResult.get(0))
+            .containsExactly(
+                genericRecord.getField("something"),
+                genericRecord.getField("someone"),
+                genericRecord.getField("somewhere"));
       }
     }
   }
 
-  @Test
+  @TestTemplate
   public void testMapOfPrimitivesInTable() throws IOException {
     Schema schema =
         new Schema(
@@ -519,12 +518,12 @@ public class TestHiveIcebergStorageHandlerLocalScan {
                 String.format(
                     "SELECT mapofprimitives[\"%s\"] " + "FROM default.maptable LIMIT 1 OFFSET %d",
                     entry.getKey(), i));
-        Assert.assertEquals(entry.getValue(), queryResult.get(0)[0]);
+        assertThat(queryResult.get(0)[0]).isEqualTo(entry.getValue());
       }
     }
   }
 
-  @Test
+  @TestTemplate
   public void testMapOfArraysInTable() throws IOException {
     Schema schema =
         new Schema(
@@ -549,13 +548,13 @@ public class TestHiveIcebergStorageHandlerLocalScan {
                   String.format(
                       "SELECT mapofarrays[\"%s\"]" + "[%d] FROM maptable LIMIT 1 OFFSET %d",
                       entry.getKey(), j, i));
-          Assert.assertEquals(expectedList.get(j).toString(), queryResult.get(0)[0]);
+          assertThat(queryResult.get(0)[0]).isEqualTo(expectedList.get(j).toString());
         }
       }
     }
   }
 
-  @Test
+  @TestTemplate
   public void testMapOfMapsInTable() throws IOException {
     Schema schema =
         new Schema(
@@ -581,13 +580,13 @@ public class TestHiveIcebergStorageHandlerLocalScan {
                   String.format(
                       "SELECT mapofmaps[\"%s\"]" + "[\"%s\"] FROM maptable LIMIT 1 OFFSET %d",
                       entry.getKey(), innerEntry.getKey(), i));
-          Assert.assertEquals(innerEntry.getValue(), queryResult.get(0)[0]);
+          assertThat(queryResult.get(0)[0]).isEqualTo(innerEntry.getValue());
         }
       }
     }
   }
 
-  @Test
+  @TestTemplate
   public void testMapOfStructsInTable() throws IOException {
     Schema schema =
         new Schema(
@@ -616,14 +615,16 @@ public class TestHiveIcebergStorageHandlerLocalScan {
                         + "OFFSET %d",
                     entry.getKey(), entry.getKey(), entry.getKey(), i));
         GenericRecord genericRecord = (GenericRecord) entry.getValue();
-        Assert.assertEquals(genericRecord.getField("something"), queryResult.get(0)[0]);
-        Assert.assertEquals(genericRecord.getField("someone"), queryResult.get(0)[1]);
-        Assert.assertEquals(genericRecord.getField("somewhere"), queryResult.get(0)[2]);
+        assertThat(queryResult.get(0))
+            .containsExactly(
+                genericRecord.getField("something"),
+                genericRecord.getField("someone"),
+                genericRecord.getField("somewhere"));
       }
     }
   }
 
-  @Test
+  @TestTemplate
   public void testStructOfPrimitivesInTable() throws IOException {
     Schema schema =
         new Schema(
@@ -643,12 +644,12 @@ public class TestHiveIcebergStorageHandlerLocalScan {
               String.format(
                   "SELECT structofprimitives.key, structofprimitives.value FROM default.structtable LIMIT 1 OFFSET %d",
                   i));
-      Assert.assertEquals(expectedStruct.getField("key"), queryResult.get(0)[0]);
-      Assert.assertEquals(expectedStruct.getField("value"), queryResult.get(0)[1]);
+      assertThat(queryResult.get(0))
+          .containsExactly(expectedStruct.getField("key"), expectedStruct.getField("value"));
     }
   }
 
-  @Test
+  @TestTemplate
   public void testStructOfArraysInTable() throws IOException {
     Schema schema =
         new Schema(
@@ -670,7 +671,7 @@ public class TestHiveIcebergStorageHandlerLocalScan {
                 String.format(
                     "SELECT structofarrays.names[%d] FROM default.structtable LIMIT 1 OFFSET %d",
                     j, i));
-        Assert.assertEquals(expectedList.get(j), queryResult.get(0)[0]);
+        assertThat(queryResult.get(0)[0]).isEqualTo(expectedList.get(j));
       }
       expectedList = (List<?>) expectedStruct.getField("birthdays");
       for (int j = 0; j < expectedList.size(); j++) {
@@ -679,12 +680,12 @@ public class TestHiveIcebergStorageHandlerLocalScan {
                 String.format(
                     "SELECT structofarrays.birthdays[%d] FROM default.structtable LIMIT 1 OFFSET %d",
                     j, i));
-        Assert.assertEquals(expectedList.get(j).toString(), queryResult.get(0)[0]);
+        assertThat(queryResult.get(0)[0]).isEqualTo(expectedList.get(j).toString());
       }
     }
   }
 
-  @Test
+  @TestTemplate
   public void testStructOfMapsInTable() throws IOException {
     Schema schema =
         new Schema(
@@ -714,7 +715,7 @@ public class TestHiveIcebergStorageHandlerLocalScan {
                 String.format(
                     "SELECT structofmaps.map1[\"%s\"] from default.structtable LIMIT 1 OFFSET %d",
                     entry.getKey(), i));
-        Assert.assertEquals(entry.getValue(), queryResult.get(0)[0]);
+        assertThat(queryResult.get(0)[0]).isEqualTo(entry.getValue());
       }
       expectedMap = (Map<?, ?>) expectedStruct.getField("map2");
       for (Map.Entry<?, ?> entry : expectedMap.entrySet()) {
@@ -723,12 +724,12 @@ public class TestHiveIcebergStorageHandlerLocalScan {
                 String.format(
                     "SELECT structofmaps.map2[\"%s\"] from default.structtable LIMIT 1 OFFSET %d",
                     entry.getKey(), i));
-        Assert.assertEquals(entry.getValue(), queryResult.get(0)[0]);
+        assertThat(queryResult.get(0)[0]).isEqualTo(entry.getValue());
       }
     }
   }
 
-  @Test
+  @TestTemplate
   public void testStructOfStructsInTable() throws IOException {
     Schema schema =
         new Schema(
@@ -754,8 +755,9 @@ public class TestHiveIcebergStorageHandlerLocalScan {
                   "SELECT structofstructs.struct1.key, structofstructs.struct1.value FROM default.structtable "
                       + "LIMIT 1 OFFSET %d",
                   i));
-      Assert.assertEquals(expectedInnerStruct.getField("key"), queryResult.get(0)[0]);
-      Assert.assertEquals(expectedInnerStruct.getField("value"), queryResult.get(0)[1]);
+      assertThat(queryResult.get(0))
+          .containsExactly(
+              expectedInnerStruct.getField("key"), expectedInnerStruct.getField("value"));
     }
   }
 
@@ -769,8 +771,8 @@ public class TestHiveIcebergStorageHandlerLocalScan {
     shell.executeStatement(createSQL);
 
     org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
-    Assert.assertEquals(expectedSchema.asStruct(), icebergTable.schema().asStruct());
-    Assert.assertEquals(expectedSpec, icebergTable.spec());
+    assertThat(icebergTable.schema().asStruct()).isEqualTo(expectedSchema.asStruct());
+    assertThat(icebergTable.spec()).isEqualTo(expectedSpec);
 
     List<Record> expected = Lists.newArrayList();
     for (StructLike partition : data.keySet()) {
