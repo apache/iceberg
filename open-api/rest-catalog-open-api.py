@@ -629,6 +629,10 @@ class PartitionStatisticsFile(BaseModel):
     file_size_in_bytes: int = Field(..., alias='file-size-in-bytes')
 
 
+class FileContent(BaseModel):
+    __root__: Literal['data', 'position-deletes', 'equality-deletes']
+
+
 class CreateNamespaceRequest(BaseModel):
     namespace: Namespace
     properties: Optional[Dict[str, str]] = Field(
@@ -803,10 +807,10 @@ class AddSchemaUpdate(BaseUpdate):
 
 class AppendDataFileUpdate(BaseUpdate):
     action: Literal['append-data-files']
-    added_data_files: List[ContentFile] = Field(
+    data_files: List[ContentFile] = Field(
         ...,
-        alias='added-data-files',
-        description='List of datafiles to be appended to a table',
+        alias='data-files',
+        description='List of data files to be appended to a table',
     )
     schema_: Schema = Field(..., alias='schema')
     spec: PartitionSpec
@@ -991,7 +995,7 @@ class PrimitiveTypeValue(BaseModel):
 
 class ContentFile(BaseModel):
     spec_id: int = Field(..., alias='spec-id')
-    content: str
+    content: FileContent
     file_path: str = Field(..., alias='file-path')
     file_format: str = Field(..., alias='file-format')
     partition: Optional[StructTypeValue] = None

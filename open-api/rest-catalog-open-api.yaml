@@ -2500,18 +2500,18 @@ components:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
         - action
-        - added-data-files
+        - data-files
         - schema
         - spec
       properties:
         action:
           type: string
           enum: [ "append-data-files" ]
-        added-data-files:
+        data-files:
           type: array
           items:
             $ref: '#/components/schemas/ContentFile'
-          description: List of datafiles to be appended to a table
+          description: List of data files to be appended to a table
         schema:
           $ref: '#/components/schemas/Schema'
         spec:
@@ -3386,6 +3386,13 @@ components:
           items:
             $ref: '#/components/schemas/TypeValue'
 
+    FileContent:
+      type: string
+      enum:
+        - data
+        - position-deletes
+        - equality-deletes
+
     ContentFile:
       type: object
       required:
@@ -3399,7 +3406,7 @@ components:
         spec-id:
           type: integer
         content:
-          type: string
+          $ref: '#/components/schemas/FileContent'
         file-path:
           type: string
         file-format:
