@@ -304,7 +304,7 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
 
   protected void validateProperty(Snapshot snapshot, String property, Set<String> expectedValues) {
     String actual = snapshot.summary().get(property);
-    assertThat(expectedValues)
+    assertThat(actual)
         .as(
             "Snapshot property "
                 + property
@@ -312,7 +312,7 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
                 + actual
                 + ", expected one of : "
                 + String.join(",", expectedValues))
-        .contains(actual);
+        .contains(expectedValues);
   }
 
   protected void validateProperty(Snapshot snapshot, String property, String expectedValue) {

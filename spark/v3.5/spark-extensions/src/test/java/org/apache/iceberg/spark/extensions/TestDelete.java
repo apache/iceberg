@@ -1129,7 +1129,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
             () -> {
               for (int numOperations = 0; numOperations < 20; numOperations++) {
                 while (barrier.get() < numOperations * 2) {
-                  sleep(10);
+                  sleep(200);
                 }
 
                 sql("DELETE FROM %s WHERE id IN (SELECT * FROM deleted_id)", commitTarget());
@@ -1151,7 +1151,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
               for (int numOperations = 0; numOperations < 20; numOperations++) {
                 while (shouldAppend.get() && barrier.get() < numOperations * 2) {
-                  sleep(10);
+                  sleep(200);
                 }
 
                 if (!shouldAppend.get()) {
@@ -1166,7 +1166,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
                   }
 
                   appendFiles.commit();
-                  sleep(10);
+                  sleep(1000);
                 }
 
                 barrier.incrementAndGet();

@@ -731,7 +731,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
             () -> {
               for (int numOperations = 0; numOperations < 20; numOperations++) {
                 while (barrier.get() < numOperations * 2) {
-                  sleep(10);
+                  sleep(100);
                 }
 
                 sql("UPDATE %s SET id = -1 WHERE id = 1", tableName);
@@ -753,7 +753,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
 
               for (int numOperations = 0; numOperations < 20; numOperations++) {
                 while (shouldAppend.get() && barrier.get() < numOperations * 2) {
-                  sleep(10);
+                  sleep(100);
                 }
 
                 if (!shouldAppend.get()) {
@@ -768,7 +768,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
                   }
 
                   appendFiles.commit();
-                  sleep(10);
+                  sleep(1000);
                 }
 
                 barrier.incrementAndGet();
