@@ -209,6 +209,16 @@ class MetadataLog(BaseModel):
     __root__: List[MetadataLogItem]
 
 
+class PlanTask(BaseModel):
+    """
+    A flexible JSON object that contains information provided by the server, to be utilized by clients for distributed planning, should be supplied "as is" for input in PlanTable operation.
+    """
+
+
+class FileContent(BaseModel):
+    __root__: Literal['data', 'position-deletes', 'equality-deletes']
+
+
 class SQLViewRepresentation(BaseModel):
     type: str
     sql: str
@@ -441,6 +451,10 @@ class AssertViewUUID(ViewRequirement):
     uuid: str
 
 
+class PreplanTableResult(BaseModel):
+    plan_tasks: List[PlanTask] = Field(..., alias='plan-tasks')
+
+
 class RegisterTableRequest(BaseModel):
     name: str
     metadata_location: str = Field(..., alias='metadata-location')
@@ -656,7 +670,7 @@ class SetPartitionStatisticsUpdate(BaseUpdate):
     )
 
 
-class ReportMetricsRequest2(CommitReport):
+class ReportMetricsRequest1(CommitReport):
     report_type: str = Field(..., alias='report-type')
 
 
@@ -780,6 +794,56 @@ class TableMetadata(BaseModel):
     )
 
 
+class FileScanTask(BaseModel):
+    data_file: ContentFile = Field(..., alias='data-file')
+    partition: Optional[Dict[str, str]] = None
+    size_bytes: Optional[float] = Field(None, alias='size-bytes')
+    start: float
+    length: float
+    estimated_rows_count: Optional[float] = Field(None, alias='estimated-rows-count')
+    delete_files: Optional[List[ContentFile]] = Field(None, alias='delete-files')
+    schema_: Schema = Field(..., alias='schema')
+    spec: PartitionSpec
+    residual_filter: Optional[Expression] = Field(None, alias='residual-filter')
+
+
+class TypeValue(BaseModel):
+    __root__: Union[PrimitiveTypeValue, MapTypeValue, StructTypeValue]
+
+
+class MapTypeValue(BaseModel):
+    keys: Optional[List[TypeValue]] = None
+    values: Optional[List[TypeValue]] = None
+
+
+class StructTypeValue(BaseModel):
+    __root__: Optional[Dict[str, TypeValue]] = None
+
+
+class PrimitiveTypeValue(BaseModel):
+    __root__: Union[bool, int, float, str, List[TypeValue]]
+
+
+class ContentFile(BaseModel):
+    spec_id: int = Field(..., alias='spec-id')
+    content: FileContent
+    file_path: str = Field(..., alias='file-path')
+    file_format: str = Field(..., alias='file-format')
+    partition: Optional[StructTypeValue] = None
+    file_size_in_bytes: int = Field(..., alias='file-size-in-bytes')
+    record_count: int = Field(..., alias='record-count')
+    column_sizes: Optional[MapTypeValue] = Field(None, alias='column-sizes')
+    value_counts: Optional[MapTypeValue] = Field(None, alias='value-counts')
+    null_value_counts: Optional[MapTypeValue] = Field(None, alias='null-value-counts')
+    nan_value_counts: Optional[MapTypeValue] = Field(None, alias='nan-value-counts')
+    lower_bounds: Optional[MapTypeValue] = Field(None, alias='lower-bounds')
+    upper_bounds: Optional[MapTypeValue] = Field(None, alias='upper-bounds')
+    key_metadata: Optional[str] = Field(None, alias='key-metadata')
+    split_offsets: Optional[List[int]] = Field(None, alias='split-offsets')
+    equality_ids: Optional[List[int]] = Field(None, alias='equality-ids')
+    sort_order_id: Optional[int] = Field(None, alias='sort-order-id')
+
+
 class ViewMetadata(BaseModel):
     view_uuid: str = Field(..., alias='view-uuid')
     format_version: int = Field(..., alias='format-version', ge=1, le=1)
@@ -874,6 +938,10 @@ class LoadTableResult(BaseModel):
     config: Optional[Dict[str, str]] = None
 
 
+class PlanTableResult(BaseModel):
+    file_scan_tasks: List[FileScanTask] = Field(..., alias='file-scan-tasks')
+
+
 class CommitTableRequest(BaseModel):
     identifier: Optional[TableIdentifier] = Field(
         None,
@@ -903,6 +971,28 @@ class CreateTableRequest(BaseModel):
     write_order: Optional[SortOrder] = Field(None, alias='write-order')
     stage_create: Optional[bool] = Field(None, alias='stage-create')
     properties: Optional[Dict[str, str]] = None
+
+
+class PlanContext(BaseModel):
+    select: List[str] = Field(..., description='A list of the selected columns')
+    project: Optional[List[str]] = Field(None, description='A list of the projections')
+    filter: Optional[Expression] = None
+    options: Dict[str, str]
+    snapshot_id: Optional[int] = Field(None, alias='snapshot-id')
+    from_snapshot_id: Optional[int] = Field(None, alias='from-snapshot-id')
+    to_snapshot_id: Optional[int] = Field(None, alias='to-snapshot-id')
+    timestamp_ms: Optional[int] = Field(None, alias='timestamp-ms')
+    case_sensitive: Optional[bool] = Field(None, alias='case-sensitive')
+    use_ref: Optional[str] = Field(None, alias='use-ref')
+
+
+class PrePlanTableRequest(BaseModel):
+    allOf: Optional[PlanContext] = None
+
+
+class PlanTableRequest(BaseModel):
+    allOf: Optional[PlanContext] = None
+    plan_task: Optional[PlanTask] = Field(None, alias='plan-task')
 
 
 class CreateViewRequest(BaseModel):
@@ -940,8 +1030,8 @@ class LoadViewResult(BaseModel):
     config: Optional[Dict[str, str]] = None
 
 
-class ReportMetricsRequest(BaseModel):
-    __root__: Union[ReportMetricsRequest1, ReportMetricsRequest2]
+class ReportMetricsRequest2(BaseModel):
+    __root__: Union[ReportMetricsRequest, ReportMetricsRequest1]
 
 
 class ScanReport(BaseModel):
@@ -967,7 +1057,7 @@ class Schema(StructType):
     )
 
 
-class ReportMetricsRequest1(ScanReport):
+class ReportMetricsRequest(ScanReport):
     report_type: str = Field(..., alias='report-type')
 
 
@@ -976,8 +1066,10 @@ ListType.update_forward_refs()
 MapType.update_forward_refs()
 Expression.update_forward_refs()
 TableMetadata.update_forward_refs()
+FileScanTask.update_forward_refs()
+TypeValue.update_forward_refs()
 ViewMetadata.update_forward_refs()
 AddSchemaUpdate.update_forward_refs()
 CreateTableRequest.update_forward_refs()
 CreateViewRequest.update_forward_refs()
-ReportMetricsRequest.update_forward_refs()
+ReportMetricsRequest2.update_forward_refs()
