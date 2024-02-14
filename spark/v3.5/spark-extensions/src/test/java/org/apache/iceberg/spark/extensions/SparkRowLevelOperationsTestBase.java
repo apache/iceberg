@@ -312,7 +312,7 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
                 + actual
                 + ", expected one of : "
                 + String.join(",", expectedValues))
-        .contains(expectedValues);
+        .isIn(expectedValues);
   }
 
   protected void validateProperty(Snapshot snapshot, String property, String expectedValue) {
