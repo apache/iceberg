@@ -58,3 +58,13 @@ jobs:
       - name: Validate S3 REST Signer spec
         working-directory: ./aws/src/main/resources
         run: openapi-spec-validator s3-signer-open-api.yaml
+
+  gradle-checks:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: 17
+      - run: ./gradlew :iceberg-open-api:check
