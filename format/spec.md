@@ -1167,11 +1167,13 @@ Each sort field in the fields list is stored as an object with the following pro
 |----------|----------|----------|------------------|---------------------|-------------|
 | required | required | required | **`transform`**  | `JSON string`       | `bucket[4]` |
 | required | required | omitted  | **`source-id`**  | `JSON int`          | 1           |
-|          |          | required | **`source-ids`** | `JSON list`         | `[1,2]`     |
+|          |          | required | **`source-ids`** | `JSON list of ints` | `[1,2]`     |
 | required | required | required | **`direction`**  | `JSON string`       | `asc`       |
 | required | required | required | **`null-order`** | `JSON string`       | `nulls-last`|
 
-For tables of version < V3, the ID of the source field of each sort field is set in `source-id`. For tables of version >= V3, the ID(s) of the source field(s) is set on `source-ids`, and `source-id` is omitted. See Appendix E for more detials.
+Transforms that accept multiple arguments specify source field IDs using `source-ids` instead of `source-id`. Writers producing these transforms in v1 and v2 metadata should additionally produce the `source-id` field by setting it to the first ID from the `source-ids` list. Writers producing these transforms in v3 metadata should populate only the `source-ids` field because v3 readers will fully-support multi-arg transforms by reading this field.
+
+Older versions of the reference implementation can read tables with transforms unknown to it, without the ability to push down filters or write. But other implementations may break if they encounter unknown transforms.
 
 The following table describes the possible values for the some of the field within sort field: 
 
