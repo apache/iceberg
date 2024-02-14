@@ -919,7 +919,7 @@ project(':iceberg-nessie') {
 
     if (JavaVersion.current().isJava11Compatible()) {
       testImplementation libs.nessie.jaxrs.testextension
-      testImplementation libs.nessie.versioned.storage.inmemory
+      testImplementation libs.nessie.versioned.storage.inmemory.tests
       testImplementation libs.nessie.versioned.storage.testextension
       // Need to "pull in" el-api explicitly :(
       testImplementation libs.jakarta.el.api
