@@ -67,7 +67,7 @@ kryo-shaded = "4.0.3"
 microprofile-openapi-api = "3.1.1"
 mockito = "4.11.0"
 mockserver = "5.15.0"
-nessie = "0.76.3"
+nessie = "0.77.1"
 netty-buffer = "4.1.97.Final"
 netty-buffer-compat = "4.1.68.Final"
 object-client-bundle = "3.3.2"
@@ -208,7 +208,7 @@ mockito-junit-jupiter = { module = "org.mockito:mockito-junit-jupiter", version.
 mockserver-client-java = { module = "org.mock-server:mockserver-client-java", version.ref = "mockserver" }
 mockserver-netty = { module = "org.mock-server:mockserver-netty", version.ref = "mockserver" }
 nessie-jaxrs-testextension = { module = "org.projectnessie.nessie:nessie-jaxrs-testextension", version.ref = "nessie" }
-nessie-versioned-storage-inmemory = { module = "org.projectnessie.nessie:nessie-versioned-storage-inmemory", version.ref = "nessie" }
+nessie-versioned-storage-inmemory-tests = { module = "org.projectnessie.nessie:nessie-versioned-storage-inmemory-tests", version.ref = "nessie" }
 nessie-versioned-storage-testextension = { module = "org.projectnessie.nessie:nessie-versioned-storage-testextension", version.ref = "nessie" }
 orc-tools = { module = "org.apache.orc:orc-tools", version.ref = "orc" }
 s3mock-junit5 = { module = "com.adobe.testing:s3mock-junit5", version.ref = "s3mock-junit5" }
