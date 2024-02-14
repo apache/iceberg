@@ -532,6 +532,103 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}/preplan:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/table'
+    post:
+      tags:
+        - Catalog API
+      summary: Find plan-tasks based on a query.
+      description:
+        When a user submits a query, this operation will find the relevant plan-tasks
+        based on the user's selected columns, and filters. The plan-tasks can be later used during "PlanTable"
+        to distribute this work for performance gain.
+      operationId: PreplanTable
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PreplanTableRequest'
+      responses:
+        200:
+          $ref: '#/components/responses/PreplanTableResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description:
+            Not Found
+            - NoSuchTableException, the table does not exist
+            - NoSuchNamespaceException, the namespace does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+              examples:
+                TableDoesNotExist:
+                  $ref: '#/components/examples/NoSuchTableError'
+                NamespaceDoesNotExist:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+
+
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}/plan/:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/table'
+    post:
+      tags:
+        - Catalog API
+      summary: Initiate plan on table to find relevant file scan tasks for a specific query.
+      operationId: PlanTable
+      description:
+        When a user submits a query, we can do a "plan" to find the relevant file scan tasks
+        based on the user's selected columns, and filters. Passing the param plan-tasks can be used
+        for enhanced query performance, by distributing the planning work.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanTableRequest'
+      responses:
+        200:
+          $ref: '#/components/responses/PlanTableResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description:
+            Not Found - NoSuchTableException, table to load does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                TableToLoadDoesNotExist:
+                  $ref: '#/components/examples/NoSuchTableError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+
   /v1/{prefix}/namespaces/{namespace}/register:
     parameters:
       - $ref: '#/components/parameters/prefix'
@@ -2068,6 +2165,146 @@ components:
           items:
             $ref: '#/components/schemas/PartitionStatisticsFile'
 
+    PlanTask:
+      description:
+        A flexible JSON object that contains information provided by the server,
+        to be utilized by clients for distributed planning, should be supplied
+        "as is" for input in PlanTable operation.
+      type: object
+
+    FileScanTask:
+      type: object
+      required:
+        - schema
+        - spec
+        - start
+        - length
+        - data-file
+      properties:
+        data-file:
+          $ref: '#/components/schemas/ContentFile'
+        partition:
+          type: object
+          additionalProperties:
+            type: string
+        size-bytes:
+          type: number
+        start:
+          type: number
+        length:
+          type: number
+        estimated-rows-count:
+          type: number
+        delete-files:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContentFile'
+        schema:
+          $ref: '#/components/schemas/Schema'
+        spec:
+          $ref: '#/components/schemas/PartitionSpec'
+        residual-filter:
+          $ref: '#/components/schemas/Expression'
+
+    TypeValue:
+      oneOf:
+        - $ref: '#/components/schemas/PrimitiveTypeValue'
+        - $ref: '#/components/schemas/MapTypeValue'
+        - $ref: '#/components/schemas/StructTypeValue'
+
+    MapTypeValue:
+      type: object
+      properties:
+        keys:
+          type: array
+          items:
+            $ref: '#/components/schemas/TypeValue'
+        values:
+          type: array
+          items:
+            $ref: '#/components/schemas/TypeValue'
+
+    StructTypeValue:
+      type: object
+      additionalProperties:
+        oneOf:
+          - $ref: '#/components/schemas/TypeValue'
+
+    PrimitiveTypeValue:
+      oneOf:
+        - type: boolean
+        - type: integer
+        - type: integer
+          format: int64
+        - type: number
+        - type: string
+        - type: string
+          format: byte
+        - type: array
+          items:
+            $ref: '#/components/schemas/TypeValue'
+
+
+    ContentFile:
+      type: object
+      required:
+        - spec-id
+        - content
+        - file-path
+        - file-format
+        - file-size-in-bytes
+        - record-count
+      properties:
+        spec-id:
+          type: integer
+        content:
+          $ref: '#/components/schemas/FileContent'
+        file-path:
+          type: string
+        file-format:
+          type: string
+        partition:
+          $ref: '#/components/schemas/StructTypeValue'
+        file-size-in-bytes:
+          type: integer
+          format: int64
+        record-count:
+          type: integer
+          format: int64
+        column-sizes:
+          $ref: '#/components/schemas/MapTypeValue'
+        value-counts:
+          $ref: '#/components/schemas/MapTypeValue'
+        null-value-counts:
+          $ref: '#/components/schemas/MapTypeValue'
+        nan-value-counts:
+          $ref: '#/components/schemas/MapTypeValue'
+        lower-bounds:
+          $ref: '#/components/schemas/MapTypeValue'
+        upper-bounds:
+          $ref: '#/components/schemas/MapTypeValue'
+        key-metadata:
+          type: string
+          format: byte
+        split-offsets:
+          type: array
+          items:
+            type: integer
+            format: int64
+        equality-ids:
+          type: array
+          items:
+            type: integer
+        sort-order-id:
+          type: integer
+
+    FileContent:
+      type: string
+      enum:
+        - data
+        - position-deletes
+        - equality-deletes
+
     SQLViewRepresentation:
       type: object
       required:
@@ -2574,7 +2811,7 @@ components:
       allOf:
         - $ref: "#/components/schemas/TableRequirement"
       description:
-        The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; 
+        The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`;
         if `snapshot-id` is `null` or missing, the ref must not already exist
       required:
         - type
@@ -2731,6 +2968,26 @@ components:
           additionalProperties:
             type: string
 
+    PreplanTableResult:
+      type: object
+      required:
+        - plan-tasks
+      properties:
+        plan-tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanTask'
+
+    PlanTableResult:
+      type: object
+      required:
+        - file-scan-tasks
+      properties:
+        file-scan-tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileScanTask'
+
     CommitTableRequest:
       type: object
       required:
@@ -2799,6 +3056,59 @@ components:
           type: object
           additionalProperties:
             type: string
+
+    PlanContext:
+      type: object
+      required:
+        - select
+        - options
+      properties:
+        select:
+          description: A list of the selected columns
+          type: array
+          items:
+            type: string
+        project:
+          description: A list of the projections
+          type: array
+          items:
+            type: string
+        filter:
+          $ref: '#/components/schemas/Expression'
+        options:
+          type: object
+          additionalProperties:
+            type: string
+        snapshot-id:
+          type: integer
+          format: int64
+        from-snapshot-id:
+          type: integer
+          format: int64
+        to-snapshot-id:
+          type: integer
+          format: int64
+        timestamp-ms:
+          type: integer
+          format: int64
+        case-sensitive:
+          type: boolean
+        use-ref:
+          type: string
+
+    PrePlanTableRequest:
+      type: object
+      properties:
+        allOf:
+          $ref: '#/components/schemas/PlanContext'
+
+    PlanTableRequest:
+      type: object
+      properties:
+        allOf:
+          $ref: '#/components/schemas/PlanContext'
+        plan-task:
+          $ref: '#/components/schemas/PlanTask'
 
     RegisterTableRequest:
       type: object
@@ -3540,6 +3850,20 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/LoadTableResult'
+
+    PreplanTableResponse:
+      description: Result of getting plan-tasks from "preplan".
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PreplanTableResult'
+
+    PlanTableResponse:
+      description: Result of getting file-scan-tasks from "plan".
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PlanTableResult'
 
     LoadTableResponse:
       description: Table metadata result when loading a table
