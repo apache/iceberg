@@ -18,11 +18,18 @@
  */
 package org.apache.iceberg.flink.sink;
 
-import static org.apache.iceberg.TableProperties.*;
+import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
+import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_LEVEL;
+import static org.apache.iceberg.TableProperties.ORC_COMPRESSION;
 import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_STRATEGY;
+import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
+import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
@@ -44,7 +51,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.util.SerializableSupplier;
 
 public class IcebergMultiTableStreamWriter<T> extends AbstractStreamOperator<TableAwareWriteResult>
     implements OneInputStreamOperator<T, TableAwareWriteResult>, BoundedOneInput {
@@ -70,14 +76,14 @@ public class IcebergMultiTableStreamWriter<T> extends AbstractStreamOperator<Tab
       FlinkWriteConf writeConf,
       List<String> equalityFieldColumns) {
     this.fullTableName = fullTableName;
-    this.taskWriterFactories = new HashMap<>();
-    this.writers = new HashMap<>();
-    this.writerMetrics = new HashMap<>();
+    this.taskWriterFactories = Maps.newHashMap();
+    this.writers = Maps.newHashMap();
+    this.writerMetrics = Maps.newHashMap();
     this.payloadSinkProvider = payloadSinkProvider;
     this.catalogLoader = catalogLoader;
     this.conf = writeConf;
     this.equalityFieldColumns = equalityFieldColumns;
-    this.tableSupplierMap = new HashMap<>();
+    this.tableSupplierMap = Maps.newHashMap();
     setChainingStrategy(ChainingStrategy.ALWAYS);
   }
 
@@ -179,7 +185,8 @@ public class IcebergMultiTableStreamWriter<T> extends AbstractStreamOperator<Tab
       TaskWriter<T> writer = writerMap.getValue();
       // TODO: Add table information in write result
       WriteResult result = writer.complete();
-      TableAwareWriteResult tableAwareWriteResult = new TableAwareWriteResult(result, tableSupplierMap.get(table));
+      TableAwareWriteResult tableAwareWriteResult =
+          new TableAwareWriteResult(result, tableSupplierMap.get(table));
       IcebergStreamWriterMetrics metrics = writerMetrics.get(table);
       output.collect(new StreamRecord<>(tableAwareWriteResult));
       metrics.flushDuration(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano));

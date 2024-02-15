@@ -20,11 +20,6 @@ package org.apache.iceberg.flink.sink;
 
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 
-/**
- * Interface for providing information to MultiTableSink at run time
- *
- * @param <T>
- */
 public interface PayloadSinkProvider<T> {
   String sinkTableName(String baseTable, String identifier);
 
