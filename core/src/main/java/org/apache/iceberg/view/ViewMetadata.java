@@ -31,6 +31,7 @@ import javax.annotation.Nullable;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -156,6 +157,7 @@ public interface ViewMetadata extends Serializable {
     // internal change tracking
     private Integer lastAddedVersionId = null;
     private Integer lastAddedSchemaId = null;
+    private ViewHistoryEntry historyEntry = null;
 
     // indexes
     private final Map<Integer, ViewVersion> versionsById;
@@ -243,6 +245,12 @@ public interface ViewMetadata extends Serializable {
         changes.add(new MetadataUpdate.SetCurrentViewVersion(newVersionId));
       }
 
+      this.historyEntry =
+          ImmutableViewHistoryEntry.builder()
+              .timestampMillis(version.timestampMillis())
+              .versionId(version.versionId())
+              .build();
+
       return this;
     }
 
@@ -306,12 +314,6 @@ public interface ViewMetadata extends Serializable {
       } else {
         changes.add(new MetadataUpdate.AddViewVersion(version));
       }
-
-      history.add(
-          ImmutableViewHistoryEntry.builder()
-              .timestampMillis(version.timestampMillis())
-              .versionId(version.versionId())
-              .build());
 
       this.lastAddedVersionId = newVersionId;
 
@@ -438,6 +440,10 @@ public interface ViewMetadata extends Serializable {
           metadataLocation == null || changes.isEmpty(),
           "Cannot create view metadata with a metadata location and changes");
 
+      if (null != historyEntry) {
+        history.add(historyEntry);
+      }
+
       int historySize =
           PropertyUtil.propertyAsInt(
               properties,
@@ -479,6 +485,7 @@ public interface ViewMetadata extends Serializable {
           metadataLocation);
     }
 
+    @VisibleForTesting
     static List<ViewVersion> expireVersions(
         Map<Integer, ViewVersion> versionsById, int numVersionsToKeep) {
       // version ids are assigned sequentially. keep the latest versions by ID.
@@ -493,6 +500,7 @@ public interface ViewMetadata extends Serializable {
       return retainedVersions;
     }
 
+    @VisibleForTesting
     static List<ViewHistoryEntry> updateHistory(List<ViewHistoryEntry> history, Set<Integer> ids) {
       List<ViewHistoryEntry> retainedHistory = Lists.newArrayList();
       for (ViewHistoryEntry entry : history) {

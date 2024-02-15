@@ -101,16 +101,20 @@ public class TestViewMetadataParser {
 
     String json = readViewMetadataInputFile("org/apache/iceberg/view/ValidViewMetadata.json");
     ViewMetadata expectedViewMetadata =
-        ViewMetadata.builder()
-            .assignUUID("fa6506c3-7681-40c8-86dc-e36561f83385")
-            .addSchema(TEST_SCHEMA)
-            .addVersion(version1)
-            .addVersion(version2)
-            .setLocation("s3://bucket/test/location")
-            .setProperties(
-                ImmutableMap.of("some-key", "some-value", ViewProperties.COMMENT, "some-comment"))
+        ViewMetadata.buildFrom(
+                ViewMetadata.builder()
+                    .assignUUID("fa6506c3-7681-40c8-86dc-e36561f83385")
+                    .addSchema(TEST_SCHEMA)
+                    .addVersion(version1)
+                    .addVersion(version2)
+                    .setLocation("s3://bucket/test/location")
+                    .setProperties(
+                        ImmutableMap.of(
+                            "some-key", "some-value", ViewProperties.COMMENT, "some-comment"))
+                    .setCurrentVersionId(1)
+                    .upgradeFormatVersion(1)
+                    .build())
             .setCurrentVersionId(2)
-            .upgradeFormatVersion(1)
             .build();
 
     ViewMetadata actual = ViewMetadataParser.fromJson(json);
@@ -213,17 +217,23 @@ public class TestViewMetadataParser {
     String metadataLocation = "s3://bucket/test/location/metadata/v1.metadata.json";
     ViewMetadata expectedViewMetadata =
         ViewMetadata.buildFrom(
-                ViewMetadata.builder()
-                    .assignUUID("fa6506c3-7681-40c8-86dc-e36561f83385")
-                    .addSchema(TEST_SCHEMA)
-                    .addVersion(version1)
-                    .addVersion(version2)
-                    .setLocation("s3://bucket/test/location")
-                    .setProperties(
-                        ImmutableMap.of(
-                            "some-key", "some-value", ViewProperties.COMMENT, "some-comment"))
+                ViewMetadata.buildFrom(
+                        ViewMetadata.builder()
+                            .assignUUID("fa6506c3-7681-40c8-86dc-e36561f83385")
+                            .addSchema(TEST_SCHEMA)
+                            .addVersion(version1)
+                            .addVersion(version2)
+                            .setLocation("s3://bucket/test/location")
+                            .setProperties(
+                                ImmutableMap.of(
+                                    "some-key",
+                                    "some-value",
+                                    ViewProperties.COMMENT,
+                                    "some-comment"))
+                            .setCurrentVersionId(1)
+                            .upgradeFormatVersion(1)
+                            .build())
                     .setCurrentVersionId(2)
-                    .upgradeFormatVersion(1)
                     .build())
             .setMetadataLocation(metadataLocation)
             .build();
