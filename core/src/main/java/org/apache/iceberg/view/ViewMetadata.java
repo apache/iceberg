@@ -21,6 +21,7 @@ package org.apache.iceberg.view;
 import java.io.Serializable;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -158,6 +159,7 @@ public interface ViewMetadata extends Serializable {
     private Integer lastAddedVersionId = null;
     private Integer lastAddedSchemaId = null;
     private ViewHistoryEntry historyEntry = null;
+    private ViewVersion previousViewVersion = null;
 
     // indexes
     private final Map<Integer, ViewVersion> versionsById;
@@ -187,6 +189,7 @@ public interface ViewMetadata extends Serializable {
       this.location = base.location();
       this.uuid = base.uuid();
       this.metadataLocation = null;
+      this.previousViewVersion = base.currentVersion();
     }
 
     public Builder upgradeFormatVersion(int newFormatVersion) {
@@ -298,9 +301,9 @@ public interface ViewMetadata extends Serializable {
         if (repr instanceof SQLViewRepresentation) {
           SQLViewRepresentation sql = (SQLViewRepresentation) repr;
           Preconditions.checkArgument(
-              dialects.add(sql.dialect()),
+              dialects.add(sql.dialect().toLowerCase(Locale.ROOT)),
               "Invalid view version: Cannot add multiple queries for dialect %s",
-              sql.dialect());
+              sql.dialect().toLowerCase(Locale.ROOT));
         }
       }
 
@@ -444,6 +447,14 @@ public interface ViewMetadata extends Serializable {
         history.add(historyEntry);
       }
 
+      if (null != previousViewVersion
+          && !PropertyUtil.propertyAsBoolean(
+              properties,
+              ViewProperties.REPLACE_DROP_DIALECT_ALLOWED,
+              ViewProperties.REPLACE_DROP_DIALECT_ALLOWED_DEFAULT)) {
+        checkIfDialectIsDropped(previousViewVersion, versionsById.get(currentVersionId));
+      }
+
       int historySize =
           PropertyUtil.propertyAsInt(
               properties,
@@ -517,6 +528,30 @@ public interface ViewMetadata extends Serializable {
 
     private <U extends MetadataUpdate> Stream<U> changes(Class<U> updateClass) {
       return changes.stream().filter(updateClass::isInstance).map(updateClass::cast);
+    }
+
+    private void checkIfDialectIsDropped(ViewVersion previous, ViewVersion current) {
+      Set<String> baseDialects = sqlDialectsFor(previous);
+      Set<String> updatedDialects = sqlDialectsFor(current);
+
+      Preconditions.checkState(
+          updatedDialects.containsAll(baseDialects),
+          "Cannot replace view due to loss of view dialects (%s=false):\nPrevious dialects: %s\nNew dialects: %s",
+          ViewProperties.REPLACE_DROP_DIALECT_ALLOWED,
+          baseDialects,
+          updatedDialects);
+    }
+
+    private Set<String> sqlDialectsFor(ViewVersion viewVersion) {
+      Set<String> dialects = Sets.newHashSet();
+      for (ViewRepresentation repr : viewVersion.representations()) {
+        if (repr instanceof SQLViewRepresentation) {
+          SQLViewRepresentation sql = (SQLViewRepresentation) repr;
+          dialects.add(sql.dialect().toLowerCase(Locale.ROOT));
+        }
+      }
+
+      return dialects;
     }
   }
 }
