@@ -32,7 +32,7 @@ public class TestInMemoryFileIO {
   @Test
   public void testBasicEndToEnd() throws IOException {
     InMemoryFileIO fileIO = new InMemoryFileIO();
-    String location = getRandomLocation();
+    String location = randomLocation();
     Assertions.assertThat(fileIO.fileExists(location)).isFalse();
 
     OutputStream outputStream = fileIO.newOutputFile(location).create();
@@ -67,7 +67,7 @@ public class TestInMemoryFileIO {
 
   @Test
   public void testCreateNoOverwrite() {
-    String location = getRandomLocation();
+    String location = randomLocation();
     InMemoryFileIO fileIO = new InMemoryFileIO();
     fileIO.addFile(location, "hello world".getBytes());
     Assertions.assertThatExceptionOfType(AlreadyExistsException.class)
@@ -76,7 +76,7 @@ public class TestInMemoryFileIO {
 
   @Test
   public void testOverwriteBeforeAndAfterClose() throws IOException {
-    String location = getRandomLocation();
+    String location = randomLocation();
     byte[] oldData = "old data".getBytes();
     byte[] newData = "new data".getBytes();
 
@@ -114,7 +114,7 @@ public class TestInMemoryFileIO {
 
   @Test
   public void testFilesAreSharedAcrossMultipleInstances() {
-    String location = getRandomLocation();
+    String location = randomLocation();
     InMemoryFileIO fileIO = new InMemoryFileIO();
     fileIO.addFile(location, "hello world".getBytes());
 
@@ -122,7 +122,7 @@ public class TestInMemoryFileIO {
     Assertions.assertThat(fileIO2.fileExists(location)).isTrue();
   }
 
-  private String getRandomLocation() {
+  private String randomLocation() {
     return "s3://foo/" + UUID.randomUUID();
   }
 }
