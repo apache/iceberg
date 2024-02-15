@@ -34,9 +34,12 @@ import static org.mockito.Mockito.when;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -65,6 +68,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -73,6 +77,7 @@ import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
+import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.Pair;
@@ -84,6 +89,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import scala.Tuple2;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestRewriteManifestsAction extends TestBase {
@@ -464,6 +470,164 @@ public class TestRewriteManifestsAction extends TestBase {
 
     List<ManifestFile> newManifests = table.currentSnapshot().allManifests(table.io());
     assertThat(newManifests).hasSizeGreaterThanOrEqualTo(2);
+  }
+
+  @TestTemplate
+  public void testRewriteManifestsPartitionedTableWithInvalidSortColumnsThowsException()
+      throws IOException {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").bucket("c3", 10).build();
+    Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
+    options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
+
+    SparkActions actions = SparkActions.get();
+
+    //  c2 is not a partition column, cannot use for sorting
+    List<String> badSortKeys1 = ImmutableList.of("c1", "c2");
+    assertThatThrownBy(
+            () ->
+                actions
+                    .rewriteManifests(table)
+                    .rewriteIf(manifest -> true)
+                    .sort(badSortKeys1)
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .message()
+        .contains("Invalid sorting columns");
+
+    //  c3_bucket is the hidden internal partition name, sort() expects the un-hidden partition
+    // column names
+    List<String> badSortKeys2 = ImmutableList.of("c1", "c3_bucket");
+    assertThatThrownBy(
+            () ->
+                actions
+                    .rewriteManifests(table)
+                    .rewriteIf(manifest -> true)
+                    .sort(badSortKeys2)
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .message()
+        .contains("Invalid sorting columns");
+  }
+
+  @TestTemplate
+  public void testRewriteManifestsPartitionedTableWithCustomSorting() throws IOException {
+    Random random = new Random();
+
+    PartitionSpec spec =
+        PartitionSpec.builderFor(SCHEMA).identity("c1").truncate("c2", 3).bucket("c3", 10).build();
+    Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
+    options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
+
+    List<DataFile> dataFiles = Lists.newArrayList();
+    for (int fileOrdinal = 0; fileOrdinal < 1000; fileOrdinal++) {
+      dataFiles.add(
+          newDataFile(
+              table,
+              TestHelpers.Row.of(
+                  new Object[] {
+                    fileOrdinal, String.valueOf(random.nextInt() * 100), random.nextInt(10)
+                  })));
+    }
+    ManifestFile appendManifest = writeManifest(table, dataFiles);
+    table.newFastAppend().appendManifest(appendManifest).commit();
+
+    List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
+    assertThat(manifests).as("Should have 1 manifests before rewrite").hasSize(1);
+
+    // Capture the c3 partition's lower and upper bounds - used for later test assertions
+    Integer c3PartitionMin =
+        Conversions.fromByteBuffer(
+            Types.IntegerType.get(), manifests.get(0).partitions().get(2).lowerBound());
+    Integer c3PartitionMax =
+        Conversions.fromByteBuffer(
+            Types.IntegerType.get(), manifests.get(0).partitions().get(2).upperBound());
+
+    // Set the target manifest size to a small value to force splitting records into multiple files
+    table
+        .updateProperties()
+        .set(
+            TableProperties.MANIFEST_TARGET_SIZE_BYTES,
+            String.valueOf(manifests.get(0).length() / 2))
+        .commit();
+
+    SparkActions actions = SparkActions.get();
+
+    String stagingLocation = java.nio.file.Files.createTempDirectory(temp, "junit").toString();
+
+    List<String> manifestSortKeys = ImmutableList.of("c3", "c2", "c1");
+    RewriteManifests.Result result =
+        actions
+            .rewriteManifests(table)
+            .rewriteIf(manifest -> true)
+            .sort(manifestSortKeys)
+            .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
+            .stagingLocation(stagingLocation)
+            .execute();
+
+    table.refresh();
+    List<ManifestFile> newManifests = table.currentSnapshot().allManifests(table.io());
+
+    assertThat(result.rewrittenManifests()).hasSize(1);
+    assertThat(result.addedManifests()).hasSizeGreaterThanOrEqualTo(2);
+    assertManifestsLocation(result.addedManifests(), stagingLocation);
+
+    assertThat(newManifests).hasSizeGreaterThanOrEqualTo(2);
+
+    // Rewritten manifests are clustered by c3_bucket - each should contain only a subset of the
+    // lower and upper bounds
+    // of the partition 'c3'.
+    List<Tuple2<Integer, Integer>> c3Boundaries =
+        newManifests.stream()
+            .map(manifest -> manifest.partitions().get(2))
+            .sorted(
+                Comparator.comparing(
+                    ptn -> Conversions.fromByteBuffer(Types.IntegerType.get(), ptn.lowerBound())))
+            .map(
+                p ->
+                    new Tuple2<Integer, Integer>(
+                        Conversions.fromByteBuffer(Types.IntegerType.get(), p.lowerBound()),
+                        Conversions.fromByteBuffer(Types.IntegerType.get(), p.upperBound())))
+            .collect(Collectors.toList());
+
+    List<Integer> lowers = c3Boundaries.stream().map(t -> t._1).collect(Collectors.toList());
+    List<Integer> uppers = c3Boundaries.stream().map(t -> t._2).collect(Collectors.toList());
+
+    // With custom sorting, this looks like
+    // - manifest 1 -> [lower bound = 0, upper bound = 4]
+    // - manifest 2 -> [lower bound = 4, upper bound = 9]
+    // Without the custom sorting, each manifest tracks the full range of c3 upper/lower bounds.
+    // AKA they look like
+    // - manifest 1 -> [lower bound = 0, upper bound = 9]
+    // - manifest 2 -> [lower bound = 0, upper bound = 9]
+    // So the upper bound of the partitions tracked by the first file should be LEQ the lower bounds
+    // of the second. Etc
+    assertThat(uppers.get(0))
+        .withFailMessage(
+            "Upper bound of first manifest partition should be LEQ lower bound of second")
+        .isLessThanOrEqualTo(lowers.get(1));
+
+    // Each file should contain less than the full c3 partition span
+    c3Boundaries.forEach(
+        boundary -> {
+          assertThat(boundary._2 - boundary._1)
+              .withFailMessage(
+                  "Manifest should contain less than the full range of c3 bucket partitions")
+              .isLessThanOrEqualTo(c3PartitionMax - c3PartitionMin);
+        });
+
+    // c3's Bucket(10) partition means our true lower bound = 0 and true upper bound is 9. The first
+    // manifest should
+    // include the lower bound of 0, and the last should have the upper bound of 9
+    assertThat(lowers.get(0))
+        .withFailMessage("Lower bound of first manifest partition should be 0")
+        .isEqualTo(c3PartitionMin);
+    assertThat(uppers.get(uppers.size() - 1))
+        .withFailMessage("Lower bound of first manifest partition should be 0")
+        .isEqualTo(c3PartitionMax);
   }
 
   @TestTemplate

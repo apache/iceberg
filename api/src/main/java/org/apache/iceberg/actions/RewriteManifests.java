@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.actions;
 
+import java.util.List;
 import java.util.function.Predicate;
 import org.apache.iceberg.ManifestFile;
 
@@ -43,6 +44,16 @@ public interface RewriteManifests
    * @return this for method chaining
    */
   RewriteManifests rewriteIf(Predicate<ManifestFile> predicate);
+
+  /**
+   * Rewrite manifests in a given order, based on partition columns
+   *
+   * <p>If not set, manifests will be rewritten in the order of the table's spec.
+   *
+   * @param partitionSortOrder a list of partition field names
+   * @return this for method chaining
+   */
+  RewriteManifests sort(List<String> partitionSortOrder);
 
   /**
    * Passes a location where the staged manifests should be written.

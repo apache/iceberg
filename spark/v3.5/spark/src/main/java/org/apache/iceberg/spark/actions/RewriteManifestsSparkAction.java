@@ -19,10 +19,13 @@
 package org.apache.iceberg.spark.actions;
 
 import static org.apache.iceberg.MetadataTableType.ENTRIES;
+import static org.apache.spark.sql.functions.col;
+import static org.apache.spark.sql.functions.concat_ws;
 
 import java.io.Serializable;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -90,12 +93,44 @@ public class RewriteManifestsSparkAction
   public static final String USE_CACHING = "use-caching";
   public static final boolean USE_CACHING_DEFAULT = false;
 
+  private List<String> partitionSortColumns = null;
   private static final Logger LOG = LoggerFactory.getLogger(RewriteManifestsSparkAction.class);
   private static final RewriteManifests.Result EMPTY_RESULT =
       ImmutableRewriteManifests.Result.builder()
           .rewrittenManifests(ImmutableList.of())
           .addedManifests(ImmutableList.of())
           .build();
+
+  /**
+   * Supply an optional set of partition columns to sort the rewritten manifests by. Expects real
+   * column names used for partitioning; will resolve to the proper hidden partition names.
+   *
+   * @param partitionSortOrder - Order of partitions to sort manifests by
+   * @return this action
+   */
+  @Override
+  public RewriteManifestsSparkAction sort(List<String> partitionSortOrder) {
+    // Build up a mapping of input column -> partition column name (AKA x -> x_bucket_1000)
+    Map<String, String> partitionFieldMap =
+        spec.fields().stream()
+            .map(
+                partitionField ->
+                    Map.entry(
+                        spec.schema().findField(partitionField.sourceId()).name(),
+                        partitionField.name()))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+    // Check if these partitions are included in the spec
+    Preconditions.checkArgument(
+        partitionSortOrder.stream().allMatch(partitionFieldMap::containsKey),
+        "Invalid sorting columns. Expected to match column names used for partitioning in spec: %s."
+            + " Available partitionable columns: %s",
+        this.spec.specId(),
+        partitionFieldMap.keySet());
+    this.partitionSortColumns =
+        partitionSortOrder.stream().map(partitionFieldMap::get).collect(Collectors.toList());
+    return this;
+  }
 
   private final Table table;
   private final int formatVersion;
@@ -208,7 +243,15 @@ public class RewriteManifestsSparkAction
     if (spec.isUnpartitioned()) {
       newManifests = writeUnpartitionedManifests(content, manifestEntryDF, targetNumManifests);
     } else {
-      newManifests = writePartitionedManifests(content, manifestEntryDF, targetNumManifests);
+      if (partitionSortColumns != null) {
+        LOG.info(
+            "Sorting manifests for specId {} by partition columns in order of {} ",
+            spec.specId(),
+            partitionSortColumns);
+        newManifests = writeSortedManifests(content, manifestEntryDF, targetNumManifests);
+      } else {
+        newManifests = writePartitionedManifests(content, manifestEntryDF, targetNumManifests);
+      }
     }
 
     return ImmutableRewriteManifests.Result.builder()
@@ -245,6 +288,33 @@ public class RewriteManifestsSparkAction
     WriteManifests<?> writeFunc = newWriteManifestsFunc(content, manifestEntryDF.schema());
     Dataset<Row> transformedManifestEntryDF = manifestEntryDF.repartition(numManifests);
     return writeFunc.apply(transformedManifestEntryDF).collectAsList();
+  }
+
+  private List<ManifestFile> writeSortedManifests(
+      ManifestContent content, Dataset<Row> manifestEntryDF, int numManifests) {
+
+    // Map the top level partition column names to the column name referenced within the manifest
+    // entry dataframe
+    Column[] actualPartitionColumns =
+        partitionSortColumns.stream()
+            .map(p -> col("data_file.partition." + p))
+            .toArray(Column[]::new);
+
+    // Form a new temporary column to sort/cluster manifests on, based on the custom sort
+    // order provided
+    Dataset<Row> clusteredManifestEntryDF =
+        manifestEntryDF.withColumn(
+            "__clustering_column__", concat_ws("::", actualPartitionColumns));
+
+    return withReusableDS(
+        clusteredManifestEntryDF,
+        df -> {
+          WriteManifests<?> writeFunc = newWriteManifestsFunc(content, df.schema());
+          Column partitionColumn = df.col("__clustering_column__");
+          Dataset<Row> transformedDF =
+              repartitionAndSort(df, partitionColumn, numManifests).drop("__clustering_column__");
+          return writeFunc.apply(transformedDF).collectAsList();
+        });
   }
 
   private List<ManifestFile> writePartitionedManifests(
