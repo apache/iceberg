@@ -21,6 +21,7 @@ package org.apache.iceberg.inmemory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.UUID;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.assertj.core.api.Assertions;
@@ -31,7 +32,7 @@ public class TestInMemoryFileIO {
   @Test
   public void testBasicEndToEnd() throws IOException {
     InMemoryFileIO fileIO = new InMemoryFileIO();
-    String location = "s3://foo/bar.txt";
+    String location = "s3://foo/" + UUID.randomUUID();
     Assertions.assertThat(fileIO.fileExists(location)).isFalse();
 
     OutputStream outputStream = fileIO.newOutputFile(location).create();
@@ -66,7 +67,7 @@ public class TestInMemoryFileIO {
 
   @Test
   public void testCreateNoOverwrite() {
-    String location = "s3://foo/bar/baz.txt";
+    String location = "s3://foo/" + UUID.randomUUID();
     InMemoryFileIO fileIO = new InMemoryFileIO();
     fileIO.addFile(location, "hello world".getBytes());
     Assertions.assertThatExceptionOfType(AlreadyExistsException.class)
@@ -75,9 +76,9 @@ public class TestInMemoryFileIO {
 
   @Test
   public void testOverwriteBeforeAndAfterClose() throws IOException {
+    String location = "s3://foo/" + UUID.randomUUID();
     byte[] oldData = "old data".getBytes();
     byte[] newData = "new data".getBytes();
-    String location = "s3://foo/bar/baz/qux.txt";
 
     InMemoryFileIO fileIO = new InMemoryFileIO();
     OutputStream outputStream = fileIO.newOutputFile(location).create();
@@ -113,11 +114,11 @@ public class TestInMemoryFileIO {
 
   @Test
   public void testFilesAreSharedAcrossMultipleInstances() {
-    String location = "s3://foo/shared.txt";
+    String location = "s3://foo/" + UUID.randomUUID();
     InMemoryFileIO fileIO = new InMemoryFileIO();
     fileIO.addFile(location, "hello world".getBytes());
 
     InMemoryFileIO fileIO2 = new InMemoryFileIO();
-    Assertions.assertThat(fileIO2.fileExists(location));
+    Assertions.assertThat(fileIO2.fileExists(location)).isTrue();
   }
 }
