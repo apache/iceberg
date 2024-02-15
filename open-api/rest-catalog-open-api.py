@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Extra, Field
@@ -629,8 +630,100 @@ class PartitionStatisticsFile(BaseModel):
     file_size_in_bytes: int = Field(..., alias='file-size-in-bytes')
 
 
+class BooleanTypeValue(BaseModel):
+    __root__: bool
+
+
+class IntegerTypeValue(BaseModel):
+    __root__: int
+
+
+class LongTypeValue(BaseModel):
+    __root__: int
+
+
+class FloatTypeValue(BaseModel):
+    __root__: float
+
+
+class DoubleTypeValue(BaseModel):
+    __root__: float
+
+
+class DecimalTypeValue(BaseModel):
+    __root__: str = Field(
+        ...,
+        description='Decimal types are serialized as a string to preserve exact numeric precision',
+    )
+
+
+class StringTypeValue(BaseModel):
+    __root__: str
+
+
+class UUIDTypeValue(BaseModel):
+    __root__: str = Field(..., description='UUID types are serialized as a string')
+
+
+class DateTypeValue(BaseModel):
+    __root__: date = Field(
+        ...,
+        description='Date types are serialized from an integer representing days since the Unix epoch to an ISO 8601 date string',
+    )
+
+
+class TimeTypeValue(BaseModel):
+    __root__: str = Field(
+        ...,
+        description='Time types are serialized from a long representing microseconds since midnight to an ISO 8601 time string',
+    )
+
+
+class TimestampTypeValue(BaseModel):
+    __root__: str = Field(
+        ...,
+        description='Timestamp types are serialized from a long representing microseconds since the Unix epoch to an ISO 8601 timestamp string. During serialization, the timestamp type is checked to see if it should be converted to UTC. If so, the serialized timestamp string will be formatted to represent UTC by appending `+00:00`',
+    )
+
+
+class FixedTypeValue(BaseModel):
+    __root__: str = Field(
+        ...,
+        description='serialized as a base16-encoded string representing binary data',
+    )
+
+
+class BinaryTypeValue(BaseModel):
+    __root__: str = Field(
+        ...,
+        description='serialized as a base16-encoded string representing binary data',
+    )
+
+
+class PrimitiveTypeValue(BaseModel):
+    __root__: Union[
+        BooleanTypeValue,
+        IntegerTypeValue,
+        LongTypeValue,
+        FloatTypeValue,
+        DoubleTypeValue,
+        DecimalTypeValue,
+        StringTypeValue,
+        UUIDTypeValue,
+        DateTypeValue,
+        TimeTypeValue,
+        TimestampTypeValue,
+        FixedTypeValue,
+        BinaryTypeValue,
+    ]
+
+
 class FileContent(BaseModel):
     __root__: Literal['data', 'position-deletes', 'equality-deletes']
+
+
+class FileFormat(BaseModel):
+    __root__: Literal['avro', 'orc', 'parquet']
 
 
 class CreateNamespaceRequest(BaseModel):
@@ -976,28 +1069,43 @@ class CommitTableResponse(BaseModel):
     metadata: TableMetadata
 
 
-class TypeValue(BaseModel):
-    __root__: Union[PrimitiveTypeValue, MapTypeValue, StructTypeValue]
-
-
 class MapTypeValue(BaseModel):
+    """
+    A map structure serialized with keys and values arrays that maintain type
+    """
+
     keys: Optional[List[TypeValue]] = None
     values: Optional[List[TypeValue]] = None
 
 
 class StructTypeValue(BaseModel):
+    """
+    Struct type are serialized, where field id are preserved as a string JSON key, and the fields value is serialized based on the defined type, supporting a deep serialization of nested structures
+    """
+
     __root__: Optional[Dict[str, TypeValue]] = None
 
 
-class PrimitiveTypeValue(BaseModel):
-    __root__: Union[bool, int, float, str, List[TypeValue]]
+class ListTypeValue(BaseModel):
+    """
+    A list of elements, where each element is serialized according to its specific type logic
+    """
+
+    __root__: List[TypeValue] = Field(
+        ...,
+        description='A list of elements, where each element is serialized according to its specific type logic',
+    )
+
+
+class TypeValue(BaseModel):
+    __root__: Union[PrimitiveTypeValue, MapTypeValue, StructTypeValue, ListTypeValue]
 
 
 class ContentFile(BaseModel):
     spec_id: int = Field(..., alias='spec-id')
     content: FileContent
     file_path: str = Field(..., alias='file-path')
-    file_format: str = Field(..., alias='file-format')
+    file_format: FileFormat = Field(..., alias='file-format')
     partition: Optional[StructTypeValue] = None
     file_size_in_bytes: int = Field(..., alias='file-size-in-bytes')
     record_count: int = Field(..., alias='record-count')
@@ -1007,7 +1115,7 @@ class ContentFile(BaseModel):
     nan_value_counts: Optional[MapTypeValue] = Field(None, alias='nan-value-counts')
     lower_bounds: Optional[MapTypeValue] = Field(None, alias='lower-bounds')
     upper_bounds: Optional[MapTypeValue] = Field(None, alias='upper-bounds')
-    key_metadata: Optional[str] = Field(None, alias='key-metadata')
+    key_metadata: Optional[BinaryTypeValue] = Field(None, alias='key-metadata')
     split_offsets: Optional[List[int]] = Field(None, alias='split-offsets')
     equality_ids: Optional[List[int]] = Field(None, alias='equality-ids')
     sort_order_id: Optional[int] = Field(None, alias='sort-order-id')
@@ -1035,4 +1143,6 @@ AppendDataFileUpdate.update_forward_refs()
 CreateTableRequest.update_forward_refs()
 CreateViewRequest.update_forward_refs()
 ReportMetricsRequest.update_forward_refs()
-TypeValue.update_forward_refs()
+MapTypeValue.update_forward_refs()
+StructTypeValue.update_forward_refs()
+ListTypeValue.update_forward_refs()

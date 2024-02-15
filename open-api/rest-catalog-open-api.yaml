@@ -3348,14 +3348,69 @@ components:
           type: integer
           format: int64
 
-    TypeValue:
-      oneOf:
-        - $ref: '#/components/schemas/PrimitiveTypeValue'
-        - $ref: '#/components/schemas/MapTypeValue'
-        - $ref: '#/components/schemas/StructTypeValue'
+    BooleanTypeValue:
+      type: boolean
+
+    IntegerTypeValue:
+      type: integer
+
+    LongTypeValue:
+      type: integer
+      format: int64
+
+    FloatTypeValue:
+      type: number
+      format: float
+
+    DoubleTypeValue:
+      type: number
+      format: double
+
+    DecimalTypeValue:
+      type: string
+      description:
+        "Decimal types are serialized as a string to preserve exact numeric precision"
+
+    StringTypeValue:
+      type: string
+
+    UUIDTypeValue:
+      type: string
+      description:
+        "UUID types are serialized as a string"
+
+    DateTypeValue:
+      type: string
+      format: date
+      description:
+        "Date types are serialized from an integer representing days since the Unix epoch to an ISO 8601 date string"
+
+    TimeTypeValue:
+      type: string
+      description:
+        "Time types are serialized from a long representing microseconds since midnight to an ISO 8601 time string"
+
+    TimestampTypeValue:
+      type: string
+      description:
+        "Timestamp types are serialized from a long representing microseconds since the Unix epoch to an ISO 8601 
+        timestamp string. During serialization, the timestamp type is checked to see if it should be converted to UTC.
+         If so, the serialized timestamp string will be formatted to represent UTC by appending `+00:00`"
+
+    FixedTypeValue:
+      type: string
+      description:
+        "serialized as a base16-encoded string representing fixed length binary data"
+
+    BinaryTypeValue:
+      type: string
+      description:
+        "serialized as a base16-encoded string representing binary data"
 
     MapTypeValue:
       type: object
+      description:
+        "A map structure serialized with keys and values arrays that maintain type"
       properties:
         keys:
           type: array
@@ -3368,23 +3423,42 @@ components:
 
     StructTypeValue:
       type: object
+      description:
+        "Struct type are serialized, where field id are preserved as a string JSON key, and the fields value is 
+        serialized based on the defined type, supporting a deep serialization of nested structures"
       additionalProperties:
         oneOf:
           - $ref: '#/components/schemas/TypeValue'
 
+    ListTypeValue:
+      type: array
+      description:
+        "A list of elements, where each element is serialized according to its specific type logic"
+      items:
+         $ref: '#/components/schemas/TypeValue'
+
     PrimitiveTypeValue:
       oneOf:
-        - type: boolean
-        - type: integer
-        - type: integer
-          format: int64
-        - type: number
-        - type: string
-        - type: string
-          format: byte
-        - type: array
-          items:
-            $ref: '#/components/schemas/TypeValue'
+        - $ref: '#/components/schemas/BooleanTypeValue'
+        - $ref: '#/components/schemas/IntegerTypeValue'
+        - $ref: '#/components/schemas/LongTypeValue'
+        - $ref: '#/components/schemas/FloatTypeValue'
+        - $ref: '#/components/schemas/DoubleTypeValue'
+        - $ref: '#/components/schemas/DecimalTypeValue'
+        - $ref: '#/components/schemas/StringTypeValue'
+        - $ref: '#/components/schemas/UUIDTypeValue'
+        - $ref: '#/components/schemas/DateTypeValue'
+        - $ref: '#/components/schemas/TimeTypeValue'
+        - $ref: '#/components/schemas/TimestampTypeValue'
+        - $ref: '#/components/schemas/FixedTypeValue'
+        - $ref: '#/components/schemas/BinaryTypeValue'
+
+    TypeValue:
+      oneOf:
+        - $ref: '#/components/schemas/PrimitiveTypeValue'
+        - $ref: '#/components/schemas/MapTypeValue'
+        - $ref: '#/components/schemas/StructTypeValue'
+        - $ref: '#/components/schemas/ListTypeValue'
 
     FileContent:
       type: string
@@ -3392,6 +3466,13 @@ components:
         - data
         - position-deletes
         - equality-deletes
+        -
+    FileFormat:
+      type: string
+      enum:
+        - avro
+        - orc
+        - parquet
 
     ContentFile:
       type: object
@@ -3410,7 +3491,7 @@ components:
         file-path:
           type: string
         file-format:
-          type: string
+          $ref: '#/components/schemas/FileFormat'
         partition:
           $ref: '#/components/schemas/StructTypeValue'
         file-size-in-bytes:
@@ -3432,8 +3513,7 @@ components:
         upper-bounds:
           $ref: '#/components/schemas/MapTypeValue'
         key-metadata:
-          type: string
-          format: byte
+          $ref: '#/components/schemas/BinaryTypeValue'
         split-offsets:
           type: array
           items:
