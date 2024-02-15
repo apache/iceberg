@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.Schema;
@@ -63,8 +62,11 @@ public class TestViewMetadata {
     ViewVersion v2 = newViewVersion(2, "select count(1) as count from t2");
     Map<Integer, ViewVersion> versionsById = ImmutableMap.of(1, v1, 2, v2, 3, v3);
 
-    List<ViewVersion> retainedVersions = ViewMetadata.Builder.expireVersions(versionsById, 2);
-    assertThat(retainedVersions).hasSameElementsAs(ImmutableList.of(v2, v3));
+    assertThat(ViewMetadata.Builder.expireVersions(versionsById, 3))
+        .containsExactlyInAnyOrder(v1, v2, v3);
+    assertThat(ViewMetadata.Builder.expireVersions(versionsById, 2))
+        .containsExactlyInAnyOrder(v2, v3);
+    assertThat(ViewMetadata.Builder.expireVersions(versionsById, 1)).containsExactly(v3);
   }
 
   @Test
@@ -73,26 +75,38 @@ public class TestViewMetadata {
     ViewVersion v2 = newViewVersion(2, "select count(1) as count from t2");
     ViewVersion v3 = newViewVersion(3, "select count from t1");
 
-    Set<Integer> versionsById = ImmutableSet.of(2, 3);
+    ViewHistoryEntry one =
+        ImmutableViewHistoryEntry.builder()
+            .versionId(v1.versionId())
+            .timestampMillis(v1.timestampMillis())
+            .build();
+    ViewHistoryEntry two =
+        ImmutableViewHistoryEntry.builder()
+            .versionId(v2.versionId())
+            .timestampMillis(v2.timestampMillis())
+            .build();
+    ViewHistoryEntry three =
+        ImmutableViewHistoryEntry.builder()
+            .versionId(v3.versionId())
+            .timestampMillis(v3.timestampMillis())
+            .build();
 
-    List<ViewHistoryEntry> history =
-        ImmutableList.of(
-            ImmutableViewHistoryEntry.builder()
-                .versionId(v1.versionId())
-                .timestampMillis(v1.timestampMillis())
-                .build(),
-            ImmutableViewHistoryEntry.builder()
-                .versionId(v2.versionId())
-                .timestampMillis(v2.timestampMillis())
-                .build(),
-            ImmutableViewHistoryEntry.builder()
-                .versionId(v3.versionId())
-                .timestampMillis(v3.timestampMillis())
-                .build());
+    assertThat(
+            ViewMetadata.Builder.updateHistory(
+                ImmutableList.of(one, two, three), ImmutableSet.of(1, 2, 3)))
+        .containsExactly(one, two, three);
 
-    List<ViewHistoryEntry> retainedHistory =
-        ViewMetadata.Builder.updateHistory(history, versionsById);
-    assertThat(retainedHistory).hasSameElementsAs(history.subList(1, 3));
+    // one was an invalid entry in the history, so all previous elements are removed
+    assertThat(
+            ViewMetadata.Builder.updateHistory(
+                ImmutableList.of(three, two, one, two, three), ImmutableSet.of(2, 3)))
+        .containsExactly(two, three);
+
+    // two was an invalid entry in the history, so all previous elements are removed
+    assertThat(
+            ViewMetadata.Builder.updateHistory(
+                ImmutableList.of(one, two, three, one, three), ImmutableSet.of(1, 3)))
+        .containsExactly(three, one, three);
   }
 
   @Test
@@ -233,7 +247,7 @@ public class TestViewMetadata {
   }
 
   @Test
-  public void viewHistoryNormalization() {
+  public void viewVersionHistoryNormalization() {
     Map<String, String> properties = ImmutableMap.of(ViewProperties.VERSION_HISTORY_SIZE, "2");
     ViewVersion viewVersionOne = newViewVersion(1, "select * from ns.tbl");
     ViewVersion viewVersionTwo = newViewVersion(2, "select count(*) from ns.tbl");
@@ -252,12 +266,12 @@ public class TestViewMetadata {
 
     // the first build will not expire versions that were added in the builder
     assertThat(originalViewMetadata.versions()).hasSize(3);
-    assertThat(originalViewMetadata.history()).hasSize(3);
+    assertThat(originalViewMetadata.history()).hasSize(1);
 
     // rebuild the metadata to expire older versions
     ViewMetadata viewMetadata = ViewMetadata.buildFrom(originalViewMetadata).build();
     assertThat(viewMetadata.versions()).hasSize(2);
-    assertThat(viewMetadata.history()).hasSize(2);
+    assertThat(viewMetadata.history()).hasSize(1);
 
     // make sure that metadata changes reflect the current state after the history was adjusted,
     // meaning that the first view version shouldn't be included
@@ -315,6 +329,74 @@ public class TestViewMetadata {
   }
 
   @Test
+  public void viewVersionHistoryIsCorrectlyRetained() {
+    Map<String, String> properties = ImmutableMap.of(ViewProperties.VERSION_HISTORY_SIZE, "2");
+    ViewVersion viewVersionOne = newViewVersion(1, "select * from ns.tbl");
+    ViewVersion viewVersionTwo = newViewVersion(2, "select count(*) from ns.tbl");
+    ViewVersion viewVersionThree = newViewVersion(3, "select count(*) as count from ns.tbl");
+
+    ViewMetadata originalViewMetadata =
+        ViewMetadata.builder()
+            .setProperties(properties)
+            .setLocation("location")
+            .addSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
+            .addVersion(viewVersionOne)
+            .addVersion(viewVersionTwo)
+            .addVersion(viewVersionThree)
+            .setCurrentVersionId(3)
+            .build();
+
+    assertThat(originalViewMetadata.versions())
+        .hasSize(3)
+        .containsExactlyInAnyOrder(viewVersionOne, viewVersionTwo, viewVersionThree);
+    assertThat(originalViewMetadata.history())
+        .hasSize(1)
+        .first()
+        .extracting(ViewHistoryEntry::versionId)
+        .isEqualTo(3);
+
+    // rebuild the metadata to expire older versions
+    ViewMetadata viewMetadata = ViewMetadata.buildFrom(originalViewMetadata).build();
+    assertThat(viewMetadata.versions())
+        .hasSize(2)
+        // there is no requirement about the order of versions
+        .containsExactlyInAnyOrder(viewVersionThree, viewVersionTwo);
+    assertThat(viewMetadata.history())
+        .hasSize(1)
+        .first()
+        .extracting(ViewHistoryEntry::versionId)
+        .isEqualTo(3);
+
+    ViewMetadata updated = ViewMetadata.buildFrom(viewMetadata).setCurrentVersionId(2).build();
+    assertThat(updated.versions())
+        .hasSize(2)
+        .containsExactlyInAnyOrder(viewVersionTwo, viewVersionThree);
+    assertThat(updated.history())
+        .hasSize(2)
+        .element(0)
+        .extracting(ViewHistoryEntry::versionId)
+        .isEqualTo(3);
+    assertThat(updated.history()).element(1).extracting(ViewHistoryEntry::versionId).isEqualTo(2);
+
+    ViewMetadata view = ViewMetadata.buildFrom(updated).setCurrentVersionId(3).build();
+    assertThat(view.versions())
+        .hasSize(2)
+        .containsExactlyInAnyOrder(viewVersionTwo, viewVersionThree);
+    assertThat(view.history())
+        .hasSize(3)
+        .element(0)
+        .extracting(ViewHistoryEntry::versionId)
+        .isEqualTo(3);
+    assertThat(view.history()).element(1).extracting(ViewHistoryEntry::versionId).isEqualTo(2);
+    assertThat(view.history()).element(2).extracting(ViewHistoryEntry::versionId).isEqualTo(3);
+
+    // viewVersionId 1 has been removed from versions, so this should fail
+    assertThatThrownBy(() -> ViewMetadata.buildFrom(view).setCurrentVersionId(1).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot set current version to unknown version: 1");
+  }
+
+  @Test
   public void viewMetadataAndMetadataChanges() {
     Map<String, String> properties = ImmutableMap.of("key1", "prop1", "key2", "prop2");
     Schema schemaOne = new Schema(0, Types.NestedField.required(1, "x", Types.LongType.get()));
@@ -340,7 +422,7 @@ public class TestViewMetadata {
     assertThat(viewMetadata.versions())
         .hasSize(3)
         .containsExactly(viewVersionOne, viewVersionTwo, viewVersionThree);
-    assertThat(viewMetadata.history()).hasSize(3);
+    assertThat(viewMetadata.history()).hasSize(1);
     assertThat(viewMetadata.currentVersionId()).isEqualTo(3);
     assertThat(viewMetadata.currentVersion()).isEqualTo(viewVersionThree);
     assertThat(viewMetadata.formatVersion()).isEqualTo(ViewMetadata.DEFAULT_VIEW_FORMAT_VERSION);
