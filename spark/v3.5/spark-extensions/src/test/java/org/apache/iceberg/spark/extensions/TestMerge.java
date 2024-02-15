@@ -1624,7 +1624,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             () -> {
               for (int numOperations = 0; numOperations < 20; numOperations++) {
                 while (barrier.get() < numOperations * 2) {
-                  sleep(100);
+                  sleep(200);
                 }
 
                 sql(
@@ -1651,7 +1651,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
               for (int numOperations = 0; numOperations < 20; numOperations++) {
                 while (shouldAppend.get() && barrier.get() < numOperations * 2) {
-                  sleep(100);
+                  sleep(200);
                 }
 
                 if (!shouldAppend.get()) {
