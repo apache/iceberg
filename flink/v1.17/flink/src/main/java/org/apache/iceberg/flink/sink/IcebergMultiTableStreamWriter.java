@@ -183,7 +183,6 @@ public class IcebergMultiTableStreamWriter<T> extends AbstractStreamOperator<Tab
       Map.Entry<String, TaskWriter<T>> writerMap = iterator.next();
       String table = writerMap.getKey();
       TaskWriter<T> writer = writerMap.getValue();
-      // TODO: Add table information in write result
       WriteResult result = writer.complete();
       TableAwareWriteResult tableAwareWriteResult =
           new TableAwareWriteResult(result, tableSupplierMap.get(table));
@@ -197,6 +196,7 @@ public class IcebergMultiTableStreamWriter<T> extends AbstractStreamOperator<Tab
     writers.clear();
   }
 
+  //TODO: Move to a util
   private static Map<String, String> writeProperties(
       Table table, FileFormat format, FlinkWriteConf conf) {
     Map<String, String> writeProperties = Maps.newHashMap(table.properties());
@@ -229,6 +229,7 @@ public class IcebergMultiTableStreamWriter<T> extends AbstractStreamOperator<Tab
     return writeProperties;
   }
 
+  //TODO: Move to a util
   private List<Integer> checkAndGetEqualityFieldIds(Table table) {
     List<Integer> equalityFieldIds = Lists.newArrayList(table.schema().identifierFieldIds());
     if (equalityFieldColumns != null && !equalityFieldColumns.isEmpty()) {
