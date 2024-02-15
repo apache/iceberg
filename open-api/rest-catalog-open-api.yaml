@@ -1498,7 +1498,7 @@ components:
         that they would prefer response to be paginated.
         
         Clients will initiate the request by sending an empty pageToken e.g. GET /tables?pageToken or /tables?pageToken=
-        For servers that support pagination, they would recognize pageToken and honor the contracts specified above 
+        For servers that support pagination, they will recognize pageToken and honor the contracts specified above 
         by returning a NextPageToken in response if there are more results available.
         For servers that do not support pagination, they will ignore the token and return all results.
       required: false
@@ -1515,7 +1515,7 @@ components:
       required: false
       allowEmptyValue: true
       schema:
-        type: string
+        type: integer
 
   ##############################
   # Application Schema Objects #
@@ -1618,7 +1618,7 @@ components:
 
     NextPageToken:
       description:
-        An opaque next page token, when non-empty this indicates that more results can be returned by server.
+        An opaque next page token, when non-null and non-empty this indicates that more results can be returned by server.
         This should be used in the next request for the query parameter of pageToken.
       type: string
 

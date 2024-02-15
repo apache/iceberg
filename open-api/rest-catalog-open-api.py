@@ -78,7 +78,7 @@ class Namespace(BaseModel):
 class NextPageToken(BaseModel):
     __root__: str = Field(
         ...,
-        description='An opaque next page token, when non-empty this indicates that more results can be returned by server. This should be used in the next request for the query parameter of pageToken.',
+        description='An opaque next page token, when non-null and non-empty this indicates that more results can be returned by server. This should be used in the next request for the query parameter of pageToken.',
     )
 
 
