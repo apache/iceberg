@@ -863,7 +863,8 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
             .withDefaultNamespace(identifier.namespace())
             .withQuery("trino", "select count(*) from ns.tbl")
             .withProperty("replacedProp1", "val1")
-            .withProperty("replacedProp2", "val2");
+            .withProperty("replacedProp2", "val2")
+            .withProperty(ViewProperties.REPLACE_DROP_DIALECT_ALLOWED, "true");
     View replacedView = useCreateOrReplace ? viewBuilder.createOrReplace() : viewBuilder.replace();
 
     // validate replaced view settings
@@ -1092,6 +1093,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
             .withDefaultNamespace(identifier.namespace())
             .withQuery(trino.dialect(), trino.sql())
             .withQuery(spark.dialect(), spark.sql())
+            .withProperty(ViewProperties.REPLACE_DROP_DIALECT_ALLOWED, "true")
             .create();
 
     assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
@@ -1552,6 +1554,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
             .withSchema(SCHEMA)
             .withDefaultNamespace(identifier.namespace())
             .withQuery("trino", "select * from ns.tbl")
+            .withProperty(ViewProperties.REPLACE_DROP_DIALECT_ALLOWED, "true")
             .create();
 
     assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();

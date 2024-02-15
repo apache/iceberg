@@ -26,6 +26,8 @@ public class ViewProperties {
   public static final String METADATA_COMPRESSION = "write.metadata.compression-codec";
   public static final String METADATA_COMPRESSION_DEFAULT = "gzip";
   public static final String COMMENT = "comment";
+  public static final String REPLACE_DROP_DIALECT_ALLOWED = "replace.drop-dialect.allowed";
+  public static final boolean REPLACE_DROP_DIALECT_ALLOWED_DEFAULT = false;
 
   private ViewProperties() {}
 }
