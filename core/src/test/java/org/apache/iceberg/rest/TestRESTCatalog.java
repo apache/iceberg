@@ -47,6 +47,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.Transaction;
@@ -81,6 +82,7 @@ import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
+import org.assertj.core.api.InstanceOfAssertFactories;
 import org.awaitility.Awaitility;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.gzip.GzipHandler;
@@ -820,6 +822,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                   .suppressHistoricalSnapshots()
                   .build();
 
+          // don't call snapshots() directly as that would cause to load all snapshots. Instead,
+          // make sure the snapshots field holds exactly 1 snapshot
+          Assertions.assertThat(refsMetadata)
+              .extracting("snapshots")
+              .asInstanceOf(InstanceOfAssertFactories.list(Snapshot.class))
+              .hasSize(1);
+
           return LoadTableResponse.builder()
               .withTableMetadata(refsMetadata)
               .addAllConfig(originalResponse.config())
@@ -917,6 +926,17 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .toBranch(branch)
         .commit();
 
+    table
+        .newFastAppend()
+        .appendFile(
+            DataFiles.builder(PartitionSpec.unpartitioned())
+                .withPath("/path/to/data-c.parquet")
+                .withFileSizeInBytes(10)
+                .withRecordCount(2)
+                .build())
+        .toBranch(branch)
+        .commit();
+
     ResourcePaths paths = ResourcePaths.forCatalogProperties(Maps.newHashMap());
 
     // Respond with only referenced snapshots
@@ -927,6 +947,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               TableMetadata.buildFrom(originalResponse.tableMetadata())
                   .suppressHistoricalSnapshots()
                   .build();
+
+          // don't call snapshots() directly as that would cause to load all snapshots. Instead,
+          // make sure the snapshots field holds exactly 2 snapshots (the latest snapshot for main
+          // and the branch)
+          Assertions.assertThat(refsMetadata)
+              .extracting("snapshots")
+              .asInstanceOf(InstanceOfAssertFactories.list(Snapshot.class))
+              .hasSize(2);
 
           return LoadTableResponse.builder()
               .withTableMetadata(refsMetadata)
@@ -1036,6 +1064,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               TableMetadata.buildFrom(originalResponse.tableMetadata())
                   .suppressHistoricalSnapshots()
                   .build();
+
+          // don't call snapshots() directly as that would cause to load all snapshots. Instead,
+          // make sure the snapshots field holds exactly 1 snapshot
+          Assertions.assertThat(refsMetadata)
+              .extracting("snapshots")
+              .asInstanceOf(InstanceOfAssertFactories.list(Snapshot.class))
+              .hasSize(1);
 
           return LoadTableResponse.builder()
               .withTableMetadata(refsMetadata)
