@@ -36,40 +36,24 @@ import org.apache.iceberg.spark.source.UncomparableLiteralException;
 import org.apache.iceberg.spark.source.broadcastvar.broadcastutils.LiteralListWrapper;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.catalyst.bcvar.ArrayWrapper;
 import org.apache.spark.sql.catalyst.bcvar.BroadcastedJoinKeysWrapper;
 
 public class BroadcastHRUnboundPredicate<T> extends UnboundPredicate<T>
     implements BroadcastVarPredicate {
-  private static final LoadingCache<BroadcastedJoinKeysWrapper, List>
+  private static final LoadingCache<BroadcastedJoinKeysWrapper, ArrayWrapper>
       idempotentializer =
           Caffeine.newBuilder()
               .expireAfterWrite(Duration.ofSeconds(BroadcastedJoinKeysWrapper.CACHE_EXPIRY))
               .maximumSize(BroadcastedJoinKeysWrapper.CACHE_SIZE)
-              .weakValues()
+            //  .weakValues()
               .build(
                   bcj -> {
                     // lets check the initialization here.
                     // TODO: figure out a better way to initialize
                     BroadcastVarReaper.checkInitialized();
                     try {
-                      int relativeKeyIndex = bcj.getRelativeKeyIndex();
-                      if (bcj.getTupleLength() == 1) {
-                        List<Literal<Object>> transientLiterals = new LinkedList<>();
-                        BroadcastUtil.evaluateLiteral(bcj)
-                            .forEach(
-                                x -> {
-                                  if (x != null) {
-                                    transientLiterals.add(x);
-                                  }
-                                });
-                        return transientLiterals;
-                      } else {
-                        List<Literal[]> underlying2DList =
-                            BoundBroadcastRangeInPredicate.idempotentializer2DLiterals.get(
-                                    new IdempotKeyForHashedRelationDeser(bcj));
-                        return new LiteralListWrapper(
-                            relativeKeyIndex, underlying2DList, bcj.getTupleLength());
-                      }
+                      return bcj.getKeysArray();
                     } finally {
                       // We are not invalidating the cached data on driver as the cached array may
                       // be
@@ -80,7 +64,6 @@ public class BroadcastHRUnboundPredicate<T> extends UnboundPredicate<T>
                     }
                   });
   private final BroadcastedJoinKeysWrapper bcVar;
-  private transient WeakReference<List<Literal<T>>> transientLiterals;
 
   public BroadcastHRUnboundPredicate(
       String termName, BroadcastedJoinKeysWrapper bcVar, Type internalType)
@@ -117,49 +100,15 @@ public class BroadcastHRUnboundPredicate<T> extends UnboundPredicate<T>
     return this.bindRangeInOperation(bound);
   }
 
-  private List<Literal<T>> initLiteral() {
-    List<Literal<T>> actualList =
-        this.transientLiterals != null ? this.transientLiterals.get() : null;
-    if (actualList == null) {
-      actualList =
-          (List<Literal<T>>)
-              idempotentializer.get(this.bcVar);
-      this.transientLiterals = new WeakReference<>(actualList);
-    }
-    return actualList;
-  }
+
 
   private Expression bindRangeInOperation(BoundTerm<T> boundTerm) {
-
-    // In case of RangeIn operation, the data types of the columns is guaranteed to be correct
-    // so below conversion check is not needed
-    /* List<Literal<T>> convertedLiterals = Lists.newArrayList(Iterables.filter(
-        Lists.transform(literals(), lit -> {
-          Literal<T> converted = lit.to(boundTerm.type());
-          ValidationException.check(converted != null,
-              "Invalid value for conversion to type %s: %s (%s)",
-              boundTerm.type(),
-              lit,
-              lit.getClass().getName());
-          return converted;
-        }),
-        lit -> lit != Literals.aboveMax() && lit != Literals.belowMin()));
-
-    if (convertedLiterals.isEmpty()) {
-      return Expressions.alwaysFalse();
-    } */
-    List<Literal<T>> actualLit =
-        this.transientLiterals != null ? this.transientLiterals.get() : null;
-    if (actualLit != null) {
-      return new BoundBroadcastRangeInPredicate<>(op(), boundTerm, this.bcVar, actualLit);
-    } else {
-      return new BoundBroadcastRangeInPredicate<>(op(), boundTerm, this.bcVar);
-    }
+    return new BoundBroadcastRangeInPredicate<>(op(), boundTerm, this.bcVar);
   }
 
   @Override
   public List<Literal<T>> literals() {
-    return this.initLiteral();
+    return new LiteralListWrapper<>(idempotentializer.get(bcVar));
   }
 
   @Override

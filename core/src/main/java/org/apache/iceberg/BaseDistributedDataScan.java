@@ -23,6 +23,7 @@ import static org.apache.iceberg.TableProperties.DATA_PLANNING_MODE;
 import static org.apache.iceberg.TableProperties.DELETE_PLANNING_MODE;
 import static org.apache.iceberg.TableProperties.PLANNING_MODE_DEFAULT;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -68,6 +69,8 @@ abstract class BaseDistributedDataScan
   private final int localParallelism;
   private final long localPlanningSizeThreshold;
 
+  private boolean planUsingExecutors = false;
+
   protected BaseDistributedDataScan(
       Table table, Schema schema, TableScanContext context, BaseDistributedDataScan oldScan) {
     super(table, schema, context);
@@ -75,6 +78,7 @@ abstract class BaseDistributedDataScan
     this.localPlanningSizeThreshold = localParallelism * LOCAL_PLANNING_MAX_SLOT_SIZE;
     if (oldScan != null) {
       this.filteredScanTasks = oldScan.filteredScanTasks;
+      this.planUsingExecutors = oldScan.planUsingExecutors;
     } else {
       this.filteredScanTasks = null;
     }
@@ -186,6 +190,7 @@ abstract class BaseDistributedDataScan
             toFileTasks(dataFuture, deletesFuture, copyDataFiles);
 
         if (shouldPlanWithExecutor() && (planDataLocally || mayHaveEqualityDeletes)) {
+          this.planUsingExecutors = true;
           this.filteredScanTasks = new ParallelIterable<>(fileTasks, planExecutor());
         } else {
           this.filteredScanTasks = CloseableIterable.concat(fileTasks);
@@ -210,26 +215,27 @@ abstract class BaseDistributedDataScan
     Expression dataFilter = filter();
     if (dataFilter != null && dataFilter != Expressions.alwaysTrue()) {
       Map<Integer, ResidualEvaluator> residualCache = specCache(this::newResidualEvaluator);
-
-      InclusiveMetricsEvaluator metricsEvaluator = new InclusiveMetricsEvaluator(this.schema(), dataFilter, this.isCaseSensitive());
-
-      CloseableIterable<ScanTask> filteredScanTasks =
-          CloseableIterable.filter(
+      InclusiveMetricsEvaluator metricsEvaluator = new InclusiveMetricsEvaluator(this.schema(),
+              dataFilter, this.isCaseSensitive());
+      Iterable<CloseableIterable<ScanTask>> filteredScanTasks =
+          CloseableIterable.transform(
               fileScanTasks,
               task -> {
                 GenericDataFile gdf = (GenericDataFile) task.asFileScanTask().file();
-                return metricsEvaluator.eval(gdf);
+                if (true) {
+                  BaseFileScanTask bcf = (BaseFileScanTask) task;
+                  ScanTask newTask = new BaseFileScanTask(gdf, residualCache.get(gdf.specId()), bcf);
+                  return CloseableIterable.withNoopClose(newTask);
+                } else {
+                  return CloseableIterable.empty();
+                }
               });
-      CloseableIterable<ScanTask> newFilteredTasks =
-          CloseableIterable.transform(
-              filteredScanTasks,
-              task -> {
-                DataFile df = task.asFileScanTask().file();
-                BaseFileScanTask bcf = (BaseFileScanTask) task;
-                ScanTask newTask = new BaseFileScanTask(df, residualCache.get(df.specId()), bcf);
-                return newTask;
-              });
-      return newFilteredTasks;
+      if (this.planUsingExecutors) {
+        return new ParallelIterable<>(filteredScanTasks, planExecutor());
+      } else {
+        return  CloseableIterable.concat(filteredScanTasks);
+      }
+
     } else {
       return fileScanTasks;
     }

@@ -469,7 +469,7 @@ public class ParquetMetricsRowGroupFilter {
 
         Supplier<T> upperBoundsSupplier = () -> max(colStats, id);
         return RangeInPredUtil.isInRange(
-            lowerBoundsSupplier, upperBoundsSupplier, literalSet, true);
+            lowerBoundsSupplier, upperBoundsSupplier, literalSet, true, ref.comparator());
       }
       return ROWS_MIGHT_MATCH;
     }

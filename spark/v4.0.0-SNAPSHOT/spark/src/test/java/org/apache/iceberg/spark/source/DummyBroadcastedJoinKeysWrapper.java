@@ -23,15 +23,15 @@ import java.io.ObjectInput;
 import java.io.ObjectOutput;
 import java.util.HashSet;
 import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.spark.sql.catalyst.bcvar.ArrayWrapper;
 import org.apache.spark.sql.catalyst.bcvar.BroadcastedJoinKeysWrapper;
 import org.apache.spark.sql.types.DataType;
 
 public class DummyBroadcastedJoinKeysWrapper implements BroadcastedJoinKeysWrapper {
 
-  private int tupleLength;
   private int totalJoinKeys;
-  private int relativeIndex;
+  private int index;
   private DataType keyDataType;
   private ArrayWrapper wrapper;
 
@@ -41,22 +41,20 @@ public class DummyBroadcastedJoinKeysWrapper implements BroadcastedJoinKeysWrapp
       DataType keyDataType,
       Object array,
       long id,
-      int relativeIndex,
-      int tupleLength,
+      int index,
       int totalJoinKeys,
       boolean is1D) {
     this.keyDataType = keyDataType;
-    this.wrapper = ArrayWrapper.wrapArray(array, is1D, relativeIndex);
+    this.wrapper = ArrayWrapper.wrapArray(array, is1D, index);
     this.id = id;
-    this.relativeIndex = relativeIndex;
-    this.tupleLength = tupleLength;
+    this.index = index;
     this.totalJoinKeys = totalJoinKeys;
   }
 
   public DummyBroadcastedJoinKeysWrapper() {}
 
   public DummyBroadcastedJoinKeysWrapper(DataType keyDataType, Object array, long id) {
-    this(keyDataType, array, id, 0, 1, 1, true);
+    this(keyDataType, array, id, 0, 1, true);
   }
 
   @Override
@@ -75,14 +73,10 @@ public class DummyBroadcastedJoinKeysWrapper implements BroadcastedJoinKeysWrapp
   }
 
   @Override
-  public int getRelativeKeyIndex() {
-    return this.relativeIndex;
+  public int getKeyIndex() {
+    return this.index;
   }
 
-  @Override
-  public int getTupleLength() {
-    return this.tupleLength;
-  }
 
   @Override
   public int getTotalJoinKeys() {
@@ -105,9 +99,8 @@ public class DummyBroadcastedJoinKeysWrapper implements BroadcastedJoinKeysWrapp
 
   @Override
   public void writeExternal(ObjectOutput out) throws IOException {
-    out.writeInt(this.tupleLength);
     out.writeInt(this.totalJoinKeys);
-    out.writeInt(this.relativeIndex);
+    out.writeInt(this.index);
     out.writeObject(this.keyDataType);
     out.writeBoolean(this.wrapper.isOneDimensional());
     out.writeObject(this.wrapper.getBaseArray());
@@ -115,11 +108,10 @@ public class DummyBroadcastedJoinKeysWrapper implements BroadcastedJoinKeysWrapp
 
   @Override
   public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
-    this.tupleLength = in.readInt();
     this.totalJoinKeys = in.readInt();
-    this.relativeIndex = in.readInt();
+    this.index = in.readInt();
     this.keyDataType = (DataType) in.readObject();
     boolean isOneD = in.readBoolean();
-    this.wrapper = ArrayWrapper.wrapArray(in.readObject(), isOneD, this.relativeIndex);
+    this.wrapper = ArrayWrapper.wrapArray(in.readObject(), isOneD, this.index);
   }
 }

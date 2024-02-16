@@ -19,6 +19,7 @@
 package org.apache.iceberg.parquet;
 
 import java.io.Serializable;
+import java.util.Comparator;
 import java.util.NavigableSet;
 import java.util.function.Supplier;
 import org.apache.iceberg.expressions.RangeInPredUtil;
@@ -28,9 +29,11 @@ import org.apache.parquet.filter2.predicate.UserDefinedPredicate;
 public class RangeInFilter<T extends Comparable<T>> extends UserDefinedPredicate<T>
     implements Serializable {
   private final NavigableSet<T> rangeSet;
+  private final Comparator<T> comparator;
 
-  public RangeInFilter(NavigableSet<T> rangeSet) {
+  public RangeInFilter(NavigableSet<T> rangeSet, Comparator<T> comparator) {
     this.rangeSet = rangeSet;
+    this.comparator = comparator;
   }
 
   @Override
@@ -42,7 +45,8 @@ public class RangeInFilter<T extends Comparable<T>> extends UserDefinedPredicate
   public boolean canDrop(Statistics<T> statistics) {
     Supplier<T> lowerBoundsSupplier = statistics::getMin;
     Supplier<T> upperBoundsSupplier = statistics::getMax;
-    return !RangeInPredUtil.isInRange(lowerBoundsSupplier, upperBoundsSupplier, rangeSet, true);
+    return !RangeInPredUtil.isInRange(lowerBoundsSupplier, upperBoundsSupplier, rangeSet, true,
+            this.comparator);
   }
 
   @Override

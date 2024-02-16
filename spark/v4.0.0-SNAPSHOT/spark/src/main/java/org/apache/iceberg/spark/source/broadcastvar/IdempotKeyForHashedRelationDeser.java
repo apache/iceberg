@@ -33,10 +33,9 @@ class IdempotKeyForHashedRelationDeser {
 
     @Override
     public boolean equals(Object other) {
-        if (other != null) {
-            return this == other || (other instanceof IdempotKeyForHashedRelationDeser
-                    && this.bcjk.getBroadcastVarId() == ((IdempotKeyForHashedRelationDeser) other).
-                    bcjk.getBroadcastVarId());
+      if (other != null) {
+        return this == other || (other instanceof IdempotKeyForHashedRelationDeser
+          && this.bcjk.getBroadcastVarId() == ((IdempotKeyForHashedRelationDeser) other).bcjk.getBroadcastVarId());
         } else {
             return false;
         }

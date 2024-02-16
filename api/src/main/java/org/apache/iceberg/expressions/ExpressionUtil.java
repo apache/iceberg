@@ -68,6 +68,12 @@ public class ExpressionUtil {
    * @return a sanitized Expression
    */
   public static Expression sanitize(Expression expr) {
+    if (expr.op() == Expression.Operation.RANGE_IN) {
+      // No need to sanitize as data is from BroadcastHashJoin which must have been created
+      // from other datasource ( may be iceberg) and has already passed the checks while being
+      // read from source
+      return expr;
+    }
     return ExpressionVisitors.visit(expr, new ExpressionSanitizer());
   }
 
@@ -85,12 +91,19 @@ public class ExpressionUtil {
    */
   public static Expression sanitize(
       Types.StructType struct, Expression expr, boolean caseSensitive) {
-    try {
-      Expression bound = Binder.bind(struct, expr, caseSensitive);
-      return ExpressionVisitors.visit(bound, new ExpressionSanitizer());
-    } catch (RuntimeException e) {
-      // if the expression cannot be bound, sanitize the unbound version
-      return ExpressionVisitors.visit(expr, new ExpressionSanitizer());
+    if (expr.op() == Expression.Operation.RANGE_IN) {
+      // No need to sanitize as data is from BroadcastHashJoin which must have been created
+      // from other datasource ( may be iceberg) and has already passed the checks while being
+      // read from source
+      return expr;
+    } else {
+      try {
+        Expression bound = Binder.bind(struct, expr, caseSensitive);
+        return ExpressionVisitors.visit(bound, new ExpressionSanitizer());
+      } catch (RuntimeException e) {
+        // if the expression cannot be bound, sanitize the unbound version
+        return ExpressionVisitors.visit(expr, new ExpressionSanitizer());
+      }
     }
   }
 
@@ -224,6 +237,7 @@ public class ExpressionUtil {
   }
 
   public static <T> UnboundTerm<T> unbind(BoundTerm<T> term) {
+    // TODO :Asif: Handle unbounding of transformed BroadcastRangeInPredicate
     if (term instanceof BoundTransform) {
       BoundTransform<?, T> bound = (BoundTransform<?, T>) term;
       return Expressions.transform(bound.ref().name(), bound.transform());
@@ -294,7 +308,10 @@ public class ExpressionUtil {
             pred.op(),
             unbind(pred.term()),
             (T) sanitize(bound.term().type(), bound.literal(), now, today));
-      } else if (pred.isSetPredicate()) {
+      }else if (pred.op() == Expression.Operation.RANGE_IN ) {
+       return ((UnBoundCreator<T>)pred).createUnboundPred(((BoundReference<T>)pred.term()).name());
+      }
+      else if (pred.isSetPredicate() ) {
         BoundSetPredicate<T> bound = (BoundSetPredicate<T>) pred;
         Iterable<T> iter =
             () ->
@@ -329,8 +346,7 @@ public class ExpressionUtil {
               pred.op(), pred.term(), (T) sanitize(pred.literal(), now, today));
         case RANGE_IN:
           // Do not attempt sanitizing range in pred
-          return new UnboundPredicate<>(
-              pred.op(), pred.term(), (T) "Broadcast Var {not deserializing}");
+          return pred;
         case IN:
         case NOT_IN:
           Iterable<String> iter =
@@ -407,6 +423,8 @@ public class ExpressionUtil {
           return term + " = " + value((BoundLiteralPredicate<?>) pred);
         case NOT_EQ:
           return term + " != " + value((BoundLiteralPredicate<?>) pred);
+        case RANGE_IN:
+          return term + " RANGE IN (BroadcastVar {not deserializing})";
         case IN:
           return term
               + " IN "

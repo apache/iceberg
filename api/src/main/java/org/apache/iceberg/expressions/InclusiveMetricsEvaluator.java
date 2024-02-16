@@ -409,7 +409,8 @@ public class InclusiveMetricsEvaluator {
               return null;
             }
           };
-      return RangeInPredUtil.isInRange(lowerBoundsSupplier, upperBoundsSupplier, literalSet, true);
+      return RangeInPredUtil.isInRange(lowerBoundsSupplier, upperBoundsSupplier, literalSet, true,
+              ref.comparator());
     }
 
     @Override

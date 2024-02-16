@@ -22,6 +22,7 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.math.BigDecimal;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.NavigableSet;
 import java.util.Set;
@@ -394,31 +395,36 @@ public class TestRangeInPredicate extends SparkTestBaseWithCatalog {
               BoundBroadcastRangeInPredicate bound =
                   (BoundBroadcastRangeInPredicate) Binder.bind(schema.asStruct(), unbound, true);
               NavigableSet sortedSet = (NavigableSet) bound.literalSet();
-
+              Comparator comparator = bound.ref().comparator();
               Assert.assertTrue(
                   RangeInPredUtil.isInRange(
-                      () -> sortedSet.first(), () -> sortedSet.last(), sortedSet, true));
+                      () -> sortedSet.first(), () -> sortedSet.last(), sortedSet, true, comparator));
 
               // min/ max same and contained
               Assert.assertTrue(
                   RangeInPredUtil.isInRange(
-                      () -> sortedSet.first(), () -> sortedSet.first(), sortedSet, true));
+                      () -> sortedSet.first(), () -> sortedSet.first(), sortedSet, true, comparator));
 
               // min or max or both null
-              Assert.assertTrue(RangeInPredUtil.isInRange(() -> null, () -> null, sortedSet, true));
+              Assert.assertTrue(RangeInPredUtil.isInRange(() -> null, () -> null, sortedSet, true,
+                      comparator));
               Assert.assertTrue(
-                  RangeInPredUtil.isInRange(() -> sortedSet.first(), () -> null, sortedSet, true));
+                  RangeInPredUtil.isInRange(() -> sortedSet.first(), () -> null, sortedSet, true,
+                          comparator));
               Assert.assertTrue(
-                  RangeInPredUtil.isInRange(() -> null, () -> sortedSet.last(), sortedSet, true));
+                  RangeInPredUtil.isInRange(() -> null, () -> sortedSet.last(), sortedSet, true,
+                          comparator));
 
               Assert.assertFalse(
-                  RangeInPredUtil.isInRange(() -> null, () -> null, sortedSet, false));
+                  RangeInPredUtil.isInRange(() -> null, () -> null, sortedSet, false, comparator));
               // if either of the bound is contained & other being unbounded, it should be retained
               // irrespective
               Assert.assertTrue(
-                  RangeInPredUtil.isInRange(() -> null, () -> sortedSet.last(), sortedSet, false));
+                  RangeInPredUtil.isInRange(() -> null, () -> sortedSet.last(), sortedSet, false,
+                          comparator));
               Assert.assertTrue(
-                  RangeInPredUtil.isInRange(() -> sortedSet.first(), () -> null, sortedSet, false));
+                  RangeInPredUtil.isInRange(() -> sortedSet.first(), () -> null, sortedSet, false,
+                          comparator));
 
               // lower bound null, but upper bound less than the first
               Assert.assertFalse(
@@ -428,7 +434,7 @@ public class TestRangeInPredicate extends SparkTestBaseWithCatalog {
                           getElementNotContained(
                               type.typeId(), sortedSet, Element.NOT_CONTAINED_LOWER_THAN_FIRST),
                       sortedSet,
-                      true));
+                      true, comparator));
               Assert.assertFalse(
                   RangeInPredUtil.isInRange(
                       () -> null,
@@ -436,7 +442,7 @@ public class TestRangeInPredicate extends SparkTestBaseWithCatalog {
                           getElementNotContained(
                               type.typeId(), sortedSet, Element.NOT_CONTAINED_LOWER_THAN_FIRST),
                       sortedSet,
-                      false));
+                      false, comparator));
 
               // upper bound null, but lower bound > than the last
               Assert.assertFalse(
@@ -446,7 +452,7 @@ public class TestRangeInPredicate extends SparkTestBaseWithCatalog {
                               type.typeId(), sortedSet, Element.NOT_CONTAINED_HIGHER_THAN_LAST),
                       () -> null,
                       sortedSet,
-                      true));
+                      true, comparator));
               Assert.assertFalse(
                   RangeInPredUtil.isInRange(
                       () ->
@@ -454,7 +460,7 @@ public class TestRangeInPredicate extends SparkTestBaseWithCatalog {
                               type.typeId(), sortedSet, Element.NOT_CONTAINED_HIGHER_THAN_LAST),
                       () -> null,
                       sortedSet,
-                      true));
+                      true, comparator));
 
               Assert.assertTrue(
                   RangeInPredUtil.isInRange(
@@ -467,7 +473,7 @@ public class TestRangeInPredicate extends SparkTestBaseWithCatalog {
                               sortedSet,
                               Element.NOT_CONTAINED_BETWEEN_FIRST_AND_LAST),
                       sortedSet,
-                      true));
+                      true, comparator));
 
               Assert.assertTrue(
                   RangeInPredUtil.isInRange(
@@ -480,7 +486,7 @@ public class TestRangeInPredicate extends SparkTestBaseWithCatalog {
                               sortedSet,
                               Element.NOT_CONTAINED_BETWEEN_FIRST_AND_LAST),
                       sortedSet,
-                      false));
+                      false, comparator));
 
               Assert.assertTrue(
                   RangeInPredUtil.isInRange(
@@ -493,20 +499,7 @@ public class TestRangeInPredicate extends SparkTestBaseWithCatalog {
                               sortedSet,
                               Element.NOT_CONTAINED_BETWEEN_FIRST_AND_LAST),
                       sortedSet,
-                      true));
-
-              Assert.assertTrue(
-                  RangeInPredUtil.isInRange(
-                      () ->
-                          getElementNotContained(
-                              type.typeId(),
-                              sortedSet,
-                              Element.NOT_CONTAINED_BETWEEN_FIRST_AND_LAST),
-                      () ->
-                          getElementNotContained(
-                              type.typeId(), sortedSet, Element.NOT_CONTAINED_HIGHER_THAN_LAST),
-                      sortedSet,
-                      false));
+                      true, comparator));
 
               Assert.assertTrue(
                   RangeInPredUtil.isInRange(
@@ -519,7 +512,20 @@ public class TestRangeInPredicate extends SparkTestBaseWithCatalog {
                           getElementNotContained(
                               type.typeId(), sortedSet, Element.NOT_CONTAINED_HIGHER_THAN_LAST),
                       sortedSet,
-                      false));
+                      false, comparator));
+
+              Assert.assertTrue(
+                  RangeInPredUtil.isInRange(
+                      () ->
+                          getElementNotContained(
+                              type.typeId(),
+                              sortedSet,
+                              Element.NOT_CONTAINED_BETWEEN_FIRST_AND_LAST),
+                      () ->
+                          getElementNotContained(
+                              type.typeId(), sortedSet, Element.NOT_CONTAINED_HIGHER_THAN_LAST),
+                      sortedSet,
+                      false, comparator));
 
               Assert.assertTrue(
                   RangeInPredUtil.isInRange(
@@ -530,7 +536,7 @@ public class TestRangeInPredicate extends SparkTestBaseWithCatalog {
                           getElementNotContained(
                               type.typeId(), sortedSet, Element.NOT_CONTAINED_HIGHER_THAN_LAST),
                       sortedSet,
-                      true));
+                      true, comparator));
 
               Assert.assertTrue(
                   RangeInPredUtil.isInRange(
@@ -541,7 +547,7 @@ public class TestRangeInPredicate extends SparkTestBaseWithCatalog {
                           getElementNotContained(
                               type.typeId(), sortedSet, Element.NOT_CONTAINED_HIGHER_THAN_LAST),
                       sortedSet,
-                      false));
+                      false, comparator));
             });
   }
 

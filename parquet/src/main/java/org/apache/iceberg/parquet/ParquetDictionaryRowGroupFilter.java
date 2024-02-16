@@ -398,8 +398,6 @@ public class ParquetDictionaryRowGroupFilter {
         return ROWS_CANNOT_MATCH;
       }
 
-      Comparator<? super T> comparator = literalSet.comparator();
-
       if (literalSet.size() < dictionary.size()) {
         firstSet = literalSet;
         secondSet = dictionary.tailSet(firstSet.first(), true);
@@ -408,7 +406,7 @@ public class ParquetDictionaryRowGroupFilter {
         secondSet = literalSet.tailSet(firstSet.first(), true);
       }
 
-      return anyMatch(firstSet, secondSet, comparator);
+      return anyMatch(firstSet, secondSet);
     }
 
     @Override
@@ -518,9 +516,10 @@ public class ParquetDictionaryRowGroupFilter {
   }
 
   private static <T> Boolean anyMatch(
-      NavigableSet<T> firstSet, NavigableSet<T> secondSet, Comparator<? super T> comparator) {
+      NavigableSet<T> firstSet, NavigableSet<T> secondSet) {
     Iterator<T> firstIter = firstSet.iterator();
     Iterator<T> secondIter = secondSet.iterator();
+    Comparator<? super T> comparator = firstSet.comparator();
     boolean moveFirst = true;
     boolean moveSecond = true;
     T firstEle = null;

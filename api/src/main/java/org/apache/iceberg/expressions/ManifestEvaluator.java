@@ -325,7 +325,8 @@ public class ManifestEvaluator {
       Supplier<T> upperBoundsSupplier =
           () -> Conversions.fromByteBuffer(ref.type(), fieldStats.upperBound());
 
-      return RangeInPredUtil.isInRange(lowerBoundsSupplier, upperBoundsSupplier, literalSet, true);
+      return RangeInPredUtil.isInRange(lowerBoundsSupplier, upperBoundsSupplier, literalSet, true,
+              ref.comparator());
     }
 
     @Override

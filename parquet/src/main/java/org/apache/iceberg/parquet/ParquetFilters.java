@@ -33,6 +33,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Type;
 import org.apache.parquet.filter2.compat.FilterCompat;
 import org.apache.parquet.filter2.predicate.FilterApi;
 import org.apache.parquet.filter2.predicate.FilterPredicate;
@@ -123,13 +124,13 @@ class ParquetFilters {
       BoundReference<T> ref = (BoundReference<T>) pred.term();
       String path = schema.idToAlias(ref.fieldId());
       Literal<T> lit = null;
-      Set<Literal<?>> litSet = null;
+      Set<T> litSet = null;
       if (pred.isUnaryPredicate()) {
         lit = null;
       } else if (pred.isLiteralPredicate()) {
         lit = pred.asLiteralPredicate().literal();
       } else if (pred.isSetPredicate()) {
-        litSet = (Set<Literal<?>>) pred.asSetPredicate().asSetPredicate().literalSet();
+        litSet = pred.asSetPredicate().asSetPredicate().literalSet();
       } else {
         throw new UnsupportedOperationException("Cannot convert to Parquet filter: " + pred);
       }
@@ -149,7 +150,7 @@ class ParquetFilters {
           Operators.IntColumn intCol = FilterApi.intColumn(path);
           if (op == Operation.RANGE_IN) {
             return FilterApi.userDefined(
-                intCol, new RangeInFilter<>(convertToNavigableSet(intCol, litSet)));
+                intCol, new RangeInFilter((NavigableSet)litSet, ref.comparator()));
           } else {
             return pred(op, intCol, getParquetPrimitive(lit));
           }
@@ -159,7 +160,7 @@ class ParquetFilters {
           Operators.LongColumn longCol = FilterApi.longColumn(path);
           if (op == Operation.RANGE_IN) {
             return FilterApi.userDefined(
-                longCol, new RangeInFilter<>(convertToNavigableSet(longCol, litSet)));
+                longCol, new RangeInFilter((NavigableSet)litSet, ref.comparator()));
           } else {
             return pred(op, longCol, getParquetPrimitive(lit));
           }
@@ -168,7 +169,7 @@ class ParquetFilters {
           Operators.FloatColumn floatCol = FilterApi.floatColumn(path);
           if (op == Operation.RANGE_IN) {
             return FilterApi.userDefined(
-                floatCol, new RangeInFilter<>(convertToNavigableSet(floatCol, litSet)));
+                floatCol, new RangeInFilter((NavigableSet)litSet, ref.comparator()));
           } else {
             return pred(op, floatCol, getParquetPrimitive(lit));
           }
@@ -177,7 +178,7 @@ class ParquetFilters {
           Operators.DoubleColumn doubleCol = FilterApi.doubleColumn(path);
           if (op == Operation.RANGE_IN) {
             return FilterApi.userDefined(
-                doubleCol, new RangeInFilter<>(convertToNavigableSet(doubleCol, litSet)));
+                doubleCol, new RangeInFilter((NavigableSet)litSet, ref.comparator()));
           } else {
             return pred(op, doubleCol, getParquetPrimitive(lit));
           }
@@ -189,8 +190,15 @@ class ParquetFilters {
         case DECIMAL:
           Operators.BinaryColumn binaryColumn = FilterApi.binaryColumn(path);
           if (op == Operation.RANGE_IN) {
-            return FilterApi.userDefined(
-                binaryColumn, new RangeInFilter<>(convertToNavigableSet(binaryColumn, litSet)));
+            if (ref.type().typeId() == Type.TypeID.STRING) {
+              return FilterApi.userDefined(
+                      binaryColumn, new RangeInFilter(convertStringSetToParquet(
+                              (Set<String>)litSet), ref.comparator()));
+            } else {
+              return FilterApi.userDefined(
+                      binaryColumn, new RangeInFilter((NavigableSet)litSet, ref.comparator()));
+            }
+
           } else {
             return pred(op, binaryColumn, getParquetPrimitive(lit));
           }
@@ -284,12 +292,15 @@ class ParquetFilters {
   }
 
   @SuppressWarnings("unchecked")
-  private static <C extends Comparable<C>> NavigableSet<C> convertToNavigableSet(
-      Operators.Column<C> col, Set<Literal<?>> set) {
-    Iterator<Literal<?>> iter = set.iterator();
-    NavigableSet<C> tempSet = Sets.newTreeSet();
-    iter.forEachRemaining(x -> tempSet.add(getParquetPrimitive(x)));
-    return tempSet;
+  private static <C extends Comparable<C>> NavigableSet<C> convertStringSetToParquet(Set<C> set) {
+    if (set.isEmpty()) {
+      return (NavigableSet<C>) set;
+    } else {
+      Iterator<C> iter = set.iterator();
+      NavigableSet<C> tempSet = Sets.newTreeSet();
+      iter.forEachRemaining(x -> tempSet.add((C)Binary.fromString(x.toString())));
+      return tempSet;
+    }
   }
 
   private static class AlwaysTrue implements FilterPredicate {

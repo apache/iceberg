@@ -32,14 +32,15 @@ public final class RangeInPredUtil {
       Supplier<T> lowerBoundSupplier,
       Supplier<T> upperBoundSupplier,
       NavigableSet<T> rangeSet,
-      boolean keepIfBoundsNull) {
+      boolean keepIfBoundsNull,
+      Comparator<T> comparator) {
     if (rangeSet.isEmpty()) {
       return DISCARD;
     }
 
     T lower = lowerBoundSupplier.get();
     T upper = upperBoundSupplier.get();
-    Comparator<? super T> comparator = rangeSet.comparator();
+
     if (lower != null && upper != null) {
       T leastElementGELower = rangeSet.ceiling(lower);
       if (leastElementGELower == null) {
@@ -64,14 +65,14 @@ public final class RangeInPredUtil {
       Supplier<T> lowerBoundSupplier,
       Supplier<T> upperBoundSupplier,
       NavigableSet<T> rangeSet,
-      boolean keepIfBoundsNull) {
+      boolean keepIfBoundsNull,
+      Comparator<T> comparator) {
     if (rangeSet.isEmpty()) {
       return DISCARD;
     }
 
     T lower = lowerBoundSupplier.get();
     T upper = upperBoundSupplier.get();
-    Comparator<? super T> comparator = rangeSet.comparator();
     if (rangeSet.contains(lower)
         && rangeSet.contains(upper)
         && comparator.compare(lower, upper) == 0) {
