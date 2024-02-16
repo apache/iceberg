@@ -21,17 +21,18 @@ package org.apache.iceberg.inmemory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.UUID;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestInMemoryFileIO {
-  String location = "s3://foo/bar.txt";
 
   @Test
   public void testBasicEndToEnd() throws IOException {
     InMemoryFileIO fileIO = new InMemoryFileIO();
+    String location = randomLocation();
     Assertions.assertThat(fileIO.fileExists(location)).isFalse();
 
     OutputStream outputStream = fileIO.newOutputFile(location).create();
@@ -66,6 +67,7 @@ public class TestInMemoryFileIO {
 
   @Test
   public void testCreateNoOverwrite() {
+    String location = randomLocation();
     InMemoryFileIO fileIO = new InMemoryFileIO();
     fileIO.addFile(location, "hello world".getBytes());
     Assertions.assertThatExceptionOfType(AlreadyExistsException.class)
@@ -74,6 +76,7 @@ public class TestInMemoryFileIO {
 
   @Test
   public void testOverwriteBeforeAndAfterClose() throws IOException {
+    String location = randomLocation();
     byte[] oldData = "old data".getBytes();
     byte[] newData = "new data".getBytes();
 
@@ -107,5 +110,21 @@ public class TestInMemoryFileIO {
     inputStream.read(buf);
     inputStream.close();
     Assertions.assertThat(new String(buf)).isEqualTo("new data");
+  }
+
+  @Test
+  public void testFilesAreSharedAcrossMultipleInstances() {
+    String location = randomLocation();
+    InMemoryFileIO fileIO = new InMemoryFileIO();
+    fileIO.addFile(location, "hello world".getBytes());
+
+    InMemoryFileIO fileIO2 = new InMemoryFileIO();
+    Assertions.assertThat(fileIO2.fileExists(location))
+        .isTrue()
+        .as("Files should be shared across all InMemoryFileIO instances");
+  }
+
+  private String randomLocation() {
+    return "s3://foo/" + UUID.randomUUID();
   }
 }
