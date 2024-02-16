@@ -689,7 +689,7 @@ class TimestampTypeValue(BaseModel):
 class FixedTypeValue(BaseModel):
     __root__: str = Field(
         ...,
-        description='serialized as a base16-encoded string representing binary data',
+        description='serialized as a base16-encoded string representing fixed length binary data',
     )
 
 
