@@ -29,7 +29,6 @@ import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -80,16 +79,11 @@ abstract class BaseFilesTable extends BaseMetadataTable {
         CloseableIterable.filter(
             manifests, manifest -> evalCache.get(manifest.partitionSpecId()).eval(manifest));
 
-    String schemaString = SchemaParser.toJson(projectedSchema);
-    String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
     Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
-    ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
 
     return CloseableIterable.transform(
         filteredManifests,
-        manifest ->
-            new ManifestReadTask(
-                table, manifest, projectedSchema, schemaString, specString, residuals));
+        manifest -> new ManifestReadTask(table, manifest, projectedSchema, filter));
   }
 
   abstract static class BaseFilesTableScan extends BaseMetadataTableScan {
@@ -140,18 +134,27 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     private final Schema dataTableSchema;
     private final Schema projection;
 
+    ManifestReadTask(Table table, ManifestFile manifest, Schema projection, Expression filter) {
+      this(table.schema(), table.io(), table.specs(), manifest, projection, filter);
+    }
+
     ManifestReadTask(
-        Table table,
+        Schema dataTableSchema,
+        FileIO io,
+        Map<Integer, PartitionSpec> specsById,
         ManifestFile manifest,
         Schema projection,
-        String schemaString,
-        String specString,
-        ResidualEvaluator residuals) {
-      super(DataFiles.fromManifest(manifest), null, schemaString, specString, residuals);
-      this.io = table.io();
-      this.specsById = Maps.newHashMap(table.specs());
+        Expression filter) {
+      super(
+          DataFiles.fromManifest(manifest),
+          null,
+          SchemaParser.toJson(projection),
+          PartitionSpecParser.toJson(PartitionSpec.unpartitioned()),
+          ResidualEvaluator.unpartitioned(filter));
+      this.io = io;
+      this.specsById = Maps.newHashMap(specsById);
       this.manifest = manifest;
-      this.dataTableSchema = table.schema();
+      this.dataTableSchema = dataTableSchema;
       this.projection = projection;
     }
 
@@ -240,9 +243,24 @@ abstract class BaseFilesTable extends BaseMetadataTable {
       return ImmutableList.of(this); // don't split
     }
 
-    @VisibleForTesting
+    FileIO io() {
+      return io;
+    }
+
+    Map<Integer, PartitionSpec> specsById() {
+      return specsById;
+    }
+
     ManifestFile manifest() {
       return manifest;
+    }
+
+    Schema dataTableSchema() {
+      return dataTableSchema;
+    }
+
+    Schema projection() {
+      return projection;
     }
   }
 }

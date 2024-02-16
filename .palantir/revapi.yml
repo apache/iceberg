@@ -875,6 +875,10 @@ acceptedBreaks:
   "1.4.0":
     org.apache.iceberg:iceberg-core:
     - code: "java.class.defaultSerializationChanged"
+      old: "class org.apache.iceberg.GenericManifestFile"
+      new: "class org.apache.iceberg.GenericManifestFile"
+      justification: "Serialization across versions is not supported"
+    - code: "java.class.defaultSerializationChanged"
       old: "class org.apache.iceberg.PartitionData"
       new: "class org.apache.iceberg.PartitionData"
       justification: "Serialization across versions is not supported"
