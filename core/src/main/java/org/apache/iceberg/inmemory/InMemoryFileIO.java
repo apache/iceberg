@@ -28,22 +28,22 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class InMemoryFileIO implements FileIO {
 
-  private final Map<String, byte[]> inMemoryFiles = Maps.newConcurrentMap();
+  private static final Map<String, byte[]> IN_MEMORY_FILES = Maps.newConcurrentMap();
   private boolean closed = false;
 
   public void addFile(String location, byte[] contents) {
     Preconditions.checkState(!closed, "Cannot call addFile after calling close()");
-    inMemoryFiles.put(location, contents);
+    IN_MEMORY_FILES.put(location, contents);
   }
 
   public boolean fileExists(String location) {
-    return inMemoryFiles.containsKey(location);
+    return IN_MEMORY_FILES.containsKey(location);
   }
 
   @Override
   public InputFile newInputFile(String location) {
     Preconditions.checkState(!closed, "Cannot call newInputFile after calling close()");
-    byte[] contents = inMemoryFiles.get(location);
+    byte[] contents = IN_MEMORY_FILES.get(location);
     if (null == contents) {
       throw new NotFoundException("No in-memory file found for location: %s", location);
     }
@@ -59,7 +59,7 @@ public class InMemoryFileIO implements FileIO {
   @Override
   public void deleteFile(String location) {
     Preconditions.checkState(!closed, "Cannot call deleteFile after calling close()");
-    if (null == inMemoryFiles.remove(location)) {
+    if (null == IN_MEMORY_FILES.remove(location)) {
       throw new NotFoundException("No in-memory file found for location: %s", location);
     }
   }
