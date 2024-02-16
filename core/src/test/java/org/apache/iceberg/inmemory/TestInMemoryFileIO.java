@@ -119,7 +119,9 @@ public class TestInMemoryFileIO {
     fileIO.addFile(location, "hello world".getBytes());
 
     InMemoryFileIO fileIO2 = new InMemoryFileIO();
-    Assertions.assertThat(fileIO2.fileExists(location)).isTrue();
+    Assertions.assertThat(fileIO2.fileExists(location))
+        .isTrue()
+        .as("Files should be shared across all InMemoryFileIO instances");
   }
 
   private String randomLocation() {
