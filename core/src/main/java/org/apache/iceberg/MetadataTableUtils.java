@@ -41,7 +41,9 @@ public class MetadataTableUtils {
     } else {
       throw new IllegalArgumentException(
           String.format(
-              "Cannot create metadata table for table %s: a table without operations", table));
+              "Cannot create metadata table for table %s: "
+                  + "table is not a base table or does not have table operations",
+              table));
     }
   }
 

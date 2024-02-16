@@ -390,7 +390,6 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
 
   @Override
   public StaticTableOperations operations() {
-    // Never return an operations that is not static
     return (StaticTableOperations) ((BaseTable) lazyTable()).operations();
   }
 

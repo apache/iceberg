@@ -164,7 +164,7 @@ public class TestTableSerialization extends HadoopTableTestBase {
   }
 
   @Test
-  void testMetadataTableFromSerializedTable() {
+  public void testMetadataTableFromSerializedTable() {
     table.newAppend().appendFile(FILE_A).commit();
 
     SerializableTable serializableTable = (SerializableTable) SerializableTable.copyOf(table);
