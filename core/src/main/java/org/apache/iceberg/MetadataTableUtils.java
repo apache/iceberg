@@ -32,9 +32,16 @@ public class MetadataTableUtils {
   public static Table createMetadataTableInstance(Table table, MetadataTableType type) {
     if (table instanceof BaseTable) {
       return createMetadataTableInstance(table, metadataTableName(table.name(), type), type);
+    } else if (table instanceof HasTableOperations) {
+      return createMetadataTableInstance(
+          ((HasTableOperations) table).operations(),
+          table.name(),
+          metadataTableName(table.name(), type),
+          type);
     } else {
       throw new IllegalArgumentException(
-          String.format("Cannot create metadata table for table %s: not a base table", table));
+          String.format(
+              "Cannot create metadata table for table %s: a table without operations", table));
     }
   }
 
