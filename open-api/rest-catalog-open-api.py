@@ -915,7 +915,7 @@ class AddSchemaUpdate(BaseUpdate):
     )
 
 
-class AppendDataFileUpdate(BaseUpdate):
+class AppendDataFilesUpdate(BaseUpdate):
     action: Literal['append-data-files']
     data_files: List[ContentFile] = Field(
         ...,
@@ -945,7 +945,7 @@ class TableUpdate(BaseModel):
         RemovePropertiesUpdate,
         SetStatisticsUpdate,
         RemoveStatisticsUpdate,
-        AppendDataFileUpdate,
+        AppendDataFilesUpdate,
     ]
 
 
@@ -1157,7 +1157,7 @@ Expression.update_forward_refs()
 TableMetadata.update_forward_refs()
 ViewMetadata.update_forward_refs()
 AddSchemaUpdate.update_forward_refs()
-AppendDataFileUpdate.update_forward_refs()
+AppendDataFilesUpdate.update_forward_refs()
 CreateTableRequest.update_forward_refs()
 CreateViewRequest.update_forward_refs()
 ReportMetricsRequest.update_forward_refs()

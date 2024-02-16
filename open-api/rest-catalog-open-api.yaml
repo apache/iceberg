@@ -2192,7 +2192,7 @@ components:
           remove-statistics: '#/components/schemas/RemoveStatisticsUpdate'
           set-partition-statistics: '#/components/schemas/SetPartitionStatisticsUpdate'
           remove-partition-statistics: '#/components/schemas/RemovePartitionStatisticsUpdate'
-          append-data-files: '#/components/schemas/AppendDataFileUpdate'
+          append-data-files: '#/components/schemas/AppendDataFilesUpdate'
       type: object
       required:
         - action
@@ -2495,7 +2495,7 @@ components:
           type: integer
           format: int64
 
-    AppendDataFileUpdate:
+    AppendDataFilesUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
@@ -2536,7 +2536,7 @@ components:
         - $ref: '#/components/schemas/RemovePropertiesUpdate'
         - $ref: '#/components/schemas/SetStatisticsUpdate'
         - $ref: '#/components/schemas/RemoveStatisticsUpdate'
-        - $ref: '#/components/schemas/AppendDataFileUpdate'
+        - $ref: '#/components/schemas/AppendDataFilesUpdate'
 
     ViewUpdate:
       anyOf:
