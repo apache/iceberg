@@ -45,7 +45,6 @@ import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.data.TableAwareWriteResult;
-import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -78,8 +77,8 @@ public class TestIcebergMultiTableStreamWriter {
     return new Object[][] {
       {"avro", true},
       {"avro", false},
-//      {"orc", true},
-//      {"orc", false},
+      {"orc", true},
+      {"orc", false},
       {"parquet", true},
       {"parquet", false}
     };

@@ -112,7 +112,9 @@ public class IcebergMultiTableStreamWriter<T> extends AbstractStreamOperator<Tab
     String identifier = payloadSinkProvider.getIdentifierFromPayload(element);
     String table = payloadSinkProvider.sinkTableName(fullTableName, identifier);
     if (!writers.containsKey(table)) {
+      LOG.info("Writer not found for table: {}", table);
       if (!taskWriterFactories.containsKey(table)) {
+        LOG.info("Task Writer Factory not found for table: {}", table);
         TableIdentifier tableIdentifier =
             TableIdentifier.of(payloadSinkProvider.sinkDatabaseName(), table);
         TableLoader tableLoader = TableLoader.fromCatalog(catalogLoader, tableIdentifier);
