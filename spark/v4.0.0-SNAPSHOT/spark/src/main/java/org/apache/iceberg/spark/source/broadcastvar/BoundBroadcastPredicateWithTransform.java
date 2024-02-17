@@ -52,7 +52,7 @@ public class BoundBroadcastPredicateWithTransform<S, T> extends BoundSetPredicat
           Caffeine.newBuilder()
               .expireAfterWrite(Duration.ofSeconds(BroadcastedJoinKeysWrapper.CACHE_EXPIRY))
               .maximumSize(BroadcastedJoinKeysWrapper.CACHE_SIZE)
-            //  .weakValues()
+              .weakValues()
               .build(
                   triple -> {
                     BroadcastedJoinKeysWrapper bcjk = triple.getElement1();

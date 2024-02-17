@@ -20,26 +20,27 @@ package org.apache.iceberg.spark.source.broadcastvar;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
-import java.lang.ref.WeakReference;
+
 import java.time.Duration;
 import java.util.List;
 import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.iceberg.expressions.BoundTerm;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.expressions.UnboundTerm;
 import org.apache.iceberg.spark.source.Tuple;
+import org.apache.iceberg.spark.source.broadcastvar.broadcastutils.LiteralListWrapper;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.catalyst.bcvar.ArrayWrapper;
 import org.apache.spark.sql.catalyst.bcvar.BroadcastedJoinKeysWrapper;
 
+// TODO: Asif. Review this class for optimization and correctness
 public class BroadcastHRUnboundPredWithTransform<S, T> extends UnboundPredicate<T>
     implements BroadcastVarPredicate {
 
   static final ThreadLocal<Boolean> fixDateFlag = ThreadLocal.withInitial(() -> false);
-  static final LoadingCache<Tuple<BroadcastedJoinKeysWrapper, Function>, List>
+  static final LoadingCache<Tuple<BroadcastedJoinKeysWrapper, Function>, ArrayWrapper>
       idempotentializer =
           Caffeine.newBuilder()
               .expireAfterWrite(Duration.ofSeconds(BroadcastedJoinKeysWrapper.CACHE_EXPIRY))
@@ -52,23 +53,15 @@ public class BroadcastHRUnboundPredWithTransform<S, T> extends UnboundPredicate<
                     BroadcastVarReaper.checkInitialized();
                     BroadcastedJoinKeysWrapper bcj = tuple.getElement1();
                     Function tf = tuple.getElement2();
-                    int relativeKeyIndex = bcj.getRelativeKeyIndex();
-                    Stream<Object> str;
+                    int keyIndex = bcj.getKeyIndex();
+
                     boolean fixDate = fixDateFlag.get();
-                    if (bcj.getTupleLength() == 1) {
-                      str = BroadcastUtil.evaluateLiteralWithTransform(bcj, tf, fixDate);
-                    } else {
-                      str =
-                          BroadcastUtil.evaluateLiteralWithTransformFrom2D(
-                              bcj, tf, relativeKeyIndex, fixDate);
-                    }
-                    List transientLiterals =
-                        str.filter(x -> x != null).collect(Collectors.toList());
-                    return transientLiterals;
+
+                    return BroadcastUtil.evaluateLiteralWithTransform(bcj, tf, fixDate);
                   });
   private final BroadcastedJoinKeysWrapper bcVar;
   private final Function<S, T> transform;
-  private transient WeakReference<List<Literal<T>>> transientLiterals;
+
   private final boolean fixDate;
 
   public BroadcastHRUnboundPredWithTransform(
@@ -89,20 +82,7 @@ public class BroadcastHRUnboundPredWithTransform<S, T> extends UnboundPredicate<
 
   @Override
   public List<Literal<T>> literals() {
-    List<Literal<T>> actualLits =
-        this.transientLiterals != null ? this.transientLiterals.get() : null;
-    if (actualLits == null) {
-      fixDateFlag.set(this.fixDate);
-      try {
-        actualLits =
-            idempotentializer.get(
-                new Tuple<>(this.bcVar, this.transform));
-      } finally {
-        fixDateFlag.set(false);
-      }
-      this.transientLiterals = new WeakReference<>(actualLits);
-    }
-    return actualLits;
+      return new LiteralListWrapper<T>(idempotentializer.get(new Tuple<>(bcVar, this.transform)));
   }
 
   @Override
@@ -117,7 +97,6 @@ public class BroadcastHRUnboundPredWithTransform<S, T> extends UnboundPredicate<
         boundTerm,
         this.bcVar,
         this.transform,
-        this.transientLiterals != null ? this.transientLiterals.get() : null,
         this.fixDate);
   }
 

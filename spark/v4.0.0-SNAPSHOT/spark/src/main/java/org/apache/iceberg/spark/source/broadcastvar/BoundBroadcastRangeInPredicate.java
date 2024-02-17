@@ -49,7 +49,7 @@ public class BoundBroadcastRangeInPredicate<T> extends BoundSetPredicate<T>
           Caffeine.newBuilder()
               .expireAfterWrite(Duration.ofSeconds(BroadcastedJoinKeysWrapper.CACHE_EXPIRY))
               .maximumSize(BroadcastedJoinKeysWrapper.CACHE_SIZE)
-           //   .weakValues()
+              .weakValues()
               .build(
                   tuple -> {
                     // lets check the initialization here.

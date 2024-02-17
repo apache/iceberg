@@ -20,29 +20,29 @@ package org.apache.iceberg.spark.source.broadcastvar.broadcastutils;
 
 import java.util.AbstractList;
 import java.util.List;
+import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.expressions.Literals;
+import org.apache.spark.sql.catalyst.bcvar.ArrayWrapper;
 
-public class LiteralListWrapper<T> extends AbstractList<T> {
-  private final int keyIndex;
-  private final List<T[]> underlyingList;
-  private final int tupleLength;
+public class LiteralListWrapper<T> extends AbstractList<Literal<T>> {
 
-  public LiteralListWrapper(int keyIndex, List<T[]> underlyingList, int tupleLength) {
-    this.keyIndex = keyIndex;
-    this.underlyingList = underlyingList;
-    this.tupleLength = tupleLength;
+  private final ArrayWrapper<T> underlyingArray;
+
+  public LiteralListWrapper( ArrayWrapper<T> underlyingArray) {
+    this.underlyingArray = underlyingArray;
   }
 
   @Override
-  public T get(int index) {
-    return this.underlyingList.get(index)[this.keyIndex];
+  public Literal<T> get(int index) {
+    return Literals.from(this.underlyingArray.get(index));
   }
 
   @Override
   public int size() {
-    return this.underlyingList.size();
+    return this.underlyingArray.getLength();
   }
 
-  public List<T[]> getUnderlyingList() {
-    return this.underlyingList;
+  public ArrayWrapper<T> getUnderlyingArray() {
+    return this.underlyingArray;
   }
 }

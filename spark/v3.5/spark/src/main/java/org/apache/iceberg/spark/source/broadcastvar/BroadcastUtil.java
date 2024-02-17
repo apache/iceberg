@@ -27,6 +27,7 @@ import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.Literals;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.transforms.Transform;
+import org.apache.spark.sql.catalyst.bcvar.ArrayWrapper;
 import org.apache.spark.sql.catalyst.bcvar.BroadcastedJoinKeysWrapper;
 
 public final class BroadcastUtil {
@@ -35,78 +36,24 @@ public final class BroadcastUtil {
     throw new UnsupportedOperationException("Utility class instance cannot be constructed");
   }
 
-  public static <T> Stream<Literal<T>> evaluateLiteral(BroadcastedJoinKeysWrapper bcVar) {
-    // TODO: Verify if any of the element of broadcast varaibl keys can be null.
-    // logicaly if it is null, it should not be present as key at all
-    return Stream.of(bcVar.getKeysArray().getBaseArray())
-        // .filter(Objects::nonNull)
-        .map(
-            ele ->
-                (Literal<T>)
-                    (ele != null ? Literals.from(SparkFilters.convertLiteral(ele)) : null));
-  }
 
-  public static List<Literal[]> evaluateLiteralFor2D(BroadcastedJoinKeysWrapper bcVar) {
-    return Stream.of(bcVar.getKeysArray().getBaseArray())
-        .map(
-            eleArrArg -> {
-              Object[] eleArr = (Object[]) eleArrArg;
-              return Arrays.stream(eleArr)
-                  .map(ele -> ele != null ? Literals.from(SparkFilters.convertLiteral(ele)) : null)
-                  .toArray(len -> new Literal[len]);
-            })
-        .collect(Collectors.<Literal[]>toList());
-  }
-
-  public static <S, T> Stream<Literal<T>> evaluateLiteralWithTransform(
+ // TODO: Asif  verify that the data going into transform is of correct type
+    // and whether date fixing needs to be done or not
+  public static <S, T> ArrayWrapper<T> evaluateLiteralWithTransform(
       BroadcastedJoinKeysWrapper bcVar, Function<S, T> transform, boolean fixDate) {
-    if (fixDate) {
-      List<Object> temp =
-          Stream.of(bcVar.getKeysArray().getBaseArray()) // .filter(Objects::nonNull).
-              .map(x -> x != null ? transform.apply((S) SparkFilters.convertLiteral(x)) : null)
-              .collect(Collectors.toList());
-      return Transform.dateFixer.apply(temp).stream()
-          .map(x -> x != null ? Literals.from((T) x) : null);
-    } else {
-      return Stream.of(bcVar.getKeysArray().getBaseArray())
-          // .filter(Objects::nonNull).
-          .map(
-              x ->
-                  x != null
-                      ? Literals.from(transform.apply((S) SparkFilters.convertLiteral(x)))
-                      : null);
-    }
-  }
+      boolean is1D = bcVar.getTotalJoinKeys() == 1;
+      int index = bcVar.getKeyIndex();
 
-  // TODO optimize this if possible as this is going to create a new array
-  public static <S, T> Stream<Literal<T>> evaluateLiteralWithTransformFrom2D(
-      BroadcastedJoinKeysWrapper bcVar,
-      Function<S, T> transform,
-      int relativeKeyIndex,
-      boolean fixDate) {
-    if (fixDate) {
-      List<Object> temp =
-          Stream.of(bcVar.getKeysArray().getBaseArray())
-              .map(
-                  eleArrArg -> {
-                    Object[] eleArr = (Object[]) eleArrArg;
-                    return eleArr[relativeKeyIndex] != null
-                        ? transform.apply((S) SparkFilters.convertLiteral(eleArr[relativeKeyIndex]))
-                        : null;
-                  })
-              .collect(Collectors.toList());
-      return Transform.dateFixer.apply(temp).stream()
-          .map(x -> x != null ? Literals.from((T) x) : null);
-    } else {
-      return Stream.of(bcVar.getKeysArray().getBaseArray())
-          .map(
-              eleArrArg -> {
-                Object[] eleArr = (Object[]) eleArrArg;
-                return eleArr[relativeKeyIndex] != null
-                    ? Literals.from(
-                        transform.apply((S) SparkFilters.convertLiteral(eleArr[relativeKeyIndex])))
-                    : null;
-              });
-    }
+     // There should not be any need to fix date as the data is coming from BHJ
+      Object[] arr = Arrays.stream((Object[])bcVar.getKeysArray().getBaseArray()).map(ele -> {
+            S value;
+            if (is1D) {
+                value = (S) ele;
+            } else {
+                value = (S) (((Object[]) ele)[index]);
+            }
+            return transform.apply(value);
+        }).toArray();
+      return (ArrayWrapper<T>) ArrayWrapper.wrapArray(arr, is1D, bcVar.getKeyIndex());
   }
 }

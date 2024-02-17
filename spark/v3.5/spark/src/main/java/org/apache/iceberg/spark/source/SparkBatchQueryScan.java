@@ -83,6 +83,8 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
 
   private volatile NamedReference[] partitionAttributes = null;
 
+  private transient volatile Statistics cacheStatsOnce = null;
+
   SparkBatchQueryScan(
       SparkSession spark,
       Table table,
@@ -426,29 +428,35 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
 
   @Override
   public Statistics estimateStatistics() {
-    if (scan() == null) {
-      return estimateStatistics(null);
+    Statistics temp = this.cacheStatsOnce;
+    if (temp == null) {
+      if (scan() == null) {
+        temp = estimateStatistics(null);
+      } else if (snapshotId != null) {
+        Snapshot snapshot = table().snapshot(snapshotId);
+        temp = estimateStatistics(snapshot);
 
-    } else if (snapshotId != null) {
-      Snapshot snapshot = table().snapshot(snapshotId);
-      return estimateStatistics(snapshot);
+      } else if (asOfTimestamp != null) {
+        long snapshotIdAsOfTime = SnapshotUtil.snapshotIdAsOfTime(table(), asOfTimestamp);
+        Snapshot snapshot = table().snapshot(snapshotIdAsOfTime);
+        temp = estimateStatistics(snapshot);
 
-    } else if (asOfTimestamp != null) {
-      long snapshotIdAsOfTime = SnapshotUtil.snapshotIdAsOfTime(table(), asOfTimestamp);
-      Snapshot snapshot = table().snapshot(snapshotIdAsOfTime);
-      return estimateStatistics(snapshot);
+      } else if (branch() != null) {
+        Snapshot snapshot = table().snapshot(branch());
+        temp = estimateStatistics(snapshot);
 
-    } else if (branch() != null) {
-      Snapshot snapshot = table().snapshot(branch());
-      return estimateStatistics(snapshot);
+      } else if (tag != null) {
+        Snapshot snapshot = table().snapshot(tag);
+        temp = estimateStatistics(snapshot);
 
-    } else if (tag != null) {
-      Snapshot snapshot = table().snapshot(tag);
-      return estimateStatistics(snapshot);
-
+      } else {
+        Snapshot snapshot = table().currentSnapshot();
+        temp = estimateStatistics(snapshot);
+      }
+      this.cacheStatsOnce = temp;
+      return temp;
     } else {
-      Snapshot snapshot = table().currentSnapshot();
-      return estimateStatistics(snapshot);
+      return temp;
     }
   }
 

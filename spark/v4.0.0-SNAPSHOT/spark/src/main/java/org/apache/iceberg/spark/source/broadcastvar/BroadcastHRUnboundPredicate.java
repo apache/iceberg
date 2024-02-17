@@ -46,7 +46,7 @@ public class BroadcastHRUnboundPredicate<T> extends UnboundPredicate<T>
           Caffeine.newBuilder()
               .expireAfterWrite(Duration.ofSeconds(BroadcastedJoinKeysWrapper.CACHE_EXPIRY))
               .maximumSize(BroadcastedJoinKeysWrapper.CACHE_SIZE)
-            //  .weakValues()
+              .weakValues()
               .build(
                   bcj -> {
                     // lets check the initialization here.
