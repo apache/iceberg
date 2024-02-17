@@ -205,16 +205,24 @@ public class HTTPClient implements RESTClient {
   }
 
   private URI buildUri(String path, Map<String, String> params) {
-    String baseUri = String.format("%s/%s", uri, path);
+    // if full path is provided, use the input path as path
+    if (path.startsWith("/")) {
+      throw new RESTException(
+          "Received a malformed path for a REST request: %s. Paths should not start with /", path);
+    }
+    String fullPath =
+        (path.startsWith("https://") || path.startsWith("http://"))
+            ? path
+            : String.format("%s/%s", uri, path);
     try {
-      URIBuilder builder = new URIBuilder(baseUri);
+      URIBuilder builder = new URIBuilder(fullPath);
       if (params != null) {
         params.forEach(builder::addParameter);
       }
       return builder.build();
     } catch (URISyntaxException e) {
       throw new RESTException(
-          "Failed to create request URI from base %s, params %s", baseUri, params);
+          "Failed to create request URI from base %s, params %s", fullPath, params);
     }
   }
 
@@ -223,7 +231,7 @@ public class HTTPClient implements RESTClient {
    *
    * @param method - HTTP method, such as GET, POST, HEAD, etc.
    * @param queryParams - A map of query parameters
-   * @param path - URL path to send the request to
+   * @param path - URI to send the request to
    * @param requestBody - Content to place in the request body
    * @param responseType - Class of the Response type. Needs to have serializer registered with
    *     ObjectMapper
@@ -250,7 +258,7 @@ public class HTTPClient implements RESTClient {
    *
    * @param method - HTTP method, such as GET, POST, HEAD, etc.
    * @param queryParams - A map of query parameters
-   * @param path - URL path to send the request to
+   * @param path - URL to send the request to
    * @param requestBody - Content to place in the request body
    * @param responseType - Class of the Response type. Needs to have serializer registered with
    *     ObjectMapper
@@ -270,11 +278,6 @@ public class HTTPClient implements RESTClient {
       Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler,
       Consumer<Map<String, String>> responseHeaders) {
-    if (path.startsWith("/")) {
-      throw new RESTException(
-          "Received a malformed path for a REST request: %s. Paths should not start with /", path);
-    }
-
     HttpUriRequestBase request = new HttpUriRequestBase(method.name(), buildUri(path, queryParams));
 
     if (requestBody instanceof Map) {
@@ -459,9 +462,9 @@ public class HTTPClient implements RESTClient {
       this.properties = properties;
     }
 
-    public Builder uri(String baseUri) {
-      Preconditions.checkNotNull(baseUri, "Invalid uri for http client: null");
-      this.uri = RESTUtil.stripTrailingSlash(baseUri);
+    public Builder uri(String path) {
+      Preconditions.checkNotNull(path, "Invalid uri for http client: null");
+      this.uri = RESTUtil.stripTrailingSlash(path);
       return this;
     }
 
