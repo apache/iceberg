@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -30,6 +31,7 @@ import org.apache.avro.generic.GenericData.Record;
 import org.apache.commons.collections.ListUtils;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.HistoryEntry;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -720,5 +722,115 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
     }
     Record partition = (Record) file.get(4);
     return partValue.equals(partition.get(0).toString());
+  }
+
+  @Test
+  public void metadataLogEntriesAfterReplacingTable() throws Exception {
+    sql(
+        "CREATE TABLE %s (id bigint, data string) "
+            + "USING iceberg "
+            + "PARTITIONED BY (data) "
+            + "TBLPROPERTIES "
+            + "('format-version'='2')",
+        tableName);
+
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    TableMetadata tableMetadata = ((HasTableOperations) table).operations().current();
+    assertThat(tableMetadata.snapshots()).isEmpty();
+    assertThat(tableMetadata.snapshotLog()).isEmpty();
+    assertThat(tableMetadata.currentSnapshot()).isNull();
+
+    Object[] firstEntry =
+        row(
+            DateTimeUtils.toJavaTimestamp(tableMetadata.lastUpdatedMillis() * 1000),
+            tableMetadata.metadataFileLocation(),
+            null,
+            null,
+            null);
+
+    assertThat(sql("SELECT * FROM %s.metadata_log_entries", tableName)).containsExactly(firstEntry);
+
+    sql("INSERT INTO %s (id, data) VALUES (1, 'a')", tableName);
+
+    tableMetadata = ((HasTableOperations) table).operations().refresh();
+    assertThat(tableMetadata.snapshots()).hasSize(1);
+    assertThat(tableMetadata.snapshotLog()).hasSize(1);
+    Snapshot currentSnapshot = tableMetadata.currentSnapshot();
+
+    Object[] secondEntry =
+        row(
+            DateTimeUtils.toJavaTimestamp(tableMetadata.lastUpdatedMillis() * 1000),
+            tableMetadata.metadataFileLocation(),
+            currentSnapshot.snapshotId(),
+            currentSnapshot.schemaId(),
+            currentSnapshot.sequenceNumber());
+
+    assertThat(sql("SELECT * FROM %s.metadata_log_entries", tableName))
+        .containsExactly(firstEntry, secondEntry);
+
+    sql("INSERT INTO %s (id, data) VALUES (1, 'a')", tableName);
+
+    tableMetadata = ((HasTableOperations) table).operations().refresh();
+    assertThat(tableMetadata.snapshots()).hasSize(2);
+    assertThat(tableMetadata.snapshotLog()).hasSize(2);
+    currentSnapshot = tableMetadata.currentSnapshot();
+
+    Object[] thirdEntry =
+        row(
+            DateTimeUtils.toJavaTimestamp(tableMetadata.lastUpdatedMillis() * 1000),
+            tableMetadata.metadataFileLocation(),
+            currentSnapshot.snapshotId(),
+            currentSnapshot.schemaId(),
+            currentSnapshot.sequenceNumber());
+
+    assertThat(sql("SELECT * FROM %s.metadata_log_entries", tableName))
+        .containsExactly(firstEntry, secondEntry, thirdEntry);
+
+    sql(
+        "CREATE OR REPLACE TABLE %s (id bigint, data string) "
+            + "USING iceberg "
+            + "PARTITIONED BY (data) "
+            + "TBLPROPERTIES "
+            + "('format-version'='2')",
+        tableName);
+
+    tableMetadata = ((HasTableOperations) table).operations().refresh();
+    assertThat(tableMetadata.snapshots()).hasSize(2);
+    assertThat(tableMetadata.snapshotLog()).hasSize(2);
+
+    // currentSnapshot is null but the metadata_log_entries will refer to the last snapshot from the
+    // snapshotLog
+    assertThat(tableMetadata.currentSnapshot()).isNull();
+    HistoryEntry historyEntry = tableMetadata.snapshotLog().get(1);
+    Snapshot lastSnapshot = tableMetadata.snapshot(historyEntry.snapshotId());
+
+    Object[] fourthEntry =
+        row(
+            DateTimeUtils.toJavaTimestamp(tableMetadata.lastUpdatedMillis() * 1000),
+            tableMetadata.metadataFileLocation(),
+            lastSnapshot.snapshotId(),
+            lastSnapshot.schemaId(),
+            lastSnapshot.sequenceNumber());
+
+    assertThat(sql("SELECT * FROM %s.metadata_log_entries", tableName))
+        .containsExactly(firstEntry, secondEntry, thirdEntry, fourthEntry);
+
+    sql("INSERT INTO %s (id, data) VALUES (1, 'a')", tableName);
+
+    tableMetadata = ((HasTableOperations) table).operations().refresh();
+    assertThat(tableMetadata.snapshots()).hasSize(3);
+    assertThat(tableMetadata.snapshotLog()).hasSize(3);
+    currentSnapshot = tableMetadata.currentSnapshot();
+
+    Object[] fifthEntry =
+        row(
+            DateTimeUtils.toJavaTimestamp(tableMetadata.lastUpdatedMillis() * 1000),
+            tableMetadata.metadataFileLocation(),
+            currentSnapshot.snapshotId(),
+            currentSnapshot.schemaId(),
+            currentSnapshot.sequenceNumber());
+
+    assertThat(sql("SELECT * FROM %s.metadata_log_entries", tableName))
+        .containsExactly(firstEntry, secondEntry, thirdEntry, fourthEntry, fifthEntry);
   }
 }

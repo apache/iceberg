@@ -1742,4 +1742,29 @@ public class TestTableMetadata {
 
     return localInput(manifestList).location();
   }
+
+  @Test
+  public void buildReplacementKeepsSnapshotLog() throws Exception {
+    TableMetadata metadata =
+        TableMetadataParser.fromJson(readTableMetadataInputFile("TableMetadataV2Valid.json"));
+    Assertions.assertThat(metadata.currentSnapshot()).isNotNull();
+    Assertions.assertThat(metadata.snapshots()).hasSize(2);
+    Assertions.assertThat(metadata.snapshotLog()).hasSize(2);
+
+    TableMetadata replacement =
+        metadata.buildReplacement(
+            metadata.schema(),
+            metadata.spec(),
+            metadata.sortOrder(),
+            metadata.location(),
+            metadata.properties());
+
+    Assertions.assertThat(replacement.currentSnapshot()).isNull();
+    Assertions.assertThat(replacement.snapshots())
+        .hasSize(2)
+        .containsExactlyElementsOf(metadata.snapshots());
+    Assertions.assertThat(replacement.snapshotLog())
+        .hasSize(2)
+        .containsExactlyElementsOf(metadata.snapshotLog());
+  }
 }
