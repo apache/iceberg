@@ -204,28 +204,25 @@ public class HTTPClient implements RESTClient {
     throw new RESTException("Unhandled error: %s", errorResponse);
   }
 
-  private String buildPath(String path) {
+  private URI buildUri(String path, Map<String, String> params) {
     // if full path is provided, use the input path as path
-    if (path.startsWith("https://") || path.startsWith("http://")) {
-      return path;
-    }
-    // else concatenate client default uri with path
     if (path.startsWith("/")) {
       throw new RESTException(
           "Received a malformed path for a REST request: %s. Paths should not start with /", path);
     }
-    return String.format("%s/%s", uri, path);
-  }
-
-  private URI buildUri(String path, Map<String, String> params) {
+    String fullPath =
+        (path.startsWith("https://") || path.startsWith("http://"))
+            ? path
+            : String.format("%s/%s", uri, path);
     try {
-      URIBuilder builder = new URIBuilder(path);
+      URIBuilder builder = new URIBuilder(fullPath);
       if (params != null) {
         params.forEach(builder::addParameter);
       }
       return builder.build();
     } catch (URISyntaxException e) {
-      throw new RESTException("Failed to create request URI from base %s, params %s", path, params);
+      throw new RESTException(
+          "Failed to create request URI from base %s, params %s", fullPath, params);
     }
   }
 
@@ -281,8 +278,7 @@ public class HTTPClient implements RESTClient {
       Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler,
       Consumer<Map<String, String>> responseHeaders) {
-    HttpUriRequestBase request =
-        new HttpUriRequestBase(method.name(), buildUri(buildPath(path), queryParams));
+    HttpUriRequestBase request = new HttpUriRequestBase(method.name(), buildUri(path, queryParams));
 
     if (requestBody instanceof Map) {
       // encode maps as form data, application/x-www-form-urlencoded

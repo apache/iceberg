@@ -410,6 +410,8 @@ public class OAuth2Util {
       this.oauth2ServerUri = oauth2ServerUri;
     }
 
+    /** @deprecated since 1.5.0, will be removed in 1.6.0 */
+    @Deprecated
     public AuthSession(
         Map<String, String> baseHeaders,
         String token,
