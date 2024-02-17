@@ -27,6 +27,9 @@ public class OAuth2Properties {
   /** A credential to exchange for a token in the OAuth2 client credentials flow. */
   public static final String CREDENTIAL = "credential";
 
+  /** Token endpoint URI to fetch token from if the Rest Catalog is not the authorization server. */
+  public static final String OAUTH2_SERVER_URI = "oauth2-server-uri";
+
   /**
    * Interval in milliseconds to wait before attempting to exchange the configured catalog Bearer
    * token. By default, token exchange will be attempted after 1 hour.
