@@ -19,8 +19,6 @@
 package org.apache.iceberg.jdbc;
 
 import java.sql.DataTruncation;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLIntegrityConstraintViolationException;
 import java.sql.SQLNonTransientConnectionException;
@@ -39,7 +37,6 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,18 +49,21 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
   private final FileIO fileIO;
   private final JdbcClientPool connections;
   private final Map<String, String> catalogProperties;
+  private final JdbcUtil.SchemaVersion schemaVersion;
 
   protected JdbcTableOperations(
       JdbcClientPool dbConnPool,
       FileIO fileIO,
       String catalogName,
       TableIdentifier tableIdentifier,
-      Map<String, String> catalogProperties) {
+      Map<String, String> catalogProperties,
+      JdbcUtil.SchemaVersion schemaVersion) {
     this.catalogName = catalogName;
     this.tableIdentifier = tableIdentifier;
     this.fileIO = fileIO;
     this.connections = dbConnPool;
     this.catalogProperties = catalogProperties;
+    this.schemaVersion = schemaVersion;
   }
 
   @Override
@@ -71,7 +71,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     Map<String, String> table;
 
     try {
-      table = getTable();
+      table = JdbcUtil.loadTable(schemaVersion, connections, catalogName, tableIdentifier);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new UncheckedInterruptedException(e, "Interrupted during refresh");
@@ -105,7 +105,8 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     boolean newTable = base == null;
     String newMetadataLocation = writeNewMetadataIfRequired(newTable, metadata);
     try {
-      Map<String, String> table = getTable();
+      Map<String, String> table =
+          JdbcUtil.loadTable(schemaVersion, connections, catalogName, tableIdentifier);
 
       if (base != null) {
         validateMetadataLocation(table, base);
@@ -140,6 +141,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
       if (e.getMessage().contains("constraint failed")) {
         throw new AlreadyExistsException("Table already exists: %s", tableIdentifier);
       }
+
       throw new UncheckedSQLException(e, "Unknown failure");
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
@@ -150,20 +152,13 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
   private void updateTable(String newMetadataLocation, String oldMetadataLocation)
       throws SQLException, InterruptedException {
     int updatedRecords =
-        connections.run(
-            conn -> {
-              try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.DO_COMMIT_SQL)) {
-                // UPDATE
-                sql.setString(1, newMetadataLocation);
-                sql.setString(2, oldMetadataLocation);
-                // WHERE
-                sql.setString(3, catalogName);
-                sql.setString(4, JdbcUtil.namespaceToString(tableIdentifier.namespace()));
-                sql.setString(5, tableIdentifier.name());
-                sql.setString(6, oldMetadataLocation);
-                return sql.executeUpdate();
-              }
-            });
+        JdbcUtil.updateTable(
+            schemaVersion,
+            connections,
+            catalogName,
+            tableIdentifier,
+            newMetadataLocation,
+            oldMetadataLocation);
 
     if (updatedRecords == 1) {
       LOG.debug("Successfully committed to existing table: {}", tableIdentifier);
@@ -182,18 +177,23 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
           tableIdentifier, catalogName, namespace);
     }
 
+    if (schemaVersion == JdbcUtil.SchemaVersion.V1
+        && JdbcUtil.viewExists(catalogName, connections, tableIdentifier)) {
+      throw new AlreadyExistsException("View with same name already exists: %s", tableIdentifier);
+    }
+
+    if (JdbcUtil.tableExists(schemaVersion, catalogName, connections, tableIdentifier)) {
+      throw new AlreadyExistsException("Table already exists: %s", tableIdentifier);
+    }
+
     int insertRecord =
-        connections.run(
-            conn -> {
-              try (PreparedStatement sql =
-                  conn.prepareStatement(JdbcUtil.DO_COMMIT_CREATE_TABLE_SQL)) {
-                sql.setString(1, catalogName);
-                sql.setString(2, JdbcUtil.namespaceToString(namespace));
-                sql.setString(3, tableIdentifier.name());
-                sql.setString(4, newMetadataLocation);
-                return sql.executeUpdate();
-              }
-            });
+        JdbcUtil.doCommitCreateTable(
+            schemaVersion,
+            connections,
+            catalogName,
+            namespace,
+            tableIdentifier,
+            newMetadataLocation);
 
     if (insertRecord == 1) {
       LOG.debug("Successfully committed to new table: {}", tableIdentifier);
@@ -222,33 +222,5 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
   @Override
   protected String tableName() {
     return tableIdentifier.toString();
-  }
-
-  private Map<String, String> getTable()
-      throws UncheckedSQLException, SQLException, InterruptedException {
-    return connections.run(
-        conn -> {
-          Map<String, String> table = Maps.newHashMap();
-
-          try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.GET_TABLE_SQL)) {
-            sql.setString(1, catalogName);
-            sql.setString(2, JdbcUtil.namespaceToString(tableIdentifier.namespace()));
-            sql.setString(3, tableIdentifier.name());
-            ResultSet rs = sql.executeQuery();
-
-            if (rs.next()) {
-              table.put(JdbcUtil.CATALOG_NAME, rs.getString(JdbcUtil.CATALOG_NAME));
-              table.put(JdbcUtil.TABLE_NAMESPACE, rs.getString(JdbcUtil.TABLE_NAMESPACE));
-              table.put(JdbcUtil.TABLE_NAME, rs.getString(JdbcUtil.TABLE_NAME));
-              table.put(METADATA_LOCATION_PROP, rs.getString(METADATA_LOCATION_PROP));
-              table.put(
-                  PREVIOUS_METADATA_LOCATION_PROP, rs.getString(PREVIOUS_METADATA_LOCATION_PROP));
-            }
-
-            rs.close();
-          }
-
-          return table;
-        });
   }
 }
