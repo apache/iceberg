@@ -111,25 +111,19 @@ public class ContentCache {
     return cache.stats();
   }
 
-  /**
-   * @deprecated will be removed in 1.7; use {@link #tryCache(InputFile)} instead
-   */
+  /** @deprecated will be removed in 1.7; use {@link #tryCache(InputFile)} instead */
   @Deprecated
   public FileContent get(String key, Function<String, FileContent> mappingFunction) {
     return cache.get(key, mappingFunction);
   }
 
-  /**
-   * @deprecated will be removed in 1.7; use {@link #tryCache(InputFile)} instead
-   */
+  /** @deprecated will be removed in 1.7; use {@link #tryCache(InputFile)} instead */
   @Deprecated
   public FileContent getIfPresent(String location) {
     return cache.getIfPresent(location);
   }
 
-  /**
-   * @deprecated will be removed in 1.7; use {@link #tryCache(InputFile)} instead
-   */
+  /** @deprecated will be removed in 1.7; use {@link #tryCache(InputFile)} instead */
   @Deprecated
   public InputFile tryCache(FileIO io, String location, long length) {
     return tryCache(io.newInputFile(location, length));
@@ -179,9 +173,7 @@ public class ContentCache {
         .toString();
   }
 
-  /**
-   * @deprecated will be removed in 1.7; use {@link FileContent} instead.
-   */
+  /** @deprecated will be removed in 1.7; use {@link FileContent} instead. */
   @Deprecated
   private static class CacheEntry {}
 

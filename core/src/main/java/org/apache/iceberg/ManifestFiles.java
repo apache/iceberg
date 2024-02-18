@@ -356,10 +356,10 @@ public class ManifestFiles {
 
   static boolean cachingEnabled(FileIO io) {
     try {
-    return PropertyUtil.propertyAsBoolean(
-        io.properties(),
-        CatalogProperties.IO_MANIFEST_CACHE_ENABLED,
-        CatalogProperties.IO_MANIFEST_CACHE_ENABLED_DEFAULT);
+      return PropertyUtil.propertyAsBoolean(
+          io.properties(),
+          CatalogProperties.IO_MANIFEST_CACHE_ENABLED,
+          CatalogProperties.IO_MANIFEST_CACHE_ENABLED_DEFAULT);
     } catch (UnsupportedOperationException e) {
       return false;
     }
