@@ -51,7 +51,7 @@ spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.4_2.12:{{ iceber
     --conf spark.sql.defaultCatalog=my_catalog \
     --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \
-    --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
+    --conf spark.sql.catalog.my_catalog.type=glue \
     --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO
 ```
 
@@ -84,7 +84,7 @@ With those dependencies, you can create a Flink catalog like the following:
 CREATE CATALOG my_catalog WITH (
   'type'='iceberg',
   'warehouse'='s3://my-bucket/my/key/prefix',
-  'catalog-impl'='org.apache.iceberg.aws.glue.GlueCatalog',
+  'type'='glue',
   'io-impl'='org.apache.iceberg.aws.s3.S3FileIO'
 );
 ```
@@ -115,7 +115,7 @@ With those dependencies, you can register a Glue catalog and create external tab
 ```sql
 SET iceberg.engine.hive.enabled=true;
 SET hive.vectorized.execution.enabled=false;
-SET iceberg.catalog.glue.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog;
+SET iceberg.catalog.glue.type=glue;
 SET iceberg.catalog.glue.warehouse=s3://my-bucket/my/key/prefix;
 
 -- suppose you have an Iceberg table database_a.table_a created by GlueCatalog
@@ -136,7 +136,8 @@ Iceberg enables the use of [AWS Glue](https://aws.amazon.com/glue) as the `Catal
 When used, an Iceberg namespace is stored as a [Glue Database](https://docs.aws.amazon.com/glue/latest/dg/aws-glue-api-catalog-databases.html), 
 an Iceberg table is stored as a [Glue Table](https://docs.aws.amazon.com/glue/latest/dg/aws-glue-api-catalog-tables.html),
 and every Iceberg table version is stored as a [Glue TableVersion](https://docs.aws.amazon.com/glue/latest/dg/aws-glue-api-catalog-tables.html#aws-glue-api-catalog-tables-TableVersion). 
-You can start using Glue catalog by specifying the `catalog-impl` as `org.apache.iceberg.aws.glue.GlueCatalog`,
+You can start using Glue catalog by specifying the `catalog-impl` as `org.apache.iceberg.aws.glue.GlueCatalog`
+or by setting `type` as `glue`,
 just like what is shown in the [enabling AWS integration](#enabling-aws-integration) section above. 
 More details about loading the catalog can be found in individual engine pages, such as [Spark](spark-configuration.md#loading-a-custom-catalog) and [Flink](flink.md#creating-catalogs-and-using-catalogs).
 
@@ -410,7 +411,7 @@ For example, to write S3 tags with Spark 3.3, you can start the Spark SQL shell 
 ```
 spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \
-    --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
+    --conf spark.sql.catalog.my_catalog.type=glue \
     --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO \
     --conf spark.sql.catalog.my_catalog.s3.write.tags.my_key1=my_val1 \
     --conf spark.sql.catalog.my_catalog.s3.write.tags.my_key2=my_val2
@@ -428,7 +429,7 @@ For example, to add S3 delete tags with Spark 3.3, you can start the Spark SQL s
 ```
 sh spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://iceberg-warehouse/s3-tagging \
-    --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
+    --conf spark.sql.catalog.my_catalog.type=glue \
     --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO \
     --conf spark.sql.catalog.my_catalog.s3.delete.tags.my_key3=my_val3 \
     --conf spark.sql.catalog.my_catalog.s3.delete-enabled=false
@@ -443,7 +444,7 @@ For example, to write table and namespace name as S3 tags with Spark 3.3, you ca
 ```
 sh spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://iceberg-warehouse/s3-tagging \
-    --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
+    --conf spark.sql.catalog.my_catalog.type=glue \
     --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO \
     --conf spark.sql.catalog.my_catalog.s3.write.table-tag-enabled=true \
     --conf spark.sql.catalog.my_catalog.s3.write.namespace-tag-enabled=true
@@ -463,7 +464,7 @@ For example, to use S3 access-point with Spark 3.3, you can start the Spark SQL 
 ```
 spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket2/my/key/prefix \
-    --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
+    --conf spark.sql.catalog.my_catalog.type=glue \
     --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO \
     --conf spark.sql.catalog.my_catalog.s3.use-arn-region-enabled=false \
     --conf spark.sql.catalog.test.s3.access-points.my-bucket1=arn:aws:s3::123456789012:accesspoint:mfzwi23gnjvgw.mrap \
@@ -473,6 +474,30 @@ For the above example, the objects in S3 on `my-bucket1` and `my-bucket2` bucket
 access-point for all S3 operations.
 
 For more details on using access-points, please refer [Using access points with compatible Amazon S3 operations](https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-points-usage-examples.html).
+
+### S3 Access Grants
+
+[S3 Access Grants](https://aws.amazon.com/s3/features/access-grants/) can be used to grant accesses to S3 data using IAM Principals.
+In order to enable S3 Access Grants to work in Iceberg, you can set the `s3.access-grants.enabled` catalog property to `true` after
+you add the [S3 Access Grants Plugin jar](https://github.com/aws/aws-s3-accessgrants-plugin-java-v2) to your classpath. A link
+to the Maven listing for this plugin can be found [here](https://mvnrepository.com/artifact/software.amazon.s3.accessgrants/aws-s3-accessgrants-java-plugin).
+
+In addition, we allow the [fallback-to-IAM configuration](https://github.com/aws/aws-s3-accessgrants-plugin-java-v2) which allows
+you to fallback to using your IAM role (and its permission sets directly) to access your S3 data in the case the S3 Access Grants
+is unable to authorize your S3 call. This can be done using the `s3.access-grants.fallback-to-iam` boolean catalog property. By default,
+this property is set to `false`.
+
+For example, to add the S3 Access Grants Integration with Spark 3.3, you can start the Spark SQL shell with:
+```
+spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
+    --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket2/my/key/prefix \
+    --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
+    --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO \
+    --conf spark.sql.catalog.my_catalog.s3.access-grants.enabled=true \
+    --conf spark.sql.catalog.my_catalog.s3.access-grants.fallback-to-iam=true
+```
+
+For more details on using S3 Access Grants, please refer to [Managing access with S3 Access Grants](https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-grants.html).
 
 ### S3 Acceleration
 
@@ -484,7 +509,7 @@ For example, to use S3 Acceleration with Spark 3.3, you can start the Spark SQL 
 ```
 spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket2/my/key/prefix \
-    --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
+    --conf spark.sql.catalog.my_catalog.type=glue \
     --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO \
     --conf spark.sql.catalog.my_catalog.s3.acceleration-enabled=true
 ```
@@ -502,7 +527,7 @@ For example, to use S3 Dual-stack with Spark 3.3, you can start the Spark SQL sh
 ```
 spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket2/my/key/prefix \
-    --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
+    --conf spark.sql.catalog.my_catalog.type=glue \
     --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO \
     --conf spark.sql.catalog.my_catalog.s3.dualstack-enabled=true
 ```
@@ -538,7 +563,7 @@ Here is an example to start Spark shell with this client factory:
 spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.4_2.12:{{ icebergVersion }},org.apache.iceberg:iceberg-aws-bundle:{{ icebergVersion }} \
     --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \    
-    --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
+    --conf spark.sql.catalog.my_catalog.type=glue \
     --conf spark.sql.catalog.my_catalog.client.factory=org.apache.iceberg.aws.AssumeRoleAwsClientFactory \
     --conf spark.sql.catalog.my_catalog.client.assume-role.arn=arn:aws:iam::123456789:role/myRoleToAssume \
     --conf spark.sql.catalog.my_catalog.client.assume-role.region=ap-northeast-1

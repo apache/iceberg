@@ -53,6 +53,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.view.BaseView;
 import org.apache.iceberg.view.View;
+import org.apache.iceberg.view.ViewProperties;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -70,7 +71,7 @@ import org.projectnessie.model.Branch;
 import org.projectnessie.model.Reference;
 import org.projectnessie.model.Tag;
 import org.projectnessie.versioned.storage.common.persist.Persist;
-import org.projectnessie.versioned.storage.inmemory.InmemoryBackendTestFactory;
+import org.projectnessie.versioned.storage.inmemorytests.InmemoryBackendTestFactory;
 import org.projectnessie.versioned.storage.testextension.NessieBackend;
 import org.projectnessie.versioned.storage.testextension.NessiePersist;
 import org.projectnessie.versioned.storage.testextension.PersistExtension;
@@ -200,6 +201,7 @@ public abstract class BaseTestIceberg {
         .withSchema(schema)
         .withDefaultNamespace(tableIdentifier.namespace())
         .withQuery("spark", "select * from ns.tbl")
+        .withProperty(ViewProperties.REPLACE_DROP_DIALECT_ALLOWED, "true")
         .create();
   }
 

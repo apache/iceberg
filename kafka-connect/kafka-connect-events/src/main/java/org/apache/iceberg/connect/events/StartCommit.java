@@ -20,6 +20,7 @@ package org.apache.iceberg.connect.events;
 
 import java.util.UUID;
 import org.apache.avro.Schema;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.UUIDType;
@@ -45,6 +46,7 @@ public class StartCommit implements Payload {
   }
 
   public StartCommit(UUID commitId) {
+    Preconditions.checkNotNull(commitId, "Commit ID cannot be null");
     this.commitId = commitId;
     this.avroSchema = AVRO_SCHEMA;
   }

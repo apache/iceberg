@@ -43,6 +43,7 @@ DOCS:
   - changed-files:
     - any-glob-to-any-file: [
       'docs/**/*',
+      'site/**/*',
       '**/*CHANGELOG.md',
       '**/*README.md',
       '**/*CONTRIBUTING.md'

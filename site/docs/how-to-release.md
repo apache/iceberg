@@ -267,7 +267,7 @@ svn ci -m 'Iceberg: Add release <VERSION>'
 ```
 
 !!! Note
-The above step requires PMC privileges to execute.
+    The above step requires PMC privileges to execute.
 
 Next, add a release tag to the git repository based on the passing candidate tag:
 
@@ -472,7 +472,7 @@ repositories {
 ```
 
 !!! Note
-Replace `${MAVEN_URL}` with the URL provided in the release announcement
+    Replace `${MAVEN_URL}` with the URL provided in the release announcement
 
 ### Verifying with Spark
 

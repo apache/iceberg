@@ -65,6 +65,7 @@ The view version metadata file has the following fields:
 | _optional_  | `properties`         | A string to string map of view properties [2] |
 
 Notes:
+
 1. The number of versions to retain is controlled by the table property: `version.history.num-entries`.
 2. Properties are used for metadata such as `comment` and for settings that affect view maintenance. This is not intended to be used for arbitrary metadata.
 
@@ -103,6 +104,7 @@ A view version can have more than one representation. All representations for a 
 View versions are immutable. Once a version is created, it cannot be changed. This means that representations for a version cannot be changed. If a view definition changes (or new representations are to be added), a new version must be created.
 
 Each representation is an object with at least one common field, `type`, that is one of the following:
+
 * `sql`: a SQL SELECT statement that defines the view
 
 Representations further define metadata for each type.

@@ -39,12 +39,18 @@ import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.view.ImmutableSQLViewRepresentation;
+import org.apache.iceberg.view.SQLViewRepresentation;
 import org.apache.iceberg.view.View;
+import org.apache.iceberg.view.ViewHistoryEntry;
+import org.apache.iceberg.view.ViewProperties;
+import org.apache.iceberg.view.ViewVersion;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.catalog.SessionCatalog;
+import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -907,6 +913,22 @@ public class TestViews extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void createOrReplaceView() throws NoSuchTableException {
+    insertRows(6);
+    String viewName = viewName("simpleView");
+
+    sql("CREATE OR REPLACE VIEW %s AS SELECT id FROM %s WHERE id <= 3", viewName, tableName);
+    assertThat(sql("SELECT id FROM %s", viewName))
+        .hasSize(3)
+        .containsExactlyInAnyOrder(row(1), row(2), row(3));
+
+    sql("CREATE OR REPLACE VIEW %s AS SELECT id FROM %s WHERE id > 3", viewName, tableName);
+    assertThat(sql("SELECT id FROM %s", viewName))
+        .hasSize(3)
+        .containsExactlyInAnyOrder(row(4), row(5), row(6));
+  }
+
+  @Test
   public void createViewWithInvalidSQL() {
     assertThatThrownBy(() -> sql("CREATE VIEW simpleViewWithInvalidSQL AS invalid SQL"))
         .isInstanceOf(AnalysisException.class)
@@ -1586,6 +1608,102 @@ public class TestViews extends SparkExtensionsTestBase {
                     Types.NestedField.optional(
                         0, "updated_id", Types.IntegerType.get(), "updated ID"))
                 .asStruct());
+  }
+
+  @Test
+  public void replacingTrinoViewShouldFail() {
+    String viewName = viewName("trinoView");
+    String sql = String.format("SELECT id FROM %s", tableName);
+
+    ViewCatalog viewCatalog = viewCatalog();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("trino", sql)
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema(sql))
+        .create();
+
+    assertThatThrownBy(() -> sql("CREATE OR REPLACE VIEW %s AS %s", viewName, sql))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot replace view due to loss of view dialects (replace.drop-dialect.allowed=false):\n"
+                + "Previous dialects: [trino]\n"
+                + "New dialects: [spark]");
+  }
+
+  @Test
+  public void replacingTrinoAndSparkViewShouldFail() {
+    String viewName = viewName("trinoAndSparkView");
+    String sql = String.format("SELECT id FROM %s", tableName);
+
+    ViewCatalog viewCatalog = viewCatalog();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("trino", sql)
+        .withQuery("spark", sql)
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema(sql))
+        .create();
+
+    assertThatThrownBy(() -> sql("CREATE OR REPLACE VIEW %s AS %s", viewName, sql))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot replace view due to loss of view dialects (replace.drop-dialect.allowed=false):\n"
+                + "Previous dialects: [trino, spark]\n"
+                + "New dialects: [spark]");
+  }
+
+  @Test
+  public void replacingViewWithDialectDropAllowed() {
+    String viewName = viewName("trinoView");
+    String sql = String.format("SELECT id FROM %s", tableName);
+
+    ViewCatalog viewCatalog = viewCatalog();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("trino", sql)
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema(sql))
+        .create();
+
+    // allowing to drop the trino dialect should replace the view
+    sql(
+        "CREATE OR REPLACE VIEW %s TBLPROPERTIES ('%s'='true') AS SELECT id FROM %s",
+        viewName, ViewProperties.REPLACE_DROP_DIALECT_ALLOWED, tableName);
+
+    View view = viewCatalog.loadView(TableIdentifier.of(NAMESPACE, viewName));
+    assertThat(view.currentVersion().representations())
+        .hasSize(1)
+        .first()
+        .asInstanceOf(InstanceOfAssertFactories.type(SQLViewRepresentation.class))
+        .isEqualTo(ImmutableSQLViewRepresentation.builder().dialect("spark").sql(sql).build());
+
+    // trino view should show up in the view versions & history
+    assertThat(view.history()).hasSize(2);
+    assertThat(view.history()).element(0).extracting(ViewHistoryEntry::versionId).isEqualTo(1);
+    assertThat(view.history()).element(1).extracting(ViewHistoryEntry::versionId).isEqualTo(2);
+
+    assertThat(view.versions()).hasSize(2);
+    assertThat(view.versions()).element(0).extracting(ViewVersion::versionId).isEqualTo(1);
+    assertThat(view.versions()).element(1).extracting(ViewVersion::versionId).isEqualTo(2);
+
+    assertThat(Lists.newArrayList(view.versions()).get(0).representations())
+        .hasSize(1)
+        .first()
+        .asInstanceOf(InstanceOfAssertFactories.type(SQLViewRepresentation.class))
+        .isEqualTo(ImmutableSQLViewRepresentation.builder().dialect("trino").sql(sql).build());
+
+    assertThat(Lists.newArrayList(view.versions()).get(1).representations())
+        .hasSize(1)
+        .first()
+        .asInstanceOf(InstanceOfAssertFactories.type(SQLViewRepresentation.class))
+        .isEqualTo(ImmutableSQLViewRepresentation.builder().dialect("spark").sql(sql).build());
   }
 
   private void insertRows(int numRows) throws NoSuchTableException {

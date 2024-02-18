@@ -459,6 +459,7 @@ CALL catalog_name.system.rewrite_manifests('db.sample', false);
 ### `rewrite_position_delete_files`
 
 Iceberg can rewrite position delete files, which serves two purposes:
+
 * Minor Compaction: Compact small position delete files into larger ones.  This reduces the size of metadata stored in manifest files and overhead of opening small delete files.
 * Remove Dangling Deletes: Filter out position delete records that refer to data files that are no longer live.  After rewrite_data_files, position delete records pointing to the rewritten data files are not always marked for removal, and can remain tracked by the table's live snapshot metadata.  This is known as the 'dangling delete' problem.
 
@@ -760,6 +761,7 @@ Creates a view that contains the changes from a given table.
 | `identifier_columns` |           | array<string>       | The list of identifier columns to compute updates. If the argument `compute_updates` is set to true and `identifier_columns` are not provided, the table’s current identifier fields will be used.   |
 
 Here is a list of commonly used Spark read options:
+
 * `start-snapshot-id`: the exclusive start snapshot ID. If not provided, it reads from the table’s first snapshot inclusively. 
 * `end-snapshot-id`: the inclusive end snapshot id, default to table's current snapshot.                                                                                                                                            
 * `start-timestamp`: the exclusive start timestamp. If not provided, it reads from the table’s first snapshot inclusively.
@@ -807,6 +809,7 @@ SELECT * FROM tbl_changes where _change_type = 'INSERT' AND id = 3 ORDER BY _cha
 ``` 
 Please note that the changelog view includes Change Data Capture(CDC) metadata columns
 that provide additional information about the changes being tracked. These columns are:
+
 - `_change_type`: the type of change. It has one of the following values: `INSERT`, `DELETE`, `UPDATE_BEFORE`, or `UPDATE_AFTER`.
 - `_change_ordinal`: the order of changes
 - `_commit_snapshot_id`: the snapshot ID where the change occurred

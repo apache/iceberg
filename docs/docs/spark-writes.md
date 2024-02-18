@@ -310,11 +310,11 @@ While inserting or updating Iceberg is capable of resolving schema mismatch at r
 
 * A new column is present in the source but not in the target table.
     
-  The new column is added to the target table. Column values are set to `NULL` in all the rows already present in the table
+    The new column is added to the target table. Column values are set to `NULL` in all the rows already present in the table
 
 * A column is present in the target but not in the source. 
 
-  The target column value is set to `NULL` when inserting or left unchanged when updating the row.
+    The target column value is set to `NULL` when inserting or left unchanged when updating the row.
 
 The target table must be configured to accept any schema change by setting the property `write.spark.accept-any-schema` to `true`.
 

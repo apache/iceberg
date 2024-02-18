@@ -37,6 +37,7 @@ import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.spark.source.TestSparkCatalog;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -83,6 +84,30 @@ public class TestMergeOnReadDelete extends TestDelete {
   @Parameterized.AfterParam
   public static void clearTestSparkCatalogCache() {
     TestSparkCatalog.clearTables();
+  }
+
+  @Test
+  public void testDeleteWithExecutorCacheLocality() throws NoSuchTableException {
+    createAndInitPartitionedTable();
+
+    append(tableName, new Employee(1, "hr"), new Employee(2, "hr"));
+    append(tableName, new Employee(3, "hr"), new Employee(4, "hr"));
+    append(tableName, new Employee(1, "hardware"), new Employee(2, "hardware"));
+    append(tableName, new Employee(3, "hardware"), new Employee(4, "hardware"));
+
+    createBranchIfNeeded();
+
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.EXECUTOR_CACHE_LOCALITY_ENABLED, "true"),
+        () -> {
+          sql("DELETE FROM %s WHERE id = 1", commitTarget());
+          sql("DELETE FROM %s WHERE id = 3", commitTarget());
+
+          assertEquals(
+              "Should have expected rows",
+              ImmutableList.of(row(2, "hardware"), row(2, "hr"), row(4, "hardware"), row(4, "hr")),
+              sql("SELECT * FROM %s ORDER BY id ASC, dep ASC", selectTarget()));
+        });
   }
 
   @Test

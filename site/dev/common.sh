@@ -200,14 +200,12 @@ clean () {
 
   # Remove 'latest' directories and related Git worktrees
   rm -rf docs/docs/latest &> /dev/null
+
   git worktree remove docs/docs &> /dev/null
   git worktree remove docs/javadoc &> /dev/null
-  
-  rm -f docs/.asf.yaml &> /dev/null
 
-  # Remove any additional temporary artifacts (e.g., 'site/' directory)
-  rm -rf site/ &> /dev/null
+  # Remove any remaining artifacts
+  rm -rf docs/javadoc docs/docs docs/.asf.yaml site/
 
   set -e # Re-enable script exit on errors
 }
-
