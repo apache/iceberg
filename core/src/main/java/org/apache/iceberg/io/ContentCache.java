@@ -113,13 +113,13 @@ public class ContentCache {
 
   /** @deprecated will be removed in 1.7; use {@link #tryCache(InputFile)} instead */
   @Deprecated
-  public FileContent get(String key, Function<String, FileContent> mappingFunction) {
+  public CacheEntry get(String key, Function<String, FileContent> mappingFunction) {
     return cache.get(key, mappingFunction);
   }
 
   /** @deprecated will be removed in 1.7; use {@link #tryCache(InputFile)} instead */
   @Deprecated
-  public FileContent getIfPresent(String location) {
+  public CacheEntry getIfPresent(String location) {
     return cache.getIfPresent(location);
   }
 
