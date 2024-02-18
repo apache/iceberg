@@ -49,7 +49,7 @@ public interface FileIO extends Serializable, Closeable {
   default InputFile newInputFile(DataFile file) {
     Preconditions.checkArgument(
         file.keyMetadata() == null,
-        "Cannot decrypt data file: {} (use DecryptingFileIO)",
+        "Cannot decrypt data file: {} (use EncryptingFileIO)",
         file.path());
     return newInputFile(file.path().toString());
   }
@@ -57,7 +57,7 @@ public interface FileIO extends Serializable, Closeable {
   default InputFile newInputFile(DeleteFile file) {
     Preconditions.checkArgument(
         file.keyMetadata() == null,
-        "Cannot decrypt delete file: {} (use DecryptingFileIO)",
+        "Cannot decrypt delete file: {} (use EncryptingFileIO)",
         file.path());
     return newInputFile(file.path().toString());
   }
@@ -65,7 +65,7 @@ public interface FileIO extends Serializable, Closeable {
   default InputFile newInputFile(ManifestFile manifest) {
     Preconditions.checkArgument(
         manifest.keyMetadata() == null,
-        "Cannot decrypt manifest: {} (use DecryptingFileIO)",
+        "Cannot decrypt manifest: {} (use EncryptingFileIO)",
         manifest.path());
     return newInputFile(manifest.path());
   }

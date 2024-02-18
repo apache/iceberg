@@ -36,6 +36,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 public class EncryptingFileIO implements FileIO, Serializable {
   public static EncryptingFileIO create(FileIO io, EncryptionManager em) {
+    if (io instanceof EncryptingFileIO) {
+      return (EncryptingFileIO) io;
+    }
+
     return new EncryptingFileIO(io, em);
   }
 
