@@ -34,6 +34,7 @@ import static org.apache.spark.sql.functions.lit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -74,6 +75,7 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.internal.SQLConf;
 import org.assertj.core.api.Assertions;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestTemplate;
@@ -730,9 +732,10 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         executorService.submit(
             () -> {
               for (int numOperations = 0; numOperations < 20; numOperations++) {
-                while (barrier.get() < numOperations * 2) {
-                  sleep(100);
-                }
+                int currentNumOperations = numOperations;
+                Awaitility.await()
+                    .pollInterval(Duration.ofMillis(10))
+                    .until(() -> barrier.get() >= currentNumOperations * 2);
 
                 sql("UPDATE %s SET id = -1 WHERE id = 1", tableName);
 
@@ -752,9 +755,10 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
               record.set(1, "hr"); // dep
 
               for (int numOperations = 0; numOperations < 20; numOperations++) {
-                while (shouldAppend.get() && barrier.get() < numOperations * 2) {
-                  sleep(100);
-                }
+                int currentNumOperations = numOperations;
+                Awaitility.await()
+                    .pollInterval(Duration.ofMillis(10))
+                    .until(() -> !shouldAppend.get() || barrier.get() >= currentNumOperations * 2);
 
                 if (!shouldAppend.get()) {
                   return;
@@ -768,7 +772,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
                   }
 
                   appendFiles.commit();
-                  sleep(1000);
+                  Awaitility.await().pollInterval(Duration.ofMillis(10)).until(() -> true);
                 }
 
                 barrier.incrementAndGet();
