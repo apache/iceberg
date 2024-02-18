@@ -182,7 +182,13 @@ public class ContentCache {
         .toString();
   }
 
-  private static class FileContent {
+  /**
+   * @deprecated will be removed in 1.7; use {@link FileContent} instead.
+   */
+  @Deprecated
+  private static class CacheEntry {}
+
+  private static class FileContent extends CacheEntry {
     private final long length;
     private final List<ByteBuffer> buffers;
 
