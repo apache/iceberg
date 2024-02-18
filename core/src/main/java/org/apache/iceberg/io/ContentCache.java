@@ -111,26 +111,23 @@ public class ContentCache {
     return cache.stats();
   }
 
+  /**
+   * @deprecated will be removed in 1.7; use {@link #tryCache(InputFile)} instead
+   */
+  @Deprecated
   public FileContent get(String key, Function<String, FileContent> mappingFunction) {
     return cache.get(key, mappingFunction);
   }
 
+  /**
+   * @deprecated will be removed in 1.7; use {@link #tryCache(InputFile)} instead
+   */
+  @Deprecated
   public FileContent getIfPresent(String location) {
     return cache.getIfPresent(location);
   }
 
   /**
-   * Try cache the file-content of file in the given location upon stream reading.
-   *
-   * <p>If length is longer than maximum length allowed by ContentCache, a regular {@link InputFile}
-   * and no caching will be done for that file. Otherwise, this method will return a {@link
-   * CachingInputFile} that serve file reads backed by ContentCache.
-   *
-   * @param io a FileIO associated with the location.
-   * @param location URL/path of a file accessible by io.
-   * @param length the known length of such file.
-   * @return a {@link CachingInputFile} if length is within allowed limit. Otherwise, a regular
-   *     {@link InputFile} for given location.
    * @deprecated will be removed in 1.7; use {@link #tryCache(InputFile)} instead
    */
   @Deprecated
