@@ -36,10 +36,8 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.table.runtime.typeutils.SortedMapTypeInfo;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.ManifestFile;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.RowDelta;
-import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -119,9 +117,9 @@ public class IcebergMultiTableFileCommitter extends AbstractStreamOperator<Void>
     private transient String flinkJobId;
     private transient String operatorUniqueId;
 //    private transient Table table;
-    private transient Map<String, IcebergFilesCommitterMetrics> committerMetrics;
-    private transient Map<String, ManifestOutputFileFactory> manifestOutputFileFactories;
-    private transient Map<String, Long> maxCommittedCheckpointId;
+    private transient Map<String, IcebergFilesCommitterMetrics> committerMetrics = Maps.newHashMap();
+    private transient Map<String, ManifestOutputFileFactory> manifestOutputFileFactories = Maps.newHashMap();
+    private transient Map<String, Long> maxCommittedCheckpointId = Maps.newHashMap();
     private transient int continuousEmptyCheckpoints;
     private transient int maxContinuousEmptyCommits;
     // There're two cases that we restore from flink checkpoints: the first case is restoring from
@@ -138,22 +136,19 @@ public class IcebergMultiTableFileCommitter extends AbstractStreamOperator<Void>
     private transient ListState<Map<String, SortedMap<Long, byte[]>>> checkpointsState;
 
     private final Integer workerPoolSize;
-    private final PartitionSpec spec;
     private transient ExecutorService workerPool;
 
     private int subTaskId;
     private int attemptId;
 
     IcebergMultiTableFileCommitter(
-            TableLoader tableLoader,
             CatalogLoader catalogLoader,
             PayloadSinkProvider payloadSinkProvider,
             boolean replacePartitions,
             Map<String, String> snapshotProperties,
             Integer workerPoolSize,
             String branch,
-            PartitionSpec spec) {
-//        this.tableLoader = tableLoader;
+            int maxContinuousEmptyCommits) {
         this.catalogLoader = catalogLoader;
         this.payloadSinkProvider = payloadSinkProvider;
         this.tableLoaders = Maps.newHashMap();
@@ -161,7 +156,7 @@ public class IcebergMultiTableFileCommitter extends AbstractStreamOperator<Void>
         this.snapshotProperties = snapshotProperties;
         this.workerPoolSize = workerPoolSize;
         this.branch = branch;
-        this.spec = spec;
+        this.maxContinuousEmptyCommits = maxContinuousEmptyCommits;
     }
 
     @Override
@@ -539,9 +534,10 @@ public class IcebergMultiTableFileCommitter extends AbstractStreamOperator<Void>
         List<WriteResult> writeResults = writeResultsOfCurrentCkpt.get(tableName);
 
         WriteResult result = WriteResult.builder().addAll(writeResults).build();
+        Table table = tableLoaders.get(tableName).loadTable();
         DeltaManifests deltaManifests =
                 FlinkManifestUtil.writeCompletedFiles(
-                        result, () -> manifestOutputFileFactories.get(tableName).create(checkpointId), spec);
+                        result, () -> manifestOutputFileFactories.get(tableName).create(checkpointId), table.spec());
 
         return SimpleVersionedSerialization.writeVersionAndSerialize(
                 DeltaManifestsSerializer.INSTANCE, deltaManifests);
