@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
@@ -332,7 +333,10 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
 
   protected DataFile writeDataFile(Table table, List<GenericRecord> records) {
     try {
-      OutputFile file = Files.localOutput(temp.toFile());
+
+      OutputFile file =
+          Files.localOutput(
+              temp.resolve(fileFormat.addExtension(UUID.randomUUID().toString())).toFile());
 
       DataWriter<GenericRecord> dataWriter =
           Parquet.writeData(file)

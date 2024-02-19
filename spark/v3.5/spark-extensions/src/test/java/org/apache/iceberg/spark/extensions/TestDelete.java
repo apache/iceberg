@@ -1039,9 +1039,10 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         executorService.submit(
             () -> {
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
-                while (barrier.get() < numOperations * 2) {
-                  sleep(10);
-                }
+                int currentNumOperations = numOperations;
+                Awaitility.await()
+                    .pollInterval(Duration.ofMillis(10))
+                    .until(() -> barrier.get() >= currentNumOperations * 2);
 
                 sql("DELETE FROM %s WHERE id IN (SELECT * FROM deleted_id)", commitTarget());
 
@@ -1061,9 +1062,10 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
               record.set(1, "hr"); // dep
 
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
-                while (shouldAppend.get() && barrier.get() < numOperations * 2) {
-                  sleep(10);
-                }
+                int currentNumOperations = numOperations;
+                Awaitility.await()
+                    .pollInterval(Duration.ofMillis(10))
+                    .until(() -> !shouldAppend.get() || barrier.get() >= currentNumOperations * 2);
 
                 if (!shouldAppend.get()) {
                   return;
@@ -1077,7 +1079,6 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
                   }
 
                   appendFiles.commit();
-                  sleep(10);
                 }
 
                 barrier.incrementAndGet();
@@ -1170,7 +1171,6 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
                   }
 
                   appendFiles.commit();
-                  Awaitility.await().pollInterval(Duration.ofMillis(10)).until(() -> true);
                 }
 
                 barrier.incrementAndGet();

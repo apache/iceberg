@@ -1530,9 +1530,10 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         executorService.submit(
             () -> {
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
-                while (barrier.get() < numOperations * 2) {
-                  sleep(10);
-                }
+                int currentNumOperations = numOperations;
+                Awaitility.await()
+                    .pollInterval(Duration.ofMillis(10))
+                    .until(() -> barrier.get() >= currentNumOperations * 2);
 
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -1557,9 +1558,10 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
               record.set(1, "hr"); // dep
 
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
-                while (shouldAppend.get() && barrier.get() < numOperations * 2) {
-                  sleep(10);
-                }
+                int currentNumOperations = numOperations;
+                Awaitility.await()
+                    .pollInterval(Duration.ofMillis(10))
+                    .until(() -> !shouldAppend.get() || barrier.get() >= currentNumOperations * 2);
 
                 if (!shouldAppend.get()) {
                   return;
@@ -1572,7 +1574,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                     appendFiles.toBranch(branch);
                   }
                   appendFiles.commit();
-                  sleep(10);
                 }
 
                 barrier.incrementAndGet();
@@ -1670,7 +1671,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   }
 
                   appendFiles.commit();
-                  Awaitility.await().pollInterval(Duration.ofMillis(10)).until(() -> true);
                 }
 
                 barrier.incrementAndGet();
