@@ -18,13 +18,35 @@
  */
 package org.apache.iceberg.encryption;
 
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.PositionOutputStream;
 
 /** An {@link EncryptedOutputFile} that can be used for format-native encryption. */
-public interface NativeEncryptionOutputFile extends EncryptedOutputFile {
+public interface NativeEncryptionOutputFile extends EncryptedOutputFile, OutputFile {
   @Override
   NativeEncryptionKeyMetadata keyMetadata();
 
   /** An {@link OutputFile} instance for the underlying (plaintext) output stream. */
   OutputFile plainOutputFile();
+
+  @Override
+  default PositionOutputStream create() {
+    return encryptingOutputFile().create();
+  }
+
+  @Override
+  default PositionOutputStream createOrOverwrite() {
+    return encryptingOutputFile().createOrOverwrite();
+  }
+
+  @Override
+  default String location() {
+    return encryptingOutputFile().location();
+  }
+
+  @Override
+  default InputFile toInputFile() {
+    return encryptingOutputFile().toInputFile();
+  }
 }

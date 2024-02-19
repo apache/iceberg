@@ -32,7 +32,6 @@ import java.util.function.Function;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,8 +39,8 @@ import org.slf4j.LoggerFactory;
 /**
  * Class that provides file-content caching during reading.
  *
- * <p>The file-content caching is initiated by calling {@link ContentCache#tryCache(FileIO, String,
- * long)}. Given a FileIO, a file location string, and file length that is within allowed limit,
+ * <p>The file-content caching is initiated by calling {@link ContentCache#tryCache(InputFile)}.
+ * Given a FileIO, a file location string, and file length that is within allowed limit,
  * ContentCache will return a {@link CachingInputFile} that is backed by the cache. Calling {@link
  * CachingInputFile#newStream()} will return a {@link ByteBufferInputStream} backed by list of
  * {@link ByteBuffer} from the cache if such file-content exist in the cache. If the file-content
@@ -56,7 +55,7 @@ public class ContentCache {
   private final long expireAfterAccessMs;
   private final long maxTotalBytes;
   private final long maxContentLength;
-  private final Cache<String, CacheEntry> cache;
+  private final Cache<String, FileContent> cache;
 
   /**
    * Constructor for ContentCache class.
@@ -86,11 +85,11 @@ public class ContentCache {
         builder
             .maximumWeight(maxTotalBytes)
             .weigher(
-                (Weigher<String, CacheEntry>)
+                (Weigher<String, FileContent>)
                     (key, value) -> (int) Math.min(value.length, Integer.MAX_VALUE))
             .softValues()
             .removalListener(
-                (location, cacheEntry, cause) ->
+                (location, fileContent, cause) ->
                     LOG.debug("Evicted {} from ContentCache ({})", location, cause))
             .recordStats()
             .build();
@@ -112,12 +111,22 @@ public class ContentCache {
     return cache.stats();
   }
 
-  public CacheEntry get(String key, Function<String, CacheEntry> mappingFunction) {
+  /** @deprecated will be removed in 1.7; use {@link #tryCache(InputFile)} instead */
+  @Deprecated
+  public CacheEntry get(String key, Function<String, FileContent> mappingFunction) {
     return cache.get(key, mappingFunction);
   }
 
+  /** @deprecated will be removed in 1.7; use {@link #tryCache(InputFile)} instead */
+  @Deprecated
   public CacheEntry getIfPresent(String location) {
     return cache.getIfPresent(location);
+  }
+
+  /** @deprecated will be removed in 1.7; use {@link #tryCache(InputFile)} instead */
+  @Deprecated
+  public InputFile tryCache(FileIO io, String location, long length) {
+    return tryCache(io.newInputFile(location, length));
   }
 
   /**
@@ -127,17 +136,15 @@ public class ContentCache {
    * and no caching will be done for that file. Otherwise, this method will return a {@link
    * CachingInputFile} that serve file reads backed by ContentCache.
    *
-   * @param io a FileIO associated with the location.
-   * @param location URL/path of a file accessible by io.
-   * @param length the known length of such file.
+   * @param input an InputFile to cache
    * @return a {@link CachingInputFile} if length is within allowed limit. Otherwise, a regular
    *     {@link InputFile} for given location.
    */
-  public InputFile tryCache(FileIO io, String location, long length) {
-    if (length <= maxContentLength) {
-      return new CachingInputFile(this, io, location, length);
+  public InputFile tryCache(InputFile input) {
+    if (input.getLength() <= maxContentLength) {
+      return new CachingInputFile(this, input);
     }
-    return io.newInputFile(location, length);
+    return input;
   }
 
   public void invalidate(String key) {
@@ -166,11 +173,15 @@ public class ContentCache {
         .toString();
   }
 
-  private static class CacheEntry {
+  /** @deprecated will be removed in 1.7; use {@link FileContent} instead. */
+  @Deprecated
+  private static class CacheEntry {}
+
+  private static class FileContent extends CacheEntry {
     private final long length;
     private final List<ByteBuffer> buffers;
 
-    private CacheEntry(long length, List<ByteBuffer> buffers) {
+    private FileContent(long length, List<ByteBuffer> buffers) {
       this.length = length;
       this.buffers = buffers;
     }
@@ -187,34 +198,20 @@ public class ContentCache {
    */
   private static class CachingInputFile implements InputFile {
     private final ContentCache contentCache;
-    private final FileIO io;
-    private final String location;
-    private final long length;
-    private InputFile fallbackInputFile = null;
+    private final InputFile input;
 
-    private CachingInputFile(ContentCache cache, FileIO io, String location, long length) {
+    private CachingInputFile(ContentCache cache, InputFile input) {
       this.contentCache = cache;
-      this.io = io;
-      this.location = location;
-      this.length = length;
-    }
-
-    private InputFile wrappedInputFile() {
-      if (fallbackInputFile == null) {
-        fallbackInputFile = io.newInputFile(location, length);
-      }
-      return fallbackInputFile;
+      this.input = input;
     }
 
     @Override
     public long getLength() {
-      CacheEntry buf = contentCache.getIfPresent(location);
+      FileContent buf = contentCache.cache.getIfPresent(input.location());
       if (buf != null) {
         return buf.length;
-      } else if (fallbackInputFile != null) {
-        return fallbackInputFile.getLength();
       } else {
-        return length;
+        return input.getLength();
       }
     }
 
@@ -232,80 +229,63 @@ public class ContentCache {
     @Override
     public SeekableInputStream newStream() {
       try {
-        // read from cache if file length is less than or equal to maximum length allowed to
-        // cache.
-        if (getLength() <= contentCache.maxContentLength()) {
-          return cachedStream();
-        }
-
-        // fallback to non-caching input stream.
-        return wrappedInputFile().newStream();
+        return cachedStream();
       } catch (FileNotFoundException e) {
-        throw new NotFoundException(
-            e, "Failed to open input stream for file %s: %s", location, e.toString());
+        throw new NotFoundException(e, "Failed to open file: %s", input.location());
       } catch (IOException e) {
-        throw new UncheckedIOException(
-            String.format("Failed to open input stream for file %s: %s", location, e), e);
+        return input.newStream();
       }
     }
 
     @Override
     public String location() {
-      return location;
+      return input.location();
     }
 
     @Override
     public boolean exists() {
-      CacheEntry buf = contentCache.getIfPresent(location);
-      return buf != null || wrappedInputFile().exists();
-    }
-
-    private CacheEntry cacheEntry() {
-      long start = System.currentTimeMillis();
-      try (SeekableInputStream stream = wrappedInputFile().newStream()) {
-        long fileLength = getLength();
-        long totalBytesToRead = fileLength;
-        List<ByteBuffer> buffers = Lists.newArrayList();
-
-        while (totalBytesToRead > 0) {
-          // read the stream in 4MB chunk
-          int bytesToRead = (int) Math.min(BUFFER_CHUNK_SIZE, totalBytesToRead);
-          byte[] buf = new byte[bytesToRead];
-          int bytesRead = IOUtil.readRemaining(stream, buf, 0, bytesToRead);
-          totalBytesToRead -= bytesRead;
-
-          if (bytesRead < bytesToRead) {
-            // Read less than it should be, possibly hitting EOF. Abandon caching by throwing
-            // IOException and let the caller fallback to non-caching input file.
-            throw new IOException(
-                String.format(
-                    "Expected to read %d bytes, but only %d bytes read.",
-                    fileLength, fileLength - totalBytesToRead));
-          } else {
-            buffers.add(ByteBuffer.wrap(buf));
-          }
-        }
-
-        CacheEntry newEntry = new CacheEntry(fileLength, buffers);
-        LOG.debug("cacheEntry took {} ms for {}", (System.currentTimeMillis() - start), location);
-        return newEntry;
-      } catch (IOException ex) {
-        throw new UncheckedIOException(ex);
-      }
+      FileContent buf = contentCache.cache.getIfPresent(input.location());
+      return buf != null || input.exists();
     }
 
     private SeekableInputStream cachedStream() throws IOException {
       try {
-        CacheEntry entry = contentCache.get(location, k -> cacheEntry());
-        Preconditions.checkNotNull(
-            entry, "CacheEntry should not be null when there is no RuntimeException occurs");
-        LOG.debug("Cache stats: {}", contentCache.stats());
-        return ByteBufferInputStream.wrap(entry.buffers);
+        FileContent content = contentCache.cache.get(input.location(), k -> download(input));
+        return ByteBufferInputStream.wrap(content.buffers);
       } catch (UncheckedIOException ex) {
         throw ex.getCause();
-      } catch (RuntimeException ex) {
-        throw new IOException("Caught an error while reading from cache", ex);
       }
+    }
+  }
+
+  private static FileContent download(InputFile input) {
+    try (SeekableInputStream stream = input.newStream()) {
+      long fileLength = input.getLength();
+      long totalBytesToRead = fileLength;
+      List<ByteBuffer> buffers = Lists.newArrayList();
+
+      while (totalBytesToRead > 0) {
+        // read the stream in chunks
+        int bytesToRead = (int) Math.min(BUFFER_CHUNK_SIZE, totalBytesToRead);
+        byte[] buf = new byte[bytesToRead];
+        int bytesRead = IOUtil.readRemaining(stream, buf, 0, bytesToRead);
+        totalBytesToRead -= bytesRead;
+
+        if (bytesRead < bytesToRead) {
+          // Read less than it should be, possibly hitting EOF. Abandon caching by throwing
+          // IOException and let the caller fallback to non-caching input file.
+          throw new IOException(
+              String.format(
+                  "Failed to read %d bytes: %d bytes in stream",
+                  fileLength, fileLength - totalBytesToRead));
+        } else {
+          buffers.add(ByteBuffer.wrap(buf));
+        }
+      }
+
+      return new FileContent(fileLength, buffers);
+    } catch (IOException ex) {
+      throw new UncheckedIOException(ex);
     }
   }
 }
