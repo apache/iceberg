@@ -207,7 +207,7 @@ public class ContentCache {
 
     @Override
     public long getLength() {
-      FileContent buf = contentCache.getIfPresent(input.location());
+      FileContent buf = contentCache.cache.getIfPresent(input.location());
       if (buf != null) {
         return buf.length;
       } else {
@@ -244,13 +244,13 @@ public class ContentCache {
 
     @Override
     public boolean exists() {
-      FileContent buf = contentCache.getIfPresent(input.location());
+      FileContent buf = contentCache.cache.getIfPresent(input.location());
       return buf != null || input.exists();
     }
 
     private SeekableInputStream cachedStream() throws IOException {
       try {
-        FileContent content = contentCache.get(input.location(), k -> download(input));
+        FileContent content = contentCache.cache.get(input.location(), k -> download(input));
         return ByteBufferInputStream.wrap(content.buffers);
       } catch (UncheckedIOException ex) {
         throw ex.getCause();
