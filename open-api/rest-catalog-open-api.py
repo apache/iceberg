@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from datetime import date
 from typing import Any, Dict, List, Literal, Optional, Union
+from uuid import UUID
 
 from pydantic import BaseModel, Extra, Field
 
@@ -653,7 +654,7 @@ class DoubleTypeValue(BaseModel):
 class DecimalTypeValue(BaseModel):
     __root__: str = Field(
         ...,
-        description='Decimal types are serialized as strings using BigDecimal to maintain precision. For scales greater than or equal to zero, `toPlainString` ensures a non-exponential representation. Negative scales utilize the `toString`, resulting in exponential notation',
+        description='Decimal type values are serialized as strings. Decimals with a positive scale serialize as numeric plain text, while decimals with a negative scale use scientific notation and the exponent will be equal to the negated scale',
         example={
             'positiveScale': '123.4500',
             'zeroScale': '2',
@@ -667,9 +668,9 @@ class StringTypeValue(BaseModel):
 
 
 class UUIDTypeValue(BaseModel):
-    __root__: str = Field(
+    __root__: UUID = Field(
         ...,
-        description='UUID types are serialized as a string',
+        description='UUID type values are serialized as a lowercase string',
         example='eb26bdb1-a1d8-4aa6-990e-da940875492c',
     )
 
@@ -677,7 +678,7 @@ class UUIDTypeValue(BaseModel):
 class DateTypeValue(BaseModel):
     __root__: date = Field(
         ...,
-        description='Date types are serialized from an integer representing days since the Unix epoch to an ISO 8601 date string',
+        description='Date type values follow the `YYYY-MM-DD` ISO-8601 standard date format',
         example='2007-12-03',
     )
 
@@ -685,18 +686,19 @@ class DateTypeValue(BaseModel):
 class TimeTypeValue(BaseModel):
     __root__: str = Field(
         ...,
-        description='Time types are serialized from a long representing microseconds since midnight to an ISO 8601 time string',
-        example='10:15:30',
+        description='Time type values follow the `HH:MM[:SS[.sssssssss]]` ISO-8601 format with microsecond precision',
+        example='22:31:08.123456',
     )
 
 
 class TimestampTypeValue(BaseModel):
     __root__: str = Field(
         ...,
-        description='Timestamp types are serialized from a long representing microseconds since the Unix epoch to an ISO 8601 timestamp string. During serialization, the timestamp type is checked to see if it should be converted to UTC. If so, the serialized timestamp string will be formatted to represent UTC by appending `+00:00`',
+        description="Timestamp type values follow the 'YYYY-MM-DDTHH:MM[:SS[.sssssssss]][+00:00]' ISO-8601 format with microsecond precision. Timestamps that adjust to UTC include a `+00:00` offset. Without this offset, the format implies local time",
         example={
             'withoutTimezone': '2007-12-03T10:15:30',
             'withTimezone': '2007-12-03T10:15:30+00:00',
+            'withFractionalSeconds': '2007-03-25T12:34:56.123456',
         },
     )
 
@@ -704,16 +706,16 @@ class TimestampTypeValue(BaseModel):
 class FixedTypeValue(BaseModel):
     __root__: str = Field(
         ...,
-        description='serialized as a base16-encoded string representing fixed length binary data',
-        example='111F',
+        description='Fixed length type values are stored and serialized as a hexadecimal string preserving the fixed length',
+        example='000102ff',
     )
 
 
 class BinaryTypeValue(BaseModel):
     __root__: str = Field(
         ...,
-        description='serialized as a base16-encoded string representing binary data',
-        example='0000FF',
+        description='Binary type values are stored and serialized as a hexadecimal string',
+        example='000102ff',
     )
 
 
