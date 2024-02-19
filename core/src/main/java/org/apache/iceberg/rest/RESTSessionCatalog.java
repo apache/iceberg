@@ -59,6 +59,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
+import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
@@ -717,8 +718,15 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     @Override
     public Transaction replaceTransaction() {
-      if (viewExists(context, ident)) {
-        throw new AlreadyExistsException("View with same name already exists: %s", ident);
+      try {
+        if (viewExists(context, ident)) {
+          throw new AlreadyExistsException("View with same name already exists: %s", ident);
+        }
+      } catch (RESTException | UnsupportedOperationException e) {
+        // don't fail if the server doesn't support views, which could be due to:
+        // 1. server or backing catalog doesn't support views
+        // 2. newer client talks to an older server that doesn't support views
+        LOG.debug("Failed to check whether view {} exists", ident, e);
       }
 
       LoadTableResponse response = loadInternal(context, ident, snapshotMode);
