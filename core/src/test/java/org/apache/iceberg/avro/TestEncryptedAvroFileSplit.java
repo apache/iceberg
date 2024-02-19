@@ -69,9 +69,9 @@ public class TestEncryptedAvroFileSplit {
     this.expected = Lists.newArrayList();
 
     OutputFile out = Files.localOutput(temp.toFile());
-
     EncryptedOutputFile eOut = ENCRYPTION_MANAGER.encrypt(out);
 
+    long plainContentLength;
     try (FileAppender<Object> writer =
         Avro.write(eOut)
             .set(TableProperties.AVRO_COMPRESSION, "uncompressed")
@@ -86,11 +86,13 @@ public class TestEncryptedAvroFileSplit {
         expected.add(next);
         writer.add(next);
       }
+
+      writer.close();
+      plainContentLength = writer.length();
     }
 
-    EncryptedInputFile encryptedIn =
-        EncryptedFiles.encryptedInput(out.toInputFile(), eOut.keyMetadata());
-
+    InputFile in = Files.localInput(temp.toFile(), plainContentLength);
+    EncryptedInputFile encryptedIn = EncryptedFiles.encryptedInput(in, eOut.keyMetadata());
     this.file = ENCRYPTION_MANAGER.decrypt(encryptedIn);
   }
 

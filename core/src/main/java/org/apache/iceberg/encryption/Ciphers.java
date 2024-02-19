@@ -33,7 +33,8 @@ public class Ciphers {
   public static final int PLAIN_BLOCK_SIZE = 1024 * 1024;
   public static final int NONCE_LENGTH = 12;
   public static final int GCM_TAG_LENGTH = 16;
-  public static final int CIPHER_BLOCK_SIZE = PLAIN_BLOCK_SIZE + NONCE_LENGTH + GCM_TAG_LENGTH;
+  public static final int BLOCK_SIZE_DELTA = NONCE_LENGTH + GCM_TAG_LENGTH;
+  public static final int CIPHER_BLOCK_SIZE = PLAIN_BLOCK_SIZE + BLOCK_SIZE_DELTA;
   public static final String GCM_STREAM_MAGIC_STRING = "AGS1";
 
   static final byte[] GCM_STREAM_MAGIC_ARRAY =
@@ -68,7 +69,7 @@ public class Ciphers {
     }
 
     public byte[] encrypt(byte[] plaintext, int plaintextOffset, int plaintextLength, byte[] aad) {
-      int cipherTextLength = NONCE_LENGTH + plaintextLength + GCM_TAG_LENGTH;
+      int cipherTextLength = plaintextLength + BLOCK_SIZE_DELTA;
       byte[] cipherText = new byte[cipherTextLength];
       encrypt(plaintext, plaintextOffset, plaintextLength, cipherText, 0, aad);
       return cipherText;
@@ -136,7 +137,7 @@ public class Ciphers {
 
     public byte[] decrypt(
         byte[] ciphertext, int ciphertextOffset, int ciphertextLength, byte[] aad) {
-      int plaintextLength = ciphertextLength - GCM_TAG_LENGTH - NONCE_LENGTH;
+      int plaintextLength = ciphertextLength - BLOCK_SIZE_DELTA;
       byte[] plaintext = new byte[plaintextLength];
       decrypt(ciphertext, ciphertextOffset, ciphertextLength, plaintext, 0, aad);
       return plaintext;
@@ -150,9 +151,9 @@ public class Ciphers {
         int plaintextOffset,
         byte[] aad) {
       Preconditions.checkState(
-          ciphertextLength - GCM_TAG_LENGTH - NONCE_LENGTH >= 0,
+          ciphertextLength - BLOCK_SIZE_DELTA >= 0,
           "Cannot decrypt cipher text of length "
-              + ciphertext.length
+              + ciphertextLength
               + " because text must longer than GCM_TAG_LENGTH + NONCE_LENGTH bytes. Text may not be encrypted"
               + " with AES GCM cipher");
       int plaintextLength;

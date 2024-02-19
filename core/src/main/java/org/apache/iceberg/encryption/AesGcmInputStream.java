@@ -41,9 +41,18 @@ public class AesGcmInputStream extends SeekableInputStream {
   private long currentPlainBlockIndex;
   private int currentPlainBlockSize;
 
+  /**
+   * Important: this constructor must receive the verified plaintext content length, not the
+   * physical file size after encryption. This protects against tampering with the file size in
+   * untrusted storage systems.
+   */
   AesGcmInputStream(
-      SeekableInputStream sourceStream, long sourceLength, byte[] aesKey, byte[] fileAADPrefix) {
+      SeekableInputStream sourceStream,
+      long plainSourceLength,
+      byte[] aesKey,
+      byte[] fileAADPrefix) {
     this.sourceStream = sourceStream;
+    this.plainStreamSize = plainSourceLength;
     this.fileAADPrefix = fileAADPrefix;
     this.decryptor = new Ciphers.AesGcmDecryptor(aesKey);
     this.cipherBlockBuffer = new byte[Ciphers.CIPHER_BLOCK_SIZE];
@@ -52,19 +61,21 @@ public class AesGcmInputStream extends SeekableInputStream {
     this.currentPlainBlockIndex = -1;
     this.currentPlainBlockSize = 0;
 
-    long streamLength = sourceLength - Ciphers.GCM_STREAM_HEADER_LENGTH;
-    long numFullBlocks = Math.toIntExact(streamLength / Ciphers.CIPHER_BLOCK_SIZE);
-    long cipherFullBlockLength = numFullBlocks * Ciphers.CIPHER_BLOCK_SIZE;
-    int cipherBytesInLastBlock = Math.toIntExact(streamLength - cipherFullBlockLength);
-    boolean fullBlocksOnly = (0 == cipherBytesInLastBlock);
+    long numFullBlocks = Math.toIntExact(plainSourceLength / Ciphers.PLAIN_BLOCK_SIZE);
+    long plainFullBlockLength = numFullBlocks * Ciphers.PLAIN_BLOCK_SIZE;
+    int plainBytesInLastBlock = Math.toIntExact(plainSourceLength - plainFullBlockLength);
+    boolean fullBlocksOnly = (0 == plainBytesInLastBlock);
     this.numBlocks = fullBlocksOnly ? numFullBlocks : numFullBlocks + 1;
-    this.lastCipherBlockSize =
-        fullBlocksOnly ? Ciphers.CIPHER_BLOCK_SIZE : cipherBytesInLastBlock; // never 0
 
-    long lastPlainBlockSize =
-        (long) lastCipherBlockSize - Ciphers.NONCE_LENGTH - Ciphers.GCM_TAG_LENGTH;
-    this.plainStreamSize =
-        numFullBlocks * Ciphers.PLAIN_BLOCK_SIZE + (fullBlocksOnly ? 0 : lastPlainBlockSize);
+    if (numBlocks == 0) {
+      this.lastCipherBlockSize = Ciphers.BLOCK_SIZE_DELTA;
+    } else {
+      this.lastCipherBlockSize =
+          fullBlocksOnly
+              ? Ciphers.CIPHER_BLOCK_SIZE
+              : plainBytesInLastBlock + Ciphers.BLOCK_SIZE_DELTA;
+    }
+
     this.singleByte = new byte[1];
   }
 
@@ -135,7 +146,6 @@ public class AesGcmInputStream extends SeekableInputStream {
         this.plainStreamPosition += bytesToCopy;
       } else if (available() > 0) {
         decryptBlock(blockIndex(plainStreamPosition));
-
       } else {
         break;
       }
@@ -209,13 +219,19 @@ public class AesGcmInputStream extends SeekableInputStream {
       sourceStream.seek(blockPositionInStream);
     }
 
-    boolean isLastBlock = blockIndex == numBlocks - 1;
+    boolean isLastBlock;
+    if (numBlocks == 0) {
+      isLastBlock = true;
+    } else {
+      isLastBlock = blockIndex == numBlocks - 1;
+    }
+
     int cipherBlockSize = isLastBlock ? lastCipherBlockSize : Ciphers.CIPHER_BLOCK_SIZE;
     IOUtil.readFully(sourceStream, cipherBlockBuffer, 0, cipherBlockSize);
 
     byte[] blockAAD = Ciphers.streamBlockAAD(fileAADPrefix, Math.toIntExact(blockIndex));
     decryptor.decrypt(cipherBlockBuffer, 0, cipherBlockSize, currentPlainBlock, 0, blockAAD);
-    this.currentPlainBlockSize = cipherBlockSize - Ciphers.NONCE_LENGTH - Ciphers.GCM_TAG_LENGTH;
+    this.currentPlainBlockSize = cipherBlockSize - Ciphers.BLOCK_SIZE_DELTA;
     this.currentPlainBlockIndex = blockIndex;
   }
 
@@ -229,24 +245,5 @@ public class AesGcmInputStream extends SeekableInputStream {
 
   private static long blockOffset(long blockIndex) {
     return blockIndex * Ciphers.CIPHER_BLOCK_SIZE + Ciphers.GCM_STREAM_HEADER_LENGTH;
-  }
-
-  static long calculatePlaintextLength(long sourceLength) {
-    long streamLength = sourceLength - Ciphers.GCM_STREAM_HEADER_LENGTH;
-
-    if (streamLength == 0) {
-      return 0;
-    }
-
-    long numberOfFullBlocks = streamLength / Ciphers.CIPHER_BLOCK_SIZE;
-    long fullBlockSize = numberOfFullBlocks * Ciphers.CIPHER_BLOCK_SIZE;
-    long cipherBytesInLastBlock = streamLength - fullBlockSize;
-    boolean fullBlocksOnly = (0 == cipherBytesInLastBlock);
-    long plainBytesInLastBlock =
-        fullBlocksOnly
-            ? 0
-            : (cipherBytesInLastBlock - Ciphers.NONCE_LENGTH - Ciphers.GCM_TAG_LENGTH);
-
-    return (numberOfFullBlocks * Ciphers.PLAIN_BLOCK_SIZE) + plainBytesInLastBlock;
   }
 }
