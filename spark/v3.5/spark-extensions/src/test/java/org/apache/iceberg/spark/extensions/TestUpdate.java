@@ -34,7 +34,6 @@ import static org.apache.spark.sql.functions.lit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -644,7 +643,8 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
                 int currentNumOperations = numOperations;
                 Awaitility.await()
-                    .pollInterval(Duration.ofMillis(10))
+                    .pollInterval(10, TimeUnit.MILLISECONDS)
+                    .atMost(5, TimeUnit.SECONDS)
                     .until(() -> barrier.get() >= currentNumOperations * 2);
 
                 sql("UPDATE %s SET id = -1 WHERE id = 1", commitTarget());
@@ -667,7 +667,8 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
                 int currentNumOperations = numOperations;
                 Awaitility.await()
-                    .pollInterval(Duration.ofMillis(10))
+                    .pollInterval(10, TimeUnit.MILLISECONDS)
+                    .atMost(5, TimeUnit.SECONDS)
                     .until(() -> !shouldAppend.get() || barrier.get() >= currentNumOperations * 2);
 
                 if (!shouldAppend.get()) {
@@ -735,7 +736,8 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
               for (int numOperations = 0; numOperations < 20; numOperations++) {
                 int currentNumOperations = numOperations;
                 Awaitility.await()
-                    .pollInterval(Duration.ofMillis(10))
+                    .pollInterval(10, TimeUnit.MILLISECONDS)
+                    .atMost(5, TimeUnit.SECONDS)
                     .until(() -> barrier.get() >= currentNumOperations * 2);
 
                 sql("UPDATE %s SET id = -1 WHERE id = 1", tableName);
@@ -758,7 +760,8 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
               for (int numOperations = 0; numOperations < 20; numOperations++) {
                 int currentNumOperations = numOperations;
                 Awaitility.await()
-                    .pollInterval(Duration.ofMillis(10))
+                    .pollInterval(10, TimeUnit.MILLISECONDS)
+                    .atMost(5, TimeUnit.SECONDS)
                     .until(() -> !shouldAppend.get() || barrier.get() >= currentNumOperations * 2);
 
                 if (!shouldAppend.get()) {
