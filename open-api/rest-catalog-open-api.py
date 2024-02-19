@@ -75,10 +75,10 @@ class Namespace(BaseModel):
     )
 
 
-class NextPageToken(BaseModel):
+class PageToken(BaseModel):
     __root__: str = Field(
         ...,
-        description='An opaque next page token, when non-null and non-empty this indicates that more results can be returned by server. This should be used in the next request for the query parameter of pageToken.',
+        description='An opaque token which allows clients to make use of pagination for a list API (e.g. ListTables) by signaling to the service that they would prefer the response to be paginated.\nClients will initiate the request by sending an empty pageToken e.g. GET /tables?pageToken or /tables?pageToken= For servers that support pagination, they will recognize pageToken and return a next pageToken in response if there are more results available. After initial request, it is expected that the next pageToken from the last response be used in the subsequent request. For servers that do not support pagination, they will ignore the pageToken and return all results.',
     )
 
 
@@ -588,12 +588,12 @@ class GetNamespaceResponse(BaseModel):
 
 
 class ListTablesResponse(BaseModel):
-    next_page_token: Optional[NextPageToken] = Field(None, alias='next-page-token')
+    next_page_token: Optional[PageToken] = Field(None, alias='next-page-token')
     identifiers: Optional[List[TableIdentifier]] = Field(None, unique_items=True)
 
 
 class ListNamespacesResponse(BaseModel):
-    next_page_token: Optional[NextPageToken] = Field(None, alias='next-page-token')
+    next_page_token: Optional[PageToken] = Field(None, alias='next-page-token')
     namespaces: Optional[List[Namespace]] = Field(None, unique_items=True)
 
 
