@@ -61,17 +61,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
-import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -153,7 +153,7 @@ public class IcebergMultiTableFileCommitter extends AbstractStreamOperator<Void>
             Integer workerPoolSize,
             String branch,
             PartitionSpec spec) {
-        this.tableLoader = tableLoader;
+//        this.tableLoader = tableLoader;
         this.catalogLoader = catalogLoader;
         this.payloadSinkProvider = payloadSinkProvider;
         this.tableLoaders = Maps.newHashMap();
@@ -174,8 +174,8 @@ public class IcebergMultiTableFileCommitter extends AbstractStreamOperator<Void>
 //        this.table = tableLoader.loadTable();
 //        this.committerMetrics = new IcebergFilesCommitterMetrics(super.metrics, table.name());
 
-        maxContinuousEmptyCommits =
-                PropertyUtil.propertyAsInt(table.properties(), MAX_CONTINUOUS_EMPTY_COMMITS, 10);
+//        maxContinuousEmptyCommits =
+//                PropertyUtil.propertyAsInt(table.properties(), MAX_CONTINUOUS_EMPTY_COMMITS, 10);
         Preconditions.checkArgument(
                 maxContinuousEmptyCommits > 0, MAX_CONTINUOUS_EMPTY_COMMITS + " must be positive");
 
@@ -213,6 +213,9 @@ public class IcebergMultiTableFileCommitter extends AbstractStreamOperator<Void>
                     initializeTable(tableName);
 
                     Table localTable = this.tableLoaders.get(tableName).loadTable();
+
+                    maxContinuousEmptyCommits =
+                            PropertyUtil.propertyAsInt(localTable.properties(), MAX_CONTINUOUS_EMPTY_COMMITS, 10);
 
                     SortedMap<Long, byte[]> tableCheckpoint = checkpoint.get(tableName);
 
@@ -349,10 +352,10 @@ public class IcebergMultiTableFileCommitter extends AbstractStreamOperator<Void>
         }
 
         CommitSummary summary = new CommitSummary(pendingResults);
-        commitPendingResult(pendingResults, summary, newFlinkJobId, operatorId, checkpointId);
+        commitPendingResult(pendingResults, summary, newFlinkJobId, operatorId, checkpointId, localTable);
         committerMetrics.get(localTable.name()).updateCommitSummary(summary);
         pendingMap.clear();
-        deleteCommittedManifests(manifests, newFlinkJobId, checkpointId);
+        deleteCommittedManifests(manifests, newFlinkJobId, checkpointId, localTable);
     }
 
     private void commitPendingResult(
@@ -360,14 +363,14 @@ public class IcebergMultiTableFileCommitter extends AbstractStreamOperator<Void>
             CommitSummary summary,
             String newFlinkJobId,
             String operatorId,
-            long checkpointId) {
+            long checkpointId, Table localTable) {
         long totalFiles = summary.dataFilesCount() + summary.deleteFilesCount();
         continuousEmptyCheckpoints = totalFiles == 0 ? continuousEmptyCheckpoints + 1 : 0;
         if (totalFiles != 0 || continuousEmptyCheckpoints % maxContinuousEmptyCommits == 0) {
             if (replacePartitions) {
-                replacePartitions(pendingResults, summary, newFlinkJobId, operatorId, checkpointId);
+                replacePartitions(pendingResults, summary, newFlinkJobId, operatorId, checkpointId, localTable);
             } else {
-                commitDeltaTxn(pendingResults, summary, newFlinkJobId, operatorId, checkpointId);
+                commitDeltaTxn(pendingResults, summary, newFlinkJobId, operatorId, checkpointId, localTable);
             }
             continuousEmptyCheckpoints = 0;
         } else {
@@ -419,7 +422,7 @@ public class IcebergMultiTableFileCommitter extends AbstractStreamOperator<Void>
                 "dynamic partition overwrite",
                 newFlinkJobId,
                 operatorId,
-                checkpointId);
+                checkpointId, localTable);
     }
 
     private void commitDeltaTxn(
@@ -438,7 +441,7 @@ public class IcebergMultiTableFileCommitter extends AbstractStreamOperator<Void>
                         "Should have no referenced data files for append.");
                 Arrays.stream(result.dataFiles()).forEach(appendFiles::appendFile);
             }
-            commitOperation(appendFiles, summary, "append", newFlinkJobId, operatorId, checkpointId);
+            commitOperation(appendFiles, summary, "append", newFlinkJobId, operatorId, checkpointId, localTable);
         } else {
             // To be compatible with iceberg format V2.
             for (Map.Entry<Long, WriteResult> e : pendingResults.entrySet()) {
@@ -459,7 +462,7 @@ public class IcebergMultiTableFileCommitter extends AbstractStreamOperator<Void>
 
                 Arrays.stream(result.dataFiles()).forEach(rowDelta::addRows);
                 Arrays.stream(result.deleteFiles()).forEach(rowDelta::addDeletes);
-                commitOperation(rowDelta, summary, "rowDelta", newFlinkJobId, operatorId, e.getKey());
+                commitOperation(rowDelta, summary, "rowDelta", newFlinkJobId, operatorId, e.getKey(), localTable);
             }
         }
     }
@@ -504,6 +507,9 @@ public class IcebergMultiTableFileCommitter extends AbstractStreamOperator<Void>
     public void processElement(StreamRecord<TableAwareWriteResult> element) {
         TableAwareWriteResult tableAwareWriteResult = element.getValue();
         String tableName = tableAwareWriteResult.getSerializableTable().name();
+        if (!this.writeResultsOfCurrentCkpt.containsKey(tableName)) {
+            this.writeResultsOfCurrentCkpt.put(tableName, new LinkedList<>());
+        }
         this.writeResultsOfCurrentCkpt.get(tableName).add(tableAwareWriteResult.getWriteResult());
     }
 
@@ -511,10 +517,15 @@ public class IcebergMultiTableFileCommitter extends AbstractStreamOperator<Void>
     public void endInput() throws IOException {
         // Flush the buffered data files into 'dataFilesPerCheckpoint' firstly.
         long currentCheckpointId = Long.MAX_VALUE;
-        dataFilesPerCheckpoint.put(currentCheckpointId, writeToManifest(currentCheckpointId));
-        writeResultsOfCurrentCkpt.clear();
-
-        commitUpToCheckpoint(dataFilesPerCheckpoint, flinkJobId, operatorUniqueId, currentCheckpointId);
+       Set<String> tableNames = this.writeResultsOfCurrentCkpt.keySet();
+       for (String tableName: tableNames) {
+           NavigableMap<Long, byte[]> datafileMap = new TreeMap<>();
+           datafileMap.put(currentCheckpointId, writeToManifest(currentCheckpointId, tableName));
+           dataFilesPerCheckpoint.put(tableName, datafileMap);
+           writeResultsOfCurrentCkpt.get(tableName).clear();
+           Table table = tableLoaders.get(tableName).loadTable();
+           commitUpToCheckpoint(dataFilesPerCheckpoint.get(tableName), flinkJobId, operatorUniqueId, currentCheckpointId, table);
+       }
     }
 
     /**
