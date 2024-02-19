@@ -18,7 +18,9 @@
  */
 package org.apache.iceberg;
 
+import java.util.stream.Collectors;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.util.Pair;
 
 /**
  * A {@link Table} implementation that exposes a table's manifest entries as rows, for both delete
@@ -64,10 +66,12 @@ public class ManifestEntriesTable extends BaseEntriesTable {
 
     @Override
     protected CloseableIterable<FileScanTask> doPlanFiles() {
-      CloseableIterable<ManifestFile> manifests =
-          CloseableIterable.withNoopClose(snapshot().allManifests(table().io()));
-      return BaseEntriesTable.planFiles(
-          table(), snapshot(), manifests, tableSchema(), schema(), context());
+      CloseableIterable<Pair<Snapshot, ManifestFile>> manifests =
+          CloseableIterable.withNoopClose(
+              snapshot().allManifests(table().io()).stream()
+                  .map(manifestFile -> Pair.of(snapshot(), manifestFile))
+                  .collect(Collectors.toSet()));
+      return BaseEntriesTable.planFiles(table(), manifests, tableSchema(), schema(), context());
     }
   }
 }

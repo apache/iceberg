@@ -40,6 +40,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructProjection;
 
 /** Base class logic for entries metadata tables */
@@ -64,8 +65,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
 
   static CloseableIterable<FileScanTask> planFiles(
       Table table,
-      Snapshot snapshot,
-      CloseableIterable<ManifestFile> manifests,
+      CloseableIterable<Pair<Snapshot, ManifestFile>> snapshotManifestPairs,
       Schema tableSchema,
       Schema projectedSchema,
       TableScanContext context) {
@@ -85,16 +85,15 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
     ManifestContentEvaluator manifestContentEvaluator =
         new ManifestContentEvaluator(filter, tableSchema.asStruct(), caseSensitive);
 
-    CloseableIterable<ManifestFile> filteredManifests =
+    CloseableIterable<Pair<Snapshot, ManifestFile>> filteredManifests =
         CloseableIterable.filter(
-            manifests,
-            manifest ->
-                evalCache.get(manifest.partitionSpecId()).eval(manifest)
-                    && manifestContentEvaluator.eval(manifest));
+            snapshotManifestPairs,
+            pair ->
+                evalCache.get(pair.second().partitionSpecId()).eval(pair.second())
+                    && manifestContentEvaluator.eval(pair.second()));
 
     return CloseableIterable.transform(
-        filteredManifests,
-        manifest -> new ManifestReadTask(table, snapshot, manifest, projectedSchema, filter));
+        filteredManifests, pair -> new ManifestReadTask(table, pair, projectedSchema, filter));
   }
 
   /**
@@ -280,11 +279,17 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
 
     private ManifestReadTask(
         Table table,
-        Snapshot snapshot,
-        ManifestFile manifest,
+        Pair<Snapshot, ManifestFile> snapshotManifestPair,
         Schema projection,
         Expression filter) {
-      this(table.schema(), table.io(), table.specs(), snapshot, manifest, projection, filter);
+      this(
+          table.schema(),
+          table.io(),
+          table.specs(),
+          snapshotManifestPair.first(),
+          snapshotManifestPair.second(),
+          projection,
+          filter);
     }
 
     ManifestReadTask(
@@ -307,7 +312,6 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
       this.manifest = manifest;
       this.specsById = Maps.newHashMap(specsById);
       this.dataTableSchema = dataTableSchema;
-
       Type fileProjectionType = projection.findType("data_file");
       this.fileProjection =
           fileProjectionType != null
@@ -365,11 +369,11 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
     }
 
     private Schema actualProjection(
-        Schema projection,
+        Schema originalProjection,
         Types.NestedField refSnapshotIdField,
         Types.NestedField refSnapshotTimestampField,
         Types.NestedField readableMetricsField) {
-      Schema actualProjection = projection;
+      Schema actualProjection = originalProjection;
 
       if (refSnapshotIdField != null) {
         actualProjection =

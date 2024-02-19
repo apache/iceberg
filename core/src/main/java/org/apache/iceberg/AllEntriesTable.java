@@ -20,12 +20,11 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
+import java.util.stream.Collectors;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.ParallelIterable;
+import org.apache.iceberg.util.Pair;
 
 /**
  * A {@link Table} implementation that exposes a table's manifest entries as rows, for both delete
@@ -86,23 +85,14 @@ public class AllEntriesTable extends BaseEntriesTable {
 
     @Override
     protected CloseableIterable<FileScanTask> doPlanFiles() {
-      try (CloseableIterable<FileScanTask> iterable =
-          new ParallelIterable<>(
-              CloseableIterable.transform(
-                  CloseableIterable.withNoopClose(table().snapshots()),
-                  snapshot ->
-                      BaseEntriesTable.planFiles(
-                          table(),
-                          snapshot,
-                          CloseableIterable.withNoopClose(snapshot.allManifests(table().io())),
-                          tableSchema(),
-                          schema(),
-                          context())),
-              planExecutor())) {
-        return CloseableIterable.withNoopClose(iterable);
-      } catch (IOException e) {
-        throw new UncheckedIOException("Failed to close parallel iterable", e);
-      }
+      CloseableIterable<Pair<Snapshot, ManifestFile>> snapshotManifestPairs =
+          reachableManifests(
+              snapshot ->
+                  snapshot.allManifests(table().io()).stream()
+                      .map(manifestFile -> Pair.of(snapshot, manifestFile))
+                      .collect(Collectors.toSet()));
+      return BaseEntriesTable.planFiles(
+          table(), snapshotManifestPairs, tableSchema(), schema(), context());
     }
   }
 }

@@ -18,7 +18,9 @@
  */
 package org.apache.iceberg;
 
+import java.util.stream.Collectors;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.util.Pair;
 
 /** A {@link Table} implementation that exposes a table's files as rows. */
 public class FilesTable extends BaseFilesTable {
@@ -57,8 +59,11 @@ public class FilesTable extends BaseFilesTable {
     }
 
     @Override
-    protected CloseableIterable<ManifestFile> manifests() {
-      return CloseableIterable.withNoopClose(snapshot().allManifests(table().io()));
+    protected CloseableIterable<Pair<Snapshot, ManifestFile>> manifests() {
+      return CloseableIterable.withNoopClose(
+          snapshot().allManifests(table().io()).stream()
+              .map(manifestFile -> Pair.of(snapshot(), manifestFile))
+              .collect(Collectors.toSet()));
     }
   }
 }
