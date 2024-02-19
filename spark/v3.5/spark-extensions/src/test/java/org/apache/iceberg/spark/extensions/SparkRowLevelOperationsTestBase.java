@@ -333,7 +333,6 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
 
   protected DataFile writeDataFile(Table table, List<GenericRecord> records) {
     try {
-
       OutputFile file =
           Files.localOutput(
               temp.resolve(fileFormat.addExtension(UUID.randomUUID().toString())).toFile());
