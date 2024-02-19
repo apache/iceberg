@@ -42,8 +42,17 @@ public class TestAliyunClientFactories {
         .as("Should have no Aliyun properties set")
         .isNull();
 
+    Assertions.assertThat(defaultFactory.aliyunProperties().securityToken())
+        .as("Should have no security token")
+        .isNull();
+
     AliyunClientFactory defaultFactoryWithConfig =
-        AliyunClientFactories.from(ImmutableMap.of(AliyunProperties.CLIENT_ACCESS_KEY_ID, "key"));
+        AliyunClientFactories.from(
+            ImmutableMap.of(
+                AliyunProperties.CLIENT_ACCESS_KEY_ID,
+                "key",
+                AliyunProperties.CLIENT_SECURITY_TOKEN,
+                "token"));
     Assertions.assertThat(defaultFactoryWithConfig)
         .as("Should load default when factory impl not configured")
         .isInstanceOf(AliyunClientFactories.DefaultAliyunClientFactory.class);
@@ -51,6 +60,10 @@ public class TestAliyunClientFactories {
     Assertions.assertThat(defaultFactoryWithConfig.aliyunProperties().accessKeyId())
         .as("Should have access key set")
         .isEqualTo("key");
+
+    Assertions.assertThat(defaultFactoryWithConfig.aliyunProperties().securityToken())
+        .as("Should have security token set")
+        .isEqualTo("token");
   }
 
   @Test
