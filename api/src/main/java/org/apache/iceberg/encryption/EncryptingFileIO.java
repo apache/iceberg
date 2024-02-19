@@ -35,9 +35,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 public class EncryptingFileIO implements FileIO, Serializable {
-  public static EncryptingFileIO create(FileIO io, EncryptionManager em) {
+  public static EncryptingFileIO combine(FileIO io, EncryptionManager em) {
     if (io instanceof EncryptingFileIO) {
-      return (EncryptingFileIO) io;
+      EncryptingFileIO encryptingIO = (EncryptingFileIO) io;
+      if (encryptingIO.em == em) {
+        return encryptingIO;
+      }
+
+      return combine(encryptingIO.io, em);
     }
 
     return new EncryptingFileIO(io, em);
