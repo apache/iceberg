@@ -221,7 +221,7 @@ public class IcebergMultiTableFileCommitter extends AbstractStreamOperator<Void>
 
                     // Identify max committer checkpoint id for table
                     long maxCommittedCheckpointIdForTable =
-                            getMaxCommittedCheckpointId(localTable, restoredFlinkJobId, operatorUniqueId, branch);
+                            IcebergFilesCommitter.getMaxCommittedCheckpointId(localTable, restoredFlinkJobId, operatorUniqueId, branch);
 
                     maxCommittedCheckpointId.put(tableName, maxCommittedCheckpointIdForTable);
                     // Since flink's checkpoint id will start from the max-committed-checkpoint-id + 1 in the new
@@ -585,29 +585,5 @@ public class IcebergMultiTableFileCommitter extends AbstractStreamOperator<Void>
                         BasicTypeInfo.STRING_TYPE_INFO,
                         sortedMapTypeInfo);
         return new ListStateDescriptor<>("iceberg-files-committer-state", mapTypeInfo);
-    }
-
-    static long getMaxCommittedCheckpointId(
-            Table table, String flinkJobId, String operatorId, String branch) {
-        Snapshot snapshot = table.snapshot(branch);
-        long lastCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
-
-        while (snapshot != null) {
-            Map<String, String> summary = snapshot.summary();
-            String snapshotFlinkJobId = summary.get(FLINK_JOB_ID);
-            String snapshotOperatorId = summary.get(OPERATOR_ID);
-            if (flinkJobId.equals(snapshotFlinkJobId)
-                    && (snapshotOperatorId == null || snapshotOperatorId.equals(operatorId))) {
-                String value = summary.get(MAX_COMMITTED_CHECKPOINT_ID);
-                if (value != null) {
-                    lastCommittedCheckpointId = Long.parseLong(value);
-                    break;
-                }
-            }
-            Long parentSnapshotId = snapshot.parentId();
-            snapshot = parentSnapshotId != null ? table.snapshot(parentSnapshotId) : null;
-        }
-
-        return lastCommittedCheckpointId;
     }
 }
