@@ -46,14 +46,11 @@ import org.apache.iceberg.data.BaseDeleteLoader;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.data.DeleteLoader;
 import org.apache.iceberg.deletes.DeleteCounter;
-import org.apache.iceberg.encryption.EncryptedFiles;
-import org.apache.iceberg.encryption.EncryptedInputFile;
+import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkExecutorCache;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Type;
@@ -184,23 +181,13 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
 
   private Map<String, InputFile> inputFiles() {
     if (lazyInputFiles == null) {
-      Stream<EncryptedInputFile> encryptedFiles =
-          taskGroup.tasks().stream().flatMap(this::referencedFiles).map(this::toEncryptedInputFile);
-
-      // decrypt with the batch call to avoid multiple RPCs to a key server, if possible
-      Iterable<InputFile> decryptedFiles = table.encryption().decrypt(encryptedFiles::iterator);
-
-      Map<String, InputFile> files = Maps.newHashMapWithExpectedSize(taskGroup.tasks().size());
-      decryptedFiles.forEach(decrypted -> files.putIfAbsent(decrypted.location(), decrypted));
-      this.lazyInputFiles = ImmutableMap.copyOf(files);
+      this.lazyInputFiles =
+          EncryptingFileIO.create(table().io(), table().encryption())
+              .bulkDecrypt(
+                  () -> taskGroup.tasks().stream().flatMap(this::referencedFiles).iterator());
     }
 
     return lazyInputFiles;
-  }
-
-  private EncryptedInputFile toEncryptedInputFile(ContentFile<?> file) {
-    InputFile inputFile = table.io().newInputFile(file.path().toString());
-    return EncryptedFiles.encryptedInput(inputFile, file.keyMetadata());
   }
 
   protected Map<Integer, ?> constantsMap(ContentScanTask<?> task, Schema readSchema) {
