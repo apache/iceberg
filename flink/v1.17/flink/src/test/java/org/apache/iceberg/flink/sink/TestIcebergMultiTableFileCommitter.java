@@ -38,7 +38,6 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TestTables;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -60,6 +59,8 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 import java.io.File;
 import java.io.IOException;
@@ -79,17 +80,20 @@ public class TestIcebergMultiTableFileCommitter {
     private CatalogLoader catalogLoader;
     private TableLoader tableLoader;
     private MockedStatic<TableLoader> mockStatic = Mockito.mockStatic(TableLoader.class);
-    private PayloadSinkProvider payloadSinkProvider;
 
     private TestTables.TestTable table1;
     private TestTables.TestTable table2;
 
     @Rule
-    public TemporaryFolder temp = new TemporaryFolder();
+    public TemporaryFolder temp1 = new TemporaryFolder();
+
+    @Rule
+    public TemporaryFolder temp2 = new TemporaryFolder();
 
     private static final Configuration CONF = new Configuration();
 
-    private File flinkManifestFolder;
+    private File flinkManifestFolder1;
+    private File flinkManifestFolder2;
     protected File tableDir1 = null;
     protected File metadataDir1 = null;
     protected File tableDir2 = null;
@@ -103,7 +107,6 @@ public class TestIcebergMultiTableFileCommitter {
         this.format = FileFormat.fromString(format);
         this.branch = branch;
         this.formatVersion = formatVersion;
-        this.payloadSinkProvider = new TestPayloadSinkProvider();
     }
 
     @Parameterized.Parameters(name = "FileFormat = {0}, FormatVersion = {1}, branch = {2}")
@@ -125,9 +128,9 @@ public class TestIcebergMultiTableFileCommitter {
 
     @Before
     public void setupTable() throws IOException {
-        flinkManifestFolder = temp.newFolder();
+        flinkManifestFolder1 = temp1.newFolder();
 
-        tableDir1 = temp.newFolder();
+        tableDir1 = temp1.newFolder();
         metadataDir1 = new File(tableDir1, "metadata");
         Assert.assertTrue(tableDir1.delete());
 
@@ -136,18 +139,19 @@ public class TestIcebergMultiTableFileCommitter {
         table1
                 .updateProperties()
                 .set(DEFAULT_FILE_FORMAT, format.name())
-                .set(FLINK_MANIFEST_LOCATION, flinkManifestFolder.getAbsolutePath())
+                .set(FLINK_MANIFEST_LOCATION, flinkManifestFolder1.getAbsolutePath())
                 .set(MAX_CONTINUOUS_EMPTY_COMMITS, "1")
                 .commit();
 
-        tableDir2 = temp.newFolder();
+        flinkManifestFolder2 = temp2.newFolder();
+        tableDir2 = temp2.newFolder();
         metadataDir2 = new File(tableDir2, "metadata");
         Assert.assertTrue(tableDir2.delete());
         table2 = create(tableDir2, "table2", SimpleDataUtil.SCHEMA, PartitionSpec.unpartitioned());
         table2
                 .updateProperties()
                 .set(DEFAULT_FILE_FORMAT, format.name())
-                .set(FLINK_MANIFEST_LOCATION, flinkManifestFolder.getAbsolutePath())
+                .set(FLINK_MANIFEST_LOCATION, flinkManifestFolder2.getAbsolutePath())
                 .set(MAX_CONTINUOUS_EMPTY_COMMITS, "1")
                 .commit();
         catalogLoader = Mockito.mock(CatalogLoader.class);
@@ -186,10 +190,12 @@ public class TestIcebergMultiTableFileCommitter {
             // failover won't fail.
             for (int i = 1; i <= 3; i++) {
                 harness.snapshot(++checkpointId, ++timestamp);
-                assertFlinkManifests(0);
+                assertFlinkManifests(0, flinkManifestFolder1);
+                assertFlinkManifests(0, flinkManifestFolder2);
 
                 harness.notifyOfCompletedCheckpoint(checkpointId);
-                assertFlinkManifests(0);
+                assertFlinkManifests(0, flinkManifestFolder1);
+                assertFlinkManifests(0, flinkManifestFolder2);
 
                 // This is 0 because table will be identified only after process element. Till then, no snapshot commit will happen
                 assertSnapshotSize(table1, 0);
@@ -201,8 +207,8 @@ public class TestIcebergMultiTableFileCommitter {
         }
     }
 
-    private TableAwareWriteResult of(DataFile dataFile, String tablename, String namespace) {
-        return new TableAwareWriteResult(WriteResult.builder().addDataFiles(dataFile).build(),  TableIdentifier.of(namespace, tablename));
+    private TableAwareWriteResult of(DataFile dataFile, String tablename) {
+        return new TableAwareWriteResult(WriteResult.builder().addDataFiles(dataFile).build(),  TableIdentifier.of("dummy", tablename));
     }
 
     @Test
@@ -230,23 +236,131 @@ public class TestIcebergMultiTableFileCommitter {
             for (int i = 1; i <= 3; i++) {
                 RowData rowData = SimpleDataUtil.createRowData(i, "hello" + i);
                 DataFile dataFile = writeDataFile(table1, "data-" + i, ImmutableList.of(rowData));
-                harness.processElement(of(dataFile, table1.name(), "dummy"), ++timestamp);
+                harness.processElement(of(dataFile, table1.name()), ++timestamp);
                 rows.add(rowData);
 
                 harness.snapshot(i, ++timestamp);
-                assertFlinkManifests(1);
+                assertFlinkManifests(1, flinkManifestFolder1);
 
                 harness.notifyOfCompletedCheckpoint(i);
-                assertFlinkManifests(0);
+                assertFlinkManifests(0, flinkManifestFolder1);
 
                 SimpleDataUtil.assertTableRows(table1, ImmutableList.copyOf(rows), branch);
                 assertSnapshotSize(table1, i);
                 assertMaxCommittedCheckpointId(table1, jobID, operatorId, i);
                 Assert.assertEquals(
-                        TestIcebergFilesCommitter.class.getName(),
+                        TestIcebergMultiTableFileCommitter.class.getName(),
                         SimpleDataUtil.latestSnapshot(table1, branch).summary().get("flink.test"));
             }
         }
+    }
+
+    @Test
+    public void testWrite2Tables() throws Exception {
+        // Test with 3 continues checkpoints:
+        //   1. snapshotState for checkpoint#1
+        //   2. notifyCheckpointComplete for checkpoint#1
+        //   3. snapshotState for checkpoint#2
+        //   4. notifyCheckpointComplete for checkpoint#2
+        //   5. snapshotState for checkpoint#3
+        //   6. notifyCheckpointComplete for checkpoint#3
+        long timestamp = 0;
+        JobID jobID = new JobID();
+        OperatorID operatorId;
+        try (OneInputStreamOperatorTestHarness<TableAwareWriteResult, Void> harness = createStreamSink(jobID)) {
+            createAlternateTableMock();
+            harness.setup();
+            harness.open();
+            operatorId = harness.getOperator().getOperatorID();
+
+            assertSnapshotSize(table1, 0);
+            assertSnapshotSize(table2, 0);
+
+            List<RowData> rows = Lists.newArrayListWithExpectedSize(3);
+            for (int i = 1; i <= 3; i++) {
+                RowData rowData = SimpleDataUtil.createRowData(i, "hello" + i);
+                DataFile dataFile1 = writeDataFile(table1, "data-table1" + i, ImmutableList.of(rowData));
+                DataFile dataFile2 = writeDataFile(table2, "data-table2" + i, ImmutableList.of(rowData));
+                harness.processElement(of(dataFile1, table1.name()), ++timestamp);
+                harness.processElement(of(dataFile2, table2.name()),timestamp);
+                rows.add(rowData);
+
+                harness.snapshot(i, ++timestamp);
+                assertFlinkManifests(1, flinkManifestFolder1);
+                assertFlinkManifests(1, flinkManifestFolder2);
+
+                harness.notifyOfCompletedCheckpoint(i);
+                assertFlinkManifests(0, flinkManifestFolder1);
+                assertFlinkManifests(0, flinkManifestFolder2);
+
+                SimpleDataUtil.assertTableRows(table1, ImmutableList.copyOf(rows), branch);
+                SimpleDataUtil.assertTableRows(table2, ImmutableList.copyOf(rows), branch);
+                assertSnapshotSize(table1, i);
+                assertSnapshotSize(table2, i);
+                assertMaxCommittedCheckpointId(table1, jobID, operatorId, i);
+                assertMaxCommittedCheckpointId(table2, jobID, operatorId, i);
+                Assert.assertEquals(
+                        TestIcebergMultiTableFileCommitter.class.getName(),
+                        SimpleDataUtil.latestSnapshot(table1, branch).summary().get("flink.test"));
+                Assert.assertEquals(
+                        TestIcebergMultiTableFileCommitter.class.getName(),
+                        SimpleDataUtil.latestSnapshot(table2, branch).summary().get("flink.test"));
+            }
+        }
+    }
+
+    @Test
+    public void testMaxContinuousEmptyCommits() throws Exception {
+        table1.updateProperties().set(MAX_CONTINUOUS_EMPTY_COMMITS, "3").commit();
+        table2.updateProperties().set(MAX_CONTINUOUS_EMPTY_COMMITS, "2").commit();
+
+        JobID jobId = new JobID();
+        long checkpointId = 0;
+        long timestamp = 0;
+        try (OneInputStreamOperatorTestHarness<TableAwareWriteResult, Void> harness = createStreamSink(jobId)) {
+            createAlternateTableMock();
+            harness.setup();
+            harness.open();
+
+            assertSnapshotSize(table1, 0);
+            assertSnapshotSize(table2, 0);
+
+            for (int i = 1; i <= 9; i++) {
+                harness.snapshot(++checkpointId, ++timestamp);
+                harness.notifyOfCompletedCheckpoint(checkpointId);
+                assertSnapshotSize(table1, 0);
+                assertSnapshotSize(table2, 0);
+            }
+            RowData rowData = SimpleDataUtil.createRowData(0, "hello" + 0);
+            DataFile dataFile1 = writeDataFile(table1, "data-table1" + 0, ImmutableList.of(rowData));
+            DataFile dataFile2 = writeDataFile(table2, "data-table2" + 0, ImmutableList.of(rowData));
+            harness.processElement(of(dataFile1, table1.name()), ++timestamp);
+            harness.processElement(of(dataFile2, table2.name()),timestamp);
+            harness.snapshot(++checkpointId, ++timestamp);
+            harness.notifyOfCompletedCheckpoint(checkpointId);
+            for (int i = 1; i <= 9; i++) {
+                harness.snapshot(++checkpointId, ++timestamp);
+                harness.notifyOfCompletedCheckpoint(checkpointId);
+                assertSnapshotSize(table1, 1 + (i/3));
+                assertSnapshotSize(table2, 1 + (i/2));
+            }
+        }
+    }
+
+    private void createAlternateTableMock() {
+        Mockito.when(tableLoader.loadTable()).thenAnswer(new Answer<Table>() {
+            private int invocationCount = 0;
+            @Override
+            public Table answer(InvocationOnMock invocation) throws Throwable {
+                invocationCount++;
+                if(invocationCount % 2 == 1) {
+                    return table1;
+                }
+                else {
+                    return table2;
+                }
+            }
+        });
     }
 
     private DataFile writeDataFile(Table table, String filename, List<RowData> rows) throws IOException {
@@ -266,11 +380,11 @@ public class TestIcebergMultiTableFileCommitter {
 
     private OneInputStreamOperatorTestHarness<TableAwareWriteResult, Void> createStreamSink(JobID jobID)
             throws Exception {
-        TestOperatorFactory factory = TestOperatorFactory.of(branch, catalogLoader, payloadSinkProvider);
+        TestOperatorFactory factory = TestOperatorFactory.of(branch, catalogLoader);
         return new OneInputStreamOperatorTestHarness<>(factory, createEnvironment(jobID));
     }
 
-    private List<Path> assertFlinkManifests(int expectedCount) throws IOException {
+    private List<Path> assertFlinkManifests(int expectedCount, File flinkManifestFolder) throws IOException {
         List<Path> manifests =
                 Files.list(flinkManifestFolder.toPath())
                         .filter(p -> !p.toString().endsWith(".crc"))
@@ -312,16 +426,14 @@ public class TestIcebergMultiTableFileCommitter {
             implements OneInputStreamOperatorFactory<TableAwareWriteResult, Void> {
         private final String branch;
         private CatalogLoader catalogLoader;
-        private PayloadSinkProvider payloadSinkProvider;
 
-        private TestOperatorFactory(String branch, CatalogLoader catalogLoader, PayloadSinkProvider payloadSinkProvider) {
+        private TestOperatorFactory(String branch, CatalogLoader catalogLoader) {
             this.branch = branch;
             this.catalogLoader = catalogLoader;
-            this.payloadSinkProvider = payloadSinkProvider;
         }
 
-        private static TestOperatorFactory of( String branch, CatalogLoader catalogLoader, PayloadSinkProvider payloadSinkProvider) {
-            return new TestOperatorFactory(branch, catalogLoader, payloadSinkProvider);
+        private static TestOperatorFactory of( String branch, CatalogLoader catalogLoader) {
+            return new TestOperatorFactory(branch, catalogLoader);
         }
 
         @Override
@@ -331,9 +443,8 @@ public class TestIcebergMultiTableFileCommitter {
             IcebergMultiTableFileCommitter committer =
                     new IcebergMultiTableFileCommitter(
                             catalogLoader,
-                            payloadSinkProvider,
                             false,
-                            Collections.singletonMap("flink.test", TestIcebergFilesCommitter.class.getName()),
+                            Collections.singletonMap("flink.test", TestIcebergMultiTableFileCommitter.class.getName()),
                             ThreadPools.WORKER_THREAD_POOL_SIZE,
                             branch);
             committer.setup(param.getContainingTask(), param.getStreamConfig(), param.getOutput());
