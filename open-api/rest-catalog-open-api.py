@@ -730,7 +730,7 @@ class FixedTypeValue(BaseModel):
     __root__: str = Field(
         ...,
         description='Fixed length type values are stored and serialized as an uppercase hexadecimal string preserving the fixed length',
-        example={'abc': '616263'},
+        example={'xyz': '78797A'},
     )
 
 
@@ -738,7 +738,7 @@ class BinaryTypeValue(BaseModel):
     __root__: str = Field(
         ...,
         description='Binary type values are stored and serialized as an uppercase hexadecimal string',
-        example={'abc': '616263'},
+        example={'xyz': '78797A'},
     )
 
 
