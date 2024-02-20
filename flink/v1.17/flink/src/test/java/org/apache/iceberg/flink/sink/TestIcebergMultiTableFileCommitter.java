@@ -41,6 +41,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TestTables;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.CatalogLoader;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
@@ -200,8 +201,8 @@ public class TestIcebergMultiTableFileCommitter {
         }
     }
 
-    private TableAwareWriteResult of(DataFile dataFile, Table table) {
-        return new TableAwareWriteResult(WriteResult.builder().addDataFiles(dataFile).build(), (SerializableTable) SerializableTable.copyOf(table));
+    private TableAwareWriteResult of(DataFile dataFile, String tablename, String namespace) {
+        return new TableAwareWriteResult(WriteResult.builder().addDataFiles(dataFile).build(),  TableIdentifier.of(namespace, tablename));
     }
 
     @Test
@@ -229,7 +230,7 @@ public class TestIcebergMultiTableFileCommitter {
             for (int i = 1; i <= 3; i++) {
                 RowData rowData = SimpleDataUtil.createRowData(i, "hello" + i);
                 DataFile dataFile = writeDataFile(table1, "data-" + i, ImmutableList.of(rowData));
-                harness.processElement(of(dataFile, table1), ++timestamp);
+                harness.processElement(of(dataFile, table1.name(), "dummy"), ++timestamp);
                 rows.add(rowData);
 
                 harness.snapshot(i, ++timestamp);
@@ -334,8 +335,7 @@ public class TestIcebergMultiTableFileCommitter {
                             false,
                             Collections.singletonMap("flink.test", TestIcebergFilesCommitter.class.getName()),
                             ThreadPools.WORKER_THREAD_POOL_SIZE,
-                            branch,
-                            1);
+                            branch);
             committer.setup(param.getContainingTask(), param.getStreamConfig(), param.getOutput());
             return (T) committer;
         }

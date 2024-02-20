@@ -19,23 +19,24 @@
 package org.apache.iceberg.flink.data;
 
 import org.apache.iceberg.SerializableTable;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.WriteResult;
 
 public class TableAwareWriteResult {
 
   private final WriteResult writeResult;
-  private final SerializableTable serializableTable;
+  private final TableIdentifier tableIdentifier;
 
-  public TableAwareWriteResult(WriteResult writeResult, SerializableTable table) {
+  public TableAwareWriteResult(WriteResult writeResult, TableIdentifier tableIdentifier) {
     this.writeResult = writeResult;
-    this.serializableTable = table;
+    this.tableIdentifier = tableIdentifier;
   }
 
   public WriteResult getWriteResult() {
     return this.writeResult;
   }
 
-  public SerializableTable getSerializableTable() {
-    return this.serializableTable;
+  public TableIdentifier getTableIdentifier() {
+    return this.tableIdentifier;
   }
 }

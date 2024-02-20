@@ -37,7 +37,6 @@ import org.apache.flink.streaming.api.operators.ChainingStrategy;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.CatalogLoader;
@@ -64,7 +63,7 @@ public class IcebergMultiTableStreamWriter<T> extends AbstractStreamOperator<Tab
   private List<String> equalityFieldColumns;
 
   private transient Map<String, TaskWriter<T>> writers;
-  private transient Map<String, SerializableTable> tableSupplierMap;
+  private transient Map<String, TableIdentifier> tableSupplierMap;
   private transient int subTaskId;
   private transient int attemptId;
   private transient Map<String, IcebergStreamWriterMetrics> writerMetrics;
@@ -120,7 +119,7 @@ public class IcebergMultiTableStreamWriter<T> extends AbstractStreamOperator<Tab
         TableLoader tableLoader = TableLoader.fromCatalog(catalogLoader, tableIdentifier);
 
         Table sinkTable = tableLoader.loadTable();
-        tableSupplierMap.put(table, (SerializableTable) SerializableTable.copyOf(sinkTable));
+        tableSupplierMap.put(table, tableIdentifier);
         TaskWriterFactory taskWriterFactory =
             new RowDataTaskWriterFactory(
                 sinkTable,
