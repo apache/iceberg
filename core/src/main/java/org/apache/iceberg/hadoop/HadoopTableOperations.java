@@ -54,15 +54,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * TableOperations implementation for file systems that support atomic rename. It should only be
- * used with posix-compliant file systems. For object storage systems, the user should use some
- * other posix-compliant middleware for proxy access. Make access to the object store atomic.
+ * TableOperations implementation for file systems that support atomic rename.
  *
  * <p>This maintains metadata in a "metadata" folder under the table location.
  */
 public class HadoopTableOperations implements TableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(HadoopTableOperations.class);
-  private static final Pattern VERSION_PATTERN = Pattern.compile("v([^.]*)\\..*");
+  private static final Pattern VERSION_PATTERN = Pattern.compile("v([^\\.]*)\\..*");
 
   private final Configuration conf;
   private final Path location;
@@ -132,27 +130,6 @@ public class HadoopTableOperations implements TableOperations {
 
   @Override
   public void commit(TableMetadata base, TableMetadata metadata) {
-    // dropOldVersionHint----------->JobFail
-    //        |              NO
-    //        |
-    //        | yes
-    //        ↓
-    // writeNewVersionMeta-------------------->JobFail
-    //        |                 NO
-    //        |
-    //        | yes
-    //        ↓
-    // writeNewVersionHint--------------->|
-    //        |                  NO       |
-    //        |                           |
-    //        | yes                       |
-    //        ↓                           |
-    // cleanOldMeta---------------------->|
-    //        |                NO         |
-    //        |                           |
-    //        | yes                       |
-    //        ↓                           |
-    //     SUCCESS<-----------------------|
     Pair<Integer, TableMetadata> current = versionAndMetadata();
     if (base != current.second()) {
       throw new CommitFailedException("Cannot commit changes based on stale table metadata");
@@ -173,13 +150,9 @@ public class HadoopTableOperations implements TableOperations {
     String codecName =
         metadata.property(
             TableProperties.METADATA_COMPRESSION, TableProperties.METADATA_COMPRESSION_DEFAULT);
-    // TODO:This is not compatible with the scenario where the user modifies the metadata file
-    // compression codec arbitrarily.
-    // We can inform the user about this bug first, and fix it later.(Do not modify the compressed
-    // format after the table is created.)
     TableMetadataParser.Codec codec = TableMetadataParser.Codec.fromName(codecName);
     String fileExtension = TableMetadataParser.getFileExtension(codec);
-    Path tempMetadataFile = metadataPath(UUID.randomUUID() + fileExtension);
+    Path tempMetadataFile = metadataPath(UUID.randomUUID().toString() + fileExtension);
     TableMetadataParser.write(metadata, io().newOutputFile(tempMetadataFile.toString()));
 
     int nextVersion = (current.first() != null ? current.first() : 0) + 1;
@@ -202,17 +175,9 @@ public class HadoopTableOperations implements TableOperations {
       writeVersionHint(fs, nextVersion);
       deleteRemovedMetadataFiles(base, metadata);
     } catch (CommitStateUnknownException | CommitFailedException e) {
-      // These exceptions are thrown under our manual control.
-      // When a CommitFailedException is thrown, the metadata should not be submitted successfully.
-      // If a CommitStateUnknownException is thrown,
-      // this means that we don't actually know whether the commit succeeded or failed.
-      // We should be ready to refresh.
       this.shouldRefresh = e instanceof CommitStateUnknownException || versionCommitSuccess;
       throw e;
     } catch (Throwable e) {
-      // If new version metadata wrote, we consider the commit to have actually succeeded.
-      // We'll swallow all the exception.
-      // Otherwise, we will throw a CommitFailedException.
       this.shouldRefresh = versionCommitSuccess;
       if (versionCommitSuccess) {
         LOG.warn(
@@ -220,7 +185,7 @@ public class HadoopTableOperations implements TableOperations {
                 + "but something unexpected happened after the commit was completed.",
             e);
       } else {
-        cleanUncommittedMeta(tempMetadataFile);
+        io().deleteFile(tempMetadataFile.toString());
         throw new CommitFailedException(e);
       }
     }
@@ -290,10 +255,6 @@ public class HadoopTableOperations implements TableOperations {
 
   @VisibleForTesting
   Path getMetadataFile(Integer metadataVersion) throws IOException {
-    // TODO:This is not compatible with the scenario where the user modifies the metadata file
-    // compression codec arbitrarily.
-    // We can inform the user about this bug first, and fix it later.(Do not modify the compressed
-    // format after the table is created.)
     for (TableMetadataParser.Codec codec : TableMetadataParser.Codec.values()) {
       Path metadataFile = metadataFilePath(metadataVersion, codec);
       FileSystem fs = getFileSystem(metadataFile, conf);
@@ -354,10 +315,12 @@ public class HadoopTableOperations implements TableOperations {
     Path tempVersionHintFile = metadataPath(UUID.randomUUID() + "-version-hint.temp");
     try {
       writeVersionToPath(fs, tempVersionHintFile, versionToWrite);
-      renameVersionHint(fs, tempVersionHintFile, versionHintFile);
+      fs.rename(tempVersionHintFile, versionHintFile);
     } catch (Exception e) {
       // Cleaning up temporary files.
-      io().deleteFile(tempVersionHintFile.toString());
+      if (fs.exists(tempVersionHintFile)) {
+        io().deleteFile(tempVersionHintFile.toString());
+      }
       throw e;
     }
   }
@@ -365,11 +328,11 @@ public class HadoopTableOperations implements TableOperations {
   @VisibleForTesting
   void deleteOldVersionHint(FileSystem fs, Path versionHintFile, Integer nextVersion)
       throws IOException {
-    if (versionHintExists(fs, versionHintFile)) {
+    if (fs.exists(versionHintFile)) {
       if (versionHintIsCorrupted(fs, versionHintFile)) {
         throw new RuntimeException("VersionHint is corrupted! We will reject this commit.");
       }
-      if (!deleteVersionHint(fs)) {
+      if (!fs.delete(versionHintFile, false /* recursive delete*/)) {
         String msg =
             String.format(
                 "Can not drop old versionHint. commitVersion = %s.Do you have multiple tasks working on this table at the same time?",
@@ -387,28 +350,6 @@ public class HadoopTableOperations implements TableOperations {
   @VisibleForTesting
   boolean nextVersionIsLatest(Integer nextVersion, FileSystem fs) {
     return nextVersion == (findVersionWithOutVersionHint(fs) + 1);
-  }
-
-  @VisibleForTesting
-  boolean deleteVersionHint(FileSystem fs) throws IOException {
-    return fs.delete(versionHintFile(), false /* recursive delete*/);
-  }
-
-  @VisibleForTesting
-  boolean versionHintExists(FileSystem fs, Path versionHintFile) throws IOException {
-    return fs.exists(versionHintFile);
-  }
-
-  @VisibleForTesting
-  boolean renameMetaDataFile(FileSystem fs, Path tempMetaDataFile, Path finalMetaDataFile)
-      throws IOException {
-    return fs.rename(tempMetaDataFile, finalMetaDataFile);
-  }
-
-  @VisibleForTesting
-  void renameVersionHint(FileSystem fs, Path tempVersionHintFile, Path versionHintFile)
-      throws IOException {
-    fs.rename(tempVersionHintFile, versionHintFile);
   }
 
   private void writeVersionToPath(FileSystem fs, Path path, int versionToWrite) {
@@ -475,47 +416,46 @@ public class HadoopTableOperations implements TableOperations {
    * an attempt will be made to delete the source file.
    *
    * @param fs the filesystem used for the rename
-   * @param tempMetaDataFile the source file
-   * @param finalMetaDataFile the destination file
+   * @param src the source file
+   * @param dst the destination file
    */
   @VisibleForTesting
-  boolean commitNewVersion(
-      FileSystem fs, Path tempMetaDataFile, Path finalMetaDataFile, Integer nextVersion)
+  boolean commitNewVersion(FileSystem fs, Path src, Path dst, Integer nextVersion)
       throws IOException {
     try {
-      if (!lockManager.acquire(finalMetaDataFile.toString(), finalMetaDataFile.toString())) {
+      if (!lockManager.acquire(dst.toString(), src.toString())) {
         throw new CommitFailedException(
-            "Failed to acquire lock on file: %s with owner: %s",
-            finalMetaDataFile, tempMetaDataFile);
+            "Failed to acquire lock on file: %s with owner: %s", dst, src);
       }
 
-      if (fs.exists(finalMetaDataFile)) {
-        throw new CommitFailedException(
-            "Version %d already exists: %s", nextVersion, finalMetaDataFile);
+      if (fs.exists(dst)) {
+        throw new CommitFailedException("Version %d already exists: %s", nextVersion, dst);
       }
-      // maybe too heavy.....?
       if (!nextVersionIsLatest(nextVersion, fs)) {
-        // In the case of concurrent execution,
-        // verify that the version that is ready to be committed at a time is the latest version.
-        throw new CommitFailedException("Version %d too old: %s", nextVersion, finalMetaDataFile);
+        throw new CommitFailedException("Version %d too old: %s", nextVersion, dst);
       }
-      return renameMetaDataFileAndCheck(fs, tempMetaDataFile, finalMetaDataFile);
+      return renameMetaDataFileAndCheck(fs, src, dst);
     } finally {
-      if (!lockManager.release(finalMetaDataFile.toString(), finalMetaDataFile.toString())) {
-        LOG.warn(
-            "Failed to release lock on file: {} with owner: {}",
-            finalMetaDataFile,
-            tempMetaDataFile);
+      if (!lockManager.release(dst.toString(), src.toString())) {
+        LOG.warn("Failed to release lock on file: {} with owner: {}", dst, src);
       }
     }
   }
 
-  private void cleanUncommittedMeta(Path src) {
-    io().deleteFile(src.toString());
-  }
-
   protected FileSystem getFileSystem(Path path, Configuration hadoopConf) {
     return Util.getFs(path, hadoopConf);
+  }
+
+  @VisibleForTesting
+  boolean checkMetaDataFileRenameSuccess(
+      FileSystem fs, Path tempMetaDataFile, Path finalMetaDataFile) throws IOException {
+    return fs.exists(finalMetaDataFile) && !fs.exists(tempMetaDataFile);
+  }
+
+  @VisibleForTesting
+  boolean renameMetaDataFile(FileSystem fs, Path tempMetaDataFile, Path finalMetaDataFile)
+      throws IOException {
+    return fs.rename(tempMetaDataFile, finalMetaDataFile);
   }
 
   @VisibleForTesting
@@ -527,7 +467,7 @@ public class HadoopTableOperations implements TableOperations {
     } catch (Throwable e) {
       LOG.error("There were some problems with submitting the new version.", e);
       try {
-        if (newMetadataExists(fs, finalMetaDataFile) && !tempMetadataExists(fs, tempMetaDataFile)) {
+        if (checkMetaDataFileRenameSuccess(fs, tempMetaDataFile, finalMetaDataFile)) {
           return true;
         } else {
           throw new CommitFailedException(e);
@@ -539,17 +479,6 @@ public class HadoopTableOperations implements TableOperations {
       }
     }
   }
-
-  @VisibleForTesting
-  boolean newMetadataExists(FileSystem fs, Path newMetadata) throws IOException {
-    return fs.exists(newMetadata);
-  }
-
-  @VisibleForTesting
-  boolean tempMetadataExists(FileSystem fs, Path tempMetadata) throws IOException {
-    return fs.exists(tempMetadata);
-  }
-
   /**
    * Deletes the oldest metadata files if {@link
    * TableProperties#METADATA_DELETE_AFTER_COMMIT_ENABLED} is true.

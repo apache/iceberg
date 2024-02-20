@@ -216,16 +216,17 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     BaseTable baseTable = (BaseTable) table;
     HadoopTableOperations tableOperations = (HadoopTableOperations) baseTable.operations();
 
-    HadoopTableOperations spyOps2 = spy(tableOperations);
-    doReturn(false).when(spyOps2).deleteVersionHint(any());
-    assertCommitNotChangeVersion(
-        baseTable, spyOps2, CommitFailedException.class, "Can not drop old versionHint");
-
     HadoopTableOperations spyOps1 = spy(tableOperations);
-    doReturn(true).when(spyOps1).versionHintExists(any(), any());
     doReturn(true).when(spyOps1).versionHintIsCorrupted(any(), any());
     assertCommitNotChangeVersion(
         baseTable, spyOps1, CommitFailedException.class, "VersionHint is corrupted!");
+
+    HadoopTableOperations spyOps2 = spy(tableOperations);
+    doThrow(new RuntimeException("Can not drop old versionHint"))
+        .when(spyOps2)
+        .deleteOldVersionHint(any(), any(), any());
+    assertCommitNotChangeVersion(
+        baseTable, spyOps2, CommitFailedException.class, "Can not drop old versionHint");
 
     HadoopTableOperations spyOps3 = spy(tableOperations);
     doReturn(false).when(spyOps3).nextVersionIsLatest(any(), any());
@@ -234,16 +235,9 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     HadoopTableOperations spyOps4 = spy(tableOperations);
     doThrow(new RuntimeException("FileSystem crash!"))
         .when(spyOps4)
-        .renameMetaDataFile(any(), any(), any());
+        .renameMetaDataFileAndCheck(any(), any(), any());
     assertCommitNotChangeVersion(
         baseTable, spyOps4, CommitFailedException.class, "FileSystem crash!");
-
-    HadoopTableOperations spyOps5 = spy(tableOperations);
-    doThrow(new RuntimeException("FileSystem crash!"))
-        .when(spyOps5)
-        .renameMetaDataFile(any(), any(), any());
-    assertCommitNotChangeVersion(
-        baseTable, spyOps5, CommitFailedException.class, "FileSystem crash!");
   }
 
   @Test
@@ -257,7 +251,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
         .renameMetaDataFile(any(), any(), any());
     doThrow(new RuntimeException("Can not check new Metadata!"))
         .when(spyOps)
-        .newMetadataExists(any(), any());
+        .checkMetaDataFileRenameSuccess(any(), any(), any());
     assertCommitNotChangeVersion(
         baseTable, spyOps, CommitStateUnknownException.class, "Can not check new Metadata!");
   }
@@ -271,8 +265,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     doThrow(new RuntimeException("FileSystem crash!"))
         .when(spyOps)
         .renameMetaDataFile(any(), any(), any());
-    doReturn(true).when(spyOps).newMetadataExists(any(), any());
-    doReturn(true).when(spyOps).tempMetadataExists(any(), any());
+    doReturn(false).when(spyOps).checkMetaDataFileRenameSuccess(any(), any(), any());
     assertCommitNotChangeVersion(
         baseTable, spyOps, CommitFailedException.class, "FileSystem crash!");
   }
@@ -286,8 +279,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     doThrow(new RuntimeException("FileSystem crash!"))
         .when(spyOps)
         .renameMetaDataFile(any(), any(), any());
-    doReturn(true).when(spyOps).newMetadataExists(any(), any());
-    doReturn(false).when(spyOps).tempMetadataExists(any(), any());
+    doReturn(true).when(spyOps).checkMetaDataFileRenameSuccess(any(), any(), any());
     int versionBefore = spyOps.findVersion();
     TableMetadata metadataV1 = spyOps.current();
     SortOrder dataSort = SortOrder.builderFor(baseTable.schema()).asc("data").build();
