@@ -3389,16 +3389,32 @@ components:
     TimestampTypeValue:
       type: string
       description:
-        "Timestamp type values are serialized with support for two levels of precision and optional timezone offset:
-        1. Microsecond precision without timezone: 'YYYY-MM-DDTHH:MM:SS.ssssss'
-        2. Microsecond precision with timezone (UTC offset): 'YYYY-MM-DDTHH:MM:SS.ssssss+00:00'
-        3. Nanosecond precision without timezone: 'YYYY-MM-DDTHH:MM:SS.sssssssss'
-        4. Nanosecond precision with timezone (UTC offset): 'YYYY-MM-DDTHH:MM:SS.sssssssss+00:00'"
+        "Timestamp type values follow the 'YYYY-MM-DDTHH:MM:SS.ssssss' ISO-8601 format with microsecond precision"
       example:
-        microWithoutTimezone: "2007-12-03T10:15:30.123456"
-        microWithTimezone: "2007-12-03T10:15:30.123456+00:00"
-        nanoWithoutTimezone: "2007-12-03T10:15:30.123456789"
-        nanoWithTimezone: "2007-12-03T10:15:30.123456789+00:00"
+        "2007-12-03T10:15:30.123456"
+
+    TimestampTzTypeValue:
+      type: string
+      description:
+        "TimestampTz type values follow the 'YYYY-MM-DDTHH:MM:SS.ssssss+00:00' ISO-8601 format with microsecond precision, 
+        and a timezone offset (+00:00 for UTC)"
+      example:
+        "2007-12-03T10:15:30.123456+00:00"
+
+    TimestampNanoTypeValue:
+      type: string
+      description:
+        "Timestamp_ns type values follow the 'YYYY-MM-DDTHH:MM:SS.sssssssss' ISO-8601 format with nanosecond precision"
+      example:
+        "2007-12-03T10:15:30.123456789"
+
+    TimestampTzNanoTypeValue:
+      type: string
+      description:
+        "Timestamp_ns type values follow the 'YYYY-MM-DDTHH:MM:SS.sssssssss+00:00' ISO-8601 format with nanosecond 
+        precision, and a timezone offset (+00:00 for UTC)"
+      example:
+        "2007-12-03T10:15:30.123456789+00:00"
 
 
     FixedTypeValue:
@@ -3478,6 +3494,9 @@ components:
         - $ref: '#/components/schemas/DateTypeValue'
         - $ref: '#/components/schemas/TimeTypeValue'
         - $ref: '#/components/schemas/TimestampTypeValue'
+        - $ref: '#/components/schemas/TimestampTzTypeValue'
+        - $ref: '#/components/schemas/TimestampNanoTypeValue'
+        - $ref: '#/components/schemas/TimestampTzNanoTypeValue'
         - $ref: '#/components/schemas/FixedTypeValue'
         - $ref: '#/components/schemas/BinaryTypeValue'
 

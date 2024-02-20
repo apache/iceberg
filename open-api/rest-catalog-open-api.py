@@ -697,13 +697,32 @@ class TimeTypeValue(BaseModel):
 class TimestampTypeValue(BaseModel):
     __root__: str = Field(
         ...,
-        description="Timestamp type values are serialized with support for two levels of precision and optional timezone offset: 1. Microsecond precision without timezone: 'YYYY-MM-DDTHH:MM:SS.ssssss' 2. Microsecond precision with timezone (UTC offset): 'YYYY-MM-DDTHH:MM:SS.ssssss+00:00' 3. Nanosecond precision without timezone: 'YYYY-MM-DDTHH:MM:SS.sssssssss' 4. Nanosecond precision with timezone (UTC offset): 'YYYY-MM-DDTHH:MM:SS.sssssssss+00:00'",
-        example={
-            'microWithoutTimezone': '2007-12-03T10:15:30.123456',
-            'microWithTimezone': '2007-12-03T10:15:30.123456+00:00',
-            'nanoWithoutTimezone': '2007-12-03T10:15:30.123456789',
-            'nanoWithTimezone': '2007-12-03T10:15:30.123456789+00:00',
-        },
+        description="Timestamp type values follow the 'YYYY-MM-DDTHH:MM:SS.ssssss' ISO-8601 format with microsecond precision",
+        example='2007-12-03T10:15:30.123456',
+    )
+
+
+class TimestampTzTypeValue(BaseModel):
+    __root__: str = Field(
+        ...,
+        description="TimestampTz type values follow the 'YYYY-MM-DDTHH:MM:SS.ssssss+00:00' ISO-8601 format with microsecond precision, and a timezone offset (+00:00 for UTC)",
+        example='2007-12-03T10:15:30.123456+00:00',
+    )
+
+
+class TimestampNanoTypeValue(BaseModel):
+    __root__: str = Field(
+        ...,
+        description="Timestamp_ns type values follow the 'YYYY-MM-DDTHH:MM:SS.sssssssss' ISO-8601 format with nanosecond precision",
+        example='2007-12-03T10:15:30.123456789',
+    )
+
+
+class TimestampTzNanoTypeValue(BaseModel):
+    __root__: str = Field(
+        ...,
+        description="Timestamp_ns type values follow the 'YYYY-MM-DDTHH:MM:SS.sssssssss+00:00' ISO-8601 format with nanosecond precision, and a timezone offset (+00:00 for UTC)",
+        example='2007-12-03T10:15:30.123456789+00:00',
     )
 
 
@@ -755,6 +774,9 @@ class PrimitiveTypeValue(BaseModel):
         DateTypeValue,
         TimeTypeValue,
         TimestampTypeValue,
+        TimestampTzTypeValue,
+        TimestampNanoTypeValue,
+        TimestampTzNanoTypeValue,
         FixedTypeValue,
         BinaryTypeValue,
     ]
