@@ -3422,14 +3422,14 @@ components:
       description:
         "Fixed length type values are stored and serialized as a hexadecimal string preserving the fixed length"
       example:
-        abc: "000102ff"
+        abc: "616263"
 
     BinaryTypeValue:
       type: string
       description:
         "Binary type values are stored and serialized as a hexadecimal string"
       example:
-        abc: "000102ff"
+        abc: "616263"
 
     PartitionData:
       type: object
@@ -3460,8 +3460,8 @@ components:
           description: "List of Long values, matched to 'keys' by index"
       example:
         {
-          keys: [ 3, 4 ],
-          values: [ 100,200 ]
+          "keys": [ 3, 4 ],
+          "values": [ 100,200 ]
         }
 
     ValueMap:
@@ -3478,8 +3478,10 @@ components:
             $ref: '#/components/schemas/BinaryTypeValue'
           description: "List of Binary values encoded as hexadecimal strings, matched to 'keys' by index"
       example:
-        keys: [3,4]
-        values: ["05000000","0A000000"]
+        {
+            "keys": [ 3,4 ],
+            "values": [ "05000000","0A000000" ]
+        }
 
     PrimitiveTypeValue:
       oneOf:
@@ -3542,6 +3544,24 @@ components:
           type: integer
           format: int64
           description: "Number of records in the file"
+        key-metadata:
+          allOf:
+            - $ref: '#/components/schemas/BinaryTypeValue'
+          description: "Encryption key metadata blob"
+        split-offsets:
+          type: array
+          items:
+            type: integer
+            format: int64
+          description: "List of splittable offsets"
+        sort-order-id:
+          type: integer
+
+    DataFile:
+      allOf:
+        - $ref: '#/components/schemas/ContentFile'
+      type: object
+      properties:
         column-sizes:
           allOf:
             - $ref: '#/components/schemas/CountMap'
@@ -3566,35 +3586,17 @@ components:
           allOf:
             - $ref: '#/components/schemas/ValueMap'
           description: "Map of column id to upper bound"
-        key-metadata:
-          allOf:
-            - $ref: '#/components/schemas/BinaryTypeValue'
-          description: "Encryption key metadata blob"
-        sort-order-id:
-          type: integer
 
-    DataFile:
+
+    DeleteFile:
       allOf:
         - $ref: '#/components/schemas/ContentFile'
-      type: object
       properties:
         equality-ids:
           type: array
           items:
             type: integer
           description: "List of Equality comparison field IDs"
-
-    DeleteFile:
-      allOf:
-        - $ref: '#/components/schemas/ContentFile'
-      type: object
-      properties:
-        split-offsets:
-          type: array
-          items:
-            type: integer
-            format: int64
-          description: "List of splittable offsets"
 
   #############################
   # Reusable Response Objects #

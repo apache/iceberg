@@ -730,7 +730,7 @@ class FixedTypeValue(BaseModel):
     __root__: str = Field(
         ...,
         description='Fixed length type values are stored and serialized as a hexadecimal string preserving the fixed length',
-        example={'abc': '000102ff'},
+        example={'abc': '616263'},
     )
 
 
@@ -738,7 +738,7 @@ class BinaryTypeValue(BaseModel):
     __root__: str = Field(
         ...,
         description='Binary type values are stored and serialized as a hexadecimal string',
-        example={'abc': '000102ff'},
+        example={'abc': '616263'},
     )
 
 
@@ -849,6 +849,16 @@ class ContentFile(BaseModel):
     record_count: int = Field(
         ..., alias='record-count', description='Number of records in the file'
     )
+    key_metadata: Optional[BinaryTypeValue] = Field(
+        None, alias='key-metadata', description='Encryption key metadata blob'
+    )
+    split_offsets: Optional[List[int]] = Field(
+        None, alias='split-offsets', description='List of splittable offsets'
+    )
+    sort_order_id: Optional[int] = Field(None, alias='sort-order-id')
+
+
+class DataFile(ContentFile):
     column_sizes: Optional[CountMap] = Field(
         None,
         alias='column-sizes',
@@ -873,21 +883,11 @@ class ContentFile(BaseModel):
     upper_bounds: Optional[ValueMap] = Field(
         None, alias='upper-bounds', description='Map of column id to upper bound'
     )
-    key_metadata: Optional[BinaryTypeValue] = Field(
-        None, alias='key-metadata', description='Encryption key metadata blob'
-    )
-    sort_order_id: Optional[int] = Field(None, alias='sort-order-id')
-
-
-class DataFile(ContentFile):
-    equality_ids: Optional[List[int]] = Field(
-        None, alias='equality-ids', description='List of Equality comparison field IDs'
-    )
 
 
 class DeleteFile(ContentFile):
-    split_offsets: Optional[List[int]] = Field(
-        None, alias='split-offsets', description='List of splittable offsets'
+    equality_ids: Optional[List[int]] = Field(
+        None, alias='equality-ids', description='List of Equality comparison field IDs'
     )
 
 
