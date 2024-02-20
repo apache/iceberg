@@ -18,40 +18,35 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
+
 import java.io.IOException;
 import java.util.Map;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.spark.sql.AnalysisException;
 import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestSnapshotTableProcedure extends ExtensionsTestBase {
   private static final String sourceName = "spark_catalog.default.source";
   // Currently we can only Snapshot only out of the Spark Session Catalog
 
-  public TestSnapshotTableProcedure(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
-
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS %s PURGE", sourceName);
   }
 
-  @Test
+  @TestTemplate
   public void testSnapshot() throws IOException {
-    String location = temp.newFolder().toString();
+    String location = temp.toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         sourceName, location);
@@ -59,11 +54,13 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
     Object result =
         scalarSql("CALL %s.system.snapshot('%s', '%s')", catalogName, sourceName, tableName);
 
-    Assert.assertEquals("Should have added one file", 1L, result);
+    assertThat(result).as("Should have added one file").isEqualTo(1L);
 
     Table createdTable = validationCatalog.loadTable(tableIdent);
     String tableLocation = createdTable.location();
-    Assert.assertNotEquals("Table should not have the original location", location, tableLocation);
+    assertThat(tableLocation)
+        .as("Table should not have the original location")
+        .isNotEqualTo(location);
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
@@ -73,9 +70,9 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testSnapshotWithProperties() throws IOException {
-    String location = temp.newFolder().toString();
+    String location = temp.toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         sourceName, location);
@@ -85,15 +82,17 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
             "CALL %s.system.snapshot(source_table => '%s', table => '%s', properties => map('foo','bar'))",
             catalogName, sourceName, tableName);
 
-    Assert.assertEquals("Should have added one file", 1L, result);
+    assertThat(result).as("Should have added one file").isEqualTo(1L);
 
     Table createdTable = validationCatalog.loadTable(tableIdent);
 
     String tableLocation = createdTable.location();
-    Assert.assertNotEquals("Table should not have the original location", location, tableLocation);
+    assertThat(tableLocation)
+        .as("Table should not have the original location")
+        .isNotEqualTo(location);
 
     Map<String, String> props = createdTable.properties();
-    Assert.assertEquals("Should have extra property set", "bar", props.get("foo"));
+    assertThat(props.get("foo")).as("Should have extra property set").isEqualTo("bar");
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
@@ -103,13 +102,13 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testSnapshotWithAlternateLocation() throws IOException {
-    Assume.assumeTrue(
-        "No Snapshoting with Alternate locations with Hadoop Catalogs",
-        !catalogName.contains("hadoop"));
-    String location = temp.newFolder().toString();
-    String snapshotLocation = temp.newFolder().toString();
+    assumeThat(catalogName)
+        .as("No Snapshoting with Alternate locations with Hadoop Catalogs")
+        .doesNotContain("hadoop");
+    String location = temp.toFile().toString();
+    String snapshotLocation = temp.toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         sourceName, location);
@@ -120,11 +119,12 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
                 catalogName, sourceName, tableName, snapshotLocation)
             .get(0);
 
-    Assert.assertEquals("Should have added one file", 1L, result[0]);
+    assertThat(result[0]).as("Should have added one file").isEqualTo(1L);
 
     String storageLocation = validationCatalog.loadTable(tableIdent).location();
-    Assert.assertEquals(
-        "Snapshot should be made at specified location", snapshotLocation, storageLocation);
+    assertThat(storageLocation)
+        .as("Snapshot should be made at specified location")
+        .isEqualTo(snapshotLocation);
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
@@ -134,9 +134,9 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testDropTable() throws IOException {
-    String location = temp.newFolder().toString();
+    String location = temp.toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         sourceName, location);
@@ -144,7 +144,7 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
 
     Object result =
         scalarSql("CALL %s.system.snapshot('%s', '%s')", catalogName, sourceName, tableName);
-    Assert.assertEquals("Should have added one file", 1L, result);
+    assertThat(result).as("Should have added one file").isEqualTo(1L);
 
     assertEquals(
         "Should have expected rows",
@@ -159,9 +159,9 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s", sourceName));
   }
 
-  @Test
+  @TestTemplate
   public void testSnapshotWithConflictingProps() throws IOException {
-    String location = temp.newFolder().toString();
+    String location = temp.toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         sourceName, location);
@@ -174,7 +174,7 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
                 + "table => '%s',"
                 + "properties => map('%s', 'true', 'snapshot', 'false'))",
             catalogName, sourceName, tableName, TableProperties.GC_ENABLED);
-    Assert.assertEquals("Should have added one file", 1L, result);
+    assertThat(result).as("Should have added one file").isEqualTo(1L);
 
     assertEquals(
         "Should have expected rows",
@@ -183,14 +183,15 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
 
     Table table = validationCatalog.loadTable(tableIdent);
     Map<String, String> props = table.properties();
-    Assert.assertEquals("Should override user value", "true", props.get("snapshot"));
-    Assert.assertEquals(
-        "Should override user value", "false", props.get(TableProperties.GC_ENABLED));
+    assertThat(props.get("snapshot")).as("Should override user value").isEqualTo("true");
+    assertThat(props.get(TableProperties.GC_ENABLED))
+        .as("Should override user value")
+        .isEqualTo("false");
   }
 
-  @Test
+  @TestTemplate
   public void testInvalidSnapshotsCases() throws IOException {
-    String location = temp.newFolder().toString();
+    String location = temp.toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         sourceName, location);
