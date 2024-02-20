@@ -2192,7 +2192,6 @@ components:
           remove-statistics: '#/components/schemas/RemoveStatisticsUpdate'
           set-partition-statistics: '#/components/schemas/SetPartitionStatisticsUpdate'
           remove-partition-statistics: '#/components/schemas/RemovePartitionStatisticsUpdate'
-          append-data-files: '#/components/schemas/AppendDataFilesUpdate'
       type: object
       required:
         - action
@@ -2495,28 +2494,6 @@ components:
           type: integer
           format: int64
 
-    AppendDataFilesUpdate:
-      allOf:
-        - $ref: '#/components/schemas/BaseUpdate'
-      required:
-        - action
-        - data-files
-        - schema
-        - spec
-      properties:
-        action:
-          type: string
-          enum: [ "append-data-files" ]
-        data-files:
-          type: array
-          items:
-            $ref: '#/components/schemas/ContentFile'
-          description: List of data files to be appended to a table
-        schema:
-          $ref: '#/components/schemas/Schema'
-        spec:
-          $ref: '#/components/schemas/PartitionSpec'
-
     TableUpdate:
       anyOf:
         - $ref: '#/components/schemas/AssignUUIDUpdate'
@@ -2536,7 +2513,6 @@ components:
         - $ref: '#/components/schemas/RemovePropertiesUpdate'
         - $ref: '#/components/schemas/SetStatisticsUpdate'
         - $ref: '#/components/schemas/RemoveStatisticsUpdate'
-        - $ref: '#/components/schemas/AppendDataFilesUpdate'
 
     ViewUpdate:
       anyOf:
@@ -3389,86 +3365,105 @@ components:
     UUIDTypeValue:
       type: string
       format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      maxLength: 36
+      minLength: 36
       description:
-        "UUID type values are serialized as a lowercase string"
+        "UUID type values are serialized as a 36-character lowercase string in standard UUID format as specified 
+        by RFC-4122"
       example: "eb26bdb1-a1d8-4aa6-990e-da940875492c"
 
     DateTypeValue:
       type: string
       format: date
       description:
-        "Date type values follow the `YYYY-MM-DD` ISO-8601 standard date format"
+        "Date type values follow the 'YYYY-MM-DD' ISO-8601 standard date format"
       example: "2007-12-03"
 
     TimeTypeValue:
       type: string
       description:
-        "Time type values follow the `HH:MM[:SS[.sssssssss]]` ISO-8601 format with microsecond precision"
+        "Time type values follow the 'HH:MM[:SS[.sssssssss]]' ISO-8601 format with microsecond precision"
       example: "22:31:08.123456"
 
     TimestampTypeValue:
       type: string
       description:
-        "Timestamp type values follow the 'YYYY-MM-DDTHH:MM[:SS[.sssssssss]][+00:00]' ISO-8601 format with microsecond 
-        precision. Timestamps that adjust to UTC include a `+00:00` offset. Without this offset, the format implies 
-        local time"
+        "Timestamp type values are serialized with support for two levels of precision and optional timezone offset:
+        1. Microsecond precision without timezone: 'YYYY-MM-DDTHH:MM:SS.ssssss'
+        2. Microsecond precision with timezone (UTC offset): 'YYYY-MM-DDTHH:MM:SS.ssssss+00:00'
+        3. Nanosecond precision without timezone: 'YYYY-MM-DDTHH:MM:SS.sssssssss'
+        4. Nanosecond precision with timezone (UTC offset): 'YYYY-MM-DDTHH:MM:SS.sssssssss+00:00'"
       example:
-        withoutTimezone: "2007-12-03T10:15:30"
-        withTimezone: "2007-12-03T10:15:30+00:00"
-        withFractionalSeconds: "2007-03-25T12:34:56.123456"
+        microWithoutTimezone: "2007-12-03T10:15:30.123456"
+        microWithTimezone: "2007-12-03T10:15:30.123456+00:00"
+        nanoWithoutTimezone: "2007-12-03T10:15:30.123456789"
+        nanoWithTimezone: "2007-12-03T10:15:30.123456789+00:00"
+
 
     FixedTypeValue:
       type: string
       description:
         "Fixed length type values are stored and serialized as a hexadecimal string preserving the fixed length"
-      example: "000102ff"
+      example:
+        abc: "000102ff"
 
     BinaryTypeValue:
       type: string
       description:
         "Binary type values are stored and serialized as a hexadecimal string"
-      example: "000102ff"
-
-    MapTypeValue:
-      type: object
-      description:
-        "A map structure serialized with keys and values arrays that maintain type"
-      properties:
-        keys:
-          type: array
-          items:
-            $ref: '#/components/schemas/TypeValue'
-        values:
-          type: array
-          items:
-            $ref: '#/components/schemas/TypeValue'
       example:
-        {
-          keys: [ 1, 2 ],
-          values: [ "foo", "bar" ]
-        }
+        abc: "000102ff"
 
-    StructTypeValue:
+    PartitionData:
       type: object
       description:
-        "Struct type are serialized, where field id are preserved as a string JSON key, and the fields value is 
-        serialized based on the defined type, supporting a deep serialization of nested structures"
+        "Partition data is serialized, where field id are preserved as a string JSON key, and the fields value is 
+        serialized based on the defined types"
       additionalProperties:
         oneOf:
-          - $ref: '#/components/schemas/TypeValue'
+          - $ref: '#/components/schemas/PrimitiveTypeValue'
       example:
         {
           "4": 1,
           "5": "bar"
         }
 
-    ListTypeValue:
-      type: array
-      description:
-        "A list of elements, where each element is serialized according to its specific type logic"
-      items:
-         $ref: '#/components/schemas/TypeValue'
-      example: [1, 2, 3]
+    CountMap:
+      type: object
+      properties:
+        keys:
+          type: array
+          items:
+            $ref: '#/components/schemas/IntegerTypeValue'
+          description: "List of integer column ids for each corresponding value"
+        values:
+          type: array
+          items:
+            $ref: '#/components/schemas/LongTypeValue'
+          description: "List of Long values, matched to 'keys' by index"
+      example:
+        {
+          keys: [ 3, 4 ],
+          values: [ 100,200 ]
+        }
+
+    ValueMap:
+      type: object
+      properties:
+        keys:
+          type: array
+          items:
+            $ref: '#/components/schemas/IntegerTypeValue'
+          description: "List of integer column ids for each corresponding value"
+        values:
+          type: array
+          items:
+            $ref: '#/components/schemas/BinaryTypeValue'
+          description: "List of Binary values encoded as hexadecimal strings, matched to 'keys' by index"
+      example:
+        keys: [3,4]
+        values: ["05000000","0A000000"]
 
     PrimitiveTypeValue:
       oneOf:
@@ -3485,13 +3480,6 @@ components:
         - $ref: '#/components/schemas/TimestampTypeValue'
         - $ref: '#/components/schemas/FixedTypeValue'
         - $ref: '#/components/schemas/BinaryTypeValue'
-
-    TypeValue:
-      oneOf:
-        - $ref: '#/components/schemas/PrimitiveTypeValue'
-        - $ref: '#/components/schemas/MapTypeValue'
-        - $ref: '#/components/schemas/StructTypeValue'
-        - $ref: '#/components/schemas/ListTypeValue'
 
     FileContent:
       type: string
@@ -3517,48 +3505,77 @@ components:
         - file-size-in-bytes
         - record-count
       properties:
-        spec-id:
-          type: integer
         content:
           $ref: '#/components/schemas/FileContent'
         file-path:
           type: string
         file-format:
           $ref: '#/components/schemas/FileFormat'
+        spec-id:
+          type: integer
         partition:
-          $ref: '#/components/schemas/StructTypeValue'
+          $ref: '#/components/schemas/PartitionData'
         file-size-in-bytes:
           type: integer
           format: int64
+          description: "Total file size in bytes"
         record-count:
           type: integer
           format: int64
+          description: "Number of records in the file"
         column-sizes:
-          $ref: '#/components/schemas/MapTypeValue'
+          allOf:
+            - $ref: '#/components/schemas/CountMap'
+          description: "Map of column id to total count, including null and NaN"
         value-counts:
-          $ref: '#/components/schemas/MapTypeValue'
+          allOf:
+            - $ref: '#/components/schemas/CountMap'
+          description: "Map of column id to null value count"
         null-value-counts:
-          $ref: '#/components/schemas/MapTypeValue'
+          allOf:
+            - $ref: '#/components/schemas/CountMap'
+          description: "Map of column id to null value count"
         nan-value-counts:
-          $ref: '#/components/schemas/MapTypeValue'
+          allOf:
+            - $ref: '#/components/schemas/CountMap'
+          description: "Map of column id to number of NaN values in the column"
         lower-bounds:
-          $ref: '#/components/schemas/MapTypeValue'
+          allOf:
+            - $ref: '#/components/schemas/ValueMap'
+          description: "Map of column id to lower bound"
         upper-bounds:
-          $ref: '#/components/schemas/MapTypeValue'
+          allOf:
+            - $ref: '#/components/schemas/ValueMap'
+          description: "Map of column id to upper bound"
         key-metadata:
-          $ref: '#/components/schemas/BinaryTypeValue'
+          allOf:
+            - $ref: '#/components/schemas/BinaryTypeValue'
+          description: "Encryption key metadata blob"
+        sort-order-id:
+          type: integer
+
+    DataFile:
+      allOf:
+        - $ref: '#/components/schemas/ContentFile'
+      type: object
+      properties:
+        equality-ids:
+          type: array
+          items:
+            type: integer
+          description: "List of Equality comparison field IDs"
+
+    DeleteFile:
+      allOf:
+        - $ref: '#/components/schemas/ContentFile'
+      type: object
+      properties:
         split-offsets:
           type: array
           items:
             type: integer
             format: int64
-        equality-ids:
-          type: array
-          items:
-            type: integer
-        sort-order-id:
-          type: integer
-
+          description: "List of splittable offsets"
 
   #############################
   # Reusable Response Objects #

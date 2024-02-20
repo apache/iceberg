@@ -670,15 +670,18 @@ class StringTypeValue(BaseModel):
 class UUIDTypeValue(BaseModel):
     __root__: UUID = Field(
         ...,
-        description='UUID type values are serialized as a lowercase string',
+        description='UUID type values are serialized as a 36-character lowercase string in standard UUID format as specified by RFC-4122',
         example='eb26bdb1-a1d8-4aa6-990e-da940875492c',
+        max_length=36,
+        min_length=36,
+        regex='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
     )
 
 
 class DateTypeValue(BaseModel):
     __root__: date = Field(
         ...,
-        description='Date type values follow the `YYYY-MM-DD` ISO-8601 standard date format',
+        description="Date type values follow the 'YYYY-MM-DD' ISO-8601 standard date format",
         example='2007-12-03',
     )
 
@@ -686,7 +689,7 @@ class DateTypeValue(BaseModel):
 class TimeTypeValue(BaseModel):
     __root__: str = Field(
         ...,
-        description='Time type values follow the `HH:MM[:SS[.sssssssss]]` ISO-8601 format with microsecond precision',
+        description="Time type values follow the 'HH:MM[:SS[.sssssssss]]' ISO-8601 format with microsecond precision",
         example='22:31:08.123456',
     )
 
@@ -694,11 +697,12 @@ class TimeTypeValue(BaseModel):
 class TimestampTypeValue(BaseModel):
     __root__: str = Field(
         ...,
-        description="Timestamp type values follow the 'YYYY-MM-DDTHH:MM[:SS[.sssssssss]][+00:00]' ISO-8601 format with microsecond precision. Timestamps that adjust to UTC include a `+00:00` offset. Without this offset, the format implies local time",
+        description="Timestamp type values are serialized with support for two levels of precision and optional timezone offset: 1. Microsecond precision without timezone: 'YYYY-MM-DDTHH:MM:SS.ssssss' 2. Microsecond precision with timezone (UTC offset): 'YYYY-MM-DDTHH:MM:SS.ssssss+00:00' 3. Nanosecond precision without timezone: 'YYYY-MM-DDTHH:MM:SS.sssssssss' 4. Nanosecond precision with timezone (UTC offset): 'YYYY-MM-DDTHH:MM:SS.sssssssss+00:00'",
         example={
-            'withoutTimezone': '2007-12-03T10:15:30',
-            'withTimezone': '2007-12-03T10:15:30+00:00',
-            'withFractionalSeconds': '2007-03-25T12:34:56.123456',
+            'microWithoutTimezone': '2007-12-03T10:15:30.123456',
+            'microWithTimezone': '2007-12-03T10:15:30.123456+00:00',
+            'nanoWithoutTimezone': '2007-12-03T10:15:30.123456789',
+            'nanoWithTimezone': '2007-12-03T10:15:30.123456789+00:00',
         },
     )
 
@@ -707,7 +711,7 @@ class FixedTypeValue(BaseModel):
     __root__: str = Field(
         ...,
         description='Fixed length type values are stored and serialized as a hexadecimal string preserving the fixed length',
-        example='000102ff',
+        example={'abc': '000102ff'},
     )
 
 
@@ -715,7 +719,26 @@ class BinaryTypeValue(BaseModel):
     __root__: str = Field(
         ...,
         description='Binary type values are stored and serialized as a hexadecimal string',
-        example='000102ff',
+        example={'abc': '000102ff'},
+    )
+
+
+class CountMap(BaseModel):
+    keys: Optional[List[IntegerTypeValue]] = Field(
+        None, description='List of integer column ids for each corresponding value'
+    )
+    values: Optional[List[LongTypeValue]] = Field(
+        None, description="List of Long values, matched to 'keys' by index"
+    )
+
+
+class ValueMap(BaseModel):
+    keys: Optional[List[IntegerTypeValue]] = Field(
+        None, description='List of integer column ids for each corresponding value'
+    )
+    values: Optional[List[BinaryTypeValue]] = Field(
+        None,
+        description="List of Binary values encoded as hexadecimal strings, matched to 'keys' by index",
     )
 
 
@@ -782,6 +805,68 @@ class StatisticsFile(BaseModel):
     file_size_in_bytes: int = Field(..., alias='file-size-in-bytes')
     file_footer_size_in_bytes: int = Field(..., alias='file-footer-size-in-bytes')
     blob_metadata: List[BlobMetadata] = Field(..., alias='blob-metadata')
+
+
+class PartitionData(BaseModel):
+    """
+    Partition data is serialized, where field id are preserved as a string JSON key, and the fields value is serialized based on the defined types
+    """
+
+    __root__: Optional[Dict[str, PrimitiveTypeValue]] = None
+
+
+class ContentFile(BaseModel):
+    content: FileContent
+    file_path: str = Field(..., alias='file-path')
+    file_format: FileFormat = Field(..., alias='file-format')
+    spec_id: int = Field(..., alias='spec-id')
+    partition: Optional[PartitionData] = None
+    file_size_in_bytes: int = Field(
+        ..., alias='file-size-in-bytes', description='Total file size in bytes'
+    )
+    record_count: int = Field(
+        ..., alias='record-count', description='Number of records in the file'
+    )
+    column_sizes: Optional[CountMap] = Field(
+        None,
+        alias='column-sizes',
+        description='Map of column id to total count, including null and NaN',
+    )
+    value_counts: Optional[CountMap] = Field(
+        None, alias='value-counts', description='Map of column id to null value count'
+    )
+    null_value_counts: Optional[CountMap] = Field(
+        None,
+        alias='null-value-counts',
+        description='Map of column id to null value count',
+    )
+    nan_value_counts: Optional[CountMap] = Field(
+        None,
+        alias='nan-value-counts',
+        description='Map of column id to number of NaN values in the column',
+    )
+    lower_bounds: Optional[ValueMap] = Field(
+        None, alias='lower-bounds', description='Map of column id to lower bound'
+    )
+    upper_bounds: Optional[ValueMap] = Field(
+        None, alias='upper-bounds', description='Map of column id to upper bound'
+    )
+    key_metadata: Optional[BinaryTypeValue] = Field(
+        None, alias='key-metadata', description='Encryption key metadata blob'
+    )
+    sort_order_id: Optional[int] = Field(None, alias='sort-order-id')
+
+
+class DataFile(ContentFile):
+    equality_ids: Optional[List[int]] = Field(
+        None, alias='equality-ids', description='List of Equality comparison field IDs'
+    )
+
+
+class DeleteFile(ContentFile):
+    split_offsets: Optional[List[int]] = Field(
+        None, alias='split-offsets', description='List of splittable offsets'
+    )
 
 
 class Term(BaseModel):
@@ -917,17 +1002,6 @@ class AddSchemaUpdate(BaseUpdate):
     )
 
 
-class AppendDataFilesUpdate(BaseUpdate):
-    action: Literal['append-data-files']
-    data_files: List[ContentFile] = Field(
-        ...,
-        alias='data-files',
-        description='List of data files to be appended to a table',
-    )
-    schema_: Schema = Field(..., alias='schema')
-    spec: PartitionSpec
-
-
 class TableUpdate(BaseModel):
     __root__: Union[
         AssignUUIDUpdate,
@@ -947,7 +1021,6 @@ class TableUpdate(BaseModel):
         RemovePropertiesUpdate,
         SetStatisticsUpdate,
         RemoveStatisticsUpdate,
-        AppendDataFilesUpdate,
     ]
 
 
@@ -1088,59 +1161,6 @@ class CommitTableResponse(BaseModel):
     metadata: TableMetadata
 
 
-class MapTypeValue(BaseModel):
-    """
-    A map structure serialized with keys and values arrays that maintain type
-    """
-
-    keys: Optional[List[TypeValue]] = None
-    values: Optional[List[TypeValue]] = None
-
-
-class StructTypeValue(BaseModel):
-    """
-    Struct type are serialized, where field id are preserved as a string JSON key, and the fields value is serialized based on the defined type, supporting a deep serialization of nested structures
-    """
-
-    __root__: Optional[Dict[str, TypeValue]] = None
-
-
-class ListTypeValue(BaseModel):
-    """
-    A list of elements, where each element is serialized according to its specific type logic
-    """
-
-    __root__: List[TypeValue] = Field(
-        ...,
-        description='A list of elements, where each element is serialized according to its specific type logic',
-        example=[1, 2, 3],
-    )
-
-
-class TypeValue(BaseModel):
-    __root__: Union[PrimitiveTypeValue, MapTypeValue, StructTypeValue, ListTypeValue]
-
-
-class ContentFile(BaseModel):
-    spec_id: int = Field(..., alias='spec-id')
-    content: FileContent
-    file_path: str = Field(..., alias='file-path')
-    file_format: FileFormat = Field(..., alias='file-format')
-    partition: Optional[StructTypeValue] = None
-    file_size_in_bytes: int = Field(..., alias='file-size-in-bytes')
-    record_count: int = Field(..., alias='record-count')
-    column_sizes: Optional[MapTypeValue] = Field(None, alias='column-sizes')
-    value_counts: Optional[MapTypeValue] = Field(None, alias='value-counts')
-    null_value_counts: Optional[MapTypeValue] = Field(None, alias='null-value-counts')
-    nan_value_counts: Optional[MapTypeValue] = Field(None, alias='nan-value-counts')
-    lower_bounds: Optional[MapTypeValue] = Field(None, alias='lower-bounds')
-    upper_bounds: Optional[MapTypeValue] = Field(None, alias='upper-bounds')
-    key_metadata: Optional[BinaryTypeValue] = Field(None, alias='key-metadata')
-    split_offsets: Optional[List[int]] = Field(None, alias='split-offsets')
-    equality_ids: Optional[List[int]] = Field(None, alias='equality-ids')
-    sort_order_id: Optional[int] = Field(None, alias='sort-order-id')
-
-
 class Schema(StructType):
     schema_id: Optional[int] = Field(None, alias='schema-id')
     identifier_field_ids: Optional[List[int]] = Field(
@@ -1159,10 +1179,6 @@ Expression.update_forward_refs()
 TableMetadata.update_forward_refs()
 ViewMetadata.update_forward_refs()
 AddSchemaUpdate.update_forward_refs()
-AppendDataFilesUpdate.update_forward_refs()
 CreateTableRequest.update_forward_refs()
 CreateViewRequest.update_forward_refs()
 ReportMetricsRequest.update_forward_refs()
-MapTypeValue.update_forward_refs()
-StructTypeValue.update_forward_refs()
-ListTypeValue.update_forward_refs()
