@@ -20,7 +20,7 @@
 ---
 name: Iceberg Bug report 🐞
 description: Problems, bugs and issues with Apache Iceberg
-labels: ["kind:bug"]
+labels: ["bug"]
 body:
   - type: dropdown
     attributes:
