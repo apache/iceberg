@@ -43,6 +43,7 @@ public class TestJdbcViewCatalog extends ViewCatalogTests<JdbcCatalog> {
     properties.put(JdbcCatalog.PROPERTY_PREFIX + "username", "user");
     properties.put(JdbcCatalog.PROPERTY_PREFIX + "password", "password");
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, tableDir.toAbsolutePath().toString());
+    properties.put(JdbcUtil.SCHEMA_VERSION_PROPERTY, JdbcUtil.SchemaVersion.V1.name());
 
     catalog = new JdbcCatalog();
     catalog.setConf(new Configuration());
