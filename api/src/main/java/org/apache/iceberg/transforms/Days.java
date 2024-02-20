@@ -19,6 +19,7 @@
 package org.apache.iceberg.transforms;
 
 import java.io.ObjectStreamException;
+import java.time.temporal.ChronoUnit;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -37,7 +38,7 @@ public class Days<T> extends TimeTransform<T> {
       case DATE:
         return (Transform<T, Integer>) Dates.DAY;
       case TIMESTAMP:
-        return (Transform<T, Integer>) Timestamps.DAY;
+        return (Transform<T, Integer>) Timestamps.get((Types.TimestampType) type, ChronoUnit.DAYS);
       default:
         throw new IllegalArgumentException("Unsupported type: " + type);
     }
@@ -55,14 +56,15 @@ public class Days<T> extends TimeTransform<T> {
     }
 
     if (other instanceof Timestamps) {
-      return Timestamps.DAY.satisfiesOrderOf(other);
+      ChronoUnit otherResultTypeUnit = ((Timestamps) other).getResultTypeUnit();
+      return otherResultTypeUnit == ChronoUnit.DAYS
+          || otherResultTypeUnit == ChronoUnit.MONTHS
+          || otherResultTypeUnit == ChronoUnit.YEARS;
     } else if (other instanceof Dates) {
       return Dates.DAY.satisfiesOrderOf(other);
-    } else if (other instanceof Days || other instanceof Months || other instanceof Years) {
-      return true;
+    } else {
+      return other instanceof Days || other instanceof Months || other instanceof Years;
     }
-
-    return false;
   }
 
   @Override

@@ -93,15 +93,25 @@ public class TestConversions {
     assertThat(Literal.of(10000L).to(TimeType.get()).toByteBuffer().array())
         .isEqualTo(new byte[] {16, 39, 0, 0, 0, 0, 0, 0});
 
-    // timestamps are stored as microseconds from 1970-01-01 00:00:00.000000 in an 8-byte
+    // timestamps are stored as micro|nanoseconds from 1970-01-01 00:00:00 in an 8-byte
     // little-endian long
     // 400000L is 0...110|00011010|10000000 in binary
     // 10000000 -> -128, 00011010 -> 26, 00000110 -> 6, ... , 00000000 -> 0
-    assertConversion(400000L, TimestampType.withoutZone(), new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
-    assertConversion(400000L, TimestampType.withZone(), new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
-    assertThat(Literal.of(400000L).to(TimestampType.withoutZone()).toByteBuffer().array())
+    assertConversion(
+        400000L, TimestampType.microsWithoutZone(), new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
+    assertConversion(
+        400000L, TimestampType.microsWithZone(), new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
+    assertThat(Literal.of(400000L).to(TimestampType.microsWithoutZone()).toByteBuffer().array())
         .isEqualTo(new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
-    assertThat(Literal.of(400000L).to(TimestampType.withZone()).toByteBuffer().array())
+    assertThat(Literal.of(400000L).to(TimestampType.microsWithZone()).toByteBuffer().array())
+        .isEqualTo(new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
+    assertConversion(
+        400000L, TimestampType.nanosWithoutZone(), new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
+    assertConversion(
+        400000L, TimestampType.nanosWithZone(), new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
+    assertThat(Literal.of(400000L).to(TimestampType.nanosWithoutZone()).toByteBuffer().array())
+        .isEqualTo(new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
+    assertThat(Literal.of(400000L).to(TimestampType.nanosWithZone()).toByteBuffer().array())
         .isEqualTo(new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
 
     // strings are stored as UTF-8 bytes (without length)

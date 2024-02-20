@@ -29,7 +29,7 @@ public class TestTimestamps {
   @Test
   @SuppressWarnings("deprecation")
   public void testDeprecatedTimestampTransform() {
-    Types.TimestampType type = Types.TimestampType.withoutZone();
+    Types.TimestampType type = Types.TimestampType.microsWithoutZone();
     Literal<Long> ts = Literal.of("2017-12-01T10:12:55.038194").to(type);
     Literal<Long> pts = Literal.of("1970-01-01T00:00:01.000001").to(type);
     Literal<Long> nts = Literal.of("1969-12-31T23:59:58.999999").to(type);
@@ -61,7 +61,7 @@ public class TestTimestamps {
 
   @Test
   public void testTimestampTransform() {
-    Types.TimestampType type = Types.TimestampType.withoutZone();
+    Types.TimestampType type = Types.TimestampType.microsWithoutZone();
     Literal<Long> ts = Literal.of("2017-12-01T10:12:55.038194").to(type);
     Literal<Long> pts = Literal.of("1970-01-01T00:00:01.000001").to(type);
     Literal<Long> nts = Literal.of("1969-12-31T23:59:58.999999").to(type);
@@ -105,7 +105,7 @@ public class TestTimestamps {
 
   @Test
   public void testTimestampWithoutZoneToHumanString() {
-    Types.TimestampType type = Types.TimestampType.withoutZone();
+    Types.TimestampType type = Types.TimestampType.microsWithoutZone();
     Literal<Long> date = Literal.of("2017-12-01T10:12:55.038194").to(type);
 
     Transform<Long, Integer> year = Transforms.year();
@@ -125,7 +125,7 @@ public class TestTimestamps {
 
   @Test
   public void testNegativeTimestampWithoutZoneToHumanString() {
-    Types.TimestampType type = Types.TimestampType.withoutZone();
+    Types.TimestampType type = Types.TimestampType.microsWithoutZone();
     Literal<Long> date = Literal.of("1969-12-30T10:12:55.038194").to(type);
 
     Transform<Long, Integer> year = Transforms.year();
@@ -145,7 +145,7 @@ public class TestTimestamps {
 
   @Test
   public void testNegativeTimestampWithoutZoneToHumanStringLowerBound() {
-    Types.TimestampType type = Types.TimestampType.withoutZone();
+    Types.TimestampType type = Types.TimestampType.microsWithoutZone();
     Literal<Long> date = Literal.of("1969-12-30T00:00:00.000000").to(type);
 
     Transform<Long, Integer> year = Transforms.year();
@@ -165,7 +165,7 @@ public class TestTimestamps {
 
   @Test
   public void testNegativeTimestampWithoutZoneToHumanStringUpperBound() {
-    Types.TimestampType type = Types.TimestampType.withoutZone();
+    Types.TimestampType type = Types.TimestampType.microsWithoutZone();
     Literal<Long> date = Literal.of("1969-12-31T23:59:59.999999").to(type);
 
     Transform<Long, Integer> year = Transforms.year();
@@ -185,7 +185,7 @@ public class TestTimestamps {
 
   @Test
   public void testTimestampWithZoneToHumanString() {
-    Types.TimestampType type = Types.TimestampType.withZone();
+    Types.TimestampType type = Types.TimestampType.microsWithZone();
     Literal<Long> date = Literal.of("2017-12-01T10:12:55.038194-08:00").to(type);
 
     Transform<Long, Integer> year = Transforms.year();
@@ -206,7 +206,7 @@ public class TestTimestamps {
 
   @Test
   public void testNullHumanString() {
-    Types.TimestampType type = Types.TimestampType.withZone();
+    Types.TimestampType type = Types.TimestampType.microsWithZone();
     assertThat(Transforms.year().toHumanString(type, null))
         .as("Should produce \"null\" for null")
         .isEqualTo("null");
@@ -223,7 +223,7 @@ public class TestTimestamps {
 
   @Test
   public void testTimestampsReturnType() {
-    Types.TimestampType type = Types.TimestampType.withZone();
+    Types.TimestampType type = Types.TimestampType.microsWithZone();
 
     Transform<Integer, Integer> year = Transforms.year();
     Type yearResultType = year.getResultType(type);

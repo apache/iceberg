@@ -42,7 +42,11 @@ public class TestMiscLiteralConversions {
             Pair.of(Literal.of("34.55"), Types.DecimalType.of(9, 2)),
             Pair.of(Literal.of("2017-08-18"), Types.DateType.get()),
             Pair.of(Literal.of("14:21:01.919"), Types.TimeType.get()),
-            Pair.of(Literal.of("2017-08-18T14:21:01.919"), Types.TimestampType.withoutZone()),
+            Pair.of(
+                Literal.of("2017-08-18T14:21:01.919432"), Types.TimestampType.microsWithoutZone()),
+            Pair.of(
+                Literal.of("2017-08-18T14:21:01.919432755"),
+                Types.TimestampType.nanosWithoutZone()),
             Pair.of(Literal.of("abc"), Types.StringType.get()),
             Pair.of(Literal.of(UUID.randomUUID()), Types.UUIDType.get()),
             Pair.of(Literal.of(new byte[] {0, 1, 2}), Types.FixedType.ofLength(3)),
@@ -60,6 +64,22 @@ public class TestMiscLiteralConversions {
           .as("Converting twice should produce identical values")
           .isSameAs(expected);
     }
+  }
+
+  @Test
+  public void testTimestampWithMicrosecondsToDate() {
+    final Literal<Long> micros =
+        Literal.of("2017-08-18T14:21:01.919432755").to(Types.TimestampType.microsWithoutZone());
+    final Literal<Integer> dateOfNanos = micros.to(Types.DateType.get());
+    assertThat(dateOfNanos).isEqualTo(Literal.of("2017-08-18").to(Types.DateType.get()));
+  }
+
+  @Test
+  public void testTimestampWithNanoosecondsToDate() {
+    final Literal<Long> nanos =
+        Literal.of("2017-08-18T14:21:01.919432755").to(Types.TimestampType.nanosWithoutZone());
+    final Literal<Integer> dateOfNanos = nanos.to(Types.DateType.get());
+    assertThat(dateOfNanos).isEqualTo(Literal.of("2017-08-18").to(Types.DateType.get()));
   }
 
   @Test
@@ -99,8 +119,10 @@ public class TestMiscLiteralConversions {
         Types.DoubleType.get(),
         Types.DateType.get(),
         Types.TimeType.get(),
-        Types.TimestampType.withZone(),
-        Types.TimestampType.withoutZone(),
+        Types.TimestampType.microsWithoutZone(),
+        Types.TimestampType.microsWithZone(),
+        Types.TimestampType.nanosWithoutZone(),
+        Types.TimestampType.nanosWithZone(),
         Types.DecimalType.of(9, 2),
         Types.StringType.get(),
         Types.UUIDType.get(),
@@ -114,8 +136,10 @@ public class TestMiscLiteralConversions {
         Literal.of(34),
         Types.BooleanType.get(),
         Types.TimeType.get(),
-        Types.TimestampType.withZone(),
-        Types.TimestampType.withoutZone(),
+        Types.TimestampType.microsWithoutZone(),
+        Types.TimestampType.microsWithZone(),
+        Types.TimestampType.nanosWithoutZone(),
+        Types.TimestampType.nanosWithZone(),
         Types.StringType.get(),
         Types.UUIDType.get(),
         Types.FixedType.ofLength(1),
@@ -142,8 +166,10 @@ public class TestMiscLiteralConversions {
         Types.LongType.get(),
         Types.DateType.get(),
         Types.TimeType.get(),
-        Types.TimestampType.withZone(),
-        Types.TimestampType.withoutZone(),
+        Types.TimestampType.microsWithoutZone(),
+        Types.TimestampType.microsWithZone(),
+        Types.TimestampType.nanosWithoutZone(),
+        Types.TimestampType.nanosWithZone(),
         Types.StringType.get(),
         Types.UUIDType.get(),
         Types.FixedType.ofLength(1),
@@ -159,8 +185,10 @@ public class TestMiscLiteralConversions {
         Types.LongType.get(),
         Types.DateType.get(),
         Types.TimeType.get(),
-        Types.TimestampType.withZone(),
-        Types.TimestampType.withoutZone(),
+        Types.TimestampType.microsWithoutZone(),
+        Types.TimestampType.microsWithZone(),
+        Types.TimestampType.nanosWithoutZone(),
+        Types.TimestampType.nanosWithZone(),
         Types.StringType.get(),
         Types.UUIDType.get(),
         Types.FixedType.ofLength(1),
@@ -177,8 +205,10 @@ public class TestMiscLiteralConversions {
         Types.FloatType.get(),
         Types.DoubleType.get(),
         Types.TimeType.get(),
-        Types.TimestampType.withZone(),
-        Types.TimestampType.withoutZone(),
+        Types.TimestampType.microsWithoutZone(),
+        Types.TimestampType.microsWithZone(),
+        Types.TimestampType.nanosWithoutZone(),
+        Types.TimestampType.nanosWithZone(),
         Types.DecimalType.of(9, 4),
         Types.StringType.get(),
         Types.UUIDType.get(),
@@ -196,8 +226,10 @@ public class TestMiscLiteralConversions {
         Types.FloatType.get(),
         Types.DoubleType.get(),
         Types.DateType.get(),
-        Types.TimestampType.withZone(),
-        Types.TimestampType.withoutZone(),
+        Types.TimestampType.microsWithoutZone(),
+        Types.TimestampType.microsWithZone(),
+        Types.TimestampType.nanosWithoutZone(),
+        Types.TimestampType.nanosWithZone(),
         Types.DecimalType.of(9, 4),
         Types.StringType.get(),
         Types.UUIDType.get(),
@@ -206,9 +238,26 @@ public class TestMiscLiteralConversions {
   }
 
   @Test
-  public void testInvalidTimestampConversions() {
+  public void testInvalidTimestampMicrosConversions() {
     testInvalidConversions(
-        Literal.of("2017-08-18T14:21:01.919").to(Types.TimestampType.withoutZone()),
+        Literal.of("2017-08-18T14:21:01.919123").to(Types.TimestampType.microsWithoutZone()),
+        Types.BooleanType.get(),
+        Types.IntegerType.get(),
+        Types.LongType.get(),
+        Types.FloatType.get(),
+        Types.DoubleType.get(),
+        Types.TimeType.get(),
+        Types.DecimalType.of(9, 4),
+        Types.StringType.get(),
+        Types.UUIDType.get(),
+        Types.FixedType.ofLength(1),
+        Types.BinaryType.get());
+  }
+
+  @Test
+  public void testInvalidTimestampNanosConversions() {
+    testInvalidConversions(
+        Literal.of("2017-08-18T14:21:01.919123456").to(Types.TimestampType.nanosWithoutZone()),
         Types.BooleanType.get(),
         Types.IntegerType.get(),
         Types.LongType.get(),
@@ -233,8 +282,10 @@ public class TestMiscLiteralConversions {
         Types.DoubleType.get(),
         Types.DateType.get(),
         Types.TimeType.get(),
-        Types.TimestampType.withZone(),
-        Types.TimestampType.withoutZone(),
+        Types.TimestampType.microsWithoutZone(),
+        Types.TimestampType.microsWithZone(),
+        Types.TimestampType.nanosWithoutZone(),
+        Types.TimestampType.nanosWithZone(),
         Types.StringType.get(),
         Types.UUIDType.get(),
         Types.FixedType.ofLength(1),
@@ -267,8 +318,10 @@ public class TestMiscLiteralConversions {
         Types.DoubleType.get(),
         Types.DateType.get(),
         Types.TimeType.get(),
-        Types.TimestampType.withZone(),
-        Types.TimestampType.withoutZone(),
+        Types.TimestampType.microsWithoutZone(),
+        Types.TimestampType.microsWithZone(),
+        Types.TimestampType.nanosWithoutZone(),
+        Types.TimestampType.nanosWithZone(),
         Types.DecimalType.of(9, 2),
         Types.StringType.get(),
         Types.FixedType.ofLength(1),
@@ -286,8 +339,10 @@ public class TestMiscLiteralConversions {
         Types.DoubleType.get(),
         Types.DateType.get(),
         Types.TimeType.get(),
-        Types.TimestampType.withZone(),
-        Types.TimestampType.withoutZone(),
+        Types.TimestampType.microsWithoutZone(),
+        Types.TimestampType.microsWithZone(),
+        Types.TimestampType.nanosWithoutZone(),
+        Types.TimestampType.nanosWithZone(),
         Types.DecimalType.of(9, 2),
         Types.StringType.get(),
         Types.UUIDType.get(),
@@ -305,8 +360,10 @@ public class TestMiscLiteralConversions {
         Types.DoubleType.get(),
         Types.DateType.get(),
         Types.TimeType.get(),
-        Types.TimestampType.withZone(),
-        Types.TimestampType.withoutZone(),
+        Types.TimestampType.microsWithoutZone(),
+        Types.TimestampType.microsWithZone(),
+        Types.TimestampType.nanosWithoutZone(),
+        Types.TimestampType.nanosWithZone(),
         Types.DecimalType.of(9, 2),
         Types.StringType.get(),
         Types.UUIDType.get(),

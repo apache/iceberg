@@ -32,7 +32,7 @@ public class TestPartitionPaths {
       new Schema(
           Types.NestedField.required(1, "id", Types.IntegerType.get()),
           Types.NestedField.optional(2, "data", Types.StringType.get()),
-          Types.NestedField.optional(3, "ts", Types.TimestampType.withoutZone()));
+          Types.NestedField.optional(3, "ts", Types.TimestampType.microsWithoutZone()));
 
   @Test
   public void testPartitionPath() {
@@ -42,8 +42,27 @@ public class TestPartitionPaths {
     Transform<Integer, Integer> bucket = Transforms.bucket(10);
 
     Literal<Long> ts =
-        Literal.of("2017-12-01T10:12:55.038194").to(Types.TimestampType.withoutZone());
-    Object tsHour = hour.bind(Types.TimestampType.withoutZone()).apply(ts.value());
+        Literal.of("2017-12-01T10:12:55.038194").to(Types.TimestampType.microsWithoutZone());
+    Object tsHour = hour.bind(Types.TimestampType.microsWithoutZone()).apply(ts.value());
+    Object idBucket = bucket.bind(Types.IntegerType.get()).apply(1);
+
+    Row partition = Row.of(tsHour, idBucket);
+
+    assertThat(spec.partitionToPath(partition))
+        .as("Should produce expected partition key")
+        .isEqualTo("ts_hour=2017-12-01-10/id_bucket=" + idBucket);
+  }
+
+  @Test
+  public void testPartitionPathWithNanoseconds() {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).hour("ts").bucket("id", 10).build();
+
+    Transform<Long, Integer> hour = Transforms.hour();
+    Transform<Integer, Integer> bucket = Transforms.bucket(10);
+
+    Literal<Long> ts =
+        Literal.of("2017-12-01T10:12:55.038194789").to(Types.TimestampType.nanosWithoutZone());
+    Object tsHour = hour.bind(Types.TimestampType.nanosWithoutZone()).apply(ts.value());
     Object idBucket = bucket.bind(Types.IntegerType.get()).apply(1);
 
     Row partition = Row.of(tsHour, idBucket);

@@ -30,10 +30,10 @@ public class TestPartitionSpecValidation {
   private static final Schema SCHEMA =
       new Schema(
           NestedField.required(1, "id", Types.LongType.get()),
-          NestedField.required(2, "ts", Types.TimestampType.withZone()),
-          NestedField.required(3, "another_ts", Types.TimestampType.withZone()),
-          NestedField.required(4, "d", Types.TimestampType.withZone()),
-          NestedField.required(5, "another_d", Types.TimestampType.withZone()),
+          NestedField.required(2, "ts", Types.TimestampType.microsWithZone()),
+          NestedField.required(3, "another_ts", Types.TimestampType.microsWithZone()),
+          NestedField.required(4, "d", Types.TimestampType.microsWithZone()),
+          NestedField.required(5, "another_d", Types.TimestampType.microsWithZone()),
           NestedField.required(6, "s", Types.StringType.get()));
 
   @Test

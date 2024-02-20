@@ -19,6 +19,8 @@
 package org.apache.iceberg.types;
 
 import java.io.Serializable;
+import java.time.temporal.ChronoUnit;
+import java.time.temporal.Temporal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -47,8 +49,11 @@ public class Types {
           .put(DoubleType.get().toString(), DoubleType.get())
           .put(DateType.get().toString(), DateType.get())
           .put(TimeType.get().toString(), TimeType.get())
+          // TODO(epg): Replace next two with non-deprecated micros methods.
           .put(TimestampType.withZone().toString(), TimestampType.withZone())
           .put(TimestampType.withoutZone().toString(), TimestampType.withoutZone())
+          .put(TimestampType.nanosWithZone().toString(), TimestampType.nanosWithZone())
+          .put(TimestampType.nanosWithoutZone().toString(), TimestampType.nanosWithoutZone())
           .put(StringType.get().toString(), StringType.get())
           .put(UUIDType.get().toString(), UUIDType.get())
           .put(BinaryType.get().toString(), BinaryType.get())
@@ -206,25 +211,73 @@ public class Types {
   }
 
   public static class TimestampType extends PrimitiveType {
-    private static final TimestampType INSTANCE_WITH_ZONE = new TimestampType(true);
-    private static final TimestampType INSTANCE_WITHOUT_ZONE = new TimestampType(false);
+    public enum Unit {
+      MICROS(ChronoUnit.MICROS),
+      NANOS(ChronoUnit.NANOS),
+      ;
 
-    public static TimestampType withZone() {
-      return INSTANCE_WITH_ZONE;
+      public long between(Temporal temporal1Inclusive, Temporal temporal2Exclusive) {
+        return unit.between(temporal1Inclusive, temporal2Exclusive);
+      }
+
+      Unit(final ChronoUnit unit) {
+        this.unit = unit;
+      }
+
+      private final ChronoUnit unit;
     }
 
+    private static final TimestampType INSTANCE_MICROS_WITH_ZONE =
+        new TimestampType(true, Unit.MICROS);
+    private static final TimestampType INSTANCE_MICROS_WITHOUT_ZONE =
+        new TimestampType(false, Unit.MICROS);
+    private static final TimestampType INSTANCE_NANOS_WITH_ZONE =
+        new TimestampType(true, Unit.NANOS);
+    private static final TimestampType INSTANCE_NANOS_WITHOUT_ZONE =
+        new TimestampType(false, Unit.NANOS);
+
+    /** @deprecated for removal in 2.0; use {@link #microsWithZone()} instead. */
+    @Deprecated
+    public static TimestampType withZone() {
+      return INSTANCE_MICROS_WITH_ZONE;
+    }
+
+    /** @deprecated for removal in 2.0; use {@link #microsWithoutZone()} instead. */
+    @Deprecated
     public static TimestampType withoutZone() {
-      return INSTANCE_WITHOUT_ZONE;
+      return INSTANCE_MICROS_WITHOUT_ZONE;
+    }
+
+    public static TimestampType microsWithZone() {
+      return INSTANCE_MICROS_WITH_ZONE;
+    }
+
+    public static TimestampType microsWithoutZone() {
+      return INSTANCE_MICROS_WITHOUT_ZONE;
+    }
+
+    public static TimestampType nanosWithZone() {
+      return INSTANCE_NANOS_WITH_ZONE;
+    }
+
+    public static TimestampType nanosWithoutZone() {
+      return INSTANCE_NANOS_WITHOUT_ZONE;
     }
 
     private final boolean adjustToUTC;
+    private final Unit unit;
 
-    private TimestampType(boolean adjustToUTC) {
+    private TimestampType(boolean adjustToUTC, Unit unit) {
       this.adjustToUTC = adjustToUTC;
+      this.unit = unit;
     }
 
     public boolean shouldAdjustToUTC() {
       return adjustToUTC;
+    }
+
+    public Unit unit() {
+      return unit;
     }
 
     @Override
@@ -234,10 +287,13 @@ public class Types {
 
     @Override
     public String toString() {
-      if (shouldAdjustToUTC()) {
-        return "timestamptz";
-      } else {
-        return "timestamp";
+      switch (unit) {
+        case MICROS:
+          return shouldAdjustToUTC() ? "timestamptz" : "timestamp";
+        case NANOS:
+          return shouldAdjustToUTC() ? "timestamptz_ns" : "timestamp_ns";
+        default:
+          throw new UnsupportedOperationException("Unsupported timestamp unit: " + unit);
       }
     }
 
@@ -250,12 +306,12 @@ public class Types {
       }
 
       TimestampType timestampType = (TimestampType) o;
-      return adjustToUTC == timestampType.adjustToUTC;
+      return adjustToUTC == timestampType.adjustToUTC && unit == timestampType.unit;
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(TimestampType.class, adjustToUTC);
+      return Objects.hash(TimestampType.class, adjustToUTC, unit);
     }
   }
 

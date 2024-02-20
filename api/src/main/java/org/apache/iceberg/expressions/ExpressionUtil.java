@@ -36,6 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
 
 /** Expression utility methods. */
 public class ExpressionUtil {
@@ -48,10 +49,15 @@ public class ExpressionUtil {
   private static final Pattern DATE = Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
   private static final Pattern TIME = Pattern.compile("\\d{2}:\\d{2}(:\\d{2}(.\\d{1,9})?)?");
   private static final Pattern TIMESTAMP =
-      Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(.\\d{1,9})?)?");
+      Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(.\\d{1,6})?)?");
+  private static final Pattern TIMESTAMPNS =
+      Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(.\\d{7,9})?)?");
   private static final Pattern TIMESTAMPTZ =
       Pattern.compile(
-          "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(.\\d{1,9})?)?([-+]\\d{2}:\\d{2}|Z)");
+          "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(.\\d{1,6})?)?([-+]\\d{2}:\\d{2}|Z)");
+  private static final Pattern TIMESTAMPTZNS =
+      Pattern.compile(
+          "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(.\\d{7,9})?)?([-+]\\d{2}:\\d{2}|Z)");
   static final int LONG_IN_PREDICATE_ABBREVIATION_THRESHOLD = 10;
   private static final int LONG_IN_PREDICATE_ABBREVIATION_MIN_GAIN = 5;
 
@@ -514,7 +520,7 @@ public class ExpressionUtil {
       case TIME:
         return "(time)";
       case TIMESTAMP:
-        return sanitizeTimestamp((long) value, now);
+        return sanitizeTimestamp(((Types.TimestampType) type).unit(), (long) value, now);
       case STRING:
         return sanitizeString((CharSequence) value, now, today);
       case BOOLEAN:
@@ -535,7 +541,8 @@ public class ExpressionUtil {
     } else if (literal instanceof Literals.DateLiteral) {
       return sanitizeDate(((Literals.DateLiteral) literal).value(), today);
     } else if (literal instanceof Literals.TimestampLiteral) {
-      return sanitizeTimestamp(((Literals.TimestampLiteral) literal).value(), now);
+      Literals.TimestampLiteral tsLiteral = ((Literals.TimestampLiteral) literal);
+      return sanitizeTimestamp(tsLiteral.unit(), tsLiteral.value(), now);
     } else if (literal instanceof Literals.TimeLiteral) {
       return "(time)";
     } else if (literal instanceof Literals.IntegerLiteral) {
@@ -564,7 +571,18 @@ public class ExpressionUtil {
     return "(date)";
   }
 
-  private static String sanitizeTimestamp(long micros, long now) {
+  private static String sanitizeTimestamp(Types.TimestampType.Unit unit, long timeUnits, long now) {
+    final long micros;
+    switch (unit) {
+      case MICROS:
+        micros = timeUnits;
+        break;
+      case NANOS:
+        micros = DateTimeUtil.nanosToMicros(timeUnits);
+        break;
+      default:
+        throw new UnsupportedOperationException("Unsupported timestamp unit: " + unit);
+    }
     String isPast = now > micros ? "ago" : "from-now";
     long diff = Math.abs(now - micros);
     if (diff < FIVE_MINUTES_IN_MICROS) {
@@ -595,11 +613,17 @@ public class ExpressionUtil {
         Literal<Integer> date = Literal.of(value).to(Types.DateType.get());
         return sanitizeDate(date.value(), today);
       } else if (TIMESTAMP.matcher(value).matches()) {
-        Literal<Long> ts = Literal.of(value).to(Types.TimestampType.withoutZone());
-        return sanitizeTimestamp(ts.value(), now);
+        Literal<Long> ts = Literal.of(value).to(Types.TimestampType.microsWithoutZone());
+        return sanitizeTimestamp(Types.TimestampType.Unit.MICROS, ts.value(), now);
+      } else if (TIMESTAMPNS.matcher(value).matches()) {
+        Literal<Long> ts = Literal.of(value).to(Types.TimestampType.nanosWithoutZone());
+        return sanitizeTimestamp(Types.TimestampType.Unit.NANOS, ts.value(), now);
       } else if (TIMESTAMPTZ.matcher(value).matches()) {
-        Literal<Long> ts = Literal.of(value).to(Types.TimestampType.withZone());
-        return sanitizeTimestamp(ts.value(), now);
+        Literal<Long> ts = Literal.of(value).to(Types.TimestampType.microsWithZone());
+        return sanitizeTimestamp(Types.TimestampType.Unit.MICROS, ts.value(), now);
+      } else if (TIMESTAMPTZNS.matcher(value).matches()) {
+        Literal<Long> ts = Literal.of(value).to(Types.TimestampType.nanosWithZone());
+        return sanitizeTimestamp(Types.TimestampType.Unit.NANOS, ts.value(), now);
       } else if (TIME.matcher(value).matches()) {
         return "(time)";
       } else {

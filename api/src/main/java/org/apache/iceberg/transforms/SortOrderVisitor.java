@@ -84,22 +84,16 @@ public interface SortOrderVisitor<T> {
         results.add(
             visitor.truncate(
                 sourceName, field.sourceId(), width, field.direction(), field.nullOrder()));
-      } else if (transform == Dates.YEAR
-          || transform == Timestamps.YEAR
-          || transform instanceof Years) {
+      } else if ("year".equalsIgnoreCase(transform.toString())) {
         results.add(
             visitor.year(sourceName, field.sourceId(), field.direction(), field.nullOrder()));
-      } else if (transform == Dates.MONTH
-          || transform == Timestamps.MONTH
-          || transform instanceof Months) {
+      } else if ("month".equalsIgnoreCase(transform.toString())) {
         results.add(
             visitor.month(sourceName, field.sourceId(), field.direction(), field.nullOrder()));
-      } else if (transform == Dates.DAY
-          || transform == Timestamps.DAY
-          || transform instanceof Days) {
+      } else if ("day".equalsIgnoreCase(transform.toString())) {
         results.add(
             visitor.day(sourceName, field.sourceId(), field.direction(), field.nullOrder()));
-      } else if (transform == Timestamps.HOUR || transform instanceof Hours) {
+      } else if ("hour".equalsIgnoreCase(transform.toString())) {
         results.add(
             visitor.hour(sourceName, field.sourceId(), field.direction(), field.nullOrder()));
       } else if (transform instanceof UnknownTransform) {
