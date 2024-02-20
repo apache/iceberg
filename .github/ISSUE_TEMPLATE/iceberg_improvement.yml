@@ -20,7 +20,7 @@
 ---
 name: Iceberg Improvement / Feature Request
 description: New features with Apache Iceberg
-labels: ["kind:feature request"]
+labels: ["improvement"]
 body:
   - type: textarea
     attributes:

@@ -20,7 +20,7 @@
 ---
 name: Iceberg Question
 description: Questions around Apache Iceberg
-labels: ["kind:question"]
+labels: ["question"]
 body:
   - type: markdown
     attributes:
