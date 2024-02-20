@@ -32,16 +32,21 @@ import org.apache.flink.streaming.api.operators.OneInputStreamOperatorFactory;
 import org.apache.flink.streaming.api.operators.StreamOperator;
 import org.apache.flink.streaming.api.operators.StreamOperatorParameters;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
+import org.apache.flink.table.data.RowData;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TestTables;
 import org.apache.iceberg.flink.CatalogLoader;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.data.TableAwareWriteResult;
 import org.apache.iceberg.io.WriteResult;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.ThreadPools;
 import org.junit.After;
@@ -162,7 +167,7 @@ public class TestIcebergMultiTableFileCommitter {
         long timestamp = 0;
         JobID jobId = new JobID();
         OperatorID operatorId;
-        try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobId)) {
+        try (OneInputStreamOperatorTestHarness<TableAwareWriteResult, Void> harness = createStreamSink(jobId)) {
             Mockito.when(tableLoader.loadTable()).thenReturn(table1).thenReturn(table2);
             harness.setup();
             harness.open();
@@ -195,11 +200,70 @@ public class TestIcebergMultiTableFileCommitter {
         }
     }
 
+    private TableAwareWriteResult of(DataFile dataFile, Table table) {
+        return new TableAwareWriteResult(WriteResult.builder().addDataFiles(dataFile).build(), (SerializableTable) SerializableTable.copyOf(table));
+    }
+
+    @Test
+    public void testWriteToOneTable() throws Exception {
+        // Test with 3 continues checkpoints:
+        //   1. snapshotState for checkpoint#1
+        //   2. notifyCheckpointComplete for checkpoint#1
+        //   3. snapshotState for checkpoint#2
+        //   4. notifyCheckpointComplete for checkpoint#2
+        //   5. snapshotState for checkpoint#3
+        //   6. notifyCheckpointComplete for checkpoint#3
+        long timestamp = 0;
+
+        JobID jobID = new JobID();
+        OperatorID operatorId;
+        try (OneInputStreamOperatorTestHarness<TableAwareWriteResult, Void> harness = createStreamSink(jobID)) {
+            Mockito.when(tableLoader.loadTable()).thenReturn(table1);
+            harness.setup();
+            harness.open();
+            operatorId = harness.getOperator().getOperatorID();
+
+            assertSnapshotSize(table1, 0);
+
+            List<RowData> rows = Lists.newArrayListWithExpectedSize(3);
+            for (int i = 1; i <= 3; i++) {
+                RowData rowData = SimpleDataUtil.createRowData(i, "hello" + i);
+                DataFile dataFile = writeDataFile(table1, "data-" + i, ImmutableList.of(rowData));
+                harness.processElement(of(dataFile, table1), ++timestamp);
+                rows.add(rowData);
+
+                harness.snapshot(i, ++timestamp);
+                assertFlinkManifests(1);
+
+                harness.notifyOfCompletedCheckpoint(i);
+                assertFlinkManifests(0);
+
+                SimpleDataUtil.assertTableRows(table1, ImmutableList.copyOf(rows), branch);
+                assertSnapshotSize(table1, i);
+                assertMaxCommittedCheckpointId(table1, jobID, operatorId, i);
+                Assert.assertEquals(
+                        TestIcebergFilesCommitter.class.getName(),
+                        SimpleDataUtil.latestSnapshot(table1, branch).summary().get("flink.test"));
+            }
+        }
+    }
+
+    private DataFile writeDataFile(Table table, String filename, List<RowData> rows) throws IOException {
+        return SimpleDataUtil.writeFile(
+                table,
+                table.schema(),
+                table.spec(),
+                CONF,
+                table.location(),
+                format.addExtension(filename),
+                rows);
+    }
+
     protected TestTables.TestTable create(File tableDir, String name, Schema schema, PartitionSpec spec) {
         return TestTables.create(tableDir, name, schema, spec, formatVersion);
     }
 
-    private OneInputStreamOperatorTestHarness<WriteResult, Void> createStreamSink(JobID jobID)
+    private OneInputStreamOperatorTestHarness<TableAwareWriteResult, Void> createStreamSink(JobID jobID)
             throws Exception {
         TestOperatorFactory factory = TestOperatorFactory.of(branch, catalogLoader, payloadSinkProvider);
         return new OneInputStreamOperatorTestHarness<>(factory, createEnvironment(jobID));
@@ -244,7 +308,7 @@ public class TestIcebergMultiTableFileCommitter {
     }
 
     private static class TestOperatorFactory extends AbstractStreamOperatorFactory<Void>
-            implements OneInputStreamOperatorFactory<WriteResult, Void> {
+            implements OneInputStreamOperatorFactory<TableAwareWriteResult, Void> {
         private final String branch;
         private CatalogLoader catalogLoader;
         private PayloadSinkProvider payloadSinkProvider;
