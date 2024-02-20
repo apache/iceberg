@@ -63,6 +63,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -119,7 +120,7 @@ public class IcebergMultiTableFileCommitter extends AbstractStreamOperator<Void>
     private transient Map<TableIdentifier, IcebergFilesCommitterMetrics> committerMetrics = Maps.newHashMap();
     private transient Map<TableIdentifier, ManifestOutputFileFactory> manifestOutputFileFactories = Maps.newHashMap();
     private transient Map<TableIdentifier, Long> maxCommittedCheckpointId = Maps.newHashMap();
-    private transient Map<TableIdentifier, Integer> continuousEmptyCheckpoints;
+    private transient Map<TableIdentifier, Integer> continuousEmptyCheckpoints = Maps.newHashMap();
     // There're two cases that we restore from flink checkpoints: the first case is restoring from
     // snapshot created by the same flink job; another case is restoring from snapshot created by
     // another different job. For the second case, we need to maintain the old flink job's id in flink
@@ -326,6 +327,10 @@ public class IcebergMultiTableFileCommitter extends AbstractStreamOperator<Void>
 
         if (!this.continuousEmptyCheckpoints.containsKey(tableIdentifier)) {
             this.continuousEmptyCheckpoints.put(tableIdentifier, 0);
+        }
+
+        if (!this.writeResultsOfCurrentCkpt.containsKey(tableIdentifier)) {
+            this.writeResultsOfCurrentCkpt.put(tableIdentifier, new LinkedList<>());
         }
     }
 
@@ -587,7 +592,7 @@ public class IcebergMultiTableFileCommitter extends AbstractStreamOperator<Void>
         );
         MapTypeInfo<TableIdentifier, SortedMap<Long, byte[]>> mapTypeInfo =
                 new MapTypeInfo<>(
-                        BasicTypeInfo.getInfoFor(TableIdentifier.class),
+                        BasicTypeInfo.of(TableIdentifier.class),
                         sortedMapTypeInfo);
         return new ListStateDescriptor<>("iceberg-files-committer-state", mapTypeInfo);
     }
