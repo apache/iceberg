@@ -3420,14 +3420,15 @@ components:
     FixedTypeValue:
       type: string
       description:
-        "Fixed length type values are stored and serialized as a hexadecimal string preserving the fixed length"
+        "Fixed length type values are stored and serialized as an uppercase hexadecimal string 
+        preserving the fixed length"
       example:
         abc: "616263"
 
     BinaryTypeValue:
       type: string
       description:
-        "Binary type values are stored and serialized as a hexadecimal string"
+        "Binary type values are stored and serialized as an uppercase hexadecimal string"
       example:
         abc: "616263"
 
