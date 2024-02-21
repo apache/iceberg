@@ -140,7 +140,6 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
     properties.put(JdbcCatalog.PROPERTY_PREFIX + "username", "user");
     properties.put(JdbcCatalog.PROPERTY_PREFIX + "password", "password");
-    properties.put(JdbcUtil.SCHEMA_VERSION_PROPERTY, JdbcUtil.SchemaVersion.V1.name());
     warehouseLocation = this.tableDir.toAbsolutePath().toString();
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation);
     properties.put("type", "jdbc");
@@ -154,7 +153,6 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.toAbsolutePath().toString());
     properties.put(CatalogProperties.URI, "jdbc:sqlite:file::memory:?icebergDB");
-    properties.put(JdbcUtil.SCHEMA_VERSION_PROPERTY, JdbcUtil.SchemaVersion.V1.name());
     JdbcCatalog jdbcCatalog = new JdbcCatalog();
     jdbcCatalog.setConf(conf);
     jdbcCatalog.initialize("test_jdbc_catalog", properties);
