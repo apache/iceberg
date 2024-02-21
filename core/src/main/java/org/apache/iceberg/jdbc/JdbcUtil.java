@@ -38,7 +38,7 @@ final class JdbcUtil {
   // property to control strict-mode (aka check if namespace exists when creating a table)
   static final String STRICT_MODE_PROPERTY = JdbcCatalog.PROPERTY_PREFIX + "strict-mode";
   // property to control if view support is added to the existing database
-  static final String ADD_VIEW_SUPPORT_PROPERTY = JdbcCatalog.PROPERTY_PREFIX + "add-view-support";
+  static final String SCHEMA_VERSION_PROPERTY = JdbcCatalog.PROPERTY_PREFIX + "schema-version";
 
   enum SchemaVersion {
     V0,
@@ -90,7 +90,7 @@ final class JdbcUtil {
           + " = ? AND "
           + JdbcTableOperations.METADATA_LOCATION_PROP
           + " = ?";
-  static final String CREATE_CATALOG_SQL =
+  static final String V0_CREATE_CATALOG_SQL =
       "CREATE TABLE "
           + CATALOG_TABLE_VIEW_NAME
           + "("
@@ -104,8 +104,6 @@ final class JdbcUtil {
           + " VARCHAR(1000),"
           + JdbcTableOperations.PREVIOUS_METADATA_LOCATION_PROP
           + " VARCHAR(1000),"
-          + RECORD_TYPE
-          + " VARCHAR(100),"
           + "PRIMARY KEY ("
           + CATALOG_NAME
           + ", "
@@ -114,7 +112,7 @@ final class JdbcUtil {
           + TABLE_NAME
           + ")"
           + ")";
-  static final String UPDATE_CATALOG_SQL =
+  static final String V1_UPDATE_CATALOG_SQL =
       "ALTER TABLE " + CATALOG_TABLE_VIEW_NAME + " ADD COLUMN " + RECORD_TYPE + " VARCHAR(5)";
 
   private static final String GET_VIEW_SQL =
