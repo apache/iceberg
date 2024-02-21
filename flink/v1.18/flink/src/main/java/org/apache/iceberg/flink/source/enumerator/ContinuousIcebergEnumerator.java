@@ -83,6 +83,7 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
 
     if (enumState != null) {
       this.enumeratorPosition.set(enumState.lastEnumeratedPosition());
+      this.enumerationHistory.restore(enumState.enumerationSplitCountHistory());
     }
   }
 
