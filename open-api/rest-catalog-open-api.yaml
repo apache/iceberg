@@ -3390,31 +3390,27 @@ components:
       type: string
       description:
         "Timestamp type values follow the 'YYYY-MM-DDTHH:MM:SS.ssssss' ISO-8601 format with microsecond precision"
-      example:
-        "2007-12-03T10:15:30.123456"
+      example: "2007-12-03T10:15:30.123456"
 
     TimestampTzTypeValue:
       type: string
       description:
         "TimestampTz type values follow the 'YYYY-MM-DDTHH:MM:SS.ssssss+00:00' ISO-8601 format with microsecond precision, 
         and a timezone offset (+00:00 for UTC)"
-      example:
-        "2007-12-03T10:15:30.123456+00:00"
+      example: "2007-12-03T10:15:30.123456+00:00"
 
     TimestampNanoTypeValue:
       type: string
       description:
         "Timestamp_ns type values follow the 'YYYY-MM-DDTHH:MM:SS.sssssssss' ISO-8601 format with nanosecond precision"
-      example:
-        "2007-12-03T10:15:30.123456789"
+      example: "2007-12-03T10:15:30.123456789"
 
     TimestampTzNanoTypeValue:
       type: string
       description:
         "Timestamp_ns type values follow the 'YYYY-MM-DDTHH:MM:SS.sssssssss+00:00' ISO-8601 format with nanosecond 
         precision, and a timezone offset (+00:00 for UTC)"
-      example:
-        "2007-12-03T10:15:30.123456789+00:00"
+      example: "2007-12-03T10:15:30.123456789+00:00"
 
 
     FixedTypeValue:
