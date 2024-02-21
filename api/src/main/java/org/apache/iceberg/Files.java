@@ -95,7 +95,7 @@ public class Files {
   }
 
   public static InputFile localInput(File file) {
-    return new LocalInputFile(file, -1L);
+    return new LocalInputFile(file);
   }
 
   public static InputFile localInput(File file, long length) {
@@ -103,19 +103,28 @@ public class Files {
   }
 
   public static InputFile localInput(String file) {
-    return localInput(file, -1L);
+    return localInput(stringToFile(file));
   }
 
   public static InputFile localInput(String file, long length) {
-    if (file.startsWith("file:")) {
-      return localInput(new File(file.replaceFirst("file:", "")), length);
+    return localInput(stringToFile(file), length);
+  }
+
+  private static File stringToFile(String filePath) {
+    if (filePath.startsWith("file:")) {
+      return new File(filePath.replaceFirst("file:", ""));
     }
-    return localInput(new File(file), length);
+    return new File(filePath);
   }
 
   private static class LocalInputFile implements InputFile {
     private final File file;
     private final long fileLength;
+
+    private LocalInputFile(File file) {
+      this.file = file;
+      this.fileLength = file.length();
+    }
 
     private LocalInputFile(File file, long length) {
       this.file = file;
@@ -124,11 +133,7 @@ public class Files {
 
     @Override
     public long getLength() {
-      if (fileLength >= 0) {
-        return fileLength;
-      } else {
-        return file.length();
-      }
+      return fileLength;
     }
 
     @Override
