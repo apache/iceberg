@@ -20,26 +20,21 @@ package org.apache.iceberg.flink.sink;
 
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.table.data.RowData;
+import org.apache.iceberg.catalog.TableIdentifier;
 
-public class TestPayloadSinkProvider implements PayloadSinkProvider<RowData> {
+public class TestPayloadSinkProvider implements PayloadTableSinkProvider<RowData> {
+
   @Override
-  public String sinkTableName(String baseTable, String identifier) {
-    return baseTable + "_" + identifier;
+  public TableIdentifier getOrCreateTable(StreamRecord<RowData> record) {
+    RowData value = record.getValue();
+    String identifier = value.getString(1).toString().split("\\.")[0];
+    return TableIdentifier.of(sinkDatabaseName(), baseTable() + "_" + identifier);
   }
 
-  @Override
-  public String sinkDatabaseName() {
+  private String sinkDatabaseName() {
     return "test_raw";
   }
-
-  @Override
-  public String getIdentifierFromPayload(StreamRecord<RowData> record) {
-    RowData value = record.getValue();
-    return value.getString(1).toString().split("\\.")[0];
-  }
-
-  @Override
-  public boolean tableExists(String table) {
-    return PayloadSinkProvider.super.tableExists(table);
+  private String baseTable() {
+    return "test_table";
   }
 }

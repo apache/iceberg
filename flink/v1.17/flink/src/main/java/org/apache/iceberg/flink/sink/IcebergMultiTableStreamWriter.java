@@ -18,25 +18,16 @@
  */
 package org.apache.iceberg.flink.sink;
 
-import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
-import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_LEVEL;
-import static org.apache.iceberg.TableProperties.ORC_COMPRESSION;
-import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_STRATEGY;
-import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
-import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
-
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.api.operators.ChainingStrategy;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.CatalogLoader;
@@ -46,31 +37,27 @@ import org.apache.iceberg.flink.data.TableAwareWriteResult;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
-public class IcebergMultiTableStreamWriter<T> extends AbstractStreamOperator<TableAwareWriteResult>
+class IcebergMultiTableStreamWriter<T> extends AbstractStreamOperator<TableAwareWriteResult>
     implements OneInputStreamOperator<T, TableAwareWriteResult>, BoundedOneInput {
   private static final long serialVersionUID = 1L;
 
   private final String fullTableName;
-  private final Map<String, TaskWriterFactory<T>> taskWriterFactories;
-  private final PayloadSinkProvider<T> payloadSinkProvider;
+  private final Map<TableIdentifier, TaskWriterFactory<T>> taskWriterFactories;
+  private final PayloadTableSinkProvider<T> payloadTableSinkProvider;
   private final CatalogLoader catalogLoader;
   private final FlinkWriteConf conf;
   private List<String> equalityFieldColumns;
 
-  private transient Map<String, TaskWriter<T>> writers;
-  private transient Map<String, TableIdentifier> tableSupplierMap;
+  private transient Map<TableIdentifier, TaskWriter<T>> writers;
   private transient int subTaskId;
   private transient int attemptId;
-  private transient Map<String, IcebergStreamWriterMetrics> writerMetrics;
+  private transient Map<TableIdentifier, IcebergStreamWriterMetrics> writerMetrics;
 
   IcebergMultiTableStreamWriter(
       String fullTableName,
-      PayloadSinkProvider<T> payloadSinkProvider,
+      PayloadTableSinkProvider<T> payloadTableSinkProvider,
       CatalogLoader catalogLoader,
       FlinkWriteConf writeConf,
       List<String> equalityFieldColumns) {
@@ -78,11 +65,10 @@ public class IcebergMultiTableStreamWriter<T> extends AbstractStreamOperator<Tab
     this.taskWriterFactories = Maps.newHashMap();
     this.writers = Maps.newHashMap();
     this.writerMetrics = Maps.newHashMap();
-    this.payloadSinkProvider = payloadSinkProvider;
+    this.payloadTableSinkProvider = payloadTableSinkProvider;
     this.catalogLoader = catalogLoader;
     this.conf = writeConf;
     this.equalityFieldColumns = equalityFieldColumns;
-    this.tableSupplierMap = Maps.newHashMap();
     setChainingStrategy(ChainingStrategy.ALWAYS);
   }
 
@@ -108,46 +94,23 @@ public class IcebergMultiTableStreamWriter<T> extends AbstractStreamOperator<Tab
   @Override
   public void processElement(StreamRecord<T> element) throws Exception {
 
-    String identifier = payloadSinkProvider.getIdentifierFromPayload(element);
-    String table = payloadSinkProvider.sinkTableName(fullTableName, identifier);
-    if (!writers.containsKey(table)) {
-      LOG.info("Writer not found for table: {}", table);
-      if (!taskWriterFactories.containsKey(table)) {
-        LOG.info("Task Writer Factory not found for table: {}", table);
-        TableIdentifier tableIdentifier =
-            TableIdentifier.of(payloadSinkProvider.sinkDatabaseName(), table);
-        TableLoader tableLoader = TableLoader.fromCatalog(catalogLoader, tableIdentifier);
-
-        Table sinkTable = tableLoader.loadTable();
-        tableSupplierMap.put(table, tableIdentifier);
-        TaskWriterFactory taskWriterFactory =
-            new RowDataTaskWriterFactory(
-                sinkTable,
-                FlinkSink.toFlinkRowType(sinkTable.schema(), null),
-                conf.targetDataFileSize(),
-                conf.dataFileFormat(),
-                writeProperties(sinkTable, conf.dataFileFormat(), conf),
-                checkAndGetEqualityFieldIds(sinkTable),
-                conf.upsertMode());
-        taskWriterFactory.initialize(subTaskId, attemptId);
-        taskWriterFactories.put(table, taskWriterFactory);
-      }
-      TaskWriter<T> taskWriter = taskWriterFactories.get(table).create();
-      writers.put(table, taskWriter);
-      IcebergStreamWriterMetrics tableWriteMetrics =
-          new IcebergStreamWriterMetrics(super.metrics, table);
-      writerMetrics.put(table, tableWriteMetrics);
-    }
-    writers.get(table).write(element.getValue());
+    TableIdentifier tableIdentifier = payloadTableSinkProvider.getOrCreateTable(element);
+    initializeTableIfRequired(tableIdentifier);
+    writers.get(tableIdentifier).write(element.getValue());
   }
 
   @Override
   public void close() throws Exception {
     super.close();
-    Iterator<Map.Entry<String, TaskWriter<T>>> writeIterator = writers.entrySet().iterator();
+    Iterator<Map.Entry<TableIdentifier, TaskWriter<T>>> writeIterator = writers.entrySet().iterator();
     while (writeIterator.hasNext()) {
-      Map.Entry<String, TaskWriter<T>> writer = writeIterator.next();
-      writer.getValue().close();
+      Map.Entry<TableIdentifier, TaskWriter<T>> writer = writeIterator.next();
+      try {
+        writer.getValue().close();
+      }
+      catch (Exception exception) {
+        LOG.error("Error occurred while closing the writer {}: ", writer.getValue(), exception);
+      }
     }
     writers.clear();
   }
@@ -173,21 +136,49 @@ public class IcebergMultiTableStreamWriter<T> extends AbstractStreamOperator<Tab
         .toString();
   }
 
+  private void initializeTableIfRequired(TableIdentifier tableIdentifier) {
+    if (!writers.containsKey(tableIdentifier)) {
+      String tableName = tableIdentifier.name();
+      LOG.info("Writer not found for table: {}", tableName);
+      if (!taskWriterFactories.containsKey(tableIdentifier)) {
+        LOG.info("Task Writer Factory not found for table: {}", tableName);
+        TableLoader tableLoader = TableLoader.fromCatalog(catalogLoader, tableIdentifier);
+        Table sinkTable = tableLoader.loadTable();
+        TaskWriterFactory taskWriterFactory =
+                new RowDataTaskWriterFactory(
+                        sinkTable,
+                        FlinkSink.toFlinkRowType(sinkTable.schema(), null),
+                        conf.targetDataFileSize(),
+                        conf.dataFileFormat(),
+                        TablePropertyUtil.writeProperties(sinkTable, conf.dataFileFormat(), conf),
+                        TablePropertyUtil.checkAndGetEqualityFieldIds(sinkTable, equalityFieldColumns),
+                        conf.upsertMode());
+        taskWriterFactory.initialize(subTaskId, attemptId);
+        taskWriterFactories.put(tableIdentifier, taskWriterFactory);
+      }
+      TaskWriter<T> taskWriter = taskWriterFactories.get(tableIdentifier).create();
+      writers.put(tableIdentifier, taskWriter);
+      IcebergStreamWriterMetrics tableWriteMetrics =
+              new IcebergStreamWriterMetrics(super.metrics, tableName);
+      writerMetrics.put(tableIdentifier, tableWriteMetrics);
+    }
+  }
+
   /** close all open files and emit files to downstream committer operator */
   private void flush() throws IOException {
     if (writers.isEmpty()) {
       return;
     }
-    Iterator<Map.Entry<String, TaskWriter<T>>> iterator = writers.entrySet().iterator();
+    Iterator<Map.Entry<TableIdentifier, TaskWriter<T>>> iterator = writers.entrySet().iterator();
     while (iterator.hasNext()) {
       long startNano = System.nanoTime();
-      Map.Entry<String, TaskWriter<T>> writerMap = iterator.next();
-      String table = writerMap.getKey();
+      Map.Entry<TableIdentifier, TaskWriter<T>> writerMap = iterator.next();
+      TableIdentifier tableIdentifier = writerMap.getKey();
       TaskWriter<T> writer = writerMap.getValue();
       WriteResult result = writer.complete();
       TableAwareWriteResult tableAwareWriteResult =
-          new TableAwareWriteResult(result, tableSupplierMap.get(table));
-      IcebergStreamWriterMetrics metrics = writerMetrics.get(table);
+          new TableAwareWriteResult(result, tableIdentifier);
+      IcebergStreamWriterMetrics metrics = writerMetrics.get(tableIdentifier);
       output.collect(new StreamRecord<>(tableAwareWriteResult));
       metrics.flushDuration(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano));
     }
@@ -196,64 +187,5 @@ public class IcebergMultiTableStreamWriter<T> extends AbstractStreamOperator<Tab
     // prepareSnapshotPreBarrier happening after endInput.
     writers.clear();
   }
-
-  //TODO: Move to a util
-  private static Map<String, String> writeProperties(
-      Table table, FileFormat format, FlinkWriteConf conf) {
-    Map<String, String> writeProperties = Maps.newHashMap(table.properties());
-
-    switch (format) {
-      case PARQUET:
-        writeProperties.put(PARQUET_COMPRESSION, conf.parquetCompressionCodec());
-        String parquetCompressionLevel = conf.parquetCompressionLevel();
-        if (parquetCompressionLevel != null) {
-          writeProperties.put(PARQUET_COMPRESSION_LEVEL, parquetCompressionLevel);
-        }
-
-        break;
-      case AVRO:
-        writeProperties.put(AVRO_COMPRESSION, conf.avroCompressionCodec());
-        String avroCompressionLevel = conf.avroCompressionLevel();
-        if (avroCompressionLevel != null) {
-          writeProperties.put(AVRO_COMPRESSION_LEVEL, conf.avroCompressionLevel());
-        }
-
-        break;
-      case ORC:
-        writeProperties.put(ORC_COMPRESSION, conf.orcCompressionCodec());
-        writeProperties.put(ORC_COMPRESSION_STRATEGY, conf.orcCompressionStrategy());
-        break;
-      default:
-        throw new IllegalArgumentException(String.format("Unknown file format %s", format));
-    }
-
-    return writeProperties;
-  }
-
-  //TODO: Move to a util
-  private List<Integer> checkAndGetEqualityFieldIds(Table table) {
-    List<Integer> equalityFieldIds = Lists.newArrayList(table.schema().identifierFieldIds());
-    if (equalityFieldColumns != null && !equalityFieldColumns.isEmpty()) {
-      Set<Integer> equalityFieldSet = Sets.newHashSetWithExpectedSize(equalityFieldColumns.size());
-      for (String column : equalityFieldColumns) {
-        org.apache.iceberg.types.Types.NestedField field = table.schema().findField(column);
-        Preconditions.checkNotNull(
-            field,
-            "Missing required equality field column '%s' in table schema %s",
-            column,
-            table.schema());
-        equalityFieldSet.add(field.fieldId());
-      }
-
-      if (!equalityFieldSet.equals(table.schema().identifierFieldIds())) {
-        LOG.warn(
-            "The configured equality field column IDs {} are not matched with the schema identifier field IDs"
-                + " {}, use job specified equality field columns as the equality fields by default.",
-            equalityFieldSet,
-            table.schema().identifierFieldIds());
-      }
-      equalityFieldIds = Lists.newArrayList(equalityFieldSet);
-    }
-    return equalityFieldIds;
-  }
+  
 }

@@ -19,15 +19,9 @@
 package org.apache.iceberg.flink.sink;
 
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.iceberg.catalog.TableIdentifier;
 
-public interface PayloadSinkProvider<T> {
-  String sinkTableName(String baseTable, String identifier);
+public interface PayloadTableSinkProvider<T> {
+  TableIdentifier getOrCreateTable(StreamRecord<T> record);
 
-  String sinkDatabaseName();
-
-  String getIdentifierFromPayload(StreamRecord<T> record);
-
-  default boolean tableExists(String table) {
-    return true;
-  };
 }

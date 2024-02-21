@@ -73,7 +73,7 @@ import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
-public class IcebergMultiTableFileCommitter extends AbstractStreamOperator<Void>
+class IcebergMultiTableFileCommitter extends AbstractStreamOperator<Void>
         implements OneInputStreamOperator<TableAwareWriteResult, Void>, BoundedOneInput {
 
 
@@ -106,7 +106,6 @@ public class IcebergMultiTableFileCommitter extends AbstractStreamOperator<Void>
     // interrupted because of network/disk failure etc, while we don't expect any data loss in iceberg
     // table. So we keep the finished files <1, <file0, file1>> in memory and retry to commit iceberg
     // table when the next checkpoint happen.
-    //TODO: Check if this needs to be a tree map. LinkedMap should suffice
     private final Map<TableIdentifier, NavigableMap<Long, byte[]>> dataFilesPerCheckpoint = Maps.newHashMap();
 
     // The completed files cache for current checkpoint. Once the snapshot barrier received, it will
@@ -198,17 +197,13 @@ public class IcebergMultiTableFileCommitter extends AbstractStreamOperator<Void>
             while (checkpointIterator.hasNext()) {
                 Map<TableIdentifier, SortedMap<Long, byte[]>> checkpoint = checkpointIterator.next();
                 for (TableIdentifier tableIdentifier: checkpoint.keySet()) {
-
                     initializeTable(tableIdentifier);
-
                     Table localTable = this.localTables.get(tableIdentifier);
-
                     SortedMap<Long, byte[]> tableCheckpoint = checkpoint.get(tableIdentifier);
 
                     // Identify max committer checkpoint id for table
                     long maxCommittedCheckpointIdForTable =
                             IcebergFilesCommitter.getMaxCommittedCheckpointId(localTable, restoredFlinkJobId, operatorUniqueId, branch);
-
                     maxCommittedCheckpointId.put(tableIdentifier, maxCommittedCheckpointIdForTable);
                     // Since flink's checkpoint id will start from the max-committed-checkpoint-id + 1 in the new
                     // flink job even if it's restored from a snapshot created by another different flink job, so
@@ -350,7 +345,8 @@ public class IcebergMultiTableFileCommitter extends AbstractStreamOperator<Void>
             String newFlinkJobId,
             String operatorId,
             long checkpointId,
-            Table localTable, TableIdentifier tableIdentifier)
+            Table localTable,
+            TableIdentifier tableIdentifier)
             throws IOException {
         NavigableMap<Long, byte[]> pendingMap = deltaManifestsMap.headMap(checkpointId, true);
         List<ManifestFile> manifests = Lists.newArrayList();
@@ -382,7 +378,9 @@ public class IcebergMultiTableFileCommitter extends AbstractStreamOperator<Void>
             CommitSummary summary,
             String newFlinkJobId,
             String operatorId,
-            long checkpointId, Table localTable, TableIdentifier tableIdentifier) {
+            long checkpointId,
+            Table localTable,
+            TableIdentifier tableIdentifier) {
         long totalFiles = summary.dataFilesCount() + summary.deleteFilesCount();
         int continuousEmptyCheckpointsForTable = continuousEmptyCheckpoints.get(tableIdentifier);
         continuousEmptyCheckpointsForTable = totalFiles == 0 ? continuousEmptyCheckpointsForTable + 1 : 0;
@@ -453,7 +451,8 @@ public class IcebergMultiTableFileCommitter extends AbstractStreamOperator<Void>
             String newFlinkJobId,
             String operatorId,
             long checkpointId,
-            Table localTable, TableIdentifier tableIdentifier) {
+            Table localTable,
+            TableIdentifier tableIdentifier) {
         if (summary.deleteFilesCount() == 0) {
             // To be compatible with iceberg format V1.
             AppendFiles appendFiles = localTable.newAppend().scanManifestsWith(workerPool);
@@ -496,7 +495,8 @@ public class IcebergMultiTableFileCommitter extends AbstractStreamOperator<Void>
             String newFlinkJobId,
             String operatorId,
             long checkpointId,
-            Table localTable, TableIdentifier tableIdentifier) {
+            Table localTable,
+            TableIdentifier tableIdentifier) {
         LOG.info(
                 "Committing {} for checkpoint {} to table {} branch {} with summary: {}",
                 description,
