@@ -140,6 +140,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
     properties.put(JdbcCatalog.PROPERTY_PREFIX + "username", "user");
     properties.put(JdbcCatalog.PROPERTY_PREFIX + "password", "password");
+    properties.put(JdbcUtil.SCHEMA_VERSION_PROPERTY, JdbcUtil.SchemaVersion.V1.name());
     warehouseLocation = this.tableDir.toAbsolutePath().toString();
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation);
     properties.put("type", "jdbc");
@@ -153,12 +154,48 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.toAbsolutePath().toString());
     properties.put(CatalogProperties.URI, "jdbc:sqlite:file::memory:?icebergDB");
+    properties.put(JdbcUtil.SCHEMA_VERSION_PROPERTY, JdbcUtil.SchemaVersion.V1.name());
     JdbcCatalog jdbcCatalog = new JdbcCatalog();
     jdbcCatalog.setConf(conf);
     jdbcCatalog.initialize("test_jdbc_catalog", properties);
     // second initialization should not fail even if tables are already created
     jdbcCatalog.initialize("test_jdbc_catalog", properties);
     jdbcCatalog.initialize("test_jdbc_catalog", properties);
+  }
+
+  @Test
+  public void testInitSchemaV0() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.toAbsolutePath().toString());
+    properties.put(CatalogProperties.URI, "jdbc:sqlite:file::memory:?icebergDBV0");
+    properties.put(JdbcUtil.SCHEMA_VERSION_PROPERTY, JdbcUtil.SchemaVersion.V0.name());
+    JdbcCatalog jdbcCatalog = new JdbcCatalog();
+    jdbcCatalog.setConf(conf);
+    jdbcCatalog.initialize("v0catalog", properties);
+
+    TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("ns1"), "tbl");
+    Table table =
+        jdbcCatalog
+            .buildTable(tableIdent, SCHEMA)
+            .withPartitionSpec(PARTITION_SPEC)
+            .withProperty("key1", "value1")
+            .withProperty("key2", "value2")
+            .create();
+
+    assertThat(table.schema().asStruct()).isEqualTo(SCHEMA.asStruct());
+    assertThat(table.spec().fields()).hasSize(1);
+    assertThat(table.properties()).containsEntry("key1", "value1").containsEntry("key2", "value2");
+
+    assertThat(jdbcCatalog.listTables(Namespace.of("ns1"))).hasSize(1).contains(tableIdent);
+
+    assertThatThrownBy(() -> jdbcCatalog.listViews(Namespace.of("namespace1")))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(JdbcCatalog.VIEW_WARNING_LOG_MESSAGE);
+
+    assertThatThrownBy(
+            () -> jdbcCatalog.buildView(TableIdentifier.of("namespace1", "view")).create())
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(JdbcCatalog.VIEW_WARNING_LOG_MESSAGE);
   }
 
   @Test
@@ -173,7 +210,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.toAbsolutePath().toString());
     properties.put(CatalogProperties.URI, jdbcUrl);
-    properties.put(JdbcUtil.ADD_VIEW_SUPPORT_PROPERTY, "true");
+    properties.put(JdbcUtil.SCHEMA_VERSION_PROPERTY, JdbcUtil.SchemaVersion.V1.name());
     JdbcCatalog jdbcCatalog = new JdbcCatalog();
     jdbcCatalog.setConf(conf);
     jdbcCatalog.initialize("TEST", properties);
@@ -201,8 +238,9 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     assertThat(jdbcCatalog.listViews(Namespace.of("namespace1"))).hasSize(1).containsExactly(view);
   }
 
-  @Test
-  public void testLegacySchemaSupport() throws Exception {
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testExistingV0SchemaSupport(boolean initializeCatalogTables) throws Exception {
     // as this test uses different connection, we can't use memory database (as it's per
     // connection), but a
     // file database instead
@@ -214,7 +252,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.toAbsolutePath().toString());
     properties.put(CatalogProperties.URI, jdbcUrl);
-    JdbcCatalog jdbcCatalog = new JdbcCatalog();
+    JdbcCatalog jdbcCatalog = new JdbcCatalog(null, null, initializeCatalogTables);
     jdbcCatalog.setConf(conf);
     jdbcCatalog.initialize("TEST", properties);
 
@@ -949,29 +987,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
     try (Connection connection = dataSource.getConnection()) {
       // create "old style" SQL schema
-      connection
-          .prepareStatement(
-              "CREATE TABLE "
-                  + JdbcUtil.CATALOG_TABLE_VIEW_NAME
-                  + "("
-                  + JdbcUtil.CATALOG_NAME
-                  + " VARCHAR(255) NOT NULL,"
-                  + JdbcUtil.TABLE_NAMESPACE
-                  + " VARCHAR(255) NOT NULL,"
-                  + JdbcUtil.TABLE_NAME
-                  + " VARCHAR(255) NOT NULL,"
-                  + JdbcTableOperations.METADATA_LOCATION_PROP
-                  + " VARCHAR(1000),"
-                  + JdbcTableOperations.PREVIOUS_METADATA_LOCATION_PROP
-                  + " VARCHAR(1000),"
-                  + "PRIMARY KEY("
-                  + JdbcUtil.CATALOG_NAME
-                  + ","
-                  + JdbcUtil.TABLE_NAMESPACE
-                  + ","
-                  + JdbcUtil.TABLE_NAME
-                  + "))")
-          .executeUpdate();
+      connection.prepareStatement(JdbcUtil.V0_CREATE_CATALOG_SQL).executeUpdate();
       connection
           .prepareStatement(
               "INSERT INTO "
