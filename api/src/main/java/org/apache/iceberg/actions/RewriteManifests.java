@@ -46,14 +46,18 @@ public interface RewriteManifests
   RewriteManifests rewriteIf(Predicate<ManifestFile> predicate);
 
   /**
-   * Rewrite manifests in a given order, based on partition columns
+   * Rewrite manifests in a given order, based on partition transforms
    *
-   * <p>If not set, manifests will be rewritten in the order of the table's spec.
+   * <p>If not set, manifests will be rewritten in the order of the transforms in the table's
+   * current partition spec.
    *
-   * @param partitionSortOrder a list of partition field names
+   * @param partitionSortOrder a list of partition field transform names
    * @return this for method chaining
    */
-  RewriteManifests sort(List<String> partitionSortOrder);
+  default RewriteManifests sort(List<String> partitionSortOrder) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement sort(List<String>)");
+  }
 
   /**
    * Passes a location where the staged manifests should be written.

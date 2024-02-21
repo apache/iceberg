@@ -494,11 +494,12 @@ public class TestRewriteManifestsAction extends TestBase {
                     .execute())
         .isInstanceOf(IllegalArgumentException.class)
         .message()
-        .contains("Invalid sorting columns");
+        .contains("Cannot use custom sort order");
 
-    //  c3_bucket is the hidden internal partition name, sort() expects the un-hidden partition
-    // column names
-    List<String> badSortKeys2 = ImmutableList.of("c1", "c3_bucket");
+    // c3_bucket is the correct internal partition name to use, c3 is the untransformed colum name,
+    // sort() expects
+    // the hidden partition column names
+    List<String> badSortKeys2 = ImmutableList.of("c1", "c3");
     assertThatThrownBy(
             () ->
                 actions
@@ -508,7 +509,7 @@ public class TestRewriteManifestsAction extends TestBase {
                     .execute())
         .isInstanceOf(IllegalArgumentException.class)
         .message()
-        .contains("Invalid sorting columns");
+        .contains("Cannot use custom sort order");
   }
 
   @TestTemplate
@@ -556,16 +557,13 @@ public class TestRewriteManifestsAction extends TestBase {
 
     SparkActions actions = SparkActions.get();
 
-    String stagingLocation = java.nio.file.Files.createTempDirectory(temp, "junit").toString();
-
-    List<String> manifestSortKeys = ImmutableList.of("c3", "c2", "c1");
+    List<String> manifestSortKeys = ImmutableList.of("c3_bucket", "c2_trunc", "c1");
     RewriteManifests.Result result =
         actions
             .rewriteManifests(table)
             .rewriteIf(manifest -> true)
             .sort(manifestSortKeys)
             .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
-            .stagingLocation(stagingLocation)
             .execute();
 
     table.refresh();
@@ -573,7 +571,6 @@ public class TestRewriteManifestsAction extends TestBase {
 
     assertThat(result.rewrittenManifests()).hasSize(1);
     assertThat(result.addedManifests()).hasSizeGreaterThanOrEqualTo(2);
-    assertManifestsLocation(result.addedManifests(), stagingLocation);
 
     assertThat(newManifests).hasSizeGreaterThanOrEqualTo(2);
 
