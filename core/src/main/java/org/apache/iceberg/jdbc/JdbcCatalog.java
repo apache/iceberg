@@ -39,8 +39,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -313,6 +315,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
         JdbcUtil.namespaceToString(namespace));
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   @Override
   public void renameTable(TableIdentifier from, TableIdentifier to) {
     if (from.equals(to)) {
@@ -327,7 +330,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
       throw new NoSuchNamespaceException("Namespace does not exist: %s", to.namespace());
     }
 
-    if (viewExists(to)) {
+    if (schemaVersion == JdbcUtil.SchemaVersion.V1 && viewExists(to)) {
       throw new AlreadyExistsException("Cannot rename %s to %s. View already exists", from, to);
     }
 
@@ -811,5 +814,33 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
   @Override
   protected Map<String, String> properties() {
     return catalogProperties == null ? ImmutableMap.of() : catalogProperties;
+  }
+
+  @Override
+  public TableBuilder buildTable(TableIdentifier identifier, Schema schema) {
+    return new ViewAwareTableBuilder(identifier, schema);
+  }
+
+  /**
+   * The purpose of this class is to add view detection only when SchemaVersion.V1 schema is used
+   * when replacing a table.
+   */
+  protected class ViewAwareTableBuilder extends BaseMetastoreCatalogTableBuilder {
+
+    private final TableIdentifier identifier;
+
+    public ViewAwareTableBuilder(TableIdentifier identifier, Schema schema) {
+      super(identifier, schema);
+      this.identifier = identifier;
+    }
+
+    @Override
+    public Transaction replaceTransaction() {
+      if (schemaVersion == JdbcUtil.SchemaVersion.V1 && viewExists(identifier)) {
+        throw new AlreadyExistsException("View with same name already exists: %s", identifier);
+      }
+
+      return super.replaceTransaction();
+    }
   }
 }
