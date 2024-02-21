@@ -89,7 +89,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
-import scala.Tuple2;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestRewriteManifestsAction extends TestBase {
@@ -577,7 +576,7 @@ public class TestRewriteManifestsAction extends TestBase {
     // Rewritten manifests are clustered by c3_bucket - each should contain only a subset of the
     // lower and upper bounds
     // of the partition 'c3'.
-    List<Tuple2<Integer, Integer>> c3Boundaries =
+    List<Pair<Integer, Integer>> c3Boundaries =
         newManifests.stream()
             .map(manifest -> manifest.partitions().get(2))
             .sorted(
@@ -585,13 +584,13 @@ public class TestRewriteManifestsAction extends TestBase {
                     ptn -> Conversions.fromByteBuffer(Types.IntegerType.get(), ptn.lowerBound())))
             .map(
                 p ->
-                    new Tuple2<Integer, Integer>(
-                        Conversions.fromByteBuffer(Types.IntegerType.get(), p.lowerBound()),
-                        Conversions.fromByteBuffer(Types.IntegerType.get(), p.upperBound())))
+                    Pair.of(
+                            (Integer) Conversions.fromByteBuffer(Types.IntegerType.get(), p.lowerBound()),
+                            (Integer) Conversions.fromByteBuffer(Types.IntegerType.get(), p.upperBound())))
             .collect(Collectors.toList());
 
-    List<Integer> lowers = c3Boundaries.stream().map(t -> t._1).collect(Collectors.toList());
-    List<Integer> uppers = c3Boundaries.stream().map(t -> t._2).collect(Collectors.toList());
+    List<Integer> lowers = c3Boundaries.stream().map(t -> t.first()).collect(Collectors.toList());
+    List<Integer> uppers = c3Boundaries.stream().map(t -> t.second()).collect(Collectors.toList());
 
     // With custom sorting, this looks like
     // - manifest 1 -> [lower bound = 0, upper bound = 4]
@@ -610,7 +609,7 @@ public class TestRewriteManifestsAction extends TestBase {
     // Each file should contain less than the full c3 partition span
     c3Boundaries.forEach(
         boundary -> {
-          assertThat(boundary._2 - boundary._1)
+          assertThat(boundary.second() - boundary.first())
               .withFailMessage(
                   "Manifest should contain less than the full range of c3 bucket partitions")
               .isLessThanOrEqualTo(c3PartitionMax - c3PartitionMin);
