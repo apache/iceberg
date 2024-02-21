@@ -78,7 +78,7 @@ class Namespace(BaseModel):
 class PageToken(BaseModel):
     __root__: str = Field(
         ...,
-        description='An opaque token which allows clients to make use of pagination for a list API (e.g. ListTables). Clients will initiate the first paginated request by sending an empty pageToken e.g. GET /tables?pageToken or GET /tables?pageToken= signaling to the service that the response should be paginated.\nFor servers that support pagination, they will recognize `pageToken` and return a next-page-token in response if there are more results available. After the initial request, it is expected that the next-page-token from the last response, is used in the subsequent request. For servers that do not support pagination, they will ignore the `pageToken` and return all results.',
+        description='An opaque token which allows clients to make use of pagination for a list API (e.g. ListTables). Clients will initiate the first paginated request by sending an empty `pageToken` e.g. `GET /tables?pageToken` or `GET /tables?pageToken=` signaling to the service that the response should be paginated.\nFor servers that support pagination, they will recognize `pageToken` and return a `next-page-token` in response if there are more results available. After the initial request, it is expected that the `next-page-token` from the last response is used in the subsequent request. For servers that do not support pagination, they will ignore the `pageToken` and return all results.',
     )
 
 
