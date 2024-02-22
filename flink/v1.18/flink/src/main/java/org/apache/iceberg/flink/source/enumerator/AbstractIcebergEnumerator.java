@@ -36,10 +36,6 @@ import org.apache.iceberg.flink.source.split.SplitRequestEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * TODO: publish enumerator monitor metrics like number of pending metrics after FLINK-21000 is
- * resolved
- */
 abstract class AbstractIcebergEnumerator
     implements SplitEnumerator<IcebergSourceSplit, IcebergEnumeratorState> {
   private static final Logger LOG = LoggerFactory.getLogger(AbstractIcebergEnumerator.class);
@@ -55,6 +51,12 @@ abstract class AbstractIcebergEnumerator
     this.assigner = assigner;
     this.readersAwaitingSplit = new LinkedHashMap<>();
     this.availableFuture = new AtomicReference<>();
+    this.enumeratorContext
+        .metricGroup()
+        // This number may not capture the entire backlog due to split discovery throttling to avoid
+        // excessive memory footprint. Some pending splits may not have been discovered yet.
+        .setUnassignedSplitsGauge(() -> Long.valueOf(assigner.pendingSplitCount()));
+    this.enumeratorContext.metricGroup().gauge("pendingRecords", assigner::pendingRecords);
   }
 
   @Override

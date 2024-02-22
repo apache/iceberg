@@ -20,6 +20,7 @@ package org.apache.iceberg.flink;
 
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.CoreOptions;
+import org.apache.flink.runtime.testutils.InMemoryReporter;
 import org.apache.flink.runtime.testutils.MiniClusterResourceConfiguration;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
 
@@ -48,6 +49,20 @@ public class MiniClusterResource {
             .setNumberTaskManagers(DEFAULT_TM_NUM)
             .setNumberSlotsPerTaskManager(DEFAULT_PARALLELISM)
             .setConfiguration(DISABLE_CLASSLOADER_CHECK_CONFIG)
+            .build());
+  }
+
+  public static MiniClusterWithClientResource createWithClassloaderCheckDisabled(
+      InMemoryReporter inMemoryReporter) {
+    Configuration configuration =
+        new Configuration(MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG);
+    inMemoryReporter.addToConfiguration(configuration);
+
+    return new MiniClusterWithClientResource(
+        new MiniClusterResourceConfiguration.Builder()
+            .setNumberTaskManagers(MiniClusterResource.DEFAULT_TM_NUM)
+            .setNumberSlotsPerTaskManager(MiniClusterResource.DEFAULT_PARALLELISM)
+            .setConfiguration(configuration)
             .build());
   }
 }

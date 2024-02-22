@@ -44,4 +44,14 @@ public interface PositionDeleteIndex {
 
   /** Returns true if this collection contains no element. */
   boolean isEmpty();
+
+  /** Returns true if this collection contains elements. */
+  default boolean isNotEmpty() {
+    return !isEmpty();
+  }
+
+  /** Returns an empty immutable position delete index. */
+  static PositionDeleteIndex empty() {
+    return EmptyPositionDeleteIndex.get();
+  }
 }

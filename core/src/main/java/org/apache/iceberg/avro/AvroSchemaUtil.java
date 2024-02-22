@@ -21,6 +21,7 @@ package org.apache.iceberg.avro;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
 import org.apache.avro.JsonProperties;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
@@ -59,7 +60,7 @@ public class AvroSchemaUtil {
 
   public static Schema convert(
       org.apache.iceberg.Schema schema, Map<Types.StructType, String> names) {
-    return TypeUtil.visit(schema, new TypeToSchema(names));
+    return TypeUtil.visit(schema, new TypeToSchema.WithTypeToName(names));
   }
 
   public static Schema convert(Type type) {
@@ -71,7 +72,12 @@ public class AvroSchemaUtil {
   }
 
   public static Schema convert(Type type, Map<Types.StructType, String> names) {
-    return TypeUtil.visit(type, new TypeToSchema(names));
+    return TypeUtil.visit(type, new TypeToSchema.WithTypeToName(names));
+  }
+
+  public static Schema convert(
+      Type type, BiFunction<Integer, Types.StructType, String> namesFunction) {
+    return TypeUtil.visit(type, new TypeToSchema.WithNamesFunction(namesFunction));
   }
 
   public static Type convert(Schema schema) {
@@ -111,7 +117,8 @@ public class AvroSchemaUtil {
   }
 
   public static Map<Type, Schema> convertTypes(Types.StructType type, String name) {
-    TypeToSchema converter = new TypeToSchema(ImmutableMap.of(type, name));
+    TypeToSchema.WithTypeToName converter =
+        new TypeToSchema.WithTypeToName(ImmutableMap.of(type, name));
     TypeUtil.visit(type, converter);
     return ImmutableMap.copyOf(converter.getConversionMap());
   }

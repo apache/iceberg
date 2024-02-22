@@ -49,7 +49,7 @@ import org.apache.iceberg.util.SerializableSupplier;
  * <p><em>Note:</em> loading the complete metadata from a large number of nodes can overwhelm the
  * storage.
  */
-public class SerializableTable implements Table, Serializable {
+public class SerializableTable implements Table, HasTableOperations, Serializable {
 
   private final String name;
   private final String location;
@@ -105,6 +105,8 @@ public class SerializableTable implements Table, Serializable {
     if (table instanceof HasTableOperations) {
       TableOperations ops = ((HasTableOperations) table).operations();
       return ops.current().metadataFileLocation();
+    } else if (table instanceof BaseMetadataTable) {
+      return ((BaseMetadataTable) table).table().operations().current().metadataFileLocation();
     } else {
       return null;
     }
@@ -384,6 +386,11 @@ public class SerializableTable implements Table, Serializable {
   @Override
   public Transaction newTransaction() {
     throw new UnsupportedOperationException(errorMsg("newTransaction"));
+  }
+
+  @Override
+  public StaticTableOperations operations() {
+    return (StaticTableOperations) ((BaseTable) lazyTable()).operations();
   }
 
   private String errorMsg(String operation) {

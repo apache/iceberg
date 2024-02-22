@@ -19,12 +19,17 @@
 package org.apache.iceberg.deletes;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
+import java.util.function.Supplier;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.io.DeleteWriteResult;
 import org.apache.iceberg.io.FileWriter;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.util.CharSequenceMap;
+import org.apache.iceberg.util.CharSequenceSet;
 import org.roaringbitmap.longlong.PeekableLongIterator;
 import org.roaringbitmap.longlong.Roaring64Bitmap;
 
@@ -41,12 +46,20 @@ import org.roaringbitmap.longlong.Roaring64Bitmap;
 public class SortingPositionOnlyDeleteWriter<T>
     implements FileWriter<PositionDelete<T>, DeleteWriteResult> {
 
-  private final FileWriter<PositionDelete<T>, DeleteWriteResult> writer;
+  private final Supplier<FileWriter<PositionDelete<T>, DeleteWriteResult>> writers;
+  private final DeleteGranularity granularity;
   private final CharSequenceMap<Roaring64Bitmap> positionsByPath;
   private DeleteWriteResult result = null;
 
   public SortingPositionOnlyDeleteWriter(FileWriter<PositionDelete<T>, DeleteWriteResult> writer) {
-    this.writer = writer;
+    this(() -> writer, DeleteGranularity.PARTITION);
+  }
+
+  public SortingPositionOnlyDeleteWriter(
+      Supplier<FileWriter<PositionDelete<T>, DeleteWriteResult>> writers,
+      DeleteGranularity granularity) {
+    this.writers = writers;
+    this.granularity = granularity;
     this.positionsByPath = CharSequenceMap.create();
   }
 
@@ -60,7 +73,7 @@ public class SortingPositionOnlyDeleteWriter<T>
 
   @Override
   public long length() {
-    return writer.length();
+    throw new UnsupportedOperationException(getClass().getName() + " does not implement length");
   }
 
   @Override
@@ -71,14 +84,45 @@ public class SortingPositionOnlyDeleteWriter<T>
   @Override
   public void close() throws IOException {
     if (result == null) {
-      this.result = writeDeletes();
+      switch (granularity) {
+        case FILE:
+          this.result = writeFileDeletes();
+          return;
+        case PARTITION:
+          this.result = writePartitionDeletes();
+          return;
+        default:
+          throw new UnsupportedOperationException("Unsupported delete granularity: " + granularity);
+      }
     }
   }
 
-  private DeleteWriteResult writeDeletes() throws IOException {
+  // write deletes for all data files together
+  private DeleteWriteResult writePartitionDeletes() throws IOException {
+    return writeDeletes(positionsByPath.keySet());
+  }
+
+  // write deletes for different data files into distinct delete files
+  private DeleteWriteResult writeFileDeletes() throws IOException {
+    List<DeleteFile> deleteFiles = Lists.newArrayList();
+    CharSequenceSet referencedDataFiles = CharSequenceSet.empty();
+
+    for (CharSequence path : positionsByPath.keySet()) {
+      DeleteWriteResult writeResult = writeDeletes(ImmutableList.of(path));
+      deleteFiles.addAll(writeResult.deleteFiles());
+      referencedDataFiles.addAll(writeResult.referencedDataFiles());
+    }
+
+    return new DeleteWriteResult(deleteFiles, referencedDataFiles);
+  }
+
+  @SuppressWarnings("CollectionUndefinedEquality")
+  private DeleteWriteResult writeDeletes(Collection<CharSequence> paths) throws IOException {
+    FileWriter<PositionDelete<T>, DeleteWriteResult> writer = writers.get();
+
     try {
       PositionDelete<T> positionDelete = PositionDelete.create();
-      for (CharSequence path : sortedPaths()) {
+      for (CharSequence path : sort(paths)) {
         // the iterator provides values in ascending sorted order
         PeekableLongIterator positions = positionsByPath.get(path).getLongIterator();
         while (positions.hasNext()) {
@@ -93,9 +137,13 @@ public class SortingPositionOnlyDeleteWriter<T>
     return writer.result();
   }
 
-  private List<CharSequence> sortedPaths() {
-    List<CharSequence> paths = Lists.newArrayList(positionsByPath.keySet());
-    paths.sort(Comparators.charSequences());
-    return paths;
+  private Collection<CharSequence> sort(Collection<CharSequence> paths) {
+    if (paths.size() <= 1) {
+      return paths;
+    } else {
+      List<CharSequence> sortedPaths = Lists.newArrayList(paths);
+      sortedPaths.sort(Comparators.charSequences());
+      return sortedPaths;
+    }
   }
 }

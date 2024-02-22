@@ -18,25 +18,25 @@
  */
 package org.apache.iceberg.spark.source;
 
-import java.util.Map;
+import static org.assertj.core.api.Assertions.assertThat;
+
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.KryoHelpers;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkCatalog;
-import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
 
-public class TestSparkCatalogHadoopOverrides extends SparkCatalogTestBase {
+public class TestSparkCatalogHadoopOverrides extends CatalogTestBase {
 
   private static final String configToOverride = "fs.s3a.buffer.dir";
   // prepend "hadoop." so that the test base formats SQLConf correctly
@@ -44,7 +44,7 @@ public class TestSparkCatalogHadoopOverrides extends SparkCatalogTestBase {
   private static final String hadoopPrefixedConfigToOverride = "hadoop." + configToOverride;
   private static final String configOverrideValue = "/tmp-overridden";
 
-  @Parameterized.Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
       {
@@ -77,41 +77,36 @@ public class TestSparkCatalogHadoopOverrides extends SparkCatalogTestBase {
     };
   }
 
-  public TestSparkCatalogHadoopOverrides(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @Before
+  @BeforeEach
   public void createTable() {
     sql("CREATE TABLE IF NOT EXISTS %s (id bigint) USING iceberg", tableName(tableIdent.name()));
   }
 
-  @After
+  @AfterEach
   public void dropTable() {
     sql("DROP TABLE IF EXISTS %s", tableName(tableIdent.name()));
   }
 
-  @Test
+  @TestTemplate
   public void testTableFromCatalogHasOverrides() throws Exception {
     Table table = getIcebergTableFromSparkCatalog();
     Configuration conf = ((Configurable) table.io()).getConf();
     String actualCatalogOverride = conf.get(configToOverride, "/whammies");
-    Assert.assertEquals(
-        "Iceberg tables from spark should have the overridden hadoop configurations from the spark config",
-        configOverrideValue,
-        actualCatalogOverride);
+    assertThat(actualCatalogOverride)
+        .as(
+            "Iceberg tables from spark should have the overridden hadoop configurations from the spark config")
+        .isEqualTo(configOverrideValue);
   }
 
-  @Test
+  @TestTemplate
   public void ensureRoundTripSerializedTableRetainsHadoopConfig() throws Exception {
     Table table = getIcebergTableFromSparkCatalog();
     Configuration originalConf = ((Configurable) table.io()).getConf();
     String actualCatalogOverride = originalConf.get(configToOverride, "/whammies");
-    Assert.assertEquals(
-        "Iceberg tables from spark should have the overridden hadoop configurations from the spark config",
-        configOverrideValue,
-        actualCatalogOverride);
+    assertThat(actualCatalogOverride)
+        .as(
+            "Iceberg tables from spark should have the overridden hadoop configurations from the spark config")
+        .isEqualTo(configOverrideValue);
 
     // Now convert to SerializableTable and ensure overridden property is still present.
     Table serializableTable = SerializableTableWithSize.copyOf(table);
@@ -119,19 +114,19 @@ public class TestSparkCatalogHadoopOverrides extends SparkCatalogTestBase {
         KryoHelpers.roundTripSerialize(SerializableTableWithSize.copyOf(table));
     Configuration configFromKryoSerde = ((Configurable) kryoSerializedTable.io()).getConf();
     String kryoSerializedCatalogOverride = configFromKryoSerde.get(configToOverride, "/whammies");
-    Assert.assertEquals(
-        "Tables serialized with Kryo serialization should retain overridden hadoop configuration properties",
-        configOverrideValue,
-        kryoSerializedCatalogOverride);
+    assertThat(kryoSerializedCatalogOverride)
+        .as(
+            "Tables serialized with Kryo serialization should retain overridden hadoop configuration properties")
+        .isEqualTo(configOverrideValue);
 
     // Do the same for Java based serde
     Table javaSerializedTable = TestHelpers.roundTripSerialize(serializableTable);
     Configuration configFromJavaSerde = ((Configurable) javaSerializedTable.io()).getConf();
     String javaSerializedCatalogOverride = configFromJavaSerde.get(configToOverride, "/whammies");
-    Assert.assertEquals(
-        "Tables serialized with Java serialization should retain overridden hadoop configuration properties",
-        configOverrideValue,
-        javaSerializedCatalogOverride);
+    assertThat(javaSerializedCatalogOverride)
+        .as(
+            "Tables serialized with Java serialization should retain overridden hadoop configuration properties")
+        .isEqualTo(configOverrideValue);
   }
 
   @SuppressWarnings("ThrowSpecificity")

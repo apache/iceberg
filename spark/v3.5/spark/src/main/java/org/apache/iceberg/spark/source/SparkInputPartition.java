@@ -24,8 +24,6 @@ import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.hadoop.HadoopInputFile;
-import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -39,9 +37,9 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
   private final String branch;
   private final String expectedSchemaString;
   private final boolean caseSensitive;
+  private final transient String[] preferredLocations;
 
   private transient Schema expectedSchema = null;
-  private transient String[] preferredLocations = null;
 
   SparkInputPartition(
       Types.StructType groupingKeyType,
@@ -50,19 +48,14 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
       String branch,
       String expectedSchemaString,
       boolean caseSensitive,
-      boolean localityPreferred) {
+      String[] preferredLocations) {
     this.groupingKeyType = groupingKeyType;
     this.taskGroup = taskGroup;
     this.tableBroadcast = tableBroadcast;
     this.branch = branch;
     this.expectedSchemaString = expectedSchemaString;
     this.caseSensitive = caseSensitive;
-    if (localityPreferred) {
-      Table table = tableBroadcast.value();
-      this.preferredLocations = Util.blockLocations(table.io(), taskGroup);
-    } else {
-      this.preferredLocations = HadoopInputFile.NO_LOCATION_PREFERENCE;
-    }
+    this.preferredLocations = preferredLocations;
   }
 
   @Override

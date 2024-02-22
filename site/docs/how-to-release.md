@@ -267,7 +267,7 @@ svn ci -m 'Iceberg: Add release <VERSION>'
 ```
 
 !!! Note
-The above step requires PMC privileges to execute.
+    The above step requires PMC privileges to execute.
 
 Next, add a release tag to the git repository based on the passing candidate tag:
 
@@ -303,9 +303,10 @@ Thanks to everyone for contributing!
 
 Create a PR in the `iceberg` repo to make revapi run on the new release. For an example see [this PR](https://github.com/apache/iceberg/pull/6275).
 
-#### Update github issue template
+#### Update GitHub
 
-Create a PR in the `iceberg` repo to add the new version to the github issue template. For an example see [this PR](https://github.com/apache/iceberg/pull/6287).
+- Create a PR in the `iceberg` repo to add the new version to the github issue template. For an example see [this PR](https://github.com/apache/iceberg/pull/6287).
+- Draft [a new release to update Github](https://github.com/apache/iceberg/releases/new) to show the latest release. A changelog can be generated automatically using Github.
 
 ### Documentation Release
 
@@ -471,7 +472,7 @@ repositories {
 ```
 
 !!! Note
-Replace `${MAVEN_URL}` with the URL provided in the release announcement
+    Replace `${MAVEN_URL}` with the URL provided in the release announcement
 
 ### Verifying with Spark
 

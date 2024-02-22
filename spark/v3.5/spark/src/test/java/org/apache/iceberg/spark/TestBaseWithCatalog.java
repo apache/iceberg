@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.Map;
@@ -35,7 +37,6 @@ import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.util.PropertyUtil;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -60,7 +61,7 @@ public abstract class TestBaseWithCatalog extends TestBase {
   @BeforeAll
   public static void createWarehouse() throws IOException {
     TestBaseWithCatalog.warehouse = File.createTempFile("warehouse", null);
-    Assertions.assertThat(warehouse.delete()).isTrue();
+    assertThat(warehouse.delete()).isTrue();
   }
 
   @AfterAll
@@ -68,9 +69,7 @@ public abstract class TestBaseWithCatalog extends TestBase {
     if (warehouse != null && warehouse.exists()) {
       Path warehousePath = new Path(warehouse.getAbsolutePath());
       FileSystem fs = warehousePath.getFileSystem(hiveConf);
-      Assertions.assertThat(fs.delete(warehousePath, true))
-          .as("Failed to delete " + warehousePath)
-          .isTrue();
+      assertThat(fs.delete(warehousePath, true)).as("Failed to delete " + warehousePath).isTrue();
     }
   }
 
@@ -102,7 +101,7 @@ public abstract class TestBaseWithCatalog extends TestBase {
     catalogConfig.forEach(
         (key, value) -> spark.conf().set("spark.sql.catalog." + catalogName + "." + key, value));
 
-    if (catalogConfig.get("type").equalsIgnoreCase("hadoop")) {
+    if ("hadoop".equalsIgnoreCase(catalogConfig.get("type"))) {
       spark.conf().set("spark.sql.catalog." + catalogName + ".warehouse", "file:" + warehouse);
     }
 

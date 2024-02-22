@@ -23,6 +23,7 @@ import com.aliyun.oss.OSSClientBuilder;
 import java.util.Map;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.util.PropertyUtil;
 
 public class AliyunClientFactories {
@@ -90,11 +91,20 @@ public class AliyunClientFactories {
           aliyunProperties,
           "Cannot create aliyun oss client before initializing the AliyunClientFactory.");
 
-      return new OSSClientBuilder()
-          .build(
-              aliyunProperties.ossEndpoint(),
-              aliyunProperties.accessKeyId(),
-              aliyunProperties.accessKeySecret());
+      if (Strings.isNullOrEmpty(aliyunProperties.securityToken())) {
+        return new OSSClientBuilder()
+            .build(
+                aliyunProperties.ossEndpoint(),
+                aliyunProperties.accessKeyId(),
+                aliyunProperties.accessKeySecret());
+      } else {
+        return new OSSClientBuilder()
+            .build(
+                aliyunProperties.ossEndpoint(),
+                aliyunProperties.accessKeyId(),
+                aliyunProperties.accessKeySecret(),
+                aliyunProperties.securityToken());
+      }
     }
 
     @Override

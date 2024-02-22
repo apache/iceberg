@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.util.Set;
+import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 
 public class TableProperties {
@@ -333,6 +334,9 @@ public class TableProperties {
 
   public static final String MAX_REF_AGE_MS = "history.expire.max-ref-age-ms";
   public static final long MAX_REF_AGE_MS_DEFAULT = Long.MAX_VALUE;
+
+  public static final String DELETE_GRANULARITY = "write.delete.granularity";
+  public static final String DELETE_GRANULARITY_DEFAULT = DeleteGranularity.PARTITION.toString();
 
   public static final String DELETE_ISOLATION_LEVEL = "write.delete.isolation-level";
   public static final String DELETE_ISOLATION_LEVEL_DEFAULT = "serializable";

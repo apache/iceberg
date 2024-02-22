@@ -42,6 +42,7 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
+import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
@@ -68,6 +69,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
   private FileIO io;
   private String catalogName;
   private String warehouseLocation;
+  private CloseableGroup closeableGroup;
 
   public InMemoryCatalog() {
     this.namespaces = Maps.newConcurrentMap();
@@ -87,6 +89,9 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
     String warehouse = properties.getOrDefault(CatalogProperties.WAREHOUSE_LOCATION, "");
     this.warehouseLocation = warehouse.replaceAll("/*$", "");
     this.io = new InMemoryFileIO();
+    this.closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(metricsReporter());
+    closeableGroup.setSuppressCloseFailure(true);
   }
 
   @Override
@@ -302,6 +307,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
 
   @Override
   public void close() throws IOException {
+    closeableGroup.close();
     namespaces.clear();
     tables.clear();
     views.clear();

@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -40,8 +42,7 @@ import org.apache.spark.sql.sources.IsNull;
 import org.apache.spark.sql.sources.LessThan;
 import org.apache.spark.sql.sources.LessThanOrEqual;
 import org.apache.spark.sql.sources.Not;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestSparkFilters {
 
@@ -59,54 +60,61 @@ public class TestSparkFilters {
           IsNull isNull = IsNull.apply(quoted);
           Expression expectedIsNull = Expressions.isNull(unquoted);
           Expression actualIsNull = SparkFilters.convert(isNull);
-          Assert.assertEquals(
-              "IsNull must match", expectedIsNull.toString(), actualIsNull.toString());
+          assertThat(actualIsNull.toString())
+              .as("IsNull must match")
+              .isEqualTo(expectedIsNull.toString());
 
           IsNotNull isNotNull = IsNotNull.apply(quoted);
           Expression expectedIsNotNull = Expressions.notNull(unquoted);
           Expression actualIsNotNull = SparkFilters.convert(isNotNull);
-          Assert.assertEquals(
-              "IsNotNull must match", expectedIsNotNull.toString(), actualIsNotNull.toString());
+          assertThat(actualIsNotNull.toString())
+              .as("IsNotNull must match")
+              .isEqualTo(expectedIsNotNull.toString());
 
           LessThan lt = LessThan.apply(quoted, 1);
           Expression expectedLt = Expressions.lessThan(unquoted, 1);
           Expression actualLt = SparkFilters.convert(lt);
-          Assert.assertEquals("LessThan must match", expectedLt.toString(), actualLt.toString());
+          assertThat(actualLt.toString())
+              .as("LessThan must match")
+              .isEqualTo(expectedLt.toString());
 
           LessThanOrEqual ltEq = LessThanOrEqual.apply(quoted, 1);
           Expression expectedLtEq = Expressions.lessThanOrEqual(unquoted, 1);
           Expression actualLtEq = SparkFilters.convert(ltEq);
-          Assert.assertEquals(
-              "LessThanOrEqual must match", expectedLtEq.toString(), actualLtEq.toString());
+          assertThat(actualLtEq.toString())
+              .as("LessThanOrEqual must match")
+              .isEqualTo(expectedLtEq.toString());
 
           GreaterThan gt = GreaterThan.apply(quoted, 1);
           Expression expectedGt = Expressions.greaterThan(unquoted, 1);
           Expression actualGt = SparkFilters.convert(gt);
-          Assert.assertEquals("GreaterThan must match", expectedGt.toString(), actualGt.toString());
+          assertThat(actualGt.toString())
+              .as("GreaterThan must match")
+              .isEqualTo(expectedGt.toString());
 
           GreaterThanOrEqual gtEq = GreaterThanOrEqual.apply(quoted, 1);
           Expression expectedGtEq = Expressions.greaterThanOrEqual(unquoted, 1);
           Expression actualGtEq = SparkFilters.convert(gtEq);
-          Assert.assertEquals(
-              "GreaterThanOrEqual must match", expectedGtEq.toString(), actualGtEq.toString());
+          assertThat(actualGtEq.toString())
+              .as("GreaterThanOrEqual must match")
+              .isEqualTo(expectedGtEq.toString());
 
           EqualTo eq = EqualTo.apply(quoted, 1);
           Expression expectedEq = Expressions.equal(unquoted, 1);
           Expression actualEq = SparkFilters.convert(eq);
-          Assert.assertEquals("EqualTo must match", expectedEq.toString(), actualEq.toString());
+          assertThat(actualEq.toString()).as("EqualTo must match").isEqualTo(expectedEq.toString());
 
           EqualNullSafe eqNullSafe = EqualNullSafe.apply(quoted, 1);
           Expression expectedEqNullSafe = Expressions.equal(unquoted, 1);
           Expression actualEqNullSafe = SparkFilters.convert(eqNullSafe);
-          Assert.assertEquals(
-              "EqualNullSafe must match",
-              expectedEqNullSafe.toString(),
-              actualEqNullSafe.toString());
+          assertThat(actualEqNullSafe.toString())
+              .as("EqualNullSafe must match")
+              .isEqualTo(expectedEqNullSafe.toString());
 
           In in = In.apply(quoted, new Integer[] {1});
           Expression expectedIn = Expressions.in(unquoted, 1);
           Expression actualIn = SparkFilters.convert(in);
-          Assert.assertEquals("In must match", expectedIn.toString(), actualIn.toString());
+          assertThat(actualIn.toString()).as("In must match").isEqualTo(expectedIn.toString());
         });
   }
 
@@ -120,14 +128,13 @@ public class TestSparkFilters {
     Expression timestampExpression = SparkFilters.convert(GreaterThan.apply("x", timestamp));
     Expression rawExpression = Expressions.greaterThan("x", epochMicros);
 
-    Assert.assertEquals(
-        "Generated Timestamp expression should be correct",
-        rawExpression.toString(),
-        timestampExpression.toString());
-    Assert.assertEquals(
-        "Generated Instant expression should be correct",
-        rawExpression.toString(),
-        instantExpression.toString());
+    assertThat(timestampExpression.toString())
+        .as("Generated Timestamp expression should be correct")
+        .isEqualTo(rawExpression.toString());
+
+    assertThat(instantExpression.toString())
+        .as("Generated Instant expression should be correct")
+        .isEqualTo(rawExpression.toString());
   }
 
   @Test
@@ -139,10 +146,9 @@ public class TestSparkFilters {
     Expression instantExpression = SparkFilters.convert(GreaterThan.apply("x", ldt));
     Expression rawExpression = Expressions.greaterThan("x", epochMicros);
 
-    Assert.assertEquals(
-        "Generated Instant expression should be correct",
-        rawExpression.toString(),
-        instantExpression.toString());
+    assertThat(instantExpression.toString())
+        .as("Generated Instant expression should be correct")
+        .isEqualTo(rawExpression.toString());
   }
 
   @Test
@@ -155,15 +161,13 @@ public class TestSparkFilters {
     Expression dateExpression = SparkFilters.convert(GreaterThan.apply("x", date));
     Expression rawExpression = Expressions.greaterThan("x", epochDay);
 
-    Assert.assertEquals(
-        "Generated localdate expression should be correct",
-        rawExpression.toString(),
-        localDateExpression.toString());
+    assertThat(localDateExpression.toString())
+        .as("Generated localdate expression should be correct")
+        .isEqualTo(rawExpression.toString());
 
-    Assert.assertEquals(
-        "Generated date expression should be correct",
-        rawExpression.toString(),
-        dateExpression.toString());
+    assertThat(dateExpression.toString())
+        .as("Generated date expression should be correct")
+        .isEqualTo(rawExpression.toString());
   }
 
   @Test
@@ -171,7 +175,7 @@ public class TestSparkFilters {
     Not filter =
         Not.apply(And.apply(EqualTo.apply("col1", 1), In.apply("col2", new Integer[] {1, 2})));
     Expression converted = SparkFilters.convert(filter);
-    Assert.assertNull("Expression should not be converted", converted);
+    assertThat(converted).as("Expression should not be converted").isNull();
   }
 
   @Test
@@ -180,6 +184,6 @@ public class TestSparkFilters {
     Expression actual = SparkFilters.convert(filter);
     Expression expected =
         Expressions.and(Expressions.notNull("col"), Expressions.notIn("col", 1, 2));
-    Assert.assertEquals("Expressions should match", expected.toString(), actual.toString());
+    assertThat(actual.toString()).as("Expressions should match").isEqualTo(expected.toString());
   }
 }

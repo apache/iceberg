@@ -1,8 +1,5 @@
 ---
 title: "Spec"
-url: spec
-toc: true
-disableSidebar: true
 ---
 <!--
  - Licensed to the Apache Software Foundation (ASF) under one or more
@@ -225,6 +222,7 @@ Any struct, including a top-level schema, can evolve through deleting fields, ad
 Grouping a subset of a struct’s fields into a nested struct is **not** allowed, nor is moving fields from a nested struct into its immediate parent struct (`struct<a, b, c> ↔ struct<a, struct<b, c>>`). Evolving primitive types to structs is **not** allowed, nor is evolving a single-field struct to a primitive (`map<string, int> ↔ map<string, struct<int>>`).
 
 Struct evolution requires the following rules for default values:
+
 * The `initial-default` must be set when a field is added and cannot change
 * The `write-default` must be set when a field is added and may change
 * When a required field is added, both defaults must be set to a non-null value
@@ -1128,6 +1126,41 @@ Example
      ] } ]
 ```
 
+### Content File (Data and Delete) Serialization
+
+Content file (data or delete) is serialized as a JSON object according to the following table.
+
+| Metadata field           |JSON representation|Example|
+|--------------------------|--- |--- |
+| **`spec-id`**            |`JSON int`|`1`|
+| **`content`**            |`JSON string`|`DATA`, `POSITION_DELETES`, `EQUALITY_DELETES`|
+| **`file-path`**          |`JSON string`|`"s3://b/wh/data.db/table"`|
+| **`file-format`**        |`JSON string`|`AVRO`, `ORC`, `PARQUET`|
+| **`partition`**          |`JSON object: Partition data tuple using partition field ids for the struct field ids`|`{"1000":1}`|
+| **`record-count`**       |`JSON long`|`1`|
+| **`file-size-in-bytes`** |`JSON long`|`1024`|
+| **`column-sizes`**       |`JSON object: Map from column id to the total size on disk of all regions that store the column.`|`{"keys":[3,4],"values":[100,200]}`|
+| **`value-counts`**       |`JSON object: Map from column id to number of values in the column (including null and NaN values)`|`{"keys":[3,4],"values":[90,180]}`|
+| **`null-value-counts`**  |`JSON object: Map from column id to number of null values in the column`|`{"keys":[3,4],"values":[10,20]}`|
+| **`nan-value-counts`**   |`JSON object: Map from column id to number of NaN values in the column`|`{"keys":[3,4],"values":[0,0]}`|
+| **`lower-bounds`**       |`JSON object: Map from column id to lower bound binary in the column serialized as hexadecimal string`|`{"keys":[3,4],"values":["01000000","02000000"]}`|
+| **`upper-bounds`**       |`JSON object: Map from column id to upper bound binary in the column serialized as hexadecimal string`|`{"keys":[3,4],"values":["05000000","0A000000"]}`|
+| **`key-metadata`**       |`JSON string: Encryption key metadata binary serialized as hexadecimal string`|`00000000000000000000000000000000`|
+| **`split-offsets`**      |`JSON list of long: Split offsets for the data file`|`[128,256]`|
+| **`equality-ids`**       |`JSON list of int: Field ids used to determine row equality in equality delete files`|`[1]`|
+| **`sort-order-id`**      |`JSON int`|`1`|
+
+### File Scan Task Serialization
+
+File scan task is serialized as a JSON object according to the following table.
+
+| Metadata field       |JSON representation|Example|
+|--------------------------|--- |--- |
+| **`schema`**          |`JSON object`|`See above, read schemas instead`|
+| **`spec`**            |`JSON object`|`See above, read partition specs instead`|
+| **`data-file`**       |`JSON object`|`See above, read content file instead`|
+| **`delete-files`**    |`JSON list of objects`|`See above, read content file instead`|
+| **`residual-filter`** |`JSON object: residual filter expression`|`{"type":"eq","term":"id","value":1}`|
 
 ## Appendix D: Single-value serialization
 
@@ -1185,6 +1218,7 @@ This serialization scheme is for storing single values as individual binary valu
 ### Version 3
 
 Default values are added to struct fields in v3.
+
 * The `write-default` is a forward-compatible change because it is only used at write time. Old writers will fail because the field is missing.
 * Tables with `initial-default` will be read correctly by older readers if `initial-default` is always null for optional fields. Otherwise, old readers will default optional columns with null. Old readers will fail to read required fields which are populated by `initial-default` because that default is not supported.
 

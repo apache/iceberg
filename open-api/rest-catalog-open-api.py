@@ -342,6 +342,16 @@ class SetCurrentViewVersionUpdate(BaseUpdate):
     )
 
 
+class RemoveStatisticsUpdate(BaseUpdate):
+    action: Literal['remove-statistics']
+    snapshot_id: int = Field(..., alias='snapshot-id')
+
+
+class RemovePartitionStatisticsUpdate(BaseUpdate):
+    action: Literal['remove-partition-statistics']
+    snapshot_id: int = Field(..., alias='snapshot-id')
+
+
 class TableRequirement(BaseModel):
     type: str
 
@@ -419,7 +429,16 @@ class AssertDefaultSortOrderId(TableRequirement):
 
 
 class ViewRequirement(BaseModel):
-    __root__: Any = Field(..., discriminator='type')
+    type: str
+
+
+class AssertViewUUID(ViewRequirement):
+    """
+    The view UUID must match the requirement's `uuid`
+    """
+
+    type: Literal['assert-view-uuid']
+    uuid: str
 
 
 class RegisterTableRequest(BaseModel):
@@ -596,6 +615,20 @@ class UpdateNamespacePropertiesResponse(BaseModel):
     )
 
 
+class BlobMetadata(BaseModel):
+    type: str
+    snapshot_id: int = Field(..., alias='snapshot-id')
+    sequence_number: int = Field(..., alias='sequence-number')
+    fields: List[int]
+    properties: Optional[Dict[str, Any]] = None
+
+
+class PartitionStatisticsFile(BaseModel):
+    snapshot_id: int = Field(..., alias='snapshot-id')
+    statistics_path: str = Field(..., alias='statistics-path')
+    file_size_in_bytes: int = Field(..., alias='file-size-in-bytes')
+
+
 class CreateNamespaceRequest(BaseModel):
     namespace: Namespace
     properties: Optional[Dict[str, str]] = Field(
@@ -616,12 +649,33 @@ class TransformTerm(BaseModel):
     term: Reference
 
 
+class SetPartitionStatisticsUpdate(BaseUpdate):
+    action: Literal['set-partition-statistics']
+    partition_statistics: PartitionStatisticsFile = Field(
+        ..., alias='partition-statistics'
+    )
+
+
 class ReportMetricsRequest2(CommitReport):
     report_type: str = Field(..., alias='report-type')
 
 
+class StatisticsFile(BaseModel):
+    snapshot_id: int = Field(..., alias='snapshot-id')
+    statistics_path: str = Field(..., alias='statistics-path')
+    file_size_in_bytes: int = Field(..., alias='file-size-in-bytes')
+    file_footer_size_in_bytes: int = Field(..., alias='file-footer-size-in-bytes')
+    blob_metadata: List[BlobMetadata] = Field(..., alias='blob-metadata')
+
+
 class Term(BaseModel):
     __root__: Union[Reference, TransformTerm]
+
+
+class SetStatisticsUpdate(BaseUpdate):
+    action: Literal['set-statistics']
+    snapshot_id: int = Field(..., alias='snapshot-id')
+    statistics: StatisticsFile
 
 
 class UnaryExpression(BaseModel):
@@ -718,6 +772,12 @@ class TableMetadata(BaseModel):
     last_sequence_number: Optional[int] = Field(None, alias='last-sequence-number')
     snapshot_log: Optional[SnapshotLog] = Field(None, alias='snapshot-log')
     metadata_log: Optional[MetadataLog] = Field(None, alias='metadata-log')
+    statistics_files: Optional[List[StatisticsFile]] = Field(
+        None, alias='statistics-files'
+    )
+    partition_statistics_files: Optional[List[PartitionStatisticsFile]] = Field(
+        None, alias='partition-statistics-files'
+    )
 
 
 class ViewMetadata(BaseModel):
@@ -758,6 +818,8 @@ class TableUpdate(BaseModel):
         SetLocationUpdate,
         SetPropertiesUpdate,
         RemovePropertiesUpdate,
+        SetStatisticsUpdate,
+        RemoveStatisticsUpdate,
     ]
 
 

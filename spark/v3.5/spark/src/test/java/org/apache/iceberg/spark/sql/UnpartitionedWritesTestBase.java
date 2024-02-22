@@ -18,50 +18,46 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
+
 import java.util.List;
-import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.spark.SparkCatalogTestBase;
+import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.functions;
 import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
 
-public abstract class UnpartitionedWritesTestBase extends SparkCatalogTestBase {
-  public UnpartitionedWritesTestBase(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
+public abstract class UnpartitionedWritesTestBase extends CatalogTestBase {
 
-  @Before
+  @BeforeEach
   public void createTables() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
     sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b'), (3, 'c')", tableName);
   }
 
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testInsertAppend() {
-    Assert.assertEquals(
-        "Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", selectTarget()));
+    assertThat(scalarSql("SELECT count(*) FROM %s", selectTarget()))
+        .as("Should have 3 rows")
+        .isEqualTo(3L);
 
     sql("INSERT INTO %s VALUES (4, 'd'), (5, 'e')", commitTarget());
 
-    Assert.assertEquals(
-        "Should have 5 rows after insert",
-        5L,
-        scalarSql("SELECT count(*) FROM %s", selectTarget()));
+    assertThat(scalarSql("SELECT count(*) FROM %s", selectTarget()))
+        .as("Should have 5 rows")
+        .isEqualTo(5L);
 
     List<Object[]> expected =
         ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c"), row(4L, "d"), row(5L, "e"));
@@ -72,17 +68,17 @@ public abstract class UnpartitionedWritesTestBase extends SparkCatalogTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testInsertOverwrite() {
-    Assert.assertEquals(
-        "Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", selectTarget()));
+    assertThat(scalarSql("SELECT count(*) FROM %s", selectTarget()))
+        .as("Should have 3 rows")
+        .isEqualTo(3L);
 
     sql("INSERT OVERWRITE %s VALUES (4, 'd'), (5, 'e')", commitTarget());
 
-    Assert.assertEquals(
-        "Should have 2 rows after overwrite",
-        2L,
-        scalarSql("SELECT count(*) FROM %s", selectTarget()));
+    assertThat(scalarSql("SELECT count(*) FROM %s", selectTarget()))
+        .as("Should have 2 rows after overwrite")
+        .isEqualTo(2L);
 
     List<Object[]> expected = ImmutableList.of(row(4L, "d"), row(5L, "e"));
 
@@ -92,9 +88,9 @@ public abstract class UnpartitionedWritesTestBase extends SparkCatalogTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testInsertAppendAtSnapshot() {
-    Assume.assumeTrue(tableName.equals(commitTarget()));
+    assumeThat(tableName.equals(commitTarget())).isTrue();
     long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
     String prefix = "snapshot_id_";
 
@@ -105,9 +101,9 @@ public abstract class UnpartitionedWritesTestBase extends SparkCatalogTestBase {
         .hasMessageStartingWith("Cannot write to table at a specific snapshot");
   }
 
-  @Test
+  @TestTemplate
   public void testInsertOverwriteAtSnapshot() {
-    Assume.assumeTrue(tableName.equals(commitTarget()));
+    assumeThat(tableName.equals(commitTarget())).isTrue();
     long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
     String prefix = "snapshot_id_";
 
@@ -120,20 +116,20 @@ public abstract class UnpartitionedWritesTestBase extends SparkCatalogTestBase {
         .hasMessageStartingWith("Cannot write to table at a specific snapshot");
   }
 
-  @Test
+  @TestTemplate
   public void testDataFrameV2Append() throws NoSuchTableException {
-    Assert.assertEquals(
-        "Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", selectTarget()));
+    assertThat(scalarSql("SELECT count(*) FROM %s", selectTarget()))
+        .as("Should have 3 rows")
+        .isEqualTo(3L);
 
     List<SimpleRecord> data = ImmutableList.of(new SimpleRecord(4, "d"), new SimpleRecord(5, "e"));
     Dataset<Row> ds = spark.createDataFrame(data, SimpleRecord.class);
 
     ds.writeTo(commitTarget()).append();
 
-    Assert.assertEquals(
-        "Should have 5 rows after insert",
-        5L,
-        scalarSql("SELECT count(*) FROM %s", selectTarget()));
+    assertThat(scalarSql("SELECT count(*) FROM %s", selectTarget()))
+        .as("Should have 5 rows after insert")
+        .isEqualTo(5L);
 
     List<Object[]> expected =
         ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c"), row(4L, "d"), row(5L, "e"));
@@ -144,20 +140,20 @@ public abstract class UnpartitionedWritesTestBase extends SparkCatalogTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testDataFrameV2DynamicOverwrite() throws NoSuchTableException {
-    Assert.assertEquals(
-        "Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", selectTarget()));
+    assertThat(scalarSql("SELECT count(*) FROM %s", selectTarget()))
+        .as("Should have 3 rows")
+        .isEqualTo(3L);
 
     List<SimpleRecord> data = ImmutableList.of(new SimpleRecord(4, "d"), new SimpleRecord(5, "e"));
     Dataset<Row> ds = spark.createDataFrame(data, SimpleRecord.class);
 
     ds.writeTo(commitTarget()).overwritePartitions();
 
-    Assert.assertEquals(
-        "Should have 2 rows after overwrite",
-        2L,
-        scalarSql("SELECT count(*) FROM %s", selectTarget()));
+    assertThat(scalarSql("SELECT count(*) FROM %s", selectTarget()))
+        .as("Should have 2 rows after overwrite")
+        .isEqualTo(2L);
 
     List<Object[]> expected = ImmutableList.of(row(4L, "d"), row(5L, "e"));
 
@@ -167,20 +163,20 @@ public abstract class UnpartitionedWritesTestBase extends SparkCatalogTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testDataFrameV2Overwrite() throws NoSuchTableException {
-    Assert.assertEquals(
-        "Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", selectTarget()));
+    assertThat(scalarSql("SELECT count(*) FROM %s", selectTarget()))
+        .as("Should have 3 rows")
+        .isEqualTo(3L);
 
     List<SimpleRecord> data = ImmutableList.of(new SimpleRecord(4, "d"), new SimpleRecord(5, "e"));
     Dataset<Row> ds = spark.createDataFrame(data, SimpleRecord.class);
 
     ds.writeTo(commitTarget()).overwrite(functions.col("id").$less$eq(3));
 
-    Assert.assertEquals(
-        "Should have 2 rows after overwrite",
-        2L,
-        scalarSql("SELECT count(*) FROM %s", selectTarget()));
+    assertThat(scalarSql("SELECT count(*) FROM %s", selectTarget()))
+        .as("Should have 2 rows after overwrite")
+        .isEqualTo(2L);
 
     List<Object[]> expected = ImmutableList.of(row(4L, "d"), row(5L, "e"));
 
