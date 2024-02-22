@@ -970,6 +970,9 @@ public class TestHiveIcebergStorageHandlerNoScan {
   @Test
   public void testCreateTableWithPercentInName() throws IOException {
     Assume.assumeTrue("This test requires Hive Version 4.", HiveVersion.min(HiveVersion.HIVE_4));
+    Assume.assumeTrue(
+        "This test is only for hive catalog",
+        testTableType == TestTables.TestTableType.HIVE_CATALOG);
 
     TableIdentifier identifier = TableIdentifier.of("default", "[|]#&%_@");
 
@@ -995,9 +998,6 @@ public class TestHiveIcebergStorageHandlerNoScan {
 
     // Check the Iceberg table data
     org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
-    Assume.assumeTrue(
-        "This test is only for hive catalog",
-        testTableType == TestTables.TestTableType.HIVE_CATALOG);
     Assert.assertEquals(
         HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA.asStruct(),
         icebergTable.schema().asStruct());
