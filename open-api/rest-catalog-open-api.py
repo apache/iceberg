@@ -654,12 +654,8 @@ class DoubleTypeValue(BaseModel):
 class DecimalTypeValue(BaseModel):
     __root__: str = Field(
         ...,
-        description='Decimal type values are serialized as strings. Decimals with a positive scale serialize as numeric plain text, while decimals with a negative scale use scientific notation and the exponent will be equal to the negated scale',
-        example={
-            'positiveScale': '123.4500',
-            'zeroScale': '2',
-            'negativeScale': '2E+20',
-        },
+        description="Decimal type values are serialized as strings. Decimals with a positive scale serialize as numeric plain text, while decimals with a negative scale use scientific notation and the exponent will be equal to the negated scale. For instance, a decimal with a positive scale is '123.4500', with zero scale is '2', and with a negative scale is '2E+20'",
+        example='123.4500',
     )
 
 
@@ -730,7 +726,7 @@ class FixedTypeValue(BaseModel):
     __root__: str = Field(
         ...,
         description='Fixed length type values are stored and serialized as an uppercase hexadecimal string preserving the fixed length',
-        example={'xyz': '78797A'},
+        example='78797A',
     )
 
 
@@ -738,7 +734,7 @@ class BinaryTypeValue(BaseModel):
     __root__: str = Field(
         ...,
         description='Binary type values are stored and serialized as an uppercase hexadecimal string',
-        example={'xyz': '78797A'},
+        example='78797A',
     )
 
 
@@ -887,7 +883,7 @@ class DataFile(ContentFile):
 
 class DeleteFile(ContentFile):
     equality_ids: Optional[List[int]] = Field(
-        None, alias='equality-ids', description='List of Equality comparison field IDs'
+        None, alias='equality-ids', description='List of equality field IDs'
     )
 
 
