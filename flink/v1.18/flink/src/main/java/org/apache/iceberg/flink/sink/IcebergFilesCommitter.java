@@ -124,6 +124,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   private final Integer workerPoolSize;
   private final PartitionSpec spec;
   private transient ExecutorService workerPool;
+  private boolean useDynamicSpecLoading;
 
   IcebergFilesCommitter(
       TableLoader tableLoader,
@@ -131,13 +132,15 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       Map<String, String> snapshotProperties,
       Integer workerPoolSize,
       String branch,
-      PartitionSpec spec) {
+      PartitionSpec spec,
+      boolean useDynamicSpecLoading) {
     this.tableLoader = tableLoader;
     this.replacePartitions = replacePartitions;
     this.snapshotProperties = snapshotProperties;
     this.workerPoolSize = workerPoolSize;
     this.branch = branch;
     this.spec = spec;
+    this.useDynamicSpecLoading = useDynamicSpecLoading;
   }
 
   @Override
@@ -452,7 +455,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     WriteResult result = WriteResult.builder().addAll(writeResultsOfCurrentCkpt).build();
     DeltaManifests deltaManifests =
         FlinkManifestUtil.writeCompletedFiles(
-            result, () -> manifestOutputFileFactory.create(checkpointId), spec);
+            result, () -> manifestOutputFileFactory.create(checkpointId), useDynamicSpecLoading ? table.spec() : spec);
 
     return SimpleVersionedSerialization.writeVersionAndSerialize(
         DeltaManifestsSerializer.INSTANCE, deltaManifests);

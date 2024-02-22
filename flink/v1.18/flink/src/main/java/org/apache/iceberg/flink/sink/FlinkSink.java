@@ -140,6 +140,7 @@ public class FlinkSink {
     private ReadableConfig readableConfig = new Configuration();
     private final Map<String, String> writeOptions = Maps.newHashMap();
     private FlinkWriteConf flinkWriteConf = null;
+    private boolean useDynamicSpecLoading = false;
 
     private Builder() {}
 
@@ -276,6 +277,11 @@ public class FlinkSink {
      */
     public Builder equalityFieldColumns(List<String> columns) {
       this.equalityFieldColumns = columns;
+      return this;
+    }
+
+    public Builder enableDynamicSpecLoading(boolean enable) {
+      this.useDynamicSpecLoading = enable;
       return this;
     }
 
@@ -434,7 +440,8 @@ public class FlinkSink {
               snapshotProperties,
               flinkWriteConf.workerPoolSize(),
               flinkWriteConf.branch(),
-              table.spec());
+              table.spec(),
+              useDynamicSpecLoading);
       SingleOutputStreamOperator<Void> committerStream =
           writerStream
               .transform(operatorName(ICEBERG_FILES_COMMITTER_NAME), Types.VOID, filesCommitter)
