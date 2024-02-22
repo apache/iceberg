@@ -44,6 +44,10 @@ import software.amazon.awssdk.services.dynamodb.model.GetItemResponse;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 
+/**
+ * @deprecated since version 1.6.0, will be removed after two full releases.
+ * */
+@Deprecated
 class DynamoDbTableOperations extends BaseMetastoreTableOperations {
 
   private static final Logger LOG = LoggerFactory.getLogger(DynamoDbTableOperations.class);

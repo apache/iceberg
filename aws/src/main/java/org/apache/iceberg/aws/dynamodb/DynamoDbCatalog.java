@@ -84,7 +84,11 @@ import software.amazon.awssdk.services.dynamodb.model.TransactWriteItem;
 import software.amazon.awssdk.services.dynamodb.model.TransactWriteItemsRequest;
 import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 
-/** DynamoDB implementation of Iceberg catalog */
+/**
+ * DynamoDB implementation of Iceberg catalog
+ * @deprecated since version 1.6.0, will be removed after two full releases.
+ * */
+@Deprecated
 public class DynamoDbCatalog extends BaseMetastoreCatalog
     implements SupportsNamespaces, Configurable {
 
