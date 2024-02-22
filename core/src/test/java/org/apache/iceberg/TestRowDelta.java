@@ -1469,7 +1469,6 @@ public class TestRowDelta extends V2TableTestBase {
             .validateNoConflictingDataFiles()
             .validateNoConflictingDeleteFiles();
 
-
     commit(table, rewriteFiles, branch);
 
     Assertions.assertThatThrownBy(() -> commit(table, rowDelta, branch))
