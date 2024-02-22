@@ -1439,6 +1439,45 @@ public class TestRowDelta extends V2TableTestBase {
   }
 
   @Test
+  public void testConcurrentConflictingRewriteFilesAndRowDeltaWithSequenceNumber() {
+    DataFile dataFileSmall1 = newDataFile("");
+    DataFile dataFileSmall2 = newDataFile("");
+
+    commit(table, table.newAppend().appendFile(dataFileSmall1), branch);
+    commit(table, table.newAppend().appendFile(dataFileSmall2), branch);
+
+    Snapshot baseSnapshot = latestSnapshot(table, branch);
+
+    // mock a REWRITE operation that compacts the table with serializable isolation
+    DataFile dataFileBig = newDataFile("");
+    RewriteFiles rewriteFiles =
+        table
+            .newRewrite()
+            .rewriteFiles(
+                ImmutableSet.of(dataFileSmall1, dataFileSmall2),
+                ImmutableSet.of(dataFileBig),
+                baseSnapshot.sequenceNumber())
+            .validateFromSnapshot(baseSnapshot.snapshotId());
+
+    // mock a DELETE operation with serializable isolation
+    DeleteFile deleteFile1 = newDeleteFile(table.spec().specId(), "");
+    RowDelta rowDelta =
+        table
+            .newRowDelta()
+            .addDeletes(deleteFile1)
+            .validateFromSnapshot(baseSnapshot.snapshotId())
+            .validateNoConflictingDataFiles()
+            .validateNoConflictingDeleteFiles();
+
+
+    commit(table, rewriteFiles, branch);
+
+    Assertions.assertThatThrownBy(() -> commit(table, rowDelta, branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Found conflicting files that can contain records matching true");
+  }
+
+  @Test
   public void testRowDeltaCaseSensitivity() {
     commit(table, table.newAppend().appendFile(FILE_A).appendFile(FILE_A2), branch);
 
