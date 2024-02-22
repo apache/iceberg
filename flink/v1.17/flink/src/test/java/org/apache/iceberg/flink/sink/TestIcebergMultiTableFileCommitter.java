@@ -23,6 +23,9 @@ package org.apache.iceberg.flink.sink;
 
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.JobID;
+import org.apache.flink.api.common.state.ListState;
+import org.apache.flink.api.common.state.OperatorStateStore;
+import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.operators.testutils.MockEnvironment;
@@ -42,8 +45,10 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.GenericManifestFile;
 import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TestTables;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -57,6 +62,7 @@ import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ThreadPools;
 import org.junit.After;
 import org.junit.Assert;
@@ -78,11 +84,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.SortedMap;
 import java.util.stream.Collectors;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.flink.sink.IcebergFilesCommitter.MAX_CONTINUOUS_EMPTY_COMMITS;
 import static org.apache.iceberg.flink.sink.ManifestOutputFileFactory.FLINK_MANIFEST_LOCATION;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @RunWith(Parameterized.class)
 public class TestIcebergMultiTableFileCommitter {
@@ -1246,6 +1255,169 @@ public class TestIcebergMultiTableFileCommitter {
             Assert.assertEquals(
                     "Should have committed 2 txn.", 2, ImmutableList.copyOf(table2.snapshots()).size());
         }
+    }
+
+    @Test
+    public void testSpecEvolution() throws Exception {
+        long timestamp = 0;
+        int checkpointId = 0;
+        List<RowData> rows = Lists.newArrayList();
+        JobID jobId = new JobID();
+
+        OperatorID operatorId;
+        OperatorSubtaskState snapshot;
+        DataFile dataFile1;
+        DataFile dataFile2;
+        int specId1, specId2;
+        createAlternateTableMock();
+        try (OneInputStreamOperatorTestHarness<TableAwareWriteResult, Void> harness = createStreamSink(jobId)) {
+            harness.setup();
+            harness.open();
+            operatorId = harness.getOperator().getOperatorID();
+
+            assertSnapshotSize(table1, 0);
+            assertSnapshotSize(table2, 0);
+
+            checkpointId++;
+            RowData rowData = SimpleDataUtil.createRowData(checkpointId, "hello" + checkpointId);
+            // table unpartitioned
+            dataFile1 = writeDataFile(table1, "data-table1-" + checkpointId, ImmutableList.of(rowData));
+            harness.processElement(of(dataFile1, table1.name()), ++timestamp);
+            dataFile2 = writeDataFile(table2, "data-table2-" + checkpointId, ImmutableList.of(rowData));
+            harness.processElement(of(dataFile2, table2.name()), ++timestamp);
+            rows.add(rowData);
+            harness.snapshot(checkpointId, ++timestamp);
+
+            specId1 =
+                    getStagingManifestSpecId(harness.getOperator().getOperatorStateBackend(), checkpointId, TableIdentifier.of("dummy", table1.name()));
+            assertThat(specId1).isEqualTo(table1.spec().specId());
+
+            specId2 =
+                    getStagingManifestSpecId(harness.getOperator().getOperatorStateBackend(), checkpointId, TableIdentifier.of("dummy", table2.name()));
+            assertThat(specId2).isEqualTo(table2.spec().specId());
+
+            harness.notifyOfCompletedCheckpoint(checkpointId);
+
+            // Change partition spec
+            table1.refresh();
+            PartitionSpec oldSpec1 = table1.spec();
+            table1.updateSpec().addField("id").commit();
+
+            table2.refresh();
+            PartitionSpec oldSpec2 = table2.spec();
+            table2.updateSpec().addField("id").commit();
+
+            checkpointId++;
+            rowData = SimpleDataUtil.createRowData(checkpointId, "hello" + checkpointId);
+            // write data with old partition spec
+            StructLike partition1 = new PartitionData(table1.spec().partitionType());
+            partition1.set(0, checkpointId);
+            StructLike partition2 = new PartitionData(table2.spec().partitionType());
+            partition2.set(0, checkpointId);
+            dataFile1 = writeDataFile("data-table1-" + checkpointId, ImmutableList.of(rowData), table1.spec(), partition1, table1);
+            harness.processElement(of(dataFile1, table1.name()), ++timestamp);
+            dataFile2 = writeDataFile("data-table2-" + checkpointId, ImmutableList.of(rowData), table2.spec(), partition2, table2);
+            harness.processElement(of(dataFile2, table2.name()), ++timestamp);
+            rows.add(rowData);
+            snapshot = harness.snapshot(checkpointId, ++timestamp);
+
+            specId1 =
+                    getStagingManifestSpecId(harness.getOperator().getOperatorStateBackend(), checkpointId, TableIdentifier.of("dummy", table1.name()));
+            assertThat(specId1).isEqualTo(table1.spec().specId());
+            specId2 =
+                    getStagingManifestSpecId(harness.getOperator().getOperatorStateBackend(), checkpointId, TableIdentifier.of("dummy", table2.name()));
+            assertThat(specId2).isEqualTo(table2.spec().specId());
+
+            harness.notifyOfCompletedCheckpoint(checkpointId);
+
+            assertFlinkManifests(0, flinkManifestFolder1);
+            assertFlinkManifests(0, flinkManifestFolder2);
+
+            SimpleDataUtil.assertTableRows(table1, rows, branch);
+            assertSnapshotSize(table1, checkpointId);
+            assertMaxCommittedCheckpointId(table1, jobId, operatorId, checkpointId);
+            SimpleDataUtil.assertTableRows(table2, rows, branch);
+            assertSnapshotSize(table2, checkpointId);
+            assertMaxCommittedCheckpointId(table2, jobId, operatorId, checkpointId);
+        }
+
+        // Restore from the given snapshot
+        try (OneInputStreamOperatorTestHarness<TableAwareWriteResult, Void> harness = createStreamSink(jobId)) {
+            harness.getStreamConfig().setOperatorID(operatorId);
+            harness.setup();
+            harness.initializeState(snapshot);
+            harness.open();
+
+            SimpleDataUtil.assertTableRows(table1, rows, branch);
+            assertSnapshotSize(table1, checkpointId);
+            assertMaxCommittedCheckpointId(table1, jobId, operatorId, checkpointId);
+            SimpleDataUtil.assertTableRows(table2, rows, branch);
+            assertSnapshotSize(table2, checkpointId);
+            assertMaxCommittedCheckpointId(table2, jobId, operatorId, checkpointId);
+
+            checkpointId++;
+            RowData row = SimpleDataUtil.createRowData(checkpointId, "world" + checkpointId);
+            StructLike partition1 = new PartitionData(table1.spec().partitionType());
+            partition1.set(0, checkpointId);
+            dataFile1 =
+                    writeDataFile("data-table1-" + checkpointId, ImmutableList.of(row), table1.spec(), partition1, table1);
+            harness.processElement(of(dataFile1, table1.name()), ++timestamp);
+            rows.add(row);
+            StructLike partition2 = new PartitionData(table2.spec().partitionType());
+            partition2.set(0, checkpointId);
+            dataFile2 =
+                    writeDataFile("data-table2-" + checkpointId, ImmutableList.of(row), table2.spec(), partition2, table2);
+            harness.processElement(of(dataFile2, table2.name()), ++timestamp);
+            harness.snapshot(checkpointId, ++timestamp);
+            assertFlinkManifests(1, flinkManifestFolder1);
+            assertFlinkManifests(1, flinkManifestFolder2);
+
+            specId1 =
+                    getStagingManifestSpecId(harness.getOperator().getOperatorStateBackend(), checkpointId, TableIdentifier.of("dummy", table1.name()));
+            assertThat(specId1).isEqualTo(table1.spec().specId());
+
+            specId2 =
+                    getStagingManifestSpecId(harness.getOperator().getOperatorStateBackend(), checkpointId, TableIdentifier.of("dummy", table2.name()));
+            assertThat(specId2).isEqualTo(table2.spec().specId());
+
+            harness.notifyOfCompletedCheckpoint(checkpointId);
+            assertFlinkManifests(0, flinkManifestFolder1);
+            assertFlinkManifests(0, flinkManifestFolder2);
+
+            SimpleDataUtil.assertTableRows(table1, rows, branch);
+            assertSnapshotSize(table1, checkpointId);
+            assertMaxCommittedCheckpointId(table1, jobId, operatorId, checkpointId);
+            SimpleDataUtil.assertTableRows(table2, rows, branch);
+            assertSnapshotSize(table2, checkpointId);
+            assertMaxCommittedCheckpointId(table2, jobId, operatorId, checkpointId);
+        }
+    }
+
+    private DataFile writeDataFile(
+            String filename, List<RowData> rows, PartitionSpec spec, StructLike partition, Table table)
+            throws IOException {
+        return SimpleDataUtil.writeFile(
+                table,
+                table.schema(),
+                spec,
+                CONF,
+                table.location(),
+                format.addExtension(filename),
+                rows,
+                partition);
+    }
+
+    private int getStagingManifestSpecId(OperatorStateStore operatorStateStore, long checkPointId, TableIdentifier tableIdentifier)
+            throws Exception {
+        ListState<Map<TableIdentifier, SortedMap<Long, byte[]>>> checkpointsState =
+                operatorStateStore.getListState(IcebergMultiTableFileCommitter.buildStateDescriptor());
+        Map<TableIdentifier, SortedMap<Long, byte[]>> tableDataFilesMap =
+                Maps.newHashMap(checkpointsState.get().iterator().next());
+        SortedMap<Long, byte[]> statedDataFiles = tableDataFilesMap.get(tableIdentifier);
+        DeltaManifests deltaManifests =
+                SimpleVersionedSerialization.readVersionAndDeSerialize(
+                        DeltaManifestsSerializer.INSTANCE, statedDataFiles.get(checkPointId));
+        return deltaManifests.dataManifest().partitionSpecId();
     }
 
     private DeleteFile writeEqDeleteFile(

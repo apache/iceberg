@@ -310,13 +310,10 @@ class IcebergMultiTableFileCommitter extends AbstractStreamOperator<Void>
         if (!this.committerMetrics.containsKey(tableIdentifier)) {
             this.committerMetrics.put(tableIdentifier, new IcebergFilesCommitterMetrics(super.metrics, tableIdentifier.name()));
         }
-        Table localTable = this.tableLoaders.get(tableIdentifier).loadTable();
 
-        if (!this.localTables.containsKey(tableIdentifier)) {
+        if (!this.localTables.containsKey(tableIdentifier) || !this.manifestOutputFileFactories.containsKey(tableIdentifier)) {
+            Table localTable = this.tableLoaders.get(tableIdentifier).loadTable();
             localTables.put(tableIdentifier, localTable);
-        }
-
-        if (!this.manifestOutputFileFactories.containsKey(tableIdentifier)) {
             ManifestOutputFileFactory manifestOutputFileFactory = FlinkManifestUtil.createOutputFileFactory(
                     () -> localTable, localTable.properties(), flinkJobId, operatorUniqueId, this.subTaskId, this.attemptId);
             this.manifestOutputFileFactories.put(tableIdentifier, manifestOutputFileFactory);
