@@ -1217,15 +1217,19 @@ Example
 
 Content file (data or delete) is serialized as a JSON object.
 Here is the [Java implementation](https://github.com/apache/iceberg/blob/main/core/src/main/java/org/apache/iceberg/ContentFileParser.java).
-While the JSON serializer implementation should try to evolve in compatible ways,
-it is not a table format level contract.
+The JSON serializer implementation should try to evolve in compatible ways,
+as some engines may depend on the compatibility (e.g. Flink checkpoint state).
+But it is not a table format contract.
+Hence JSON serialization details are left out in the table spec.
 
 ### File Scan Task Serialization
 
 File scan task is serialized as a JSON object.
 Here is the [Java implementation](https://github.com/apache/iceberg/blob/main/core/src/main/java/org/apache/iceberg/FileScanTaskParser.java).
-While the JSON serializer implementation should try to evolve in compatible ways,
-it is not a table format level contract.
+The JSON serializer implementation should try to evolve in compatible ways,
+as some engines may depend on the compatibility (e.g. Flink checkpoint state).
+But it is not a table format contract.
+Hence JSON serialization details are left out in the table spec.
 
 ## Appendix D: Single-value serialization
 
