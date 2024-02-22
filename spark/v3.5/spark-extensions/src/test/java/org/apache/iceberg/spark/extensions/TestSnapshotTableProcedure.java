@@ -92,7 +92,7 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
         .isNotEqualTo(location);
 
     Map<String, String> props = createdTable.properties();
-    assertThat(props.get("foo")).as("Should have extra property set").isEqualTo("bar");
+    assertThat(props).as("Should have extra property set").containsEntry("foo", "bar");
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
@@ -108,7 +108,7 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
         .as("No Snapshoting with Alternate locations with Hadoop Catalogs")
         .doesNotContain("hadoop");
     String location = temp.toFile().toString();
-    String snapshotLocation = temp.toFile().toString();
+    String snapshotLocation = temp.toFile() + "_snapshot";
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         sourceName, location);
@@ -183,10 +183,10 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
 
     Table table = validationCatalog.loadTable(tableIdent);
     Map<String, String> props = table.properties();
-    assertThat(props.get("snapshot")).as("Should override user value").isEqualTo("true");
-    assertThat(props.get(TableProperties.GC_ENABLED))
+    assertThat(props).as("Should override user value").containsEntry("snapshot", "true");
+    assertThat(props)
         .as("Should override user value")
-        .isEqualTo("false");
+        .containsEntry(TableProperties.GC_ENABLED, "false");
   }
 
   @TestTemplate

@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import org.apache.iceberg.ChangelogOperation;
@@ -27,7 +28,6 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkReadOptions;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -428,7 +428,7 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
   @TestTemplate
   public void testNetChangesWithComputeUpdates() {
     createTableWithTwoColumns();
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.create_changelog_view(table => '%s', identifier_columns => array('id'), net_changes => true)",

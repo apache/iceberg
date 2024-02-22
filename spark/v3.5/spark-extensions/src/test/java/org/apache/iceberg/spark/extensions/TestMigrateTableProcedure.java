@@ -85,7 +85,7 @@ public class TestMigrateTableProcedure extends ExtensionsTestBase {
     Table createdTable = validationCatalog.loadTable(tableIdent);
 
     Map<String, String> props = createdTable.properties();
-    assertThat(props.get("foo")).as("Should have extra property set").isEqualTo("bar");
+    assertThat(props).containsEntry("foo", "bar");
 
     String tableLocation = createdTable.location().replace("file:", "");
     assertThat(tableLocation).as("Table should have original location").isEqualTo(location);
@@ -174,9 +174,7 @@ public class TestMigrateTableProcedure extends ExtensionsTestBase {
         sql("SELECT * FROM %s", tableName));
 
     Table table = validationCatalog.loadTable(tableIdent);
-    assertThat(table.properties().get("migrated"))
-        .as("Should override user value")
-        .isEqualTo("true");
+    assertThat(table.properties()).containsEntry("migrated", "true");
   }
 
   @TestTemplate

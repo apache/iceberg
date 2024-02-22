@@ -25,7 +25,6 @@ import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.expressions.Expression;
@@ -73,7 +72,7 @@ public class TestCallStatementParser {
   public void testCallWithPositionalArgs() throws ParseException {
     CallStatement call =
         (CallStatement) parser.parsePlan("CALL c.n.func(1, '2', 3L, true, 1.0D, 9.0e1, 900e-1BD)");
-    assertThat(seqAsJavaList(call.name())).hasSameElementsAs(ImmutableList.of("c", "n", "func"));
+    assertThat(seqAsJavaList(call.name())).containsExactly("c", "n", "func");
 
     assertThat(seqAsJavaList(call.args())).hasSize(7);
 
@@ -90,8 +89,7 @@ public class TestCallStatementParser {
   public void testCallWithNamedArgs() throws ParseException {
     CallStatement call =
         (CallStatement) parser.parsePlan("CALL cat.system.func(c1 => 1, c2 => '2', c3 => true)");
-    assertThat(seqAsJavaList(call.name()))
-        .hasSameElementsAs(ImmutableList.of("cat", "system", "func"));
+    assertThat(seqAsJavaList(call.name())).containsExactly("cat", "system", "func");
 
     assertThat(seqAsJavaList(call.args())).hasSize(3);
 
@@ -103,8 +101,7 @@ public class TestCallStatementParser {
   @Test
   public void testCallWithMixedArgs() throws ParseException {
     CallStatement call = (CallStatement) parser.parsePlan("CALL cat.system.func(c1 => 1, '2')");
-    assertThat(seqAsJavaList(call.name()))
-        .hasSameElementsAs(ImmutableList.of("cat", "system", "func"));
+    assertThat(seqAsJavaList(call.name())).containsExactly("cat", "system", "func");
 
     assertThat(seqAsJavaList(call.args())).hasSize(2);
 
@@ -117,8 +114,7 @@ public class TestCallStatementParser {
     CallStatement call =
         (CallStatement)
             parser.parsePlan("CALL cat.system.func(TIMESTAMP '2017-02-03T10:37:30.00Z')");
-    assertThat(seqAsJavaList(call.name()))
-        .hasSameElementsAs(ImmutableList.of("cat", "system", "func"));
+    assertThat(seqAsJavaList(call.name())).containsExactly("cat", "system", "func");
 
     assertThat(seqAsJavaList(call.args())).hasSize(1);
 
@@ -130,8 +126,7 @@ public class TestCallStatementParser {
   public void testCallWithVarSubstitution() throws ParseException {
     CallStatement call =
         (CallStatement) parser.parsePlan("CALL cat.system.func('${spark.extra.prop}')");
-    assertThat(seqAsJavaList(call.name()))
-        .hasSameElementsAs(ImmutableList.of("cat", "system", "func"));
+    assertThat(seqAsJavaList(call.name())).containsExactly("cat", "system", "func");
 
     assertThat(seqAsJavaList(call.args())).hasSize(1);
 
@@ -161,8 +156,7 @@ public class TestCallStatementParser {
             "CALL -- a line ending comment\n" + "cat.system.func('${spark.extra.prop}')");
     for (String sqlText : callStatementsWithComments) {
       CallStatement call = (CallStatement) parser.parsePlan(sqlText);
-      assertThat(seqAsJavaList(call.name()))
-          .hasSameElementsAs(ImmutableList.of("cat", "system", "func"));
+      assertThat(seqAsJavaList(call.name())).containsExactly("cat", "system", "func");
 
       assertThat(seqAsJavaList(call.args())).hasSize(1);
 
@@ -201,9 +195,7 @@ public class TestCallStatementParser {
   }
 
   private <T> T checkCast(Object value, Class<T> expectedClass) {
-    assertThat(expectedClass.isInstance(value))
-        .as("Expected instance of " + expectedClass.getName())
-        .isTrue();
+    assertThat(value).isInstanceOf(expectedClass);
     return expectedClass.cast(value);
   }
 }

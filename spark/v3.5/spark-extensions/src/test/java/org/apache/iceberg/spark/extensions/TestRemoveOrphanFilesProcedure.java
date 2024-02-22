@@ -498,10 +498,8 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
             catalogName, tableIdent, currentTimestamp);
     assertThat(output).as("Should be no orphan files").isEmpty();
 
-    assertThat(statsLocation.exists()).as("stats file should exist").isTrue();
-    assertThat(statsLocation.length())
-        .as("stats file length")
-        .isEqualTo(statisticsFile.fileSizeInBytes());
+    assertThat(statsLocation).exists();
+    assertThat(statsLocation).hasSize(statisticsFile.fileSizeInBytes());
 
     transaction = table.newTransaction();
     transaction.updateStatistics().removeStatistics(statisticsFile.snapshotId()).commit();
@@ -517,7 +515,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
     assertThat(Iterables.getOnlyElement(output))
         .as("Deleted files")
         .containsExactly(statsLocation.toURI().toString());
-    assertThat(statsLocation.exists()).as("stats file should be deleted").isFalse();
+    assertThat(statsLocation).doesNotExist();
   }
 
   @TestTemplate
