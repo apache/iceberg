@@ -21,8 +21,6 @@ package org.apache.iceberg;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ManifestEvaluator;
@@ -35,6 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 
 /** Base class logic for files metadata tables */
@@ -46,15 +45,37 @@ abstract class BaseFilesTable extends BaseMetadataTable {
 
   @Override
   public Schema schema() {
-    StructType partitionType = Partitioning.partitionType(table());
+    // avoid returning an empty struct, which is not always supported.
+    // instead, drop the partition field
+    boolean dropPartitionColumnForUnpartitioned = true;
+    return schemaInternal(table(), dropPartitionColumnForUnpartitioned);
+  }
+
+  private static Schema schemaInternal(Table table, boolean dropPartitionColumnForUnpartitioned) {
+    StructType partitionType = Partitioning.partitionType(table);
     Schema schema = new Schema(DataFile.getType(partitionType).fields());
-    if (partitionType.fields().size() < 1) {
-      // avoid returning an empty struct, which is not always supported.
-      // instead, drop the partition field
+    if (dropPartitionColumnForUnpartitioned && partitionType.fields().isEmpty()) {
       schema = TypeUtil.selectNot(schema, Sets.newHashSet(DataFile.PARTITION_ID));
     }
 
-    return TypeUtil.join(schema, MetricsUtil.readableMetricsSchema(table().schema(), schema));
+    return withDerivedColumns(table.schema(), schema);
+  }
+
+  private static Schema withDerivedColumns(Schema baseTableSchema, Schema meteTableSchema) {
+    Schema metadataTableSchema =
+        TypeUtil.join(meteTableSchema, dataSequenceNumberSchema(meteTableSchema));
+
+    return TypeUtil.join(
+        metadataTableSchema,
+        MetricsUtil.readableMetricsSchema(baseTableSchema, metadataTableSchema));
+  }
+
+  private static Schema dataSequenceNumberSchema(Schema schema) {
+    return new Schema(
+        NestedField.optional(
+            schema.highestFieldId() + 1,
+            MetadataTableUtils.DATA_SEQUENCE_NUMBER,
+            Types.LongType.get()));
   }
 
   private static CloseableIterable<FileScanTask> planFiles(
@@ -85,11 +106,20 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
     ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
 
+    // metadata schema will represent the files schema and indifferent to if table is partitioned
+    Schema metadataSchema = schemaInternal(table, false);
+
     return CloseableIterable.transform(
         filteredManifests,
         manifest ->
             new ManifestReadTask(
-                table, manifest, projectedSchema, schemaString, specString, residuals));
+                table,
+                manifest,
+                metadataSchema,
+                projectedSchema,
+                schemaString,
+                specString,
+                residuals));
   }
 
   abstract static class BaseFilesTableScan extends BaseMetadataTableScan {
@@ -138,16 +168,19 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     private final Map<Integer, PartitionSpec> specsById;
     private final ManifestFile manifest;
     private final Schema dataTableSchema;
+    private final Schema metadataSchema;
     private final Schema projection;
 
     ManifestReadTask(
         Table table,
         ManifestFile manifest,
+        Schema metadataSchema,
         Schema projection,
         String schemaString,
         String specString,
         ResidualEvaluator residuals) {
       super(DataFiles.fromManifest(manifest), null, schemaString, specString, residuals);
+      this.metadataSchema = metadataSchema;
       this.io = table.io();
       this.specsById = Maps.newHashMap(table.specs());
       this.manifest = manifest;
@@ -157,75 +190,58 @@ abstract class BaseFilesTable extends BaseMetadataTable {
 
     @Override
     public CloseableIterable<StructLike> rows() {
-      Types.NestedField readableMetricsField = projection.findField(MetricsUtil.READABLE_METRICS);
-
-      if (readableMetricsField == null) {
-        return CloseableIterable.transform(files(projection), file -> (StructLike) file);
+      if (projectionWithComputedColumns(projection)) {
+        return CloseableIterable.transform(files(), this::withComputedColumns);
       } else {
-
-        Schema actualProjection = projectionForReadableMetrics(projection, readableMetricsField);
-        return CloseableIterable.transform(
-            files(actualProjection), f -> withReadableMetrics(f, readableMetricsField));
+        return CloseableIterable.transform(files(projection), file -> (StructLike) file);
       }
+    }
+
+    private boolean projectionWithComputedColumns(Schema requestedProjection) {
+      Types.NestedField readableMetricsField =
+          requestedProjection.findField(MetricsUtil.READABLE_METRICS);
+      Types.NestedField dataSequenceNumberField =
+          requestedProjection.findField(MetadataTableUtils.DATA_SEQUENCE_NUMBER);
+      return readableMetricsField != null || dataSequenceNumberField != null;
     }
 
     private CloseableIterable<? extends ContentFile<?>> files(Schema fileProjection) {
-      switch (manifest.content()) {
-        case DATA:
-          return ManifestFiles.read(manifest, io, specsById).project(fileProjection);
-        case DELETES:
-          return ManifestFiles.readDeleteManifest(manifest, io, specsById).project(fileProjection);
-        default:
-          throw new IllegalArgumentException(
-              "Unsupported manifest content type:" + manifest.content());
-      }
+      return ManifestFiles.open(manifest, io, specsById).project(fileProjection);
+    }
+
+    private CloseableIterable<? extends ContentFile<?>> files() {
+      return ManifestFiles.open(manifest, io, specsById);
     }
 
     /**
-     * Given content file metadata, append a 'readable_metrics' column that return the file's
-     * metrics in human-readable form.
+     * Given a content file metadata, append computed columns
+     *
+     * <ul>
+     *   <li>readable_metrics: file's metrics in human-readable form
+     *   <li>data_sequence_number: data sequence number assigned to file on commit
+     * </ul>
      *
      * @param file content file metadata
-     * @param readableMetricsField projected "readable_metrics" field
-     * @return struct representing content file, with appended readable_metrics field
+     * @return result content with appended computed columns
      */
-    private StructLike withReadableMetrics(
-        ContentFile<?> file, Types.NestedField readableMetricsField) {
-      int structSize = projection.columns().size();
-      MetricsUtil.ReadableMetricsStruct readableMetrics =
-          readableMetrics(file, readableMetricsField);
-      int metricsPosition = projection.columns().indexOf(readableMetricsField);
-
-      return new MetricsUtil.StructWithReadableMetrics(
-          (StructLike) file, structSize, readableMetrics, metricsPosition);
+    private StructLike withComputedColumns(ContentFile<?> file) {
+      Types.NestedField readableMetricsField = projection.findField(MetricsUtil.READABLE_METRICS);
+      StructLike readAbleMetricsStruct =
+          readableMetricsField == null
+              ? EmptyStructLike.get()
+              : readableMetrics(file, readableMetricsField);
+      return new MetadataTableUtils.StructWithComputedColumns(
+          metadataSchema,
+          projection,
+          (StructLike) file,
+          file.dataSequenceNumber(),
+          readAbleMetricsStruct);
     }
 
     private MetricsUtil.ReadableMetricsStruct readableMetrics(
         ContentFile<?> file, Types.NestedField readableMetricsField) {
       StructType projectedMetricType = readableMetricsField.type().asStructType();
       return MetricsUtil.readableMetricsStruct(dataTableSchema, file, projectedMetricType);
-    }
-
-    /**
-     * Create a projection on content files metadata by removing virtual 'readable_column' and
-     * ensuring that the underlying metrics used to create that column are part of the final
-     * projection.
-     *
-     * @param requestedProjection requested projection
-     * @param readableMetricsField readable_metrics field
-     * @return actual projection to be used
-     */
-    private Schema projectionForReadableMetrics(
-        Schema requestedProjection, Types.NestedField readableMetricsField) {
-      Set<Integer> readableMetricsIds = TypeUtil.getProjectedIds(readableMetricsField.type());
-      Schema realProjection = TypeUtil.selectNot(requestedProjection, readableMetricsIds);
-
-      Schema requiredMetricsColumns =
-          new Schema(
-              MetricsUtil.READABLE_METRIC_COLS.stream()
-                  .map(MetricsUtil.ReadableMetricColDefinition::originalCol)
-                  .collect(Collectors.toList()));
-      return TypeUtil.join(realProjection, requiredMetricsColumns);
     }
 
     @Override

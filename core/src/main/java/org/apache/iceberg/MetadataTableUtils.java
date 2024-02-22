@@ -19,10 +19,19 @@
 package org.apache.iceberg;
 
 import java.util.Locale;
+import java.util.Set;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
 
 public class MetadataTableUtils {
+  static final String DATA_SEQUENCE_NUMBER = "data_sequence_number";
+
+  public static final Set<String> DERIVED_FIELDS =
+      Sets.newHashSet(MetricsUtil.READABLE_METRICS, DATA_SEQUENCE_NUMBER);
+
   private MetadataTableUtils() {}
 
   public static boolean hasMetadataTableName(TableIdentifier identifier) {
@@ -108,5 +117,64 @@ public class MetadataTableUtils {
 
   private static String metadataTableName(String tableName, MetadataTableType type) {
     return tableName + (tableName.contains("/") ? "#" : ".") + type.name().toLowerCase(Locale.ROOT);
+  }
+
+  static class StructWithComputedColumns implements StructLike {
+    private final StructLike struct;
+    private final int projectionColumnCount;
+    private final int dataSequenceNumberPosition;
+    private final Long dataSequenceNumber;
+    private final int metricsPosition;
+    private final StructLike readableMetricsStruct;
+
+    private final int[] positionMap;
+
+    StructWithComputedColumns(
+        Schema base,
+        Schema projection,
+        StructLike struct,
+        Long dataSequenceNumber,
+        StructLike readableMetrics) {
+      this.projectionColumnCount = projection.columns().size();
+      this.positionMap = new int[this.projectionColumnCount];
+      // build projection map
+      for (Types.NestedField field : projection.asStruct().fields()) {
+        int projectPosition = projection.columns().indexOf(field);
+        int basePosition = base.columns().indexOf(base.findField(field.fieldId()));
+        Preconditions.checkArgument(
+            projectPosition >= 0, "Cannot find %s in projection", field.name());
+        Preconditions.checkArgument(basePosition >= 0, "Cannot find %s in base", field.name());
+        positionMap[projectPosition] = basePosition;
+      }
+      this.struct = struct;
+      this.dataSequenceNumberPosition =
+          projection.columns().indexOf(projection.findField(DATA_SEQUENCE_NUMBER));
+      this.dataSequenceNumber = dataSequenceNumber;
+      this.metricsPosition =
+          projection.columns().indexOf(projection.findField(MetricsUtil.READABLE_METRICS));
+      this.readableMetricsStruct = readableMetrics;
+    }
+
+    @Override
+    public int size() {
+      return projectionColumnCount;
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      if (pos == dataSequenceNumberPosition) {
+        return javaClass.cast(dataSequenceNumber);
+      } else if (pos == metricsPosition) {
+        return javaClass.cast(readableMetricsStruct);
+      } else {
+        int structPosition = positionMap[pos];
+        return struct.get(structPosition, javaClass);
+      }
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("StructWithComputedColumns is read only");
+    }
   }
 }
