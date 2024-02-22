@@ -30,13 +30,15 @@ import org.apache.iceberg.rest.RESTResponse;
 public class ListTablesResponse implements RESTResponse {
 
   private List<TableIdentifier> identifiers;
+  private String nextPageToken;
 
   public ListTablesResponse() {
     // Required for Jackson deserialization
   }
 
-  private ListTablesResponse(List<TableIdentifier> identifiers) {
+  private ListTablesResponse(List<TableIdentifier> identifiers, String nextPageToken) {
     this.identifiers = identifiers;
+    this.nextPageToken = nextPageToken;
     validate();
   }
 
@@ -49,9 +51,16 @@ public class ListTablesResponse implements RESTResponse {
     return identifiers != null ? identifiers : ImmutableList.of();
   }
 
+  public String nextPageToken() {
+    return nextPageToken;
+  }
+
   @Override
   public String toString() {
-    return MoreObjects.toStringHelper(this).add("identifiers", identifiers).toString();
+    return MoreObjects.toStringHelper(this)
+        .add("identifiers", identifiers)
+        .add("next-page-token", nextPageToken())
+        .toString();
   }
 
   public static Builder builder() {
@@ -60,6 +69,7 @@ public class ListTablesResponse implements RESTResponse {
 
   public static class Builder {
     private final ImmutableList.Builder<TableIdentifier> identifiers = ImmutableList.builder();
+    private String nextPageToken = null;
 
     private Builder() {}
 
@@ -76,8 +86,13 @@ public class ListTablesResponse implements RESTResponse {
       return this;
     }
 
+    public Builder nextPageToken(String pageToken) {
+      nextPageToken = pageToken;
+      return this;
+    }
+
     public ListTablesResponse build() {
-      return new ListTablesResponse(identifiers.build());
+      return new ListTablesResponse(identifiers.build(), nextPageToken);
     }
   }
 }

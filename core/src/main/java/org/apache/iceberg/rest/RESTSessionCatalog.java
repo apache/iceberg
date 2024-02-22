@@ -86,11 +86,10 @@ import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
-import org.apache.iceberg.rest.responses.ListNamespacesResponse;
-import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
+import org.apache.iceberg.rest.responses.Route;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.EnvironmentUtil;
 import org.apache.iceberg.util.Pair;
@@ -114,6 +113,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
   private static final String REST_METRICS_REPORTING_ENABLED = "rest-metrics-reporting-enabled";
   private static final String REST_SNAPSHOT_LOADING_MODE = "snapshot-loading-mode";
+  public static final String REST_PAGE_SIZE = "rest-page-size";
   private static final List<String> TOKEN_PREFERENCE_ORDER =
       ImmutableList.of(
           OAuth2Properties.ID_TOKEN_TYPE,
@@ -136,6 +136,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private FileIO io = null;
   private MetricsReporter reporter = null;
   private boolean reportingViaRestEnabled;
+  private String restPageSize = null;
   private CloseableGroup closeables = null;
 
   // a lazy thread pool for token refresh
@@ -228,6 +229,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               client, tokenRefreshExecutor(), token, expiresAtMillis(mergedProps), catalogAuth);
     }
 
+    this.restPageSize = mergedProps.get(REST_PAGE_SIZE);
     this.io = newFileIO(SessionContext.createEmpty(), mergedProps);
 
     this.fileIOCloser = newFileIOCloser();
@@ -278,14 +280,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   @Override
   public List<TableIdentifier> listTables(SessionContext context, Namespace ns) {
     checkNamespaceIsValid(ns);
-
-    ListTablesResponse response =
-        client.get(
-            paths.tables(ns),
-            ListTablesResponse.class,
-            headers(context),
-            ErrorHandlers.namespaceErrorHandler());
-    return response.identifiers();
+    return new PaginatedList<>(
+        client, paths, headers(context), restPageSize, ns, Route.LIST_TABLES);
   }
 
   @Override
@@ -494,22 +490,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public List<Namespace> listNamespaces(SessionContext context, Namespace namespace) {
-    Map<String, String> queryParams;
-    if (namespace.isEmpty()) {
-      queryParams = ImmutableMap.of();
-    } else {
-      // query params should be unescaped
-      queryParams = ImmutableMap.of("parent", RESTUtil.NAMESPACE_JOINER.join(namespace.levels()));
-    }
-
-    ListNamespacesResponse response =
-        client.get(
-            paths.namespaces(),
-            queryParams,
-            ListNamespacesResponse.class,
-            headers(context),
-            ErrorHandlers.namespaceErrorHandler());
-    return response.namespaces();
+    return new PaginatedList<>(
+        client, paths, headers(context), restPageSize, namespace, Route.LIST_NAMESPACES);
   }
 
   @Override
@@ -1048,14 +1030,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   @Override
   public List<TableIdentifier> listViews(SessionContext context, Namespace namespace) {
     checkNamespaceIsValid(namespace);
-
-    ListTablesResponse response =
-        client.get(
-            paths.views(namespace),
-            ListTablesResponse.class,
-            headers(context),
-            ErrorHandlers.namespaceErrorHandler());
-    return response.identifiers();
+    return new PaginatedList<>(
+        client, paths, headers(context), restPageSize, namespace, Route.LIST_VIEWS);
   }
 
   @Override

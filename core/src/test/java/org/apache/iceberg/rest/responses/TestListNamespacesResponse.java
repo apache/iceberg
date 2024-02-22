@@ -83,6 +83,14 @@ public class TestListNamespacesResponse extends RequestResponseTestBase<ListName
         .hasMessage("Invalid namespace: null");
   }
 
+  @Test
+  public void testWithNullPaginationToken() {
+    ListNamespacesResponse response =
+        ListNamespacesResponse.builder().addAll(NAMESPACES).nextPageToken(null).build();
+    Assertions.assertThat(response.nextPageToken()).isNull();
+    Assertions.assertThat(response.namespaces()).isEqualTo(NAMESPACES);
+  }
+
   @Override
   public String[] allFieldsFromSpec() {
     return new String[] {"namespaces"};

@@ -105,6 +105,14 @@ public class TestListTablesResponse extends RequestResponseTestBase<ListTablesRe
         .hasMessage("Invalid table identifier: null");
   }
 
+  @Test
+  public void testWithNullPaginationToken() {
+    ListTablesResponse response =
+        ListTablesResponse.builder().addAll(IDENTIFIERS).nextPageToken(null).build();
+    Assertions.assertThat(response.nextPageToken()).isNull();
+    Assertions.assertThat(response.identifiers()).isEqualTo(IDENTIFIERS);
+  }
+
   @Override
   public String[] allFieldsFromSpec() {
     return new String[] {"identifiers"};
