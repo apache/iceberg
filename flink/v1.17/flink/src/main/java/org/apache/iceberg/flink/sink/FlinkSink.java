@@ -18,12 +18,6 @@
  */
 package org.apache.iceberg.flink.sink;
 
-import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
-import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_LEVEL;
-import static org.apache.iceberg.TableProperties.ORC_COMPRESSION;
-import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_STRATEGY;
-import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
-import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 
 import java.io.IOException;
@@ -56,10 +50,12 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.flink.CatalogLoader;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.data.TableAwareWriteResult;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -140,6 +136,9 @@ public class FlinkSink {
     private ReadableConfig readableConfig = new Configuration();
     private final Map<String, String> writeOptions = Maps.newHashMap();
     private FlinkWriteConf flinkWriteConf = null;
+    private boolean enableMultiTableWriter = false;
+    private PayloadTableSinkProvider payloadTableSinkProvider = null;
+    private CatalogLoader catalogLoader = null;
 
     private Builder() {}
 
@@ -308,6 +307,21 @@ public class FlinkSink {
       return this;
     }
 
+    public Builder readMultitableWriter(boolean enable) {
+      this.enableMultiTableWriter = enable;
+      return this;
+    }
+
+    public <T> Builder setPayloadTableSinkProvider(PayloadTableSinkProvider<T> payloadTableSinkProvider) {
+      this.payloadTableSinkProvider = payloadTableSinkProvider;
+      return this;
+    }
+
+    public Builder setCatalogLoader(CatalogLoader catalogLoader) {
+      this.catalogLoader = catalogLoader;
+      return this;
+    }
+
     public Builder setSnapshotProperties(Map<String, String> properties) {
       snapshotProperties.putAll(properties);
       return this;
@@ -370,13 +384,57 @@ public class FlinkSink {
       return appendDummySink(committerStream);
     }
 
+    private <T> DataStreamSink<T> chainIcebergOperatorsMultiTable() {
+      if (enableMultiTableWriter) {
+        Preconditions.checkNotNull(payloadTableSinkProvider, "Payload Table Sink Provider shouldn't be null for writing to multiple tables");
+        Preconditions.checkNotNull(catalogLoader, "CatalogLoader shouldn't be null for writing to multiple tables");
+      }
+      DataStream<RowData> rowDataInput = inputCreator.apply(uidPrefix);
+      flinkWriteConf = new FlinkWriteConf(table, writeOptions, readableConfig);
+
+      // Add parallel writers that append rows to files
+      IcebergMultiTableStreamWriter<RowData> streamWriter = new IcebergMultiTableStreamWriter<>(payloadTableSinkProvider, catalogLoader, flinkWriteConf, equalityFieldColumns);
+      int parallelism =
+              flinkWriteConf.writeParallelism() == null
+                      ? rowDataInput.getParallelism()
+                      : flinkWriteConf.writeParallelism();
+
+      SingleOutputStreamOperator<TableAwareWriteResult> writerStream =
+              rowDataInput
+                      .transform(
+                              operatorName(IcebergMultiTableStreamWriter.class.getSimpleName()),
+                              TypeInformation.of(TableAwareWriteResult.class),
+                              streamWriter)
+                      .setParallelism(parallelism);
+
+      if (uidPrefix != null) {
+        writerStream = writerStream.uid(uidPrefix + "-writer");
+      }
+
+      IcebergMultiTableFilesCommitter filesCommitter = new IcebergMultiTableFilesCommitter(catalogLoader,
+              flinkWriteConf.overwriteMode(),
+              snapshotProperties,
+              flinkWriteConf.workerPoolSize(),
+              flinkWriteConf.branch());
+      SingleOutputStreamOperator<Void> committerStream =
+              writerStream
+                      .transform(operatorName(ICEBERG_FILES_COMMITTER_NAME), Types.VOID, filesCommitter)
+                      .setParallelism(1)
+                      .setMaxParallelism(1);
+      if (uidPrefix != null) {
+        committerStream = committerStream.uid(uidPrefix + "-committer");
+      }
+      // Add dummy discard sink
+      return appendDummySink(committerStream);
+    }
+
     /**
      * Append the iceberg sink operators to write records to iceberg table.
      *
      * @return {@link DataStreamSink} for sink.
      */
     public DataStreamSink<Void> append() {
-      return chainIcebergOperators();
+      return enableMultiTableWriter ? chainIcebergOperatorsMultiTable() : chainIcebergOperators();
     }
 
     private String operatorName(String suffix) {
@@ -458,6 +516,7 @@ public class FlinkSink {
             "Equality field columns shouldn't be empty when configuring to use UPSERT data stream.");
         if (!table.spec().isUnpartitioned()) {
           for (PartitionField partitionField : table.spec().fields()) {
+            //TODO: Should we move this logic inside multi table stream writer?
             Preconditions.checkState(
                 equalityFieldIds.contains(partitionField.sourceId()),
                 "In UPSERT mode, partition field '%s' should be included in equality fields: '%s'",

@@ -23,6 +23,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.api.operators.ChainingStrategy;
@@ -43,7 +45,6 @@ class IcebergMultiTableStreamWriter<T> extends AbstractStreamOperator<TableAware
     implements OneInputStreamOperator<T, TableAwareWriteResult>, BoundedOneInput {
   private static final long serialVersionUID = 1L;
 
-  private final String fullTableName;
   private final Map<TableIdentifier, TaskWriterFactory<T>> taskWriterFactories;
   private final PayloadTableSinkProvider<T> payloadTableSinkProvider;
   private final CatalogLoader catalogLoader;
@@ -56,12 +57,10 @@ class IcebergMultiTableStreamWriter<T> extends AbstractStreamOperator<TableAware
   private transient Map<TableIdentifier, IcebergStreamWriterMetrics> writerMetrics;
 
   IcebergMultiTableStreamWriter(
-      String fullTableName,
       PayloadTableSinkProvider<T> payloadTableSinkProvider,
       CatalogLoader catalogLoader,
       FlinkWriteConf writeConf,
       List<String> equalityFieldColumns) {
-    this.fullTableName = fullTableName;
     this.taskWriterFactories = Maps.newHashMap();
     this.writers = Maps.newHashMap();
     this.writerMetrics = Maps.newHashMap();
@@ -76,19 +75,11 @@ class IcebergMultiTableStreamWriter<T> extends AbstractStreamOperator<TableAware
   public void open() {
     this.subTaskId = getRuntimeContext().getIndexOfThisSubtask();
     this.attemptId = getRuntimeContext().getAttemptNumber();
-    //        this.writerMetrics = new IcebergStreamWriterMetrics(super.metrics, fullTableName);
-
-    // Initialize the task writer factory.
-    //        this.taskWriterFactory.initialize(subTaskId, attemptId);
-
-    // Initialize the task writer.
-    //        this.writer = taskWriterFactory.create();
   }
 
   @Override
   public void prepareSnapshotPreBarrier(long checkpointId) throws Exception {
     flush();
-    //        this.writer = taskWriterFactory.create();
   }
 
   @Override
@@ -129,8 +120,10 @@ class IcebergMultiTableStreamWriter<T> extends AbstractStreamOperator<TableAware
   @Override
   public String toString() {
     // TODO: Modify if required
+    String tableList = writers.keySet().size() > 0 ?
+            String.join(";", writers.keySet().stream().map(TableIdentifier::name).collect(Collectors.toList())) : "empty_writer";
     return MoreObjects.toStringHelper(this)
-        .add("table_name", fullTableName)
+        .add("tables", tableList)
         .add("subtask_id", subTaskId)
         .add("attempt_id", attemptId)
         .toString();

@@ -73,7 +73,7 @@ import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
-class IcebergMultiTableFileCommitter extends AbstractStreamOperator<Void>
+class IcebergMultiTableFilesCommitter extends AbstractStreamOperator<Void>
         implements OneInputStreamOperator<TableAwareWriteResult, Void>, BoundedOneInput {
 
 
@@ -81,7 +81,7 @@ class IcebergMultiTableFileCommitter extends AbstractStreamOperator<Void>
     private static final long INITIAL_CHECKPOINT_ID = -1L;
     private static final byte[] EMPTY_MANIFEST_DATA = new byte[0];
 
-    private static final Logger LOG = LoggerFactory.getLogger(IcebergMultiTableFileCommitter.class);
+    private static final Logger LOG = LoggerFactory.getLogger(IcebergMultiTableFilesCommitter.class);
     private static final String FLINK_JOB_ID = "flink.job-id";
     private static final String OPERATOR_ID = "flink.operator-id";
 
@@ -139,7 +139,7 @@ class IcebergMultiTableFileCommitter extends AbstractStreamOperator<Void>
     private int subTaskId;
     private int attemptId;
 
-    IcebergMultiTableFileCommitter(
+    IcebergMultiTableFilesCommitter(
             CatalogLoader catalogLoader,
             boolean replacePartitions,
             Map<String, String> snapshotProperties,

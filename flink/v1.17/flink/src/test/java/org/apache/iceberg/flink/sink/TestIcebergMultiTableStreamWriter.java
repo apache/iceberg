@@ -359,15 +359,13 @@ public class TestIcebergMultiTableStreamWriter {
 
   private OneInputStreamOperatorTestHarness<RowData, TableAwareWriteResult>
       createIcebergStreamWriter(Table icebergTable, TableSchema flinkSchema) throws Exception {
-    RowType flinkRowType = FlinkSink.toFlinkRowType(icebergTable.schema(), flinkSchema);
     FlinkWriteConf flinkWriteConfig =
         new FlinkWriteConf(
             icebergTable, Maps.newHashMap(), new org.apache.flink.configuration.Configuration());
 
     IcebergMultiTableStreamWriter<RowData> streamWriter =
         new IcebergMultiTableStreamWriter<>(
-            table.name(),
-                payloadTableSinkProvider,
+            payloadTableSinkProvider,
             catalogLoader,
             flinkWriteConfig,
             Collections.emptyList());

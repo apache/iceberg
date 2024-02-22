@@ -94,7 +94,7 @@ import static org.apache.iceberg.flink.sink.ManifestOutputFileFactory.FLINK_MANI
 import static org.assertj.core.api.Assertions.assertThat;
 
 @RunWith(Parameterized.class)
-public class TestIcebergMultiTableFileCommitter {
+public class TestIcebergMultiTableFilesCommitter {
 
     private CatalogLoader catalogLoader;
     private TableLoader tableLoader;
@@ -122,7 +122,7 @@ public class TestIcebergMultiTableFileCommitter {
     private final String branch;;
     private final int formatVersion;
 
-    public TestIcebergMultiTableFileCommitter(String format, int formatVersion, String branch) {
+    public TestIcebergMultiTableFilesCommitter(String format, int formatVersion, String branch) {
         this.format = FileFormat.fromString(format);
         this.branch = branch;
         this.formatVersion = formatVersion;
@@ -272,7 +272,7 @@ public class TestIcebergMultiTableFileCommitter {
                 assertSnapshotSize(table1, i);
                 assertMaxCommittedCheckpointId(table1, jobID, operatorId, i);
                 Assert.assertEquals(
-                        TestIcebergMultiTableFileCommitter.class.getName(),
+                        TestIcebergMultiTableFilesCommitter.class.getName(),
                         SimpleDataUtil.latestSnapshot(table1, branch).summary().get("flink.test"));
             }
         }
@@ -323,10 +323,10 @@ public class TestIcebergMultiTableFileCommitter {
                 assertMaxCommittedCheckpointId(table1, jobID, operatorId, i);
                 assertMaxCommittedCheckpointId(table2, jobID, operatorId, i);
                 Assert.assertEquals(
-                        TestIcebergMultiTableFileCommitter.class.getName(),
+                        TestIcebergMultiTableFilesCommitter.class.getName(),
                         SimpleDataUtil.latestSnapshot(table1, branch).summary().get("flink.test"));
                 Assert.assertEquals(
-                        TestIcebergMultiTableFileCommitter.class.getName(),
+                        TestIcebergMultiTableFilesCommitter.class.getName(),
                         SimpleDataUtil.latestSnapshot(table2, branch).summary().get("flink.test"));
             }
         }
@@ -1015,10 +1015,10 @@ public class TestIcebergMultiTableFileCommitter {
             assertMaxCommittedCheckpointId(table1, jobId, operatorId, Long.MAX_VALUE);
             assertMaxCommittedCheckpointId(table2, jobId, operatorId, Long.MAX_VALUE);
             Assert.assertEquals(
-                    TestIcebergMultiTableFileCommitter.class.getName(),
+                    TestIcebergMultiTableFilesCommitter.class.getName(),
                     SimpleDataUtil.latestSnapshot(table1, branch).summary().get("flink.test"));
             Assert.assertEquals(
-                    TestIcebergMultiTableFileCommitter.class.getName(),
+                    TestIcebergMultiTableFilesCommitter.class.getName(),
                     SimpleDataUtil.latestSnapshot(table2, branch).summary().get("flink.test"));
         }
     }
@@ -1410,7 +1410,7 @@ public class TestIcebergMultiTableFileCommitter {
     private int getStagingManifestSpecId(OperatorStateStore operatorStateStore, long checkPointId, TableIdentifier tableIdentifier)
             throws Exception {
         ListState<Map<TableIdentifier, SortedMap<Long, byte[]>>> checkpointsState =
-                operatorStateStore.getListState(IcebergMultiTableFileCommitter.buildStateDescriptor());
+                operatorStateStore.getListState(IcebergMultiTableFilesCommitter.buildStateDescriptor());
         Map<TableIdentifier, SortedMap<Long, byte[]>> tableDataFilesMap =
                 Maps.newHashMap(checkpointsState.get().iterator().next());
         SortedMap<Long, byte[]> statedDataFiles = tableDataFilesMap.get(tableIdentifier);
@@ -1554,11 +1554,11 @@ public class TestIcebergMultiTableFileCommitter {
         @SuppressWarnings("unchecked")
         public <T extends StreamOperator<Void>> T createStreamOperator(
                 StreamOperatorParameters<Void> param) {
-            IcebergMultiTableFileCommitter committer =
-                    new IcebergMultiTableFileCommitter(
+            IcebergMultiTableFilesCommitter committer =
+                    new IcebergMultiTableFilesCommitter(
                             catalogLoader,
                             false,
-                            Collections.singletonMap("flink.test", TestIcebergMultiTableFileCommitter.class.getName()),
+                            Collections.singletonMap("flink.test", TestIcebergMultiTableFilesCommitter.class.getName()),
                             ThreadPools.WORKER_THREAD_POOL_SIZE,
                             branch);
             committer.setup(param.getContainingTask(), param.getStreamConfig(), param.getOutput());
@@ -1567,7 +1567,7 @@ public class TestIcebergMultiTableFileCommitter {
 
         @Override
         public Class<? extends StreamOperator> getStreamOperatorClass(ClassLoader classLoader) {
-            return IcebergMultiTableFileCommitter.class;
+            return IcebergMultiTableFilesCommitter.class;
         }
     }
 
