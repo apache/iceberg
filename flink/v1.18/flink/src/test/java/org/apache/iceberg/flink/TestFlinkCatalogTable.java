@@ -320,23 +320,24 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
     assertThat(schemaBefore.asStruct())
         .isEqualTo(
             new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct());
-    sql("ALTER TABLE tl ADD (dt STRING COMMENT 'comment for dt')");
+    sql("ALTER TABLE tl ADD (dt STRING)");
     Schema schemaAfter1 = table("tl").schema();
     assertThat(schemaAfter1.asStruct())
         .isEqualTo(
             new Schema(
                     Types.NestedField.optional(1, "id", Types.LongType.get()),
-                    Types.NestedField.optional(2, "dt", Types.StringType.get(), "comment for dt"))
+                    Types.NestedField.optional(2, "dt", Types.StringType.get()))
                 .asStruct());
     // Add multiple columns
-    sql("ALTER TABLE tl ADD (col1 STRING, col2 BIGINT)");
+    sql("ALTER TABLE tl ADD (col1 STRING COMMENT 'comment for col1', col2 BIGINT)");
     Schema schemaAfter2 = table("tl").schema();
     assertThat(schemaAfter2.asStruct())
         .isEqualTo(
             new Schema(
                     Types.NestedField.optional(1, "id", Types.LongType.get()),
-                    Types.NestedField.optional(2, "dt", Types.StringType.get(), "comment for dt"),
-                    Types.NestedField.optional(3, "col1", Types.StringType.get()),
+                    Types.NestedField.optional(2, "dt", Types.StringType.get()),
+                    Types.NestedField.optional(
+                        3, "col1", Types.StringType.get(), "comment for col1"),
                     Types.NestedField.optional(4, "col2", Types.LongType.get()))
                 .asStruct());
     // Adding a required field should fail because Iceberg's SchemaUpdate does not allow
