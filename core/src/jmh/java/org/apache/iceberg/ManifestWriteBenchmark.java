@@ -86,7 +86,7 @@ public class ManifestWriteBenchmark {
   @State(Scope.Benchmark)
   public static class BenchmarkState {
     @Param({"1", "2"})
-    public int formatVersion;
+    int formatVersion;
   }
 
   @Benchmark
