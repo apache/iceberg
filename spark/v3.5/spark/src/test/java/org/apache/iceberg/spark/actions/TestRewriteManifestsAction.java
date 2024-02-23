@@ -585,8 +585,10 @@ public class TestRewriteManifestsAction extends TestBase {
             .map(
                 p ->
                     Pair.of(
-                            (Integer) Conversions.fromByteBuffer(Types.IntegerType.get(), p.lowerBound()),
-                            (Integer) Conversions.fromByteBuffer(Types.IntegerType.get(), p.upperBound())))
+                        (Integer)
+                            Conversions.fromByteBuffer(Types.IntegerType.get(), p.lowerBound()),
+                        (Integer)
+                            Conversions.fromByteBuffer(Types.IntegerType.get(), p.upperBound())))
             .collect(Collectors.toList());
 
     List<Integer> lowers = c3Boundaries.stream().map(t -> t.first()).collect(Collectors.toList());

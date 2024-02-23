@@ -20,7 +20,6 @@ package org.apache.iceberg.spark.actions;
 
 import static org.apache.iceberg.MetadataTableType.ENTRIES;
 import static org.apache.spark.sql.functions.col;
-import static org.apache.spark.sql.functions.concat_ws;
 
 import java.io.Serializable;
 import java.util.Iterator;
@@ -74,6 +73,7 @@ import org.apache.spark.sql.Encoder;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.functions;
 import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -177,16 +177,16 @@ public class RewriteManifestsSparkAction
   public RewriteManifestsSparkAction sort(List<String> partitionSortOrder) {
     // Collect set of allowable partition columns to sort on
     Set<String> availablePartitionNames =
-            spec.fields().stream().map(PartitionField::name).collect(Collectors.toSet());
+        spec.fields().stream().map(PartitionField::name).collect(Collectors.toSet());
 
     // Check if these partitions are included in the spec
     Preconditions.checkArgument(
-            partitionSortOrder.stream().allMatch(availablePartitionNames::contains),
-            "Cannot use custom sort order to rewrite manifests '%s'. All partition columns must be "
-                    + "defined in the current partition spec: %s. Choose from the available partitionable columns: %s",
-            partitionSortColumns,
-            this.spec.specId(),
-            availablePartitionNames);
+        partitionSortOrder.stream().allMatch(availablePartitionNames::contains),
+        "Cannot use custom sort order to rewrite manifests '%s'. All partition columns must be "
+            + "defined in the current partition spec: %s. Choose from the available partitionable columns: %s",
+        partitionSortColumns,
+        this.spec.specId(),
+        availablePartitionNames);
     this.partitionSortColumns = partitionSortOrder;
 
     return this;
@@ -302,7 +302,8 @@ public class RewriteManifestsSparkAction
       // Form a new temporary column to sort/cluster manifests on, based on the custom sort
       // order provided
       clusteredManifestEntryDF =
-          manifestEntryDF.withColumn(clusteringColumnName, concat_ws("::", actualPartitionColumns));
+          manifestEntryDF.withColumn(
+              clusteringColumnName, functions.struct(actualPartitionColumns));
     } else {
       clusteredManifestEntryDF =
           manifestEntryDF.withColumn(clusteringColumnName, col("data_file.partition"));
