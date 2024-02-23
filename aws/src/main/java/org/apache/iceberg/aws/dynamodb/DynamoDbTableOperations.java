@@ -44,7 +44,7 @@ import software.amazon.awssdk.services.dynamodb.model.GetItemResponse;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 
-/** @deprecated since version 1.6.0, will be removed in 2.0.0 release */
+/** @deprecated since 1.6.0, will be removed in 2.0.0 */
 @Deprecated
 class DynamoDbTableOperations extends BaseMetastoreTableOperations {
 
