@@ -25,12 +25,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
-import org.apache.flink.table.types.logical.RowType;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.LocatedFileStatus;
@@ -123,7 +121,8 @@ public class TestIcebergMultiTableStreamWriter {
     tableIdentifier1 = TableIdentifier.of("test_raw", table1.name());
     tableIdentifier2 = TableIdentifier.of("test_raw", table2.name());
     Mockito.when(payloadTableSinkProvider.getOrCreateTable(Mockito.any()))
-            .thenReturn(tableIdentifier1).thenReturn(tableIdentifier2);
+        .thenReturn(tableIdentifier1)
+        .thenReturn(tableIdentifier2);
   }
 
   @After
@@ -139,11 +138,11 @@ public class TestIcebergMultiTableStreamWriter {
       Mockito.when(tableLoader.loadTable()).thenReturn(table1).thenReturn(table2);
 
       Mockito.when(payloadTableSinkProvider.getOrCreateTable(Mockito.any()))
-              .thenReturn(tableIdentifier1)
-              .thenReturn(tableIdentifier1)
-              .thenReturn(tableIdentifier2)
-              .thenReturn(tableIdentifier1)
-              .thenReturn(tableIdentifier2);
+          .thenReturn(tableIdentifier1)
+          .thenReturn(tableIdentifier1)
+          .thenReturn(tableIdentifier2)
+          .thenReturn(tableIdentifier1)
+          .thenReturn(tableIdentifier2);
       testHarness.processElement(SimpleDataUtil.createRowData(1, "1.1"), 1);
       testHarness.processElement(SimpleDataUtil.createRowData(2, "1.2"), 1);
       testHarness.processElement(SimpleDataUtil.createRowData(3, "2.1"), 1);
@@ -218,12 +217,12 @@ public class TestIcebergMultiTableStreamWriter {
     long checkpointId = 1;
     long timestamp = 1;
     try (OneInputStreamOperatorTestHarness<RowData, TableAwareWriteResult> testHarness =
-                 createIcebergStreamWriter()) {
+        createIcebergStreamWriter()) {
       Mockito.when(tableLoader.loadTable()).thenReturn(table1).thenReturn(table2);
       Mockito.when(payloadTableSinkProvider.getOrCreateTable(Mockito.any()))
-              .thenReturn(tableIdentifier1)
-              .thenReturn(tableIdentifier1)
-              .thenReturn(tableIdentifier2);
+          .thenReturn(tableIdentifier1)
+          .thenReturn(tableIdentifier1)
+          .thenReturn(tableIdentifier2);
       testHarness.processElement(SimpleDataUtil.createRowData(1, "1.1"), timestamp++);
       testHarness.processElement(SimpleDataUtil.createRowData(2, "1.2"), timestamp++);
       testHarness.processElement(SimpleDataUtil.createRowData(3, "2.1"), timestamp);
@@ -232,16 +231,26 @@ public class TestIcebergMultiTableStreamWriter {
       long expectedDataFiles = partitioned ? 3 : 2;
       List<TableAwareWriteResult> results = testHarness.extractOutputValues();
       Assert.assertEquals(2, results.size());
-      Assert.assertEquals(0, results.stream().mapToInt(result -> result.getWriteResult().deleteFiles().length).sum());
-      Assert.assertEquals(expectedDataFiles, results.stream().mapToInt(result -> result.getWriteResult().dataFiles().length).sum());
+      Assert.assertEquals(
+          0,
+          results.stream().mapToInt(result -> result.getWriteResult().deleteFiles().length).sum());
+      Assert.assertEquals(
+          expectedDataFiles,
+          results.stream().mapToInt(result -> result.getWriteResult().dataFiles().length).sum());
 
       // snapshot again immediately.
       for (int i = 0; i < 5; i++) {
         testHarness.prepareSnapshotPreBarrier(checkpointId++);
         results = testHarness.extractOutputValues();
         Assert.assertEquals(2, results.size());
-        Assert.assertEquals(0, results.stream().mapToInt(result -> result.getWriteResult().deleteFiles().length).sum());
-        Assert.assertEquals(expectedDataFiles, results.stream().mapToInt(result -> result.getWriteResult().dataFiles().length).sum());
+        Assert.assertEquals(
+            0,
+            results.stream()
+                .mapToInt(result -> result.getWriteResult().deleteFiles().length)
+                .sum());
+        Assert.assertEquals(
+            expectedDataFiles,
+            results.stream().mapToInt(result -> result.getWriteResult().dataFiles().length).sum());
       }
     }
   }
@@ -250,16 +259,16 @@ public class TestIcebergMultiTableStreamWriter {
   public void testTableWithoutSnapshot() throws Exception {
     Mockito.when(tableLoader.loadTable()).thenReturn(table1);
     try (OneInputStreamOperatorTestHarness<RowData, TableAwareWriteResult> testHarness =
-                 createIcebergStreamWriter()) {
+        createIcebergStreamWriter()) {
       Assert.assertEquals(0, testHarness.extractOutputValues().size());
     }
     // Even if we closed the iceberg stream writer, there's no orphan data file.
     Assert.assertEquals(0, scanDataFiles().size());
 
     try (OneInputStreamOperatorTestHarness<RowData, TableAwareWriteResult> testHarness =
-                 createIcebergStreamWriter()) {
+        createIcebergStreamWriter()) {
       Mockito.when(payloadTableSinkProvider.getOrCreateTable(Mockito.any()))
-              .thenReturn(tableIdentifier1);
+          .thenReturn(tableIdentifier1);
       testHarness.processElement(SimpleDataUtil.createRowData(1, "1.1"), 1);
       // Still not emit the data file yet, because there is no checkpoint.
       Assert.assertEquals(0, testHarness.extractOutputValues().size());
@@ -269,14 +278,14 @@ public class TestIcebergMultiTableStreamWriter {
   }
 
   @Test
-  public void testBoundedStreams() {
+  public void testBoundedStreams() throws Exception {
     try (OneInputStreamOperatorTestHarness<RowData, TableAwareWriteResult> testHarness =
-                 createIcebergStreamWriter()) {
+        createIcebergStreamWriter()) {
       Mockito.when(tableLoader.loadTable()).thenReturn(table1).thenReturn(table2);
       Mockito.when(payloadTableSinkProvider.getOrCreateTable(Mockito.any()))
-              .thenReturn(tableIdentifier1)
-              .thenReturn(tableIdentifier1)
-              .thenReturn(tableIdentifier2);
+          .thenReturn(tableIdentifier1)
+          .thenReturn(tableIdentifier1)
+          .thenReturn(tableIdentifier2);
       testHarness.processElement(SimpleDataUtil.createRowData(1, "1.1"), 1);
       testHarness.processElement(SimpleDataUtil.createRowData(2, "1.2"), 2);
       testHarness.processElement(SimpleDataUtil.createRowData(3, "2.1"), 2);
@@ -287,29 +296,35 @@ public class TestIcebergMultiTableStreamWriter {
       long expectedDataFiles = partitioned ? 3 : 2;
       List<TableAwareWriteResult> results = testHarness.extractOutputValues();
       Assert.assertEquals(results.size(), 2);
-      Assert.assertEquals(0, results.stream().mapToInt(result -> result.getWriteResult().deleteFiles().length).sum());
-      Assert.assertEquals(expectedDataFiles, results.stream().mapToInt(result -> result.getWriteResult().dataFiles().length).sum());
+      Assert.assertEquals(
+          0,
+          results.stream().mapToInt(result -> result.getWriteResult().deleteFiles().length).sum());
+      Assert.assertEquals(
+          expectedDataFiles,
+          results.stream().mapToInt(result -> result.getWriteResult().dataFiles().length).sum());
 
       ((BoundedOneInput) testHarness.getOneInputOperator()).endInput();
 
       results = testHarness.extractOutputValues();
       Assert.assertEquals(2, results.size());
-      Assert.assertEquals(0, results.stream().mapToInt(result -> result.getWriteResult().deleteFiles().length).sum());
+      Assert.assertEquals(
+          0,
+          results.stream().mapToInt(result -> result.getWriteResult().deleteFiles().length).sum());
       // Datafiles should not be sent again
-      Assert.assertEquals(expectedDataFiles, results.stream().mapToInt(result -> result.getWriteResult().dataFiles().length).sum());
-    } catch (Exception exception) {
-      exception.printStackTrace();
+      Assert.assertEquals(
+          expectedDataFiles,
+          results.stream().mapToInt(result -> result.getWriteResult().dataFiles().length).sum());
     }
   }
 
   @Test
   public void testBoundedStreamTriggeredEndInputBeforeTriggeringCheckpoint() throws Exception {
     try (OneInputStreamOperatorTestHarness<RowData, TableAwareWriteResult> testHarness =
-                 createIcebergStreamWriter()) {
+        createIcebergStreamWriter()) {
       Mockito.when(tableLoader.loadTable()).thenReturn(table1).thenReturn(table2);
       Mockito.when(payloadTableSinkProvider.getOrCreateTable(Mockito.any()))
-              .thenReturn(tableIdentifier1)
-              .thenReturn(tableIdentifier2);
+          .thenReturn(tableIdentifier1)
+          .thenReturn(tableIdentifier2);
       testHarness.processElement(SimpleDataUtil.createRowData(1, "1.1"), 1);
       testHarness.processElement(SimpleDataUtil.createRowData(2, "2.1"), 2);
 
@@ -318,16 +333,24 @@ public class TestIcebergMultiTableStreamWriter {
       long expectedDataFiles = partitioned ? 2 : 2;
       List<TableAwareWriteResult> results = testHarness.extractOutputValues();
       Assert.assertEquals(2, results.size());
-      Assert.assertEquals(0, results.stream().mapToInt(result -> result.getWriteResult().deleteFiles().length).sum());
-      Assert.assertEquals(expectedDataFiles, results.stream().mapToInt(result -> result.getWriteResult().dataFiles().length).sum());
+      Assert.assertEquals(
+          0,
+          results.stream().mapToInt(result -> result.getWriteResult().deleteFiles().length).sum());
+      Assert.assertEquals(
+          expectedDataFiles,
+          results.stream().mapToInt(result -> result.getWriteResult().dataFiles().length).sum());
 
       testHarness.prepareSnapshotPreBarrier(1L);
 
       results = testHarness.extractOutputValues();
-      Assert.assertEquals(0, results.stream().mapToInt(result -> result.getWriteResult().deleteFiles().length).sum());
+      Assert.assertEquals(
+          0,
+          results.stream().mapToInt(result -> result.getWriteResult().deleteFiles().length).sum());
       // It should be ensured that after endInput is triggered, when prepareSnapshotPreBarrier
       // is triggered, write should only send WriteResult once
-      Assert.assertEquals(expectedDataFiles, results.stream().mapToInt(result -> result.getWriteResult().dataFiles().length).sum());
+      Assert.assertEquals(
+          expectedDataFiles,
+          results.stream().mapToInt(result -> result.getWriteResult().dataFiles().length).sum());
     }
   }
 
@@ -365,10 +388,7 @@ public class TestIcebergMultiTableStreamWriter {
 
     IcebergMultiTableStreamWriter<RowData> streamWriter =
         new IcebergMultiTableStreamWriter<>(
-            payloadTableSinkProvider,
-            catalogLoader,
-            flinkWriteConfig,
-            Collections.emptyList());
+            payloadTableSinkProvider, catalogLoader, flinkWriteConfig, Collections.emptyList());
     OneInputStreamOperatorTestHarness<RowData, TableAwareWriteResult> harness =
         new OneInputStreamOperatorTestHarness<>(streamWriter, 1, 1, 0);
 

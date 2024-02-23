@@ -119,11 +119,11 @@ if (file("${rootDir}/iceberg-build.properties").exists()) {
   }
 }
 
-def projectVersion = getProjectVersion()
+def projectVersion = "1.4.3.fk.1.0-SNAPSHOT"
 final REVAPI_PROJECTS = ["iceberg-api", "iceberg-core", "iceberg-parquet", "iceberg-orc", "iceberg-common", "iceberg-data"]
 
 allprojects {
-  group = "org.apache.iceberg"
+  group = "com.flipkart.fdp.iceberg"
   version = projectVersion
   repositories {
     mavenCentral()

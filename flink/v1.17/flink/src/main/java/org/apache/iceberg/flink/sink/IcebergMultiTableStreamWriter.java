@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.api.operators.ChainingStrategy;
@@ -93,13 +92,13 @@ class IcebergMultiTableStreamWriter<T> extends AbstractStreamOperator<TableAware
   @Override
   public void close() throws Exception {
     super.close();
-    Iterator<Map.Entry<TableIdentifier, TaskWriter<T>>> writeIterator = writers.entrySet().iterator();
+    Iterator<Map.Entry<TableIdentifier, TaskWriter<T>>> writeIterator =
+        writers.entrySet().iterator();
     while (writeIterator.hasNext()) {
       Map.Entry<TableIdentifier, TaskWriter<T>> writer = writeIterator.next();
       try {
         writer.getValue().close();
-      }
-      catch (Exception exception) {
+      } catch (Exception exception) {
         LOG.error("Error occurred while closing the writer {}: ", writer.getValue(), exception);
       }
     }
@@ -120,8 +119,12 @@ class IcebergMultiTableStreamWriter<T> extends AbstractStreamOperator<TableAware
   @Override
   public String toString() {
     // TODO: Modify if required
-    String tableList = writers.keySet().size() > 0 ?
-            String.join(";", writers.keySet().stream().map(TableIdentifier::name).collect(Collectors.toList())) : "empty_writer";
+    String tableList =
+        writers.keySet().size() > 0
+            ? String.join(
+                ";",
+                writers.keySet().stream().map(TableIdentifier::name).collect(Collectors.toList()))
+            : "empty_writer";
     return MoreObjects.toStringHelper(this)
         .add("tables", tableList)
         .add("subtask_id", subTaskId)
@@ -138,21 +141,21 @@ class IcebergMultiTableStreamWriter<T> extends AbstractStreamOperator<TableAware
         TableLoader tableLoader = TableLoader.fromCatalog(catalogLoader, tableIdentifier);
         Table sinkTable = tableLoader.loadTable();
         TaskWriterFactory taskWriterFactory =
-                new RowDataTaskWriterFactory(
-                        sinkTable,
-                        FlinkSink.toFlinkRowType(sinkTable.schema(), null),
-                        conf.targetDataFileSize(),
-                        conf.dataFileFormat(),
-                        TablePropertyUtil.writeProperties(sinkTable, conf.dataFileFormat(), conf),
-                        TablePropertyUtil.checkAndGetEqualityFieldIds(sinkTable, equalityFieldColumns),
-                        conf.upsertMode());
+            new RowDataTaskWriterFactory(
+                sinkTable,
+                FlinkSink.toFlinkRowType(sinkTable.schema(), null),
+                conf.targetDataFileSize(),
+                conf.dataFileFormat(),
+                TablePropertyUtil.writeProperties(sinkTable, conf.dataFileFormat(), conf),
+                TablePropertyUtil.checkAndGetEqualityFieldIds(sinkTable, equalityFieldColumns),
+                conf.upsertMode());
         taskWriterFactory.initialize(subTaskId, attemptId);
         taskWriterFactories.put(tableIdentifier, taskWriterFactory);
       }
       TaskWriter<T> taskWriter = taskWriterFactories.get(tableIdentifier).create();
       writers.put(tableIdentifier, taskWriter);
       IcebergStreamWriterMetrics tableWriteMetrics =
-              new IcebergStreamWriterMetrics(super.metrics, tableName);
+          new IcebergStreamWriterMetrics(super.metrics, tableName);
       writerMetrics.put(tableIdentifier, tableWriteMetrics);
     }
   }
@@ -180,5 +183,4 @@ class IcebergMultiTableStreamWriter<T> extends AbstractStreamOperator<TableAware
     // prepareSnapshotPreBarrier happening after endInput.
     writers.clear();
   }
-  
 }

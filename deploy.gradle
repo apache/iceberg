@@ -89,7 +89,7 @@ subprojects {
             }
           }
 
-          groupId = 'org.apache.iceberg'
+          groupId = 'com.flipkart.fdp.iceberg'
           pom {
             name = 'Apache Iceberg'
             description = 'A table format for huge analytic datasets'

@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.flink.data;
 
-import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.WriteResult;
 

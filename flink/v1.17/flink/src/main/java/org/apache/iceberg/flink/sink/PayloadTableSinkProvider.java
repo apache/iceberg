@@ -23,5 +23,4 @@ import org.apache.iceberg.catalog.TableIdentifier;
 
 public interface PayloadTableSinkProvider<T> {
   TableIdentifier getOrCreateTable(StreamRecord<T> record);
-
 }

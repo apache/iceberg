@@ -312,7 +312,8 @@ public class FlinkSink {
       return this;
     }
 
-    public <T> Builder setPayloadTableSinkProvider(PayloadTableSinkProvider<T> payloadTableSinkProvider) {
+    public <T> Builder setPayloadTableSinkProvider(
+        PayloadTableSinkProvider<T> payloadTableSinkProvider) {
       this.payloadTableSinkProvider = payloadTableSinkProvider;
       return this;
     }
@@ -386,41 +387,48 @@ public class FlinkSink {
 
     private <T> DataStreamSink<T> chainIcebergOperatorsMultiTable() {
       if (enableMultiTableWriter) {
-        Preconditions.checkNotNull(payloadTableSinkProvider, "Payload Table Sink Provider shouldn't be null for writing to multiple tables");
-        Preconditions.checkNotNull(catalogLoader, "CatalogLoader shouldn't be null for writing to multiple tables");
+        Preconditions.checkNotNull(
+            payloadTableSinkProvider,
+            "Payload Table Sink Provider shouldn't be null for writing to multiple tables");
+        Preconditions.checkNotNull(
+            catalogLoader, "CatalogLoader shouldn't be null for writing to multiple tables");
       }
       DataStream<RowData> rowDataInput = inputCreator.apply(uidPrefix);
       flinkWriteConf = new FlinkWriteConf(table, writeOptions, readableConfig);
 
       // Add parallel writers that append rows to files
-      IcebergMultiTableStreamWriter<RowData> streamWriter = new IcebergMultiTableStreamWriter<>(payloadTableSinkProvider, catalogLoader, flinkWriteConf, equalityFieldColumns);
+      IcebergMultiTableStreamWriter<RowData> streamWriter =
+          new IcebergMultiTableStreamWriter<>(
+              payloadTableSinkProvider, catalogLoader, flinkWriteConf, equalityFieldColumns);
       int parallelism =
-              flinkWriteConf.writeParallelism() == null
-                      ? rowDataInput.getParallelism()
-                      : flinkWriteConf.writeParallelism();
+          flinkWriteConf.writeParallelism() == null
+              ? rowDataInput.getParallelism()
+              : flinkWriteConf.writeParallelism();
 
       SingleOutputStreamOperator<TableAwareWriteResult> writerStream =
-              rowDataInput
-                      .transform(
-                              operatorName(IcebergMultiTableStreamWriter.class.getSimpleName()),
-                              TypeInformation.of(TableAwareWriteResult.class),
-                              streamWriter)
-                      .setParallelism(parallelism);
+          rowDataInput
+              .transform(
+                  operatorName(IcebergMultiTableStreamWriter.class.getSimpleName()),
+                  TypeInformation.of(TableAwareWriteResult.class),
+                  streamWriter)
+              .setParallelism(parallelism);
 
       if (uidPrefix != null) {
         writerStream = writerStream.uid(uidPrefix + "-writer");
       }
 
-      IcebergMultiTableFilesCommitter filesCommitter = new IcebergMultiTableFilesCommitter(catalogLoader,
+      IcebergMultiTableFilesCommitter filesCommitter =
+          new IcebergMultiTableFilesCommitter(
+              catalogLoader,
               flinkWriteConf.overwriteMode(),
               snapshotProperties,
               flinkWriteConf.workerPoolSize(),
               flinkWriteConf.branch());
       SingleOutputStreamOperator<Void> committerStream =
-              writerStream
-                      .transform(operatorName(ICEBERG_FILES_COMMITTER_NAME), Types.VOID, filesCommitter)
-                      .setParallelism(1)
-                      .setMaxParallelism(1);
+          writerStream
+              .transform(operatorName(ICEBERG_FILES_COMMITTER_NAME), Types.VOID, filesCommitter)
+              .setParallelism(1)
+              .setMaxParallelism(1);
       if (uidPrefix != null) {
         committerStream = committerStream.uid(uidPrefix + "-committer");
       }
@@ -516,7 +524,7 @@ public class FlinkSink {
             "Equality field columns shouldn't be empty when configuring to use UPSERT data stream.");
         if (!table.spec().isUnpartitioned()) {
           for (PartitionField partitionField : table.spec().fields()) {
-            //TODO: Should we move this logic inside multi table stream writer?
+            // TODO: Should we move this logic inside multi table stream writer?
             Preconditions.checkState(
                 equalityFieldIds.contains(partitionField.sourceId()),
                 "In UPSERT mode, partition field '%s' should be included in equality fields: '%s'",
@@ -669,5 +677,4 @@ public class FlinkSink {
 
     return new IcebergStreamWriter<>(initTable.name(), taskWriterFactory);
   }
-
 }
