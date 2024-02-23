@@ -226,7 +226,7 @@ PARTITIONED BY (category);
 ```
 
 ### DynamoDB Catalog
-**Deprecated:** As of version 1.5.0, the DynamoDB Catalog is planned for deprecation in 2.0.0.
+**Deprecated:** As of version 1.5.0, the DynamoDB Catalog is planned for deprecation in version 2.0.0.
 
 Iceberg supports using a [DynamoDB](https://aws.amazon.com/dynamodb) table to record and manage database and table information.
 
