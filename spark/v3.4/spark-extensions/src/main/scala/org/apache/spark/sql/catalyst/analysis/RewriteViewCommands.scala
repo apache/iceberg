@@ -67,7 +67,8 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
 
     case ShowViews(UnresolvedNamespace(Seq()), pattern, output)
       if ViewUtil.isViewCatalog(catalogManager.currentCatalog) =>
-      ShowIcebergViews(ResolvedNamespace(catalogManager.currentCatalog, Seq.empty), pattern, output)
+      ShowIcebergViews(ResolvedNamespace(catalogManager.currentCatalog, catalogManager.currentNamespace),
+        pattern, output)
 
     case ShowViews(UnresolvedNamespace(CatalogAndNamespace(catalog, ns)), pattern, output)
       if ViewUtil.isViewCatalog(catalog) =>
