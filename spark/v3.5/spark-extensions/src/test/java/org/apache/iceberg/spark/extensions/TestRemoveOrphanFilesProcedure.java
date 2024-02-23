@@ -76,11 +76,6 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
     sql("DROP TABLE IF EXISTS p PURGE");
   }
 
-  private java.nio.file.Path createTempDirectory(java.nio.file.Path temp, String prefix)
-      throws IOException {
-    return java.nio.file.Files.createTempDirectory(temp, prefix);
-  }
-
   @TestTemplate
   public void testRemoveOrphanFilesInEmptyTable() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
@@ -101,7 +96,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
       // correctly while dropping tables through spark_catalog
       sql(
           "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg LOCATION '%s'",
-          tableName, createTempDirectory(temp, "junit"));
+          tableName, java.nio.file.Files.createTempDirectory(temp, "junit"));
     }
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
     sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableName);
@@ -163,7 +158,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
       // correctly while dropping tables through spark_catalog
       sql(
           "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg LOCATION '%s'",
-          tableName, createTempDirectory(temp, "junit"));
+          tableName, java.nio.file.Files.createTempDirectory(temp, "junit"));
     }
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
@@ -284,7 +279,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
       // correctly while dropping tables through spark_catalog
       sql(
           "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg LOCATION '%s'",
-          tableName, createTempDirectory(temp, "junit"));
+          tableName, java.nio.file.Files.createTempDirectory(temp, "junit"));
     }
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
@@ -597,7 +592,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
     } else {
       sql(
           "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg LOCATION '%s'",
-          tableName, createTempDirectory(temp, "junit"));
+          tableName, java.nio.file.Files.createTempDirectory(temp, "junit"));
     }
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     String location = table.location();
