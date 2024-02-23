@@ -73,7 +73,9 @@ import org.apache.spark.sql.Encoder;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.expressions.UserDefinedFunction;
 import org.apache.spark.sql.functions;
+import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -94,13 +96,15 @@ public class RewriteManifestsSparkAction
   public static final String USE_CACHING = "use-caching";
   public static final boolean USE_CACHING_DEFAULT = false;
 
-  private List<String> partitionSortColumns = null;
   private static final Logger LOG = LoggerFactory.getLogger(RewriteManifestsSparkAction.class);
   private static final RewriteManifests.Result EMPTY_RESULT =
       ImmutableRewriteManifests.Result.builder()
           .rewrittenManifests(ImmutableList.of())
           .addedManifests(ImmutableList.of())
           .build();
+
+  private static final String CUSTOM_CLUSTERING_COLUMN_NAME = "__clustering_column__";
+
   private final Table table;
   private final int formatVersion;
   private final long targetManifestSizeBytes;
@@ -109,6 +113,10 @@ public class RewriteManifestsSparkAction
   private PartitionSpec spec = null;
   private Predicate<ManifestFile> predicate = manifest -> true;
   private String outputLocation = null;
+
+  private List<String> partitionFieldSortOrder = null;
+
+  private Function<DataFile, String> partitionSortFunction = null;
 
   RewriteManifestsSparkAction(SparkSession spark, Table table) {
     super(spark);
@@ -164,31 +172,28 @@ public class RewriteManifestsSparkAction
     return this;
   }
 
-  /**
-   * Supply an optional set of partition transform column names to sort the rewritten manifests by.
-   * Expects exact transformed column names used for partitioning; not the raw column names used for
-   * partitioning. E.G. supply 'data_bucket' and not 'data' for a partition defined as bucket(N,
-   * data)
-   *
-   * @param partitionSortOrder - Order of partitions to sort manifests by
-   * @return this action
-   */
   @Override
-  public RewriteManifestsSparkAction sort(List<String> partitionSortOrder) {
+  public RewriteManifestsSparkAction sort(List<String> sortOrder) {
     // Collect set of allowable partition columns to sort on
     Set<String> availablePartitionNames =
         spec.fields().stream().map(PartitionField::name).collect(Collectors.toSet());
 
-    // Check if these partitions are included in the spec
+    // Check if these partition fields are included in the spec
     Preconditions.checkArgument(
-        partitionSortOrder.stream().allMatch(availablePartitionNames::contains),
+        sortOrder.stream().allMatch(availablePartitionNames::contains),
         "Cannot use custom sort order to rewrite manifests '%s'. All partition columns must be "
             + "defined in the current partition spec: %s. Choose from the available partitionable columns: %s",
-        partitionSortColumns,
+        sortOrder,
         this.spec.specId(),
         availablePartitionNames);
-    this.partitionSortColumns = partitionSortOrder;
 
+    this.partitionFieldSortOrder = sortOrder;
+    return this;
+  }
+
+  @Override
+  public RewriteManifests sort(Function<DataFile, String> partitionFieldsSortStrategy) {
+    this.partitionSortFunction = partitionFieldsSortStrategy;
     return this;
   }
 
@@ -284,18 +289,36 @@ public class RewriteManifestsSparkAction
 
     // Extract desired clustering/sorting criteria into a dedicated column
     Dataset<Row> clusteredManifestEntryDF;
-    String clusteringColumnName = "__clustering_column__";
 
-    if (partitionSortColumns != null) {
+    if (partitionSortFunction != null) {
+      LOG.info(
+          "Sorting manifests for specId {} using custom sorting function",
+          spec.specId(),
+          partitionSortFunction);
+      Types.StructType partitionType = DataFile.getType(table.spec().partitionType());
+      StructType dataFileSchema = manifestEntryDF.select("data_file.*").schema();
+
+      // Create a UDF to wrap the custom partitionSortFunction call
+      UserDefinedFunction clusteringUdf =
+          functions.udf(
+              new CustomDataFileSorterUdf(
+                  this.partitionSortFunction, partitionType, dataFileSchema),
+              DataTypes.StringType);
+      // Apply supplied partitionSortFunction function to the data_file datums within this dataframe
+      // The results are stored as a String in the new __clustering_column__
+      clusteredManifestEntryDF =
+          manifestEntryDF.withColumn(
+              CUSTOM_CLUSTERING_COLUMN_NAME, clusteringUdf.apply(col("data_file")));
+    } else if (partitionFieldSortOrder != null) {
       LOG.info(
           "Sorting manifests for specId {} by partition columns in order of {} ",
           spec.specId(),
-          partitionSortColumns);
+          partitionFieldSortOrder);
 
       // Map the top level partition column names to the column name referenced within the manifest
       // entry dataframe
       Column[] actualPartitionColumns =
-          partitionSortColumns.stream()
+          partitionFieldSortOrder.stream()
               .map(p -> col("data_file.partition." + p))
               .toArray(Column[]::new);
 
@@ -303,19 +326,20 @@ public class RewriteManifestsSparkAction
       // order provided
       clusteredManifestEntryDF =
           manifestEntryDF.withColumn(
-              clusteringColumnName, functions.struct(actualPartitionColumns));
+              CUSTOM_CLUSTERING_COLUMN_NAME, functions.struct(actualPartitionColumns));
     } else {
       clusteredManifestEntryDF =
-          manifestEntryDF.withColumn(clusteringColumnName, col("data_file.partition"));
+          manifestEntryDF.withColumn(CUSTOM_CLUSTERING_COLUMN_NAME, col("data_file.partition"));
     }
 
     return withReusableDS(
         clusteredManifestEntryDF,
         df -> {
           WriteManifests<?> writeFunc = newWriteManifestsFunc(content, df.schema());
-          Column partitionColumn = df.col(clusteringColumnName);
+          Column partitionColumn = df.col(CUSTOM_CLUSTERING_COLUMN_NAME);
           Dataset<Row> transformedDF =
-              repartitionAndSort(df, partitionColumn, numManifests).drop(clusteringColumnName);
+              repartitionAndSort(df, partitionColumn, numManifests)
+                  .drop(CUSTOM_CLUSTERING_COLUMN_NAME);
           return writeFunc.apply(transformedDF).collectAsList();
         });
   }

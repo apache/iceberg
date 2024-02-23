@@ -19,7 +19,9 @@
 package org.apache.iceberg.actions;
 
 import java.util.List;
+import java.util.function.Function;
 import java.util.function.Predicate;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.ManifestFile;
 
 /** An action that rewrites manifests. */
@@ -46,17 +48,35 @@ public interface RewriteManifests
   RewriteManifests rewriteIf(Predicate<ManifestFile> predicate);
 
   /**
-   * Rewrite manifests in a given order, based on partition transforms
+   * Rewrite manifests in a given order, based on partition field names
+   *
+   * <p>Supply an optional set of partition field names to sort the rewritten manifests by. Expects
+   * exact transformed column names used for partitioning; not the raw columnnames that partitions
+   * are derived from. E.G. supply 'data_bucket' and not 'data' for a bucket(N, data) partition
+   * definition
    *
    * <p>If not set, manifests will be rewritten in the order of the transforms in the table's
    * current partition spec.
    *
-   * @param partitionSortOrder a list of partition field transform names
+   * @param partitionFieldSortOrder a list of partition field names
    * @return this for method chaining
    */
-  default RewriteManifests sort(List<String> partitionSortOrder) {
+  default RewriteManifests sort(List<String> partitionFieldSortOrder) {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " doesn't implement sort(List<String>)");
+  }
+
+  /**
+   * Rewrite manifests in a given order, dictated by a custom Function
+   *
+   * <p>Supply a Function which will apply its own custom clustering logic based on supplied {@link
+   * org.apache.iceberg.DataFile} attributes.
+   *
+   * @param sortStrategyFunction A Function that returns a String to be used for manifest clustering
+   * @return this method for chaining
+   */
+  default RewriteManifests sort(Function<DataFile, String> sortStrategyFunction) {
+    throw new UnsupportedOperationException();
   }
 
   /**
