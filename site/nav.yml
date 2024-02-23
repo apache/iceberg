@@ -36,6 +36,7 @@ nav:
     - Spec: spec.md
     - View spec: view-spec.md
     - Puffin spec: puffin-spec.md
+    - AES GCM Stream spec: gcm-stream-spec.md
     - Multi-engine support: multi-engine-support.md
     - How to release: how-to-release.md
     - Terms: terms.md
