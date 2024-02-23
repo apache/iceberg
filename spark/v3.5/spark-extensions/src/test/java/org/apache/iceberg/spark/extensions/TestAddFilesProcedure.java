@@ -22,6 +22,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -95,8 +97,8 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
   @TempDir private Path temp;
 
   @BeforeEach
-  public void setupTempDirs() {
-    fileTableDir = temp.toFile();
+  public void setupTempDirs() throws IOException {
+    fileTableDir = Files.createTempDirectory(temp, "junit").toFile();
   }
 
   @AfterEach

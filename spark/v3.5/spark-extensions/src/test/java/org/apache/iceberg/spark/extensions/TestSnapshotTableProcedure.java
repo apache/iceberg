@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Map;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
@@ -46,7 +47,7 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
 
   @TestTemplate
   public void testSnapshot() throws IOException {
-    String location = temp.toFile().toString();
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         sourceName, location);
@@ -72,7 +73,7 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
 
   @TestTemplate
   public void testSnapshotWithProperties() throws IOException {
-    String location = temp.toFile().toString();
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         sourceName, location);
@@ -107,8 +108,8 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
     assumeThat(catalogName)
         .as("No Snapshoting with Alternate locations with Hadoop Catalogs")
         .doesNotContain("hadoop");
-    String location = temp.toFile().toString();
-    String snapshotLocation = temp.toFile() + "_snapshot";
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
+    String snapshotLocation = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         sourceName, location);
@@ -136,7 +137,7 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
 
   @TestTemplate
   public void testDropTable() throws IOException {
-    String location = temp.toFile().toString();
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         sourceName, location);
@@ -161,7 +162,7 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
 
   @TestTemplate
   public void testSnapshotWithConflictingProps() throws IOException {
-    String location = temp.toFile().toString();
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         sourceName, location);
@@ -191,7 +192,7 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
 
   @TestTemplate
   public void testInvalidSnapshotsCases() throws IOException {
-    String location = temp.toFile().toString();
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         sourceName, location);

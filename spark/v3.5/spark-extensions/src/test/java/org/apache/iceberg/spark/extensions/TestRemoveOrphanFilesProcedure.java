@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static java.nio.file.Files.createTempDirectory;
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.WRITE_AUDIT_PUBLISH_ENABLED;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -96,9 +97,8 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
       // correctly while dropping tables through spark_catalog
       sql(
           "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg LOCATION '%s'",
-          tableName, temp.toFile());
+          tableName, createTempDirectory(temp, "junit"));
     }
-
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
     sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableName);
 
@@ -159,7 +159,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
       // correctly while dropping tables through spark_catalog
       sql(
           "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg LOCATION '%s'",
-          tableName, temp.toFile());
+          tableName, createTempDirectory(temp, "junit"));
     }
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
@@ -280,7 +280,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
       // correctly while dropping tables through spark_catalog
       sql(
           "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg LOCATION '%s'",
-          tableName, temp.toFile());
+          tableName, createTempDirectory(temp, "junit"));
     }
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
@@ -593,7 +593,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
     } else {
       sql(
           "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg LOCATION '%s'",
-          tableName, temp.toFile().toURI().toString());
+          tableName, createTempDirectory(temp, "junit"));
     }
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     String location = table.location();

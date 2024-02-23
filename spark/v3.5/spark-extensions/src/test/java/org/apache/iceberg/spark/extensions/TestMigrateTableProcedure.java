@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Map;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
@@ -44,7 +45,7 @@ public class TestMigrateTableProcedure extends ExtensionsTestBase {
   @TestTemplate
   public void testMigrate() throws IOException {
     assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
-    String location = temp.toFile().toString();
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         tableName, location);
@@ -71,7 +72,7 @@ public class TestMigrateTableProcedure extends ExtensionsTestBase {
   @TestTemplate
   public void testMigrateWithOptions() throws IOException {
     assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
-    String location = temp.toFile().toString();
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         tableName, location);
@@ -103,7 +104,7 @@ public class TestMigrateTableProcedure extends ExtensionsTestBase {
   @TestTemplate
   public void testMigrateWithDropBackup() throws IOException {
     assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
-    String location = temp.toFile().toString();
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         tableName, location);
@@ -119,7 +120,7 @@ public class TestMigrateTableProcedure extends ExtensionsTestBase {
   @TestTemplate
   public void testMigrateWithBackupTableName() throws IOException {
     assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
-    String location = temp.toFile().toString();
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         tableName, location);
@@ -140,7 +141,7 @@ public class TestMigrateTableProcedure extends ExtensionsTestBase {
   public void testMigrateWithInvalidMetricsConfig() throws IOException {
     assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
 
-    String location = temp.toFile().toString();
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         tableName, location);
@@ -158,7 +159,7 @@ public class TestMigrateTableProcedure extends ExtensionsTestBase {
   public void testMigrateWithConflictingProps() throws IOException {
     assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
 
-    String location = temp.toFile().toString();
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         tableName, location);
@@ -196,7 +197,7 @@ public class TestMigrateTableProcedure extends ExtensionsTestBase {
   @TestTemplate
   public void testMigratePartitionWithSpecialCharacter() throws IOException {
     assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
-    String location = temp.toFile().toString();
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string, dt date) USING parquet "
             + "PARTITIONED BY (data, dt) LOCATION '%s'",
@@ -213,7 +214,7 @@ public class TestMigrateTableProcedure extends ExtensionsTestBase {
   @TestTemplate
   public void testMigrateEmptyPartitionedTable() throws Exception {
     assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
-    String location = temp.toFile().toString();
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet PARTITIONED BY (id) LOCATION '%s'",
         tableName, location);
@@ -224,7 +225,7 @@ public class TestMigrateTableProcedure extends ExtensionsTestBase {
   @TestTemplate
   public void testMigrateEmptyTable() throws Exception {
     assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
-    String location = temp.toFile().toString();
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         tableName, location);

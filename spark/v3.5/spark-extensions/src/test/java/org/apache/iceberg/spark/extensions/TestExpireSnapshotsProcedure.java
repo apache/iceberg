@@ -25,6 +25,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
@@ -192,7 +193,11 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
     String anotherCatalog = "another_" + catalogName;
     spark.conf().set("spark.sql.catalog." + anotherCatalog, SparkCatalog.class.getName());
     spark.conf().set("spark.sql.catalog." + anotherCatalog + ".type", "hadoop");
-    spark.conf().set("spark.sql.catalog." + anotherCatalog + ".warehouse", "file:" + temp.toFile());
+    spark
+        .conf()
+        .set(
+            "spark.sql.catalog." + anotherCatalog + ".warehouse",
+            Files.createTempDirectory(temp, "junit").toFile().toURI().toString());
 
     sql(
         "CREATE TABLE %s.%s (id bigint NOT NULL, data string) USING iceberg",
