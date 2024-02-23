@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark.extensions;
 
-import static java.nio.file.Files.createTempDirectory;
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.WRITE_AUDIT_PUBLISH_ENABLED;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -75,6 +74,11 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
   public void removeTable() {
     sql("DROP TABLE IF EXISTS %s PURGE", tableName);
     sql("DROP TABLE IF EXISTS p PURGE");
+  }
+
+  private java.nio.file.Path createTempDirectory(java.nio.file.Path temp, String prefix)
+      throws IOException {
+    return java.nio.file.Files.createTempDirectory(temp, prefix);
   }
 
   @TestTemplate
