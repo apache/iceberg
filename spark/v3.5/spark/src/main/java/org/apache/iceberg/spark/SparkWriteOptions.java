@@ -67,6 +67,7 @@ public class SparkWriteOptions {
   public static final boolean USE_TABLE_DISTRIBUTION_AND_ORDERING_DEFAULT = true;
 
   public static final String MERGE_SCHEMA = "merge-schema";
+  public static final String SPARK_MERGE_SCHEMA = "mergeSchema";
 
   // Identifies snapshot from which to start validating conflicting changes
   public static final String VALIDATE_FROM_SNAPSHOT_ID = "validate-from-snapshot-id";
