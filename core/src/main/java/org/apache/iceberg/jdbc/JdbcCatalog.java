@@ -20,7 +20,6 @@ package org.apache.iceberg.jdbc;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -40,8 +39,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -75,7 +76,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
   private static final Logger LOG = LoggerFactory.getLogger(JdbcCatalog.class);
   private static final Joiner SLASH = Joiner.on("/");
   static final String VIEW_WARNING_LOG_MESSAGE =
-      "JDBC catalog is initialized without view support. To auto-migrate the database's schema and enable view support, set jdbc.add-view-support=true";
+      "JDBC catalog is initialized without view support. To auto-migrate the database's schema and enable view support, set jdbc.schema-version=V1";
 
   private FileIO io;
   private String catalogName = "jdbc";
@@ -87,7 +88,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
   private final Function<Map<String, String>, JdbcClientPool> clientPoolBuilder;
   private final boolean initializeCatalogTables;
   private CloseableGroup closeableGroup;
-  private JdbcUtil.SchemaVersion schemaVersion = JdbcUtil.SchemaVersion.V1;
+  private JdbcUtil.SchemaVersion schemaVersion = JdbcUtil.SchemaVersion.V0;
 
   public JdbcCatalog() {
     this(null, null, true);
@@ -136,10 +137,60 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
       this.connections = new JdbcClientPool(uri, properties);
     }
 
+    if (initializeCatalogTables) {
+      initializeCatalogTables();
+    }
+
+    updateSchemaIfRequired();
+
+    this.closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(metricsReporter());
+    closeableGroup.addCloseable(connections);
+    closeableGroup.setSuppressCloseFailure(true);
+  }
+
+  private void initializeCatalogTables() {
+    LOG.trace("Creating database tables (if missing) to store iceberg catalog");
     try {
-      if (initializeCatalogTables) {
-        initializeCatalogTables();
-      }
+      connections.run(
+          conn -> {
+            DatabaseMetaData dbMeta = conn.getMetaData();
+            ResultSet tableExists =
+                dbMeta.getTables(
+                    null /* catalog name */,
+                    null /* schemaPattern */,
+                    JdbcUtil.CATALOG_TABLE_VIEW_NAME /* tableNamePattern */,
+                    null /* types */);
+            if (tableExists.next()) {
+              return true;
+            }
+
+            LOG.debug(
+                "Creating table {} to store iceberg catalog tables",
+                JdbcUtil.CATALOG_TABLE_VIEW_NAME);
+            return conn.prepareStatement(JdbcUtil.V0_CREATE_CATALOG_SQL).execute();
+          });
+
+      connections.run(
+          conn -> {
+            DatabaseMetaData dbMeta = conn.getMetaData();
+            ResultSet tableExists =
+                dbMeta.getTables(
+                    null /* catalog name */,
+                    null /* schemaPattern */,
+                    JdbcUtil.NAMESPACE_PROPERTIES_TABLE_NAME /* tableNamePattern */,
+                    null /* types */);
+
+            if (tableExists.next()) {
+              return true;
+            }
+
+            LOG.debug(
+                "Creating table {} to store iceberg catalog namespace properties",
+                JdbcUtil.NAMESPACE_PROPERTIES_TABLE_NAME);
+            return conn.prepareStatement(JdbcUtil.CREATE_NAMESPACE_PROPERTIES_TABLE_SQL).execute();
+          });
+
     } catch (SQLTimeoutException e) {
       throw new UncheckedSQLException(e, "Cannot initialize JDBC catalog: Query timed out");
     } catch (SQLTransientConnectionException | SQLNonTransientConnectionException e) {
@@ -150,69 +201,44 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
       Thread.currentThread().interrupt();
       throw new UncheckedInterruptedException(e, "Interrupted in call to initialize");
     }
-    this.closeableGroup = new CloseableGroup();
-    closeableGroup.addCloseable(metricsReporter());
-    closeableGroup.addCloseable(connections);
-    closeableGroup.setSuppressCloseFailure(true);
   }
 
-  private void initializeCatalogTables() throws InterruptedException, SQLException {
-    LOG.trace("Creating database tables (if missing) to store iceberg catalog");
-    connections.run(
-        conn -> {
-          DatabaseMetaData dbMeta = conn.getMetaData();
-          ResultSet tableExists =
-              dbMeta.getTables(
-                  null /* catalog name */,
-                  null /* schemaPattern */,
-                  JdbcUtil.CATALOG_TABLE_VIEW_NAME /* tableNamePattern */,
-                  null /* types */);
-          if (tableExists.next()) {
-            updateCatalogTables(conn);
-            return true;
-          }
-
-          LOG.debug(
-              "Creating table {} to store iceberg catalog tables",
-              JdbcUtil.CATALOG_TABLE_VIEW_NAME);
-          return conn.prepareStatement(JdbcUtil.CREATE_CATALOG_SQL).execute();
-        });
-
-    connections.run(
-        conn -> {
-          DatabaseMetaData dbMeta = conn.getMetaData();
-          ResultSet tableExists =
-              dbMeta.getTables(
-                  null /* catalog name */,
-                  null /* schemaPattern */,
-                  JdbcUtil.NAMESPACE_PROPERTIES_TABLE_NAME /* tableNamePattern */,
-                  null /* types */);
-
-          if (tableExists.next()) {
-            return true;
-          }
-
-          LOG.debug(
-              "Creating table {} to store iceberg catalog namespace properties",
-              JdbcUtil.NAMESPACE_PROPERTIES_TABLE_NAME);
-          return conn.prepareStatement(JdbcUtil.CREATE_NAMESPACE_PROPERTIES_TABLE_SQL).execute();
-        });
-  }
-
-  private void updateCatalogTables(Connection connection) throws SQLException {
-    DatabaseMetaData dbMeta = connection.getMetaData();
-    ResultSet typeColumn =
-        dbMeta.getColumns(null, null, JdbcUtil.CATALOG_TABLE_VIEW_NAME, JdbcUtil.RECORD_TYPE);
-    if (typeColumn.next()) {
-      LOG.debug("{} already supports views", JdbcUtil.CATALOG_TABLE_VIEW_NAME);
-    } else {
-      if (PropertyUtil.propertyAsBoolean(
-          catalogProperties, JdbcUtil.ADD_VIEW_SUPPORT_PROPERTY, false)) {
-        connection.prepareStatement(JdbcUtil.UPDATE_CATALOG_SQL).execute();
-      } else {
-        LOG.warn(VIEW_WARNING_LOG_MESSAGE);
-        schemaVersion = JdbcUtil.SchemaVersion.V0;
-      }
+  private void updateSchemaIfRequired() {
+    try {
+      connections.run(
+          conn -> {
+            DatabaseMetaData dbMeta = conn.getMetaData();
+            ResultSet typeColumn =
+                dbMeta.getColumns(
+                    null, null, JdbcUtil.CATALOG_TABLE_VIEW_NAME, JdbcUtil.RECORD_TYPE);
+            if (typeColumn.next()) {
+              LOG.debug("{} already supports views", JdbcUtil.CATALOG_TABLE_VIEW_NAME);
+              schemaVersion = JdbcUtil.SchemaVersion.V1;
+              return true;
+            } else {
+              if (PropertyUtil.propertyAsString(
+                      catalogProperties,
+                      JdbcUtil.SCHEMA_VERSION_PROPERTY,
+                      JdbcUtil.SchemaVersion.V0.name())
+                  .equalsIgnoreCase(JdbcUtil.SchemaVersion.V1.name())) {
+                LOG.debug("{} is being updated to support views", JdbcUtil.CATALOG_TABLE_VIEW_NAME);
+                schemaVersion = JdbcUtil.SchemaVersion.V1;
+                return conn.prepareStatement(JdbcUtil.V1_UPDATE_CATALOG_SQL).execute();
+              } else {
+                LOG.warn(VIEW_WARNING_LOG_MESSAGE);
+                return true;
+              }
+            }
+          });
+    } catch (SQLTimeoutException e) {
+      throw new UncheckedSQLException(e, "Cannot update JDBC catalog: Query timed out");
+    } catch (SQLTransientConnectionException | SQLNonTransientConnectionException e) {
+      throw new UncheckedSQLException(e, "Cannot update JDBC catalog: Connection failed");
+    } catch (SQLException e) {
+      throw new UncheckedSQLException(e, "Cannot check and eventually update SQL schema");
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new UncheckedInterruptedException(e, "Interrupted in call to initialize");
     }
   }
 
@@ -289,6 +315,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
         JdbcUtil.namespaceToString(namespace));
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   @Override
   public void renameTable(TableIdentifier from, TableIdentifier to) {
     if (from.equals(to)) {
@@ -303,7 +330,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
       throw new NoSuchNamespaceException("Namespace does not exist: %s", to.namespace());
     }
 
-    if (viewExists(to)) {
+    if (schemaVersion == JdbcUtil.SchemaVersion.V1 && viewExists(to)) {
       throw new AlreadyExistsException("Cannot rename %s to %s. View already exists", from, to);
     }
 
@@ -787,5 +814,33 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
   @Override
   protected Map<String, String> properties() {
     return catalogProperties == null ? ImmutableMap.of() : catalogProperties;
+  }
+
+  @Override
+  public TableBuilder buildTable(TableIdentifier identifier, Schema schema) {
+    return new ViewAwareTableBuilder(identifier, schema);
+  }
+
+  /**
+   * The purpose of this class is to add view detection only when SchemaVersion.V1 schema is used
+   * when replacing a table.
+   */
+  protected class ViewAwareTableBuilder extends BaseMetastoreCatalogTableBuilder {
+
+    private final TableIdentifier identifier;
+
+    public ViewAwareTableBuilder(TableIdentifier identifier, Schema schema) {
+      super(identifier, schema);
+      this.identifier = identifier;
+    }
+
+    @Override
+    public Transaction replaceTransaction() {
+      if (schemaVersion == JdbcUtil.SchemaVersion.V1 && viewExists(identifier)) {
+        throw new AlreadyExistsException("View with same name already exists: %s", identifier);
+      }
+
+      return super.replaceTransaction();
+    }
   }
 }

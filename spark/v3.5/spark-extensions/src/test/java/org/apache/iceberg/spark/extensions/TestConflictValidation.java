@@ -19,8 +19,8 @@
 package org.apache.iceberg.spark.extensions;
 
 import java.util.List;
-import java.util.Map;
 import org.apache.iceberg.IsolationLevel;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -30,18 +30,15 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.functions;
 import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestConflictValidation extends SparkExtensionsTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestConflictValidation extends ExtensionsTestBase {
 
-  public TestConflictValidation(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @Before
+  @BeforeEach
   public void createTables() {
     sql(
         "CREATE TABLE %s (id int, data string) USING iceberg "
@@ -53,12 +50,12 @@ public class TestConflictValidation extends SparkExtensionsTestBase {
     sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b'), (3, 'c')", tableName);
   }
 
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testOverwriteFilterSerializableIsolation() throws Exception {
     Table table = validationCatalog.loadTable(tableIdent);
     long snapshotId = table.currentSnapshot().snapshotId();
@@ -90,7 +87,7 @@ public class TestConflictValidation extends SparkExtensionsTestBase {
         .overwrite(functions.col("id").equalTo(1));
   }
 
-  @Test
+  @TestTemplate
   public void testOverwriteFilterSerializableIsolation2() throws Exception {
     List<SimpleRecord> records =
         Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(1, "b"));
@@ -127,7 +124,7 @@ public class TestConflictValidation extends SparkExtensionsTestBase {
         .overwrite(functions.col("id").equalTo(1));
   }
 
-  @Test
+  @TestTemplate
   public void testOverwriteFilterSerializableIsolation3() throws Exception {
     Table table = validationCatalog.loadTable(tableIdent);
     long snapshotId = table.currentSnapshot().snapshotId();
@@ -161,7 +158,7 @@ public class TestConflictValidation extends SparkExtensionsTestBase {
         .overwrite(functions.col("id").equalTo(1));
   }
 
-  @Test
+  @TestTemplate
   public void testOverwriteFilterNoSnapshotIdValidation() throws Exception {
     Table table = validationCatalog.loadTable(tableIdent);
 
@@ -192,7 +189,7 @@ public class TestConflictValidation extends SparkExtensionsTestBase {
         .overwrite(functions.col("id").equalTo(1));
   }
 
-  @Test
+  @TestTemplate
   public void testOverwriteFilterSnapshotIsolation() throws Exception {
     List<SimpleRecord> records =
         Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(1, "b"));
@@ -229,7 +226,7 @@ public class TestConflictValidation extends SparkExtensionsTestBase {
         .overwrite(functions.col("id").equalTo(1));
   }
 
-  @Test
+  @TestTemplate
   public void testOverwriteFilterSnapshotIsolation2() throws Exception {
     Table table = validationCatalog.loadTable(tableIdent);
     long snapshotId = table.currentSnapshot().snapshotId();
@@ -246,7 +243,7 @@ public class TestConflictValidation extends SparkExtensionsTestBase {
         .overwrite(functions.col("id").equalTo(1));
   }
 
-  @Test
+  @TestTemplate
   public void testOverwritePartitionSerializableIsolation() throws Exception {
     Table table = validationCatalog.loadTable(tableIdent);
     final long snapshotId = table.currentSnapshot().snapshotId();
@@ -278,7 +275,7 @@ public class TestConflictValidation extends SparkExtensionsTestBase {
         .overwritePartitions();
   }
 
-  @Test
+  @TestTemplate
   public void testOverwritePartitionSnapshotIsolation() throws Exception {
     List<SimpleRecord> records =
         Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(1, "b"));
@@ -313,7 +310,7 @@ public class TestConflictValidation extends SparkExtensionsTestBase {
         .overwritePartitions();
   }
 
-  @Test
+  @TestTemplate
   public void testOverwritePartitionSnapshotIsolation2() throws Exception {
     Table table = validationCatalog.loadTable(tableIdent);
     final long snapshotId = table.currentSnapshot().snapshotId();
@@ -347,7 +344,7 @@ public class TestConflictValidation extends SparkExtensionsTestBase {
         .overwritePartitions();
   }
 
-  @Test
+  @TestTemplate
   public void testOverwritePartitionSnapshotIsolation3() throws Exception {
     Table table = validationCatalog.loadTable(tableIdent);
     final long snapshotId = table.currentSnapshot().snapshotId();
@@ -364,7 +361,7 @@ public class TestConflictValidation extends SparkExtensionsTestBase {
         .overwritePartitions();
   }
 
-  @Test
+  @TestTemplate
   public void testOverwritePartitionNoSnapshotIdValidation() throws Exception {
     Table table = validationCatalog.loadTable(tableIdent);
 

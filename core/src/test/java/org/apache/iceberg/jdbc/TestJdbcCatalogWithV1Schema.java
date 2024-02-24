@@ -22,20 +22,34 @@ import java.util.Map;
 import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.view.ViewCatalogTests;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.io.TempDir;
 
-public class TestJdbcViewCatalog extends ViewCatalogTests<JdbcCatalog> {
+public class TestJdbcCatalogWithV1Schema extends CatalogTests<JdbcCatalog> {
 
   private JdbcCatalog catalog;
 
   @TempDir private java.nio.file.Path tableDir;
 
+  @Override
+  protected JdbcCatalog catalog() {
+    return catalog;
+  }
+
+  @Override
+  protected boolean supportsNamespaceProperties() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsNestedNamespaces() {
+    return true;
+  }
+
   @BeforeEach
-  public void before() {
+  public void setupCatalog() {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(
         CatalogProperties.URI,
@@ -48,20 +62,5 @@ public class TestJdbcViewCatalog extends ViewCatalogTests<JdbcCatalog> {
     catalog = new JdbcCatalog();
     catalog.setConf(new Configuration());
     catalog.initialize("testCatalog", properties);
-  }
-
-  @Override
-  protected JdbcCatalog catalog() {
-    return catalog;
-  }
-
-  @Override
-  protected Catalog tableCatalog() {
-    return catalog;
-  }
-
-  @Override
-  protected boolean requiresNamespaceCreate() {
-    return true;
   }
 }
