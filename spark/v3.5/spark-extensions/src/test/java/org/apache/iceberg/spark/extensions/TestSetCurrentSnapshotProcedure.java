@@ -19,9 +19,10 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.TableProperties.WRITE_AUDIT_PUBLISH_ENABLED;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.List;
-import java.util.Map;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -30,23 +31,19 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Assume;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestSetCurrentSnapshotProcedure extends SparkExtensionsTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestSetCurrentSnapshotProcedure extends ExtensionsTestBase {
 
-  public TestSetCurrentSnapshotProcedure(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testSetCurrentSnapshotUsingPositionalArgs() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
@@ -81,7 +78,7 @@ public class TestSetCurrentSnapshotProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testSetCurrentSnapshotUsingNamedArgs() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
@@ -116,7 +113,7 @@ public class TestSetCurrentSnapshotProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testSetCurrentSnapshotWap() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
     sql("ALTER TABLE %s SET TBLPROPERTIES ('%s' 'true')", tableName, WRITE_AUDIT_PUBLISH_ENABLED);
@@ -149,9 +146,9 @@ public class TestSetCurrentSnapshotProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void tesSetCurrentSnapshotWithoutExplicitCatalog() {
-    Assume.assumeTrue("Working only with the session catalog", "spark_catalog".equals(catalogName));
+    assumeThat(catalogName).as("Working only with the session catalog").isEqualTo("spark_catalog");
 
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
@@ -185,7 +182,7 @@ public class TestSetCurrentSnapshotProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testSetCurrentSnapshotToInvalidSnapshot() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
 
@@ -195,7 +192,7 @@ public class TestSetCurrentSnapshotProcedure extends SparkExtensionsTestBase {
         .hasMessage("Cannot roll back to unknown snapshot id: -1");
   }
 
-  @Test
+  @TestTemplate
   public void testInvalidRollbackToSnapshotCases() {
     Assertions.assertThatThrownBy(
             () ->
@@ -248,7 +245,7 @@ public class TestSetCurrentSnapshotProcedure extends SparkExtensionsTestBase {
         .hasMessage("Either snapshot_id or ref must be provided, not both");
   }
 
-  @Test
+  @TestTemplate
   public void testSetCurrentSnapshotToRef() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);

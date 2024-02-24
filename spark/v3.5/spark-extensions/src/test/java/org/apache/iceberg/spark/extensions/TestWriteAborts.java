@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
@@ -81,8 +83,8 @@ public class TestWriteAborts extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void testBatchAppend() throws Exception {
-    String dataLocation = temp.toFile().toString();
+  public void testBatchAppend() throws IOException {
+    String dataLocation = Files.createTempDirectory(temp, "junit").toFile().toString();
 
     sql(
         "CREATE TABLE %s (id INT, data STRING) "
