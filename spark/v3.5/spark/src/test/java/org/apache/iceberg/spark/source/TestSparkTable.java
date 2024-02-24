@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.source;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -84,8 +85,8 @@ public class TestSparkTable extends CatalogTestBase {
         .as("References for two different SparkTables must be different")
         .isNotSameAs(firstTagTable);
     assertThat(firstSnapshotTable)
-        .as("The different snapshots points to same snapshot id must be equal")
-        .isEqualTo(firstTagTable);
+        .as("A SparkTable points to a tag does not equal to a SparkTable points to a snapshotId")
+        .isNotEqualTo(firstTagTable);
     assertThat(firstTagTable)
         .as("The different snapshots should not match")
         .isNotEqualTo(secondTagTable);
@@ -117,5 +118,36 @@ public class TestSparkTable extends CatalogTestBase {
         sql(
             "SELECT * FROM %s UNION ALL SELECT * FROM %s VERSION AS OF '%s'",
             tableName, tableName, version2));
+  }
+
+  @TestTemplate
+  public void testMainBranchEquality() throws NoSuchTableException {
+    CatalogManager catalogManager = spark.sessionState().catalogManager();
+    TableCatalog catalog = (TableCatalog) catalogManager.catalog(catalogName);
+    Identifier identifier = Identifier.of(tableIdent.namespace().levels(), tableIdent.name());
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+
+    SparkTable implicitMainBranchTable = (SparkTable) catalog.loadTable(identifier);
+    SparkTable explicitMainBranchTable =
+        (SparkTable) catalog.loadTable(identifier, SnapshotRef.MAIN_BRANCH);
+
+    assertThat(implicitMainBranchTable)
+        .as("References for two different SparkTables must be different")
+        .isNotSameAs(explicitMainBranchTable);
+    assertThat(implicitMainBranchTable)
+        .as(
+            "A SparkTable with explicitly points to the main branch is equal to a default SparkTable")
+        .isEqualTo(explicitMainBranchTable);
+
+    assertEquals(
+        "An explicitly loaded main branch returns (1, a)",
+        ImmutableList.of(row(1L, "a")),
+        sql("SELECT * FROM %s.branch_main", tableName));
+
+    assertEquals(
+        "As an explicit main branch table and a table w/o identifier are same, UNION should return one row",
+        ImmutableList.of(row(1L, "a")),
+        sql("SELECT * FROM %s UNION SELECT * FROM %s.branch_main", tableName, tableName));
   }
 }

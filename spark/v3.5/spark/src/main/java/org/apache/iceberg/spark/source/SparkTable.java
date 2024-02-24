@@ -415,6 +415,7 @@ public class SparkTable
     // when branch or snapshotId is given, it's time travel
     SparkTable that = (SparkTable) other;
     return icebergTable.name().equals(that.icebergTable.name())
+        && normalizedBranch().equals(that.normalizedBranch())
         && Objects.equals(snapshotId, that.snapshotId);
   }
 
@@ -422,7 +423,11 @@ public class SparkTable
   public int hashCode() {
     // use name only unless branch/snapshotId is given in order to correctly invalidate Spark cache
     // when branch or snapshotId is given, it's time travel
-    return Objects.hash(icebergTable.name(), snapshotId);
+    return Objects.hash(icebergTable.name(), normalizedBranch(), snapshotId);
+  }
+
+  private String normalizedBranch() {
+    return branch != null ? branch : SnapshotRef.MAIN_BRANCH;
   }
 
   private static CaseInsensitiveStringMap addSnapshotId(
