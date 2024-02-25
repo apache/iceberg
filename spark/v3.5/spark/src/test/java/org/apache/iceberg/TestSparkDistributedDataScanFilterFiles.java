@@ -25,13 +25,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.internal.SQLConf;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Parameterized.Parameters;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestSparkDistributedDataScanFilterFiles
     extends FilterFilesTestBase<BatchScan, ScanTask, ScanTaskGroup<ScanTask>> {
 
@@ -51,17 +49,13 @@ public class TestSparkDistributedDataScanFilterFiles
 
   private static SparkSession spark = null;
 
-  private final PlanningMode dataMode;
-  private final PlanningMode deleteMode;
+  @Parameter(index = 1)
+  private PlanningMode dataMode;
 
-  public TestSparkDistributedDataScanFilterFiles(
-      int formatVersion, PlanningMode dataPlanningMode, PlanningMode deletePlanningMode) {
-    super(formatVersion);
-    this.dataMode = dataPlanningMode;
-    this.deleteMode = deletePlanningMode;
-  }
+  @Parameter(index = 2)
+  private PlanningMode deleteMode;
 
-  @BeforeClass
+  @BeforeAll
   public static void startSpark() {
     TestSparkDistributedDataScanFilterFiles.spark =
         SparkSession.builder()
@@ -71,7 +65,7 @@ public class TestSparkDistributedDataScanFilterFiles
             .getOrCreate();
   }
 
-  @AfterClass
+  @AfterAll
   public static void stopSpark() {
     SparkSession currentSpark = TestSparkDistributedDataScanFilterFiles.spark;
     TestSparkDistributedDataScanFilterFiles.spark = null;

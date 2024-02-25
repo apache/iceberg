@@ -195,6 +195,16 @@ public class NessieIcebergClient implements AutoCloseable {
     return TableIdentifier.of(elements.toArray(new String[elements.size()]));
   }
 
+  public IcebergTable table(TableIdentifier tableIdentifier) {
+    IcebergContent icebergContent = fetchContent(tableIdentifier);
+    return icebergContent == null ? null : icebergContent.unwrap(IcebergTable.class).orElse(null);
+  }
+
+  public IcebergView view(TableIdentifier tableIdentifier) {
+    IcebergContent icebergContent = fetchContent(tableIdentifier);
+    return icebergContent == null ? null : icebergContent.unwrap(IcebergView.class).orElse(null);
+  }
+
   public IcebergContent fetchContent(TableIdentifier tableIdentifier) {
     try {
       ContentKey key = NessieUtil.toKey(tableIdentifier);

@@ -18,9 +18,10 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assumptions.assumeThat;
+
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -29,23 +30,17 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Assume;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
 
-public class TestRollbackToTimestampProcedure extends SparkExtensionsTestBase {
+public class TestRollbackToTimestampProcedure extends ExtensionsTestBase {
 
-  public TestRollbackToTimestampProcedure(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testRollbackToTimestampUsingPositionalArgs() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
@@ -83,7 +78,7 @@ public class TestRollbackToTimestampProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testRollbackToTimestampUsingNamedArgs() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
@@ -121,7 +116,7 @@ public class TestRollbackToTimestampProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testRollbackToTimestampRefreshesRelationCache() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
@@ -164,7 +159,7 @@ public class TestRollbackToTimestampProcedure extends SparkExtensionsTestBase {
     sql("UNCACHE TABLE tmp");
   }
 
-  @Test
+  @TestTemplate
   public void testRollbackToTimestampWithQuotedIdentifiers() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
@@ -210,9 +205,9 @@ public class TestRollbackToTimestampProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testRollbackToTimestampWithoutExplicitCatalog() {
-    Assume.assumeTrue("Working only with the session catalog", "spark_catalog".equals(catalogName));
+    assumeThat(catalogName).as("Working only with the session catalog").isEqualTo("spark_catalog");
 
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
@@ -251,7 +246,7 @@ public class TestRollbackToTimestampProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testInvalidRollbackToTimestampCases() {
     String timestamp = "TIMESTAMP '2007-12-03T10:15:30'";
 

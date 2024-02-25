@@ -19,34 +19,29 @@
 package org.apache.iceberg.spark.sql;
 
 import java.util.List;
-import java.util.Map;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkCatalogConfig;
-import org.apache.iceberg.spark.SparkCatalogTestBase;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
 
-public class TestRefreshTable extends SparkCatalogTestBase {
+public class TestRefreshTable extends CatalogTestBase {
 
-  public TestRefreshTable(String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @Before
+  @BeforeEach
   public void createTables() {
     sql("CREATE TABLE %s (key int, value int) USING iceberg", tableName);
     sql("INSERT INTO %s VALUES (1,1)", tableName);
   }
 
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testRefreshCommand() {
     // We are not allowed to change the session catalog after it has been initialized, so build a
     // new one

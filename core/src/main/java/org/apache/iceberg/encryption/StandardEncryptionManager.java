@@ -54,19 +54,22 @@ public class StandardEncryptionManager implements EncryptionManager {
   }
 
   @Override
-  public EncryptedOutputFile encrypt(OutputFile plainOutput) {
+  public NativeEncryptionOutputFile encrypt(OutputFile plainOutput) {
     return new StandardEncryptedOutputFile(plainOutput, dataKeyLength);
   }
 
   @Override
-  public InputFile decrypt(EncryptedInputFile encrypted) {
+  public NativeEncryptionInputFile decrypt(EncryptedInputFile encrypted) {
     // this input file will lazily parse key metadata in case the file is not an AES GCM stream.
+    if (encrypted instanceof NativeEncryptionInputFile) {
+      return (NativeEncryptionInputFile) encrypted;
+    }
+
     return new StandardDecryptedInputFile(encrypted);
   }
 
   @Override
   public Iterable<InputFile> decrypt(Iterable<EncryptedInputFile> encrypted) {
-    // Bulk decrypt is only applied to data files. Returning source input files for parquet.
     return Iterables.transform(encrypted, this::decrypt);
   }
 
@@ -96,7 +99,7 @@ public class StandardEncryptionManager implements EncryptionManager {
     return kmsClient.unwrapKey(wrappedSecretKey, tableKeyId);
   }
 
-  private class StandardEncryptedOutputFile implements EncryptedOutputFile {
+  private class StandardEncryptedOutputFile implements NativeEncryptionOutputFile {
     private final OutputFile plainOutputFile;
     private final int dataKeyLength;
     private StandardKeyMetadata lazyKeyMetadata = null;
@@ -141,7 +144,7 @@ public class StandardEncryptionManager implements EncryptionManager {
     }
   }
 
-  private static class StandardDecryptedInputFile implements InputFile {
+  private static class StandardDecryptedInputFile implements NativeEncryptionInputFile {
     private final EncryptedInputFile encryptedInputFile;
     private StandardKeyMetadata lazyKeyMetadata = null;
     private AesGcmInputFile lazyDecryptedInputFile = null;
@@ -150,7 +153,13 @@ public class StandardEncryptionManager implements EncryptionManager {
       this.encryptedInputFile = encryptedInputFile;
     }
 
-    private StandardKeyMetadata keyMetadata() {
+    @Override
+    public InputFile encryptedInputFile() {
+      return encryptedInputFile.encryptedInputFile();
+    }
+
+    @Override
+    public StandardKeyMetadata keyMetadata() {
       if (null == lazyKeyMetadata) {
         this.lazyKeyMetadata = StandardKeyMetadata.castOrParse(encryptedInputFile.keyMetadata());
       }

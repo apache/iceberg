@@ -863,7 +863,8 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
             .withDefaultNamespace(identifier.namespace())
             .withQuery("trino", "select count(*) from ns.tbl")
             .withProperty("replacedProp1", "val1")
-            .withProperty("replacedProp2", "val2");
+            .withProperty("replacedProp2", "val2")
+            .withProperty(ViewProperties.REPLACE_DROP_DIALECT_ALLOWED, "true");
     View replacedView = useCreateOrReplace ? viewBuilder.createOrReplace() : viewBuilder.replace();
 
     // validate replaced view settings
@@ -1092,6 +1093,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
             .withDefaultNamespace(identifier.namespace())
             .withQuery(trino.dialect(), trino.sql())
             .withQuery(spark.dialect(), spark.sql())
+            .withProperty(ViewProperties.REPLACE_DROP_DIALECT_ALLOWED, "true")
             .create();
 
     assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
@@ -1552,6 +1554,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
             .withSchema(SCHEMA)
             .withDefaultNamespace(identifier.namespace())
             .withQuery("trino", "select * from ns.tbl")
+            .withProperty(ViewProperties.REPLACE_DROP_DIALECT_ALLOWED, "true")
             .create();
 
     assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
@@ -1668,5 +1671,75 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
                           .build())
                   .build());
     }
+  }
+
+  @Test
+  public void testSqlForMultipleDialects() {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    View view =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withDefaultCatalog(catalog().name())
+            .withQuery("spark", "select * from ns.tbl")
+            .withQuery("trino", "select * from ns.tbl using X")
+            .create();
+
+    assertThat(view.sqlFor("spark").sql()).isEqualTo("select * from ns.tbl");
+    assertThat(view.sqlFor("trino").sql()).isEqualTo("select * from ns.tbl using X");
+    assertThat(view.sqlFor("unknown-dialect").sql()).isEqualTo("select * from ns.tbl");
+  }
+
+  @Test
+  public void testSqlForCaseInsensitive() {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    View view =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withDefaultCatalog(catalog().name())
+            .withQuery("spark", "select * from ns.tbl")
+            .withQuery("trino", "select * from ns.tbl using X")
+            .create();
+
+    assertThat(view.sqlFor("SPARK").sql()).isEqualTo("select * from ns.tbl");
+    assertThat(view.sqlFor("TRINO").sql()).isEqualTo("select * from ns.tbl using X");
+  }
+
+  @Test
+  public void testSqlForInvalidArguments() {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    View view =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withDefaultCatalog(catalog().name())
+            .withQuery("spark", "select * from ns.tbl")
+            .create();
+
+    assertThatThrownBy(() -> view.sqlFor(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid dialect: null");
+    assertThatThrownBy(() -> view.sqlFor(""))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid dialect: (empty string)");
   }
 }

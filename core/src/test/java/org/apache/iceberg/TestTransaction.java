@@ -765,4 +765,51 @@ public class TestTransaction extends TableTestBase {
     Assert.assertTrue("Manifest file should exist", new File(manifests.get(0).path()).exists());
     Assert.assertEquals("Should have 2 files in metadata", 2, countAllMetadataFiles(tableDir));
   }
+
+  @Test
+  public void testTransactionRecommit() {
+    // update table settings to merge when there are 3 manifests
+    table.updateProperties().set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "3").commit();
+
+    // create manifests so that the next commit will trigger a merge
+    table.newFastAppend().appendFile(FILE_A).commit();
+    table.newFastAppend().appendFile(FILE_B).commit();
+
+    // start a transaction with appended files that will merge
+    Transaction transaction = Transactions.newTransaction(table.name(), table.ops());
+
+    AppendFiles append = transaction.newAppend().appendFile(FILE_D);
+    Snapshot pending = append.apply();
+
+    Assert.assertEquals(
+        "Should produce 1 pending merged manifest", 1, pending.allManifests(table.io()).size());
+
+    // because a merge happened, the appended manifest is deleted the by append operation
+    append.commit();
+
+    // concurrently commit FILE_A without a transaction to cause the previous append to retry
+    table.newAppend().appendFile(FILE_C).commit();
+    Assert.assertEquals(
+        "Should produce 1 committed merged manifest",
+        1,
+        table.currentSnapshot().allManifests(table.io()).size());
+
+    transaction.commitTransaction();
+
+    Set<String> paths =
+        Sets.newHashSet(
+            Iterables.transform(
+                table.newScan().planFiles(), task -> task.file().path().toString()));
+    Set<String> expectedPaths =
+        Sets.newHashSet(
+            FILE_A.path().toString(),
+            FILE_B.path().toString(),
+            FILE_C.path().toString(),
+            FILE_D.path().toString());
+
+    Assert.assertEquals("Should contain all committed files", expectedPaths, paths);
+
+    Assert.assertEquals(
+        "Should produce 2 manifests", 2, table.currentSnapshot().allManifests(table.io()).size());
+  }
 }

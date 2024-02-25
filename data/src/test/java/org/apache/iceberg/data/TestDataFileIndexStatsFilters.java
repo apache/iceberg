@@ -18,19 +18,28 @@
  */
 package org.apache.iceberg.data;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.TestTables;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
@@ -55,6 +64,8 @@ public class TestDataFileIndexStatsFilters {
 
   private Table table;
   private List<Record> records = null;
+  private List<Record> oddRecords = null;
+  private List<Record> evenRecords = null;
   private DataFile dataFile = null;
   private DataFile dataFileWithoutNulls = null;
   private DataFile dataFileOnlyNulls = null;
@@ -76,7 +87,9 @@ public class TestDataFileIndexStatsFilters {
     records.add(record.copy("id", 7, "data", "g", "category", "odd"));
     records.add(record.copy("id", 8, "data", null, "category", "even"));
 
+
     this.dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.getPath()), records);
+
     this.dataFileWithoutNulls =
         FileHelpers.writeDataFile(
             table,
@@ -319,5 +332,150 @@ public class TestDataFileIndexStatsFilters {
     FileScanTask task = tasks.get(0);
     Assert.assertEquals(
         "Should have one delete file, data and deletes have null values", 1, task.deletes().size());
+  }
+
+  @Test
+  public void testDifferentDeleteTypes() throws IOException {
+    // init the table with an unpartitioned data file
+    table.newAppend().appendFile(dataFile).commit();
+
+    // add a matching global equality delete
+    DeleteFile globalEqDeleteFile1 = writeEqDeletes("id", 7, 8);
+    table.newRowDelta().addDeletes(globalEqDeleteFile1).commit();
+
+    // evolve the spec to partition by category
+    table.updateSpec().addField("category").commit();
+
+    StructLike evenPartition = Row.of("even");
+    StructLike oddPartition = Row.of("odd");
+
+    // add 2 data files to "even" and "odd" partitions
+    DataFile dataFileWithEvenRecords = writeData(evenPartition, evenRecords);
+    DataFile dataFileWithOddRecords = writeData(oddPartition, oddRecords);
+    table
+        .newFastAppend()
+        .appendFile(dataFileWithEvenRecords)
+        .appendFile(dataFileWithOddRecords)
+        .commit();
+
+    // add 2 matching and 1 filterable partition-scoped equality delete files for "even" partition
+    DeleteFile partitionEqDeleteFile1 = writeEqDeletes(evenPartition, "id", 2);
+    DeleteFile partitionEqDeleteFile2 = writeEqDeletes(evenPartition, "id", 4);
+    DeleteFile partitionEqDeleteFile3 = writeEqDeletes(evenPartition, "id", 25);
+    table
+        .newRowDelta()
+        .addDeletes(partitionEqDeleteFile1)
+        .addDeletes(partitionEqDeleteFile2)
+        .addDeletes(partitionEqDeleteFile3)
+        .commit();
+
+    // add 1 matching partition-scoped position delete file for "even" partition
+    Pair<DeleteFile, CharSequenceSet> partitionPosDeletes =
+        writePosDeletes(
+            evenPartition,
+            ImmutableList.of(
+                Pair.of(dataFileWithEvenRecords.path(), 0L),
+                Pair.of("some-other-file.parquet", 0L)));
+    table
+        .newRowDelta()
+        .addDeletes(partitionPosDeletes.first())
+        .validateDataFilesExist(partitionPosDeletes.second())
+        .commit();
+
+    // add 1 path-scoped position delete file for dataFileWithEvenRecords
+    Pair<DeleteFile, CharSequenceSet> pathPosDeletes =
+        writePosDeletes(
+            evenPartition,
+            ImmutableList.of(
+                Pair.of(dataFileWithEvenRecords.path(), 1L),
+                Pair.of(dataFileWithEvenRecords.path(), 2L)));
+    table
+        .newRowDelta()
+        .addDeletes(pathPosDeletes.first())
+        .validateDataFilesExist(pathPosDeletes.second())
+        .commit();
+
+    // switch back to the unpartitioned spec
+    table.updateSpec().removeField("category").commit();
+
+    // add another global equality delete file that can be filtered using stats
+    DeleteFile globalEqDeleteFile2 = writeEqDeletes("id", 20, 21);
+    table.newRowDelta().addDeletes(globalEqDeleteFile2);
+
+    List<FileScanTask> tasks = planTasks();
+
+    assertThat(tasks).hasSize(3);
+
+    for (FileScanTask task : tasks) {
+      if (coversDataFile(task, dataFile)) {
+        assertDeletes(task, globalEqDeleteFile1);
+
+      } else if (coversDataFile(task, dataFileWithEvenRecords)) {
+        assertDeletes(
+            task,
+            partitionEqDeleteFile1,
+            partitionEqDeleteFile2,
+            pathPosDeletes.first(),
+            partitionPosDeletes.first());
+
+      } else if (coversDataFile(task, dataFileWithOddRecords)) {
+        assertThat(task.deletes()).isEmpty();
+
+      } else {
+        fail("Unexpected task: " + task);
+      }
+    }
+  }
+
+  private boolean coversDataFile(FileScanTask task, DataFile file) {
+    return task.file().path().toString().equals(file.path().toString());
+  }
+
+  private void assertDeletes(FileScanTask task, DeleteFile... expectedDeleteFiles) {
+    CharSequenceSet actualDeletePaths = deletePaths(task);
+
+    assertThat(actualDeletePaths.size()).isEqualTo(expectedDeleteFiles.length);
+
+    for (DeleteFile expectedDeleteFile : expectedDeleteFiles) {
+      assertThat(actualDeletePaths.contains(expectedDeleteFile.path())).isTrue();
+    }
+  }
+
+  private CharSequenceSet deletePaths(FileScanTask task) {
+    return CharSequenceSet.of(Iterables.transform(task.deletes(), ContentFile::path));
+  }
+
+  private List<FileScanTask> planTasks() throws IOException {
+    try (CloseableIterable<FileScanTask> tasksIterable = table.newScan().planFiles()) {
+      return Lists.newArrayList(tasksIterable);
+    }
+  }
+
+  private DataFile writeData(StructLike partition, List<Record> data) throws IOException {
+    return FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), partition, data);
+  }
+
+  private DeleteFile writeEqDeletes(String col, Object... values) throws IOException {
+    return writeEqDeletes(null /* unpartitioned */, col, values);
+  }
+
+  private DeleteFile writeEqDeletes(StructLike partition, String col, Object... values)
+      throws IOException {
+    Schema deleteSchema = SCHEMA.select(col);
+
+    Record delete = GenericRecord.create(deleteSchema);
+    List<Record> deletes = Lists.newArrayList();
+    for (Object value : values) {
+      deletes.add(delete.copy(col, value));
+    }
+
+    OutputFile out = Files.localOutput(temp.newFile());
+    return FileHelpers.writeDeleteFile(table, out, partition, deletes, deleteSchema);
+  }
+
+  private Pair<DeleteFile, CharSequenceSet> writePosDeletes(
+      StructLike partition, List<Pair<CharSequence, Long>> deletes) throws IOException {
+    OutputFile out = Files.localOutput(temp.newFile());
+    return FileHelpers.writeDeleteFile(table, out, partition, deletes);
   }
 }

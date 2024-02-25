@@ -24,6 +24,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeWrapper;
 import org.junit.jupiter.api.Assertions;
+
 import org.junit.jupiter.api.Test;
 
 public abstract class RecordWrapperTest {

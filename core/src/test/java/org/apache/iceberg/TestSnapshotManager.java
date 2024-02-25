@@ -409,14 +409,6 @@ public class TestSnapshotManager extends TableTestBase {
   }
 
   @Test
-  public void testReplaceBranchNonExistingBranchToUpdateFails() {
-    Assertions.assertThatThrownBy(
-            () -> table.manageSnapshots().replaceBranch("non-existing", "other-branch").commit())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Branch to update does not exist: non-existing");
-  }
-
-  @Test
   public void testReplaceBranchNonExistingToBranchFails() {
     table.newAppend().appendFile(FILE_A).commit();
     long snapshotId = table.currentSnapshot().snapshotId();
@@ -428,12 +420,27 @@ public class TestSnapshotManager extends TableTestBase {
   }
 
   @Test
-  public void testFastForwardBranchNonExistingFromBranchFails() {
-    Assertions.assertThatThrownBy(
-            () ->
-                table.manageSnapshots().fastForwardBranch("non-existing", "other-branch").commit())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Branch to update does not exist: non-existing");
+  public void testFastForwardBranchNonExistingFromBranchCreatesTheBranch() {
+    table.newAppend().appendFile(FILE_A).commit();
+    long snapshotId = table.currentSnapshot().snapshotId();
+    table.manageSnapshots().createBranch("branch1", snapshotId).commit();
+    table.manageSnapshots().fastForwardBranch("new-branch", "branch1").commit();
+
+    Assertions.assertThat(table.ops().current().ref("new-branch").isBranch()).isTrue();
+    Assertions.assertThat(table.ops().current().ref("new-branch").snapshotId())
+        .isEqualTo(snapshotId);
+  }
+
+  @Test
+  public void testReplaceBranchNonExistingFromBranchCreatesTheBranch() {
+    table.newAppend().appendFile(FILE_A).commit();
+    long snapshotId = table.currentSnapshot().snapshotId();
+    table.manageSnapshots().createBranch("branch1", snapshotId).commit();
+    table.manageSnapshots().replaceBranch("new-branch", "branch1").commit();
+
+    Assertions.assertThat(table.ops().current().ref("new-branch").isBranch()).isTrue();
+    Assertions.assertThat(table.ops().current().ref("new-branch").snapshotId())
+        .isEqualTo(snapshotId);
   }
 
   @Test

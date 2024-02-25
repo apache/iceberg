@@ -130,9 +130,6 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
       Preconditions.checkArgument(
           !(scanContext.startTag() != null && scanContext.startSnapshotId() != null),
           "START_SNAPSHOT_ID and START_TAG cannot both be set.");
-      Preconditions.checkArgument(
-          scanContext.branch() == null,
-          "Cannot scan table using ref %s configured for streaming reader yet.");
       Preconditions.checkNotNull(
           table.currentSnapshot(), "Don't have any available snapshot in table.");
 
@@ -195,7 +192,10 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
     // Refresh the table to get the latest committed snapshot.
     table.refresh();
 
-    Snapshot snapshot = table.currentSnapshot();
+    Snapshot snapshot =
+        scanContext.branch() != null
+            ? table.snapshot(scanContext.branch())
+            : table.currentSnapshot();
     if (snapshot != null && snapshot.snapshotId() != lastSnapshotId) {
       long snapshotId = snapshot.snapshotId();
 

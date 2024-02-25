@@ -27,115 +27,111 @@ This subproject contains the [MkDocs projects](https://www.mkdocs.org/) that def
 
 ## Usage
 
-The directory structure in this repository mimics the sitemap hierarchy of the website. This aims to help contributors find the source files needed to make their changes faster. To understand the layout and naming, it is helpful to have some basic understandings of the MkDocs framework defaults.
+The directory structure in this repository aims to mimic the sitemap hierarchy of the website. This helps contributors find the source files needed when updating or adding new documentation. It's helpful to have some basic understanding of the MkDocs framework defaults.
 
 ### MkDocs background 
 
-In MkDocs, the [`docs_dir`](https://www.mkdocs.org/user-guide/configuration/#docs_dir) points to the root directory containing the source markdown files for an MkDocs project. By default, this points to the `docs` directory. When you build MkDocs `mkdocs build`, MkDocs generates the static site in the [`site_dir`](https://www.mkdocs.org/user-guide/configuration/#site_dir) becomes the root of that project for the generated site. 
+In MkDocs, the [`docs_dir`](https://www.mkdocs.org/user-guide/configuration/#docs_dir) points to the root directory containing the source markdown files for an MkDocs project. By default, this points to directory named `docs` in the same location as the [`mkdocs.yaml` file](https://www.mkdocs.org/user-guide/configuration/#introduction). Use `mkdocs build`is used to build the project. During the build, MkDocs generates the static site in the [`site_dir`](https://www.mkdocs.org/user-guide/configuration/#site_dir) which becomes the root of that project for the generated site. 
 
 ### Iceberg docs layout
 
-In the Iceberg docs, since the top-level site and versioned docs are contained in the same directory, they all live under the `/site` directory of the main Iceberg repository. The `/site/docs` directory is named this way to follow the [MkDocs convention](https://www.mkdocs.org/user-guide/configuration/#docs_dir), while the `/site/docs/docs` directory is an analog to the "Docs" navigation tab. Under this directory, you'll find the `/site/docs/docs/nightly` directory, which contains the state of the documentation in the local revisions.
+The static Iceberg website lives under the `/site` directory, while the versioned documentation lives under the `/docs` of the main Iceberg repository. The `/site/docs` directory is named that way to follow the [MkDocs convention](https://www.mkdocs.org/user-guide/configuration/#docs_dir). The `/docs` directory contains the current state of the versioned documentation with local revisions. Notice that the root `/site` and `/docs` just happened to share the same naming convention as MkDocs but does not correlate to the mkdocs
 
-The non-versioned site pages are all the `/site/docs/.*md` files and the docs are the `/site/docs/docs/<version>/docs/*.md` files. Notice the location of the `mkdocs.yml`. Looking at this though, you may ask where the older versions and javadocs are.
+The static Iceberg site pages are Markdown files that live at `/site/docs/*.md`. The versioned documentation are Markdown files that live at `/docs/docs/*.md` files. You may ask where the older versions of the docs and javadocs are, which is covered later in the build section.
 
 ```
-./site/
-├── docs
-│   ├── assets
-│   ├── docs
-│   │   └── nightly
-│   │       ├── docs
-│   │       │   ├── assets
-│   │       │   ├── api.md
-│   │       │   ├── ...
-│   │       │   └── table-migration.md
-│   │       └── mkdocs.yml (versioned)
-│   ├── about.md
-│   ├── ...
-│   └── view-spec.md
-├── README.md
-├── mkdocs.yml (non-versioned)
-├── requirements.txt
-└── variables.yml
+.
+├── docs (versioned)
+│   ├── docs
+│   │   ├── assets
+│   │   ├── api.md
+│   │   ├── ...
+│   │   └── table-migration.md
+│   └── mkdocs.yml
+└── site (non-versioned)
+    ├── docs
+    │   ├── about.md
+    │   ├── ...
+    │   └── view-spec.md
+    ├── ...
+    ├── Makefile
+    ├── mkdocs.yml
+    └── requirements.txt
 ```
 ### Building the versioned docs
 
-> [!IMPORTANT]  
-> This build process is currently missing older versions and the javadoc branches.
-> Until these branches are merged, these steps will not work.
+The Iceberg versioned docs are committed in the [orphan `docs` branch](https://github.com/apache/iceberg/tree/docs) and mounted using [git worktree](https://git-scm.com/docs/git-worktree) at build time. The `docs` branch contains the versioned documenation source files at the root. These versions are mounted at the `/site/docs/docs/<version>` directory at build time. The `latest` version, is a soft link to the most recent [semver version](https://semver.org/) in the `docs` branch. There is also an [orphan `javadoc` branch](https://github.com/apache/iceberg/tree/javadoc) that contains prior staticly generated versions of the javadocs mounted at `/site/docs/javadoc/<version>` during build time.
 
-All previously versioned docs will be committed in `docs-<version>` branches and mounted using [git worktree](https://git-scm.com/docs/git-worktree) at build time. The worktree will pull these versions in following the `/site/docs/docs/<version>` convention. The `latest` version, will be a secondary copy of the most recent build version in the worktree, but pointing to `/site/docs/docs/latest`. There is also a `javadoc` branch that contains all prior static generation versions of the javadocs in a single tag.
+The docs are built, run, and released using [make](https://www.gnu.org/software/make/manual/make.html). The [Makefile](Makefile) and the [common shell script](dev/common.sh) support the following command:
+
+``` site > make help```
+> [build](dev/build.sh): Clean and build the site locally.
+> [clean](dev/clean.sh): Clean the local site.
+> [deploy](dev/deploy.sh): Clean, build, and deploy the Iceberg docs site.
+> help: Show help for each of the Makefile recipes.
+> [release](dev/release.sh): Release the current `/docs` as `ICEBERG_VERSION` (`make release ICEBERG_VERSION=<MAJOR.MINOR.PATCH>`).
+> [serve](dev/serve.sh): Clean, build, and run the site locally.
+
+To scaffold the versioned docs and build the project, run the `build` recipe. 
+
+```
+make build
+```
+
+This step will generate the staged source code which blends into the original source code above:
 
 ```
 ./site/
 └── docs
     ├── docs
-    │   ├── nightly
-    │   ├── latest
+    │   ├── latest (symlink to /site/docs/1.4.0/)
     │   ├── 1.4.0 
     │   ├── 1.3.1
     │   └── ...
-    └── javadoc
-        ├── latest
-        ├── 1.4.0
-        ├── 1.3.1
-        └── ...
+    ├── javadoc
+    │   ├── latest
+    │   ├── 1.4.0
+    │   ├── 1.3.1
+    │   └── ...
+    └─.asf.yaml
 ```
 
-### Install
-
-1. (Optional) Set up venv
+To run this, run the `serve` recipe, which runs the `build` recipe and calls `mkdocs serve`. This will run locally at <http://localhost:8000>.
 ```
-python -m venv mkdocs_env
-source mkdocs_env/bin/activate
+make serve
 ```
 
-1. Install required Python libraries
+To clear all build files, run `clean`.
 ```
-pip install -r requirements.txt
-```
-
-#### Adding additional versioned documentation
-
-To build locally with additional docs versions, add them to your working tree.
-For now, I'm just adding a single version, and the javadocs directory.
-
-```
-git worktree add site/docs/docs/1.4.0 docs-1.4.0
-git worktree add site/docs/javadoc javadoc
+make clean
 ```
 
-## Build
+#### Offline mode
 
-Run the build command in the root directory, and optionally add `--clean` to force MkDocs to clear previously generated pages.
-
-```
-mkdocs build [--clean]
-```
-
-## Run
-
-Start MkDocs server locally to verify the site looks good.
+One of the great advantages to the MkDocs material plugin is the [offline feature](https://squidfunk.github.io/mkdocs-material/plugins/offline). You can view the Iceberg docs without the need of a server. To enable OFFLINE builds, add theOFFLINE environment variable to either `build` or `serve` recipes.
 
 ```
-mkdocs serve
+make build OFFLINE=true
 ```
+
+> [!WARNING]  
+> Building with offline mode disables the [use_directory_urls](https://www.mkdocs.org/user-guide/configuration/#use_directory_urls) setting, ensuring that users can open your documentation directly from the local file system. Do not enable this for releases or deployments. 
 
 ## Release process
 
-Deploying a version of the docs is a two step process:
- 1. ~~Cut a new release from the current branch revision. This creates a new branch `docs-<version>`.~~
+Deploying the docs is a two step process:
 
+> [!WARNING]  
+> The `make release` directive is currently unavailable as we wanted to discuss the best way forward on how or if we should automate the release. It involves taking an existing snapshot of the versioned documentation, and potentially automerging the [`docs` branch](https://github.com/apache/iceberg/tree/docs) and the [`javadoc` branch](https://github.com/apache/iceberg/tree/javadoc) which are independent from the `main` branch. Once this is complete, we can create a pull request with an offline build of the documentation to verify everything renders correctly, and then have the release manager merge that PR to finalize the docs release. So the real process would be manually invoking a docs release action, then merging a pull request.
+
+ 1. Release a new version by copying the current `/docs` directory to a new version directory in the `docs` branch and a new javadoc build in the `javadoc` branch.
     ```
-    .github/bin/deploy_docs.sh -v 1.4.0
+    make release ICEBERG_VERSION=${ICEBERG_VERSION}
     ```
-
-    ~~See [deploy_docs.sh](.github/bin/deploy_docs.sh) for more details.~~
-
- 1. Make sure to add the new version to the list of versions to pull into git worktree.
- 1. Follow the steps in [the build process](#build).
- 1. Push the generated site to `gh-pages`.
+ 1. Build and push the generated site to `asf-site`.
+    ```
+    make deploy 
+    ```
 
 ## Validate Links
 
@@ -147,15 +143,12 @@ As mentioned in the MkDocs section, when you build MkDocs `mkdocs build`, MkDocs
 ./site/
 ├── docs
 │   ├── docs
-│   │  ├── nightly
-│   │  │   ├── docs
-│   │  │   └── mkdocs.yml
-│   │  ├── latest
-│   │  │   ├── docs
-│   │  │   └── mkdocs.yml
-│   │  └── 1.4.0
-│   │      ├── docs
-│   │      └── mkdocs.yml
+│   │   ├── latest
+│   │   │   ├── docs
+│   │   │   └── mkdocs.yml
+│   │   └── 1.4.0
+│   │       ├── docs
+│   │       └── mkdocs.yml
 │   └─ javadoc
 │      ├── latest
 │      └── 1.4.0

@@ -45,7 +45,7 @@ public abstract class TestBase extends TestBaseUtils {
   public static MiniClusterExtension miniClusterResource =
       MiniFlinkClusterExtension.createWithClassloaderCheckDisabled();
 
-  @TempDir Path temporaryDirectory;
+  @TempDir protected Path temporaryDirectory;
 
   private static TestHiveMetastore metastore = null;
   protected static HiveConf hiveConf = null;

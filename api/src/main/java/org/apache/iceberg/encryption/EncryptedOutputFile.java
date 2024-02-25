@@ -37,9 +37,4 @@ public interface EncryptedOutputFile {
    * #encryptingOutputFile()}.
    */
   EncryptionKeyMetadata keyMetadata();
-
-  /** Underlying output file for native encryption. */
-  default OutputFile plainOutputFile() {
-    throw new UnsupportedOperationException("Not implemented");
-  }
 }

@@ -323,6 +323,78 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
   }
 
   @Test
+  public void testMergeWithOnlyUpdateNullUnmatchedValues() {
+    createAndInitTable(
+        "id INT, value INT", "{ \"id\": 1, \"value\": 2 }\n" + "{ \"id\": 6, \"value\": null }");
+
+    createOrReplaceView("source", "id INT NOT NULL, value INT", "{ \"id\": 1, \"value\": 100 }\n");
+    sql(
+        "MERGE INTO %s t USING source s "
+            + "ON t.id == s.id "
+            + "WHEN MATCHED THEN "
+            + "  UPDATE SET id=123, value=456",
+        commitTarget());
+
+    sql("SELECT * FROM %s", commitTarget());
+
+    ImmutableList<Object[]> expectedRows =
+        ImmutableList.of(
+            row(6, null), // kept
+            row(123, 456)); // updated
+
+    assertEquals(
+        "Should have expected rows",
+        expectedRows,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @Test
+  public void testMergeWithOnlyUpdateSingleFieldNullUnmatchedValues() {
+    createAndInitTable(
+        "id INT, value INT", "{ \"id\": 1, \"value\": 2 }\n" + "{ \"id\": 6, \"value\": null }");
+
+    createOrReplaceView("source", "id INT NOT NULL, value INT", "{ \"id\": 1, \"value\": 100 }\n");
+    sql(
+        "MERGE INTO %s t USING source s "
+            + "ON t.id == s.id "
+            + "WHEN MATCHED THEN "
+            + "  UPDATE SET id=123",
+        commitTarget());
+
+    sql("SELECT * FROM %s", commitTarget());
+
+    ImmutableList<Object[]> expectedRows =
+        ImmutableList.of(
+            row(6, null), // kept
+            row(123, 2)); // updated
+
+    assertEquals(
+        "Should have expected rows",
+        expectedRows,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @Test
+  public void testMergeWithOnlyDeleteNullUnmatchedValues() {
+    createAndInitTable(
+        "id INT, value INT", "{ \"id\": 1, \"value\": 2 }\n" + "{ \"id\": 6, \"value\": null }");
+
+    createOrReplaceView("source", "id INT NOT NULL, value INT", "{ \"id\": 1, \"value\": 100 }\n");
+    sql(
+        "MERGE INTO %s t USING source s " + "ON t.id == s.id " + "WHEN MATCHED THEN " + "DELETE",
+        commitTarget());
+
+    sql("SELECT * FROM %s", commitTarget());
+
+    ImmutableList<Object[]> expectedRows = ImmutableList.of(row(6, null)); // kept
+
+    assertEquals(
+        "Should have expected rows",
+        expectedRows,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @Test
   public void testMergeWithOnlyDeleteClause() {
     createAndInitTable(
         "id INT, dep STRING",

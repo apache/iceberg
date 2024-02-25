@@ -28,13 +28,24 @@ on:
   pull_request:
     paths-ignore:
     - '.github/ISSUE_TEMPLATE/**'
-    - '.github/workflows/spark-ci.yml'
+    - '.github/workflows/api-binary-compatibility.yml'
+    - '.github/workflows/delta-conversion-ci.yml'
     - '.github/workflows/flink-ci.yml'
     - '.github/workflows/hive-ci.yml'
+    - '.github/workflows/jmh-benchmarks-ci.yml'
+    - '.github/workflows/labeler.yml'
+    - '.github/workflows/licence-check.yml'
+    - '.github/workflows/open-api.yml'
+    - '.github/workflows/publish-snapshot.yml'
+    - '.github/workflows/recurring-jmh-benchmarks.yml'
+    - '.github/workflows/site-ci.yml'
+    - '.github/workflows/spark-ci.yml'
+    - '.github/workflows/stale.yml'
     - '.gitignore'
     - '.asf.yml'
     - 'dev/**'
     - 'docs/**'
+    - 'site/**'
     - 'open-api/**'
     - 'format/**'
     - '.gitattributes'
@@ -61,7 +72,7 @@ jobs:
       with:
         distribution: zulu
         java-version: ${{ matrix.jvm }}
-    - uses: actions/cache@v3
+    - uses: actions/cache@v4
       with:
         path: |
           ~/.gradle/caches
@@ -70,7 +81,7 @@ jobs:
         restore-keys: ${{ runner.os }}-gradle-
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
     - run: ./gradlew check -DsparkVersions= -DhiveVersions= -DflinkVersions= -Pquick=true -x javadoc
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       if: failure()
       with:
         name: test logs

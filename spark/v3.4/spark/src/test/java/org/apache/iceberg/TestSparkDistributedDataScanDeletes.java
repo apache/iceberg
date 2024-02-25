@@ -21,42 +21,39 @@ package org.apache.iceberg;
 import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
 import static org.apache.iceberg.PlanningMode.LOCAL;
 
+import java.util.Arrays;
+import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.internal.SQLConf;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestSparkDistributedDataScanDeletes
     extends DeleteFileIndexTestBase<BatchScan, ScanTask, ScanTaskGroup<ScanTask>> {
 
-  @Parameterized.Parameters(name = "dataMode = {0}, deleteMode = {1}")
-  public static Object[] parameters() {
-    return new Object[][] {
-      new Object[] {LOCAL, LOCAL},
-      new Object[] {LOCAL, DISTRIBUTED},
-      new Object[] {DISTRIBUTED, LOCAL},
-      new Object[] {DISTRIBUTED, DISTRIBUTED}
-    };
+  @Parameters(name = "formatVersion = {0}, dataMode = {1}, deleteMode = {2}")
+  public static List<Object> parameters() {
+    return Arrays.asList(
+        new Object[] {2, LOCAL, LOCAL},
+        new Object[] {2, LOCAL, DISTRIBUTED},
+        new Object[] {2, DISTRIBUTED, LOCAL},
+        new Object[] {2, LOCAL, DISTRIBUTED});
   }
 
   private static SparkSession spark = null;
 
-  private final PlanningMode dataMode;
-  private final PlanningMode deleteMode;
+  @Parameter(index = 1)
+  private PlanningMode dataMode;
 
-  public TestSparkDistributedDataScanDeletes(
-      PlanningMode dataPlanningMode, PlanningMode deletePlanningMode) {
-    this.dataMode = dataPlanningMode;
-    this.deleteMode = deletePlanningMode;
-  }
+  @Parameter(index = 2)
+  private PlanningMode deleteMode;
 
-  @Before
+  @BeforeEach
   public void configurePlanningModes() {
     table
         .updateProperties()
@@ -65,7 +62,7 @@ public class TestSparkDistributedDataScanDeletes
         .commit();
   }
 
-  @BeforeClass
+  @BeforeAll
   public static void startSpark() {
     TestSparkDistributedDataScanDeletes.spark =
         SparkSession.builder()
@@ -75,7 +72,7 @@ public class TestSparkDistributedDataScanDeletes
             .getOrCreate();
   }
 
-  @AfterClass
+  @AfterAll
   public static void stopSpark() {
     SparkSession currentSpark = TestSparkDistributedDataScanDeletes.spark;
     TestSparkDistributedDataScanDeletes.spark = null;

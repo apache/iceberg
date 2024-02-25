@@ -34,15 +34,15 @@ import org.apache.spark.SparkConf;
 import org.apache.spark.SparkContext;
 import org.apache.spark.internal.config.package$;
 import org.apache.spark.sql.SparkSession;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class TestSparkCompressionUtil {
 
   private SparkSession spark;
   private SparkConf sparkConf;
 
-  @Before
+  @BeforeEach
   public void initSpark() {
     this.spark = mock(SparkSession.class);
     this.sparkConf = mock(SparkConf.class);

@@ -20,28 +20,37 @@ title: "Roadmap"
 
 # Roadmap Overview
 
-This roadmap outlines projects that the Iceberg community is working on, their priority, and a rough size estimate.
-This is based on the latest [community priority discussion](https://lists.apache.org/thread.html/r84e80216c259c81f824c6971504c321cd8c785774c489d52d4fc123f%40%3Cdev.iceberg.apache.org%3E).
+This roadmap outlines projects that the Iceberg community is working on.
 Each high-level item links to a Github project board that tracks the current status.
 Related design docs will be linked on the planning boards.
 
-# Priority 1
+# General
 
-* API: [Iceberg 1.0.0](https://github.com/apache/iceberg/projects/3) [medium]
-* Python: [Pythonic refactor](https://github.com/apache/iceberg/projects/7) [medium]
-* Spec: [Z-ordering / Space-filling curves](https://github.com/apache/iceberg/projects/16) [medium]
-* Spec: [Snapshot tagging and branching](https://github.com/apache/iceberg/projects/4) [small]
-* Views: [Spec](https://github.com/apache/iceberg/projects/6) [medium]
-* Puffin: [Implement statistics information in table snapshot](https://github.com/apache/iceberg/pull/4741) [medium]
-* Flink: [FLIP-27 based Iceberg source](https://github.com/apache/iceberg/projects/23) [large]
+* [Multi-table transaction support](https://github.com/apache/iceberg/projects/30)
+* [Views Support](https://github.com/apache/iceberg/projects/29)
+* [Change Data Capture (CDC) Support](https://github.com/apache/iceberg/projects/26)
+* [Snapshot tagging and branching](https://github.com/apache/iceberg/projects/4)
+* [Inline file compaction](https://github.com/apache/iceberg/projects/14)
+* [Delete File compaction](https://github.com/apache/iceberg/projects/10)
+* [Z-ordering / Space-filling curves](https://github.com/apache/iceberg/projects/16)
+* [Support UPSERT](https://github.com/apache/iceberg/projects/15)
 
-# Priority 2
+# Clients
+_Python, Rust, and Go projects are pointing to their respective repositories which include 
+their own issues as the implementations are not final._
 
-* ORC: [Support delete files stored as ORC](https://github.com/apache/iceberg/projects/13) [small]
-* Spark: [DSv2 streaming improvements](https://github.com/apache/iceberg/projects/2) [small]
-* Flink: [Inline file compaction](https://github.com/apache/iceberg/projects/14) [small]
-* Flink: [Support UPSERT](https://github.com/apache/iceberg/projects/15) [small]
-* Spec: [Secondary indexes](https://github.com/apache/iceberg/projects/17) [large]
-* Spec v3: [Encryption](https://github.com/apache/iceberg/projects/5) [large]
-* Spec v3: [Relative paths](https://github.com/apache/iceberg/projects/18) [large]
-* Spec v3: [Default field values](https://github.com/apache/iceberg/projects/19) [medium]
+* [Add the Iceberg Python Client](https://github.com/apache/iceberg-python)
+* [Add the Iceberg Rust Client](https://github.com/apache/iceberg-rust)
+* [Add the Iceberg Go Client](https://github.com/apache/iceberg-go)
+
+# Spec V2
+
+* [Views Spec](https://github.com/apache/iceberg/projects/6)
+* [DSv2 streaming improvements](https://github.com/apache/iceberg/projects/2)
+* [Secondary indexes](https://github.com/apache/iceberg/projects/17)
+
+# Spec V3
+
+* [Encryption](https://github.com/apache/iceberg/projects/5)
+* [Relative paths](https://github.com/apache/iceberg/projects/18)
+* [Default field values](https://github.com/apache/iceberg/projects/19)

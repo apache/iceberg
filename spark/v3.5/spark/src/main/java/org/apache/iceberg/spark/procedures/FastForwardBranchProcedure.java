@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.spark.procedures;
 
-import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -73,19 +71,18 @@ public class FastForwardBranchProcedure extends BaseProcedure {
   @Override
   public InternalRow[] call(InternalRow args) {
     Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
-    String source = args.getString(1);
-    String target = args.getString(2);
+    String from = args.getString(1);
+    String to = args.getString(2);
 
     return modifyIcebergTable(
         tableIdent,
         table -> {
-          Snapshot currentSnapshot = table.snapshot(source);
-          Preconditions.checkArgument(
-              currentSnapshot != null, "Branch to fast-forward does not exist: %s", source);
-          table.manageSnapshots().fastForwardBranch(source, target).commit();
-          long latest = table.snapshot(source).snapshotId();
+          Long snapshotBefore =
+              table.snapshot(from) != null ? table.snapshot(from).snapshotId() : null;
+          table.manageSnapshots().fastForwardBranch(from, to).commit();
+          long snapshotAfter = table.snapshot(from).snapshotId();
           InternalRow outputRow =
-              newInternalRow(UTF8String.fromString(source), currentSnapshot.snapshotId(), latest);
+              newInternalRow(UTF8String.fromString(from), snapshotBefore, snapshotAfter);
           return new InternalRow[] {outputRow};
         });
   }

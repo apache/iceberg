@@ -44,6 +44,7 @@ public class CharSequenceWrapper implements CharSequence, Serializable {
   }
 
   @Override
+  @SuppressWarnings("UndefinedEquals")
   public boolean equals(Object other) {
     if (this == other) {
       return true;

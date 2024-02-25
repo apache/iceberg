@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.spark;
 
-import static org.apache.spark.sql.functions.lit;
-
 import com.google.errorprone.annotations.FormatMethod;
 import com.google.errorprone.annotations.FormatString;
 import java.io.IOException;
@@ -28,36 +26,26 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.FileMetadata;
-import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.FileGenerationUtil;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.RowLevelOperationMode;
-import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
-import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions;
 import org.apache.iceberg.util.TableScanUtil;
-import org.apache.spark.api.java.JavaRDD;
-import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
-import org.apache.spark.sql.types.StructType;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -93,16 +81,14 @@ public class TaskGroupPlanningBenchmark {
   private static final String PARTITION_COLUMN = "ss_ticket_number";
 
   private static final int NUM_PARTITIONS = 150;
-  private static final int NUM_REAL_DATA_FILES_PER_PARTITION = 5;
-  private static final int NUM_REPLICA_DATA_FILES_PER_PARTITION = 50_000;
+  private static final int NUM_DATA_FILES_PER_PARTITION = 50_000;
   private static final int NUM_DELETE_FILES_PER_PARTITION = 25;
-  private static final int NUM_ROWS_PER_DATA_FILE = 150;
 
   private final Configuration hadoopConf = new Configuration();
   private SparkSession spark;
   private Table table;
 
-  private List<ScanTask> fileTasks;
+  private List<FileScanTask> fileTasks;
 
   @Setup
   public void setupBenchmark() throws NoSuchTableException, ParseException {
@@ -122,7 +108,7 @@ public class TaskGroupPlanningBenchmark {
   @Threads(1)
   public void planTaskGroups(Blackhole blackhole) {
     SparkReadConf readConf = new SparkReadConf(spark, table, ImmutableMap.of());
-    List<ScanTaskGroup<ScanTask>> taskGroups =
+    List<ScanTaskGroup<FileScanTask>> taskGroups =
         TableScanUtil.planTaskGroups(
             fileTasks,
             readConf.splitSize(),
@@ -130,19 +116,51 @@ public class TaskGroupPlanningBenchmark {
             readConf.splitOpenFileCost());
 
     long rowsCount = 0L;
-    for (ScanTaskGroup<ScanTask> taskGroup : taskGroups) {
+    for (ScanTaskGroup<FileScanTask> taskGroup : taskGroups) {
       rowsCount += taskGroup.estimatedRowsCount();
     }
     blackhole.consume(rowsCount);
 
     long filesCount = 0L;
-    for (ScanTaskGroup<ScanTask> taskGroup : taskGroups) {
+    for (ScanTaskGroup<FileScanTask> taskGroup : taskGroups) {
       filesCount += taskGroup.filesCount();
     }
     blackhole.consume(filesCount);
 
     long sizeBytes = 0L;
-    for (ScanTaskGroup<ScanTask> taskGroup : taskGroups) {
+    for (ScanTaskGroup<FileScanTask> taskGroup : taskGroups) {
+      sizeBytes += taskGroup.sizeBytes();
+    }
+    blackhole.consume(sizeBytes);
+  }
+
+  @Benchmark
+  @Threads(1)
+  public void planTaskGroupsWithGrouping(Blackhole blackhole) {
+    SparkReadConf readConf = new SparkReadConf(spark, table, ImmutableMap.of());
+
+    List<ScanTaskGroup<FileScanTask>> taskGroups =
+        TableScanUtil.planTaskGroups(
+            fileTasks,
+            readConf.splitSize(),
+            readConf.splitLookback(),
+            readConf.splitOpenFileCost(),
+            Partitioning.groupingKeyType(table.schema(), table.specs().values()));
+
+    long rowsCount = 0L;
+    for (ScanTaskGroup<FileScanTask> taskGroup : taskGroups) {
+      rowsCount += taskGroup.estimatedRowsCount();
+    }
+    blackhole.consume(rowsCount);
+
+    long filesCount = 0L;
+    for (ScanTaskGroup<FileScanTask> taskGroup : taskGroups) {
+      filesCount += taskGroup.filesCount();
+    }
+    blackhole.consume(filesCount);
+
+    long sizeBytes = 0L;
+    for (ScanTaskGroup<FileScanTask> taskGroup : taskGroups) {
       sizeBytes += taskGroup.sizeBytes();
     }
     blackhole.consume(sizeBytes);
@@ -151,90 +169,31 @@ public class TaskGroupPlanningBenchmark {
   private void loadFileTasks() {
     table.refresh();
 
-    try (CloseableIterable<ScanTask> fileTasksIterable = table.newBatchScan().planFiles()) {
+    try (CloseableIterable<FileScanTask> fileTasksIterable = table.newScan().planFiles()) {
       this.fileTasks = Lists.newArrayList(fileTasksIterable);
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
   }
 
-  private DataFile loadAddedDataFile() {
-    table.refresh();
-
-    Iterable<DataFile> addedDataFiles = table.currentSnapshot().addedDataFiles(table.io());
-    return Iterables.getOnlyElement(addedDataFiles);
-  }
-
-  private DeleteFile loadAddedDeleteFile() {
-    table.refresh();
-
-    Iterable<DeleteFile> addedDeleteFiles = table.currentSnapshot().addedDeleteFiles(table.io());
-    return Iterables.getOnlyElement(addedDeleteFiles);
-  }
-
-  private void initDataAndDeletes() throws NoSuchTableException {
-    Schema schema = table.schema();
-    PartitionSpec spec = table.spec();
-    LocationProvider locations = table.locationProvider();
-
+  private void initDataAndDeletes() {
     for (int partitionOrdinal = 0; partitionOrdinal < NUM_PARTITIONS; partitionOrdinal++) {
-      Dataset<Row> inputDF =
-          randomDataDF(schema, NUM_ROWS_PER_DATA_FILE)
-              .drop(PARTITION_COLUMN)
-              .withColumn(PARTITION_COLUMN, lit(partitionOrdinal));
-
-      for (int fileOrdinal = 0; fileOrdinal < NUM_REAL_DATA_FILES_PER_PARTITION; fileOrdinal++) {
-        appendAsFile(inputDF);
-      }
-
-      DataFile dataFile = loadAddedDataFile();
-
-      sql(
-          "DELETE FROM %s WHERE ss_item_sk IS NULL AND %s = %d",
-          TABLE_NAME, PARTITION_COLUMN, partitionOrdinal);
-
-      DeleteFile deleteFile = loadAddedDeleteFile();
-
-      AppendFiles append = table.newFastAppend();
-
-      for (int fileOrdinal = 0; fileOrdinal < NUM_REPLICA_DATA_FILES_PER_PARTITION; fileOrdinal++) {
-        String replicaFileName = UUID.randomUUID() + "-replica.parquet";
-        DataFile replicaDataFile =
-            DataFiles.builder(spec)
-                .copy(dataFile)
-                .withPath(locations.newDataLocation(spec, dataFile.partition(), replicaFileName))
-                .build();
-        append.appendFile(replicaDataFile);
-      }
-
-      append.commit();
+      StructLike partition = TestHelpers.Row.of(partitionOrdinal);
 
       RowDelta rowDelta = table.newRowDelta();
 
+      for (int fileOrdinal = 0; fileOrdinal < NUM_DATA_FILES_PER_PARTITION; fileOrdinal++) {
+        DataFile dataFile = FileGenerationUtil.generateDataFile(table, partition);
+        rowDelta.addRows(dataFile);
+      }
+
       for (int fileOrdinal = 0; fileOrdinal < NUM_DELETE_FILES_PER_PARTITION; fileOrdinal++) {
-        String replicaFileName = UUID.randomUUID() + "-replica.parquet";
-        DeleteFile replicaDeleteFile =
-            FileMetadata.deleteFileBuilder(spec)
-                .copy(deleteFile)
-                .withPath(locations.newDataLocation(spec, deleteFile.partition(), replicaFileName))
-                .build();
-        rowDelta.addDeletes(replicaDeleteFile);
+        DeleteFile deleteFile = FileGenerationUtil.generatePositionDeleteFile(table, partition);
+        rowDelta.addDeletes(deleteFile);
       }
 
       rowDelta.commit();
     }
-  }
-
-  private void appendAsFile(Dataset<Row> df) throws NoSuchTableException {
-    df.coalesce(1).writeTo(TABLE_NAME).append();
-  }
-
-  private Dataset<Row> randomDataDF(Schema schema, int numRows) {
-    Iterable<InternalRow> rows = RandomData.generateSpark(schema, numRows, 0);
-    JavaSparkContext context = JavaSparkContext.fromSparkContext(spark.sparkContext());
-    JavaRDD<InternalRow> rowRDD = context.parallelize(Lists.newArrayList(rows));
-    StructType rowSparkType = SparkSchemaUtil.convert(schema);
-    return spark.internalCreateDataFrame(JavaRDD.toRDD(rowRDD), rowSparkType, false);
   }
 
   private void setupSpark() {

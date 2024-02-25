@@ -22,6 +22,25 @@ title: "Blogs"
 
 Here is a list of company blogs that talk about Iceberg. The blogs are ordered from most recent to oldest.
 
+### [How not to use Apache Iceberg](https://medium.com/@ajanthabhat/how-not-to-use-apache-iceberg-046ae7e7c884)
+**Date**: January 23rd, 2024, **Company**: Dremio
+
+**Authors**: [Ajantha Bhat](https://www.linkedin.com/in/ajanthabhat/)
+
+### [Apache Hive-4.x with Iceberg Branches & Tags](https://medium.com/@ayushtkn/apache-hive-4-x-with-iceberg-branches-tags-3d52293ac0bf/)
+**Date**: October 12th, 2023, **Company**: Cloudera
+
+**Authors**: [Ayush Saxena](https://www.linkedin.com/in/ayush151/)
+
+### [Apache Hive 4.x With Apache Iceberg](https://medium.com/@ayushtkn/apache-hive-4-x-with-apache-iceberg-part-i-355e7a380725/)
+**Date**: October 12th, 2023, **Company**: Cloudera
+
+**Authors**: [Ayush Saxena](https://www.linkedin.com/in/ayush151/)
+
+### [From Hive Tables to Iceberg Tables: Hassle-Free](https://blog.cloudera.com/from-hive-tables-to-iceberg-tables-hassle-free/)
+**Date**: July 14th, 2023, **Company**: Cloudera
+
+**Authors**: [Srinivas Rishindra Pothireddi](https://www.linkedin.com/in/srinivas-rishindra/)
 
 ### [From Hive Tables to Iceberg Tables: Hassle-Free](https://blog.cloudera.com/from-hive-tables-to-iceberg-tables-hassle-free/)
 **Date**: July 14th, 2023, **Company**: Cloudera
