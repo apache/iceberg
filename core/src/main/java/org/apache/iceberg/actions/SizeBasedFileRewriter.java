@@ -111,6 +111,8 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
   private boolean rewriteAll;
   private long maxGroupSize;
 
+  private int outputSpecId;
+
   protected SizeBasedFileRewriter(Table table) {
     this.table = table;
   }
@@ -146,6 +148,7 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
     this.minInputFiles = minInputFiles(options);
     this.rewriteAll = rewriteAll(options);
     this.maxGroupSize = maxGroupSize(options);
+    this.outputSpecId = outputSpecId(options);
 
     if (rewriteAll) {
       LOG.info("Configured to rewrite all provided files in table {}", table.name());
@@ -256,6 +259,24 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
    */
   protected long writeMaxFileSize() {
     return (long) (targetFileSize + ((maxFileSize - targetFileSize) * 0.5));
+  }
+
+  /**
+   * returns already set outputSpecId rewriter will use, value is set by user using `output-spec-id`
+   * see more {@link #outputSpecId(Map<String, String>)}
+   */
+  protected int outputSpecId() {
+    return outputSpecId;
+  }
+
+  private int outputSpecId(Map<String, String> options) {
+    int specId =
+        PropertyUtil.propertyAsInt(options, RewriteDataFiles.OUTPUT_SPEC_ID, table.spec().specId());
+    Preconditions.checkArgument(
+        table.specs().containsKey(specId),
+        "Output spec id %s is not a valid spec id for table",
+        specId);
+    return specId;
   }
 
   private Map<String, Long> sizeThresholds(Map<String, String> options) {
