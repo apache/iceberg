@@ -1470,7 +1470,8 @@ public class TestRewriteDataFilesAction extends TestBase {
         1001: c3_bucket_2: bucket[2](3)
       ]
      */
-    Integer outputSpecId = table.specs().size() - 2;
+    // rewrite to the truncate("c2", 2)
+    int outputSpecId = table.specs().size() - 2;
 
     long dataSizeBefore = testDataSize(table);
     long count = currentData().size();
@@ -1491,11 +1492,10 @@ public class TestRewriteDataFilesAction extends TestBase {
   public void testBinpackRewriteWithInvalidOutputSpecId() {
     Table table = createTable(10);
     shouldHaveFiles(table, 10);
-    Integer previousSpecId = table.spec().specId();
+    int previousSpecId = table.spec().specId();
     // simulate multiple partition specs with different commit
     table.updateSpec().addField(Expressions.truncate("c2", 2)).commit();
     table.updateSpec().addField(Expressions.bucket("c3", 2)).commit();
-
     /*
     This is how the table.specs() look like
      specId :: ParitionSpec
@@ -1541,7 +1541,8 @@ public class TestRewriteDataFilesAction extends TestBase {
         1001: c3_bucket_2: bucket[2](3)
       ]
      */
-    Integer outputSpecId = table.specs().size() - 2;
+    // rewrite to the truncate("c2", 2)
+    int outputSpecId = table.specs().size() - 2;
 
     long dataSizeBefore = testDataSize(table);
     long count = currentData().size();
@@ -1559,7 +1560,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @Test
-  public void testzOrderRewriteWithSpecificOutputSpecId() {
+  public void testZOrderRewriteWithSpecificOutputSpecId() {
     Table table = createTable(10);
     shouldHaveFiles(table, 10);
     Integer previousSpecId = table.spec().specId();
@@ -1579,7 +1580,8 @@ public class TestRewriteDataFilesAction extends TestBase {
         1001: c3_bucket_2: bucket[2](3)
       ]
      */
-    Integer outputSpecId = table.specs().size() - 2;
+    // rewrite to the truncate("c2", 2)
+    int outputSpecId = table.specs().size() - 2;
 
     long dataSizeBefore = testDataSize(table);
     long count = currentData().size();
