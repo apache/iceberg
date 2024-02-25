@@ -20,19 +20,22 @@ package org.apache.iceberg.data.avro;
 
 import java.io.File;
 import java.io.IOException;
+
+import com.google.common.collect.Iterables;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.TestReadProjection;
 import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+
+
 
 public class TestGenericReadProjection extends TestReadProjection {
   @Override
   protected Record writeAndRead(String desc, Schema writeSchema, Schema readSchema, Record record)
       throws IOException {
-    File file = temp.newFile(desc + ".avro");
+    File file = new File(desc + ".avro");
     file.delete();
 
     try (FileAppender<Record> appender =

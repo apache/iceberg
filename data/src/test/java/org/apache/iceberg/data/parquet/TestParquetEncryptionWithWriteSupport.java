@@ -49,7 +49,8 @@ import org.apache.parquet.crypto.FileEncryptionProperties;
 import org.apache.parquet.crypto.ParquetCryptoRuntimeException;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+
 
 public class TestParquetEncryptionWithWriteSupport extends DataTest {
   private static final ByteBuffer fileDek = ByteBuffer.allocate(16);
@@ -59,7 +60,7 @@ public class TestParquetEncryptionWithWriteSupport extends DataTest {
   protected void writeAndValidate(Schema schema) throws IOException {
     List<Record> expected = RandomGenericData.generate(schema, 100, 0L);
 
-    File testFile = temp.newFile();
+    File testFile = temp;
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
     SecureRandom rand = new SecureRandom();
@@ -129,7 +130,7 @@ public class TestParquetEncryptionWithWriteSupport extends DataTest {
             optional(2, "topbytes", Types.BinaryType.get()));
     org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
 
-    File testFile = temp.newFile();
+    File testFile = temp;
     Assert.assertTrue(testFile.delete());
 
     SecureRandom rand = new SecureRandom();

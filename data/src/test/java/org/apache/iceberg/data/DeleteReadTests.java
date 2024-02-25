@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.data;
 
+import java.io.File;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.util.List;
@@ -43,6 +44,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.rules.TemporaryFolder;
 
 public abstract class DeleteReadTests {
@@ -65,7 +67,8 @@ public abstract class DeleteReadTests {
   public static final PartitionSpec DATE_SPEC =
       PartitionSpec.builderFor(DATE_SCHEMA).day("dt").build();
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir
+  public static File temp;
 
   protected String tableName = null;
   protected String dateTableName = null;
@@ -92,7 +95,7 @@ public abstract class DeleteReadTests {
     records.add(record.copy("id", 122, "data", "g"));
 
     this.dataFile =
-        FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), Row.of(0), records);
+        FileHelpers.writeDataFile(table, Files.localOutput(temp), Row.of(0), records);
 
     table.newAppend().appendFile(dataFile).commit();
   }
@@ -121,31 +124,31 @@ public abstract class DeleteReadTests {
     DataFile dataFile1 =
         FileHelpers.writeDataFile(
             dateTable,
-            Files.localOutput(temp.newFile()),
+            Files.localOutput(temp),
             Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-01"))),
             dateRecords.subList(0, 1));
     DataFile dataFile2 =
         FileHelpers.writeDataFile(
             dateTable,
-            Files.localOutput(temp.newFile()),
+            Files.localOutput(temp),
             Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-02"))),
             dateRecords.subList(1, 2));
     DataFile dataFile3 =
         FileHelpers.writeDataFile(
             dateTable,
-            Files.localOutput(temp.newFile()),
+            Files.localOutput(temp),
             Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-03"))),
             dateRecords.subList(2, 3));
     DataFile dataFile4 =
         FileHelpers.writeDataFile(
             dateTable,
-            Files.localOutput(temp.newFile()),
+            Files.localOutput(temp),
             Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-04"))),
             dateRecords.subList(3, 4));
     DataFile dataFile5 =
         FileHelpers.writeDataFile(
             dateTable,
-            Files.localOutput(temp.newFile()),
+            Files.localOutput(temp),
             Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-05"))),
             dateRecords.subList(4, 5));
 
@@ -204,7 +207,7 @@ public abstract class DeleteReadTests {
 
     DeleteFile eqDeletes =
         FileHelpers.writeDeleteFile(
-            table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, deleteRowSchema);
+            table, Files.localOutput(temp), Row.of(0), dataDeletes, deleteRowSchema);
 
     table.newRowDelta().addDeletes(eqDeletes).commit();
 
@@ -230,21 +233,21 @@ public abstract class DeleteReadTests {
     DeleteFile eqDeletes1 =
         FileHelpers.writeDeleteFile(
             dateTable,
-            Files.localOutput(temp.newFile()),
+            Files.localOutput(temp),
             Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-01"))),
             dataDeletes.subList(0, 1),
             deleteRowSchema);
     DeleteFile eqDeletes2 =
         FileHelpers.writeDeleteFile(
             dateTable,
-            Files.localOutput(temp.newFile()),
+            Files.localOutput(temp),
             Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-02"))),
             dataDeletes.subList(1, 2),
             deleteRowSchema);
     DeleteFile eqDeletes3 =
         FileHelpers.writeDeleteFile(
             dateTable,
-            Files.localOutput(temp.newFile()),
+            Files.localOutput(temp),
             Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-03"))),
             dataDeletes.subList(2, 3),
             deleteRowSchema);
@@ -277,7 +280,7 @@ public abstract class DeleteReadTests {
 
     DeleteFile eqDeletes =
         FileHelpers.writeDeleteFile(
-            table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, deleteRowSchema);
+            table, Files.localOutput(temp), Row.of(0), dataDeletes, deleteRowSchema);
 
     table.newRowDelta().addDeletes(eqDeletes).commit();
 
@@ -303,7 +306,7 @@ public abstract class DeleteReadTests {
     records.add(record.copy("id", 144, "data", "a"));
 
     this.dataFile =
-        FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), Row.of(0), records);
+        FileHelpers.writeDataFile(table, Files.localOutput(temp), Row.of(0), records);
 
     // At this point, the table has two data files, with 7 and 8 rows respectively, of which all but
     // one are in duplicate.
@@ -320,7 +323,7 @@ public abstract class DeleteReadTests {
 
     DeleteFile eqDeletes =
         FileHelpers.writeDeleteFile(
-            table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, deleteRowSchema);
+            table, Files.localOutput(temp), Row.of(0), dataDeletes, deleteRowSchema);
 
     // At this point, 3 rows in the first data file and 4 rows in the second data file are deleted.
     table.newRowDelta().addDeletes(eqDeletes).commit();
@@ -342,7 +345,7 @@ public abstract class DeleteReadTests {
             );
 
     Pair<DeleteFile, CharSequenceSet> posDeletes =
-        FileHelpers.writeDeleteFile(table, Files.localOutput(temp.newFile()), Row.of(0), deletes);
+        FileHelpers.writeDeleteFile(table, Files.localOutput(temp), Row.of(0), deletes);
 
     table
         .newRowDelta()
@@ -366,7 +369,7 @@ public abstract class DeleteReadTests {
             );
 
     Pair<DeleteFile, CharSequenceSet> posDeletes =
-        FileHelpers.writeDeleteFile(table, Files.localOutput(temp.newFile()), Row.of(0), deletes);
+        FileHelpers.writeDeleteFile(table, Files.localOutput(temp), Row.of(0), deletes);
 
     table
         .newRowDelta()
@@ -380,7 +383,7 @@ public abstract class DeleteReadTests {
             );
 
     posDeletes =
-        FileHelpers.writeDeleteFile(table, Files.localOutput(temp.newFile()), Row.of(0), deletes);
+        FileHelpers.writeDeleteFile(table, Files.localOutput(temp), Row.of(0), deletes);
 
     table
         .newRowDelta()
@@ -408,7 +411,7 @@ public abstract class DeleteReadTests {
 
     DeleteFile eqDeletes =
         FileHelpers.writeDeleteFile(
-            table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, dataSchema);
+            table, Files.localOutput(temp), Row.of(0), dataDeletes, dataSchema);
 
     List<Pair<CharSequence, Long>> deletes =
         Lists.newArrayList(
@@ -417,7 +420,7 @@ public abstract class DeleteReadTests {
             );
 
     Pair<DeleteFile, CharSequenceSet> posDeletes =
-        FileHelpers.writeDeleteFile(table, Files.localOutput(temp.newFile()), Row.of(0), deletes);
+        FileHelpers.writeDeleteFile(table, Files.localOutput(temp), Row.of(0), deletes);
 
     table
         .newRowDelta()
@@ -446,7 +449,7 @@ public abstract class DeleteReadTests {
 
     DeleteFile dataEqDeletes =
         FileHelpers.writeDeleteFile(
-            table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, dataSchema);
+            table, Files.localOutput(temp), Row.of(0), dataDeletes, dataSchema);
 
     Schema idSchema = table.schema().select("id");
     Record idDelete = GenericRecord.create(idSchema);
@@ -458,7 +461,7 @@ public abstract class DeleteReadTests {
 
     DeleteFile idEqDeletes =
         FileHelpers.writeDeleteFile(
-            table, Files.localOutput(temp.newFile()), Row.of(0), idDeletes, idSchema);
+            table, Files.localOutput(temp), Row.of(0), idDeletes, idSchema);
 
     table.newRowDelta().addDeletes(dataEqDeletes).addDeletes(idEqDeletes).commit();
 
@@ -479,7 +482,7 @@ public abstract class DeleteReadTests {
     DataFile dataFileWithNull =
         FileHelpers.writeDataFile(
             table,
-            Files.localOutput(temp.newFile()),
+            Files.localOutput(temp),
             Row.of(0),
             Lists.newArrayList(record.copy("id", 131, "data", null)));
 
@@ -495,7 +498,7 @@ public abstract class DeleteReadTests {
 
     DeleteFile eqDeletes =
         FileHelpers.writeDeleteFile(
-            table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, dataSchema);
+            table, Files.localOutput(temp), Row.of(0), dataDeletes, dataSchema);
 
     table.newRowDelta().addDeletes(eqDeletes).commit();
 

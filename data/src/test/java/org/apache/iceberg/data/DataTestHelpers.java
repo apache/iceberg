@@ -23,7 +23,6 @@ import java.util.Map;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
 
 public class DataTestHelpers {
   private DataTestHelpers() {}
@@ -43,7 +42,7 @@ public class DataTestHelpers {
   public static void assertEquals(Types.ListType list, List<?> expected, List<?> actual) {
     Type elementType = list.elementType();
 
-    Assert.assertEquals("List size should match", expected.size(), actual.size());
+    org.junit.jupiter.api.Assertions.assertEquals(expected.size(), actual.size(), "List size should match");
 
     for (int i = 0; i < expected.size(); i += 1) {
       Object expectedValue = expected.get(i);
@@ -56,7 +55,7 @@ public class DataTestHelpers {
   public static void assertEquals(Types.MapType map, Map<?, ?> expected, Map<?, ?> actual) {
     Type valueType = map.valueType();
 
-    Assert.assertEquals("Map size should match", expected.size(), actual.size());
+    org.junit.jupiter.api.Assertions.assertEquals( expected.size(), actual.size(),"Map size should match");
 
     for (Object expectedKey : expected.keySet()) {
       Object expectedValue = expected.get(expectedKey);
@@ -84,16 +83,16 @@ public class DataTestHelpers {
       case UUID:
       case BINARY:
       case DECIMAL:
-        Assert.assertEquals(
-            "Primitive value should be equal to expected for type " + type, expected, actual);
+       org.junit.jupiter.api.Assertions.assertEquals(
+            expected, actual,  "Primitive value should be equal to expected for type " + type);
         break;
       case FIXED:
         Assertions.assertThat(expected)
             .as("Expected should be a byte[]")
             .isInstanceOf(byte[].class);
         Assertions.assertThat(expected).as("Actual should be a byte[]").isInstanceOf(byte[].class);
-        Assert.assertArrayEquals(
-            "Array contents should be equal", (byte[]) expected, (byte[]) actual);
+        org.junit.jupiter.api.Assertions.assertArrayEquals(
+            (byte[]) expected, (byte[]) actual,  "Array contents should be equal");
         break;
       case STRUCT:
         Assertions.assertThat(expected)

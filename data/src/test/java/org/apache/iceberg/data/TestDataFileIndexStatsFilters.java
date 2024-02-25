@@ -37,9 +37,10 @@ import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.Pair;
 import org.junit.After;
 import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.rules.TemporaryFolder;
 
 public class TestDataFileIndexStatsFilters {
@@ -49,7 +50,8 @@ public class TestDataFileIndexStatsFilters {
           Types.NestedField.optional(2, "data", Types.StringType.get()),
           Types.NestedField.required(3, "category", Types.StringType.get()));
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir
+  public File temp;
 
   private Table table;
   private List<Record> records = null;
@@ -57,9 +59,9 @@ public class TestDataFileIndexStatsFilters {
   private DataFile dataFileWithoutNulls = null;
   private DataFile dataFileOnlyNulls = null;
 
-  @Before
+  @BeforeEach
   public void createTableAndData() throws IOException {
-    File location = temp.newFolder();
+    File location = temp;
     this.table = TestTables.create(location, "test", SCHEMA, PartitionSpec.unpartitioned(), 2);
 
     this.records = Lists.newArrayList();
@@ -74,24 +76,24 @@ public class TestDataFileIndexStatsFilters {
     records.add(record.copy("id", 7, "data", "g", "category", "odd"));
     records.add(record.copy("id", 8, "data", null, "category", "even"));
 
-    this.dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), records);
+    this.dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.getPath()), records);
     this.dataFileWithoutNulls =
         FileHelpers.writeDataFile(
             table,
-            Files.localOutput(temp.newFile()),
+            Files.localOutput(temp),
             records.stream()
                 .filter(rec -> rec.getField("data") != null)
                 .collect(Collectors.toList()));
     this.dataFileOnlyNulls =
         FileHelpers.writeDataFile(
             table,
-            Files.localOutput(temp.newFile()),
+            Files.localOutput(temp),
             records.stream()
                 .filter(rec -> rec.getField("data") == null)
                 .collect(Collectors.toList()));
   }
 
-  @After
+  @AfterEach
   public void dropTable() {
     TestTables.clearTables();
   }
@@ -105,7 +107,7 @@ public class TestDataFileIndexStatsFilters {
     deletes.add(Pair.of(dataFile.path(), 1L));
 
     Pair<DeleteFile, CharSequenceSet> posDeletes =
-        FileHelpers.writeDeleteFile(table, Files.localOutput(temp.newFile()), deletes);
+        FileHelpers.writeDeleteFile(table, Files.localOutput(temp), deletes);
     table
         .newRowDelta()
         .addDeletes(posDeletes.first())
@@ -131,7 +133,7 @@ public class TestDataFileIndexStatsFilters {
     deletes.add(Pair.of("some-other-file.parquet", 1L));
 
     Pair<DeleteFile, CharSequenceSet> posDeletes =
-        FileHelpers.writeDeleteFile(table, Files.localOutput(temp.newFile()), deletes);
+        FileHelpers.writeDeleteFile(table, Files.localOutput(temp), deletes);
     table
         .newRowDelta()
         .addDeletes(posDeletes.first())
@@ -160,7 +162,7 @@ public class TestDataFileIndexStatsFilters {
 
     DeleteFile posDeletes =
         FileHelpers.writeDeleteFile(
-            table, Files.localOutput(temp.newFile()), deletes, deleteRowSchema);
+            table, Files.localOutput(temp), deletes, deleteRowSchema);
 
     table.newRowDelta().addDeletes(posDeletes).commit();
 
@@ -188,7 +190,7 @@ public class TestDataFileIndexStatsFilters {
 
     DeleteFile posDeletes =
         FileHelpers.writeDeleteFile(
-            table, Files.localOutput(temp.newFile()), deletes, deleteRowSchema);
+            table, Files.localOutput(temp), deletes, deleteRowSchema);
 
     table.newRowDelta().addDeletes(posDeletes).commit();
 
@@ -214,7 +216,7 @@ public class TestDataFileIndexStatsFilters {
 
     DeleteFile posDeletes =
         FileHelpers.writeDeleteFile(
-            table, Files.localOutput(temp.newFile()), deletes, deleteRowSchema);
+            table, Files.localOutput(temp), deletes, deleteRowSchema);
 
     table.newRowDelta().addDeletes(posDeletes).commit();
 
@@ -243,7 +245,7 @@ public class TestDataFileIndexStatsFilters {
 
     DeleteFile posDeletes =
         FileHelpers.writeDeleteFile(
-            table, Files.localOutput(temp.newFile()), deletes, deleteRowSchema);
+            table, Files.localOutput(temp), deletes, deleteRowSchema);
 
     table.newRowDelta().addDeletes(posDeletes).commit();
 
@@ -272,7 +274,7 @@ public class TestDataFileIndexStatsFilters {
 
     DeleteFile posDeletes =
         FileHelpers.writeDeleteFile(
-            table, Files.localOutput(temp.newFile()), deletes, deleteRowSchema);
+            table, Files.localOutput(temp), deletes, deleteRowSchema);
 
     table.newRowDelta().addDeletes(posDeletes).commit();
 
@@ -304,7 +306,7 @@ public class TestDataFileIndexStatsFilters {
 
     DeleteFile posDeletes =
         FileHelpers.writeDeleteFile(
-            table, Files.localOutput(temp.newFile()), deletes, deleteRowSchema);
+            table, Files.localOutput(temp), deletes, deleteRowSchema);
 
     table.newRowDelta().addDeletes(posDeletes).commit();
 
