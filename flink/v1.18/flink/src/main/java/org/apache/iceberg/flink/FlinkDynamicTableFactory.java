@@ -29,6 +29,7 @@ import org.apache.flink.table.catalog.CatalogDatabaseImpl;
 import org.apache.flink.table.catalog.CatalogTable;
 import org.apache.flink.table.catalog.ObjectIdentifier;
 import org.apache.flink.table.catalog.ObjectPath;
+import org.apache.flink.table.catalog.ResolvedCatalogTable;
 import org.apache.flink.table.catalog.exceptions.DatabaseAlreadyExistException;
 import org.apache.flink.table.catalog.exceptions.TableAlreadyExistException;
 import org.apache.flink.table.connector.sink.DynamicTableSink;
@@ -187,7 +188,7 @@ public class FlinkDynamicTableFactory
     // Create table if not exists in the external catalog.
     if (!flinkCatalog.tableExists(objectPath)) {
       try {
-        flinkCatalog.createIcebergTable(objectPath, catalogBaseTable, true);
+        flinkCatalog.createIcebergTable(objectPath, (ResolvedCatalogTable) catalogBaseTable, true);
       } catch (TableAlreadyExistException e) {
         throw new AlreadyExistsException(
             e,

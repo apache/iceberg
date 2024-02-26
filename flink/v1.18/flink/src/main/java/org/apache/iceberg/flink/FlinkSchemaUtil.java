@@ -23,9 +23,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.flink.table.api.DataTypes;
-import org.apache.flink.table.api.TableColumn;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.catalog.CatalogTable;
+import org.apache.flink.table.catalog.Column;
+import org.apache.flink.table.catalog.ResolvedCatalogTable;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.utils.TypeConversions;
@@ -60,7 +61,8 @@ public class FlinkSchemaUtil {
 
   private FlinkSchemaUtil() {}
 
-  /** Convert the flink table schema to apache iceberg schema. */
+  /** @deprecated Use {@link #convert(ResolvedCatalogTable)} instead. */
+  @Deprecated
   public static Schema convert(TableSchema schema) {
     LogicalType schemaType = schema.toRowDataType().getLogicalType();
     Preconditions.checkArgument(
@@ -74,18 +76,18 @@ public class FlinkSchemaUtil {
   }
 
   /** Convert the flink table schema to apache iceberg schema with column comment. */
-  public static Schema convert(TableSchema schema, Map<String, String> columnComments) {
-    List<TableColumn> tableColumns = schema.getTableColumns();
+  public static Schema convert(ResolvedCatalogTable catalogTable) {
+    List<Column> tableColumns = catalogTable.getResolvedSchema().getColumns();
     // copy from org.apache.flink.table.api.Schema#toRowDataType
     DataTypes.Field[] fields =
         tableColumns.stream()
             .map(
                 column -> {
-                  String columnComment = columnComments.get(column.getName());
-                  if (columnComment != null) {
-                    return DataTypes.FIELD(column.getName(), column.getType(), columnComment);
+                  if (column.getComment().isPresent()) {
+                    return DataTypes.FIELD(
+                        column.getName(), column.getDataType(), column.getComment().get());
                   } else {
-                    return DataTypes.FIELD(column.getName(), column.getType());
+                    return DataTypes.FIELD(column.getName(), column.getDataType());
                   }
                 })
             .toArray(DataTypes.Field[]::new);
@@ -97,7 +99,7 @@ public class FlinkSchemaUtil {
     RowType root = (RowType) schemaType;
     Type converted = root.accept(new FlinkTypeToType(root));
     Schema iSchema = new Schema(converted.asStructType().fields());
-    return freshIdentifierFieldIds(iSchema, schema);
+    return freshIdentifierFieldIds(iSchema, catalogTable.getSchema());
   }
 
   public static Map<String, String> getColumnComments(CatalogTable catalogTable) {
