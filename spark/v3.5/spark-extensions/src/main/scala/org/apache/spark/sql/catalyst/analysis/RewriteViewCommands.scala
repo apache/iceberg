@@ -123,12 +123,9 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
     }
   }
 
-  private def invalidRefToTempObject(
-    identifier: ResolvedIdentifier,
-    tempObjectNames: String,
-    tempObjectType: String) = {
+  private def invalidRefToTempObject(ident: ResolvedIdentifier, tempObjectNames: String, tempObjectType: String) = {
     new AnalysisException(String.format("Cannot create view %s.%s that references temporary %s: %s",
-      identifier.catalog.name(), identifier.identifier, tempObjectType, tempObjectNames))
+      ident.catalog.name(), ident.identifier, tempObjectType, tempObjectNames))
   }
 
   /**
