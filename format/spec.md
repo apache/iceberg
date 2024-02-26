@@ -29,6 +29,8 @@ This is a specification for the Iceberg table format that is designed to manage 
 
 Versions 1 and 2 of the Iceberg spec are complete and adopted by the community.
 
+**Version 3 is under active development and has not been formally adopted.**
+
 The format version number is incremented when new features are added that will break forward-compatibility---that is, when older readers would not read newer table features correctly. Tables may continue to be written with an older version of the spec to ensure compatibility by not using features that are not yet implemented by processing engines.
 
 #### Version 1: Analytic Data Tables
@@ -301,7 +303,7 @@ Tables are configured with a **partition spec** that defines how to produce a tu
 *   A **transform** that is applied to the source column(s) to produce a partition value
 *   A **partition name**
 
-The source column, selected by id, must be a primitive type and cannot be contained in a map or list, but may be nested in a struct. For details on how to serialize a partition spec to JSON, see Appendix C.
+The source columns, selected by ids, must be a primitive type and cannot be contained in a map or list, but may be nested in a struct. For details on how to serialize a partition spec to JSON, see Appendix C.
 
 Partition specs capture the transform from table data to partition values. This is used to transform predicates to partition predicates, in addition to transforming data values. Deriving partition predicates from column predicates on the table data is used to separate the logical queries from physical storage: the partitioning can change and the correct partition filters are always derived from column predicates. This simplifies queries because users don’t have to supply both logical predicates and partition predicates. For more information, see Scan Planning below.
 
@@ -387,6 +389,8 @@ A sort order is defined by a sort order id and a list of sort fields. The order 
 *   A **transform** that is used to produce values to be sorted on from the source column(s). This is the same transform as described in [partition transforms](#partition-transforms).
 *   A **sort direction**, that can only be either `asc` or `desc`
 *   A **null order** that describes the order of null values when sorted. Can only be either `nulls-first` or `nulls-last`
+
+For details on how to serialize a sort order to JSON, see Appendix C.
 
 Order id `0` is reserved for the unsorted order. 
 
@@ -1117,7 +1121,17 @@ Partition specs are serialized as a JSON object with the following fields:
 |**`spec-id`**|`JSON int`|`0`|
 |**`fields`**|`JSON list: [`<br />&nbsp;&nbsp;`<partition field JSON>,`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"source-id": 4,`<br />&nbsp;&nbsp;`"field-id": 1000,`<br />&nbsp;&nbsp;`"name": "ts_day",`<br />&nbsp;&nbsp;`"transform": "day"`<br />`}, {`<br />&nbsp;&nbsp;`"source-id": 1,`<br />&nbsp;&nbsp;`"field-id": 1001,`<br />&nbsp;&nbsp;`"name": "id_bucket",`<br />&nbsp;&nbsp;`"transform": "bucket[16]"`<br />`} ]`|
 
-Each partition field in the fields list is stored as an object. See the table for more detail:
+Each partition field in `fields` is stored as a JSON object with the following properties.
+
+| V1       | V2       | V3       | Field            | JSON representation | Example      |
+|----------|----------|----------|------------------|---------------------|--------------|
+| required | required | omitted  | **`source-id`**  | `JSON int`          | 1            |
+| optional | optional | required | **`source-ids`** | `JSON list of ints` | `[1,2]`      |
+|          | required | required | **`field-id`**   | `JSON int`          | 1000         |
+| required | required | required | **`name`**       | `JSON string`       | `id_bucket`  |
+| required | required | required | **`transform`**  | `JSON string`       | `bucket[16]` |
+
+Supported partition transforms are listed below.
 
 |Transform or Field|JSON representation|Example|
 |--- |--- |--- |
@@ -1128,16 +1142,14 @@ Each partition field in the fields list is stored as an object. See the table fo
 |**`month`**|`JSON string: "month"`|`"month"`|
 |**`day`**|`JSON string: "day"`|`"day"`|
 |**`hour`**|`JSON string: "hour"`|`"hour"`|
-|**`Partition Field`** [1,2]|`JSON object: {`<br />&nbsp;&nbsp;`"source-id": <id int>,`<br />&nbsp;&nbsp;`"field-id": <field id int>,`<br />&nbsp;&nbsp;`"name": <name string>,`<br />&nbsp;&nbsp;`"transform": <transform JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"source-id": 1,`<br />&nbsp;&nbsp;`"field-id": 1000,`<br />&nbsp;&nbsp;`"name": "id_bucket",`<br />&nbsp;&nbsp;`"transform": "bucket[16]"`<br />`}`|
 
 In some cases partition specs are stored using only the field list instead of the object format that includes the spec ID, like the deprecated `partition-spec` field in table metadata. The object format should be used unless otherwise noted in this spec.
 
 The `field-id` property was added for each partition field in v2. In v1, the reference implementation assigned field ids sequentially in each spec starting at 1,000. See Partition Evolution for more details.
 
-Notes:
+In v3 metadata, writers must use only `source-ids` because v3 requires reader support for multi-arg transforms. In v1 and v2 metadata, writers must always write `source-id`; for multi-arg transforms, writers must produce `source-ids` and set `source-id` to the first ID from the field ID list.
 
-1. For partition fields with a transform with a single argument, the ID of the source field is set on `source-id`, and `source-ids` is omitted.
-2. For partition fields with a transform of multiple arguments, the IDs of the source fields are set on `source-ids`. To preserve backward compatibility, `source-id` is set to -1.
+Older versions of the reference implementation can read tables with transforms unknown to it, ignoring them. But other implementations may break if they encounter unknown transforms. All v3 readers are required to read tables with unknown transforms, ignoring them. Writers should not write using partition specs that use unknown transforms.
 
 ### Sort Orders
 
@@ -1150,13 +1162,17 @@ Sort orders are serialized as a list of JSON object, each of which contains the 
 
 Each sort field in the fields list is stored as an object with the following properties:
 
-|Field|JSON representation|Example|
-|--- |--- |--- |
-|**`Sort Field`** [1,2]|`JSON object: {`<br />&nbsp;&nbsp;`"transform": <transform JSON>,`<br />&nbsp;&nbsp;`"source-id": <source id int>,`<br />&nbsp;&nbsp;`"direction": <direction string>,`<br />&nbsp;&nbsp;`"null-order": <null-order string>`<br />`}`|`{`<br />&nbsp;&nbsp;`  "transform": "bucket[4]",`<br />&nbsp;&nbsp;`  "source-id": 3,`<br />&nbsp;&nbsp;`  "direction": "desc",`<br />&nbsp;&nbsp;`  "null-order": "nulls-last"`<br />`}`|
+| V1       | V2       | V3       | Field            | JSON representation | Example     |
+|----------|----------|----------|------------------|---------------------|-------------|
+| required | required | required | **`transform`**  | `JSON string`       | `bucket[4]` |
+| required | required | omitted  | **`source-id`**  | `JSON int`          | 1           |
+|          |          | required | **`source-ids`** | `JSON list of ints` | `[1,2]`     |
+| required | required | required | **`direction`**  | `JSON string`       | `asc`       |
+| required | required | required | **`null-order`** | `JSON string`       | `nulls-last`|
 
-Notes:
-1. For sort fields with a transform with a single argument, the ID of the source field is set on `source-id`, and `source-ids` is omitted.
-2. For sort fields with a transform of multiple arguments, the IDs of the source fields are set on `source-ids`. To preserve backward compatibility, `source-id` is set to -1.
+In v3 metadata, writers must use only `source-ids` because v3 requires reader support for multi-arg transforms. In v1 and v2 metadata, writers must always write `source-id`; for multi-arg transforms, writers must produce `source-ids` and set `source-id` to the first ID from the field ID list.
+
+Older versions of the reference implementation can read tables with transforms unknown to it, ignoring them. But other implementations may break if they encounter unknown transforms. All v3 readers are required to read tables with unknown transforms, ignoring them.
 
 The following table describes the possible values for the some of the field within sort field: 
 
@@ -1313,6 +1329,25 @@ Default values are added to struct fields in v3.
 * Tables with `initial-default` will be read correctly by older readers if `initial-default` is always null for optional fields. Otherwise, old readers will default optional columns with null. Old readers will fail to read required fields which are populated by `initial-default` because that default is not supported.
 
 Types `timestamp_ns` and `timestamptz_ns` are added in v3.
+
+All readers are required to read tables with unknown partition transforms, ignoring them.
+
+Writing v3 metadata:
+
+* Partition Field and Sort Field JSON:
+    * `source-ids` was added and is required
+    * `source-id` is no longer required and should be omitted; always use `source-ids` instead
+
+Reading v1 or v2 metadata for v3:
+
+* Partition Field and Sort Field JSON:
+    * `source-ids` should default to a single-value list of the value of `source-id`
+
+Writing v1 or v2 metadata:
+
+* Partition Field and Sort Field JSON:
+    * For a single-arg transform, `source-id` should be written; if `source-ids` is also written it should be a single-element list of `source-id`
+    * For multi-arg transforms, `source-ids` should be written; `source-id` should be set to the first element of `source-ids`
 
 ### Version 2
 
