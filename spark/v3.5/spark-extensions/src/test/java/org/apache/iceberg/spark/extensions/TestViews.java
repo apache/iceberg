@@ -1866,6 +1866,91 @@ public class TestViews extends ExtensionsTestBase {
         .isEqualTo(ImmutableSQLViewRepresentation.builder().dialect("spark").sql(sql).build());
   }
 
+  @TestTemplate
+  public void createViewWithRecursiveCycle() {
+    String viewOne = viewName("viewOne");
+    String viewTwo = viewName("viewTwo");
+
+    sql("CREATE VIEW %s AS SELECT * FROM %s", viewOne, tableName);
+    // viewTwo points to viewOne
+    sql("CREATE VIEW %s AS SELECT * FROM %s", viewTwo, viewOne);
+
+    // viewOne points to viewTwo points to viewOne, creating a recursive cycle
+    assertThatThrownBy(() -> sql("CREATE OR REPLACE VIEW %s AS SELECT * FROM %s", viewOne, viewTwo))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            String.format(
+                "Recursive cycle in view detected: %s.%s.%s", catalogName, NAMESPACE, viewOne));
+  }
+
+  @TestTemplate
+  public void createViewWithRecursiveCycleToV1View() {
+    String viewOne = viewName("view_one");
+    String viewTwo = viewName("view_two");
+
+    sql("CREATE VIEW %s AS SELECT * FROM %s", viewOne, tableName);
+    // viewTwo points to viewOne
+    sql("USE spark_catalog");
+    sql("CREATE VIEW %s AS SELECT * FROM %s.%s.%s", viewTwo, catalogName, NAMESPACE, viewOne);
+
+    sql("USE %s", catalogName);
+    // viewOne points to viewTwo points to viewOne, creating a recursive cycle
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CREATE OR REPLACE VIEW %s AS SELECT * FROM spark_catalog.%s.%s",
+                    viewOne, NAMESPACE, viewTwo))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            String.format(
+                "Recursive cycle in view detected: %s.%s.%s", catalogName, NAMESPACE, viewOne));
+  }
+
+  @TestTemplate
+  public void createViewWithRecursiveCycleInCTE() {
+    String viewOne = viewName("viewOne");
+    String viewTwo = viewName("viewTwo");
+
+    sql("CREATE VIEW %s AS SELECT * FROM %s", viewOne, tableName);
+    // viewTwo points to viewOne
+    sql("CREATE VIEW %s AS SELECT * FROM %s", viewTwo, viewOne);
+
+    // CTE points to viewTwo
+    String sql =
+        String.format(
+            "WITH max_by_data AS (SELECT max(id) as max FROM %s) "
+                + "SELECT max, count(1) AS count FROM max_by_data GROUP BY max",
+            viewTwo);
+
+    // viewOne points to CTE, creating a recursive cycle
+    assertThatThrownBy(() -> sql("CREATE OR REPLACE VIEW %s AS %s", viewOne, sql))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            String.format(
+                "Recursive cycle in view detected: %s.%s.%s", catalogName, NAMESPACE, viewOne));
+  }
+
+  @TestTemplate
+  public void createViewWithRecursiveCycleInSubqueryExpression() {
+    String viewOne = viewName("viewOne");
+    String viewTwo = viewName("viewTwo");
+
+    sql("CREATE VIEW %s AS SELECT * FROM %s", viewOne, tableName);
+    // viewTwo points to viewOne
+    sql("CREATE VIEW %s AS SELECT * FROM %s", viewTwo, viewOne);
+
+    // subquery expression points to viewTwo
+    String sql =
+        String.format("SELECT * FROM %s WHERE id = (SELECT id FROM %s)", tableName, viewTwo);
+
+    // viewOne points to subquery expression, creating a recursive cycle
+    assertThatThrownBy(() -> sql("CREATE OR REPLACE VIEW %s AS %s", viewOne, sql))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            String.format(
+                "Recursive cycle in view detected: %s.%s.%s", catalogName, NAMESPACE, viewOne));
+  }
+
   private void insertRows(int numRows) throws NoSuchTableException {
     List<SimpleRecord> records = Lists.newArrayListWithCapacity(numRows);
     for (int i = 1; i <= numRows; i++) {
