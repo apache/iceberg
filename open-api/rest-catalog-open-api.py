@@ -685,7 +685,7 @@ class DateTypeValue(BaseModel):
 class TimeTypeValue(BaseModel):
     __root__: str = Field(
         ...,
-        description="Time type values follow the 'HH:MM[:SS[.sssssssss]]' ISO-8601 format with microsecond precision",
+        description="Time type values follow the 'HH:MM:SS.sssssssss' ISO-8601 format with microsecond precision",
         example='22:31:08.123456',
     )
 
@@ -855,6 +855,7 @@ class ContentFile(BaseModel):
 
 
 class DataFile(ContentFile):
+    content: Literal['data']
     column_sizes: Optional[CountMap] = Field(
         None,
         alias='column-sizes',
@@ -881,7 +882,12 @@ class DataFile(ContentFile):
     )
 
 
-class DeleteFile(ContentFile):
+class PositionalDeleteFile(ContentFile):
+    content: Literal['positional-deletes']
+
+
+class EqualityDeleteFile(ContentFile):
+    content: Literal['equality-deletes']
     equality_ids: Optional[List[int]] = Field(
         None, alias='equality-ids', description='List of equality field IDs'
     )

@@ -3382,7 +3382,7 @@ components:
     TimeTypeValue:
       type: string
       description:
-        "Time type values follow the 'HH:MM[:SS[.sssssssss]]' ISO-8601 format with microsecond precision"
+        "Time type values follow the 'HH:MM:SS.sssssssss' ISO-8601 format with microsecond precision"
       example: "22:31:08.123456"
 
     TimestampTypeValue:
@@ -3411,7 +3411,6 @@ components:
         precision, and a timezone offset (+00:00 for UTC)"
       example: "2007-12-03T10:15:30.123456789+00:00"
 
-
     FixedTypeValue:
       type: string
       description:
@@ -3424,7 +3423,6 @@ components:
       description:
         "Binary type values are stored and serialized as an uppercase hexadecimal string"
       example: "78797A"
-
 
     PartitionData:
       type: object
@@ -3512,6 +3510,12 @@ components:
         - parquet
 
     ContentFile:
+      discriminator:
+        propertyName: content
+        mapping:
+          data: '#/components/schemas/DataFile'
+          positional-deletes: '#/components/schemas/PositionalDeleteFile'
+          equality-deletes: '#/components/schemas/EqualityDeleteFile'
       type: object
       required:
         - spec-id
@@ -3556,7 +3560,12 @@ components:
       allOf:
         - $ref: '#/components/schemas/ContentFile'
       type: object
+      required:
+        - content
       properties:
+        content:
+          type: string
+          enum: [ "data" ]
         column-sizes:
           allOf:
             - $ref: '#/components/schemas/CountMap'
@@ -3582,11 +3591,25 @@ components:
             - $ref: '#/components/schemas/ValueMap'
           description: "Map of column id to upper bound"
 
-
-    DeleteFile:
+    PositionalDeleteFile:
       allOf:
         - $ref: '#/components/schemas/ContentFile'
+      required:
+        - content
       properties:
+        content:
+          type: string
+          enum: [ "positional-deletes" ]
+
+    EqualityDeleteFile:
+      allOf:
+        - $ref: '#/components/schemas/ContentFile'
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          enum: [ "equality-deletes" ]
         equality-ids:
           type: array
           items:
