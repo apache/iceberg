@@ -18,10 +18,11 @@
  */
 package org.apache.iceberg.flink.data;
 
+import java.io.Serializable;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.WriteResult;
 
-public class TableAwareWriteResult {
+public class TableAwareWriteResult implements Serializable {
 
   private final WriteResult writeResult;
   private final TableIdentifier tableIdentifier;

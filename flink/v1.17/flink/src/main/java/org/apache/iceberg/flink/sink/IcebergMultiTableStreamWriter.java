@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.api.operators.ChainingStrategy;
@@ -44,11 +45,12 @@ class IcebergMultiTableStreamWriter<T> extends AbstractStreamOperator<TableAware
     implements OneInputStreamOperator<T, TableAwareWriteResult>, BoundedOneInput {
   private static final long serialVersionUID = 1L;
 
-  private final Map<TableIdentifier, TaskWriterFactory<T>> taskWriterFactories;
+  private transient Map<TableIdentifier, TaskWriterFactory<T>> taskWriterFactories;
   private final PayloadTableSinkProvider<T> payloadTableSinkProvider;
   private final CatalogLoader catalogLoader;
-  private final FlinkWriteConf conf;
   private List<String> equalityFieldColumns;
+  private final Map<String, String> writeOptions;
+  private final ReadableConfig readableConfig;
 
   private transient Map<TableIdentifier, TaskWriter<T>> writers;
   private transient int subTaskId;
@@ -58,15 +60,14 @@ class IcebergMultiTableStreamWriter<T> extends AbstractStreamOperator<TableAware
   IcebergMultiTableStreamWriter(
       PayloadTableSinkProvider<T> payloadTableSinkProvider,
       CatalogLoader catalogLoader,
-      FlinkWriteConf writeConf,
-      List<String> equalityFieldColumns) {
-    this.taskWriterFactories = Maps.newHashMap();
-    this.writers = Maps.newHashMap();
-    this.writerMetrics = Maps.newHashMap();
+      List<String> equalityFieldColumns,
+      Map<String, String> writeOptions,
+      ReadableConfig readableConfig) {
     this.payloadTableSinkProvider = payloadTableSinkProvider;
     this.catalogLoader = catalogLoader;
-    this.conf = writeConf;
     this.equalityFieldColumns = equalityFieldColumns;
+    this.writeOptions = writeOptions;
+    this.readableConfig = readableConfig;
     setChainingStrategy(ChainingStrategy.ALWAYS);
   }
 
@@ -74,6 +75,9 @@ class IcebergMultiTableStreamWriter<T> extends AbstractStreamOperator<TableAware
   public void open() {
     this.subTaskId = getRuntimeContext().getIndexOfThisSubtask();
     this.attemptId = getRuntimeContext().getAttemptNumber();
+    this.writers = Maps.newHashMap();
+    this.writerMetrics = Maps.newHashMap();
+    this.taskWriterFactories = Maps.newHashMap();
   }
 
   @Override
@@ -83,7 +87,6 @@ class IcebergMultiTableStreamWriter<T> extends AbstractStreamOperator<TableAware
 
   @Override
   public void processElement(StreamRecord<T> element) throws Exception {
-
     TableIdentifier tableIdentifier = payloadTableSinkProvider.getOrCreateTable(element);
     initializeTableIfRequired(tableIdentifier);
     writers.get(tableIdentifier).write(element.getValue());
@@ -133,22 +136,27 @@ class IcebergMultiTableStreamWriter<T> extends AbstractStreamOperator<TableAware
   }
 
   private void initializeTableIfRequired(TableIdentifier tableIdentifier) {
+    LOG.info("checking if writer exists: {}", tableIdentifier.toString());
     if (!writers.containsKey(tableIdentifier)) {
       String tableName = tableIdentifier.name();
       LOG.info("Writer not found for table: {}", tableName);
       if (!taskWriterFactories.containsKey(tableIdentifier)) {
         LOG.info("Task Writer Factory not found for table: {}", tableName);
         TableLoader tableLoader = TableLoader.fromCatalog(catalogLoader, tableIdentifier);
+        tableLoader.open();
         Table sinkTable = tableLoader.loadTable();
+        System.out.println("Sink Table: "+ sinkTable.name());
+        FlinkWriteConf flinkWriteConf = new FlinkWriteConf(sinkTable, writeOptions, readableConfig);
         TaskWriterFactory taskWriterFactory =
             new RowDataTaskWriterFactory(
                 sinkTable,
                 FlinkSink.toFlinkRowType(sinkTable.schema(), null),
-                conf.targetDataFileSize(),
-                conf.dataFileFormat(),
-                TablePropertyUtil.writeProperties(sinkTable, conf.dataFileFormat(), conf),
+                flinkWriteConf.targetDataFileSize(),
+                flinkWriteConf.dataFileFormat(),
+                TablePropertyUtil.writeProperties(
+                    sinkTable, flinkWriteConf.dataFileFormat(), flinkWriteConf),
                 TablePropertyUtil.checkAndGetEqualityFieldIds(sinkTable, equalityFieldColumns),
-                conf.upsertMode());
+                flinkWriteConf.upsertMode());
         taskWriterFactory.initialize(subTaskId, attemptId);
         taskWriterFactories.put(tableIdentifier, taskWriterFactory);
       }

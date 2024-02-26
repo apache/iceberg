@@ -25,6 +25,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -87,8 +88,8 @@ class IcebergMultiTableFilesCommitter extends AbstractStreamOperator<Void>
 
   // TableLoader to load iceberg table lazily.
   private final CatalogLoader catalogLoader;
-  private final Map<TableIdentifier, TableLoader> tableLoaders = Maps.newLinkedHashMap();
-  private final Map<TableIdentifier, Table> localTables = Maps.newHashMap();
+  private Map<TableIdentifier, TableLoader> tableLoaders;
+  private Map<TableIdentifier, Table> localTables;
   private final boolean replacePartitions;
   private final Map<String, String> snapshotProperties;
 
@@ -99,24 +100,21 @@ class IcebergMultiTableFilesCommitter extends AbstractStreamOperator<Void>
   // interrupted because of network/disk failure etc, while we don't expect any data loss in iceberg
   // table. So we keep the finished files <1, <file0, file1>> in memory and retry to commit iceberg
   // table when the next checkpoint happen.
-  private final Map<TableIdentifier, NavigableMap<Long, byte[]>> dataFilesPerCheckpoint =
-      Maps.newHashMap();
+  private Map<TableIdentifier, NavigableMap<Long, byte[]>> dataFilesPerCheckpoint;
 
   // The completed files cache for current checkpoint. Once the snapshot barrier received, it will
   // be flushed to the 'dataFilesPerCheckpoint'.
-  private final Map<TableIdentifier, List<WriteResult>> writeResultsOfCurrentCkpt =
-      Maps.newHashMap();
+  private Map<TableIdentifier, List<WriteResult>> writeResultsOfCurrentCkpt;
   private final String branch;
 
   // It will have an unique identifier for one job.
   private transient String flinkJobId;
   private transient String operatorUniqueId;
-  private transient Map<TableIdentifier, IcebergFilesCommitterMetrics> committerMetrics =
-      Maps.newHashMap();
+  private transient Map<TableIdentifier, IcebergFilesCommitterMetrics> committerMetrics;
   private transient Map<TableIdentifier, ManifestOutputFileFactory> manifestOutputFileFactories =
       Maps.newHashMap();
-  private transient Map<TableIdentifier, Long> maxCommittedCheckpointId = Maps.newHashMap();
-  private transient Map<TableIdentifier, Integer> continuousEmptyCheckpoints = Maps.newHashMap();
+  private transient Map<TableIdentifier, Long> maxCommittedCheckpointId;
+  private transient Map<TableIdentifier, Integer> continuousEmptyCheckpoints;
   // There're two cases that we restore from flink checkpoints: the first case is restoring from
   // snapshot created by the same flink job; another case is restoring from snapshot created by
   // another different job. For the second case, we need to maintain the old flink job's id in flink
@@ -154,25 +152,9 @@ class IcebergMultiTableFilesCommitter extends AbstractStreamOperator<Void>
     super.initializeState(context);
     this.flinkJobId = getContainingTask().getEnvironment().getJobID().toString();
     this.operatorUniqueId = getRuntimeContext().getOperatorUniqueID();
-    // Open the table loader and load the table.
-    //        this.tableLoader.open();
-    //        this.table = tableLoader.loadTable();
-    //        this.committerMetrics = new IcebergFilesCommitterMetrics(super.metrics, table.name());
-
-    //        maxContinuousEmptyCommits =
-    //                PropertyUtil.propertyAsInt(table.properties(), MAX_CONTINUOUS_EMPTY_COMMITS,
-    // 10);
-    //        Preconditions.checkArgument(
-    //                maxContinuousEmptyCommits > 0, MAX_CONTINUOUS_EMPTY_COMMITS + " must be
-    // positive");
-
+    initializeMaps();
     this.subTaskId = getRuntimeContext().getIndexOfThisSubtask();
     this.attemptId = getRuntimeContext().getAttemptNumber();
-    //        this.manifestOutputFileFactory =
-    //                FlinkManifestUtil.createOutputFileFactory(
-    //                        () -> table, table.properties(), flinkJobId, operatorUniqueId,
-    // subTaskId, attemptId);
-    //        this.maxCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
 
     this.checkpointsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
     this.jobIdState = context.getOperatorStateStore().getListState(JOB_ID_DESCRIPTOR);
@@ -642,10 +624,37 @@ class IcebergMultiTableFilesCommitter extends AbstractStreamOperator<Void>
         DeltaManifestsSerializer.INSTANCE, deltaManifests);
   }
 
+  private void initializeMaps() {
+    if (Objects.isNull(this.tableLoaders)) {
+      this.tableLoaders = Maps.newLinkedHashMap();
+    }
+    if (Objects.isNull(this.localTables)) {
+      this.localTables = Maps.newHashMap();
+    }
+    if (Objects.isNull(this.dataFilesPerCheckpoint)) {
+      this.dataFilesPerCheckpoint = Maps.newHashMap();
+    }
+    if (Objects.isNull(this.writeResultsOfCurrentCkpt)) {
+      this.writeResultsOfCurrentCkpt = Maps.newHashMap();
+    }
+    if (Objects.isNull(this.committerMetrics)) {
+      this.committerMetrics = Maps.newHashMap();
+    }
+    if (Objects.isNull(this.manifestOutputFileFactories)) {
+      this.manifestOutputFileFactories = Maps.newHashMap();
+    }
+    if (Objects.isNull(this.continuousEmptyCheckpoints)) {
+      this.continuousEmptyCheckpoints = Maps.newHashMap();
+    }
+    if (Objects.isNull(this.maxCommittedCheckpointId)) {
+      this.maxCommittedCheckpointId = Maps.newHashMap();
+    }
+  }
+
   @Override
   public void open() throws Exception {
     super.open();
-
+    initializeMaps();
     final String operatorID = getRuntimeContext().getOperatorUniqueID();
     this.workerPool =
         ThreadPools.newWorkerPool("iceberg-worker-pool-" + operatorID, workerPoolSize);

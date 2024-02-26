@@ -388,7 +388,11 @@ public class TestIcebergMultiTableStreamWriter {
 
     IcebergMultiTableStreamWriter<RowData> streamWriter =
         new IcebergMultiTableStreamWriter<>(
-            payloadTableSinkProvider, catalogLoader, flinkWriteConfig, Collections.emptyList());
+            payloadTableSinkProvider,
+            catalogLoader,
+            Collections.emptyList(),
+            Maps.newHashMap(),
+            new org.apache.flink.configuration.Configuration());
     OneInputStreamOperatorTestHarness<RowData, TableAwareWriteResult> harness =
         new OneInputStreamOperatorTestHarness<>(streamWriter, 1, 1, 0);
 
