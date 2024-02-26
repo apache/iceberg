@@ -981,7 +981,8 @@ public class TestViews extends SparkExtensionsTestBase {
             () -> sql("CREATE VIEW %s AS SELECT id FROM %s", viewReferencingTempView, tempView))
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
-            String.format("Cannot create view %s.%s", NAMESPACE, viewReferencingTempView))
+            String.format(
+                "Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewReferencingTempView))
         .hasMessageContaining("that references temporary view:")
         .hasMessageContaining(tempView);
   }
@@ -1004,7 +1005,8 @@ public class TestViews extends SparkExtensionsTestBase {
                     viewReferencingTempView, globalTempView))
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
-            String.format("Cannot create view %s.%s", NAMESPACE, viewReferencingTempView))
+            String.format(
+                "Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewReferencingTempView))
         .hasMessageContaining("that references temporary view:")
         .hasMessageContaining(String.format("%s.%s", "global_temp", globalTempView));
   }
@@ -1022,7 +1024,8 @@ public class TestViews extends SparkExtensionsTestBase {
     assertThatThrownBy(
             () -> sql("CREATE VIEW %s AS SELECT %s(id) FROM %s", viewName, functionName, tableName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(String.format("Cannot create view %s.%s", NAMESPACE, viewName))
+        .hasMessageContaining(
+            String.format("Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewName))
         .hasMessageContaining("that references temporary function:")
         .hasMessageContaining(functionName);
   }
@@ -1073,7 +1076,8 @@ public class TestViews extends SparkExtensionsTestBase {
     assertThatThrownBy(
             () -> sql("CREATE VIEW %s (id, data) AS SELECT id FROM %s", viewName, tableName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(String.format("Cannot create view %s.%s", NAMESPACE, viewName))
+        .hasMessageContaining(
+            String.format("Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewName))
         .hasMessageContaining("not enough data columns")
         .hasMessageContaining("View columns: id, data")
         .hasMessageContaining("Data columns: id");
@@ -1081,7 +1085,8 @@ public class TestViews extends SparkExtensionsTestBase {
     assertThatThrownBy(
             () -> sql("CREATE VIEW %s (id) AS SELECT id, data FROM %s", viewName, tableName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(String.format("Cannot create view %s.%s", NAMESPACE, viewName))
+        .hasMessageContaining(
+            String.format("Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewName))
         .hasMessageContaining("too many data columns")
         .hasMessageContaining("View columns: id")
         .hasMessageContaining("Data columns: id, data");
@@ -1200,7 +1205,8 @@ public class TestViews extends SparkExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CREATE VIEW %s AS %s", viewName, sql))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(String.format("Cannot create view %s.%s", NAMESPACE, viewName))
+        .hasMessageContaining(
+            String.format("Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewName))
         .hasMessageContaining("that references temporary view:")
         .hasMessageContaining(tempViewInCTE);
   }
@@ -1221,7 +1227,8 @@ public class TestViews extends SparkExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CREATE VIEW %s AS %s", viewName, sql))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(String.format("Cannot create view %s.%s", NAMESPACE, viewName))
+        .hasMessageContaining(
+            String.format("Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewName))
         .hasMessageContaining("that references temporary function:")
         .hasMessageContaining(functionName);
   }
@@ -1249,7 +1256,8 @@ public class TestViews extends SparkExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CREATE VIEW %s AS %s", viewName, sql))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(String.format("Cannot create view %s.%s", NAMESPACE, viewName))
+        .hasMessageContaining(
+            String.format("Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewName))
         .hasMessageContaining("that references temporary view:")
         .hasMessageContaining(tempView);
   }
@@ -1269,7 +1277,8 @@ public class TestViews extends SparkExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CREATE VIEW %s AS %s", viewName, sql))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(String.format("Cannot create view %s.%s", NAMESPACE, viewName))
+        .hasMessageContaining(
+            String.format("Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewName))
         .hasMessageContaining("that references temporary view:")
         .hasMessageContaining(String.format("%s.%s", "global_temp", globalTempView));
   }
@@ -1289,7 +1298,8 @@ public class TestViews extends SparkExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CREATE VIEW %s AS %s", viewName, sql))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(String.format("Cannot create view %s.%s", NAMESPACE, viewName))
+        .hasMessageContaining(
+            String.format("Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewName))
         .hasMessageContaining("that references temporary function:")
         .hasMessageContaining(functionName);
   }
