@@ -96,6 +96,7 @@ The API subproject is the main interface for developers and users of the Iceberg
 guarantees.
 Evolution of the interfaces in this subproject are enforced by [Revapi](https://revapi.org/) and require
 explicit acknowledgement of API changes.
+
 All public interfaces and classes require one major version for deprecation cycle.
 Any backward incompatible changes should be annotated as `@Deprecated` and removed for the next major release.
 Backward compatible changes are allowed within major versions.
@@ -111,6 +112,7 @@ __Modules__
 
 Changes to public interfaces and classes in the subprojects listed above require a deprecation cycle of one minor
 release.
+
 These projects contain common and internal code used by other projects and can evolve within a major release.
 Minor release deprecation will provide other subprojects and external projects notice and opportunity to transition
 to new implementations.
@@ -121,6 +123,7 @@ __modules__ (All modules not referenced above)
 
 Other modules are less likely to be extended directly and modifications should make a good faith effort to follow a
 minor version deprecation cycle.
+
 If there are significant structural or design changes that result in deprecations
 being difficult to orchestrate, it is up to the committers to decide if deprecation is necessary.
 
@@ -145,6 +148,89 @@ Example:
   void sequenceNumber(long sequenceNumber);
 ```
 
+## Adding new functionality without breaking APIs
+When adding new functionality, make sure to avoid breaking existing APIs, especially within the scope of the API modules that are being checked by [Revapi](https://revapi.org/).
+
+Assume adding a `createBranch(String name)` method to the `ManageSnapshots` API.
+
+The most straight-forward way would be to add the below code:
+
+```java
+public interface ManageSnapshots extends PendingUpdate<Snapshot> {
+  // existing code...
+
+  // adding this method introduces an API-breaking change
+  ManageSnapshots createBranch(String name);
+}
+```
+
+And then add the implementation:
+
+```java
+public class SnapshotManager implements ManageSnapshots {
+  // existing code...
+
+  @Override
+  public ManageSnapshots createBranch(String name, long snapshotId) {
+    updateSnapshotReferencesOperation().createBranch(name, snapshotId);
+    return this;
+  }
+}
+```
+
+### Checking for API breakages
+
+Running `./gradlew revapi` will flag this as an API-breaking change:
+
+```
+./gradlew revapi
+> Task :iceberg-api:revapi FAILED
+> Task :iceberg-api:showDeprecationRulesOnRevApiFailure FAILED
+
+1: Task failed with an exception.
+-----------
+* What went wrong:
+Execution failed for task ':iceberg-api:revapi'.
+> There were Java public API/ABI breaks reported by revapi:
+
+  java.method.addedToInterface: Method was added to an interface.
+
+  old: <none>
+  new: method org.apache.iceberg.ManageSnapshots org.apache.iceberg.ManageSnapshots::createBranch(java.lang.String)
+
+  SOURCE: BREAKING, BINARY: NON_BREAKING, SEMANTIC: POTENTIALLY_BREAKING
+
+  From old archive: <none>
+  From new archive: iceberg-api-1.4.0-SNAPSHOT.jar
+
+  If this is an acceptable break that will not harm your users, you can ignore it in future runs like so for:
+
+    * Just this break:
+        ./gradlew :iceberg-api:revapiAcceptBreak --justification "{why this break is ok}" \
+          --code "java.method.addedToInterface" \
+          --new "method org.apache.iceberg.ManageSnapshots org.apache.iceberg.ManageSnapshots::createBranch(java.lang.String)"
+    * All breaks in this project:
+        ./gradlew :iceberg-api:revapiAcceptAllBreaks --justification "{why this break is ok}"
+    * All breaks in all projects:
+        ./gradlew revapiAcceptAllBreaks --justification "{why this break is ok}"
+  ----------------------------------------------------------------------------------------------------
+
+```
+
+### Adding a default implementation
+
+To avoid breaking the API, add a default implementation that throws an `UnsupportedOperationException`:`
+
+```java
+public interface ManageSnapshots extends PendingUpdate<Snapshot> {
+  // existing code...
+
+  // introduces new code without breaking the API
+  default ManageSnapshots createBranch(String name) {
+    throw new UnsupportedOperationException(this.getClass().getName() + " doesn't implement createBranch(String)");
+  }
+}
+```
 
 ## Iceberg Code Contribution Guidelines
 
@@ -217,10 +303,10 @@ adding a Copyright profile:
 
 1. Make method names as short as possible, while being clear. Omit needless words.
 2. Avoid `get` in method names, unless an object must be a Java bean.
-    * In most cases, replace `get` with a more specific verb that describes what is happening in the method, like `find` or `fetch`.
-    * If there isn't a more specific verb or the method is a getter, omit `get` because it isn't helpful to readers and makes method names longer.
+     * In most cases, replace `get` with a more specific verb that describes what is happening in the method, like `find` or `fetch`.
+     * If there isn't a more specific verb or the method is a getter, omit `get` because it isn't helpful to readers and makes method names longer.
 3. Where possible, use words and conjugations that form correct sentences in English when read
-    * For example, `Transform.preservesOrder()` reads correctly in an if statement: `if (transform.preservesOrder()) { ... }`
+     * For example, `Transform.preservesOrder()` reads correctly in an if statement: `if (transform.preservesOrder()) { ... }`
 
 #### Boolean arguments
 
@@ -292,6 +378,18 @@ assertThat(metadataFileLocations).isNotNull().hasSize(4);
 // or
 assertThat(metadataFileLocations).isNotNull().hasSameSizeAs(expected).hasSize(4);
 ```
+```java
+// if any key doesn't exist, it won't show the content of the map
+assertThat(map.get("key1")).isEqualTo("value1");
+assertThat(map.get("key2")).isNotNull();
+assertThat(map.get("key3")).startsWith("3.5");
+
+// better: all checks can be combined and the content of the map will be shown if any check fails
+assertThat(map)
+    .containsEntry("key1", "value1")
+    .containsKey("key2")
+    .hasEntrySatisfying("key3", v -> assertThat(v).startsWith("3.5"));
+```
 
 ```java
 // bad
@@ -346,50 +444,3 @@ no "push a single button to get a performance comparison" solution available, th
 post the results on the PR.
 
 See [Benchmarks](benchmarks.md) for a summary of available benchmarks and how to run them.
-
-## Website and Documentation Updates
-
-Currently, there is an [iceberg-docs](https://github.com/apache/iceberg-docs) repository
-which contains the HTML/CSS and other files needed for the [Iceberg website](https://iceberg.apache.org/).
-The [docs folder](https://github.com/apache/iceberg/tree/master/docs) in the Iceberg repository contains 
-the markdown content for the documentation site. All markdown changes should still be made
-to this repository.
-
-### Submitting Pull Requests
-
-Changes to the markdown contents should be submitted directly to this repository.
-
-Changes to the website appearance (e.g. HTML, CSS changes) should be submitted to the [iceberg-docs repository](https://github.com/apache/iceberg-docs) against the `main` branch.
-
-Changes to the documentation of old Iceberg versions should be submitted to the [iceberg-docs repository](https://github.com/apache/iceberg-docs) against the specific version branch.
-
-### Reporting Issues
-
-All issues related to the doc website should still be submitted to the [Iceberg repository](https://github.com/apache/iceberg).
-The GitHub Issues feature of the [iceberg-docs repository](https://github.com/apache/iceberg-docs) is disabled.
-
-### Running Locally
-
-Clone the [iceberg-docs](https://github.com/apache/iceberg-docs) repository to run the website locally:
-```shell
-git clone git@github.com:apache/iceberg-docs.git
-cd iceberg-docs
-```
-
-To start the landing page site locally, run:
-```shell
-cd landing-page && hugo serve
-```
-
-To start the documentation site locally, run:
-```shell
-cd docs && hugo serve
-```
-
-If you would like to see how the latest website looks based on the documentation in the Iceberg repository, you can copy docs to the iceberg-docs repository by:
-```shell
-rm -rf docs/content/docs
-rm -rf landing-page/content/common
-cp -r <path to iceberg repo>/docs/versioned docs/content/docs
-cp -r <path to iceberg repo>/docs/common landing-page/content/common
-```
