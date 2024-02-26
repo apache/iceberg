@@ -24,7 +24,6 @@ import org.apache.spark.sql.catalyst.plans.logical.AlterViewAs
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.views.CreateIcebergView
 import org.apache.spark.sql.catalyst.plans.logical.views.ResolvedV2View
-import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.ViewCatalog
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.util.SchemaUtils
@@ -33,9 +32,9 @@ object CheckViews extends (LogicalPlan => Unit) {
 
   override def apply(plan: LogicalPlan): Unit = {
     plan foreach {
-      case CreateIcebergView(ResolvedIdentifier(_: ViewCatalog, ident), _, query, columnAliases, _,
+      case CreateIcebergView(resolvedIdent@ResolvedIdentifier(_: ViewCatalog, _), _, query, columnAliases, _,
       _, _, _, _, _, _) =>
-        verifyColumnCount(ident, columnAliases, query)
+        verifyColumnCount(resolvedIdent, columnAliases, query)
         SchemaUtils.checkColumnNameDuplication(query.schema.fieldNames, SQLConf.get.resolver)
 
       case AlterViewAs(ResolvedV2View(_, _), _, _) =>
@@ -45,20 +44,20 @@ object CheckViews extends (LogicalPlan => Unit) {
     }
   }
 
-  private def verifyColumnCount(ident: Identifier, columns: Seq[String], query: LogicalPlan): Unit = {
+  private def verifyColumnCount(ident: ResolvedIdentifier, columns: Seq[String], query: LogicalPlan): Unit = {
     if (columns.nonEmpty) {
       if (columns.length > query.output.length) {
         throw new AnalysisException(
           errorClass = "CREATE_VIEW_COLUMN_ARITY_MISMATCH.NOT_ENOUGH_DATA_COLUMNS",
           messageParameters = Map(
-            "viewName" -> ident.toString,
+            "viewName" -> String.format("%s.%s", ident.catalog.name(), ident.identifier),
             "viewColumns" -> columns.mkString(", "),
             "dataColumns" -> query.output.map(c => c.name).mkString(", ")))
       } else if (columns.length < query.output.length) {
         throw new AnalysisException(
           errorClass = "CREATE_VIEW_COLUMN_ARITY_MISMATCH.TOO_MANY_DATA_COLUMNS",
           messageParameters = Map(
-            "viewName" -> ident.toString,
+            "viewName" -> String.format("%s.%s", ident.catalog.name(), ident.identifier),
             "viewColumns" -> columns.mkString(", "),
             "dataColumns" -> query.output.map(c => c.name).mkString(", ")))
       }
