@@ -500,6 +500,13 @@ spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCata
 
 For more details on using S3 Access Grants, please refer to [Managing access with S3 Access Grants](https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-grants.html).
 
+### S3 Cross-Region Access
+
+S3 Cross-Region bucket access can be turned on by setting catalog property `s3.cross-region-access-enabled` to `true`. 
+This is turned off by default to avoid first S3 API call increased latency.
+For more details, please refer to [Cross-Region access for Amazon S3
+](https://docs.aws.amazon.com/sdk-for-java/latest/developer-guide/s3-cross-region.html).
+
 ### S3 Acceleration
 
 [S3 Acceleration](https://aws.amazon.com/s3/transfer-acceleration/) can be used to speed up transfers to and from Amazon S3 by as much as 50-500% for long-distance transfer of larger objects.
