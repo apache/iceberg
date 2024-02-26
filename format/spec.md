@@ -1147,9 +1147,9 @@ In some cases partition specs are stored using only the field list instead of th
 
 The `field-id` property was added for each partition field in v2. In v1, the reference implementation assigned field ids sequentially in each spec starting at 1,000. See Partition Evolution for more details.
 
-Transforms that accept multiple arguments specify source field IDs using `source-ids` instead of `source-id`. Writers producing these transforms in v1 and v2 metadata should additionally produce the `source-id` field by setting it to the first ID from the `source-ids` list. Writers producing these transforms in v3 metadata should populate only the `source-ids` field because v3 readers will fully-support multi-arg transforms by reading this field.
+In v3 metadata, writers must use only `source-ids` because v3 requires reader support for multi-arg transforms. In v1 and v2 metadata, writers must always write `source-id`; for multi-arg transforms, writers must produce `source-ids` and set `source-id` to the first ID from the field ID list.
 
-Older versions of the reference implementation can read tables with transforms unknown to it, without the ability to push down filters or write. But other implementations may break if they encounter unknown transforms.
+Older versions of the reference implementation can read tables with transforms unknown to it, ignoring them. But other implementations may break if they encounter unknown transforms. All v3 readers are required to read tables with unknown transforms, ignoring them. Writers should not write to tables with unknown transforms.
 
 ### Sort Orders
 
@@ -1170,9 +1170,9 @@ Each sort field in the fields list is stored as an object with the following pro
 | required | required | required | **`direction`**  | `JSON string`       | `asc`       |
 | required | required | required | **`null-order`** | `JSON string`       | `nulls-last`|
 
-Transforms that accept multiple arguments specify source field IDs using `source-ids` instead of `source-id`. Writers producing these transforms in v1 and v2 metadata should additionally produce the `source-id` field by setting it to the first ID from the `source-ids` list. Writers producing these transforms in v3 metadata should populate only the `source-ids` field because v3 readers will fully-support multi-arg transforms by reading this field.
+In v3 metadata, writers must use only `source-ids` because v3 requires reader support for multi-arg transforms. In v1 and v2 metadata, writers must always write `source-id`; for multi-arg transforms, writers must produce `source-ids` and set `source-id` to the first ID from the field ID list.
 
-Older versions of the reference implementation can read tables with transforms unknown to it, without the ability to push down filters or write. But other implementations may break if they encounter unknown transforms.
+Older versions of the reference implementation can read tables with transforms unknown to it, ignoring them. But other implementations may break if they encounter unknown transforms. All v3 readers are required to read tables with unknown transforms, ignoring them. Writers should not write to tables with unknown transforms.
 
 The following table describes the possible values for the some of the field within sort field: 
 
@@ -1330,23 +1330,24 @@ Default values are added to struct fields in v3.
 
 Types `timestamp_ns` and `timestamptz_ns` are added in v3.
 
-Writing V3 metadata:
+All readers are required to read tables with unknown partition transforms, ignoring them.
 
-* Partition field JSON:
+Writing v3 metadata:
+
+* Partition Field and Sort Field JSON:
     * `source-ids` was added and is required
     * `source-id` is no longer required and should be omitted; always use `source-ids` instead
-* Sort order JSON:
-    * `source-ids` was added and is required
-    * `source-id` is no longer required and should be omitted; always use `source-ids` instead
 
-Reading older version metadata for V3:
+Reading v1 or v2 metadata for v3:
 
-* Partition field and sort order field `source-ids` must default to a single-value list of the value of `source-id`
+* Partition Field and Sort Field JSON:
+    * `source-ids` should default to a single-value list of the value of `source-id`
 
-Writing older version metadata:
+Writing v1 or v2 metadata:
 
-* For single-arg transforms, partition field and sort order field `source-id` should be written; `source-ids` must be omitted
-* For multi-arg transforms, partition field and sort order field `source-ids` should be written; `source-id` must be set to the first element of `source-ids`
+* Partition Field and Sort Field JSON:
+    * For a single-arg transform, `source-id` should be written; if `source-ids` is also written it should be a single-element list of `source-id`
+    * For multi-arg transforms, `source-ids` should be written; `source-id` should be set to the first element of `source-ids`
 
 ### Version 2
 
