@@ -149,9 +149,9 @@ Example:
 ```
 
 ## Adding new functionality without breaking APIs
-Ideally, we'd want to add new functionality without breaking existing APIs, especially within the scope of the API modules that are being checked by [Revapi](https://revapi.org/).
+When adding new functionality, make sure to avoid breaking existing APIs, especially within the scope of the API modules that are being checked by [Revapi](https://revapi.org/).
 
-Let's assume we'd want to add a `createBranch(String name)` method to the `ManageSnapshots` API.
+Assume adding a `createBranch(String name)` method to the `ManageSnapshots` API.
 
 The most straight-forward way would be to add the below code:
 
@@ -165,6 +165,7 @@ public interface ManageSnapshots extends PendingUpdate<Snapshot> {
 ```
 
 And then add the implementation:
+
 ```java
 public class SnapshotManager implements ManageSnapshots {
   // existing code...
@@ -178,7 +179,9 @@ public class SnapshotManager implements ManageSnapshots {
 ```
 
 ### Checking for API breakages
+
 Running `./gradlew revapi` will flag this as an API-breaking change:
+
 ```
 ./gradlew revapi
 > Task :iceberg-api:revapi FAILED
@@ -215,7 +218,9 @@ Execution failed for task ':iceberg-api:revapi'.
 ```
 
 ### Adding a default implementation
-In order to avoid breaking the API, we can add a default implementation that throws an `UnsupportedOperationException`:
+
+To avoid breaking the API, add a default implementation that throws an `UnsupportedOperationException`:`
+
 ```java
 public interface ManageSnapshots extends PendingUpdate<Snapshot> {
   // existing code...
