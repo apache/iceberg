@@ -263,7 +263,7 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
 
   /**
    * returns already set outputSpecId rewriter will use, value is set by user using `output-spec-id`
-   * see more {@link #outputSpecId(Map<String, String>)}
+   * see more {@link #outputSpecId(Map)}
    */
   protected int outputSpecId() {
     return outputSpecId;
