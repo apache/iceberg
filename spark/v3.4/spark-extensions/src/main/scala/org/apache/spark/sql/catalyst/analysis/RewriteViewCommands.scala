@@ -35,10 +35,7 @@ import org.apache.spark.sql.catalyst.plans.logical.views.ShowIcebergViews
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.trees.TreePattern.UNRESOLVED_FUNCTION
 import org.apache.spark.sql.connector.catalog.CatalogManager
-import org.apache.spark.sql.connector.catalog.CatalogPlugin
-import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.LookupCatalog
-import org.apache.spark.sql.connector.catalog.ViewCatalog
 import scala.collection.mutable
 
 /**
@@ -58,7 +55,7 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
     case CreateView(ResolvedIdent(resolved), userSpecifiedColumns, comment, properties,
     Some(queryText), query, allowExisting, replace) =>
       val q = CTESubstitution.apply(query)
-      verifyTemporaryObjectsDontExist(resolved.identifier, q)
+      verifyTemporaryObjectsDontExist(resolved, q)
       CreateIcebergView(child = resolved,
         queryText = queryText,
         query = q,
@@ -113,22 +110,22 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
    * Permanent views are not allowed to reference temp objects
    */
   private def verifyTemporaryObjectsDontExist(
-    name: Identifier,
+    identifier: ResolvedIdentifier,
     child: LogicalPlan): Unit = {
     val tempViews = collectTemporaryViews(child)
     if (tempViews.nonEmpty) {
-      throw invalidRefToTempObject(name, tempViews.map(v => v.quoted).mkString("[", ", ", "]"), "view")
+      throw invalidRefToTempObject(identifier, tempViews.map(v => v.quoted).mkString("[", ", ", "]"), "view")
     }
 
     val tempFunctions = collectTemporaryFunctions(child)
     if (tempFunctions.nonEmpty) {
-      throw invalidRefToTempObject(name, tempFunctions.mkString("[", ", ", "]"), "function")
+      throw invalidRefToTempObject(identifier, tempFunctions.mkString("[", ", ", "]"), "function")
     }
   }
 
-  private def invalidRefToTempObject(name: Identifier, tempObjectNames: String, tempObjectType: String) = {
-    new AnalysisException(String.format("Cannot create view %s that references temporary %s: %s",
-      name, tempObjectType, tempObjectNames))
+  private def invalidRefToTempObject(ident: ResolvedIdentifier, tempObjectNames: String, tempObjectType: String) = {
+    new AnalysisException(String.format("Cannot create view %s.%s that references temporary %s: %s",
+      ident.catalog.name(), ident.identifier, tempObjectType, tempObjectNames))
   }
 
   /**
