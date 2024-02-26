@@ -360,7 +360,7 @@ public class S3FileIOProperties implements Serializable {
    * Determines if S3 client will allow Cross-Region bucket access, default to false.
    *
    * <p>For more details, see
-   * https://docs.aws.amazon.com/AmazonS3/latest/userguide/dual-stack-endpoints.html
+   * https://docs.aws.amazon.com/sdk-for-java/latest/developer-guide/s3-cross-region.html
    */
   public static final String CROSS_REGION_ACCESS_ENABLED = "s3.cross-region-access-enabled";
 
