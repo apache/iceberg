@@ -1466,28 +1466,38 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @Test
+  public void testBinPackRewriterWithSpecificUnparitionedOutputSpec() {
+    Table table = createTable(10);
+    shouldHaveFiles(table, 10);
+    // to be used for rewrite
+    int outputSpecId = table.spec().specId();
+    // create multiple partition specs with different commit
+    table.updateSpec().addField(Expressions.truncate("c2", 2)).commit();
+
+    long dataSizeBefore = testDataSize(table);
+    long count = currentData().size();
+
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .option(RewriteDataFiles.OUTPUT_SPEC_ID, String.valueOf(outputSpecId))
+            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .binPack()
+            .execute();
+
+    assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
+    assertThat(currentData().size()).isEqualTo(count);
+    shouldHaveProvidedPartitionSpec(table, outputSpecId);
+  }
+
+  @Test
   public void testBinPackRewriterWithSpecificOutputSpec() {
     Table table = createTable(10);
     shouldHaveFiles(table, 10);
-    Integer previousSpecId = table.spec().specId();
+    // to be used for rewrite back to original un-partitioned spec
+    int outputSpecId = table.spec().specId();
     // create multiple partition specs with different commit
     table.updateSpec().addField(Expressions.truncate("c2", 2)).commit();
     table.updateSpec().addField(Expressions.bucket("c3", 2)).commit();
-
-    /*
-    This is how the table.specs() look like
-     specId :: PartitionSpec
-      0::[]
-      1::[
-        1000: c2_trunc_2: truncate[2](2)
-      ]
-      2::[
-        1000: c2_trunc_2: truncate[2](2)
-        1001: c3_bucket_2: bucket[2](3)
-      ]
-     */
-    // rewrite to the truncate("c2", 2)
-    int outputSpecId = table.specs().size() - 2;
 
     long dataSizeBefore = testDataSize(table);
     long count = currentData().size();
@@ -1512,19 +1522,6 @@ public class TestRewriteDataFilesAction extends TestBase {
     // simulate multiple partition specs with different commit
     table.updateSpec().addField(Expressions.truncate("c2", 2)).commit();
     table.updateSpec().addField(Expressions.bucket("c3", 2)).commit();
-    /*
-    This is how the table.specs() look like
-     specId :: ParitionSpec
-      0::[]
-      1::[
-        1000: c2_trunc_2: truncate[2](2)
-      ]
-      2::[
-        1000: c2_trunc_2: truncate[2](2)
-        1001: c3_bucket_2: bucket[2](3)
-      ]
-     */
-
     Assertions.assertThatThrownBy(
             () ->
                 actions()
@@ -1544,22 +1541,9 @@ public class TestRewriteDataFilesAction extends TestBase {
     Integer previousSpecId = table.spec().specId();
     // simulate multiple partition specs with different commit
     table.updateSpec().addField(Expressions.truncate("c2", 2)).commit();
+    // to be used for rewrite
+    int outputSpecId = table.spec().specId();
     table.updateSpec().addField(Expressions.bucket("c3", 2)).commit();
-
-    /*
-    This is how the table.specs() look like
-     specId :: ParitionSpec
-      0::[]
-      1::[
-        1000: c2_trunc_2: truncate[2](2)
-      ]
-      2::[
-        1000: c2_trunc_2: truncate[2](2)
-        1001: c3_bucket_2: bucket[2](3)
-      ]
-     */
-    // rewrite to the truncate("c2", 2)
-    int outputSpecId = table.specs().size() - 2;
 
     long dataSizeBefore = testDataSize(table);
     long count = currentData().size();
@@ -1583,22 +1567,9 @@ public class TestRewriteDataFilesAction extends TestBase {
     Integer previousSpecId = table.spec().specId();
     // simulate multiple partition specs with different commit
     table.updateSpec().addField(Expressions.truncate("c2", 2)).commit();
+    // to be used for rewrite
+    int outputSpecId = table.spec().specId();
     table.updateSpec().addField(Expressions.bucket("c3", 2)).commit();
-
-    /*
-    This is how the table.specs() look like
-     specId :: ParitionSpec
-      0::[]
-      1::[
-        1000: c2_trunc_2: truncate[2](2)
-      ]
-      2::[
-        1000: c2_trunc_2: truncate[2](2)
-        1001: c3_bucket_2: bucket[2](3)
-      ]
-     */
-    // rewrite to the truncate("c2", 2)
-    int outputSpecId = table.specs().size() - 2;
 
     long dataSizeBefore = testDataSize(table);
     long count = currentData().size();
