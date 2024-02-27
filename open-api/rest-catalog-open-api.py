@@ -779,7 +779,7 @@ class ContentFile(BaseModel):
     spec_id: int = Field(..., alias='spec-id')
     partition: Optional[List[PrimitiveTypeValue]] = Field(
         None,
-        description='An ordered list of primitive type values corresponding to fields produced by the partition spec. Each element in the list matches the field in the partition specs output struct type',
+        description='A list of partition field values ordered based on the fields of the partition spec specified by the `spec-id`',
         example=[1, 'bar'],
     )
     file_size_in_bytes: int = Field(
