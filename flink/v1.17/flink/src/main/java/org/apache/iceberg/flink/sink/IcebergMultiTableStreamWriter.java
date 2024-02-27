@@ -145,7 +145,6 @@ class IcebergMultiTableStreamWriter<T> extends AbstractStreamOperator<TableAware
         TableLoader tableLoader = TableLoader.fromCatalog(catalogLoader, tableIdentifier);
         tableLoader.open();
         Table sinkTable = tableLoader.loadTable();
-        System.out.println("Sink Table: "+ sinkTable.name());
         FlinkWriteConf flinkWriteConf = new FlinkWriteConf(sinkTable, writeOptions, readableConfig);
         TaskWriterFactory taskWriterFactory =
             new RowDataTaskWriterFactory(
