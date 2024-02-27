@@ -58,7 +58,10 @@ import org.slf4j.LoggerFactory;
 abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private static final Logger LOG = LoggerFactory.getLogger(MergingSnapshotProducer.class);
 
-  // data is only added in "append", "overwrite", and "replace" operations
+  // new data records are only added in "append" and "overwrite" operations
+  private static final Set<String> VALIDATE_NEW_DATA_OPERATIONS =
+      ImmutableSet.of(DataOperations.APPEND, DataOperations.OVERWRITE);
+  // data files are added in "append", "overwrite", and "replace" operations
   private static final Set<String> VALIDATE_ADDED_FILES_OPERATIONS =
       ImmutableSet.of(DataOperations.APPEND, DataOperations.OVERWRITE, DataOperations.REPLACE);
   // data files are removed in "overwrite", "replace", and "delete"
@@ -299,7 +302,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   protected void validateAddedDataFiles(
       TableMetadata base, Long startingSnapshotId, PartitionSet partitionSet, Snapshot parent) {
     CloseableIterable<ManifestEntry<DataFile>> conflictEntries =
-        addedDataFiles(base, startingSnapshotId, null, partitionSet, parent);
+        addedDataFiles(base, startingSnapshotId, null, partitionSet, parent, /*newDataOnly=*/false);
 
     try (CloseableIterator<ManifestEntry<DataFile>> conflicts = conflictEntries.iterator()) {
       if (conflicts.hasNext()) {
@@ -329,8 +332,27 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       Long startingSnapshotId,
       Expression conflictDetectionFilter,
       Snapshot parent) {
+    validateAddedDataFiles(base, startingSnapshotId, conflictDetectionFilter, parent,
+        /*newDataOnly=*/false);
+  }
+
+  /**
+   * Validates that no files matching a filter have been added to the table since a starting
+   * snapshot.
+   *
+   * @param base table metadata to validate
+   * @param startingSnapshotId id of the snapshot current at the start of the operation
+   * @param conflictDetectionFilter an expression used to find new conflicting data files
+   * @param newDataOnly if true, only validate data files with new data rows
+   */
+  protected void validateAddedDataFiles(
+      TableMetadata base,
+      Long startingSnapshotId,
+      Expression conflictDetectionFilter,
+      Snapshot parent,
+      boolean newDataOnly) {
     CloseableIterable<ManifestEntry<DataFile>> conflictEntries =
-        addedDataFiles(base, startingSnapshotId, conflictDetectionFilter, null, parent);
+        addedDataFiles(base, startingSnapshotId, conflictDetectionFilter, null, parent, newDataOnly);
 
     try (CloseableIterator<ManifestEntry<DataFile>> conflicts = conflictEntries.iterator()) {
       if (conflicts.hasNext()) {
@@ -356,23 +378,28 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    * @param dataFilter an expression used to find new data files
    * @param partitionSet a set of partitions to find new data files
    * @param parent ending snapshot of the branch
+   * @param newDataOnly if true, only validate data files from operations that write new data records
    */
   private CloseableIterable<ManifestEntry<DataFile>> addedDataFiles(
       TableMetadata base,
       Long startingSnapshotId,
       Expression dataFilter,
       PartitionSet partitionSet,
-      Snapshot parent) {
+      Snapshot parent,
+      boolean newDataOnly) {
     // if there is no current table state, no files have been added
     if (parent == null) {
       return CloseableIterable.empty();
     }
 
+    Set<String> matchingOperations = newDataOnly ? VALIDATE_NEW_DATA_OPERATIONS :
+                                                   VALIDATE_ADDED_FILES_OPERATIONS;
+
     Pair<List<ManifestFile>, Set<Long>> history =
         validationHistory(
             base,
             startingSnapshotId,
-            VALIDATE_ADDED_FILES_OPERATIONS,
+            matchingOperations,
             ManifestContent.DATA,
             parent);
     List<ManifestFile> manifests = history.first();
