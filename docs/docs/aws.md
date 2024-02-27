@@ -504,8 +504,17 @@ For more details on using S3 Access Grants, please refer to [Managing access wit
 
 S3 Cross-Region bucket access can be turned on by setting catalog property `s3.cross-region-access-enabled` to `true`. 
 This is turned off by default to avoid first S3 API call increased latency.
-For more details, please refer to [Cross-Region access for Amazon S3
-](https://docs.aws.amazon.com/sdk-for-java/latest/developer-guide/s3-cross-region.html).
+
+For example, to enable S3 Cross-Region bucket access with Spark 3.3, you can start the Spark SQL shell with:
+```
+spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
+    --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket2/my/key/prefix \
+    --conf spark.sql.catalog.my_catalog.type=glue \
+    --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO \
+    --conf spark.sql.catalog.my_catalog.s3.cross-region-access-enabled=true
+```
+
+For more details, please refer to [Cross-Region access for Amazon S3](https://docs.aws.amazon.com/sdk-for-java/latest/developer-guide/s3-cross-region.html).
 
 ### S3 Acceleration
 
