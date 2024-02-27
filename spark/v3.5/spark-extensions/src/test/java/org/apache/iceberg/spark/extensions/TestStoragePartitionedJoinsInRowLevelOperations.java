@@ -20,9 +20,12 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.RowLevelOperationMode.COPY_ON_WRITE;
 import static org.apache.iceberg.RowLevelOperationMode.MERGE_ON_READ;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -31,13 +34,12 @@ import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.internal.SQLConf;
-import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestStoragePartitionedJoinsInRowLevelOperations extends SparkExtensionsTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestStoragePartitionedJoinsInRowLevelOperations extends ExtensionsTestBase {
 
   private static final String OTHER_TABLE_NAME = "other_table";
 
@@ -68,7 +70,7 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends SparkExtens
           SparkSQLProperties.PRESERVE_DATA_GROUPING,
           "true");
 
-  @Parameterized.Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
       {
@@ -79,23 +81,18 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends SparkExtens
     };
   }
 
-  public TestStoragePartitionedJoinsInRowLevelOperations(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS %s", tableName(OTHER_TABLE_NAME));
   }
 
-  @Test
+  @TestTemplate
   public void testCopyOnWriteDeleteWithoutShuffles() {
     checkDelete(COPY_ON_WRITE);
   }
 
-  @Test
+  @TestTemplate
   public void testMergeOnReadDeleteWithoutShuffles() {
     checkDelete(MERGE_ON_READ);
   }
@@ -139,10 +136,10 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends SparkExtens
           String planAsString = plan.toString();
           if (mode == COPY_ON_WRITE) {
             int actualNumShuffles = StringUtils.countMatches(planAsString, "Exchange");
-            Assert.assertEquals("Should be 1 shuffle with SPJ", 1, actualNumShuffles);
-            Assertions.assertThat(planAsString).contains("Exchange hashpartitioning(_file");
+            assertThat(actualNumShuffles).as("Should be 1 shuffle with SPJ").isEqualTo(1);
+            assertThat(planAsString).contains("Exchange hashpartitioning(_file");
           } else {
-            Assertions.assertThat(planAsString).doesNotContain("Exchange");
+            assertThat(planAsString).doesNotContain("Exchange");
           }
         });
 
@@ -158,12 +155,12 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends SparkExtens
         sql("SELECT * FROM %s ORDER BY id, salary", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testCopyOnWriteUpdateWithoutShuffles() {
     checkUpdate(COPY_ON_WRITE);
   }
 
-  @Test
+  @TestTemplate
   public void testMergeOnReadUpdateWithoutShuffles() {
     checkUpdate(MERGE_ON_READ);
   }
@@ -207,10 +204,10 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends SparkExtens
           String planAsString = plan.toString();
           if (mode == COPY_ON_WRITE) {
             int actualNumShuffles = StringUtils.countMatches(planAsString, "Exchange");
-            Assert.assertEquals("Should be 1 shuffle with SPJ", 1, actualNumShuffles);
-            Assertions.assertThat(planAsString).contains("Exchange hashpartitioning(_file");
+            assertThat(actualNumShuffles).as("Should be 1 shuffle with SPJ").isEqualTo(1);
+            assertThat(planAsString).contains("Exchange hashpartitioning(_file");
           } else {
-            Assertions.assertThat(planAsString).doesNotContain("Exchange");
+            assertThat(planAsString).doesNotContain("Exchange");
           }
         });
 
@@ -227,22 +224,22 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends SparkExtens
         sql("SELECT * FROM %s ORDER BY id, salary", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testCopyOnWriteMergeWithoutShuffles() {
     checkMerge(COPY_ON_WRITE, false /* with ON predicate */);
   }
 
-  @Test
+  @TestTemplate
   public void testCopyOnWriteMergeWithoutShufflesWithPredicate() {
     checkMerge(COPY_ON_WRITE, true /* with ON predicate */);
   }
 
-  @Test
+  @TestTemplate
   public void testMergeOnReadMergeWithoutShuffles() {
     checkMerge(MERGE_ON_READ, false /* with ON predicate */);
   }
 
-  @Test
+  @TestTemplate
   public void testMergeOnReadMergeWithoutShufflesWithPredicate() {
     checkMerge(MERGE_ON_READ, true /* with ON predicate */);
   }
@@ -294,10 +291,10 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends SparkExtens
           String planAsString = plan.toString();
           if (mode == COPY_ON_WRITE) {
             int actualNumShuffles = StringUtils.countMatches(planAsString, "Exchange");
-            Assert.assertEquals("Should be 1 shuffle with SPJ", 1, actualNumShuffles);
-            Assertions.assertThat(planAsString).contains("Exchange hashpartitioning(_file");
+            assertThat(actualNumShuffles).as("Should be 1 shuffle with SPJ").isEqualTo(1);
+            assertThat(planAsString).contains("Exchange hashpartitioning(_file");
           } else {
-            Assertions.assertThat(planAsString).doesNotContain("Exchange");
+            assertThat(planAsString).doesNotContain("Exchange");
           }
         });
 

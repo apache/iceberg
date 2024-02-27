@@ -18,9 +18,12 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
@@ -34,19 +37,14 @@ import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
-import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Test;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestMetaColumnProjectionWithStageScan extends SparkExtensionsTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestMetaColumnProjectionWithStageScan extends ExtensionsTestBase {
 
-  public TestMetaColumnProjectionWithStageScan(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @Parameterized.Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
       {
@@ -57,7 +55,7 @@ public class TestMetaColumnProjectionWithStageScan extends SparkExtensionsTestBa
     };
   }
 
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
@@ -68,7 +66,7 @@ public class TestMetaColumnProjectionWithStageScan extends SparkExtensionsTestBa
     taskSetManager.stageTasks(tab, fileSetID, Lists.newArrayList(tasks));
   }
 
-  @Test
+  @TestTemplate
   public void testReadStageTableMeta() throws Exception {
     sql(
         "CREATE TABLE %s (id bigint, data string) USING iceberg TBLPROPERTIES"
@@ -103,7 +101,7 @@ public class TestMetaColumnProjectionWithStageScan extends SparkExtensionsTestBa
               .option(SparkReadOptions.SCAN_TASK_SET_ID, fileSetID)
               .load(tableLocation);
 
-      Assertions.assertThat(scanDF2.columns().length).isEqualTo(2);
+      assertThat(scanDF2.columns()).hasSize(2);
     }
 
     try (CloseableIterable<ScanTask> tasks = table.newBatchScan().planFiles()) {
