@@ -3453,7 +3453,7 @@ components:
           description: "List of Long values, matched to 'keys' by index"
       example:
         {
-          "keys": [ 3, 4 ],
+          "keys": [ 1, 2 ],
           "values": [ 100,200 ]
         }
 
@@ -3468,12 +3468,12 @@ components:
         values:
           type: array
           items:
-            $ref: '#/components/schemas/BinaryTypeValue'
-          description: "List of Binary values encoded as hexadecimal strings, matched to 'keys' by index"
+            $ref: '#/components/schemas/PrimitiveTypeValue'
+          description: "List of primitive type values, matched to 'keys' by index"
       example:
         {
-            "keys": [ 3,4 ],
-            "values": [ "05000000","0A000000" ]
+            "keys": [ 1, 2 ],
+            "values": [ 100, "test" ]
         }
 
     PrimitiveTypeValue:
@@ -3514,7 +3514,7 @@ components:
         propertyName: content
         mapping:
           data: '#/components/schemas/DataFile'
-          positional-deletes: '#/components/schemas/PositionalDeleteFile'
+          positional-deletes: '#/components/schemas/PositionDeleteFile'
           equality-deletes: '#/components/schemas/EqualityDeleteFile'
       type: object
       required:
@@ -3585,13 +3585,13 @@ components:
         lower-bounds:
           allOf:
             - $ref: '#/components/schemas/ValueMap'
-          description: "Map of column id to lower bound"
+          description: "Map of column id to lower bound primitive type values"
         upper-bounds:
           allOf:
             - $ref: '#/components/schemas/ValueMap'
-          description: "Map of column id to upper bound"
+          description: "Map of column id to upper bound primitive type values"
 
-    PositionalDeleteFile:
+    PositionDeleteFile:
       allOf:
         - $ref: '#/components/schemas/ContentFile'
       required:
@@ -3599,7 +3599,7 @@ components:
       properties:
         content:
           type: string
-          enum: [ "positional-deletes" ]
+          enum: [ "position-deletes" ]
 
     EqualityDeleteFile:
       allOf:

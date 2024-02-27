@@ -747,16 +747,6 @@ class CountMap(BaseModel):
     )
 
 
-class ValueMap(BaseModel):
-    keys: Optional[List[IntegerTypeValue]] = Field(
-        None, description='List of integer column ids for each corresponding value'
-    )
-    values: Optional[List[BinaryTypeValue]] = Field(
-        None,
-        description="List of Binary values encoded as hexadecimal strings, matched to 'keys' by index",
-    )
-
-
 class PrimitiveTypeValue(BaseModel):
     __root__: Union[
         BooleanTypeValue,
@@ -833,6 +823,15 @@ class PartitionData(BaseModel):
     __root__: Optional[Dict[str, PrimitiveTypeValue]] = None
 
 
+class ValueMap(BaseModel):
+    keys: Optional[List[IntegerTypeValue]] = Field(
+        None, description='List of integer column ids for each corresponding value'
+    )
+    values: Optional[List[PrimitiveTypeValue]] = Field(
+        None, description="List of primitive type values, matched to 'keys' by index"
+    )
+
+
 class ContentFile(BaseModel):
     content: FileContent
     file_path: str = Field(..., alias='file-path')
@@ -875,15 +874,19 @@ class DataFile(ContentFile):
         description='Map of column id to number of NaN values in the column',
     )
     lower_bounds: Optional[ValueMap] = Field(
-        None, alias='lower-bounds', description='Map of column id to lower bound'
+        None,
+        alias='lower-bounds',
+        description='Map of column id to lower bound primitive type values',
     )
     upper_bounds: Optional[ValueMap] = Field(
-        None, alias='upper-bounds', description='Map of column id to upper bound'
+        None,
+        alias='upper-bounds',
+        description='Map of column id to upper bound primitive type values',
     )
 
 
-class PositionalDeleteFile(ContentFile):
-    content: Literal['positional-deletes']
+class PositionDeleteFile(ContentFile):
+    content: Literal['position-deletes']
 
 
 class EqualityDeleteFile(ContentFile):
