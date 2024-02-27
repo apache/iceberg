@@ -302,7 +302,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   protected void validateAddedDataFiles(
       TableMetadata base, Long startingSnapshotId, PartitionSet partitionSet, Snapshot parent) {
     CloseableIterable<ManifestEntry<DataFile>> conflictEntries =
-        addedDataFiles(base, startingSnapshotId, null, partitionSet, parent, /*newDataOnly=*/false);
+        addedDataFiles(
+            base, startingSnapshotId, null, partitionSet, parent, /*newDataOnly=*/ false);
 
     try (CloseableIterator<ManifestEntry<DataFile>> conflicts = conflictEntries.iterator()) {
       if (conflicts.hasNext()) {
@@ -332,8 +333,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       Long startingSnapshotId,
       Expression conflictDetectionFilter,
       Snapshot parent) {
-    validateAddedDataFiles(base, startingSnapshotId, conflictDetectionFilter, parent,
-        /*newDataOnly=*/false);
+    validateAddedDataFiles(
+        base, startingSnapshotId, conflictDetectionFilter, parent, /*newDataOnly=*/ false);
   }
 
   /**
@@ -352,7 +353,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       Snapshot parent,
       boolean newDataOnly) {
     CloseableIterable<ManifestEntry<DataFile>> conflictEntries =
-        addedDataFiles(base, startingSnapshotId, conflictDetectionFilter, null, parent, newDataOnly);
+        addedDataFiles(
+            base, startingSnapshotId, conflictDetectionFilter, null, parent, newDataOnly);
 
     try (CloseableIterator<ManifestEntry<DataFile>> conflicts = conflictEntries.iterator()) {
       if (conflicts.hasNext()) {
@@ -378,7 +380,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    * @param dataFilter an expression used to find new data files
    * @param partitionSet a set of partitions to find new data files
    * @param parent ending snapshot of the branch
-   * @param newDataOnly if true, only validate data files from operations that write new data records
+   * @param newDataOnly if true, only validate data files from operations that write new data
+   *     records
    */
   private CloseableIterable<ManifestEntry<DataFile>> addedDataFiles(
       TableMetadata base,
@@ -392,16 +395,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       return CloseableIterable.empty();
     }
 
-    Set<String> matchingOperations = newDataOnly ? VALIDATE_NEW_DATA_OPERATIONS :
-                                                   VALIDATE_ADDED_FILES_OPERATIONS;
+    Set<String> matchingOperations =
+        newDataOnly ? VALIDATE_NEW_DATA_OPERATIONS : VALIDATE_ADDED_FILES_OPERATIONS;
 
     Pair<List<ManifestFile>, Set<Long>> history =
         validationHistory(
-            base,
-            startingSnapshotId,
-            matchingOperations,
-            ManifestContent.DATA,
-            parent);
+            base, startingSnapshotId, matchingOperations, ManifestContent.DATA, parent);
     List<ManifestFile> manifests = history.first();
     Set<Long> newSnapshots = history.second();
 
