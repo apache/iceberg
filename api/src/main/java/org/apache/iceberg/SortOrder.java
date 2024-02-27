@@ -212,7 +212,7 @@ public class SortOrder implements Serializable {
     }
 
     /**
-     * Add an expression term to the sort, ascending with the given null order.
+     * Add an expression term to the sort, descending with the given null order.
      *
      * @param term an expression term
      * @param nullOrder a null order (first or last)
