@@ -65,7 +65,7 @@ class SparkBinPackDataRewriter extends SparkSizeBasedDataRewriter {
 
   // invoke a shuffle if the original spec does not match the output spec
   private DistributionMode distributionMode(List<FileScanTask> group) {
-    boolean requiresRepartition = !group.get(0).spec().equals(table().specs().get(outputSpecId()));
+    boolean requiresRepartition = !group.get(0).spec().equals(outputSpec());
     return requiresRepartition ? DistributionMode.RANGE : DistributionMode.NONE;
   }
 }

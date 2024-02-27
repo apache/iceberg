@@ -165,7 +165,7 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
   }
 
   private org.apache.iceberg.SortOrder outputSortOrder(List<FileScanTask> group) {
-    PartitionSpec spec = table().specs().get(outputSpecId());
+    PartitionSpec spec = outputSpec();
     boolean requiresRepartitioning = !group.get(0).spec().equals(spec);
     if (requiresRepartitioning) {
       // build in the requirement for partition sorting into our sort order

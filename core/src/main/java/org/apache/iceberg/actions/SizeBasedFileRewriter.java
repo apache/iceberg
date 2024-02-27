@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentScanTask;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -261,10 +262,10 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
     return (long) (targetFileSize + ((maxFileSize - targetFileSize) * 0.5));
   }
 
-  /**
-   * returns already set outputSpecId rewriter will use, value is set by user using `output-spec-id`
-   * see more {@link #outputSpecId(Map)}
-   */
+  protected PartitionSpec outputSpec() {
+    return table.specs().get(outputSpecId);
+  }
+
   protected int outputSpecId() {
     return outputSpecId;
   }
@@ -274,7 +275,7 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
         PropertyUtil.propertyAsInt(options, RewriteDataFiles.OUTPUT_SPEC_ID, table.spec().specId());
     Preconditions.checkArgument(
         table.specs().containsKey(specId),
-        "Output spec id %s is not a valid spec id for table",
+        "Cannot use output spec id %d because the table spec does not contain a reference to this spec-id",
         specId);
     return specId;
   }
