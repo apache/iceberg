@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortDirection;
@@ -33,6 +34,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
@@ -41,6 +43,9 @@ import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.StructField;
+import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -135,13 +140,50 @@ class SparkZOrderDataRewriter extends SparkShufflingDataRewriter {
     SparkZOrderUDF zOrderUDF =
         new SparkZOrderUDF(zOrderColNames.size(), varLengthContribution, maxOutputSize);
 
+    Map<String, List<StructField>> fieldChainMap = Maps.newHashMap();
+    collectFieldChains(df.schema(), Lists.newArrayList(), fieldChainMap);
+
     Column[] zOrderCols =
         zOrderColNames.stream()
-            .map(df.schema()::apply)
-            .map(col -> zOrderUDF.sortedLexicographically(df.col(col.name()), col.dataType()))
+            .map(colName -> getColumn(colName, df, zOrderUDF, fieldChainMap))
             .toArray(Column[]::new);
 
     return zOrderUDF.interleaveBytes(array(zOrderCols));
+  }
+
+  private Column getColumn(
+      String zOrderColName,
+      Dataset<Row> df,
+      SparkZOrderUDF zOrderUDF,
+      Map<String, List<StructField>> fieldChainMap) {
+    List<StructField> fieldChain = fieldChainMap.getOrDefault(zOrderColName, Lists.newArrayList());
+    String colName =
+        String.join(
+            ".",
+            fieldChain.stream()
+                .map(f -> String.format("`%s`", f.name()))
+                .collect(Collectors.toList()));
+
+    // taking the last part from fieldChain as that's the type for the nested field
+    return zOrderUDF.sortedLexicographically(
+        df.col(colName), fieldChain.get(fieldChain.size() - 1).dataType());
+  }
+
+  private void collectFieldChains(
+      DataType remainingSchema,
+      List<StructField> existingChain,
+      Map<String, List<StructField>> resultMap) {
+    if (remainingSchema instanceof StructType) {
+      for (StructField field : ((StructType) remainingSchema).fields()) {
+        List<StructField> newChain = Lists.newArrayList(existingChain);
+        newChain.add(field);
+        collectFieldChains(field.dataType(), newChain, resultMap);
+      }
+    } else {
+      String fieldNameChain =
+          String.join(".", existingChain.stream().map(f -> f.name()).collect(Collectors.toList()));
+      resultMap.put(fieldNameChain, existingChain);
+    }
   }
 
   private int varLengthContribution(Map<String, String> options) {
