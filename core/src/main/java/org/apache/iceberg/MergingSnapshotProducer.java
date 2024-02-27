@@ -302,8 +302,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   protected void validateAddedDataFiles(
       TableMetadata base, Long startingSnapshotId, PartitionSet partitionSet, Snapshot parent) {
     CloseableIterable<ManifestEntry<DataFile>> conflictEntries =
-        addedDataFiles(
-            base, startingSnapshotId, null, partitionSet, parent, /*newDataOnly=*/ false);
+        addedDataFiles(base, startingSnapshotId, null, partitionSet, parent, false);
 
     try (CloseableIterator<ManifestEntry<DataFile>> conflicts = conflictEntries.iterator()) {
       if (conflicts.hasNext()) {
@@ -333,8 +332,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       Long startingSnapshotId,
       Expression conflictDetectionFilter,
       Snapshot parent) {
-    validateAddedDataFiles(
-        base, startingSnapshotId, conflictDetectionFilter, parent, /*newDataOnly=*/ false);
+    validateAddedDataFiles(base, startingSnapshotId, conflictDetectionFilter, parent, false);
   }
 
   /**
