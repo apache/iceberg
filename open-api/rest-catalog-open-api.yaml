@@ -3356,7 +3356,6 @@ components:
         and with a negative scale is '2E+20'"
       example: "123.4500"
 
-
     StringTypeValue:
       type: string
       example: "hello"
@@ -3495,13 +3494,6 @@ components:
         - $ref: '#/components/schemas/FixedTypeValue'
         - $ref: '#/components/schemas/BinaryTypeValue'
 
-    FileContent:
-      type: string
-      enum:
-        - data
-        - position-deletes
-        - equality-deletes
-
     FileFormat:
       type: string
       enum:
@@ -3526,7 +3518,7 @@ components:
         - record-count
       properties:
         content:
-          $ref: '#/components/schemas/FileContent'
+          type: string
         file-path:
           type: string
         file-format:

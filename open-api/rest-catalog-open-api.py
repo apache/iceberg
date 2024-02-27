@@ -768,10 +768,6 @@ class PrimitiveTypeValue(BaseModel):
     ]
 
 
-class FileContent(BaseModel):
-    __root__: Literal['data', 'position-deletes', 'equality-deletes']
-
-
 class FileFormat(BaseModel):
     __root__: Literal['avro', 'orc', 'parquet']
 
@@ -833,7 +829,7 @@ class ValueMap(BaseModel):
 
 
 class ContentFile(BaseModel):
-    content: FileContent
+    content: str
     file_path: str = Field(..., alias='file-path')
     file_format: FileFormat = Field(..., alias='file-format')
     spec_id: int = Field(..., alias='spec-id')
