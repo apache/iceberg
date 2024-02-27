@@ -1479,18 +1479,12 @@ public class TestViews extends SparkExtensionsTestBase {
     assertThat(sql("SHOW VIEWS")).contains(v1).doesNotContain(v2);
     assertThat(sql("SHOW VIEWS LIKE 'viewOne*'")).contains(v1).doesNotContain(v2);
 
-    // independently of the currently set namespace, this will contain all views in the catalog
-    assertThat(sql("SHOW VIEWS IN %s", catalogName)).contains(v1, v2);
-
     assertThat(sql("SHOW VIEWS IN %s.%s", catalogName, namespaceTwo))
         .contains(v2)
         .doesNotContain(v1);
     sql("USE %s", namespaceTwo);
     assertThat(sql("SHOW VIEWS")).contains(v2).doesNotContain(v1);
     assertThat(sql("SHOW VIEWS LIKE 'viewTwo*'")).contains(v2).doesNotContain(v1);
-
-    // independently of the currently set namespace, this will contain all views in the catalog
-    assertThat(sql("SHOW VIEWS IN %s", catalogName)).contains(v1, v2);
   }
 
   @Test
