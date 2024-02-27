@@ -3423,20 +3423,6 @@ components:
         "Binary type values are stored and serialized as an uppercase hexadecimal string"
       example: "78797A"
 
-    PartitionData:
-      type: object
-      description:
-        "Partition data is serialized, where field id are preserved as a string JSON key, and the fields value is 
-        serialized based on the defined types"
-      additionalProperties:
-        oneOf:
-          - $ref: '#/components/schemas/PrimitiveTypeValue'
-      example:
-        {
-          "4": 1,
-          "5": "bar"
-        }
-
     CountMap:
       type: object
       properties:
@@ -3526,7 +3512,13 @@ components:
         spec-id:
           type: integer
         partition:
-          $ref: '#/components/schemas/PartitionData'
+          type: array
+          items:
+            $ref: '#/components/schemas/PrimitiveTypeValue'
+          description:
+            "An ordered list of primitive type values corresponding to fields produced by the partition spec. Each 
+            element in the list matches the field in the partition specs output struct type"
+          example: [1, "bar"]
         file-size-in-bytes:
           type: integer
           format: int64

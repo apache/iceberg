@@ -772,6 +772,42 @@ class FileFormat(BaseModel):
     __root__: Literal['avro', 'orc', 'parquet']
 
 
+class ContentFile(BaseModel):
+    content: str
+    file_path: str = Field(..., alias='file-path')
+    file_format: FileFormat = Field(..., alias='file-format')
+    spec_id: int = Field(..., alias='spec-id')
+    partition: Optional[List[PrimitiveTypeValue]] = Field(
+        None,
+        description='An ordered list of primitive type values corresponding to fields produced by the partition spec. Each element in the list matches the field in the partition specs output struct type',
+        example=[1, 'bar'],
+    )
+    file_size_in_bytes: int = Field(
+        ..., alias='file-size-in-bytes', description='Total file size in bytes'
+    )
+    record_count: int = Field(
+        ..., alias='record-count', description='Number of records in the file'
+    )
+    key_metadata: Optional[BinaryTypeValue] = Field(
+        None, alias='key-metadata', description='Encryption key metadata blob'
+    )
+    split_offsets: Optional[List[int]] = Field(
+        None, alias='split-offsets', description='List of splittable offsets'
+    )
+    sort_order_id: Optional[int] = Field(None, alias='sort-order-id')
+
+
+class PositionDeleteFile(ContentFile):
+    content: Literal['position-deletes']
+
+
+class EqualityDeleteFile(ContentFile):
+    content: Literal['equality-deletes']
+    equality_ids: Optional[List[int]] = Field(
+        None, alias='equality-ids', description='List of equality field IDs'
+    )
+
+
 class CreateNamespaceRequest(BaseModel):
     namespace: Namespace
     properties: Optional[Dict[str, str]] = Field(
@@ -811,14 +847,6 @@ class StatisticsFile(BaseModel):
     blob_metadata: List[BlobMetadata] = Field(..., alias='blob-metadata')
 
 
-class PartitionData(BaseModel):
-    """
-    Partition data is serialized, where field id are preserved as a string JSON key, and the fields value is serialized based on the defined types
-    """
-
-    __root__: Optional[Dict[str, PrimitiveTypeValue]] = None
-
-
 class ValueMap(BaseModel):
     keys: Optional[List[IntegerTypeValue]] = Field(
         None, description='List of integer column ids for each corresponding value'
@@ -826,27 +854,6 @@ class ValueMap(BaseModel):
     values: Optional[List[PrimitiveTypeValue]] = Field(
         None, description="List of primitive type values, matched to 'keys' by index"
     )
-
-
-class ContentFile(BaseModel):
-    content: str
-    file_path: str = Field(..., alias='file-path')
-    file_format: FileFormat = Field(..., alias='file-format')
-    spec_id: int = Field(..., alias='spec-id')
-    partition: Optional[PartitionData] = None
-    file_size_in_bytes: int = Field(
-        ..., alias='file-size-in-bytes', description='Total file size in bytes'
-    )
-    record_count: int = Field(
-        ..., alias='record-count', description='Number of records in the file'
-    )
-    key_metadata: Optional[BinaryTypeValue] = Field(
-        None, alias='key-metadata', description='Encryption key metadata blob'
-    )
-    split_offsets: Optional[List[int]] = Field(
-        None, alias='split-offsets', description='List of splittable offsets'
-    )
-    sort_order_id: Optional[int] = Field(None, alias='sort-order-id')
 
 
 class DataFile(ContentFile):
@@ -878,17 +885,6 @@ class DataFile(ContentFile):
         None,
         alias='upper-bounds',
         description='Map of column id to upper bound primitive type values',
-    )
-
-
-class PositionDeleteFile(ContentFile):
-    content: Literal['position-deletes']
-
-
-class EqualityDeleteFile(ContentFile):
-    content: Literal['equality-deletes']
-    equality_ids: Optional[List[int]] = Field(
-        None, alias='equality-ids', description='List of equality field IDs'
     )
 
 
