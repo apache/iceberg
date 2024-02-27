@@ -1467,6 +1467,37 @@ public class TestViews extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void showViewsWithCurrentNamespace() {
+    String namespaceOne = "show_views_ns1";
+    String namespaceTwo = "show_views_ns2";
+    String viewOne = viewName("viewOne");
+    String viewTwo = viewName("viewTwo");
+    sql("CREATE NAMESPACE IF NOT EXISTS %s", namespaceOne);
+    sql("CREATE NAMESPACE IF NOT EXISTS %s", namespaceTwo);
+
+    // create one view in each namespace
+    sql("CREATE VIEW %s.%s AS SELECT * FROM %s.%s", namespaceOne, viewOne, NAMESPACE, tableName);
+    sql("CREATE VIEW %s.%s AS SELECT * FROM %s.%s", namespaceTwo, viewTwo, NAMESPACE, tableName);
+
+    Object[] v1 = row(namespaceOne, viewOne, false);
+    Object[] v2 = row(namespaceTwo, viewTwo, false);
+
+    assertThat(sql("SHOW VIEWS IN %s.%s", catalogName, namespaceOne))
+        .contains(v1)
+        .doesNotContain(v2);
+    sql("USE %s", namespaceOne);
+    assertThat(sql("SHOW VIEWS")).contains(v1).doesNotContain(v2);
+    assertThat(sql("SHOW VIEWS LIKE 'viewOne*'")).contains(v1).doesNotContain(v2);
+
+    assertThat(sql("SHOW VIEWS IN %s.%s", catalogName, namespaceTwo))
+        .contains(v2)
+        .doesNotContain(v1);
+    sql("USE %s", namespaceTwo);
+    assertThat(sql("SHOW VIEWS")).contains(v2).doesNotContain(v1);
+    assertThat(sql("SHOW VIEWS LIKE 'viewTwo*'")).contains(v2).doesNotContain(v1);
+  }
+
+  @Test
   public void showCreateSimpleView() {
     String viewName = "showCreateSimpleView";
     String sql = String.format("SELECT id, data FROM %s WHERE id <= 3", tableName);
