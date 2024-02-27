@@ -685,7 +685,7 @@ class DateTypeValue(BaseModel):
 class TimeTypeValue(BaseModel):
     __root__: str = Field(
         ...,
-        description="Time type values follow the 'HH:MM:SS.sssssssss' ISO-8601 format with microsecond precision",
+        description="Time type values follow the 'HH:MM:SS.ssssss' ISO-8601 format with microsecond precision",
         example='22:31:08.123456',
     )
 

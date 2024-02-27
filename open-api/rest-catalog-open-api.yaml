@@ -3382,7 +3382,7 @@ components:
     TimeTypeValue:
       type: string
       description:
-        "Time type values follow the 'HH:MM:SS.sssssssss' ISO-8601 format with microsecond precision"
+        "Time type values follow the 'HH:MM:SS.ssssss' ISO-8601 format with microsecond precision"
       example: "22:31:08.123456"
 
     TimestampTypeValue:
@@ -3514,7 +3514,7 @@ components:
         propertyName: content
         mapping:
           data: '#/components/schemas/DataFile'
-          positional-deletes: '#/components/schemas/PositionDeleteFile'
+          position-deletes: '#/components/schemas/PositionDeleteFile'
           equality-deletes: '#/components/schemas/EqualityDeleteFile'
       type: object
       required:
