@@ -1486,7 +1486,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
     assertThat(currentData().size()).isEqualTo(count);
-    shouldHaveProvidedPartitionSpec(table, outputSpecId);
+    shouldRewriteDataFilesWithPartitionSpec(table, outputSpecId);
   }
 
   @Test
@@ -1511,7 +1511,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
     assertThat(currentData().size()).isEqualTo(count);
-    shouldHaveProvidedPartitionSpec(table, outputSpecId);
+    shouldRewriteDataFilesWithPartitionSpec(table, outputSpecId);
   }
 
   @Test
@@ -1557,7 +1557,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
     assertThat(currentData().size()).isEqualTo(count);
-    shouldHaveProvidedPartitionSpec(table, outputSpecId);
+    shouldRewriteDataFilesWithPartitionSpec(table, outputSpecId);
   }
 
   @Test
@@ -1583,10 +1583,10 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
     assertThat(currentData().size()).isEqualTo(count);
-    shouldHaveProvidedPartitionSpec(table, outputSpecId);
+    shouldRewriteDataFilesWithPartitionSpec(table, outputSpecId);
   }
 
-  protected void shouldHaveProvidedPartitionSpec(Table table, int outputSpecId) {
+  protected void shouldRewriteDataFilesWithPartitionSpec(Table table, int outputSpecId) {
     List<DataFile> rewrittenFiles = currentDataFiles(table);
     // check specId matches outputSpecId
     rewrittenFiles.stream()
