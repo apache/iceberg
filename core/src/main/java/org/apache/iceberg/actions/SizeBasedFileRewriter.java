@@ -275,7 +275,7 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
         PropertyUtil.propertyAsInt(options, RewriteDataFiles.OUTPUT_SPEC_ID, table.spec().specId());
     Preconditions.checkArgument(
         table.specs().containsKey(specId),
-        "Cannot use output spec id %d because the table spec does not contain a reference to this spec-id",
+        "Cannot use output spec id %s because the table spec does not contain a reference to this spec-id",
         specId);
     return specId;
   }
