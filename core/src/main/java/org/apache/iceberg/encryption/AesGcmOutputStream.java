@@ -131,7 +131,7 @@ public class AesGcmOutputStream extends PositionOutputStream {
 
   @Override
   public long storedLength() throws IOException {
-    return gcmEncryptionLength(getPos());
+    return targetStream.storedLength();
   }
 
   private void writeHeader() throws IOException {
@@ -162,18 +162,5 @@ public class AesGcmOutputStream extends PositionOutputStream {
     targetStream.write(cipherBlock, 0, ciphertextLength);
     positionInPlainBlock = 0;
     currentBlockIndex++;
-  }
-
-  public static long gcmEncryptionLength(long plainLength) {
-    int numberOfFullBlocks = Math.toIntExact(plainLength / Ciphers.PLAIN_BLOCK_SIZE);
-    int plainBytesInLastBlock =
-        Math.toIntExact(plainLength - numberOfFullBlocks * Ciphers.PLAIN_BLOCK_SIZE);
-    boolean fullBlocksOnly = (0 == plainBytesInLastBlock);
-    int cipherBytesInLastBlock =
-        fullBlocksOnly ? 0 : plainBytesInLastBlock + Ciphers.NONCE_LENGTH + Ciphers.GCM_TAG_LENGTH;
-    int cipherBlockSize = Ciphers.PLAIN_BLOCK_SIZE + Ciphers.NONCE_LENGTH + Ciphers.GCM_TAG_LENGTH;
-    return (long) Ciphers.GCM_STREAM_HEADER_LENGTH
-        + numberOfFullBlocks * cipherBlockSize
-        + cipherBytesInLastBlock;
   }
 }
