@@ -27,6 +27,7 @@ import static org.apache.iceberg.TableProperties.PARQUET_VECTORIZATION_ENABLED;
 import static org.apache.spark.sql.functions.lit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -59,7 +60,6 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.junit.Assume;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -140,7 +140,8 @@ public class TestSparkMetadataColumns extends TestBase {
   @TestTemplate
   public void testSpecAndPartitionMetadataColumns() {
     // TODO: support metadata structs in vectorized ORC reads
-    Assume.assumeFalse(fileFormat == FileFormat.ORC && vectorized);
+    assumeThat(fileFormat).isNotEqualTo(FileFormat.ORC);
+    assumeThat(vectorized).isFalse();
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a1', 'b1')", TABLE_NAME);
 
@@ -173,7 +174,7 @@ public class TestSparkMetadataColumns extends TestBase {
 
   @TestTemplate
   public void testPositionMetadataColumnWithMultipleRowGroups() throws NoSuchTableException {
-    Assume.assumeTrue(fileFormat == FileFormat.PARQUET);
+    assumeThat(fileFormat).isEqualTo(FileFormat.PARQUET);
 
     table.updateProperties().set(PARQUET_ROW_GROUP_SIZE_BYTES, "100").commit();
 
@@ -197,7 +198,7 @@ public class TestSparkMetadataColumns extends TestBase {
 
   @TestTemplate
   public void testPositionMetadataColumnWithMultipleBatches() throws NoSuchTableException {
-    Assume.assumeTrue(fileFormat == FileFormat.PARQUET);
+    assumeThat(fileFormat).isEqualTo(FileFormat.PARQUET);
 
     table.updateProperties().set(PARQUET_BATCH_SIZE, "1000").commit();
 
