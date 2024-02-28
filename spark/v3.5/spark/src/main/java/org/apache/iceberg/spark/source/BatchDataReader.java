@@ -38,14 +38,14 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class BatchDataReader extends BaseBatchReader<FileScanTask>
+public class BatchDataReader extends BaseBatchReader<FileScanTask>
     implements PartitionReader<ColumnarBatch> {
 
   private static final Logger LOG = LoggerFactory.getLogger(BatchDataReader.class);
 
   private final long numSplits;
 
-  BatchDataReader(SparkInputPartition partition, int batchSize) {
+  public BatchDataReader(SparkInputPartition partition, int batchSize) {
     this(
         partition.table(),
         partition.taskGroup(),

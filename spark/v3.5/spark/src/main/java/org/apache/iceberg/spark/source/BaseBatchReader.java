@@ -38,7 +38,7 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBatch, T> {
-  private final int batchSize;
+  protected final int batchSize;
 
   BaseBatchReader(
       Table table,

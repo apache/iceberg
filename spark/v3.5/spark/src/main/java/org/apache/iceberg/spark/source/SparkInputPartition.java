@@ -30,7 +30,7 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.read.HasPartitionKey;
 import org.apache.spark.sql.connector.read.InputPartition;
 
-class SparkInputPartition implements InputPartition, HasPartitionKey, Serializable {
+public class SparkInputPartition implements InputPartition, HasPartitionKey, Serializable {
   private final Types.StructType groupingKeyType;
   private final ScanTaskGroup<?> taskGroup;
   private final Broadcast<Table> tableBroadcast;

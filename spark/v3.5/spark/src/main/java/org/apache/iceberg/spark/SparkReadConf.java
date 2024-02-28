@@ -287,6 +287,14 @@ public class SparkReadConf {
         .parse();
   }
 
+  public String getCustomizedColumnarReaderFactoryImpl() {
+    return confParser
+        .stringConf()
+        .sessionConf(SparkSQLProperties.CUSTOMIZED_COLUMNAR_READER_FACTORY_IMPL)
+        .defaultValue("")
+        .parse();
+  }
+
   public int parallelism() {
     int defaultParallelism = spark.sparkContext().defaultParallelism();
     int numShufflePartitions = spark.sessionState().conf().numShufflePartitions();
