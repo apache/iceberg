@@ -505,9 +505,8 @@ public class TestViews extends SparkExtensionsTestBase {
     // reading from a view that references a TEMP FUNCTION shouldn't be possible
     assertThatThrownBy(() -> sql("SELECT * FROM %s", viewName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("The function")
-        .hasMessageContaining(functionName)
-        .hasMessageContaining("cannot be found");
+        .hasMessageStartingWith(
+            String.format("Cannot load function: %s.%s.%s", catalogName, NAMESPACE, functionName));
   }
 
   @Test
