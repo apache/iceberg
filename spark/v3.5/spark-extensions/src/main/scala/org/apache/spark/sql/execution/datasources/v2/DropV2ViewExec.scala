@@ -19,6 +19,14 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
+import org.apache.hadoop.conf.Configuration
+import org.apache.iceberg.catalog.Namespace
+import org.apache.iceberg.catalog.TableIdentifier
+import org.apache.iceberg.exceptions
+import org.apache.iceberg.hadoop.HadoopTables
+import org.apache.iceberg.spark.MaterializedViewUtil
+import org.apache.iceberg.spark.SparkCatalog
+import org.apache.iceberg.view.View
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.analysis.NoSuchViewException
 import org.apache.spark.sql.catalyst.expressions.Attribute
@@ -34,6 +42,36 @@ case class DropV2ViewExec(
   override lazy val output: Seq[Attribute] = Nil
 
   override protected def run(): Seq[InternalRow] = {
+    val icebergCatalog = catalog.asInstanceOf[SparkCatalog].icebergCatalog()
+    val icebergViewCatalog = icebergCatalog.asInstanceOf[org.apache.iceberg.catalog.ViewCatalog]
+    var view: Option[View] = None
+    try {
+      view = Some(icebergViewCatalog.loadView(TableIdentifier.of(Namespace.of(ident.namespace(): _*), ident.name())))
+    } catch {
+      case e: exceptions.NoSuchViewException => {
+        if (!ifExists) {
+          throw new NoSuchViewException(ident)
+        }
+      }
+    }
+    // if view is not null read the properties and check if it is a materialized view
+    view match {
+      case Some(v) => {
+        val viewProperties = v.properties();
+        if (Option(
+            viewProperties.get(MaterializedViewUtil.MATERIALIZED_VIEW_PROPERTY_KEY
+            )).getOrElse("false").equals("true")) {
+          // get the storage table location then drop the storage table
+          val storageTableLocation = viewProperties.get(
+            MaterializedViewUtil.MATERIALIZED_VIEW_STORAGE_LOCATION_PROPERTY_KEY
+          )
+          val tables: HadoopTables = new HadoopTables(new Configuration())
+          tables.dropTable(storageTableLocation)
+        }
+      }
+      case _ =>
+    }
+
     val dropped = catalog.dropView(ident)
     if (!dropped && !ifExists) {
       throw new NoSuchViewException(ident)

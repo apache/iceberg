@@ -122,8 +122,12 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
     val sqlTextAfterSubstitution = substitutor.substitute(sqlText)
     if (isIcebergCommand(sqlTextAfterSubstitution)) {
       parse(sqlTextAfterSubstitution) { parser => astBuilder.visit(parser.singleStatement()) }.asInstanceOf[LogicalPlan]
+    } else if (isCreateMaterializedView(sqlText)) {
+      RewriteViewCommands(SparkSession.active, true).apply(
+        delegate.parsePlan(replaceCreateMaterializedViewWithCreateView(sqlText))
+      )
     } else {
-      RewriteViewCommands(SparkSession.active).apply(delegate.parsePlan(sqlText))
+      RewriteViewCommands(SparkSession.active, false).apply(delegate.parsePlan(sqlText))
     }
   }
 
@@ -149,6 +153,18 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
             normalized.contains("set identifier fields") ||
             normalized.contains("drop identifier fields") ||
             isSnapshotRefDdl(normalized)))
+  }
+
+  private def isCreateMaterializedView(sqlText: String): Boolean = {
+    sqlText.toLowerCase.contains("create materialized view")
+  }
+
+  def replaceCreateMaterializedViewWithCreateView(input: String): String = {
+    // Regex pattern to match "create materialized view" in a case-insensitive manner
+    val pattern = "(?i)create materialized view".r
+
+    // Replace all occurrences of the pattern with "create view"
+    pattern.replaceAllIn(input, "create view")
   }
 
   private def isSnapshotRefDdl(normalized: String): Boolean = {

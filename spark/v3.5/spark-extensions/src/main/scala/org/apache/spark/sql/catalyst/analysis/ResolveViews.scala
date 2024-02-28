@@ -63,7 +63,7 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
         .map(_ => ResolvedV2View(catalog.asViewCatalog, ident))
         .getOrElse(u)
 
-    case c@CreateIcebergView(ResolvedIdentifier(_, _), _, query, columnAliases, columnComments, _, _, _, _, _, _)
+    case c@CreateIcebergView(ResolvedIdentifier(_, _), _, query, columnAliases, columnComments, _, _, _, _, _, _, _)
       if query.resolved && !c.rewritten =>
       val aliased = aliasColumns(query, columnAliases, columnComments)
       c.copy(query = aliased, queryColumnNames = query.schema.fieldNames, rewritten = true)

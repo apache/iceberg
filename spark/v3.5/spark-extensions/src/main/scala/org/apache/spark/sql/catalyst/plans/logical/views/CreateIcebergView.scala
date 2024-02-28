@@ -33,7 +33,8 @@ case class CreateIcebergView(
   properties: Map[String, String],
   allowExisting: Boolean,
   replace: Boolean,
-  rewritten: Boolean = false) extends BinaryCommand {
+  rewritten: Boolean = false,
+  materialized: Boolean = false) extends BinaryCommand {
   override def left: LogicalPlan = child
 
   override def right: LogicalPlan = query
