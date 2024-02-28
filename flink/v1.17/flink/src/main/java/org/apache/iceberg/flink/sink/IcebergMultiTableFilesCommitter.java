@@ -46,6 +46,7 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.table.runtime.typeutils.SortedMapTypeInfo;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.SnapshotUpdate;
@@ -115,6 +116,7 @@ class IcebergMultiTableFilesCommitter extends AbstractStreamOperator<Void>
       Maps.newHashMap();
   private transient Map<TableIdentifier, Long> maxCommittedCheckpointId;
   private transient Map<TableIdentifier, Integer> continuousEmptyCheckpoints;
+  private transient Map<TableIdentifier, PartitionSpec> partitionSpecMap;
   // There're two cases that we restore from flink checkpoints: the first case is restoring from
   // snapshot created by the same flink job; another case is restoring from snapshot created by
   // another different job. For the second case, we need to maintain the old flink job's id in flink
@@ -311,7 +313,8 @@ class IcebergMultiTableFilesCommitter extends AbstractStreamOperator<Void>
     }
 
     if (!this.localTables.containsKey(tableIdentifier)
-        || !this.manifestOutputFileFactories.containsKey(tableIdentifier)) {
+        || !this.manifestOutputFileFactories.containsKey(tableIdentifier)
+        || !this.partitionSpecMap.containsKey(tableIdentifier)) {
       Table localTable = this.tableLoaders.get(tableIdentifier).loadTable();
       localTables.put(tableIdentifier, localTable);
       ManifestOutputFileFactory manifestOutputFileFactory =
@@ -323,6 +326,7 @@ class IcebergMultiTableFilesCommitter extends AbstractStreamOperator<Void>
               this.subTaskId,
               this.attemptId);
       this.manifestOutputFileFactories.put(tableIdentifier, manifestOutputFileFactory);
+      this.partitionSpecMap.put(tableIdentifier, localTable.spec());
     }
 
     if (!this.dataFilesPerCheckpoint.containsKey(tableIdentifier)) {
@@ -613,12 +617,11 @@ class IcebergMultiTableFilesCommitter extends AbstractStreamOperator<Void>
     List<WriteResult> writeResults = writeResultsOfCurrentCkpt.get(tableIdentifier);
 
     WriteResult result = WriteResult.builder().addAll(writeResults).build();
-    Table table = localTables.get(tableIdentifier);
     DeltaManifests deltaManifests =
         FlinkManifestUtil.writeCompletedFiles(
             result,
             () -> manifestOutputFileFactories.get(tableIdentifier).create(checkpointId),
-            table.spec());
+            partitionSpecMap.get(tableIdentifier));
 
     return SimpleVersionedSerialization.writeVersionAndSerialize(
         DeltaManifestsSerializer.INSTANCE, deltaManifests);
@@ -626,7 +629,7 @@ class IcebergMultiTableFilesCommitter extends AbstractStreamOperator<Void>
 
   private void initializeMaps() {
     if (Objects.isNull(this.tableLoaders)) {
-      this.tableLoaders = Maps.newLinkedHashMap();
+      this.tableLoaders = Maps.newHashMap();
     }
     if (Objects.isNull(this.localTables)) {
       this.localTables = Maps.newHashMap();
@@ -648,6 +651,9 @@ class IcebergMultiTableFilesCommitter extends AbstractStreamOperator<Void>
     }
     if (Objects.isNull(this.maxCommittedCheckpointId)) {
       this.maxCommittedCheckpointId = Maps.newHashMap();
+    }
+    if (Objects.isNull(this.partitionSpecMap)) {
+      this.partitionSpecMap = Maps.newHashMap();
     }
   }
 

@@ -1311,30 +1311,20 @@ public class TestIcebergMultiTableFilesCommitter {
       assertThat(specId2).isEqualTo(table2.spec().specId());
       harness.notifyOfCompletedCheckpoint(checkpointId);
       table1.refresh();
+      PartitionSpec oldSpec1 = table1.spec();
       table1.updateSpec().addField("id").commit();
       table2.refresh();
+      PartitionSpec oldSpec2 = table2.spec();
       table2.updateSpec().addField("id").commit();
       checkpointId++;
       rowData = SimpleDataUtil.createRowData(checkpointId, "hello" + checkpointId);
-      StructLike partition1 = new PartitionData(table1.spec().partitionType());
-      partition1.set(0, checkpointId);
-      StructLike partition2 = new PartitionData(table2.spec().partitionType());
-      partition2.set(0, checkpointId);
       dataFile1 =
           writeDataFile(
-              "data-table1-" + checkpointId,
-              ImmutableList.of(rowData),
-              table1.spec(),
-              partition1,
-              table1);
+              "data-table1-" + checkpointId, ImmutableList.of(rowData), oldSpec1, null, table1);
       harness.processElement(of(dataFile1, table1.name()), ++timestamp);
       dataFile2 =
           writeDataFile(
-              "data-table2-" + checkpointId,
-              ImmutableList.of(rowData),
-              table2.spec(),
-              partition2,
-              table2);
+              "data-table2-" + checkpointId, ImmutableList.of(rowData), oldSpec2, null, table2);
       harness.processElement(of(dataFile2, table2.name()), ++timestamp);
       rows.add(rowData);
       snapshot = harness.snapshot(checkpointId, ++timestamp);
@@ -1343,13 +1333,13 @@ public class TestIcebergMultiTableFilesCommitter {
               harness.getOperator().getOperatorStateBackend(),
               checkpointId,
               TableIdentifier.of("dummy", table1.name()));
-      assertThat(specId1).isEqualTo(table1.spec().specId());
+      assertThat(specId1).isEqualTo(oldSpec1.specId());
       specId2 =
           getStagingManifestSpecId(
               harness.getOperator().getOperatorStateBackend(),
               checkpointId,
               TableIdentifier.of("dummy", table2.name()));
-      assertThat(specId2).isEqualTo(table2.spec().specId());
+      assertThat(specId2).isEqualTo(oldSpec2.specId());
       harness.notifyOfCompletedCheckpoint(checkpointId);
       assertFlinkManifests(0, flinkManifestFolder1);
       assertFlinkManifests(0, flinkManifestFolder2);

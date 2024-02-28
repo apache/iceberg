@@ -34,6 +34,7 @@ public class TestPayloadSinkProvider implements PayloadTableSinkProvider<RowData
   private String sinkDatabaseName() {
     return "test_raw";
   }
+
   private String baseTable() {
     return "test_table";
   }
