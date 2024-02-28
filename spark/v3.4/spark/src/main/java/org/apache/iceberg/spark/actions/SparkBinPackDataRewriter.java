@@ -58,13 +58,14 @@ class SparkBinPackDataRewriter extends SparkSizeBasedDataRewriter {
         .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, groupId)
         .option(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, writeMaxFileSize())
         .option(SparkWriteOptions.DISTRIBUTION_MODE, distributionMode(group).modeName())
+        .option(SparkWriteOptions.OUTPUT_SPEC_ID, outputSpecId())
         .mode("append")
         .save(groupId);
   }
 
   // invoke a shuffle if the original spec does not match the output spec
   private DistributionMode distributionMode(List<FileScanTask> group) {
-    boolean requiresRepartition = !group.get(0).spec().equals(table().spec());
+    boolean requiresRepartition = !group.get(0).spec().equals(table().specs().get(outputSpecId()));
     return requiresRepartition ? DistributionMode.RANGE : DistributionMode.NONE;
   }
 }

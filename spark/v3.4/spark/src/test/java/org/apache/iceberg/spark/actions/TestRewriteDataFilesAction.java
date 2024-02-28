@@ -1426,6 +1426,104 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     Assert.assertNotEquals("Number of files order should not be ascending", actual, expected);
   }
 
+  @Test
+  public void testZOrderSortPartitionEvolution() {
+    int originalFiles = 20;
+    Table table = createTable(originalFiles);
+    shouldHaveLastCommitUnsorted(table, "c2");
+    shouldHaveFiles(table, originalFiles);
+
+    table
+        .updateSpec()
+        .addField(Expressions.bucket("c1", 2))
+        .addField(Expressions.bucket("c2", 2))
+        .commit();
+
+    long dataSizeBefore = testDataSize(table);
+
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .zOrder("c2", "c3")
+            .option(
+                SortStrategy.MAX_FILE_SIZE_BYTES,
+                Integer.toString((averageFileSize(table) / 2) + 2))
+            // Divide files in 2
+            .option(
+                RewriteDataFiles.TARGET_FILE_SIZE_BYTES,
+                Integer.toString(averageFileSize(table) / 2))
+            .option(SortStrategy.MIN_INPUT_FILES, "1")
+            .execute();
+
+    Assert.assertEquals("Should have 1 fileGroups", 1, result.rewriteResults().size());
+    assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
+  }
+
+  @Test
+  public void testRewriteWithDifferentOutputSpecIds() {
+    Table table = createTable(10);
+    shouldHaveFiles(table, 10);
+
+    // simulate multiple partition specs with different commit
+    table.updateSpec().addField(Expressions.truncate("c2", 2)).commit();
+    table.updateSpec().addField(Expressions.bucket("c3", 2)).commit();
+
+    performRewriteAndAssertForAllTableSpecs(table, "bin-pack");
+    performRewriteAndAssertForAllTableSpecs(table, "sort");
+    performRewriteAndAssertForAllTableSpecs(table, "zOrder");
+  }
+
+  private void performRewriteAndAssertForAllTableSpecs(Table table, String strategy) {
+    assertThat(table.specs()).hasSize(3);
+
+    table
+        .specs()
+        .entrySet()
+        .forEach(
+            specEntry -> {
+              long dataSize = testDataSize(table);
+              long count = currentData().size();
+
+              RewriteDataFiles.Result result =
+                  executeRewriteStrategy(table, specEntry.getKey(), strategy);
+              assertThat(dataSize).isEqualTo(result.rewrittenBytesCount());
+
+              long postRewriteCount = currentData().size();
+              assertThat(postRewriteCount).isEqualTo(count);
+
+              assertSpecIdFromDataFiles(specEntry, currentDataFiles(table));
+            });
+  }
+
+  private RewriteDataFiles.Result executeRewriteStrategy(
+      Table table, Integer outputSpecId, String strategy) {
+
+    RewriteDataFiles rewriteDataFiles =
+        basicRewrite(table)
+            .option(SparkWriteOptions.OUTPUT_SPEC_ID, String.valueOf(outputSpecId))
+            .option(BinPackStrategy.REWRITE_ALL, "true");
+
+    RewriteDataFiles.Result result = null;
+    if (strategy.equals("bin-pack")) {
+      result = rewriteDataFiles.binPack().execute();
+    } else if (strategy.equals("sort")) {
+      result =
+          rewriteDataFiles
+              .sort(SortOrder.builderFor(table.schema()).asc("c2").asc("c3").build())
+              .execute();
+    } else if (strategy.equals("zOrder")) {
+      result = rewriteDataFiles.zOrder("c2", "c3").execute();
+    }
+    return result;
+  }
+
+  private void assertSpecIdFromDataFiles(
+      Map.Entry<Integer, PartitionSpec> specEntry, List<DataFile> filesPostRewriteAll) {
+    List<Integer> specIds =
+        filesPostRewriteAll.stream().map(DataFile::specId).distinct().collect(Collectors.toList());
+
+    assertThat(specIds).containsOnlyOnce(specEntry.getKey());
+  }
+
   private Stream<RewriteFileGroup> toGroupStream(Table table, RewriteDataFilesSparkAction rewrite) {
     rewrite.validateAndInitOptions();
     StructLikeMap<List<List<FileScanTask>>> fileGroupsByPartition =
@@ -1438,6 +1536,12 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   protected List<Object[]> currentData() {
     return rowsToJava(
         spark.read().format("iceberg").load(tableLocation).sort("c1", "c2", "c3").collectAsList());
+  }
+
+  protected List<DataFile> currentDataFiles(Table table) {
+    return Streams.stream(table.newScan().planFiles())
+        .map(FileScanTask::file)
+        .collect(Collectors.toList());
   }
 
   protected long testDataSize(Table table) {
