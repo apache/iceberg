@@ -154,4 +154,18 @@ public interface OverwriteFiles extends SnapshotUpdate<OverwriteFiles> {
    * @return this for method chaining
    */
   OverwriteFiles validateNoConflictingDeletes();
+
+  /**
+   * Append a {@link ManifestFile} to the table. Similar to {@link
+   * AppendFiles#appendManifest(ManifestFile)} Having this with {@link OverwriteFiles} too, helps to
+   * Use manifestFile with data files. It will put less pressure on memory in case of thousands of
+   * data files together.
+   *
+   * @param file a manifest file
+   * @return this for method chaining
+   */
+  default OverwriteFiles appendManifest(ManifestFile file) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement deleteFile");
+  }
 }
