@@ -40,7 +40,8 @@ case class CreateOrReplaceTagExec(
   override lazy val output: Seq[Attribute] = Nil
 
   override protected def run(): Seq[InternalRow] = {
-    catalog.loadTable(ident) match {
+    catalog
+      .loadTable(ident) match {
       case iceberg: SparkTable =>
         val snapshotId: java.lang.Long = tagOptions.snapshotId
           .orElse(Option(iceberg.table.currentSnapshot()).map(_.snapshotId()))

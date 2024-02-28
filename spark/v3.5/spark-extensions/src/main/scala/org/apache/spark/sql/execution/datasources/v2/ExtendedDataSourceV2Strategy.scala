@@ -149,19 +149,35 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
           allowExisting,
           replace,
           _,
+          materialized,
           _) =>
-      CreateV2ViewExec(
-        catalog = viewCatalog,
-        ident = ident,
-        queryText = queryText,
-        columnAliases = columnAliases,
-        columnComments = columnComments,
-        queryColumnNames = queryColumnNames,
-        viewSchema = query.schema,
-        comment = comment,
-        properties = properties,
-        allowExisting = allowExisting,
-        replace = replace) :: Nil
+      if (materialized) {
+        CreateMaterializedViewExec(
+          catalog = viewCatalog,
+          ident = ident,
+          queryText = queryText,
+          columnAliases = columnAliases,
+          columnComments = columnComments,
+          queryColumnNames = queryColumnNames,
+          viewSchema = query.schema,
+          comment = comment,
+          properties = properties,
+          allowExisting = allowExisting,
+          replace = replace) :: Nil
+      } else {
+        CreateV2ViewExec(
+          catalog = viewCatalog,
+          ident = ident,
+          queryText = queryText,
+          columnAliases = columnAliases,
+          columnComments = columnComments,
+          queryColumnNames = queryColumnNames,
+          viewSchema = query.schema,
+          comment = comment,
+          properties = properties,
+          allowExisting = allowExisting,
+          replace = replace) :: Nil
+      }
 
     case DescribeRelation(ResolvedV2View(catalog, ident), _, isExtended, output) =>
       DescribeV2ViewExec(output, catalog.loadView(ident), isExtended) :: Nil
