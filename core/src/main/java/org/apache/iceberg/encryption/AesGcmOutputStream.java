@@ -129,6 +129,11 @@ public class AesGcmOutputStream extends PositionOutputStream {
     targetStream.close();
   }
 
+  @Override
+  public long storedLength() throws IOException {
+    return EncryptionUtil.gcmEncryptionLength(getPos());
+  }
+
   private void writeHeader() throws IOException {
     targetStream.write(HEADER_BYTES);
     isHeaderWritten = true;
