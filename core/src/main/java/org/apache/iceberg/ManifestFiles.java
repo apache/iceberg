@@ -160,6 +160,12 @@ public class ManifestFiles {
         "Cannot write manifest for table version: " + formatVersion);
   }
 
+  public static ManifestWriter<DataFile> write(
+      int formatVersion, PartitionSpec spec, OutputFile outputFile, Long snapshotId) {
+    return write(
+        formatVersion, spec, EncryptedFiles.plainAsEncryptedOutput(outputFile), snapshotId);
+  }
+
   /**
    * Create a new {@link ManifestWriter}.
    *
@@ -172,12 +178,6 @@ public class ManifestFiles {
    */
   public static ManifestWriter<DataFile> write(PartitionSpec spec, OutputFile outputFile) {
     return write(1, spec, outputFile, null);
-  }
-
-  public static ManifestWriter<DataFile> write(
-      int formatVersion, PartitionSpec spec, OutputFile outputFile, Long snapshotId) {
-    return write(
-        formatVersion, spec, EncryptedFiles.plainAsEncryptedOutput(outputFile), snapshotId);
   }
 
   /**
@@ -221,7 +221,6 @@ public class ManifestFiles {
         "Cannot write manifest for table version: " + formatVersion);
   }
 
-  // TODO Flink; and tests
   public static ManifestWriter<DeleteFile> writeDeleteManifest(
       int formatVersion, PartitionSpec spec, OutputFile outputFile, Long snapshotId) {
     return writeDeleteManifest(

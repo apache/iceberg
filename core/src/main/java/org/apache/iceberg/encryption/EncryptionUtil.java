@@ -30,19 +30,6 @@ public class EncryptionUtil {
 
   private EncryptionUtil() {}
 
-  public static long gcmEncryptionLength(long plainLength) {
-    int numberOfFullBlocks = Math.toIntExact(plainLength / Ciphers.PLAIN_BLOCK_SIZE);
-    int plainBytesInLastBlock =
-        Math.toIntExact(plainLength - numberOfFullBlocks * Ciphers.PLAIN_BLOCK_SIZE);
-    boolean fullBlocksOnly = (0 == plainBytesInLastBlock);
-    int cipherBytesInLastBlock =
-        fullBlocksOnly ? 0 : plainBytesInLastBlock + Ciphers.NONCE_LENGTH + Ciphers.GCM_TAG_LENGTH;
-    int cipherBlockSize = Ciphers.PLAIN_BLOCK_SIZE + Ciphers.NONCE_LENGTH + Ciphers.GCM_TAG_LENGTH;
-    return (long) Ciphers.GCM_STREAM_HEADER_LENGTH
-        + numberOfFullBlocks * cipherBlockSize
-        + cipherBytesInLastBlock;
-  }
-
   public static KeyManagementClient createKmsClient(Map<String, String> catalogProperties) {
     String kmsType = catalogProperties.get(CatalogProperties.ENCRYPTION_KMS_TYPE);
     String kmsImpl = catalogProperties.get(CatalogProperties.ENCRYPTION_KMS_IMPL);
