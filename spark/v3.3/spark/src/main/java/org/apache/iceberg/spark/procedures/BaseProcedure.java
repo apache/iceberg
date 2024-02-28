@@ -201,7 +201,7 @@ abstract class BaseProcedure implements Procedure {
 
   /**
    * Closes this procedure's executor service if a new one was created with {@link
-   * #executorService(int, String)}. Does not block for any remaining tasks.
+   * BaseProcedure#executorService(int, String)}. Does not block for any remaining tasks.
    */
   protected void closeService() {
     if (executorService != null) {
