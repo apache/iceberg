@@ -136,6 +136,20 @@ public class ManifestFiles {
   }
 
   /**
+   * Create a new {@link ManifestWriter}.
+   *
+   * <p>Manifests created by this writer have all entry snapshot IDs set to null. All entries will
+   * inherit the snapshot ID that will be assigned to the manifest on commit.
+   *
+   * @param spec {@link PartitionSpec} used to produce {@link DataFile} partition tuples
+   * @param outputFile the destination file location
+   * @return a manifest writer
+   */
+  public static ManifestWriter<DataFile> write(PartitionSpec spec, OutputFile outputFile) {
+    return write(1, spec, outputFile, null);
+  }
+
+  /**
    * Create a new {@link ManifestWriter} for the given format version.
    *
    * @param formatVersion a target format version
@@ -164,20 +178,6 @@ public class ManifestFiles {
       int formatVersion, PartitionSpec spec, OutputFile outputFile, Long snapshotId) {
     return write(
         formatVersion, spec, EncryptedFiles.plainAsEncryptedOutput(outputFile), snapshotId);
-  }
-
-  /**
-   * Create a new {@link ManifestWriter}.
-   *
-   * <p>Manifests created by this writer have all entry snapshot IDs set to null. All entries will
-   * inherit the snapshot ID that will be assigned to the manifest on commit.
-   *
-   * @param spec {@link PartitionSpec} used to produce {@link DataFile} partition tuples
-   * @param outputFile the destination file location
-   * @return a manifest writer
-   */
-  public static ManifestWriter<DataFile> write(PartitionSpec spec, OutputFile outputFile) {
-    return write(1, spec, outputFile, null);
   }
 
   /**
