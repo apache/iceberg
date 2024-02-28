@@ -99,7 +99,7 @@ paths:
 
 
         Common catalog configuration settings are documented at
-        https://iceberg.apache.org/configuration/#catalog-properties
+        https://iceberg.apache.org/docs/latest/configuration/#catalog-properties
         "
       responses:
         200:
