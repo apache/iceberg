@@ -430,15 +430,21 @@ public class HadoopTableOperations implements TableOperations {
     return fs.rename(tempMetaDataFile, finalMetaDataFile);
   }
 
-  private boolean renameCheck(FileSystem fs, Path tempMetaDataFile, Path finalMetaDataFile) {
+  private boolean renameCheck(
+      FileSystem fs, Path tempMetaDataFile, Path finalMetaDataFile, Throwable rootError) {
     try {
       return checkMetaDataFileRenameSuccess(fs, tempMetaDataFile, finalMetaDataFile);
     } catch (Throwable e) {
+      LOG.error(
+          "No correctness check can be performed.src=[{}],dst=[{}].",
+          tempMetaDataFile,
+          finalMetaDataFile,
+          e);
       String msg =
           String.format(
-              "Exception thrown when renaming [%s] to [%s].And an error in the file system prevented the rename check.",
+              "Exception thrown when renaming [%s] to [%s].Also no correctness check can be performed.",
               tempMetaDataFile, finalMetaDataFile);
-      throw new CommitStateUnknownException(msg, e);
+      throw new CommitStateUnknownException(msg, rootError != null ? rootError : e);
     }
   }
 
@@ -447,12 +453,7 @@ public class HadoopTableOperations implements TableOperations {
     try {
       return renameMetaDataFile(fs, tempMetaDataFile, finalMetaDataFile);
     } catch (Throwable e) {
-      LOG.debug(
-          "Exception thrown when renaming [{}] to [{}].A correctness check is about to take place.",
-          tempMetaDataFile,
-          finalMetaDataFile,
-          e);
-      return renameCheck(fs, tempMetaDataFile, finalMetaDataFile);
+      return renameCheck(fs, tempMetaDataFile, finalMetaDataFile, e);
     }
   }
   /**

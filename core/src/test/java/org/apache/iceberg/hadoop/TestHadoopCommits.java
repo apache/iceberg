@@ -251,7 +251,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
         .when(spyOps)
         .checkMetaDataFileRenameSuccess(any(), any(), any());
     assertCommitNotChangeVersion(
-        baseTable, spyOps, CommitStateUnknownException.class, "Can not check new Metadata!");
+        baseTable, spyOps, CommitStateUnknownException.class, "FileSystem crash!");
   }
 
   @Test
