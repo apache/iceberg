@@ -436,7 +436,8 @@ public class HadoopTableOperations implements TableOperations {
     } catch (Throwable e) {
       String msg =
           String.format(
-              "Exception thrown when renaming [%s] to [%s].", tempMetaDataFile, finalMetaDataFile);
+              "Exception thrown when renaming [%s] to [%s].And an error in the file system prevented the rename check.",
+              tempMetaDataFile, finalMetaDataFile);
       throw new CommitStateUnknownException(msg, e);
     }
   }
@@ -446,6 +447,11 @@ public class HadoopTableOperations implements TableOperations {
     try {
       return renameMetaDataFile(fs, tempMetaDataFile, finalMetaDataFile);
     } catch (Throwable e) {
+      LOG.debug(
+          "Exception thrown when renaming [{}] to [{}].A correctness check is about to take place.",
+          tempMetaDataFile,
+          finalMetaDataFile,
+          e);
       return renameCheck(fs, tempMetaDataFile, finalMetaDataFile);
     }
   }
