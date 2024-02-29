@@ -218,7 +218,8 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
     HadoopTableOperations spyOps3 = spy(tableOperations);
     doReturn(false).when(spyOps3).nextVersionIsLatest(any(), any());
-    assertCommitNotChangeVersion(baseTable, spyOps3, CommitFailedException.class, "too old");
+    assertCommitNotChangeVersion(
+        baseTable, spyOps3, CommitFailedException.class, "as the latest version is currently");
 
     HadoopTableOperations spyOps4 = spy(tableOperations);
     doThrow(new RuntimeException("FileSystem crash!"))
@@ -255,7 +256,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
         .renameMetaDataFile(any(), any(), any());
     doReturn(false).when(spyOps).checkMetaDataFileRenameSuccess(any(), any(), any());
     assertCommitNotChangeVersion(
-        baseTable, spyOps, CommitFailedException.class, "FileSystem crash!");
+        baseTable, spyOps, CommitFailedException.class, "Can not commit newMetaData.");
   }
 
   @Test

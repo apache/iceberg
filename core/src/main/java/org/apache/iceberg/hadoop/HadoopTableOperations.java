@@ -163,19 +163,17 @@ public class HadoopTableOperations implements TableOperations {
       fs.delete(versionHintFile(), false /* recursive delete*/);
       versionCommitSuccess = commitNewVersion(fs, tempMetadataFile, finalMetadataFile, nextVersion);
       if (!versionCommitSuccess) {
-        String msg =
-            String.format(
-                "Can not commit newMetaData. commitVersion=[%s],tempMetaData=[%s],finalMetaData=[%s].Are there other clients running in parallel with the current task?",
-                nextVersion, tempMetadataFile, finalMetadataFile);
-        throw new CommitFailedException(msg);
+        throw new CommitFailedException(
+            "Can not commit newMetaData. commitVersion=[%s],tempMetaData=[%s],finalMetaData=[%s].Are there other clients running in parallel with the current task?",
+            nextVersion, tempMetadataFile, finalMetadataFile);
       }
-      this.shouldRefresh = versionCommitSuccess;
+      this.shouldRefresh = true;
       LOG.info("Committed a new metadata file {}", finalMetadataFile);
       // update the best-effort version pointer
       writeVersionHint(fs, nextVersion);
       deleteRemovedMetadataFiles(base, metadata);
     } catch (CommitStateUnknownException | CommitFailedException e) {
-      this.shouldRefresh = e instanceof CommitStateUnknownException || versionCommitSuccess;
+      this.shouldRefresh = e instanceof CommitStateUnknownException;
       throw e;
     } catch (Throwable e) {
       this.shouldRefresh = versionCommitSuccess;
@@ -404,7 +402,9 @@ public class HadoopTableOperations implements TableOperations {
         throw new CommitFailedException("Version %d already exists: %s", nextVersion, dst);
       }
       if (!nextVersionIsLatest(nextVersion, fs)) {
-        throw new CommitFailedException("Version %d too old: %s", nextVersion, dst);
+        throw new CommitFailedException(
+            "Unable to commit version %d, as the latest version is currently %d.",
+            nextVersion, findVersionWithOutVersionHint(fs));
       }
       return renameMetaDataFileAndCheck(fs, src, dst);
     } finally {
