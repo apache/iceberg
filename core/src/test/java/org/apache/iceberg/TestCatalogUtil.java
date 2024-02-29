@@ -160,7 +160,8 @@ public class TestCatalogUtil {
     Assertions.assertThatThrownBy(
             () -> CatalogUtil.loadFileIO(TestFileIOBadArg.class.getName(), Maps.newHashMap(), null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot initialize FileIO, missing no-arg constructor");
+        .hasMessageStartingWith("Cannot initialize FileIO implementation " +
+                "org.apache.iceberg.TestCatalogUtil$TestFileIOBadArg: Cannot find constructor");
   }
 
   @Test
