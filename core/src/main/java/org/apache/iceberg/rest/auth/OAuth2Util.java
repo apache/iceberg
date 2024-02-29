@@ -135,12 +135,14 @@ public class OAuth2Util {
       String subjectToken,
       String subjectTokenType,
       String scope,
-      String oauth2ServerUri) {
+      String oauth2ServerUri,
+      Map<String, String> optionalOAuthParams) {
     Map<String, String> request =
         tokenExchangeRequest(
             subjectToken,
             subjectTokenType,
-            scope != null ? ImmutableList.of(scope) : ImmutableList.of());
+            scope != null ? ImmutableList.of(scope) : ImmutableList.of(),
+            optionalOAuthParams);
 
     OAuthTokenResponse response =
         client.postForm(
@@ -162,14 +164,16 @@ public class OAuth2Util {
       String actorToken,
       String actorTokenType,
       String scope,
-      String oauth2ServerUri) {
+      String oauth2ServerUri,
+      Map<String, String> optionalParams) {
     Map<String, String> request =
         tokenExchangeRequest(
             subjectToken,
             subjectTokenType,
             actorToken,
             actorTokenType,
-            scope != null ? ImmutableList.of(scope) : ImmutableList.of());
+            scope != null ? ImmutableList.of(scope) : ImmutableList.of(),
+            optionalParams);
 
     OAuthTokenResponse response =
         client.postForm(
@@ -190,7 +194,8 @@ public class OAuth2Util {
       String subjectTokenType,
       String actorToken,
       String actorTokenType,
-      String scope) {
+      String scope,
+      Map<String, String> optionalParams) {
     return exchangeToken(
         client,
         headers,
@@ -199,7 +204,8 @@ public class OAuth2Util {
         actorToken,
         actorTokenType,
         scope,
-        ResourcePaths.tokens());
+        ResourcePaths.tokens(),
+        optionalParams);
   }
 
   public static OAuthTokenResponse fetchToken(
@@ -211,17 +217,14 @@ public class OAuth2Util {
       Map<String, String> optionalParams) {
     Map<String, String> request =
         clientCredentialsRequest(
-            credential, scope != null ? ImmutableList.of(scope) : ImmutableList.of());
-
-    // add optional param map
-    ImmutableMap.Builder<String, String> requestParamBuilder = ImmutableMap.builder();
-    Map<String, String> requestWithOptionalParams =
-        requestParamBuilder.putAll(request).putAll(optionalParams).build();
+            credential,
+            scope != null ? ImmutableList.of(scope) : ImmutableList.of(),
+            optionalParams);
 
     OAuthTokenResponse response =
         client.postForm(
             oauth2ServerUri,
-            requestWithOptionalParams,
+            request,
             OAuthTokenResponse.class,
             headers,
             ErrorHandlers.oauthErrorHandler());
@@ -238,8 +241,12 @@ public class OAuth2Util {
   }
 
   private static Map<String, String> tokenExchangeRequest(
-      String subjectToken, String subjectTokenType, List<String> scopes) {
-    return tokenExchangeRequest(subjectToken, subjectTokenType, null, null, scopes);
+      String subjectToken,
+      String subjectTokenType,
+      List<String> scopes,
+      Map<String, String> optionalOAuthParams) {
+    return tokenExchangeRequest(
+        subjectToken, subjectTokenType, null, null, scopes, optionalOAuthParams);
   }
 
   private static Map<String, String> tokenExchangeRequest(
@@ -247,7 +254,8 @@ public class OAuth2Util {
       String subjectTokenType,
       String actorToken,
       String actorTokenType,
-      List<String> scopes) {
+      List<String> scopes,
+      Map<String, String> optionalParams) {
     Preconditions.checkArgument(
         VALID_TOKEN_TYPES.contains(subjectTokenType), "Invalid token type: %s", subjectTokenType);
     Preconditions.checkArgument(
@@ -264,6 +272,7 @@ public class OAuth2Util {
       formData.put(ACTOR_TOKEN, actorToken);
       formData.put(ACTOR_TOKEN_TYPE, actorTokenType);
     }
+    formData.putAll(optionalParams);
 
     return formData.build();
   }
@@ -285,13 +294,17 @@ public class OAuth2Util {
   }
 
   private static Map<String, String> clientCredentialsRequest(
-      String credential, List<String> scopes) {
+      String credential, List<String> scopes, Map<String, String> optionalOAuthParams) {
     Pair<String, String> credentialPair = parseCredential(credential);
-    return clientCredentialsRequest(credentialPair.first(), credentialPair.second(), scopes);
+    return clientCredentialsRequest(
+        credentialPair.first(), credentialPair.second(), scopes, optionalOAuthParams);
   }
 
   private static Map<String, String> clientCredentialsRequest(
-      String clientId, String clientSecret, List<String> scopes) {
+      String clientId,
+      String clientSecret,
+      List<String> scopes,
+      Map<String, String> optionalOAuthParams) {
     ImmutableMap.Builder<String, String> formData = ImmutableMap.builder();
     formData.put(GRANT_TYPE, CLIENT_CREDENTIALS);
     if (clientId != null) {
@@ -299,6 +312,7 @@ public class OAuth2Util {
     }
     formData.put(CLIENT_SECRET, clientSecret);
     formData.put(SCOPE, toScope(scopes));
+    formData.putAll(optionalOAuthParams);
 
     return formData.build();
   }
@@ -547,14 +561,16 @@ public class OAuth2Util {
         return refreshExpiredToken(client);
       } else {
         // attempt a normal refresh
-        return refreshToken(client, headers(), token, tokenType, scope, oauth2ServerUri);
+        return refreshToken(
+            client, headers(), token, tokenType, scope, oauth2ServerUri, optionalOAuthParams);
       }
     }
 
     private OAuthTokenResponse refreshExpiredToken(RESTClient client) {
       if (credential != null) {
         Map<String, String> basicHeaders = RESTUtil.merge(headers(), basicAuthHeaders(credential));
-        return refreshToken(client, basicHeaders, token, tokenType, scope, oauth2ServerUri);
+        return refreshToken(
+            client, basicHeaders, token, tokenType, scope, oauth2ServerUri, optionalOAuthParams);
       }
 
       return null;
@@ -715,7 +731,8 @@ public class OAuth2Util {
               parent.token(),
               parent.tokenType(),
               parent.scope(),
-              parent.oauth2ServerUri());
+              parent.oauth2ServerUri(),
+              parent.optionalOAuthParams());
       return fromTokenResponse(client, executor, response, startTimeMillis, parent);
     }
   }
