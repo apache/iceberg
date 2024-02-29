@@ -1972,8 +1972,8 @@ components:
             operation:
               type: string
               enum: ["append", "replace", "overwrite", "delete"]
-            additionalProperties:
-              type: string
+          additionalProperties:
+            type: string
         schema-id:
           type: integer
 
