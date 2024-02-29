@@ -207,15 +207,21 @@ public class OAuth2Util {
       Map<String, String> headers,
       String credential,
       String scope,
-      String oauth2ServerUri) {
+      String oauth2ServerUri,
+      Map<String, String> optionalParams) {
     Map<String, String> request =
         clientCredentialsRequest(
             credential, scope != null ? ImmutableList.of(scope) : ImmutableList.of());
 
+    // add optional param map
+    ImmutableMap.Builder<String, String> requestParamBuilder = ImmutableMap.builder();
+    Map<String, String> requestWithOptionalParams =
+        requestParamBuilder.putAll(request).putAll(optionalParams).build();
+
     OAuthTokenResponse response =
         client.postForm(
             oauth2ServerUri,
-            request,
+            requestWithOptionalParams,
             OAuthTokenResponse.class,
             headers,
             ErrorHandlers.oauthErrorHandler());
@@ -227,7 +233,8 @@ public class OAuth2Util {
   public static OAuthTokenResponse fetchToken(
       RESTClient client, Map<String, String> headers, String credential, String scope) {
 
-    return fetchToken(client, headers, credential, scope, ResourcePaths.tokens());
+    return fetchToken(
+        client, headers, credential, scope, ResourcePaths.tokens(), ImmutableMap.of());
   }
 
   private static Map<String, String> tokenExchangeRequest(
@@ -394,13 +401,16 @@ public class OAuth2Util {
     private volatile boolean keepRefreshed = true;
     private final String oauth2ServerUri;
 
+    private volatile Map<String, String> optionalOAuthParams = ImmutableMap.of();
+
     public AuthSession(
         Map<String, String> baseHeaders,
         String token,
         String tokenType,
         String credential,
         String scope,
-        String oauth2ServerUri) {
+        String oauth2ServerUri,
+        Map<String, String> optionalOAuthParams) {
       this.headers = RESTUtil.merge(baseHeaders, authHeaders(token));
       this.token = token;
       this.tokenType = tokenType;
@@ -408,6 +418,7 @@ public class OAuth2Util {
       this.credential = credential;
       this.scope = scope;
       this.oauth2ServerUri = oauth2ServerUri;
+      this.optionalOAuthParams = optionalOAuthParams;
     }
 
     /** @deprecated since 1.5.0, will be removed in 1.6.0 */
@@ -459,6 +470,10 @@ public class OAuth2Util {
       return oauth2ServerUri;
     }
 
+    public Map<String, String> optionalOAuthParams() {
+      return optionalOAuthParams;
+    }
+
     @VisibleForTesting
     static void setTokenRefreshNumRetries(int retries) {
       tokenRefreshNumRetries = retries;
@@ -471,7 +486,13 @@ public class OAuth2Util {
      */
     public static AuthSession empty() {
       return new AuthSession(
-          ImmutableMap.of(), null, null, null, OAuth2Properties.CATALOG_SCOPE, null);
+          ImmutableMap.of(),
+          null,
+          null,
+          null,
+          OAuth2Properties.CATALOG_SCOPE,
+          null,
+          ImmutableMap.of());
     }
 
     /**
@@ -590,7 +611,8 @@ public class OAuth2Util {
               OAuth2Properties.ACCESS_TOKEN_TYPE,
               parent.credential(),
               parent.scope(),
-              parent.oauth2ServerUri());
+              parent.oauth2ServerUri(),
+              parent.optionalOAuthParams());
 
       long startTimeMillis = System.currentTimeMillis();
       Long expiresAtMillis = session.expiresAtMillis();
@@ -629,7 +651,12 @@ public class OAuth2Util {
       long startTimeMillis = System.currentTimeMillis();
       OAuthTokenResponse response =
           fetchToken(
-              client, parent.headers(), credential, parent.scope(), parent.oauth2ServerUri());
+              client,
+              parent.headers(),
+              credential,
+              parent.scope(),
+              parent.oauth2ServerUri(),
+              parent.optionalOAuthParams());
       return fromTokenResponse(client, executor, response, startTimeMillis, parent, credential);
     }
 
@@ -657,7 +684,8 @@ public class OAuth2Util {
               response.issuedTokenType(),
               credential,
               parent.scope(),
-              parent.oauth2ServerUri());
+              parent.oauth2ServerUri(),
+              parent.optionalOAuthParams());
 
       Long expiresAtMillis = session.expiresAtMillis();
       if (null == expiresAtMillis && response.expiresInSeconds() != null) {

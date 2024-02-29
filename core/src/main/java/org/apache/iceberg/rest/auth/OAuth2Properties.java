@@ -49,6 +49,9 @@ public class OAuth2Properties {
   /** Additional scope for OAuth2. */
   public static final String SCOPE = "scope";
 
+  /** Optional param audience for OAuth2. */
+  public static final String AUDIENCE = "audience";
+
   /** Scope for OAuth2 flows. */
   public static final String CATALOG_SCOPE = "catalog";
 
