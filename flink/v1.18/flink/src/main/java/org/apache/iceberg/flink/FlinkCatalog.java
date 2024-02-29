@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink;
 
+import static org.apache.flink.util.Preconditions.checkArgument;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
@@ -391,6 +393,7 @@ public class FlinkCatalog extends AbstractCatalog {
               + "an iceberg catalog, Please create table with 'connector'='iceberg' property in a non-iceberg catalog or "
               + "create table without 'connector'='iceberg' related properties in an iceberg table.");
     }
+    checkArgument(table instanceof ResolvedCatalogTable, "table should be resolved");
     createIcebergTable(tablePath, (ResolvedCatalogTable) table, ignoreIfExists);
   }
 

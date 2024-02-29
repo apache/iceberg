@@ -19,12 +19,9 @@
 package org.apache.iceberg.flink;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableSchema;
-import org.apache.flink.table.catalog.CatalogTable;
 import org.apache.flink.table.catalog.Column;
 import org.apache.flink.table.catalog.ResolvedCatalogTable;
 import org.apache.flink.table.types.logical.LogicalType;
@@ -100,15 +97,6 @@ public class FlinkSchemaUtil {
     Type converted = root.accept(new FlinkTypeToType(root));
     Schema iSchema = new Schema(converted.asStructType().fields());
     return freshIdentifierFieldIds(iSchema, catalogTable.getSchema());
-  }
-
-  public static Map<String, String> getColumnComments(CatalogTable catalogTable) {
-    return catalogTable.getUnresolvedSchema().getColumns().stream()
-        .filter(c -> c.getComment().isPresent())
-        .collect(
-            Collectors.toMap(
-                org.apache.flink.table.api.Schema.UnresolvedColumn::getName,
-                c -> c.getComment().get()));
   }
 
   private static Schema freshIdentifierFieldIds(Schema iSchema, TableSchema schema) {
