@@ -21,7 +21,9 @@ package org.apache.iceberg.rest;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -805,7 +807,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     RESTCatalog catalog = new RESTCatalog(context, (config) -> adapter);
 
-    ImmutableMap.Builder<String, String> propertyBuilder = new ImmutableMap.Builder<>();
+    ImmutableMap.Builder<String, String> propertyBuilder = ImmutableMap.builder();
     Map<String, String> initializationProperties =
         propertyBuilder
             .put(CatalogProperties.URI, "ignored")
