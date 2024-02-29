@@ -194,8 +194,7 @@ public class OAuth2Util {
       String subjectTokenType,
       String actorToken,
       String actorTokenType,
-      String scope,
-      Map<String, String> optionalParams) {
+      String scope) {
     return exchangeToken(
         client,
         headers,
@@ -205,7 +204,7 @@ public class OAuth2Util {
         actorTokenType,
         scope,
         ResourcePaths.tokens(),
-        optionalParams);
+        ImmutableMap.of());
   }
 
   public static OAuthTokenResponse fetchToken(
