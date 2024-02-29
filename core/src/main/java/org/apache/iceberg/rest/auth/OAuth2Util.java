@@ -131,6 +131,8 @@ public class OAuth2Util {
   }
 
   public static Map<String, String> buildOptionalParam(Map<String, String> properties) {
+    // these are some options oauth params based on specification
+    //for any new optional oauth param, define the constant and add the constant to this list
     Set<String> optionalParamKeys =
         ImmutableSet.of(
             OAuth2Properties.AUDIENCE, OAuth2Properties.SCOPE, OAuth2Properties.RESOURCE);

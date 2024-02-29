@@ -178,7 +178,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     ConfigResponse config;
     OAuthTokenResponse authResponse;
     String credential = props.get(OAuth2Properties.CREDENTIAL);
-    // TODO : put scope also in optional param map - reduce wiring on scope
+    // CONSIDER : putting scope in optional param map - reduce wiring on scope
     String scope = props.getOrDefault(OAuth2Properties.SCOPE, OAuth2Properties.CATALOG_SCOPE);
     Map<String, String> optionalOAuthParams = OAuth2Util.buildOptionalParam(props);
     String oauth2ServerUri =
