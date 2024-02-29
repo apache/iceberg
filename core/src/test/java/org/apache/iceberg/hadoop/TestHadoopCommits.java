@@ -216,18 +216,6 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     BaseTable baseTable = (BaseTable) table;
     HadoopTableOperations tableOperations = (HadoopTableOperations) baseTable.operations();
 
-    HadoopTableOperations spyOps1 = spy(tableOperations);
-    doReturn(true).when(spyOps1).versionHintIsCorrupted(any(), any());
-    assertCommitNotChangeVersion(
-        baseTable, spyOps1, CommitFailedException.class, "VersionHint is corrupted!");
-
-    HadoopTableOperations spyOps2 = spy(tableOperations);
-    doThrow(new RuntimeException("Can not drop old versionHint"))
-        .when(spyOps2)
-        .deleteOldVersionHint(any(), any(), any());
-    assertCommitNotChangeVersion(
-        baseTable, spyOps2, CommitFailedException.class, "Can not drop old versionHint");
-
     HadoopTableOperations spyOps3 = spy(tableOperations);
     doReturn(false).when(spyOps3).nextVersionIsLatest(any(), any());
     assertCommitNotChangeVersion(baseTable, spyOps3, CommitFailedException.class, "too old");
