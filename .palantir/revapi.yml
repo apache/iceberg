@@ -1018,30 +1018,6 @@ acceptedBreaks:
       old: "method void org.apache.iceberg.PositionDeletesTable.PositionDeletesBatchScan::<init>(org.apache.iceberg.Table,\
         \ org.apache.iceberg.Schema, org.apache.iceberg.TableScanContext)"
       justification: "Removing deprecated code"
-    - code: "java.method.returnTypeChanged"
-      old: "method org.apache.iceberg.io.OutputFile org.apache.iceberg.SnapshotProducer<ThisT>::newManifestOutput()\
-        \ @ org.apache.iceberg.BaseOverwriteFiles"
-      new: "method org.apache.iceberg.encryption.EncryptedOutputFile org.apache.iceberg.SnapshotProducer<ThisT>::newManifestOutput()\
-        \ @ org.apache.iceberg.BaseOverwriteFiles"
-      justification: "{encrypted manifest}"
-    - code: "java.method.returnTypeChanged"
-      old: "method org.apache.iceberg.io.OutputFile org.apache.iceberg.SnapshotProducer<ThisT>::newManifestOutput()\
-        \ @ org.apache.iceberg.BaseReplacePartitions"
-      new: "method org.apache.iceberg.encryption.EncryptedOutputFile org.apache.iceberg.SnapshotProducer<ThisT>::newManifestOutput()\
-        \ @ org.apache.iceberg.BaseReplacePartitions"
-      justification: "{encrypted manifest}"
-    - code: "java.method.returnTypeChanged"
-      old: "method org.apache.iceberg.io.OutputFile org.apache.iceberg.SnapshotProducer<ThisT>::newManifestOutput()\
-        \ @ org.apache.iceberg.BaseRewriteManifests"
-      new: "method org.apache.iceberg.encryption.EncryptedOutputFile org.apache.iceberg.SnapshotProducer<ThisT>::newManifestOutput()\
-        \ @ org.apache.iceberg.BaseRewriteManifests"
-      justification: "{encrypted manifest}"
-    - code: "java.method.returnTypeChanged"
-      old: "method org.apache.iceberg.io.OutputFile org.apache.iceberg.SnapshotProducer<ThisT>::newManifestOutput()\
-        \ @ org.apache.iceberg.StreamingDelete"
-      new: "method org.apache.iceberg.encryption.EncryptedOutputFile org.apache.iceberg.SnapshotProducer<ThisT>::newManifestOutput()\
-        \ @ org.apache.iceberg.StreamingDelete"
-      justification: "{encrypted manifest}"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"

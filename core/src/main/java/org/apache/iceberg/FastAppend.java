@@ -122,7 +122,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   private ManifestFile copyManifest(ManifestFile manifest) {
     TableMetadata current = ops.current();
     InputFile toCopy = ops.io().newInputFile(manifest);
-    EncryptedOutputFile newManifestFile = newManifestOutput();
+    EncryptedOutputFile newManifestFile = newManifestOutputFile();
     return ManifestFiles.copyAppendManifest(
         current.formatVersion(),
         manifest.partitionSpecId(),

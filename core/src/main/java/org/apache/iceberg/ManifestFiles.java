@@ -129,7 +129,6 @@ public class ManifestFiles {
         "Cannot read a delete manifest with a ManifestReader: %s",
         manifest);
     InputFile file = newInputFile(io, manifest);
-
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
     return new ManifestReader<>(
         file, manifest.partitionSpecId(), specsById, inheritableMetadata, FileType.DATA_FILES);
@@ -165,8 +164,7 @@ public class ManifestFiles {
       Long snapshotId) {
     switch (formatVersion) {
       case 1:
-        return new ManifestWriter.V1Writer(
-            spec, encryptedOutputFile.encryptingOutputFile(), snapshotId);
+        return new ManifestWriter.V1Writer(spec, encryptedOutputFile, snapshotId);
       case 2:
         return new ManifestWriter.V2Writer(spec, encryptedOutputFile, snapshotId);
     }

@@ -155,7 +155,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
   private ManifestFile copyManifest(ManifestFile manifest) {
     TableMetadata current = ops.current();
     InputFile toCopy = ops.io().newInputFile(manifest);
-    EncryptedOutputFile newFile = newManifestOutput();
+    EncryptedOutputFile newFile = newManifestOutputFile();
     return ManifestFiles.copyRewriteManifest(
         current.formatVersion(),
         manifest.partitionSpecId(),
