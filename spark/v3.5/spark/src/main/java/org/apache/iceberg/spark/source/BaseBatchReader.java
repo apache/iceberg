@@ -37,6 +37,7 @@ import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
+@SuppressWarnings("checkstyle:VisibilityModifier")
 abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBatch, T> {
   protected final int batchSize;
 

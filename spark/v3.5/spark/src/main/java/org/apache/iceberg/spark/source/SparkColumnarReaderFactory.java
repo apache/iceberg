@@ -26,14 +26,15 @@ import org.apache.spark.sql.connector.read.PartitionReader;
 import org.apache.spark.sql.connector.read.PartitionReaderFactory;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
+@SuppressWarnings("checkstyle:VisibilityModifier")
 public class SparkColumnarReaderFactory implements PartitionReaderFactory {
   protected int batchSize;
 
   public SparkColumnarReaderFactory() {}
 
-  public void initialize(int batchSize) {
-    Preconditions.checkArgument(batchSize > 1, "Batch size must be > 1");
-    this.batchSize = batchSize;
+  public void initialize(int size) {
+    Preconditions.checkArgument(size > 1, "Batch size must be > 1");
+    this.batchSize = size;
   }
 
   @Override
