@@ -226,47 +226,19 @@ public class Utilities {
 
     TaskWriter<Record> writer;
     if (table.spec().isUnpartitioned()) {
-      if (config.tablesCdcField() == null && !config.upsertModeEnabled()) {
-        writer =
-            new UnpartitionedWriter<>(
-                table.spec(), format, appenderFactory, fileFactory, table.io(), targetFileSize);
-      } else {
-        writer =
-            new UnpartitionedDeltaWriter(
-                table.spec(),
-                format,
-                appenderFactory,
-                fileFactory,
-                table.io(),
-                targetFileSize,
-                table.schema(),
-                identifierFieldIds,
-                config.upsertModeEnabled());
-      }
+      writer =
+          new UnpartitionedWriter<>(
+              table.spec(), format, appenderFactory, fileFactory, table.io(), targetFileSize);
     } else {
-      if (config.tablesCdcField() == null && !config.upsertModeEnabled()) {
-        writer =
-            new PartitionedAppendWriter(
-                table.spec(),
-                format,
-                appenderFactory,
-                fileFactory,
-                table.io(),
-                targetFileSize,
-                table.schema());
-      } else {
-        writer =
-            new PartitionedDeltaWriter(
-                table.spec(),
-                format,
-                appenderFactory,
-                fileFactory,
-                table.io(),
-                targetFileSize,
-                table.schema(),
-                identifierFieldIds,
-                config.upsertModeEnabled());
-      }
+      writer =
+          new PartitionedAppendWriter(
+              table.spec(),
+              format,
+              appenderFactory,
+              fileFactory,
+              table.io(),
+              targetFileSize,
+              table.schema());
     }
     return writer;
   }
