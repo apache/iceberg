@@ -201,6 +201,8 @@ paths:
         If `parent` is not provided, all top-level namespaces should be listed.
       operationId: listNamespaces
       parameters:
+        - $ref: '#/components/parameters/page-token'
+        - $ref: '#/components/parameters/page-size'
         - name: parent
           in: query
           description:
@@ -448,6 +450,9 @@ paths:
       summary: List all table identifiers underneath a given namespace
       description: Return all table identifiers under this namespace
       operationId: listTables
+      parameters:
+        - $ref: '#/components/parameters/page-token'
+        - $ref: '#/components/parameters/page-size'
       responses:
         200:
           $ref: '#/components/responses/ListTablesResponse'
@@ -1070,6 +1075,9 @@ paths:
       summary: List all view identifiers underneath a given namespace
       description: Return all view identifiers under this namespace
       operationId: listViews
+      parameters:
+        - $ref: '#/components/parameters/page-token'
+        - $ref: '#/components/parameters/page-size'
       responses:
         200:
           $ref: '#/components/responses/ListTablesResponse'
@@ -1482,6 +1490,25 @@ components:
       explode: false
       example: "vended-credentials,remote-signing"
 
+    page-token:
+      name: pageToken
+      in: query
+      required: false
+      allowEmptyValue: true
+      schema:
+        $ref: '#/components/schemas/PageToken'
+
+    page-size:
+      name: pageSize
+      in: query
+      description:
+        For servers that support pagination, this signals an upper bound of the number of results that a client will receive. 
+        For servers that do not support pagination, clients may receive results larger than the indicated `pageSize`.
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+
   ##############################
   # Application Schema Objects #
   ##############################
@@ -1580,6 +1607,17 @@ components:
       items:
         type: string
       example: [ "accounting", "tax" ]
+
+    PageToken:
+      description:
+        An opaque token which allows clients to make use of pagination for a list API (e.g. ListTables). 
+        Clients will initiate the first paginated request by sending an empty `pageToken` e.g. `GET /tables?pageToken` or `GET /tables?pageToken=`
+        signaling to the service that the response should be paginated.
+
+        Servers that support pagination will recognize `pageToken` and return a `next-page-token` in response if there are more results available.
+        After the initial request, it is expected that the value of `next-page-token` from the last response is used in the subsequent request.
+        Servers that do not support pagination will ignore `next-page-token` and return all results.
+      type: string
 
     TableIdentifier:
       type: object
@@ -3207,6 +3245,8 @@ components:
     ListTablesResponse:
       type: object
       properties:
+        next-page-token:
+          $ref: '#/components/schemas/PageToken'
         identifiers:
           type: array
           uniqueItems: true
@@ -3216,6 +3256,8 @@ components:
     ListNamespacesResponse:
       type: object
       properties:
+        next-page-token:
+          $ref: '#/components/schemas/PageToken'
         namespaces:
           type: array
           uniqueItems: true
