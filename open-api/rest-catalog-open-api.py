@@ -77,6 +77,13 @@ class Namespace(BaseModel):
     )
 
 
+class PageToken(BaseModel):
+    __root__: str = Field(
+        ...,
+        description='An opaque token which allows clients to make use of pagination for a list API (e.g. ListTables). Clients will initiate the first paginated request by sending an empty `pageToken` e.g. `GET /tables?pageToken` or `GET /tables?pageToken=` signaling to the service that the response should be paginated.\nServers that support pagination will recognize `pageToken` and return a `next-page-token` in response if there are more results available. After the initial request, it is expected that the value of `next-page-token` from the last response is used in the subsequent request. Servers that do not support pagination will ignore `next-page-token` and return all results.',
+    )
+
+
 class TableIdentifier(BaseModel):
     namespace: Namespace
     name: str
@@ -597,10 +604,12 @@ class GetNamespaceResponse(BaseModel):
 
 
 class ListTablesResponse(BaseModel):
+    next_page_token: Optional[PageToken] = Field(None, alias='next-page-token')
     identifiers: Optional[List[TableIdentifier]] = Field(None, unique_items=True)
 
 
 class ListNamespacesResponse(BaseModel):
+    next_page_token: Optional[PageToken] = Field(None, alias='next-page-token')
     namespaces: Optional[List[Namespace]] = Field(None, unique_items=True)
 
 
