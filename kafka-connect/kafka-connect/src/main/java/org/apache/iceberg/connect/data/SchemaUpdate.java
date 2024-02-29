@@ -24,7 +24,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Type.PrimitiveType;
 
-public class SchemaUpdate {
+class SchemaUpdate {
 
   public static class Consumer {
     private final Map<String, AddColumn> addColumns = Maps.newHashMap();

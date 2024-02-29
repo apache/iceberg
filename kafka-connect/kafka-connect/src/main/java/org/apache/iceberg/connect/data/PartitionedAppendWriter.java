@@ -29,7 +29,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.PartitionedFanoutWriter;
 
-public class PartitionedAppendWriter extends PartitionedFanoutWriter<Record> {
+class PartitionedAppendWriter extends PartitionedFanoutWriter<Record> {
 
   private final PartitionKey partitionKey;
   private final InternalRecordWrapper wrapper;

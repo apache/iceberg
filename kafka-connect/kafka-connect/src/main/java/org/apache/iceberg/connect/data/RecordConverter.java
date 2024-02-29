@@ -62,7 +62,7 @@ import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.kafka.connect.data.Struct;
 
-public class RecordConverter {
+class RecordConverter {
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
