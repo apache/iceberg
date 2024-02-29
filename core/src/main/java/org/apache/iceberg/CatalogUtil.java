@@ -334,7 +334,7 @@ public class CatalogUtil {
               .buildChecked();
     } catch (NoSuchMethodException e) {
       throw new IllegalArgumentException(
-          String.format("Cannot initialize FileIO, missing no-arg constructor: %s", impl), e);
+          String.format("Cannot initialize FileIO implementation %s: %s", impl, e.getMessage()), e);
     }
 
     FileIO fileIO;
