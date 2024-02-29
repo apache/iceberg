@@ -77,17 +77,17 @@ class RecordConverter {
   private final IcebergSinkConfig config;
   private final Map<Integer, Map<String, NestedField>> structNameMap = Maps.newHashMap();
 
-  public RecordConverter(Table table, IcebergSinkConfig config) {
+  RecordConverter(Table table, IcebergSinkConfig config) {
     this.tableSchema = table.schema();
     this.nameMapping = createNameMapping(table);
     this.config = config;
   }
 
-  public Record convert(Object data) {
+  Record convert(Object data) {
     return convert(data, null);
   }
 
-  public Record convert(Object data, SchemaUpdate.Consumer schemaUpdateConsumer) {
+  Record convert(Object data, SchemaUpdate.Consumer schemaUpdateConsumer) {
     if (data instanceof Struct || data instanceof Map) {
       return convertStructValue(data, tableSchema.asStruct(), -1, schemaUpdateConsumer);
     }
