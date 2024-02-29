@@ -24,7 +24,7 @@ title: "Daft"
 
 Iceberg supports reading of Iceberg tables into Daft DataFrames by using the Python client library [PyIceberg](https://py.iceberg.apache.org/).
 
-For Python users, Daft is complementary to PyIceberg as a pure query engine layer:
+For Python users, Daft is complementary to PyIceberg as a query engine layer:
 
 * **PyIceberg:** catalog/table management tasks (e.g. creation of tables, modifying table schemas)
 * **Daft:** querying tables (e.g. previewing tables, data ETL and analysis)
@@ -51,17 +51,72 @@ Simply load a PyIceberg table and pass it into Daft as follows:
 import daft
 from pyiceberg import load_catalog
 
-table = load_catalog("my_catalog").load_table("my_namespace.my_table")
+table = load_catalog("my_catalog").load_table("my_tpch_namespace.lineitem")
 df = daft.read_iceberg(table)
+df = df.select("L_SHIPDATE", "L_ORDERKEY", "L_COMMENT")
 df.show()
+```
+
+```
+╭────────────┬────────────┬────────────────────────────────╮
+│ L_SHIPDATE ┆ L_ORDERKEY ┆ L_COMMENT                      │
+│ ---        ┆ ---        ┆ ---                            │
+│ Date       ┆ Int64      ┆ Utf8                           │
+╞════════════╪════════════╪════════════════════════════════╡
+│ 1992-01-02 ┆ 2186280097 ┆ ions sleep about the si        │
+├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1992-01-02 ┆ 175366628  ┆ gular accoun                   │
+├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1992-01-02 ┆ 2186602151 ┆ blithely even                  │
+├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1992-01-02 ┆ 3937663654 ┆ ake boldly among the ideas. s… │
+├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1992-01-02 ┆ 2186781220 ┆ thely. slyly pending ideas ar… │
+├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1992-01-02 ┆ 3937999493 ┆  haggle at the regular, pen    │
+├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1992-01-02 ┆ 2186933061 ┆ ickly. slyly                   │
+├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1992-01-02 ┆ 3938167204 ┆ carefully silent instructions… │
+╰────────────┴────────────┴────────────────────────────────╯
+
+(Showing first 8 rows)
 ```
 
 Any subsequent filter operations on the Daft `df` DataFrame object will be correctly optimized to take advantage of Iceberg features such as hidden partitioning and file-level statistics for efficient reads.
 
 ``` py
+import datetime
+
 # Filter which takes advantage of partition pruning capabilities of Iceberg
-df = df.where(df["partition_key"] < 1000)
+df = df.where(df["L_SHIPDATE"] > datetime.date(1993, 1, 1))
 df.show()
+```
+
+```
+╭────────────┬────────────┬────────────────────────────────╮
+│ L_SHIPDATE ┆ L_ORDERKEY ┆ L_COMMENT                      │                                                                        
+│ ---        ┆ ---        ┆ ---                            │
+│ Date       ┆ Int64      ┆ Utf8                           │
+╞════════════╪════════════╪════════════════════════════════╡
+│ 1993-01-02 ┆ 5695313125 ┆  slyly special p               │
+├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1993-01-02 ┆ 2701326853 ┆ ironic instru                  │
+├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1993-01-02 ┆ 5695313766 ┆ ly according                   │
+├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1993-01-02 ┆ 2701330720 ┆ y alongside of the blithely    │
+├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1993-01-02 ┆ 5695315200 ┆ ckly final foxes haggle car    │
+├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1993-01-02 ┆ 2701331524 ┆ ns doze slyly pending instruc… │
+├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1993-01-02 ┆ 5695317377 ┆ re about the ironic, silen     │
+├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1993-01-02 ┆ 2701342819 ┆ fully even pinto beans wa      │
+╰────────────┴────────────┴────────────────────────────────╯
+
+(Showing first 8 rows)
 ```
 
 ### Type compatibility
@@ -80,7 +135,7 @@ When reading from an Iceberg source into Daft:
 | `double` | [`daft.DataType.float64()`](https://www.getdaft.io/projects/docs/en/latest/api_docs/datatype.html#daft.DataType.float64) |
 | `decimal(precision, scale)` | [`daft.DataType.decimal128(precision, scale)`](https://www.getdaft.io/projects/docs/en/latest/api_docs/datatype.html#daft.DataType.decimal128) |
 | `date` | [`daft.DataType.date()`](https://www.getdaft.io/projects/docs/en/latest/api_docs/datatype.html#daft.DataType.date) |
-| `time` | [`daft.DataType.int64()`](https://www.getdaft.io/projects/docs/en/latest/api_docs/datatype.html#daft.DataType.int64) |
+| `time` | [`daft.DataType.time(timeunit="us")`](https://www.getdaft.io/projects/docs/en/latest/api_docs/datatype.html#daft.DataType.int64) |
 | `timestamp` | [`daft.DataType.timestamp(timeunit="us", timezone=None)`](https://www.getdaft.io/projects/docs/en/latest/api_docs/datatype.html#daft.DataType.timestamp) |
 | `timestampz` | [`daft.DataType.timestamp(timeunit="us", timezone="UTC")`](https://www.getdaft.io/projects/docs/en/latest/api_docs/datatype.html#daft.DataType.timestamp) |
 | `string` | [`daft.DataType.string()`](https://www.getdaft.io/projects/docs/en/latest/api_docs/datatype.html#daft.DataType.string) |
@@ -90,4 +145,4 @@ When reading from an Iceberg source into Daft:
 | **Nested Types** |
 | `struct(**fields)` | [`daft.DataType.struct(**fields)`](https://www.getdaft.io/projects/docs/en/latest/api_docs/datatype.html#daft.DataType.struct) |
 | `list(child_type)` | [`daft.DataType.list(child_type)`](https://www.getdaft.io/projects/docs/en/latest/api_docs/datatype.html#daft.DataType.list) |
-| `map(K, V)` | [`daft.DataType.struct({"key": K, "value": V})`](https://www.getdaft.io/projects/docs/en/latest/api_docs/datatype.html#daft.DataType.struct) |
+| `map(K, V)` | [`daft.DataType.map_(K, V)`](https://www.getdaft.io/projects/docs/en/latest/api_docs/datatype.html#daft.DataType.list) |
