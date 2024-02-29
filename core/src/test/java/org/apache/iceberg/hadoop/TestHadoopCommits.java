@@ -216,6 +216,15 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     BaseTable baseTable = (BaseTable) table;
     HadoopTableOperations tableOperations = (HadoopTableOperations) baseTable.operations();
 
+    HadoopTableOperations spyOps2 = spy(tableOperations);
+    doReturn(10000).when(spyOps2).findVersionWithOutVersionHint(any());
+    TableMetadata metadataV1 = spyOps2.current();
+    SortOrder dataSort = SortOrder.builderFor(baseTable.schema()).asc("data").build();
+    TableMetadata metadataV2 = metadataV1.replaceSortOrder(dataSort);
+    assertThatThrownBy(() -> spyOps2.commit(metadataV1, metadataV2))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("as the latest version is currently");
+
     HadoopTableOperations spyOps3 = spy(tableOperations);
     doReturn(false).when(spyOps3).nextVersionIsLatest(any(), any());
     assertCommitNotChangeVersion(
