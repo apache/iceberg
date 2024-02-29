@@ -40,6 +40,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.RESTClient;
@@ -127,6 +128,20 @@ public class OAuth2Util {
 
   public static String toScope(Iterable<String> scopes) {
     return SCOPE_JOINER.join(scopes);
+  }
+
+  public static Map<String, String> buildOptionalParam(Map<String, String> properties) {
+    Set<String> optionalParamKeys =
+        ImmutableSet.of(
+            OAuth2Properties.AUDIENCE, OAuth2Properties.SCOPE, OAuth2Properties.RESOURCE);
+    ImmutableMap.Builder<String, String> optionalParamBuilder = ImmutableMap.builder();
+    for (String key : optionalParamKeys) {
+      String value = properties.get(key);
+      if (value != null) {
+        optionalParamBuilder.put(key, value);
+      }
+    }
+    return optionalParamBuilder.build();
   }
 
   private static OAuthTokenResponse refreshToken(

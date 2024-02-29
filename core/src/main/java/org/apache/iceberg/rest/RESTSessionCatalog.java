@@ -180,17 +180,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     String credential = props.get(OAuth2Properties.CREDENTIAL);
     // TODO : put scope also in optional param map - reduce wiring on scope
     String scope = props.getOrDefault(OAuth2Properties.SCOPE, OAuth2Properties.CATALOG_SCOPE);
-
-    // put all optional params into a map ,can use this map to supports future optional params
-    ImmutableMap.Builder<String, String> optionalParamBuilder = ImmutableMap.builder();
-
-    String audience = props.get(OAuth2Properties.AUDIENCE);
-    if (audience != null) {
-      optionalParamBuilder.put(OAuth2Properties.AUDIENCE, audience);
-    }
-
-    Map<String, String> optionalOAuthParams = optionalParamBuilder.build();
-
+    Map<String, String> optionalOAuthParams = OAuth2Util.buildOptionalParam(props);
     String oauth2ServerUri =
         props.getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens());
     try (RESTClient initClient = clientBuilder.apply(props)) {

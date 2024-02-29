@@ -52,6 +52,9 @@ public class OAuth2Properties {
   /** Optional param audience for OAuth2. */
   public static final String AUDIENCE = "audience";
 
+  /** Optional param audience for OAuth2. */
+  public static final String RESOURCE = "resource";
+
   /** Scope for OAuth2 flows. */
   public static final String CATALOG_SCOPE = "catalog";
 
