@@ -124,7 +124,7 @@ public interface RewriteDataFiles
    *
    * <p>output-spec-id ID is used by the file rewriter during the rewrite operation to identify the
    * specific output partition spec. Data will be reorganized during the rewrite to align with the
-   * output partitioning. Defaults to the current table specification used.
+   * output partitioning. Defaults to the current table specification.
    */
   String OUTPUT_SPEC_ID = "output-spec-id";
 

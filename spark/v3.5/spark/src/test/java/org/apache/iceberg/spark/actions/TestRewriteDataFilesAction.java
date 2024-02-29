@@ -1469,9 +1469,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   public void testBinPackRewriterWithSpecificUnparitionedOutputSpec() {
     Table table = createTable(10);
     shouldHaveFiles(table, 10);
-    // to be used for rewrite
     int outputSpecId = table.spec().specId();
-    // create multiple partition specs with different commit
     table.updateSpec().addField(Expressions.truncate("c2", 2)).commit();
 
     long dataSizeBefore = testDataSize(table);
@@ -1493,10 +1491,8 @@ public class TestRewriteDataFilesAction extends TestBase {
   public void testBinPackRewriterWithSpecificOutputSpec() {
     Table table = createTable(10);
     shouldHaveFiles(table, 10);
-    // to be used for rewrite back to original un-partitioned spec
-    int outputSpecId = table.spec().specId();
-    // create multiple partition specs with different commit
     table.updateSpec().addField(Expressions.truncate("c2", 2)).commit();
+    int outputSpecId = table.spec().specId();
     table.updateSpec().addField(Expressions.bucket("c3", 2)).commit();
 
     long dataSizeBefore = testDataSize(table);
@@ -1534,10 +1530,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   public void testSortRewriterWithSpecificOutputSpecId() {
     Table table = createTable(10);
     shouldHaveFiles(table, 10);
-    Integer previousSpecId = table.spec().specId();
-    // simulate multiple partition specs with different commit
     table.updateSpec().addField(Expressions.truncate("c2", 2)).commit();
-    // to be used for rewrite
     int outputSpecId = table.spec().specId();
     table.updateSpec().addField(Expressions.bucket("c3", 2)).commit();
 
@@ -1560,10 +1553,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   public void testZOrderRewriteWithSpecificOutputSpecId() {
     Table table = createTable(10);
     shouldHaveFiles(table, 10);
-    Integer previousSpecId = table.spec().specId();
-    // simulate multiple partition specs with different commit
     table.updateSpec().addField(Expressions.truncate("c2", 2)).commit();
-    // to be used for rewrite
     int outputSpecId = table.spec().specId();
     table.updateSpec().addField(Expressions.bucket("c3", 2)).commit();
 
@@ -1584,17 +1574,13 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   protected void shouldRewriteDataFilesWithPartitionSpec(Table table, int outputSpecId) {
     List<DataFile> rewrittenFiles = currentDataFiles(table);
-    // check specId matches outputSpecId
-    rewrittenFiles.stream()
-        .map(DataFile::specId)
-        .forEach(element -> assertThat(element.intValue()).isEqualTo(outputSpecId));
-    // check partitionType matches partitionType for the output-spec-id
-    rewrittenFiles.stream()
-        .map(DataFile::partition)
-        .forEach(
-            element ->
-                assertThat(((PartitionData) element).getPartitionType())
-                    .isEqualTo(table.specs().get(outputSpecId).partitionType()));
+    assertThat(rewrittenFiles).allMatch(file -> file.specId() == outputSpecId);
+    assertThat(rewrittenFiles)
+        .allMatch(
+            file ->
+                ((PartitionData) file.partition())
+                    .getPartitionType()
+                    .equals(table.specs().get(outputSpecId).partitionType()));
   }
 
   protected List<DataFile> currentDataFiles(Table table) {
