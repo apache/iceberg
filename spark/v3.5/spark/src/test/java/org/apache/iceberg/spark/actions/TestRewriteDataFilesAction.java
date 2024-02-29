@@ -1518,10 +1518,6 @@ public class TestRewriteDataFilesAction extends TestBase {
   public void testBinpackRewriteWithInvalidOutputSpecId() {
     Table table = createTable(10);
     shouldHaveFiles(table, 10);
-    int previousSpecId = table.spec().specId();
-    // simulate multiple partition specs with different commit
-    table.updateSpec().addField(Expressions.truncate("c2", 2)).commit();
-    table.updateSpec().addField(Expressions.bucket("c3", 2)).commit();
     Assertions.assertThatThrownBy(
             () ->
                 actions()
