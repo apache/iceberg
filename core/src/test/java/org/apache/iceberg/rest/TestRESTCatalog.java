@@ -736,7 +736,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   @ParameterizedTest
   @ValueSource(strings = {"v1/oauth/tokens", "https://auth-server.com/token"})
   public void testClientAccessTokenWithOptionalParams(String oauth2ServerUri) {
-    System.out.println("");
     testClientAuth(
         "bearer-token",
         ImmutableMap.of(
@@ -747,7 +746,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         ImmutableMap.of(
             "Authorization", "Bearer token-exchange-token:sub=access-token,act=bearer-token"),
         oauth2ServerUri,
-        ImmutableMap.of("scope", "openid_offline", "audience", "test_audience"));
+        ImmutableMap.of("audience", "test_audience", "resource", "test_resource"));
   }
 
   @ParameterizedTest
