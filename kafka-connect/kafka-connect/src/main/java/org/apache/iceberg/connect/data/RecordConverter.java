@@ -66,7 +66,7 @@ class RecordConverter {
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
-  private static final DateTimeFormatter OFFSET_TS_FMT =
+  private static final DateTimeFormatter OFFSET_TIMESTAMP_FORMAT =
       new DateTimeFormatterBuilder()
           .append(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
           .appendOffset("+HHmm", "Z")
@@ -461,7 +461,7 @@ class RecordConverter {
   private OffsetDateTime parseOffsetDateTime(String str) {
     String tsStr = ensureTimestampFormat(str);
     try {
-      return OFFSET_TS_FMT.parse(tsStr, OffsetDateTime::from);
+      return OFFSET_TIMESTAMP_FORMAT.parse(tsStr, OffsetDateTime::from);
     } catch (DateTimeParseException e) {
       return LocalDateTime.parse(tsStr, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
           .atOffset(ZoneOffset.UTC);
@@ -491,7 +491,7 @@ class RecordConverter {
     try {
       return LocalDateTime.parse(tsStr, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
     } catch (DateTimeParseException e) {
-      return OFFSET_TS_FMT.parse(tsStr, OffsetDateTime::from).toLocalDateTime();
+      return OFFSET_TIMESTAMP_FORMAT.parse(tsStr, OffsetDateTime::from).toLocalDateTime();
     }
   }
 
