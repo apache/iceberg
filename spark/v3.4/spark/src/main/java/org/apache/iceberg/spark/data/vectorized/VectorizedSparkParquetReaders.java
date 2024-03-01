@@ -27,6 +27,8 @@ import org.apache.iceberg.arrow.vectorized.VectorizedReaderBuilder;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.parquet.VectorizedReader;
+import org.apache.iceberg.spark.data.vectorized.comet.CometIcebergColumnarBatchReader;
+import org.apache.iceberg.spark.data.vectorized.comet.CometIcebergVectorizedReaderBuilder;
 import org.apache.parquet.schema.MessageType;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.slf4j.Logger;
@@ -51,22 +53,43 @@ public class VectorizedSparkParquetReaders {
 
   private VectorizedSparkParquetReaders() {}
 
-  public static ColumnarBatchReader buildReader(
+  public static VectorizedReader buildReader(
       Schema expectedSchema,
       MessageType fileSchema,
       Map<Integer, ?> idToConstant,
       DeleteFilter<InternalRow> deleteFilter) {
-    return (ColumnarBatchReader)
-        TypeWithSchemaVisitor.visit(
-            expectedSchema.asStruct(),
-            fileSchema,
-            new ReaderBuilder(
-                expectedSchema,
-                fileSchema,
-                NullCheckingForGet.NULL_CHECKING_ENABLED,
-                idToConstant,
-                ColumnarBatchReader::new,
-                deleteFilter));
+    boolean hasCometJar = false;
+    try {
+      Class.forName("org.apache.comet.parquet.CometParquetPartitionReaderFactory");
+      hasCometJar = true;
+    } catch (ClassNotFoundException e) {
+      LOG.warn("Couldn't load comet", e);
+    }
+
+    if (hasCometJar) {
+      return (CometIcebergColumnarBatchReader)
+          TypeWithSchemaVisitor.visit(
+              expectedSchema.asStruct(),
+              fileSchema,
+              new CometIcebergVectorizedReaderBuilder(
+                  expectedSchema,
+                  fileSchema,
+                  idToConstant,
+                  readers -> new CometIcebergColumnarBatchReader(readers, expectedSchema),
+                  deleteFilter));
+    } else {
+      return (ColumnarBatchReader)
+          TypeWithSchemaVisitor.visit(
+              expectedSchema.asStruct(),
+              fileSchema,
+              new ReaderBuilder(
+                  expectedSchema,
+                  fileSchema,
+                  NullCheckingForGet.NULL_CHECKING_ENABLED,
+                  idToConstant,
+                  ColumnarBatchReader::new,
+                  deleteFilter));
+    }
   }
 
   // enables unsafe memory access to avoid costly checks to see if index is within bounds
