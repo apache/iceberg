@@ -70,7 +70,10 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
       exclude group: 'io.netty', module: 'netty-buffer'
       exclude group: 'io.netty', module: 'netty-common'
       exclude group: 'org.roaringbitmap'
+      exclude group: 'org.apache.comet'
     }
+
+    compileOnly "org.apache.comet:comet-spark-spark${sparkMajorVersion}_${scalaVersion}:0.1.0-SNAPSHOT"
 
     implementation libs.parquet.column
     implementation libs.parquet.hadoop
@@ -153,6 +156,7 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
       exclude group: 'io.netty', module: 'netty-buffer'
       exclude group: 'io.netty', module: 'netty-common'
       exclude group: 'org.roaringbitmap'
+      exclude group: 'org.apache.comet'
     }
     compileOnly libs.errorprone.annotations
 
@@ -167,6 +171,7 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
 
     testImplementation libs.avro.avro
     testImplementation libs.parquet.hadoop
+    testImplementation "org.apache.comet:comet-spark-spark${sparkMajorVersion}_${scalaVersion}:0.1.0-SNAPSHOT"
 
     // Required because we remove antlr plugin dependencies from the compile configuration, see note above
     runtimeOnly libs.antlr.runtime
