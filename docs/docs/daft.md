@@ -122,7 +122,6 @@ df.show()
 
 Daft and Iceberg have compatible type systems. Here are how types are converted across the two systems.
 
-When reading from an Iceberg source into Daft:
 
 | Iceberg | Daft |
 |---------|------|
