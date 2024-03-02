@@ -20,7 +20,8 @@ title: "Daft"
 
 # Daft
 
-[Daft](www.getdaft.io) is a Python/Rust-based distributed query engine with a Python DataFrame API.
+[Daft](www.getdaft.io) is a distributed query engine written in Python and Rust, two fast-growing ecosystems in the data engineering and machine learning industry.
+It exposes it's flavor of the widely adopted [DataFrame API](https://www.getdaft.io/projects/docs/en/latest/api_docs/dataframe.html) akin to many existing Python libraries.
 
 Iceberg supports reading of Iceberg tables into Daft DataFrames by using the Python client library [PyIceberg](https://py.iceberg.apache.org/).
 
