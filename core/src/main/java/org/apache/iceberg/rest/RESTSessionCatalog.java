@@ -1067,7 +1067,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               headers(context),
               ErrorHandlers.viewErrorHandler());
     } catch (UnsupportedOperationException | RESTException e) {
-      throw new NoSuchViewException(e, "Unable to load view: %s.%s", name(), identifier);
+      // Normally, copying an exception message is a bad practice but engines may show just the
+      // message and suppress the exception cause when the view does not exist. Since 401 and 403
+      // responses can trigger this case, including the message increases the chances that the "Not
+      // authorized" or "Forbidden" message is preserved and shown.
+      throw new NoSuchViewException(
+          e, "Unable to load view %s.%s: %s", name(), identifier, e.getMessage());
     }
 
     AuthSession session = tableSession(response.config(), session(context));
