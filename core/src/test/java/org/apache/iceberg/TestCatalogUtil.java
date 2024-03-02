@@ -223,6 +223,32 @@ public class TestCatalogUtil {
         .hasMessageContaining("does not implement MetricsReporter");
   }
 
+  @Test
+  public void fullTableNameWithDifferentValues() {
+    String uriTypeCatalogName = "thrift://host:port/db.table";
+    String nameSpaceWithOneLevel = "ns";
+    String nameSpaceWithTwoLevel = "ns.l2";
+    String tableName = "tbl";
+    TableIdentifier tableIdentifier = TableIdentifier.of(nameSpaceWithOneLevel, tableName);
+    Assertions.assertThat(CatalogUtil.fullTableName(uriTypeCatalogName, tableIdentifier))
+        .isEqualTo(uriTypeCatalogName + "/" + nameSpaceWithOneLevel + "." + tableName);
+
+    tableIdentifier = TableIdentifier.of(nameSpaceWithTwoLevel, tableName);
+    Assertions.assertThat(CatalogUtil.fullTableName(uriTypeCatalogName, tableIdentifier))
+        .isEqualTo(uriTypeCatalogName + "/" + nameSpaceWithTwoLevel + "." + tableName);
+
+    Assertions.assertThat(CatalogUtil.fullTableName(uriTypeCatalogName + "/", tableIdentifier))
+        .isEqualTo(uriTypeCatalogName + "/" + nameSpaceWithTwoLevel + "." + tableName);
+
+    String nonUriCatalogName = "test.db.catalog";
+    Assertions.assertThat(CatalogUtil.fullTableName(nonUriCatalogName, tableIdentifier))
+        .isEqualTo(nonUriCatalogName + "." + nameSpaceWithTwoLevel + "." + tableName);
+
+    String pathStyleCatalogName = "/test/db";
+    Assertions.assertThat(CatalogUtil.fullTableName(pathStyleCatalogName, tableIdentifier))
+        .isEqualTo(pathStyleCatalogName + "/" + nameSpaceWithTwoLevel + "." + tableName);
+  }
+
   public static class TestCatalog extends BaseMetastoreCatalog {
 
     private String catalogName;

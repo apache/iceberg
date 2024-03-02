@@ -285,26 +285,7 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
   }
 
   protected static String fullTableName(String catalogName, TableIdentifier identifier) {
-    StringBuilder sb = new StringBuilder();
-
-    if (catalogName.contains("/") || catalogName.contains(":")) {
-      // use / for URI-like names: thrift://host:port/db.table
-      sb.append(catalogName);
-      if (!catalogName.endsWith("/")) {
-        sb.append("/");
-      }
-    } else {
-      // use . for non-URI named catalogs: prod.db.table
-      sb.append(catalogName).append(".");
-    }
-
-    for (String level : identifier.namespace().levels()) {
-      sb.append(level).append(".");
-    }
-
-    sb.append(identifier.name());
-
-    return sb.toString();
+    return CatalogUtil.fullTableName(catalogName, identifier);
   }
 
   protected MetricsReporter metricsReporter() {

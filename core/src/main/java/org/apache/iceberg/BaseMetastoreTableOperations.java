@@ -18,20 +18,12 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.TableProperties.COMMIT_NUM_STATUS_CHECKS;
-import static org.apache.iceberg.TableProperties.COMMIT_NUM_STATUS_CHECKS_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_STATUS_CHECKS_MAX_WAIT_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_STATUS_CHECKS_MAX_WAIT_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_STATUS_CHECKS_MIN_WAIT_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_STATUS_CHECKS_MIN_WAIT_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS_DEFAULT;
-
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -42,14 +34,15 @@ import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.LocationUtil;
-import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public abstract class BaseMetastoreTableOperations implements TableOperations {
+public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperations
+    implements TableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(BaseMetastoreTableOperations.class);
 
   public static final String TABLE_TYPE_PROP = "table_type";
@@ -291,6 +284,8 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     };
   }
 
+  /** @deprecated Use {@link BaseMetastoreOperations.CommitStatus} */
+  @Deprecated
   protected enum CommitStatus {
     FAILURE,
     SUCCESS,
@@ -309,65 +304,39 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
    * @return Commit Status of Success, Failure or Unknown
    */
   protected CommitStatus checkCommitStatus(String newMetadataLocation, TableMetadata config) {
-    int maxAttempts =
-        PropertyUtil.propertyAsInt(
-            config.properties(), COMMIT_NUM_STATUS_CHECKS, COMMIT_NUM_STATUS_CHECKS_DEFAULT);
-    long minWaitMs =
-        PropertyUtil.propertyAsLong(
-            config.properties(),
-            COMMIT_STATUS_CHECKS_MIN_WAIT_MS,
-            COMMIT_STATUS_CHECKS_MIN_WAIT_MS_DEFAULT);
-    long maxWaitMs =
-        PropertyUtil.propertyAsLong(
-            config.properties(),
-            COMMIT_STATUS_CHECKS_MAX_WAIT_MS,
-            COMMIT_STATUS_CHECKS_MAX_WAIT_MS_DEFAULT);
-    long totalRetryMs =
-        PropertyUtil.propertyAsLong(
-            config.properties(),
-            COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS,
-            COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS_DEFAULT);
+    return CommitStatus.valueOf(
+        checkCommitStatus(
+                tableName(),
+                newMetadataLocation,
+                config.properties(),
+                () -> checkCurrentMetadataLocation(newMetadataLocation))
+            .name());
+  }
 
-    AtomicReference<CommitStatus> status = new AtomicReference<>(CommitStatus.UNKNOWN);
-
-    Tasks.foreach(newMetadataLocation)
-        .retry(maxAttempts)
-        .suppressFailureWhenFinished()
-        .exponentialBackoff(minWaitMs, maxWaitMs, totalRetryMs, 2.0)
-        .onFailure(
-            (location, checkException) ->
-                LOG.error("Cannot check if commit to {} exists.", tableName(), checkException))
-        .run(
-            location -> {
-              TableMetadata metadata = refresh();
-              String currentMetadataFileLocation = metadata.metadataFileLocation();
-              boolean commitSuccess =
-                  currentMetadataFileLocation.equals(newMetadataLocation)
-                      || metadata.previousFiles().stream()
-                          .anyMatch(log -> log.file().equals(newMetadataLocation));
-              if (commitSuccess) {
-                LOG.info(
-                    "Commit status check: Commit to {} of {} succeeded",
-                    tableName(),
-                    newMetadataLocation);
-                status.set(CommitStatus.SUCCESS);
-              } else {
-                LOG.warn(
-                    "Commit status check: Commit to {} of {} unknown, new metadata location is not current "
-                        + "or in history",
-                    tableName(),
-                    newMetadataLocation);
-              }
-            });
-
-    if (status.get() == CommitStatus.UNKNOWN) {
-      LOG.error(
-          "Cannot determine commit state to {}. Failed during checking {} times. "
-              + "Treating commit state as unknown.",
-          tableName(),
-          maxAttempts);
+  /**
+   * Checks the new metadata location presents or not after refreshing the table.
+   *
+   * @param newMetadataLocation newly written metadata location
+   * @return true if the new metadata location presents with current or previous metadata files.
+   */
+  protected boolean checkCurrentMetadataLocation(String newMetadataLocation) {
+    TableMetadata metadata = refresh();
+    Preconditions.checkNotNull(metadata, "Unexpected null table metadata");
+    ImmutableList.Builder<String> builder = ImmutableList.builder();
+    String latestMetadataLocation = metadata.metadataFileLocation();
+    if (latestMetadataLocation != null) {
+      builder.add(latestMetadataLocation);
     }
-    return status.get();
+
+    ImmutableList<String> allMetadataLocations =
+        builder
+            .addAll(
+                metadata.previousFiles().stream()
+                    .map(TableMetadata.MetadataLogEntry::file)
+                    .collect(Collectors.toList()))
+            .build();
+
+    return allMetadataLocations.contains(newMetadataLocation);
   }
 
   private String newTableMetadataFilePath(TableMetadata meta, int newVersion) {
