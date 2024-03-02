@@ -60,7 +60,7 @@ In addition to row-level deletes, version 2 makes some requirements stricter for
 
 ## Overview
 
-![Iceberg snapshot structure](../../../img/iceberg-metadata.png)
+![Iceberg snapshot structure](assets/images/iceberg-metadata.png)
 
 This table format tracks individual data files in a table instead of directories. This allows writers to create data files in-place and only adds files to the table in an explicit commit.
 
