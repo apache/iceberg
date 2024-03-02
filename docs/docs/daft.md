@@ -42,80 +42,80 @@ Daft interacts natively with [PyIceberg](https://py.iceberg.apache.org/) to read
 
 ### Reading Iceberg tables
 
-Create an Iceberg table following [the spark-quickstart tutorial](https://iceberg.apache.org/spark-quickstart/). 
+> **Setup Steps**
+> 
+> To follow along with this code, first create an Iceberg table following [the spark-quickstart tutorial](https://iceberg.apache.org/spark-quickstart/). PyIceberg must then be correctly configured by ensuring that our `~/.pyiceberg.yaml` file contains an appropriate catalog entry:
+> 
+> ```
+> catalog:
+>   default:
+>     # URL to the Iceberg REST server Docker container
+>     uri: http://localhost:8181
+>     # URL and credentials for the MinIO Docker container
+>     s3.endpoint: http://localhost:9000
+>     s3.access-key-id: admin
+>     s3.secret-access-key: password
+> ```
 
-Load the Iceberg table `demo.nyc.taxis` it into Daft, limiting to the first three columns.
+Here is how we can load the Iceberg table `demo.nyc.taxis` into Daft:
 
 ``` py
 import daft
-from pyiceberg import load_catalog
+from pyiceberg.catalog import load_catalog
 
-table = load_catalog("my_catalog").load_table("my_tpch_namespace.lineitem")
+# Configure Daft to use the local MinIO Docker container for any S3 operations
+daft.set_planning_config(
+    default_io_config=daft.io.IOConfig(
+        s3=daft.io.S3Config(endpoint_url="http://localhost:9000"),
+    )
+)
+
+# Load a PyIceberg table into Daft, and show the first few rows
+table = load_catalog("default").load_table("nyc.taxis")
 df = daft.read_iceberg(table)
-df = df.select("L_SHIPDATE", "L_ORDERKEY", "L_COMMENT")
 df.show()
 ```
 
 ```
-╭────────────┬────────────┬────────────────────────────────╮
-│ L_SHIPDATE ┆ L_ORDERKEY ┆ L_COMMENT                      │
-│ ---        ┆ ---        ┆ ---                            │
-│ Date       ┆ Int64      ┆ Utf8                           │
-╞════════════╪════════════╪════════════════════════════════╡
-│ 1992-01-02 ┆ 2186280097 ┆ ions sleep about the si        │
-├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
-│ 1992-01-02 ┆ 175366628  ┆ gular accoun                   │
-├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
-│ 1992-01-02 ┆ 2186602151 ┆ blithely even                  │
-├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
-│ 1992-01-02 ┆ 3937663654 ┆ ake boldly among the ideas. s… │
-├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
-│ 1992-01-02 ┆ 2186781220 ┆ thely. slyly pending ideas ar… │
-├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
-│ 1992-01-02 ┆ 3937999493 ┆  haggle at the regular, pen    │
-├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
-│ 1992-01-02 ┆ 2186933061 ┆ ickly. slyly                   │
-├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
-│ 1992-01-02 ┆ 3938167204 ┆ carefully silent instructions… │
-╰────────────┴────────────┴────────────────────────────────╯
+WARNING:root:IcebergScanOperator(default.nyc.taxis) has Partitioning Keys: [PartitionField(vendor_id#Int64, src=vendor_id#Int64, tfm=Identity)] but no partition filter was specified. This will result in a full table scan.
+╭───────────┬─────────┬───────────────┬─────────────┬────────────────────╮
+│ vendor_id ┆ trip_id ┆ trip_distance ┆ fare_amount ┆ store_and_fwd_flag │
+│ ---       ┆ ---     ┆ ---           ┆ ---         ┆ ---                │
+│ Int64     ┆ Int64   ┆ Float32       ┆ Float64     ┆ Utf8               │
+╞═══════════╪═════════╪═══════════════╪═════════════╪════════════════════╡
+│ 1         ┆ 1000371 ┆ 1.8           ┆ 15.32       ┆ N                  │
+├╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1         ┆ 1000374 ┆ 8.4           ┆ 42.13       ┆ Y                  │
+├╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 2         ┆ 1000372 ┆ 2.5           ┆ 22.15       ┆ N                  │
+├╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 2         ┆ 1000373 ┆ 0.9           ┆ 9.01        ┆ N                  │
+╰───────────┴─────────┴───────────────┴─────────────┴────────────────────╯
 
-(Showing first 8 rows)
+(Showing first 4 of 4 rows)
 ```
 
-Any filter operations on the Daft dataframe, `df`, will [push down the filters](https://iceberg.apache.org/docs/latest/performance/#data-filtering), effectuate [hidden partitioning](https://iceberg.apache.org/docs/latest/partitioning/), and utilize [table statistics to inform query planning](https://iceberg.apache.org/docs/latest/performance/#scan-planning) for efficient reads.
+Notice that the operation above produced a warning from PyIceberg that "no partition filter was specified". Any filter operations on the Daft dataframe, `df`, will [push down the filters](https://iceberg.apache.org/docs/latest/performance/#data-filtering), correctly account for [hidden partitioning](https://iceberg.apache.org/docs/latest/partitioning/), and utilize [table statistics to inform query planning](https://iceberg.apache.org/docs/latest/performance/#scan-planning) for efficient reads.
+
+Let's try the above query again, but this time with a filter applied on the table's partition column `"vendor_id"` which Daft will correctly use to elide a full table scan.
 
 ``` py
-import datetime
-
-# Filter which takes advantage of partition pruning capabilities of Iceberg
-df = df.where(df["L_SHIPDATE"] > datetime.date(1993, 1, 1))
+df = df.where(df["vendor_id"] > 1)
 df.show()
 ```
 
 ```
-╭────────────┬────────────┬────────────────────────────────╮
-│ L_SHIPDATE ┆ L_ORDERKEY ┆ L_COMMENT                      │                                                                        
-│ ---        ┆ ---        ┆ ---                            │
-│ Date       ┆ Int64      ┆ Utf8                           │
-╞════════════╪════════════╪════════════════════════════════╡
-│ 1993-01-02 ┆ 5695313125 ┆  slyly special p               │
-├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
-│ 1993-01-02 ┆ 2701326853 ┆ ironic instru                  │
-├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
-│ 1993-01-02 ┆ 5695313766 ┆ ly according                   │
-├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
-│ 1993-01-02 ┆ 2701330720 ┆ y alongside of the blithely    │
-├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
-│ 1993-01-02 ┆ 5695315200 ┆ ckly final foxes haggle car    │
-├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
-│ 1993-01-02 ┆ 2701331524 ┆ ns doze slyly pending instruc… │
-├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
-│ 1993-01-02 ┆ 5695317377 ┆ re about the ironic, silen     │
-├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
-│ 1993-01-02 ┆ 2701342819 ┆ fully even pinto beans wa      │
-╰────────────┴────────────┴────────────────────────────────╯
+╭───────────┬─────────┬───────────────┬─────────────┬────────────────────╮
+│ vendor_id ┆ trip_id ┆ trip_distance ┆ fare_amount ┆ store_and_fwd_flag │                                                          
+│ ---       ┆ ---     ┆ ---           ┆ ---         ┆ ---                │
+│ Int64     ┆ Int64   ┆ Float32       ┆ Float64     ┆ Utf8               │
+╞═══════════╪═════════╪═══════════════╪═════════════╪════════════════════╡
+│ 2         ┆ 1000372 ┆ 2.5           ┆ 22.15       ┆ N                  │
+├╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 2         ┆ 1000373 ┆ 0.9           ┆ 9.01        ┆ N                  │
+╰───────────┴─────────┴───────────────┴─────────────┴────────────────────╯
 
-(Showing first 8 rows)
+(Showing first 2 of 2 rows)
 ```
 
 ### Type compatibility
