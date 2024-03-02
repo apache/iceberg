@@ -34,7 +34,7 @@ In database terms, PyIceberg is the Data Description Language (DDL) for database
 
 ## Enabling Iceberg support in Daft
 
-To use Iceberg with Daft, simply ensure that the [PyIceberg](https://py.iceberg.apache.org/) library is also installed in your current Python environment.
+To use Iceberg with Daft, ensure that the [PyIceberg](https://py.iceberg.apache.org/) library is also installed in your current Python environment.
 
 ```
 pip install getdaft pyiceberg
