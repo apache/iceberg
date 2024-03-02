@@ -21,18 +21,14 @@ title: "Daft"
 # Daft
 
 [Daft](www.getdaft.io) is a distributed query engine written in Python and Rust, two fast-growing ecosystems in the data engineering and machine learning industry.
-It exposes it's flavor of the widely adopted [DataFrame API](https://www.getdaft.io/projects/docs/en/latest/api_docs/dataframe.html) akin to many existing Python libraries.
 
-Iceberg supports reading of Iceberg tables into Daft DataFrames by using the Python client library [PyIceberg](https://py.iceberg.apache.org/).
+It exposes its flavor of the familiar [Python DataFrame API](https://www.getdaft.io/projects/docs/en/latest/api_docs/dataframe.html) which is a common abstraction over querying tables of data in the Python data ecosystem.
 
-For Python users, Daft is complementary to PyIceberg as a query engine layer:
-
-* **PyIceberg:** catalog/table management tasks (e.g. creation of tables, modifying table schemas)
-* **Daft:** querying tables (e.g. previewing tables, data ETL and analysis)
-
-In database terms, PyIceberg is the Data Description Language (DDL) for database administration and Daft is the Data Manipulation Language (DML) for querying data.
+Daft DataFrames are a powerful interface to power use-cases across ML/AI training, batch inference, feature engineering and traditional analytics. Daft's tight integration with Iceberg unlocks novel capabilities for both traditional analytics and Pythonic ML workloads on your data catalog.
 
 ## Enabling Iceberg support in Daft
+
+[PyIceberg](https://py.iceberg.apache.org/) supports reading of Iceberg tables into Daft DataFrames. 
 
 To use Iceberg with Daft, ensure that the [PyIceberg](https://py.iceberg.apache.org/) library is also installed in your current Python environment.
 
