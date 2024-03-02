@@ -42,11 +42,13 @@ pip install getdaft pyiceberg
 
 ## Querying Iceberg using Daft
 
-### Reading PyIceberg tables
+Daft interacts natively with [PyIceberg](https://py.iceberg.apache.org/) to read Iceberg tables.
 
-Daft interacts natively with [PyIceberg](https://py.iceberg.apache.org/) to read from Iceberg.
+### Reading Iceberg tables
 
-Simply load a PyIceberg table and pass it into Daft as follows:
+Create an Iceberg table following [the spark-quickstart tutorial](https://iceberg.apache.org/spark-quickstart/). 
+
+Load the Iceberg table `demo.nyc.taxis` it into Daft, limiting to the first three columns.
 
 ``` py
 import daft
