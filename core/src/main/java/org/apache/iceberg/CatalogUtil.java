@@ -47,6 +47,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
+import org.apache.iceberg.view.ViewMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -134,6 +135,18 @@ public class CatalogUtil {
         Iterables.transform(metadata.partitionStatisticsFiles(), PartitionStatisticsFile::path),
         "partition statistics",
         true);
+    deleteFile(io, metadata.metadataFileLocation(), "metadata");
+  }
+
+  /**
+   * Drops view metadata files referenced by ViewMetadata.
+   *
+   * <p>This should be called by dropView implementations
+   *
+   * @param io a FileIO to use for deletes
+   * @param metadata the last valid ViewMetadata instance for a dropped view.
+   */
+  public static void dropViewMetadata(FileIO io, ViewMetadata metadata) {
     deleteFile(io, metadata.metadataFileLocation(), "metadata");
   }
 
