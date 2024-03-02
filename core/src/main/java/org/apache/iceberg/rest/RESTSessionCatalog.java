@@ -1067,7 +1067,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               headers(context),
               ErrorHandlers.viewErrorHandler());
     } catch (UnsupportedOperationException | RESTException e) {
-      throw new NoSuchViewException("Service does not support views");
+      throw new NoSuchViewException(e, "Unable to load view: %s.%s", name(), identifier);
     }
 
     AuthSession session = tableSession(response.config(), session(context));
