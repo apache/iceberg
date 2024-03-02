@@ -1058,12 +1058,17 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   public View loadView(SessionContext context, TableIdentifier identifier) {
     checkViewIdentifierIsValid(identifier);
 
-    LoadViewResponse response =
-        client.get(
-            paths.view(identifier),
-            LoadViewResponse.class,
-            headers(context),
-            ErrorHandlers.viewErrorHandler());
+    LoadViewResponse response;
+    try {
+      response =
+          client.get(
+              paths.view(identifier),
+              LoadViewResponse.class,
+              headers(context),
+              ErrorHandlers.viewErrorHandler());
+    } catch (UnsupportedOperationException | RESTException e) {
+      throw new NoSuchViewException("Service does not support views");
+    }
 
     AuthSession session = tableSession(response.config(), session(context));
     ViewMetadata metadata = response.metadata();
