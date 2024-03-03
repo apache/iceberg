@@ -75,7 +75,7 @@ public class TestNotStartsWith extends TestTransformBase {
         .isEqualTo("ab");
 
     assertThat(evaluator.eval(TestHelpers.Row.of("abcde")))
-        .as("notStartsWith('abcde', truncate(abcde,2)) => false")
+        .as("notStartsWith('abcde', truncate('abcde',2)) => false")
         .isFalse();
 
     assertThat(evaluator.eval(TestHelpers.Row.of("ab")))

@@ -36,12 +36,12 @@ import org.apache.iceberg.types.Types;
 
 public class TestTransformBase {
 
-  public final String COLUMN = "someStringCol";
+  public static final String COLUMN = "someStringCol";
 
-  public final Schema SCHEMA = new Schema(optional(1, COLUMN, Types.StringType.get()));
+  public static final Schema SCHEMA = new Schema(optional(1, COLUMN, Types.StringType.get()));
 
   // All 50 rows have someStringCol = 'bbb', none are null (despite being optional).
-  public final DataFile TEST_FILE =
+  public static final DataFile TEST_FILE =
       new TestHelpers.TestDataFile(
           "file_1.avro",
           TestHelpers.Row.of(),
