@@ -48,12 +48,8 @@ Please note that this link may occasionally break when Slack does an upgrade. If
 
 This calendar contains two calendar feeds:
 
-* Iceberg Community Events - Events such as conferences and meetups, aimed to educate and inspire Iceberg users.
-* Iceberg Dev Events - Events such as the triweekly Iceberg sync, aimed to discuss the project roadmap and how to implement features.
-
-You can subscribe to either or both of these calendars by clicking the "+ Google Calendar" icon on the bottom right.
-
-<iframe src="https://calendar.google.com/calendar/embed?height=600&wkst=1&bgcolor=%23ffffff&ctz=UTC&title=Iceberg%20Community%20Events%20(UTC)&showNav=1&showPrint=0&showCalendars=1&mode=AGENDA&src=NTkzYmIwMGJmZTQ1N2QzMTkxNDEzNTBkZDI0Yzk2NGYzOWJkYmQ5ZmQyNDMyODFhODYzMmEwMDk2M2EyMWQ4NkBncm91cC5jYWxlbmRhci5nb29nbGUuY29t&src=MzkwNWQ0OTJmMWI0NTBiYTA3MTJmMmFlNmFmYTc2ZWI3NTdmMTNkODUyMjBjYzAzYWE0NTI3ODg1YWRjNTYyOUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t&color=%232c7cbf&color=%23A79B8E" style="border:solid 1px #777" width="800" height="600" frameborder="0" scrolling="no"></iframe>
+* [Iceberg Community Events](https://calendar.google.com/calendar/u/0?cid=NTkzYmIwMGJmZTQ1N2QzMTkxNDEzNTBkZDI0Yzk2NGYzOWJkYmQ5ZmQyNDMyODFhODYzMmEwMDk2M2EyMWQ4NkBncm91cC5jYWxlbmRhci5nb29nbGUuY29t){:target="_blank"} : Events such as conferences and meetups, aimed to educate and inspire Iceberg users.
+* [Iceberg Dev Events](https://calendar.google.com/calendar/u/0?cid=MzkwNWQ0OTJmMWI0NTBiYTA3MTJmMmFlNmFmYTc2ZWI3NTdmMTNkODUyMjBjYzAzYWE0NTI3ODg1YWRjNTYyOUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t){:target="_blank"} : Events such as the triweekly Iceberg sync, aimed to discuss the project roadmap and how to implement features.
 
 ## Mailing Lists
 
