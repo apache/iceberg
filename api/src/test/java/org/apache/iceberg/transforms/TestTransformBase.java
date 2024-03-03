@@ -19,20 +19,45 @@
 package org.apache.iceberg.transforms;
 
 import static org.apache.iceberg.TestHelpers.assertAndUnwrapUnbound;
+import static org.apache.iceberg.types.Conversions.toByteBuffer;
+import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 
-public class TransformTestHelpers {
+public class TestTransformBase {
 
-  private TransformTestHelpers() {}
+  public final String COLUMN = "someStringCol";
 
-  public static void assertProjectionInclusive(
+  public final Schema SCHEMA = new Schema(optional(1, COLUMN, Types.StringType.get()));
+
+  // All 50 rows have someStringCol = 'bbb', none are null (despite being optional).
+  public final DataFile TEST_FILE =
+      new TestHelpers.TestDataFile(
+          "file_1.avro",
+          TestHelpers.Row.of(),
+          50,
+          // any value counts, including nulls
+          ImmutableMap.of(1, 50L),
+          // null value counts
+          ImmutableMap.of(1, 0L),
+          // nan value counts
+          null,
+          // lower bounds
+          ImmutableMap.of(1, toByteBuffer(Types.StringType.get(), "bbb")),
+          // upper bounds
+          ImmutableMap.of(1, toByteBuffer(Types.StringType.get(), "bbb")));
+
+  public void assertProjectionInclusive(
       PartitionSpec spec,
       UnboundPredicate<?> filter,
       String expectedLiteral,
@@ -41,7 +66,7 @@ public class TransformTestHelpers {
     assertProjection(spec, expectedLiteral, projection, expectedOp);
   }
 
-  public static void assertProjectionStrict(
+  public void assertProjectionStrict(
       PartitionSpec spec,
       UnboundPredicate<?> filter,
       String expectedLiteral,
@@ -51,7 +76,7 @@ public class TransformTestHelpers {
   }
 
   @SuppressWarnings("unchecked")
-  public static void assertProjection(
+  public void assertProjection(
       PartitionSpec spec,
       String expectedLiteral,
       Expression projection,

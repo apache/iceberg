@@ -308,6 +308,12 @@ public class TestEvaluator {
   public void testStartsWith() {
     StructType struct = StructType.of(required(24, "s", Types.StringType.get()));
     Evaluator evaluator = new Evaluator(struct, startsWith("s", "abc"));
+    assertThat(evaluator.eval(TestHelpers.Row.of(new Object[] {null})))
+        .as(" null startsWith abc should be false")
+        .isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of("")))
+        .as(" '' startsWith abc should be false")
+        .isFalse();
     assertThat(evaluator.eval(TestHelpers.Row.of("abc")))
         .as("abc startsWith abc should be true")
         .isTrue();
@@ -332,6 +338,12 @@ public class TestEvaluator {
   public void testNotStartsWith() {
     StructType struct = StructType.of(required(24, "s", Types.StringType.get()));
     Evaluator evaluator = new Evaluator(struct, notStartsWith("s", "abc"));
+    assertThat(evaluator.eval(TestHelpers.Row.of(new Object[] {null})))
+        .as(" null notStartsWith abc should be false")
+        .isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of("")))
+        .as(" '' notStartsWith abc should be false")
+        .isTrue();
     assertThat(evaluator.eval(TestHelpers.Row.of("abc")))
         .as("abc notStartsWith abc should be false")
         .isFalse();
@@ -356,6 +368,12 @@ public class TestEvaluator {
   public void testEndsWith() {
     StructType struct = StructType.of(required(24, "s", Types.StringType.get()));
     Evaluator evaluator = new Evaluator(struct, endsWith("s", "abc"));
+    assertThat(evaluator.eval(TestHelpers.Row.of(new Object[] {null})))
+        .as(" null endsWith abc should be false")
+        .isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of("")))
+        .as(" '' endsWith abc should be false")
+        .isFalse();
     assertThat(evaluator.eval(TestHelpers.Row.of("abc")))
         .as("abc endsWith abc should be true")
         .isTrue();
@@ -380,6 +398,12 @@ public class TestEvaluator {
   public void testNotEndsWith() {
     StructType struct = StructType.of(required(24, "s", Types.StringType.get()));
     Evaluator evaluator = new Evaluator(struct, notEndsWith("s", "abc"));
+    assertThat(evaluator.eval(TestHelpers.Row.of(new Object[] {null})))
+        .as(" null notEndsWith abc should be true")
+        .isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of("")))
+        .as(" '' notEndsWith abc should be true")
+        .isTrue();
     assertThat(evaluator.eval(TestHelpers.Row.of("abc")))
         .as("abc notEndsWith abc should be false")
         .isFalse();
@@ -404,6 +428,12 @@ public class TestEvaluator {
   public void testContains() {
     StructType struct = StructType.of(required(24, "s", Types.StringType.get()));
     Evaluator evaluator = new Evaluator(struct, contains("s", "abc"));
+    assertThat(evaluator.eval(TestHelpers.Row.of(new Object[] {null})))
+        .as(" null contains abc should be false")
+        .isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of("")))
+        .as(" '' contains abc should be false")
+        .isFalse();
     assertThat(evaluator.eval(TestHelpers.Row.of("abc")))
         .as("abc contains abc should be true")
         .isTrue();
@@ -428,6 +458,12 @@ public class TestEvaluator {
   public void testNotContains() {
     StructType struct = StructType.of(required(24, "s", Types.StringType.get()));
     Evaluator evaluator = new Evaluator(struct, notContains("s", "abc"));
+    assertThat(evaluator.eval(TestHelpers.Row.of(new Object[] {null})))
+        .as(" null notContains abc should be false")
+        .isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of("")))
+        .as(" '' notContains abc should be false")
+        .isTrue();
     assertThat(evaluator.eval(TestHelpers.Row.of("abc")))
         .as("abc notContains abc should be false")
         .isFalse();

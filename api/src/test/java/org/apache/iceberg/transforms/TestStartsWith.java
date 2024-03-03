@@ -18,30 +18,22 @@
  */
 package org.apache.iceberg.transforms;
 
-import static org.apache.iceberg.TestHelpers.assertAndUnwrapUnbound;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
-import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.False;
-import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.UnboundPredicate;
-import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-public class TestStartsWith {
-
-  private static final String COLUMN = "someStringCol";
-  private static final Schema SCHEMA = new Schema(optional(1, COLUMN, Types.StringType.get()));
+public class TestStartsWith extends TestTransformBase {
 
   @Test
   public void testTruncateProjections() {
@@ -74,39 +66,5 @@ public class TestStartsWith {
     assertThat(evaluator.eval(TestHelpers.Row.of("abcdg")))
         .as("startsWith(abcde, truncate(abcdg,2))  => true")
         .isTrue();
-  }
-
-  private void assertProjectionInclusive(
-      PartitionSpec spec,
-      UnboundPredicate<?> filter,
-      String expectedLiteral,
-      Expression.Operation expectedOp) {
-    Expression projection = Projections.inclusive(spec).project(filter);
-    assertProjection(spec, expectedLiteral, projection, expectedOp);
-  }
-
-  private void assertProjectionStrict(
-      PartitionSpec spec,
-      UnboundPredicate<?> filter,
-      String expectedLiteral,
-      Expression.Operation expectedOp) {
-    Expression projection = Projections.strict(spec).project(filter);
-    assertProjection(spec, expectedLiteral, projection, expectedOp);
-  }
-
-  @SuppressWarnings("unchecked")
-  private void assertProjection(
-      PartitionSpec spec,
-      String expectedLiteral,
-      Expression projection,
-      Expression.Operation expectedOp) {
-    UnboundPredicate<?> predicate = assertAndUnwrapUnbound(projection);
-    Literal<?> literal = predicate.literal();
-    Truncate<CharSequence> transform =
-        (Truncate<CharSequence>) spec.getFieldsBySourceId(1).get(0).transform();
-    String output = transform.toHumanString(Types.StringType.get(), (String) literal.value());
-
-    assertThat(predicate.op()).isEqualTo(expectedOp);
-    assertThat(output).isEqualTo(expectedLiteral);
   }
 }

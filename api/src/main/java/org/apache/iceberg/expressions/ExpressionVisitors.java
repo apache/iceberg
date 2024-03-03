@@ -287,27 +287,31 @@ public class ExpressionVisitors {
     }
 
     public <T> R startsWith(Bound<T> expr, Literal<T> lit) {
-      throw new UnsupportedOperationException("Unsupported operation.");
+      throw new UnsupportedOperationException(
+          "startsWith operation is not supported by the visitor");
     }
 
     public <T> R notStartsWith(Bound<T> expr, Literal<T> lit) {
-      throw new UnsupportedOperationException("Unsupported operation.");
+      throw new UnsupportedOperationException(
+          "notStartsWith operation is not supported by the visitor");
     }
 
     public <T> R endsWith(Bound<T> expr, Literal<T> lit) {
-      throw new UnsupportedOperationException("Unsupported operation.");
+      throw new UnsupportedOperationException("endsWith operation is not supported by the visitor");
     }
 
     public <T> R notEndsWith(Bound<T> expr, Literal<T> lit) {
-      throw new UnsupportedOperationException("Unsupported operation.");
+      throw new UnsupportedOperationException(
+          "notEndsWith operation is not supported by the visitor");
     }
 
     public <T> R contains(Bound<T> expr, Literal<T> lit) {
-      throw new UnsupportedOperationException("Unsupported operation.");
+      throw new UnsupportedOperationException("contains operation is not supported by the visitor");
     }
 
     public <T> R notContains(Bound<T> expr, Literal<T> lit) {
-      throw new UnsupportedOperationException("Unsupported operation.");
+      throw new UnsupportedOperationException(
+          "notContains operation is not supported by the visitor");
     }
 
     @Override

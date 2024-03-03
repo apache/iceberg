@@ -36,7 +36,7 @@ import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-public class TestContains {
+public class TestContains extends TestTransformBase {
 
   private static final String COLUMN = "someStringCol";
   private static final Schema SCHEMA = new Schema(optional(1, COLUMN, Types.StringType.get()));
@@ -45,18 +45,14 @@ public class TestContains {
   public void testTruncateProjections() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).truncate(COLUMN, 4).build();
 
-    TransformTestHelpers.assertProjectionInclusive(
-        spec, contains(COLUMN, "ab"), "ab", Expression.Operation.CONTAINS);
-    TransformTestHelpers.assertProjectionInclusive(
-        spec, contains(COLUMN, "abab"), "abab", Expression.Operation.EQ);
+    assertProjectionInclusive(spec, contains(COLUMN, "ab"), "ab", Expression.Operation.CONTAINS);
+    assertProjectionInclusive(spec, contains(COLUMN, "abab"), "abab", Expression.Operation.EQ);
     // It will truncate the first 4 characters and then compare contains.
-    TransformTestHelpers.assertProjectionInclusive(
+    assertProjectionInclusive(
         spec, contains(COLUMN, "abcdab"), "abcd", Expression.Operation.CONTAINS);
 
-    TransformTestHelpers.assertProjectionStrict(
-        spec, contains(COLUMN, "ab"), "ab", Expression.Operation.CONTAINS);
-    TransformTestHelpers.assertProjectionStrict(
-        spec, contains(COLUMN, "abab"), "abab", Expression.Operation.EQ);
+    assertProjectionStrict(spec, contains(COLUMN, "ab"), "ab", Expression.Operation.CONTAINS);
+    assertProjectionStrict(spec, contains(COLUMN, "abab"), "abab", Expression.Operation.EQ);
 
     Expression projection = Projections.strict(spec).project(contains(COLUMN, "abcdab"));
     Assertions.assertThat(projection).isInstanceOf(False.class);

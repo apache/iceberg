@@ -36,7 +36,7 @@ import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-public class TestEndsWith {
+public class TestEndsWith extends TestTransformBase {
 
   private static final String COLUMN = "someStringCol";
   private static final Schema SCHEMA = new Schema(optional(1, COLUMN, Types.StringType.get()));
@@ -45,18 +45,14 @@ public class TestEndsWith {
   public void testTruncateProjections() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).truncate(COLUMN, 4).build();
 
-    TransformTestHelpers.assertProjectionInclusive(
-        spec, endsWith(COLUMN, "ab"), "ab", Expression.Operation.ENDS_WITH);
-    TransformTestHelpers.assertProjectionInclusive(
-        spec, endsWith(COLUMN, "abab"), "abab", Expression.Operation.EQ);
+    assertProjectionInclusive(spec, endsWith(COLUMN, "ab"), "ab", Expression.Operation.ENDS_WITH);
+    assertProjectionInclusive(spec, endsWith(COLUMN, "abab"), "abab", Expression.Operation.EQ);
     // It will truncate the first 4 characters and then compare from the end.
-    TransformTestHelpers.assertProjectionInclusive(
+    assertProjectionInclusive(
         spec, endsWith(COLUMN, "abcdab"), "abcd", Expression.Operation.ENDS_WITH);
 
-    TransformTestHelpers.assertProjectionStrict(
-        spec, endsWith(COLUMN, "ab"), "ab", Expression.Operation.ENDS_WITH);
-    TransformTestHelpers.assertProjectionStrict(
-        spec, endsWith(COLUMN, "abab"), "abab", Expression.Operation.EQ);
+    assertProjectionStrict(spec, endsWith(COLUMN, "ab"), "ab", Expression.Operation.ENDS_WITH);
+    assertProjectionStrict(spec, endsWith(COLUMN, "abab"), "abab", Expression.Operation.EQ);
 
     Expression projection = Projections.strict(spec).project(endsWith(COLUMN, "abcdab"));
     Assertions.assertThat(projection).isInstanceOf(False.class);
