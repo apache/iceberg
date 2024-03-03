@@ -24,6 +24,7 @@ import static org.apache.iceberg.util.SnapshotUtil.latestSnapshot;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -90,6 +91,77 @@ public class TestMergeAppend extends TableTestBase {
         ids(snapshotId, snapshotId),
         files(FILE_A, FILE_B),
         statuses(Status.ADDED, Status.ADDED));
+  }
+
+  @Test
+  public void testEmptyTableAppendFilesWithDifferentSpecs() {
+    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+
+    TableMetadata base = readMetadata();
+    Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
+    Assert.assertEquals("Last sequence number should be 0", 0, base.lastSequenceNumber());
+
+    table.updateSpec().addField("id").commit();
+    PartitionSpec new_spec = table.spec();
+
+    Assert.assertEquals("Table should have 2 specs", table.specs().size(), 2);
+
+    DataFile file_original_spec =
+        DataFiles.builder(SPEC)
+            .withPath("/path/to/data-a.parquet")
+            .withPartitionPath("data_bucket=0")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+
+    DataFile file_new_spec =
+        DataFiles.builder(new_spec)
+            .withPath("/path/to/data-b.parquet")
+            .withPartitionPath("data_bucket=0/id=0")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+
+    Snapshot committedSnapshot =
+        commit(
+            table,
+            table.newAppend().appendFile(file_original_spec).appendFile(file_new_spec),
+            branch);
+
+    Assert.assertNotNull("Should create a snapshot", committedSnapshot);
+    V1Assert.assertEquals(
+        "Last sequence number should be 0", 0, table.ops().current().lastSequenceNumber());
+    V2Assert.assertEquals(
+        "Last sequence number should be 1", 1, table.ops().current().lastSequenceNumber());
+
+    Assert.assertEquals(
+        "Should create 2 manifests for initial write, 1 manifest per spec",
+        2,
+        committedSnapshot.allManifests(table.io()).size());
+
+    long snapshotId = committedSnapshot.snapshotId();
+
+    validateManifest(
+        committedSnapshot.allManifests(table.io()).stream()
+            .filter(m -> Objects.equals(m.partitionSpecId(), SPEC.specId()))
+            .findAny()
+            .get(),
+        dataSeqs(1L),
+        fileSeqs(1L),
+        ids(snapshotId),
+        files(file_original_spec),
+        statuses(Status.ADDED));
+
+    validateManifest(
+        committedSnapshot.allManifests(table.io()).stream()
+            .filter(m -> Objects.equals(m.partitionSpecId(), new_spec.specId()))
+            .findAny()
+            .get(),
+        dataSeqs(1L),
+        fileSeqs(1L),
+        ids(snapshotId),
+        files(file_new_spec),
+        statuses(Status.ADDED));
   }
 
   @Test

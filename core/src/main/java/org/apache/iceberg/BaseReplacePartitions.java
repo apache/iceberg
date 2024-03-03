@@ -87,31 +87,40 @@ public class BaseReplacePartitions extends MergingSnapshotProducer<ReplacePartit
 
   @Override
   public void validate(TableMetadata currentMetadata, Snapshot parent) {
-    if (validateConflictingData) {
-      if (dataSpec().isUnpartitioned()) {
-        validateAddedDataFiles(
-            currentMetadata, startingSnapshotId, Expressions.alwaysTrue(), parent);
-      } else {
-        validateAddedDataFiles(currentMetadata, startingSnapshotId, replacedPartitions, parent);
-      }
-    }
+    dataSpecs()
+        .forEach(
+            dataSpec -> {
+              if (validateConflictingData) {
+                if (dataSpec.isUnpartitioned()) {
+                  validateAddedDataFiles(
+                      currentMetadata, startingSnapshotId, Expressions.alwaysTrue(), parent);
+                } else {
+                  validateAddedDataFiles(
+                      currentMetadata, startingSnapshotId, replacedPartitions, parent);
+                }
+              }
 
-    if (validateConflictingDeletes) {
-      if (dataSpec().isUnpartitioned()) {
-        validateDeletedDataFiles(
-            currentMetadata, startingSnapshotId, Expressions.alwaysTrue(), parent);
-        validateNoNewDeleteFiles(
-            currentMetadata, startingSnapshotId, Expressions.alwaysTrue(), parent);
-      } else {
-        validateDeletedDataFiles(currentMetadata, startingSnapshotId, replacedPartitions, parent);
-        validateNoNewDeleteFiles(currentMetadata, startingSnapshotId, replacedPartitions, parent);
-      }
-    }
+              if (validateConflictingDeletes) {
+                if (dataSpec.isUnpartitioned()) {
+                  validateDeletedDataFiles(
+                      currentMetadata, startingSnapshotId, Expressions.alwaysTrue(), parent);
+                  validateNoNewDeleteFiles(
+                      currentMetadata, startingSnapshotId, Expressions.alwaysTrue(), parent);
+                } else {
+                  validateDeletedDataFiles(
+                      currentMetadata, startingSnapshotId, replacedPartitions, parent);
+                  validateNoNewDeleteFiles(
+                      currentMetadata, startingSnapshotId, replacedPartitions, parent);
+                }
+              }
+            });
   }
 
   @Override
   public List<ManifestFile> apply(TableMetadata base, Snapshot snapshot) {
-    if (dataSpec().fields().size() <= 0) {
+    // TODO: I don't understand this, why delete all data? what if only part of the table is
+    // unpartitioned?
+    if (dataSpecs().stream().anyMatch(spec -> spec.fields().size() <= 0)) {
       // replace all data in an unpartitioned table
       deleteByRowFilter(Expressions.alwaysTrue());
     }
