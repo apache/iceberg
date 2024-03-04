@@ -138,13 +138,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     return caseSensitive;
   }
 
-  /**
-   * @deprecated Use {@link #dataSpecs()} instead. This method only returns one of potentially
-   *     multiple {@link PartitionSpec} involved in this operation.
-   */
-  @Deprecated
   protected PartitionSpec dataSpec() {
-    return dataSpecs().iterator().next();
+    Set<PartitionSpec> specs = dataSpecs();
+    Preconditions.checkState(
+        specs.size() == 1,
+        "Cannot return a single partition spec: data files with different partition specs have been added");
+    return specs.iterator().next();
   }
 
   protected Set<PartitionSpec> dataSpecs() {
