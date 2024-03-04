@@ -96,7 +96,7 @@ public class TestMergeAppend extends TableTestBase {
 
   @Test
   public void testEmptyTableAppendFilesWithDifferentSpecs() {
-    assertThat(listManifestFiles().size()).as("Table should start empty").isEqualTo(0);
+    assertThat(listManifestFiles()).as("Table should start empty").isEmpty();
 
     TableMetadata base = readMetadata();
     assertThat(base.currentSnapshot()).as("Should not have a current snapshot").isNull();

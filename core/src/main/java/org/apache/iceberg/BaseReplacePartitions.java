@@ -118,8 +118,6 @@ public class BaseReplacePartitions extends MergingSnapshotProducer<ReplacePartit
 
   @Override
   public List<ManifestFile> apply(TableMetadata base, Snapshot snapshot) {
-    // TODO: I don't understand this, why delete all data? what if only part of the table is
-    // unpartitioned?
     if (dataSpecs().stream().anyMatch(spec -> spec.fields().size() <= 0)) {
       // replace all data in an unpartitioned table
       deleteByRowFilter(Expressions.alwaysTrue());

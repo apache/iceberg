@@ -115,8 +115,7 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
     if (validateAddedFilesMatchOverwriteFilter) {
       addedDataFilesBySpec()
           .forEach(
-              (specId, addedDataFiles) -> {
-                PartitionSpec spec = base.spec(specId);
+              (spec, addedDataFiles) -> {
                 Expression rowFilter = rowFilter();
 
                 Expression inclusiveExpr = Projections.inclusive(spec).project(rowFilter);

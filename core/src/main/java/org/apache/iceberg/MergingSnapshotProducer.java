@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -80,7 +81,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final ManifestFilterManager<DeleteFile> deleteFilterManager;
 
   // update data
-  private final Map<Integer, List<DataFile>> newDataFilesBySpec = Maps.newHashMap();
+  private final Map<PartitionSpec, List<DataFile>> newDataFilesBySpec = Maps.newHashMap();
   private Long newDataFilesDataSequenceNumber;
   private final Map<Integer, List<DeleteFileHolder>> newDeleteFilesBySpec = Maps.newHashMap();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
@@ -88,7 +89,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final SnapshotSummary.Builder addedFilesSummary = SnapshotSummary.builder();
   private final SnapshotSummary.Builder appendedManifestsSummary = SnapshotSummary.builder();
   private Expression deleteExpression = Expressions.alwaysFalse();
-  private final Set<PartitionSpec> dataSpecs = Sets.newHashSet();
 
   // cache new data manifests after writing
   private final List<ManifestFile> cachedNewDataManifests = Lists.newLinkedList();
@@ -144,14 +144,14 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    */
   @Deprecated
   protected PartitionSpec dataSpec() {
-    Set<PartitionSpec> partitionSpecs = dataSpecs();
-    return partitionSpecs.iterator().next();
+    return dataSpecs().iterator().next();
   }
 
   protected Set<PartitionSpec> dataSpecs() {
+    Set<PartitionSpec> specs = newDataFilesBySpec.keySet();
     Preconditions.checkState(
-        !dataSpecs.isEmpty(), "Cannot determine partition specs: no data files have been added");
-    return dataSpecs;
+        !specs.isEmpty(), "Cannot determine partition specs: no data files have been added");
+    return ImmutableSet.copyOf(specs);
   }
 
   protected Expression rowFilter() {
@@ -159,12 +159,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   protected List<DataFile> addedDataFiles() {
-    ImmutableList.Builder<DataFile> builder = ImmutableList.builder();
-    addedDataFilesBySpec().values().forEach(builder::addAll);
-    return builder.build();
+    return ImmutableList.copyOf(
+        newDataFilesBySpec.values().stream().flatMap(List::stream).collect(Collectors.toList()));
   }
 
-  protected Map<Integer, List<DataFile>> addedDataFilesBySpec() {
+  protected Map<PartitionSpec, List<DataFile>> addedDataFilesBySpec() {
     return ImmutableMap.copyOf(newDataFilesBySpec);
   }
 
@@ -235,11 +234,15 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   /** Add a data file to the new snapshot. */
   protected void add(DataFile file) {
     Preconditions.checkNotNull(file, "Invalid data file: null");
-    PartitionSpec dataSpec = addDataSpec(file);
+
+    PartitionSpec dataSpec = ops.current().spec(file.specId());
+    Preconditions.checkNotNull(
+        dataSpec, "Cannot find partition spec for data file: %s", file.path());
+
     addedFilesSummary.addedFile(dataSpec, file);
     hasNewDataFiles = true;
     List<DataFile> newDataFiles =
-        newDataFilesBySpec.computeIfAbsent(dataSpec.specId(), ignored -> Lists.newArrayList());
+        newDataFilesBySpec.computeIfAbsent(dataSpec, ignored -> Lists.newArrayList());
     newDataFiles.add(file);
   }
 
@@ -263,14 +266,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     deleteFiles.add(fileHolder);
     addedFilesSummary.addedFile(fileSpec, fileHolder.deleteFile());
     hasNewDeleteFiles = true;
-  }
-
-  private PartitionSpec addDataSpec(DataFile file) {
-    PartitionSpec fileSpec = ops.current().spec(file.specId());
-    Preconditions.checkNotNull(
-        fileSpec, "Cannot find partition spec for data file: %s", file.path());
-    dataSpecs.add(fileSpec);
-    return fileSpec;
   }
 
   /** Add all files in a manifest to the new snapshot. */
@@ -968,8 +963,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
     if (cachedNewDataManifests.isEmpty()) {
       newDataFilesBySpec.forEach(
-          (specId, newDataFiles) -> {
-            PartitionSpec dataSpec = ops.current().spec(specId);
+          (dataSpec, newDataFiles) -> {
             try {
               RollingManifestWriter<DataFile> writer = newRollingManifestWriter(dataSpec);
               try {
