@@ -138,6 +138,16 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     return caseSensitive;
   }
 
+  /**
+   * @deprecated Use {@link #dataSpecs()} instead. This method only returns one of potentially
+   *     multiple {@link PartitionSpec} involved in this operation.
+   */
+  @Deprecated
+  protected PartitionSpec dataSpec() {
+    Set<PartitionSpec> partitionSpecs = dataSpecs();
+    return partitionSpecs.iterator().next();
+  }
+
   protected Set<PartitionSpec> dataSpecs() {
     Preconditions.checkState(
         !dataSpecs.isEmpty(), "Cannot determine partition specs: no data files have been added");
@@ -146,6 +156,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   protected Expression rowFilter() {
     return deleteExpression;
+  }
+
+  protected List<DataFile> addedDataFiles() {
+    ImmutableList.Builder<DataFile> builder = ImmutableList.builder();
+    addedDataFilesBySpec().values().forEach(builder::addAll);
+    return builder.build();
   }
 
   protected Map<Integer, List<DataFile>> addedDataFilesBySpec() {
