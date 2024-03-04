@@ -69,7 +69,11 @@ public class FlinkSchemaUtil {
     Type converted = root.accept(new FlinkTypeToType(root));
 
     Schema icebergSchema = new Schema(converted.asStructType().fields());
-    return freshIdentifierFieldIds(icebergSchema, schema);
+    if (schema.getPrimaryKey().isPresent()) {
+      return freshIdentifierFieldIds(icebergSchema, schema.getPrimaryKey().get().getColumns());
+    } else {
+      return icebergSchema;
+    }
   }
 
   /** Convert the flink table schema to apache iceberg schema with column comment. */
@@ -96,45 +100,25 @@ public class FlinkSchemaUtil {
     RowType root = (RowType) schemaType;
     Type converted = root.accept(new FlinkTypeToType(root));
     Schema icebergSchema = new Schema(converted.asStructType().fields());
-    return freshIdentifierFieldIds(icebergSchema, flinkSchema);
+    if (flinkSchema.getPrimaryKey().isPresent()) {
+      return freshIdentifierFieldIds(icebergSchema, flinkSchema.getPrimaryKey().get().getColumns());
+    } else {
+      return icebergSchema;
+    }
   }
 
-  /** @deprecated Use {@link #freshIdentifierFieldIds(Schema, ResolvedSchema)} instead. */
-  @Deprecated
-  private static Schema freshIdentifierFieldIds(Schema icebergSchema, TableSchema flinkSchema) {
+  private static Schema freshIdentifierFieldIds(Schema icebergSchema, List<String> primaryKeys) {
     // Locate the identifier field id list.
     Set<Integer> identifierFieldIds = Sets.newHashSet();
-    if (flinkSchema.getPrimaryKey().isPresent()) {
-      for (String column : flinkSchema.getPrimaryKey().get().getColumns()) {
-        Types.NestedField field = icebergSchema.findField(column);
-        Preconditions.checkNotNull(
-            field,
-            "Cannot find field ID for the primary key column %s in flinkSchema %s",
-            column,
-            icebergSchema);
-        identifierFieldIds.add(field.fieldId());
-      }
+    for (String primaryKey : primaryKeys) {
+      Types.NestedField field = icebergSchema.findField(primaryKey);
+      Preconditions.checkNotNull(
+          field,
+          "Cannot find field ID for the primary key column %s in Schema %s",
+          primaryKey,
+          icebergSchema);
+      identifierFieldIds.add(field.fieldId());
     }
-
-    return new Schema(
-        icebergSchema.schemaId(), icebergSchema.asStruct().fields(), identifierFieldIds);
-  }
-
-  private static Schema freshIdentifierFieldIds(Schema icebergSchema, ResolvedSchema flinkSchema) {
-    // Locate the identifier field id list.
-    Set<Integer> identifierFieldIds = Sets.newHashSet();
-    if (flinkSchema.getPrimaryKey().isPresent()) {
-      for (String column : flinkSchema.getPrimaryKey().get().getColumns()) {
-        Types.NestedField field = icebergSchema.findField(column);
-        Preconditions.checkNotNull(
-            field,
-            "Cannot find field ID for the primary key column %s in flinkSchema %s",
-            column,
-            icebergSchema);
-        identifierFieldIds.add(field.fieldId());
-      }
-    }
-
     return new Schema(
         icebergSchema.schemaId(), icebergSchema.asStruct().fields(), identifierFieldIds);
   }
@@ -162,7 +146,11 @@ public class FlinkSchemaUtil {
 
     // fix types that can't be represented in Flink (UUID)
     Schema fixedSchema = FlinkFixupTypes.fixup(schema, baseSchema);
-    return freshIdentifierFieldIds(fixedSchema, flinkSchema);
+    if (flinkSchema.getPrimaryKey().isPresent()) {
+      return freshIdentifierFieldIds(fixedSchema, flinkSchema.getPrimaryKey().get().getColumns());
+    } else {
+      return fixedSchema;
+    }
   }
 
   /**
