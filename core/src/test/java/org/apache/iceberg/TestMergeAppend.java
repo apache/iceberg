@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.relocated.com.google.common.collect.Iterators.concat;
 import static org.apache.iceberg.util.SnapshotUtil.latestSnapshot;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -95,18 +96,18 @@ public class TestMergeAppend extends TableTestBase {
 
   @Test
   public void testEmptyTableAppendFilesWithDifferentSpecs() {
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    assertThat(listManifestFiles().size()).as("Table should start empty").isEqualTo(0);
 
     TableMetadata base = readMetadata();
-    Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
-    Assert.assertEquals("Last sequence number should be 0", 0, base.lastSequenceNumber());
+    assertThat(base.currentSnapshot()).as("Should not have a current snapshot").isNull();
+    assertThat(base.lastSequenceNumber()).as("Last sequence number should be 0").isEqualTo(0);
 
     table.updateSpec().addField("id").commit();
-    PartitionSpec new_spec = table.spec();
+    PartitionSpec newSpec = table.spec();
 
-    Assert.assertEquals("Table should have 2 specs", table.specs().size(), 2);
+    assertThat(table.specs().size()).as("Table should have 2 specs").isEqualTo(2);
 
-    DataFile file_original_spec =
+    DataFile fileOriginalSpec =
         DataFiles.builder(SPEC)
             .withPath("/path/to/data-a.parquet")
             .withPartitionPath("data_bucket=0")
@@ -114,8 +115,8 @@ public class TestMergeAppend extends TableTestBase {
             .withRecordCount(1)
             .build();
 
-    DataFile file_new_spec =
-        DataFiles.builder(new_spec)
+    DataFile fileNewSpec =
+        DataFiles.builder(newSpec)
             .withPath("/path/to/data-b.parquet")
             .withPartitionPath("data_bucket=0/id=0")
             .withFileSizeInBytes(10)
@@ -124,20 +125,17 @@ public class TestMergeAppend extends TableTestBase {
 
     Snapshot committedSnapshot =
         commit(
-            table,
-            table.newAppend().appendFile(file_original_spec).appendFile(file_new_spec),
-            branch);
+            table, table.newAppend().appendFile(fileOriginalSpec).appendFile(fileNewSpec), branch);
 
-    Assert.assertNotNull("Should create a snapshot", committedSnapshot);
+    assertThat(committedSnapshot).as("Should create a snapshot").isNotNull();
     V1Assert.assertEquals(
         "Last sequence number should be 0", 0, table.ops().current().lastSequenceNumber());
     V2Assert.assertEquals(
         "Last sequence number should be 1", 1, table.ops().current().lastSequenceNumber());
 
-    Assert.assertEquals(
-        "Should create 2 manifests for initial write, 1 manifest per spec",
-        2,
-        committedSnapshot.allManifests(table.io()).size());
+    assertThat(committedSnapshot.allManifests(table.io()).size())
+        .as("Should create 2 manifests for initial write, 1 manifest per spec")
+        .isEqualTo(2);
 
     long snapshotId = committedSnapshot.snapshotId();
 
@@ -149,18 +147,18 @@ public class TestMergeAppend extends TableTestBase {
         dataSeqs(1L),
         fileSeqs(1L),
         ids(snapshotId),
-        files(file_original_spec),
+        files(fileOriginalSpec),
         statuses(Status.ADDED));
 
     validateManifest(
         committedSnapshot.allManifests(table.io()).stream()
-            .filter(m -> Objects.equals(m.partitionSpecId(), new_spec.specId()))
+            .filter(m -> Objects.equals(m.partitionSpecId(), newSpec.specId()))
             .findAny()
             .get(),
         dataSeqs(1L),
         fileSeqs(1L),
         ids(snapshotId),
-        files(file_new_spec),
+        files(fileNewSpec),
         statuses(Status.ADDED));
   }
 
