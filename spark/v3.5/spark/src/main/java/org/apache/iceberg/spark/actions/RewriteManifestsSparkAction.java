@@ -24,6 +24,7 @@ import static org.apache.spark.sql.functions.col;
 import java.io.Serializable;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -44,6 +45,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.RollingManifestWriter;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
@@ -56,13 +58,16 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.SparkContentFile;
 import org.apache.iceberg.spark.SparkDataFile;
 import org.apache.iceberg.spark.SparkDeleteFile;
 import org.apache.iceberg.spark.source.SerializableTableWithSize;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.SerializableFunction;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.api.java.function.MapPartitionsFunction;
@@ -113,8 +118,6 @@ public class RewriteManifestsSparkAction
   private PartitionSpec spec = null;
   private Predicate<ManifestFile> predicate = manifest -> true;
   private String outputLocation = null;
-
-  private List<String> partitionFieldSortOrder = null;
 
   private Function<DataFile, String> partitionSortFunction = null;
 
@@ -187,7 +190,7 @@ public class RewriteManifestsSparkAction
         this.spec.specId(),
         availablePartitionNames);
 
-    this.partitionFieldSortOrder = sortOrder;
+    this.partitionSortFunction = new PartitionFieldSortFunction(spec, sortOrder);
     return this;
   }
 
@@ -309,24 +312,6 @@ public class RewriteManifestsSparkAction
       clusteredManifestEntryDF =
           manifestEntryDF.withColumn(
               CUSTOM_CLUSTERING_COLUMN_NAME, clusteringUdf.apply(col("data_file")));
-    } else if (partitionFieldSortOrder != null) {
-      LOG.info(
-          "Sorting manifests for specId {} by partition columns in order of {} ",
-          spec.specId(),
-          partitionFieldSortOrder);
-
-      // Map the top level partition column names to the column name referenced within the manifest
-      // entry dataframe
-      Column[] actualPartitionColumns =
-          partitionFieldSortOrder.stream()
-              .map(p -> col("data_file.partition." + p))
-              .toArray(Column[]::new);
-
-      // Form a new temporary column to sort/cluster manifests on, based on the custom sort
-      // order provided
-      clusteredManifestEntryDF =
-          manifestEntryDF.withColumn(
-              CUSTOM_CLUSTERING_COLUMN_NAME, functions.struct(actualPartitionColumns));
     } else {
       clusteredManifestEntryDF =
           manifestEntryDF.withColumn(CUSTOM_CLUSTERING_COLUMN_NAME, col("data_file.partition"));
@@ -626,6 +611,52 @@ public class RewriteManifestsSparkAction
 
     private Table table() {
       return tableBroadcast.value();
+    }
+  }
+
+  static class PartitionFieldSortFunction implements SerializableFunction<DataFile, String> {
+
+    private final PartitionSpec spec;
+    private final List<String> partitionFieldSortOrder;
+
+    public PartitionFieldSortFunction(PartitionSpec spec, List<String> partitionFieldSortOrder) {
+      this.spec = spec;
+      this.partitionFieldSortOrder = partitionFieldSortOrder;
+    }
+
+    @Override
+    public String apply(DataFile dataFile) {
+      Map<java.lang.String, Integer> fieldIndices = Maps.newHashMap();
+      int idx = 0;
+      for (PartitionField field : spec.fields()) {
+        fieldIndices.put(field.name(), idx);
+        idx++;
+      }
+
+      StringBuilder sb = new StringBuilder();
+      for (java.lang.String fieldName : partitionFieldSortOrder) {
+        Preconditions.checkArgument(
+            fieldIndices.containsKey(fieldName),
+            "Cannot find partition field with name %s in spec %s",
+            fieldName,
+            spec);
+        int fieldIndex = fieldIndices.get(fieldName);
+        PartitionField field = spec.fields().get(fieldIndex);
+        Type fieldType = spec.partitionType().field(field.fieldId()).type();
+        Class<?> javaClass = spec.javaClasses()[fieldIndex];
+        java.lang.String fieldValue =
+            field
+                .transform()
+                .toHumanString(fieldType, get(dataFile.partition(), fieldIndex, javaClass));
+        sb.append(fieldValue);
+      }
+
+      return sb.toString();
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T get(StructLike data, int pos, Class<?> javaClass) {
+      return data.get(pos, (Class<T>) javaClass);
     }
   }
 }
