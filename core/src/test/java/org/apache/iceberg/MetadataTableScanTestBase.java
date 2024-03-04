@@ -72,7 +72,7 @@ public abstract class MetadataTableScanTestBase extends TestBase {
           } else {
             assertThat(fileScanTask.residual())
                 .as("Residuals must be preserved")
-                .isEqualTo(Expressions.alwaysTrue());
+                .isNotEqualTo(Expressions.alwaysTrue());
           }
         }
       }

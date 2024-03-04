@@ -402,12 +402,12 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     CloseableIterable<ManifestEntry<?>> tasksAndEq =
         PartitionsTable.planEntries((StaticTableScan) partitionsTable.newScan());
     for (ManifestEntry<? extends ContentFile<?>> task : tasksAndEq) {
-      assertThat(task.file().columnSizes()).isEmpty();
-      assertThat(task.file().valueCounts()).isEmpty();
-      assertThat(task.file().nullValueCounts()).isEmpty();
-      assertThat(task.file().nanValueCounts()).isEmpty();
-      assertThat(task.file().lowerBounds().isEmpty());
-      assertThat(task.file().upperBounds().isEmpty());
+      assertThat(task.file().columnSizes()).isNull();
+      assertThat(task.file().valueCounts()).isNull();
+      assertThat(task.file().nullValueCounts()).isNull();
+      assertThat(task.file().nanValueCounts()).isNull();
+      assertThat(task.file().lowerBounds()).isNull();
+      assertThat(task.file().upperBounds()).isNull();
     }
   }
 
@@ -1534,7 +1534,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     assertThat(scanTasks).hasSize(2);
     scanTasks.sort(Comparator.comparing(f -> f.file().path().toString()));
     assertThat(scanTasks.get(0).file().path().toString()).isEqualTo("/path/to/delete1.parquet");
-    assertThat(scanTasks.get(0).file().path().toString()).isEqualTo("/path/to/delete2.parquet");
+    assertThat(scanTasks.get(1).file().path().toString()).isEqualTo("/path/to/delete2.parquet");
 
     Types.StructType partitionType = Partitioning.partitionType(table);
 
@@ -1542,7 +1542,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             constantsMap(scanTasks.get(0), partitionType).get(MetadataColumns.FILE_PATH.fieldId()))
         .isEqualTo("/path/to/delete1.parquet");
     assertThat(
-            constantsMap(scanTasks.get(0), partitionType).get(MetadataColumns.FILE_PATH.fieldId()))
+            constantsMap(scanTasks.get(1), partitionType).get(MetadataColumns.FILE_PATH.fieldId()))
         .isEqualTo("/path/to/delete2.parquet");
 
     assertThat(constantsMap(scanTasks.get(0), partitionType).get(MetadataColumns.SPEC_ID.fieldId()))
