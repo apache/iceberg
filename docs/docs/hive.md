@@ -556,6 +556,9 @@ your tables. You can enable auto-conversion through Hadoop configuration (not en
 This type conversion table describes how Hive types are converted to the Iceberg types. The conversion applies on both
 creating Iceberg table and writing to Iceberg table via Hive.
 
+    Note, that the Hive Types mentioned above are not Hive Data Types used in Hive SQL.For example, there isn't a long type in Hive Data Types instead of a bigint type. The hive SQL parser provides a mechanism for converting one type to another.
+
+
 | Hive             | Iceberg                 | Notes |
 |------------------|-------------------------|-------|
 | boolean          | boolean                 |       |
