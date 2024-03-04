@@ -18,30 +18,26 @@
  */
 package org.apache.iceberg;
 
-import static org.junit.Assert.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.util.Arrays;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.types.TypeUtil;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public class TestEntriesMetadataTable extends TableTestBase {
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestEntriesMetadataTable extends TestBase {
+
+  @Parameters(name = "formatVersion = {0}")
+  public static List<Object> parameters() {
+    return Arrays.asList(1, 2);
   }
 
-  public TestEntriesMetadataTable(int formatVersion) {
-    super(formatVersion);
-  }
-
-  @Test
+  @TestTemplate
   public void testEntriesTable() {
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
@@ -51,13 +47,12 @@ public class TestEntriesMetadataTable extends TableTestBase {
     Schema expectedSchema =
         TypeUtil.join(readSchema, MetricsUtil.readableMetricsSchema(table.schema(), readSchema));
 
-    assertEquals(
-        "A tableScan.select() should prune the schema",
-        expectedSchema.asStruct(),
-        entriesTable.schema().asStruct());
+    assertThat(entriesTable.schema().asStruct())
+        .as("A tableScan.select() should prune the schema")
+        .isEqualTo(expectedSchema.asStruct());
   }
 
-  @Test
+  @TestTemplate
   public void testEntriesTableScan() {
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
@@ -68,20 +63,19 @@ public class TestEntriesMetadataTable extends TableTestBase {
     Schema expectedSchema =
         TypeUtil.join(readSchema, MetricsUtil.readableMetricsSchema(table.schema(), readSchema));
 
-    assertEquals(
-        "A tableScan.select() should prune the schema",
-        expectedSchema.asStruct(),
-        scan.schema().asStruct());
+    assertThat(scan.schema().asStruct())
+        .as("A tableScan.select() should prune the schema")
+        .isEqualTo(expectedSchema.asStruct());
 
     FileScanTask file = Iterables.getOnlyElement(scan.planFiles());
-    Assert.assertEquals(
-        "Data file should be the table's manifest",
-        Iterables.getOnlyElement(table.currentSnapshot().allManifests(table.io())).path(),
-        file.file().path());
-    Assert.assertEquals("Should contain 2 data file records", 2, file.file().recordCount());
+    assertThat(file.file().path())
+        .as("Data file should be the table's manifest")
+        .isEqualTo(
+            Iterables.getOnlyElement(table.currentSnapshot().allManifests(table.io())).path());
+    assertThat(file.file().recordCount()).as("Should contain 2 data file records").isEqualTo(2);
   }
 
-  @Test
+  @TestTemplate
   public void testSplitPlanningWithMetadataSplitSizeProperty() {
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
@@ -95,12 +89,12 @@ public class TestEntriesMetadataTable extends TableTestBase {
 
     Table entriesTable = new ManifestEntriesTable(table);
 
-    Assert.assertEquals(1, Iterables.size(entriesTable.newScan().planTasks()));
+    assertThat(entriesTable.newScan().planTasks()).hasSize(1);
 
     // set the split size to a small value so that manifests end up in different splits
     table.updateProperties().set(TableProperties.METADATA_SPLIT_SIZE, String.valueOf(1)).commit();
 
-    Assert.assertEquals(2, Iterables.size(entriesTable.newScan().planTasks()));
+    assertThat(entriesTable.newScan().planTasks()).hasSize(2);
 
     // override the table property with a large value so that both manifests are in 1 split
     TableScan scan =
@@ -108,10 +102,10 @@ public class TestEntriesMetadataTable extends TableTestBase {
             .newScan()
             .option(TableProperties.SPLIT_SIZE, String.valueOf(128 * 1024 * 1024));
 
-    Assert.assertEquals(1, Iterables.size(scan.planTasks()));
+    assertThat(scan.planTasks()).hasSize(1);
   }
 
-  @Test
+  @TestTemplate
   public void testSplitPlanningWithDefaultMetadataSplitSize() {
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
@@ -119,7 +113,7 @@ public class TestEntriesMetadataTable extends TableTestBase {
         (int) TableProperties.METADATA_SPLIT_SIZE_DEFAULT; // default split size is 32 MB
 
     Table entriesTable = new ManifestEntriesTable(table);
-    Assert.assertEquals(1, entriesTable.currentSnapshot().allManifests(table.io()).size());
+    assertThat(entriesTable.currentSnapshot().allManifests(table.io())).hasSize(1);
 
     int expectedSplits =
         ((int) entriesTable.currentSnapshot().allManifests(table.io()).get(0).length()
@@ -129,12 +123,12 @@ public class TestEntriesMetadataTable extends TableTestBase {
 
     TableScan scan = entriesTable.newScan();
 
-    Assert.assertEquals(expectedSplits, Iterables.size(scan.planTasks()));
+    assertThat(scan.planTasks()).hasSize(expectedSplits);
   }
 
-  @Test
+  @TestTemplate
   public void testEntriesTableWithDeleteManifests() {
-    Assume.assumeTrue("Only V2 Tables Support Deletes", formatVersion >= 2);
+    assumeThat(formatVersion).as("Only V2 Tables Support Deletes").isGreaterThanOrEqualTo(2);
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
@@ -146,22 +140,24 @@ public class TestEntriesMetadataTable extends TableTestBase {
     Schema expectedSchema =
         TypeUtil.join(readSchema, MetricsUtil.readableMetricsSchema(table.schema(), readSchema));
 
-    assertEquals(
-        "A tableScan.select() should prune the schema",
-        expectedSchema.asStruct(),
-        scan.schema().asStruct());
+    assertThat(scan.schema().asStruct())
+        .as("A tableScan.select() should prune the schema")
+        .isEqualTo(expectedSchema.asStruct());
 
     List<FileScanTask> files = ImmutableList.copyOf(scan.planFiles());
-    Assert.assertEquals(
-        "Data file should be the table's manifest",
-        Iterables.getOnlyElement(table.currentSnapshot().dataManifests(table.io())).path(),
-        files.get(0).file().path());
-    Assert.assertEquals("Should contain 2 data file records", 2, files.get(0).file().recordCount());
-    Assert.assertEquals(
-        "Delete file should be in the table manifest",
-        Iterables.getOnlyElement(table.currentSnapshot().deleteManifests(table.io())).path(),
-        files.get(1).file().path());
-    Assert.assertEquals(
-        "Should contain 1 delete file record", 1, files.get(1).file().recordCount());
+    assertThat(files.get(0).file().path())
+        .as("Data file should be the table's manifest")
+        .isEqualTo(
+            Iterables.getOnlyElement(table.currentSnapshot().dataManifests(table.io())).path());
+    assertThat(files.get(0).file().recordCount())
+        .as("Should contain 2 data file records")
+        .isEqualTo(2);
+    assertThat(files.get(1).file().path())
+        .as("Delete file should be in the table manifest")
+        .isEqualTo(
+            Iterables.getOnlyElement(table.currentSnapshot().deleteManifests(table.io())).path());
+    assertThat(files.get(1).file().recordCount())
+        .as("Should contain 1 delete file record")
+        .isEqualTo(1);
   }
 }
