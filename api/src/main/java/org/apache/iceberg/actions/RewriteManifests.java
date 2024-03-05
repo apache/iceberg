@@ -77,7 +77,7 @@ public interface RewriteManifests
    */
   default RewriteManifests sort(Function<DataFile, String> sortStrategyFunction) {
     throw new UnsupportedOperationException(
-            this.getClass().getName() + " doesn't implement sort(Function<DataFile, String>)");
+        this.getClass().getName() + " doesn't implement sort(Function<DataFile, String>)");
   }
 
   /**

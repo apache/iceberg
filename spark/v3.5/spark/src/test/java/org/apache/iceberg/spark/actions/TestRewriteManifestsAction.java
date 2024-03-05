@@ -748,16 +748,14 @@ public class TestRewriteManifestsAction extends TestBase {
     // So the upper bound of the partitions tracked by the first file should be LEQ the lower bounds
     // of the second. Etc
     assertThat(uppers.get(0))
-        .as(
-            "Upper bound of first manifest partition should be LESS THAN the lower bound of second")
+        .as("Upper bound of first manifest partition should be LESS THAN the lower bound of second")
         .isLessThan(lowers.get(1));
 
     // Each file should contain less than the full c3 partition span
     c3Boundaries.forEach(
         boundary -> {
           assertThat(boundary.second() - boundary.first())
-              .as(
-                  "Manifest should contain less than the full range of c3 bucket partitions")
+              .as("Manifest should contain less than the full range of c3 bucket partitions")
               .isLessThan(c3PartitionMax - c3PartitionMin);
         });
 
