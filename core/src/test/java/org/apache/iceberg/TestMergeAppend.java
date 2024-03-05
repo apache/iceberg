@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import static org.apache.iceberg.relocated.com.google.common.collect.Iterators.concat;
 import static org.apache.iceberg.util.SnapshotUtil.latestSnapshot;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -32,6 +33,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -107,14 +109,6 @@ public class TestMergeAppend extends TableTestBase {
 
     assertThat(table.specs().size()).as("Table should have 2 specs").isEqualTo(2);
 
-    DataFile fileOriginalSpec =
-        DataFiles.builder(SPEC)
-            .withPath("/path/to/data-a.parquet")
-            .withPartitionPath("data_bucket=0")
-            .withFileSizeInBytes(10)
-            .withRecordCount(1)
-            .build();
-
     DataFile fileNewSpec =
         DataFiles.builder(newSpec)
             .withPath("/path/to/data-b.parquet")
@@ -124,8 +118,7 @@ public class TestMergeAppend extends TableTestBase {
             .build();
 
     Snapshot committedSnapshot =
-        commit(
-            table, table.newAppend().appendFile(fileOriginalSpec).appendFile(fileNewSpec), branch);
+        commit(table, table.newAppend().appendFile(FILE_A).appendFile(fileNewSpec), branch);
 
     assertThat(committedSnapshot).as("Should create a snapshot").isNotNull();
     V1Assert.assertEquals(
@@ -139,27 +132,54 @@ public class TestMergeAppend extends TableTestBase {
 
     long snapshotId = committedSnapshot.snapshotId();
 
-    validateManifest(
-        committedSnapshot.allManifests(table.io()).stream()
-            .filter(m -> Objects.equals(m.partitionSpecId(), SPEC.specId()))
-            .findAny()
-            .get(),
-        dataSeqs(1L),
-        fileSeqs(1L),
-        ids(snapshotId),
-        files(fileOriginalSpec),
-        statuses(Status.ADDED));
+    ImmutableMap<Integer, DataFile> expectedFileBySpec =
+        ImmutableMap.of(SPEC.specId(), FILE_A, newSpec.specId(), fileNewSpec);
 
-    validateManifest(
-        committedSnapshot.allManifests(table.io()).stream()
-            .filter(m -> Objects.equals(m.partitionSpecId(), newSpec.specId()))
-            .findAny()
-            .get(),
-        dataSeqs(1L),
-        fileSeqs(1L),
-        ids(snapshotId),
-        files(fileNewSpec),
-        statuses(Status.ADDED));
+    expectedFileBySpec.forEach(
+        (specId, expectedDataFile) -> {
+          ManifestFile manifestFileForSpecId =
+              committedSnapshot.allManifests(table.io()).stream()
+                  .filter(m -> Objects.equals(m.partitionSpecId(), specId))
+                  .findAny()
+                  .get();
+
+          validateManifest(
+              manifestFileForSpecId,
+              dataSeqs(1L),
+              fileSeqs(1L),
+              ids(snapshotId),
+              files(expectedDataFile),
+              statuses(Status.ADDED));
+        });
+  }
+
+  @Test
+  public void testDataSpecThrowsExceptionIfDataFilesWithDifferentSpecsAreAdded() {
+    assertThat(listManifestFiles()).as("Table should start empty").isEmpty();
+
+    TableMetadata base = readMetadata();
+    assertThat(base.currentSnapshot()).as("Should not have a current snapshot").isNull();
+    assertThat(base.lastSequenceNumber()).as("Last sequence number should be 0").isEqualTo(0);
+
+    table.updateSpec().addField("id").commit();
+    PartitionSpec newSpec = table.spec();
+
+    assertThat(table.specs().size()).as("Table should have 2 specs").isEqualTo(2);
+
+    DataFile fileNewSpec =
+        DataFiles.builder(newSpec)
+            .withPath("/path/to/data-b.parquet")
+            .withPartitionPath("data_bucket=0/id=0")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+
+    MergeAppend mergeAppend =
+        (MergeAppend) table.newAppend().appendFile(FILE_A).appendFile(fileNewSpec);
+    assertThatThrownBy(mergeAppend::dataSpec)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot return a single partition spec: data files with different partition specs have been added");
   }
 
   @Test

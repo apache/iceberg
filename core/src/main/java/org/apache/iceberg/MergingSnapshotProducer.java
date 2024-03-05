@@ -235,8 +235,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     Preconditions.checkNotNull(file, "Invalid data file: null");
 
     PartitionSpec dataSpec = ops.current().spec(file.specId());
-    Preconditions.checkNotNull(
-        dataSpec, "Cannot find partition spec for data file: %s", file.path());
+    Preconditions.checkArgument(dataSpec != null);
 
     addedFilesSummary.addedFile(dataSpec, file);
     hasNewDataFiles = true;
