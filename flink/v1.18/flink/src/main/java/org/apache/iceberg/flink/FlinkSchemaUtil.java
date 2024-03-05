@@ -63,7 +63,7 @@ public class FlinkSchemaUtil {
   public static Schema convert(TableSchema schema) {
     LogicalType schemaType = schema.toRowDataType().getLogicalType();
     Preconditions.checkArgument(
-        schemaType instanceof RowType, "Schema logical type should be RowType.");
+        schemaType instanceof RowType, "Schema logical type should be row type.");
 
     RowType root = (RowType) schemaType;
     Type converted = root.accept(new FlinkTypeToType(root));
@@ -95,7 +95,7 @@ public class FlinkSchemaUtil {
 
     LogicalType schemaType = DataTypes.ROW(fields).notNull().getLogicalType();
     Preconditions.checkArgument(
-        schemaType instanceof RowType, "Schema logical type should be RowType.");
+        schemaType instanceof RowType, "Schema logical type should be row type.");
 
     RowType root = (RowType) schemaType;
     Type converted = root.accept(new FlinkTypeToType(root));
@@ -114,7 +114,7 @@ public class FlinkSchemaUtil {
       Types.NestedField field = icebergSchema.findField(primaryKey);
       Preconditions.checkNotNull(
           field,
-          "Cannot find field ID for the primary key column %s in Schema %s",
+          "Cannot find field ID for the primary key column %s in schema %s",
           primaryKey,
           icebergSchema);
       identifierFieldIds.add(field.fieldId());
