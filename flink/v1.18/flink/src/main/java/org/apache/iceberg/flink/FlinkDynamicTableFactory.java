@@ -24,11 +24,10 @@ import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.api.TableSchema;
-import org.apache.flink.table.catalog.CatalogBaseTable;
 import org.apache.flink.table.catalog.CatalogDatabaseImpl;
-import org.apache.flink.table.catalog.CatalogTable;
 import org.apache.flink.table.catalog.ObjectIdentifier;
 import org.apache.flink.table.catalog.ObjectPath;
+import org.apache.flink.table.catalog.ResolvedCatalogTable;
 import org.apache.flink.table.catalog.exceptions.DatabaseAlreadyExistException;
 import org.apache.flink.table.catalog.exceptions.TableAlreadyExistException;
 import org.apache.flink.table.connector.sink.DynamicTableSink;
@@ -84,9 +83,9 @@ public class FlinkDynamicTableFactory
   @Override
   public DynamicTableSource createDynamicTableSource(Context context) {
     ObjectIdentifier objectIdentifier = context.getObjectIdentifier();
-    CatalogTable catalogTable = context.getCatalogTable();
-    Map<String, String> tableProps = catalogTable.getOptions();
-    TableSchema tableSchema = TableSchemaUtils.getPhysicalSchema(catalogTable.getSchema());
+    ResolvedCatalogTable resolvedCatalogTable = context.getCatalogTable();
+    Map<String, String> tableProps = resolvedCatalogTable.getOptions();
+    TableSchema tableSchema = TableSchemaUtils.getPhysicalSchema(resolvedCatalogTable.getSchema());
 
     TableLoader tableLoader;
     if (catalog != null) {
@@ -94,7 +93,7 @@ public class FlinkDynamicTableFactory
     } else {
       tableLoader =
           createTableLoader(
-              catalogTable,
+              resolvedCatalogTable,
               tableProps,
               objectIdentifier.getDatabaseName(),
               objectIdentifier.getObjectName());
@@ -106,9 +105,9 @@ public class FlinkDynamicTableFactory
   @Override
   public DynamicTableSink createDynamicTableSink(Context context) {
     ObjectIdentifier objectIdentifier = context.getObjectIdentifier();
-    CatalogTable catalogTable = context.getCatalogTable();
-    Map<String, String> writeProps = catalogTable.getOptions();
-    TableSchema tableSchema = TableSchemaUtils.getPhysicalSchema(catalogTable.getSchema());
+    ResolvedCatalogTable resolvedCatalogTable = context.getCatalogTable();
+    Map<String, String> writeProps = resolvedCatalogTable.getOptions();
+    TableSchema tableSchema = TableSchemaUtils.getPhysicalSchema(resolvedCatalogTable.getSchema());
 
     TableLoader tableLoader;
     if (catalog != null) {
@@ -116,7 +115,7 @@ public class FlinkDynamicTableFactory
     } else {
       tableLoader =
           createTableLoader(
-              catalogTable,
+              resolvedCatalogTable,
               writeProps,
               objectIdentifier.getDatabaseName(),
               objectIdentifier.getObjectName());
@@ -147,7 +146,7 @@ public class FlinkDynamicTableFactory
   }
 
   private static TableLoader createTableLoader(
-      CatalogBaseTable catalogBaseTable,
+      ResolvedCatalogTable resolvedCatalogTable,
       Map<String, String> tableProps,
       String databaseName,
       String tableName) {
@@ -187,7 +186,7 @@ public class FlinkDynamicTableFactory
     // Create table if not exists in the external catalog.
     if (!flinkCatalog.tableExists(objectPath)) {
       try {
-        flinkCatalog.createIcebergTable(objectPath, catalogBaseTable, true);
+        flinkCatalog.createIcebergTable(objectPath, resolvedCatalogTable, true);
       } catch (TableAlreadyExistException e) {
         throw new AlreadyExistsException(
             e,
