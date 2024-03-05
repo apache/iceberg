@@ -621,10 +621,10 @@ public class TestRewriteManifestsAction extends TestBase {
     // manifest should
     // include the lower bound of 0, and the last should have the upper bound of 9
     assertThat(lowers.get(0))
-        .withFailMessage("Lower bound of first manifest partition should be 0")
+        .as("Lower bound of first manifest partition should be 0")
         .isEqualTo(c3PartitionMin);
     assertThat(uppers.get(uppers.size() - 1))
-        .withFailMessage("Lower bound of first manifest partition should be 0")
+        .as("Lower bound of first manifest partition should be 0")
         .isEqualTo(c3PartitionMax);
   }
 
@@ -748,7 +748,7 @@ public class TestRewriteManifestsAction extends TestBase {
     // So the upper bound of the partitions tracked by the first file should be LEQ the lower bounds
     // of the second. Etc
     assertThat(uppers.get(0))
-        .withFailMessage(
+        .as(
             "Upper bound of first manifest partition should be LESS THAN the lower bound of second")
         .isLessThan(lowers.get(1));
 
@@ -756,7 +756,7 @@ public class TestRewriteManifestsAction extends TestBase {
     c3Boundaries.forEach(
         boundary -> {
           assertThat(boundary.second() - boundary.first())
-              .withFailMessage(
+              .as(
                   "Manifest should contain less than the full range of c3 bucket partitions")
               .isLessThan(c3PartitionMax - c3PartitionMin);
         });
@@ -764,16 +764,16 @@ public class TestRewriteManifestsAction extends TestBase {
     // c3's Bucket(10) partition means our true lower bound = 0 and true upper bound is 9. The first
     // manifest should include the lower bound of 0, and the last should have the upper bound of 9
     assertThat(lowers.get(0))
-        .withFailMessage("Lower bound of first manifest c3 bucket partition should be 0")
+        .as("Lower bound of first manifest c3 bucket partition should be 0")
         .isEqualTo(0);
     assertThat(uppers.get(0))
-        .withFailMessage("Upper bound of first manifest c3 bucket partition should be 4")
+        .as("Upper bound of first manifest c3 bucket partition should be 4")
         .isEqualTo(4);
     assertThat(lowers.get(1))
-        .withFailMessage("Lower bound of second manifest c3 bucket partition should be 5")
+        .as("Lower bound of second manifest c3 bucket partition should be 5")
         .isEqualTo(5);
     assertThat(uppers.get(1))
-        .withFailMessage("Upper bound of second manifest c3 bucket partition should be 9")
+        .as("Upper bound of second manifest c3 bucket partition should be 9")
         .isEqualTo(9);
   }
 
