@@ -38,6 +38,7 @@ import org.apache.flink.table.catalog.CatalogPartitionSpec;
 import org.apache.flink.table.catalog.CatalogTable;
 import org.apache.flink.table.catalog.CatalogTableImpl;
 import org.apache.flink.table.catalog.ObjectPath;
+import org.apache.flink.table.catalog.ResolvedCatalogTable;
 import org.apache.flink.table.catalog.TableChange;
 import org.apache.flink.table.catalog.exceptions.CatalogException;
 import org.apache.flink.table.catalog.exceptions.DatabaseAlreadyExistException;
@@ -390,17 +391,16 @@ public class FlinkCatalog extends AbstractCatalog {
               + "an iceberg catalog, Please create table with 'connector'='iceberg' property in a non-iceberg catalog or "
               + "create table without 'connector'='iceberg' related properties in an iceberg table.");
     }
-
-    createIcebergTable(tablePath, table, ignoreIfExists);
+    Preconditions.checkArgument(table instanceof ResolvedCatalogTable, "table should be resolved");
+    createIcebergTable(tablePath, (ResolvedCatalogTable) table, ignoreIfExists);
   }
 
-  void createIcebergTable(ObjectPath tablePath, CatalogBaseTable table, boolean ignoreIfExists)
+  void createIcebergTable(ObjectPath tablePath, ResolvedCatalogTable table, boolean ignoreIfExists)
       throws CatalogException, TableAlreadyExistException {
     validateFlinkTable(table);
 
-    Schema icebergSchema = FlinkSchemaUtil.convert(table.getSchema());
+    Schema icebergSchema = FlinkSchemaUtil.convert(table.getResolvedSchema());
     PartitionSpec spec = toPartitionSpec(((CatalogTable) table).getPartitionKeys(), icebergSchema);
-
     ImmutableMap.Builder<String, String> properties = ImmutableMap.builder();
     String location = null;
     for (Map.Entry<String, String> entry : table.getOptions().entrySet()) {

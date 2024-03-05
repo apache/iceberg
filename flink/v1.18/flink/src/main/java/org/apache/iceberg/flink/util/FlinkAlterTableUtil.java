@@ -132,9 +132,11 @@ public class FlinkAlterTableUtil {
             flinkColumn.getName());
         Type icebergType = FlinkSchemaUtil.convert(flinkColumn.getDataType().getLogicalType());
         if (flinkColumn.getDataType().getLogicalType().isNullable()) {
-          pendingUpdate.addColumn(flinkColumn.getName(), icebergType);
+          pendingUpdate.addColumn(
+              flinkColumn.getName(), icebergType, flinkColumn.getComment().orElse(null));
         } else {
-          pendingUpdate.addRequiredColumn(flinkColumn.getName(), icebergType);
+          pendingUpdate.addRequiredColumn(
+              flinkColumn.getName(), icebergType, flinkColumn.getComment().orElse(null));
         }
       } else if (change instanceof TableChange.ModifyColumn) {
         TableChange.ModifyColumn modifyColumn = (TableChange.ModifyColumn) change;
