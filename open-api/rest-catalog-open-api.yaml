@@ -1444,7 +1444,7 @@ components:
       schema:
         type: string
       required: true
-      description: An optional prefix in the path
+      description: Prefix in the path
 
     table:
       name: table
