@@ -308,6 +308,10 @@ public class NessieIcebergClient implements AutoCloseable {
   }
 
   public boolean dropNamespace(Namespace namespace) throws NamespaceNotEmptyException {
+    if (namespace.isEmpty()) {
+      // As creating empty namespaces is not supported
+      throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
+    }
     getRef().checkMutable();
     ContentKey key = ContentKey.of(namespace.levels());
     try {
@@ -355,6 +359,11 @@ public class NessieIcebergClient implements AutoCloseable {
 
   public Map<String, String> loadNamespaceMetadata(Namespace namespace)
       throws NoSuchNamespaceException {
+    if (namespace.isEmpty()) {
+      // As creating empty namespaces is not supported
+      throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
+    }
+
     ContentKey key = ContentKey.of(namespace.levels());
     try {
       Map<ContentKey, Content> contentMap = withReference(api.getContent()).key(key).get();
@@ -380,6 +389,10 @@ public class NessieIcebergClient implements AutoCloseable {
   }
 
   private boolean updateProperties(Namespace namespace, Consumer<Map<String, String>> action) {
+    if (namespace.isEmpty()) {
+      // As creating empty namespaces is not supported
+      throw new IllegalArgumentException("Does not support empty namespace");
+    }
     getRef().checkMutable();
     ContentKey key = ContentKey.of(namespace.levels());
     try {
