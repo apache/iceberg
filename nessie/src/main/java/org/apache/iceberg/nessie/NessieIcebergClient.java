@@ -391,7 +391,7 @@ public class NessieIcebergClient implements AutoCloseable {
   private boolean updateProperties(Namespace namespace, Consumer<Map<String, String>> action) {
     if (namespace.isEmpty()) {
       // As creating empty namespaces is not supported
-      throw new IllegalArgumentException("Does not support empty namespace");
+      throw new IllegalArgumentException("Empty namespaces not supported");
     }
     getRef().checkMutable();
     ContentKey key = ContentKey.of(namespace.levels());

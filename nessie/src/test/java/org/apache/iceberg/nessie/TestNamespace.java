@@ -149,11 +149,11 @@ public class TestNamespace extends BaseTestIceberg {
                 catalog.setProperties(
                     Namespace.empty(), ImmutableMap.of("prop2", "val2", "prop", "val")))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Does not support empty namespace");
+        .hasMessage("Empty namespaces not supported");
     Assertions.assertThatThrownBy(
             () -> catalog.removeProperties(Namespace.empty(), ImmutableSet.of("prop2")))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Does not support empty namespace");
+        .hasMessage("Empty namespaces not supported");
     Assertions.assertThatThrownBy(() -> catalog.dropNamespace(Namespace.empty()))
         .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessage("Namespace does not exist: ");
