@@ -115,8 +115,8 @@ public class RewriteManifestsSparkAction
   private Predicate<ManifestFile> predicate = manifest -> true;
   private String outputLocation = null;
 
-  private List<String> partitionFieldSortOrder = null;
-  private Function<DataFile, String> partitionSortFunction = null;
+  private List<String> partitionFieldClustering = null;
+  private Function<DataFile, String> partitionClusteringFunction = null;
 
   RewriteManifestsSparkAction(SparkSession spark, Table table) {
     super(spark);
@@ -173,28 +173,28 @@ public class RewriteManifestsSparkAction
   }
 
   @Override
-  public RewriteManifestsSparkAction sort(List<String> sortOrder) {
-    // Collect set of allowable partition columns to sort on
+  public RewriteManifestsSparkAction clusterBy(List<String> clusteringColumns) {
+    // Collect set of allowable partition columns to cluster on
     Set<String> availablePartitionNames =
         spec.fields().stream().map(PartitionField::name).collect(Collectors.toSet());
 
     // Check if these partition fields are included in the spec
     Preconditions.checkArgument(
-        sortOrder.stream().allMatch(availablePartitionNames::contains),
-        "Cannot use custom sort order to rewrite manifests '%s'. All partition columns must be "
+        clusteringColumns.stream().allMatch(availablePartitionNames::contains),
+        "Cannot use custom clustering to rewrite manifests '%s'. All partition columns must be "
             + "defined in the current partition spec: %s. Choose from the available partitionable columns: %s",
-        sortOrder,
+        clusteringColumns,
         this.spec.specId(),
         availablePartitionNames);
 
-    this.partitionFieldSortOrder = sortOrder;
+    this.partitionFieldClustering = clusteringColumns;
     return this;
   }
 
   @Override
-  public RewriteManifests sort(Function<DataFile, String> partitionFieldsSortStrategy) {
-    this.partitionSortFunction =
-        (Function<DataFile, String> & Serializable) partitionFieldsSortStrategy;
+  public RewriteManifests clusterBy(Function<DataFile, String> clusteringFunction) {
+    this.partitionClusteringFunction =
+        (Function<DataFile, String> & Serializable) clusteringFunction;
     return this;
   }
 
@@ -288,42 +288,42 @@ public class RewriteManifestsSparkAction
   private List<ManifestFile> writePartitionedManifests(
       ManifestContent content, Dataset<Row> manifestEntryDF, int numManifests) {
 
-    // Extract desired clustering/sorting criteria into a dedicated column
+    // Extract desired clustering criteria into a dedicated column
     Dataset<Row> clusteredManifestEntryDF;
 
-    if (partitionSortFunction != null) {
+    if (partitionClusteringFunction != null) {
       LOG.info(
-          "Sorting manifests for specId {} using custom sorting function",
+          "Sorting manifests for specId {} using custom clustering function",
           spec.specId(),
-          partitionSortFunction);
+          partitionClusteringFunction);
       Types.StructType partitionType = DataFile.getType(table.spec().partitionType());
       StructType dataFileSchema = manifestEntryDF.select("data_file.*").schema();
 
-      // Create a UDF to wrap the custom partitionSortFunction call
+      // Create a UDF to wrap the custom partitionClusteringFunction call
       UserDefinedFunction clusteringUdf =
           functions.udf(
-              new CustomDataFileSorterUdf(
-                  this.partitionSortFunction, partitionType, dataFileSchema),
+              new CustomDataFileClusteringUdf(
+                  this.partitionClusteringFunction, partitionType, dataFileSchema),
               DataTypes.StringType);
       // Apply supplied partitionSortFunction function to the data_file datums within this dataframe
       // The results are stored as a String in the new __clustering_column__
       clusteredManifestEntryDF =
           manifestEntryDF.withColumn(
               CUSTOM_CLUSTERING_COLUMN_NAME, clusteringUdf.apply(col("data_file")));
-    } else if (partitionFieldSortOrder != null) {
+    } else if (partitionFieldClustering != null) {
       LOG.info(
-          "Sorting manifests for specId {} by partition columns in order of {} ",
+          "Clustering manifests for specId {} by partition columns by {} ",
           spec.specId(),
-          partitionFieldSortOrder);
+          partitionFieldClustering);
 
       // Map the top level partition column names to the column name referenced within the manifest
       // entry dataframe
       Column[] actualPartitionColumns =
-          partitionFieldSortOrder.stream()
+          partitionFieldClustering.stream()
               .map(p -> col("data_file.partition." + p))
               .toArray(Column[]::new);
 
-      // Form a new temporary column to sort/cluster manifests on, based on the custom sort
+      // Form a new temporary column to cluster manifests on, based on the custom clustering columns
       // order provided
       clusteredManifestEntryDF =
           manifestEntryDF.withColumn(
@@ -631,13 +631,13 @@ public class RewriteManifestsSparkAction
   }
 
   // UDF that will execute supplied custom manifest clustering function
-  static class CustomDataFileSorterUdf implements UDF1<Row, String>, Serializable {
+  static class CustomDataFileClusteringUdf implements UDF1<Row, String>, Serializable {
     // Supply how the DataFile should be interpreted from a raw Row.
     private Types.StructType dataFileType;
     private StructType dataFileSparkType;
     private Function<DataFile, String> clusteringFunction;
 
-    CustomDataFileSorterUdf(
+    CustomDataFileClusteringUdf(
         Function<DataFile, String> clusteringFunction,
         Types.StructType dataFileType,
         StructType dataFileSparkType) {

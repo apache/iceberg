@@ -50,20 +50,23 @@ public interface RewriteManifests
   /**
    * Rewrite manifests in a given order, based on partition field names
    *
-   * <p>Supply an optional set of partition field names to sort the rewritten manifests by. Expects
-   * exact transformed column names used for partitioning; not the raw columnnames that partitions
-   * are derived from. E.G. supply 'data_bucket' and not 'data' for a bucket(N, data) partition
-   * definition
+   * <p>Supply an optional set of partition field names to cluster the rewritten manifests by. For
+   * example, given a table PARTITIONED BY (a, b, c, d), you may wish to rewrite and cluster
+   * manifests by ('d', 'b') only, based on your query patterns. Rewriting Manifests in this way
+   * will yield manifest_lists that point to manifest_files containing data files for common 'd' and
+   * 'b' partitions.
    *
    * <p>If not set, manifests will be rewritten in the order of the transforms in the table's
    * current partition spec.
    *
-   * @param partitionFieldSortOrder a list of partition field names
+   * @param partitionFieldClustering Exact transformed column names used for partitioning; not the
+   *     raw column names that partitions are derived from. E.G. supply 'data_bucket' and not 'data'
+   *     for a bucket(N, data) partition * definition
    * @return this for method chaining
    */
-  default RewriteManifests sort(List<String> partitionFieldSortOrder) {
+  default RewriteManifests clusterBy(List<String> partitionFieldClustering) {
     throw new UnsupportedOperationException(
-        this.getClass().getName() + " doesn't implement sort(List<String>)");
+        this.getClass().getName() + " doesn't implement clusterBy(List<String>)");
   }
 
   /**
@@ -72,12 +75,13 @@ public interface RewriteManifests
    * <p>Supply a Function which will apply its own custom clustering logic based on supplied {@link
    * org.apache.iceberg.DataFile} attributes.
    *
-   * @param sortStrategyFunction A Function that returns a String to be used for manifest clustering
+   * @param clusterStrategyFunction A Function that returns a String to be used for manifest
+   *     clustering
    * @return this method for chaining
    */
-  default RewriteManifests sort(Function<DataFile, String> sortStrategyFunction) {
+  default RewriteManifests clusterBy(Function<DataFile, String> clusterStrategyFunction) {
     throw new UnsupportedOperationException(
-        this.getClass().getName() + " doesn't implement sort(Function<DataFile, String>)");
+        this.getClass().getName() + " doesn't implement clusterBy(Function<DataFile, String>)");
   }
 
   /**

@@ -475,7 +475,8 @@ public class TestRewriteManifestsAction extends TestBase {
   }
 
   @TestTemplate
-  public void testRewriteManifestsPartitionedTableWithInvalidSortColumns() throws IOException {
+  public void testRewriteManifestsPartitionedTableWithInvalidClusteringColumns()
+      throws IOException {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").bucket("c3", 10).build();
     Map<String, String> options = Maps.newHashMap();
     options.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
@@ -484,40 +485,40 @@ public class TestRewriteManifestsAction extends TestBase {
 
     SparkActions actions = SparkActions.get();
 
-    //  c2 is not a partition column, cannot use for sorting
-    List<String> badSortKeys1 = ImmutableList.of("c1", "c2");
+    //  c2 is not a partition column, cannot use for clustering
+    List<String> badClusteringKeys1 = ImmutableList.of("c1", "c2");
     assertThatThrownBy(
             () ->
                 actions
                     .rewriteManifests(table)
                     .rewriteIf(manifest -> true)
-                    .sort(badSortKeys1)
+                    .clusterBy(badClusteringKeys1)
                     .execute())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Cannot use custom sort order to rewrite manifests '[c1, c2]'. All partition columns "
+            "Cannot use custom clustering to rewrite manifests '[c1, c2]'. All partition columns "
                 + "must be defined in the current partition spec: 0. Choose from the available "
                 + "partitionable columns: [c3_bucket, c1]");
 
     // c3_bucket is the correct internal partition name to use, c3 is the untransformed column name,
-    // sort() expects the hidden partition column names
-    List<String> badSortKeys2 = ImmutableList.of("c1", "c3");
+    // clusterBy() expects the hidden partition column names
+    List<String> badClusteringKeys2 = ImmutableList.of("c1", "c3");
     assertThatThrownBy(
             () ->
                 actions
                     .rewriteManifests(table)
                     .rewriteIf(manifest -> true)
-                    .sort(badSortKeys2)
+                    .clusterBy(badClusteringKeys2)
                     .execute())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Cannot use custom sort order to rewrite manifests '[c1, c3]'. All partition columns "
+            "Cannot use custom clustering to rewrite manifests '[c1, c3]'. All partition columns "
                 + "must be defined in the current partition spec: 0. Choose from the available "
                 + "partitionable columns: [c3_bucket, c1]");
   }
 
   @TestTemplate
-  public void testRewriteManifestsPartitionedTableWithCustomSorting() throws IOException {
+  public void testRewriteManifestsPartitionedTableWithCustomClustering() throws IOException {
     Random random = new Random();
 
     PartitionSpec spec =
@@ -558,12 +559,12 @@ public class TestRewriteManifestsAction extends TestBase {
 
     SparkActions actions = SparkActions.get();
 
-    List<String> manifestSortKeys = ImmutableList.of("c3_bucket", "c2_trunc", "c1");
+    List<String> manifestClusterKeys = ImmutableList.of("c3_bucket", "c2_trunc", "c1");
     RewriteManifests.Result result =
         actions
             .rewriteManifests(table)
             .rewriteIf(manifest -> true)
-            .sort(manifestSortKeys)
+            .clusterBy(manifestClusterKeys)
             .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
             .execute();
 
@@ -596,10 +597,10 @@ public class TestRewriteManifestsAction extends TestBase {
     List<Integer> lowers = c3Boundaries.stream().map(t -> t.first()).collect(Collectors.toList());
     List<Integer> uppers = c3Boundaries.stream().map(t -> t.second()).collect(Collectors.toList());
 
-    // With custom sorting, this looks like
+    // With custom clustering, this looks like
     // - manifest 1 -> [lower bound = 0, upper bound = 4]
     // - manifest 2 -> [lower bound = 4, upper bound = 9]
-    // Without the custom sorting, each manifest tracks the full range of c3 upper/lower bounds.
+    // Without the custom clustering, each manifest tracks the full range of c3 upper/lower bounds.
     // AKA they look like
     // - manifest 1 -> [lower bound = 0, upper bound = 9]
     // - manifest 2 -> [lower bound = 0, upper bound = 9]
@@ -629,7 +630,8 @@ public class TestRewriteManifestsAction extends TestBase {
   }
 
   @TestTemplate
-  public void testRewriteManifestsPartitionedTableWithCustomSortFunction() throws IOException {
+  public void testRewriteManifestsPartitionedTableWithCustomClusteringFunction()
+      throws IOException {
     Random random = new Random();
 
     PartitionSpec spec =
@@ -671,7 +673,7 @@ public class TestRewriteManifestsAction extends TestBase {
     SparkActions actions = SparkActions.get();
 
     // This is the main point of this test!
-    // Let's say I want to sort manifests into buckets 0-4 and 5 - 9
+    // Let's say I want to cluster manifests into buckets 0-4 and 5 - 9
     // I know my Table and partition Spec, so can do that programmatically
     Function<DataFile, String> test =
         (Function<DataFile, String> & Serializable)
@@ -694,7 +696,7 @@ public class TestRewriteManifestsAction extends TestBase {
         actions
             .rewriteManifests(table)
             .rewriteIf(manifest -> true)
-            .sort(test)
+            .clusterBy(test)
             .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
             .execute();
 
@@ -726,7 +728,8 @@ public class TestRewriteManifestsAction extends TestBase {
     List<Integer> lowers = c3Boundaries.stream().map(t -> t.first()).collect(Collectors.toList());
     List<Integer> uppers = c3Boundaries.stream().map(t -> t.second()).collect(Collectors.toList());
 
-    // The custom function sorts datafiles by having c3 bucket partitions in the range 0-4 and 5-9.
+    // The custom function clusters datafiles by having c3 bucket partitions in the range 0-4 and
+    // 5-9.
     // Internally, that looks like
     // +--------------------+---------------------+
     // |partition           |__clustering_column__|
@@ -741,7 +744,7 @@ public class TestRewriteManifestsAction extends TestBase {
     // After rewriting, this looks like
     // - manifest 1 -> [lower bound = 0, upper bound = 4]
     // - manifest 2 -> [lower bound = 5, upper bound = 9]
-    // Without the custom sorting, each manifest tracks the full range of c3 upper/lower bounds.
+    // Without the custom clustering, each manifest tracks the full range of c3 upper/lower bounds.
     // AKA they look like
     // - manifest 1 -> [lower bound = 0, upper bound = 9]
     // - manifest 2 -> [lower bound = 0, upper bound = 9]
