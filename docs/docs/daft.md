@@ -42,20 +42,20 @@ Daft interacts natively with [PyIceberg](https://py.iceberg.apache.org/) to read
 
 ### Reading Iceberg tables
 
-> **Setup Steps**
-> 
-> To follow along with this code, first create an Iceberg table following [the Spark Quickstart tutorial](https://iceberg.apache.org/spark-quickstart/). PyIceberg must then be correctly configured by ensuring that the `~/.pyiceberg.yaml` file contains an appropriate catalog entry:
-> 
-> ```
-> catalog:
->   default:
->     # URL to the Iceberg REST server Docker container
->     uri: http://localhost:8181
->     # URL and credentials for the MinIO Docker container
->     s3.endpoint: http://localhost:9000
->     s3.access-key-id: admin
->     s3.secret-access-key: password
-> ```
+**Setup Steps**
+
+To follow along with this code, first create an Iceberg table following [the Spark Quickstart tutorial](https://iceberg.apache.org/spark-quickstart/). PyIceberg must then be correctly configured by ensuring that the `~/.pyiceberg.yaml` file contains an appropriate catalog entry:
+
+```
+catalog:
+  default:
+    # URL to the Iceberg REST server Docker container
+    uri: http://localhost:8181
+    # URL and credentials for the MinIO Docker container
+    s3.endpoint: http://localhost:9000
+    s3.access-key-id: admin
+    s3.secret-access-key: password
+```
 
 Here is how the Iceberg table `demo.nyc.taxis` can be loaded into Daft:
 
@@ -77,7 +77,6 @@ df.show()
 ```
 
 ```
-WARNING:root:IcebergScanOperator(default.nyc.taxis) has Partitioning Keys: [PartitionField(vendor_id#Int64, src=vendor_id#Int64, tfm=Identity)] but no partition filter was specified. This will result in a full table scan.
 ╭───────────┬─────────┬───────────────┬─────────────┬────────────────────╮
 │ vendor_id ┆ trip_id ┆ trip_distance ┆ fare_amount ┆ store_and_fwd_flag │
 │ ---       ┆ ---     ┆ ---           ┆ ---         ┆ ---                │
@@ -95,7 +94,7 @@ WARNING:root:IcebergScanOperator(default.nyc.taxis) has Partitioning Keys: [Part
 (Showing first 4 of 4 rows)
 ```
 
-Notice that the operation above produced a warning from PyIceberg that "no partition filter was specified". Any filter operations on the Daft dataframe, `df`, will [push down the filters](https://iceberg.apache.org/docs/latest/performance/#data-filtering), correctly account for [hidden partitioning](https://iceberg.apache.org/docs/latest/partitioning/), and utilize [table statistics to inform query planning](https://iceberg.apache.org/docs/latest/performance/#scan-planning) for efficient reads.
+Note that the operation above will produce a warning from PyIceberg that "no partition filter was specified" and that "this will result in a full table scan". Any filter operations on the Daft dataframe, `df`, will [push down the filters](https://iceberg.apache.org/docs/latest/performance/#data-filtering), correctly account for [hidden partitioning](https://iceberg.apache.org/docs/latest/partitioning/), and utilize [table statistics to inform query planning](https://iceberg.apache.org/docs/latest/performance/#scan-planning) for efficient reads.
 
 Let's try the above query again, but this time with a filter applied on the table's partition column `"vendor_id"` which Daft will correctly use to elide a full table scan.
 
