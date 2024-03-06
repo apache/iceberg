@@ -138,25 +138,25 @@ public class TestNamespace extends BaseTestIceberg {
   public void testEmptyNamespace() {
     Assertions.assertThatThrownBy(
             () -> catalog.createNamespace(Namespace.empty(), Collections.emptyMap()))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Creating empty namespaces is not supported");
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Invalid namespace: ");
     Assertions.assertThat(catalog.namespaceExists(Namespace.empty())).isFalse();
     Assertions.assertThatThrownBy(() -> catalog.loadNamespaceMetadata(Namespace.empty()))
         .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessage("Namespace does not exist: ");
+        .hasMessage("Invalid namespace: ");
     Assertions.assertThatThrownBy(
             () ->
                 catalog.setProperties(
                     Namespace.empty(), ImmutableMap.of("prop2", "val2", "prop", "val")))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Empty namespaces not supported");
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Invalid namespace: ");
     Assertions.assertThatThrownBy(
             () -> catalog.removeProperties(Namespace.empty(), ImmutableSet.of("prop2")))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Empty namespaces not supported");
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Invalid namespace: ");
     Assertions.assertThatThrownBy(() -> catalog.dropNamespace(Namespace.empty()))
         .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessage("Namespace does not exist: ");
+        .hasMessage("Invalid namespace: ");
   }
 
   @Test

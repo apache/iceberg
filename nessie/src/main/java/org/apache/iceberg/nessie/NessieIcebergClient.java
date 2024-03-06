@@ -216,10 +216,8 @@ public class NessieIcebergClient implements AutoCloseable {
   }
 
   public void createNamespace(Namespace namespace, Map<String, String> metadata) {
+    checkNamespaceIsValid(namespace);
     getRef().checkMutable();
-    if (namespace.isEmpty()) {
-      throw new IllegalArgumentException("Creating empty namespaces is not supported");
-    }
     ContentKey key = ContentKey.of(namespace.levels());
     org.projectnessie.model.Namespace content =
         org.projectnessie.model.Namespace.of(key.getElements(), metadata);
@@ -308,10 +306,7 @@ public class NessieIcebergClient implements AutoCloseable {
   }
 
   public boolean dropNamespace(Namespace namespace) throws NamespaceNotEmptyException {
-    if (namespace.isEmpty()) {
-      // As creating empty namespaces is not supported
-      throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
-    }
+    checkNamespaceIsValid(namespace);
     getRef().checkMutable();
     ContentKey key = ContentKey.of(namespace.levels());
     try {
@@ -357,12 +352,16 @@ public class NessieIcebergClient implements AutoCloseable {
     return false;
   }
 
+  private static void checkNamespaceIsValid(Namespace namespace) {
+    if (namespace.isEmpty()) {
+      // As creating empty namespace is not supported
+      throw new NoSuchNamespaceException("Invalid namespace: %s", namespace);
+    }
+  }
+
   public Map<String, String> loadNamespaceMetadata(Namespace namespace)
       throws NoSuchNamespaceException {
-    if (namespace.isEmpty()) {
-      // As creating empty namespaces is not supported
-      throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
-    }
+    checkNamespaceIsValid(namespace);
 
     ContentKey key = ContentKey.of(namespace.levels());
     try {
@@ -389,10 +388,7 @@ public class NessieIcebergClient implements AutoCloseable {
   }
 
   private boolean updateProperties(Namespace namespace, Consumer<Map<String, String>> action) {
-    if (namespace.isEmpty()) {
-      // As creating empty namespaces is not supported
-      throw new IllegalArgumentException("Empty namespaces not supported");
-    }
+    checkNamespaceIsValid(namespace);
     getRef().checkMutable();
     ContentKey key = ContentKey.of(namespace.levels());
     try {
