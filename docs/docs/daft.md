@@ -57,7 +57,7 @@ Daft interacts natively with [PyIceberg](https://py.iceberg.apache.org/) to read
 >     s3.secret-access-key: password
 > ```
 
-Here is how we can load the Iceberg table `demo.nyc.taxis` into Daft:
+Here is how the Iceberg table `demo.nyc.taxis` can be loaded into Daft:
 
 ``` py
 import daft
