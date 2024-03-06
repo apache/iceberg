@@ -44,7 +44,7 @@ Daft interacts natively with [PyIceberg](https://py.iceberg.apache.org/) to read
 
 > **Setup Steps**
 > 
-> To follow along with this code, first create an Iceberg table following [the spark-quickstart tutorial](https://iceberg.apache.org/spark-quickstart/). PyIceberg must then be correctly configured by ensuring that our `~/.pyiceberg.yaml` file contains an appropriate catalog entry:
+> To follow along with this code, first create an Iceberg table following [the Spark Quickstart tutorial](https://iceberg.apache.org/spark-quickstart/). PyIceberg must then be correctly configured by ensuring that the `~/.pyiceberg.yaml` file contains an appropriate catalog entry:
 > 
 > ```
 > catalog:
