@@ -1,8 +1,5 @@
 ---
 title: "AES GCM Stream Spec"
-url: gcm-stream-spec
-toc: true
-disableSidebar: true
 ---
 <!--
  - Licensed to the Apache Software Foundation (ASF) under one or more
