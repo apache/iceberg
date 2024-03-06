@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -358,9 +359,9 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanNoFilter);
     if (formatVersion == 2) {
-      assertThat(entries.iterator()).toIterable().hasSize(8);
+      assertThat(entries).hasSize(8);
     } else {
-      assertThat(entries.iterator()).toIterable().hasSize(4);
+      assertThat(entries).hasSize(4);
     }
 
     validateSingleFieldPartition(entries, 0);
@@ -383,9 +384,9 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanWithProjection);
     if (formatVersion == 2) {
-      assertThat(entries.iterator()).toIterable().hasSize(8);
+      assertThat(entries).hasSize(8);
     } else {
-      assertThat(entries.iterator()).toIterable().hasSize(4);
+      assertThat(entries).hasSize(4);
     }
 
     validateSingleFieldPartition(entries, 0);
@@ -425,9 +426,9 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanAndEq);
     if (formatVersion == 2) {
-      assertThat(entries.iterator()).toIterable().hasSize(2);
+      assertThat(entries).hasSize(2);
     } else {
-      assertThat(entries.iterator()).toIterable().hasSize(1);
+      assertThat(entries).hasSize(1);
     }
 
     validateSingleFieldPartition(entries, 0);
@@ -447,9 +448,9 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanLtAnd);
     if (formatVersion == 2) {
-      assertThat(entries.iterator()).toIterable().hasSize(4);
+      assertThat(entries).hasSize(4);
     } else {
-      assertThat(entries.iterator()).toIterable().hasSize(2);
+      assertThat(entries).hasSize(2);
     }
 
     validateSingleFieldPartition(entries, 0);
@@ -471,9 +472,9 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanOr);
     if (formatVersion == 2) {
-      assertThat(entries.iterator()).toIterable().hasSize(8);
+      assertThat(entries).hasSize(8);
     } else {
-      assertThat(entries.iterator()).toIterable().hasSize(4);
+      assertThat(entries).hasSize(4);
     }
 
     validateSingleFieldPartition(entries, 0);
@@ -492,9 +493,9 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanNot);
     if (formatVersion == 2) {
-      assertThat(entries.iterator()).toIterable().hasSize(4);
+      assertThat(entries).hasSize(4);
     } else {
-      assertThat(entries.iterator()).toIterable().hasSize(2);
+      assertThat(entries).hasSize(2);
     }
 
     validateSingleFieldPartition(entries, 2);
@@ -512,7 +513,6 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanSet);
     if (formatVersion == 2) {
-      assertThat(entries.iterator()).toIterable().hasSize(4);
       assertThat(entries).hasSize(4);
     } else {
       assertThat(entries).hasSize(2);
@@ -533,9 +533,9 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanUnary);
     if (formatVersion == 2) {
-      assertThat(entries.iterator()).toIterable().hasSize(8);
+      assertThat(entries).hasSize(8);
     } else {
-      assertThat(entries.iterator()).toIterable().hasSize(4);
+      assertThat(entries).hasSize(4);
     }
 
     validateSingleFieldPartition(entries, 0);
@@ -1280,15 +1280,15 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     assertThat(posDeleteTask.file().specId())
         .as("Expected correct partition spec id on task")
         .isEqualTo(0);
-    assertThat(constantsMap(posDeleteTask, partitionType).get(MetadataColumns.SPEC_ID.fieldId()))
+    assertThat((Map<Integer, Integer>) constantsMap(posDeleteTask, partitionType))
         .as("Expected correct partition spec id on constant column")
-        .isEqualTo(0);
+        .containsEntry(MetadataColumns.SPEC_ID.fieldId(), 0);
     assertThat(posDeleteTask.file().path())
         .as("Expected correct delete file on task")
         .isEqualTo(FILE_B_DELETES.path());
-    assertThat(constantsMap(posDeleteTask, partitionType).get(MetadataColumns.FILE_PATH.fieldId()))
+    assertThat((Map<Integer, String>) constantsMap(posDeleteTask, partitionType))
         .as("Expected correct delete file on constant column")
-        .isEqualTo(FILE_B_DELETES.path());
+        .containsEntry(MetadataColumns.FILE_PATH.fieldId(), FILE_B_DELETES.path().toString());
   }
 
   @TestTemplate
@@ -1350,16 +1350,15 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     assertThat(posDeleteTask.file().specId())
         .as("Expected correct partition spec id on task")
         .isEqualTo(0);
-    assertThat(constantsMap(posDeleteTask, partitionType).get(MetadataColumns.SPEC_ID.fieldId()))
+    assertThat((Map<Integer, Integer>) constantsMap(posDeleteTask, partitionType))
         .as("Expected correct partition spec id on constant column")
-        .isEqualTo(0);
-
+        .containsEntry(MetadataColumns.SPEC_ID.fieldId(), 0);
     assertThat(posDeleteTask.file().path())
         .as("Expected correct delete file on task")
         .isEqualTo(FILE_A_DELETES.path());
-    assertThat(constantsMap(posDeleteTask, partitionType).get(MetadataColumns.FILE_PATH.fieldId()))
+    assertThat((Map<Integer, String>) constantsMap(posDeleteTask, partitionType))
         .as("Expected correct delete file on constant column")
-        .isEqualTo(FILE_A_DELETES.path());
+        .containsEntry(MetadataColumns.FILE_PATH.fieldId(), FILE_A_DELETES.path().toString());
   }
 
   @TestTemplate
@@ -1434,16 +1433,16 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     assertThat(posDeleteTask.file().specId())
         .as("Expected correct partition spec id on task")
         .isEqualTo(1);
-    assertThat(constantsMap(posDeleteTask, partitionType).get(MetadataColumns.SPEC_ID.fieldId()))
+    assertThat((Map<Integer, Integer>) constantsMap(posDeleteTask, partitionType))
         .as("Expected correct partition spec id on constant column")
-        .isEqualTo(1);
+        .containsEntry(MetadataColumns.SPEC_ID.fieldId(), 1);
 
     assertThat(posDeleteTask.file().path())
         .as("Expected correct delete file on task")
         .isEqualTo(path1);
-    assertThat(constantsMap(posDeleteTask, partitionType).get(MetadataColumns.FILE_PATH.fieldId()))
+    assertThat((Map<Integer, String>) constantsMap(posDeleteTask, partitionType))
         .as("Expected correct delete file on constant column")
-        .isEqualTo(path1);
+        .containsEntry(MetadataColumns.FILE_PATH.fieldId(), path1);
   }
 
   @TestTemplate
@@ -1538,17 +1537,14 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     Types.StructType partitionType = Partitioning.partitionType(table);
 
-    assertThat(
-            constantsMap(scanTasks.get(0), partitionType).get(MetadataColumns.FILE_PATH.fieldId()))
-        .isEqualTo("/path/to/delete1.parquet");
-    assertThat(
-            constantsMap(scanTasks.get(1), partitionType).get(MetadataColumns.FILE_PATH.fieldId()))
-        .isEqualTo("/path/to/delete2.parquet");
-
-    assertThat(constantsMap(scanTasks.get(0), partitionType).get(MetadataColumns.SPEC_ID.fieldId()))
-        .isEqualTo(1);
-    assertThat(constantsMap(scanTasks.get(1), partitionType).get(MetadataColumns.SPEC_ID.fieldId()))
-        .isEqualTo(1);
+    assertThat((Map<Integer, String>) constantsMap(scanTasks.get(0), partitionType))
+        .containsEntry(MetadataColumns.FILE_PATH.fieldId(), "/path/to/delete1.parquet");
+    assertThat((Map<Integer, String>) constantsMap(scanTasks.get(1), partitionType))
+        .containsEntry(MetadataColumns.FILE_PATH.fieldId(), "/path/to/delete2.parquet");
+    assertThat((Map<Integer, Integer>) constantsMap(scanTasks.get(0), partitionType))
+        .containsEntry(MetadataColumns.SPEC_ID.fieldId(), 1);
+    assertThat((Map<Integer, Integer>) constantsMap(scanTasks.get(1), partitionType))
+        .containsEntry(MetadataColumns.SPEC_ID.fieldId(), 1);
 
     StructLikeWrapper wrapper = StructLikeWrapper.forType(Partitioning.partitionType(table));
 

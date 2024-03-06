@@ -88,7 +88,7 @@ public abstract class MetadataTableScanTestBase extends TestBase {
       CloseableIterable<ManifestEntry<? extends ContentFile<?>>> entries,
       int position,
       int partitionValue) {
-    assertThat(StreamSupport.stream(entries.spliterator(), false))
+    assertThat(entries)
         .as("File scan tasks do not include correct file")
         .anyMatch(
             entry -> {
@@ -96,6 +96,7 @@ public abstract class MetadataTableScanTestBase extends TestBase {
               if (position >= partition.size()) {
                 return false;
               }
+
               return Objects.equals(partitionValue, partition.get(position, Object.class));
             });
   }

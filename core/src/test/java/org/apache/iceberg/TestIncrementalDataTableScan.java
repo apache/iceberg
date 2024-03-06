@@ -42,7 +42,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestIncrementalDataTableScan extends TestBase {
   @Parameters(name = "formatVersion = {0}")
-  public static List<Object> parameters() {
+  protected static List<Object> parameters() {
     return Arrays.asList(1, 2);
   }
 
@@ -204,12 +204,7 @@ public class TestIncrementalDataTableScan extends TestBase {
     add(table.newAppend(), files("B"));
     add(table.newAppend(), files("C"));
 
-    IncrementalAppendScan scan1 =
-        table
-            .newIncrementalAppendScan()
-            .filter(Expressions.equal("id", 5))
-            .fromSnapshotExclusive(1)
-            .toSnapshot(3);
+    TableScan scan1 = table.newScan().filter(Expressions.equal("id", 5)).appendsBetween(1, 3);
 
     try (CloseableIterable<CombinedScanTask> tasks = scan1.planTasks()) {
       assertThat(tasks).as("Tasks should not be empty").hasSizeGreaterThan(0);
@@ -222,13 +217,8 @@ public class TestIncrementalDataTableScan extends TestBase {
       }
     }
 
-    IncrementalAppendScan scan2 =
-        table
-            .newIncrementalAppendScan()
-            .filter(Expressions.equal("id", 5))
-            .fromSnapshotExclusive(1)
-            .toSnapshot(3)
-            .ignoreResiduals();
+    TableScan scan2 =
+        table.newScan().filter(Expressions.equal("id", 5)).appendsBetween(1, 3).ignoreResiduals();
 
     try (CloseableIterable<CombinedScanTask> tasks = scan2.planTasks()) {
       assertThat(tasks).as("Tasks should not be empty").hasSizeGreaterThan(0);
@@ -249,10 +239,10 @@ public class TestIncrementalDataTableScan extends TestBase {
     add(table.newAppend(), files("C"));
 
     AtomicInteger planThreadsIndex = new AtomicInteger(0);
-    IncrementalAppendScan scan =
+    TableScan scan =
         table
-            .newIncrementalAppendScan()
-            .fromSnapshotExclusive(1)
+            .newScan()
+            .appendsAfter(1)
             .planWith(
                 Executors.newFixedThreadPool(
                     1,

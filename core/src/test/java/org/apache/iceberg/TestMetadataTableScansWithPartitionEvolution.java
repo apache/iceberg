@@ -21,15 +21,15 @@ package org.apache.iceberg;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.entry;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.List;
-import java.util.Objects;
+import java.util.Map;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
@@ -208,15 +208,15 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
     assertThat(posDeleteTask.file().specId())
         .as("Expected correct partition spec id on task")
         .isEqualTo(table.ops().current().spec().specId());
-    assertThat(constantsMap(posDeleteTask, partitionType).get(MetadataColumns.SPEC_ID.fieldId()))
+    assertThat((Map<Integer, Integer>) constantsMap(posDeleteTask, partitionType))
         .as("Expected correct partition spec id on constant column")
-        .isEqualTo(table.ops().current().spec().specId());
+        .containsEntry(MetadataColumns.SPEC_ID.fieldId(), table.ops().current().spec().specId());
     assertThat(posDeleteTask.file().path())
         .as("Expected correct delete file on task")
         .isEqualTo(deleteFile.path());
-    assertThat(constantsMap(posDeleteTask, partitionType).get(MetadataColumns.FILE_PATH.fieldId()))
+    assertThat((Map<Integer, String>) constantsMap(posDeleteTask, partitionType))
         .as("Expected correct delete file on constant column")
-        .isEqualTo(deleteFile.path());
+        .containsEntry(MetadataColumns.FILE_PATH.fieldId(), deleteFile.path().toString());
   }
 
   @TestTemplate
@@ -242,11 +242,11 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
       assertThat(entries).hasSize(5);
 
       // check for null partition value.
-      assertThat(StreamSupport.stream(entries.spliterator(), false))
-          .anyMatch(
+      assertThat(entries)
+          .anySatisfy(
               entry -> {
                 StructLike partition = entry.file().partition();
-                return Objects.equals(null, partition.get(0, Object.class));
+                assertThat(partition.get(0, Object.class)).isNull();
               });
     }
   }

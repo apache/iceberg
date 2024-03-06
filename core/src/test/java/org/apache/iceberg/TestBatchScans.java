@@ -33,7 +33,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 public class TestBatchScans extends TestBase {
 
   @Parameters(name = "formatVersion = {0}")
-  public static List<Object> parameters() {
+  protected static List<Object> parameters() {
     return Arrays.asList(1, 2);
   }
 
@@ -52,8 +52,8 @@ public class TestBatchScans extends TestBase {
 
     FileScanTask t1 = tasks.get(0).asFileScanTask();
     assertThat(FILE_A.path()).as("Task file must match").isEqualTo(t1.file().path());
-    V1Assert.assertHasSize("Task deletes size must match", 0, t1.deletes());
-    V2Assert.assertHasSize("Task deletes size must match", 1, t1.deletes());
+    V1Assert.assertEquals("Task deletes size must match", 0, t1.deletes().size());
+    V2Assert.assertEquals("Task deletes size must match", 1, t1.deletes().size());
 
     FileScanTask t2 = tasks.get(1).asFileScanTask();
     assertThat(FILE_B.path()).as("Task file must match").isEqualTo(t2.file().path());

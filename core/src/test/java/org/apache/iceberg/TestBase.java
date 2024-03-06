@@ -745,12 +745,6 @@ public class TestBase {
         assertThat(actual).as(context).isEqualTo(expected);
       }
     }
-
-    void assertHasSize(String context, int expected, List<?> actualList) {
-      if (enabled) {
-        assertThat(actualList).as(context).hasSize(expected);
-      }
-    }
   }
 
   @FunctionalInterface

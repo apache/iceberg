@@ -35,7 +35,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestFindFiles extends TestBase {
   @Parameters(name = "formatVersion = {0}")
-  public static List<Object> parameters() {
+  protected static List<Object> parameters() {
     return Arrays.asList(1, 2);
   }
 

@@ -33,7 +33,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 public class TestEntriesMetadataTable extends TestBase {
 
   @Parameters(name = "formatVersion = {0}")
-  public static List<Object> parameters() {
+  protected static List<Object> parameters() {
     return Arrays.asList(1, 2);
   }
 
@@ -70,8 +70,8 @@ public class TestEntriesMetadataTable extends TestBase {
     FileScanTask file = Iterables.getOnlyElement(scan.planFiles());
     assertThat(file.file().path())
         .as("Data file should be the table's manifest")
-        .isEqualTo(
-            Iterables.getOnlyElement(table.currentSnapshot().allManifests(table.io())).path());
+        .isEqualTo(table.currentSnapshot().allManifests(table.io()).get(0).path());
+
     assertThat(file.file().recordCount()).as("Should contain 2 data file records").isEqualTo(2);
   }
 
@@ -147,15 +147,13 @@ public class TestEntriesMetadataTable extends TestBase {
     List<FileScanTask> files = ImmutableList.copyOf(scan.planFiles());
     assertThat(files.get(0).file().path())
         .as("Data file should be the table's manifest")
-        .isEqualTo(
-            Iterables.getOnlyElement(table.currentSnapshot().dataManifests(table.io())).path());
+        .isEqualTo(table.currentSnapshot().dataManifests(table.io()).get(0).path());
     assertThat(files.get(0).file().recordCount())
         .as("Should contain 2 data file records")
         .isEqualTo(2);
     assertThat(files.get(1).file().path())
         .as("Delete file should be in the table manifest")
-        .isEqualTo(
-            Iterables.getOnlyElement(table.currentSnapshot().deleteManifests(table.io())).path());
+        .isEqualTo(table.currentSnapshot().deleteManifests(table.io()).get(0).path());
     assertThat(files.get(1).file().recordCount())
         .as("Should contain 1 delete file record")
         .isEqualTo(1);
