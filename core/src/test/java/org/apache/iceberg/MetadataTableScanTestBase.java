@@ -18,7 +18,11 @@
  */
 package org.apache.iceberg;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -26,24 +30,17 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PartitionUtil;
-import org.junit.Assert;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public abstract class MetadataTableScanTestBase extends TableTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public abstract class MetadataTableScanTestBase extends TestBase {
 
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
-  }
-
-  public MetadataTableScanTestBase(int formatVersion) {
-    super(formatVersion);
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1, 2);
   }
 
   protected Set<String> actualManifestListPaths(TableScan allManifestsTableScan) {
@@ -65,15 +62,17 @@ public abstract class MetadataTableScanTestBase extends TableTestBase {
   protected void validateTaskScanResiduals(TableScan scan, boolean ignoreResiduals)
       throws IOException {
     try (CloseableIterable<CombinedScanTask> tasks = scan.planTasks()) {
-      Assert.assertTrue("Tasks should not be empty", Iterables.size(tasks) > 0);
+      assertThat(tasks).as("Tasks should not be empty").hasSizeGreaterThan(0);
       for (CombinedScanTask combinedScanTask : tasks) {
         for (FileScanTask fileScanTask : combinedScanTask.files()) {
           if (ignoreResiduals) {
-            Assert.assertEquals(
-                "Residuals must be ignored", Expressions.alwaysTrue(), fileScanTask.residual());
+            assertThat(fileScanTask.residual())
+                .as("Residuals must be ignored")
+                .isEqualTo(Expressions.alwaysTrue());
           } else {
-            Assert.assertNotEquals(
-                "Residuals must be preserved", Expressions.alwaysTrue(), fileScanTask.residual());
+            assertThat(fileScanTask.residual())
+                .as("Residuals must be preserved")
+                .isNotEqualTo(Expressions.alwaysTrue());
           }
         }
       }
@@ -89,18 +88,17 @@ public abstract class MetadataTableScanTestBase extends TableTestBase {
       CloseableIterable<ManifestEntry<? extends ContentFile<?>>> entries,
       int position,
       int partitionValue) {
-    Assert.assertTrue(
-        "File scan tasks do not include correct file",
-        StreamSupport.stream(entries.spliterator(), false)
-            .anyMatch(
-                entry -> {
-                  StructLike partition = entry.file().partition();
-                  if (position >= partition.size()) {
-                    return false;
-                  }
+    assertThat(entries)
+        .as("File scan tasks do not include correct file")
+        .anyMatch(
+            entry -> {
+              StructLike partition = entry.file().partition();
+              if (position >= partition.size()) {
+                return false;
+              }
 
-                  return Objects.equals(partitionValue, partition.get(position, Object.class));
-                }));
+              return Objects.equals(partitionValue, partition.get(position, Object.class));
+            });
   }
 
   protected Map<Integer, ?> constantsMap(

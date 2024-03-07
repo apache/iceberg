@@ -21,35 +21,32 @@ package org.apache.iceberg;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.entry;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.List;
-import java.util.Objects;
+import java.util.Map;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableScanTestBase {
-  public TestMetadataTableScansWithPartitionEvolution(int formatVersion) {
-    super(formatVersion);
-  }
 
-  @Before
+  @BeforeEach
   public void createTable() throws IOException {
     TestTables.clearTables();
-    this.tableDir = temp.newFolder();
+    this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
     tableDir.delete();
 
     Schema schema =
@@ -73,73 +70,73 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
         .commit();
   }
 
-  @Test
+  @TestTemplate
   public void testManifestsTableWithAddPartitionOnNestedField() throws IOException {
     Table manifestsTable = new ManifestsTable(table);
     TableScan scan = manifestsTable.newScan();
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
-      Assertions.assertThat(tasks).hasSize(1);
-      Assertions.assertThat(allRows(tasks)).hasSize(2);
+      assertThat(tasks).hasSize(1);
+      assertThat(allRows(tasks)).hasSize(2);
     }
   }
 
-  @Test
+  @TestTemplate
   public void testDataFilesTableWithAddPartitionOnNestedField() throws IOException {
     Table dataFilesTable = new DataFilesTable(table);
     TableScan scan = dataFilesTable.newScan();
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
-      Assertions.assertThat(tasks).hasSize(2);
-      Assertions.assertThat(allRows(tasks)).hasSize(4);
+      assertThat(tasks).hasSize(2);
+      assertThat(allRows(tasks)).hasSize(4);
     }
   }
 
-  @Test
+  @TestTemplate
   public void testManifestEntriesWithAddPartitionOnNestedField() throws IOException {
     Table manifestEntriesTable = new ManifestEntriesTable(table);
     TableScan scan = manifestEntriesTable.newScan();
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
-      Assertions.assertThat(tasks).hasSize(2);
-      Assertions.assertThat(allRows(tasks)).hasSize(4);
+      assertThat(tasks).hasSize(2);
+      assertThat(allRows(tasks)).hasSize(4);
     }
   }
 
-  @Test
+  @TestTemplate
   public void testAllDataFilesTableWithAddPartitionOnNestedField() throws IOException {
     Table allDataFilesTable = new AllDataFilesTable(table);
     TableScan scan = allDataFilesTable.newScan();
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
-      Assertions.assertThat(tasks).hasSize(2);
-      Assertions.assertThat(allRows(tasks)).hasSize(4);
+      assertThat(tasks).hasSize(2);
+      assertThat(allRows(tasks)).hasSize(4);
     }
   }
 
-  @Test
+  @TestTemplate
   public void testAllEntriesTableWithAddPartitionOnNestedField() throws IOException {
     Table allEntriesTable = new AllEntriesTable(table);
     TableScan scan = allEntriesTable.newScan();
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
-      Assertions.assertThat(tasks).hasSize(2);
-      Assertions.assertThat(allRows(tasks)).hasSize(4);
+      assertThat(tasks).hasSize(2);
+      assertThat(allRows(tasks)).hasSize(4);
     }
   }
 
-  @Test
+  @TestTemplate
   public void testAllManifestsTableWithAddPartitionOnNestedField() throws IOException {
     Table allManifestsTable = new AllManifestsTable(table);
     TableScan scan = allManifestsTable.newScan();
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
-      Assertions.assertThat(tasks).hasSize(2);
-      Assertions.assertThat(allRows(tasks)).hasSize(3);
+      assertThat(tasks).hasSize(2);
+      assertThat(allRows(tasks)).hasSize(3);
     }
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionsTableScanWithAddPartitionOnNestedField() {
     Table partitionsTable = new PartitionsTable(table);
     Types.StructType idPartition =
@@ -153,10 +150,10 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
             .asStruct();
 
     TableScan scanNoFilter = partitionsTable.newScan().select("partition");
-    Assert.assertEquals(idPartition, scanNoFilter.schema().asStruct());
+    assertThat(scanNoFilter.schema().asStruct()).isEqualTo(idPartition);
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanNoFilter);
-    Assert.assertEquals(4, Iterators.size(entries.iterator()));
+    assertThat(entries).hasSize(4);
     validatePartition(entries, 0, 0);
     validatePartition(entries, 0, 1);
     validatePartition(entries, 0, 2);
@@ -165,9 +162,9 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
     validatePartition(entries, 1, 3);
   }
 
-  @Test
+  @TestTemplate
   public void testPositionDeletesPartitionSpecRemoval() {
-    Assume.assumeTrue("Position deletes supported only for v2 tables", formatVersion == 2);
+    assumeThat(formatVersion).as("Position deletes supported only for v2 tables").isEqualTo(2);
 
     table.updateSpec().removeField("id").commit();
 
@@ -193,38 +190,36 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
     PositionDeletesScanTask posDeleteTask = (PositionDeletesScanTask) task;
 
     int filePartition = posDeleteTask.file().partition().get(0, Integer.class);
-    Assert.assertEquals("Expected correct partition on task", 1, filePartition);
+    assertThat(filePartition).as("Expected correct partition on task").isEqualTo(1);
 
     // Constant partition struct is common struct that includes even deleted partition column
     int taskConstantPartition =
         ((StructLike)
                 constantsMap(posDeleteTask, partitionType).get(MetadataColumns.PARTITION_COLUMN_ID))
             .get(1, Integer.class);
-    Assert.assertEquals("Expected correct partition on constant column", 1, taskConstantPartition);
+    assertThat(taskConstantPartition)
+        .as("Expected correct partition on constant column")
+        .isEqualTo(1);
 
-    Assert.assertEquals(
-        "Expected correct partition field id on task's spec",
-        table.ops().current().spec().partitionType().fields().get(0).fieldId(),
-        posDeleteTask.spec().fields().get(0).fieldId());
+    assertThat(posDeleteTask.spec().fields().get(0).fieldId())
+        .as("Expected correct partition field id on task's spec")
+        .isEqualTo(table.ops().current().spec().partitionType().fields().get(0).fieldId());
 
-    Assert.assertEquals(
-        "Expected correct partition spec id on task",
-        table.ops().current().spec().specId(),
-        posDeleteTask.file().specId());
-    Assert.assertEquals(
-        "Expected correct partition spec id on constant column",
-        table.ops().current().spec().specId(),
-        constantsMap(posDeleteTask, partitionType).get(MetadataColumns.SPEC_ID.fieldId()));
-
-    Assert.assertEquals(
-        "Expected correct delete file on task", deleteFile.path(), posDeleteTask.file().path());
-    Assert.assertEquals(
-        "Expected correct delete file on constant column",
-        deleteFile.path(),
-        constantsMap(posDeleteTask, partitionType).get(MetadataColumns.FILE_PATH.fieldId()));
+    assertThat(posDeleteTask.file().specId())
+        .as("Expected correct partition spec id on task")
+        .isEqualTo(table.ops().current().spec().specId());
+    assertThat((Map<Integer, Integer>) constantsMap(posDeleteTask, partitionType))
+        .as("Expected correct partition spec id on constant column")
+        .containsEntry(MetadataColumns.SPEC_ID.fieldId(), table.ops().current().spec().specId());
+    assertThat(posDeleteTask.file().path())
+        .as("Expected correct delete file on task")
+        .isEqualTo(deleteFile.path());
+    assertThat((Map<Integer, String>) constantsMap(posDeleteTask, partitionType))
+        .as("Expected correct delete file on constant column")
+        .containsEntry(MetadataColumns.FILE_PATH.fieldId(), deleteFile.path().toString());
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionSpecEvolutionToUnpartitioned() throws IOException {
     // Remove all the partition fields
     table.updateSpec().removeField("id").removeField("nested.id").commit();
@@ -239,19 +234,19 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
 
     PartitionsTable partitionsTable = new PartitionsTable(table);
     // must contain the partition column even when the current spec is non-partitioned.
-    Assertions.assertThat(partitionsTable.schema().findField("partition")).isNotNull();
+    assertThat(partitionsTable.schema().findField("partition")).isNotNull();
 
     try (CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) partitionsTable.newScan())) {
       // four partitioned data files and one non-partitioned data file.
-      Assertions.assertThat(entries).hasSize(5);
+      assertThat(entries).hasSize(5);
 
       // check for null partition value.
-      Assertions.assertThat(StreamSupport.stream(entries.spliterator(), false))
-          .anyMatch(
+      assertThat(entries)
+          .anySatisfy(
               entry -> {
                 StructLike partition = entry.file().partition();
-                return Objects.equals(null, partition.get(0, Object.class));
+                assertThat(partition.get(0, Object.class)).isNull();
               });
     }
   }
