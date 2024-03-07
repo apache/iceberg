@@ -207,7 +207,7 @@ public class TestFindFiles extends TestBase {
     Iterable<DataFile> files = FindFiles.in(table).collect();
 
     // verify an empty collection of data file is returned
-    assertThat(Sets.newHashSet(files)).hasSize(0);
+    assertThat(files).hasSize(0);
   }
 
   private Set<String> pathSet(DataFile... files) {
