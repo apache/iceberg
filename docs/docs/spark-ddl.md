@@ -566,3 +566,119 @@ Tags can be removed via the `DROP TAG` sql
 ```sql
 ALTER TABLE prod.db.sample DROP TAG `historical-tag`
 ```
+
+### Iceberg views in Spark
+
+Iceberg views are a [common representation](../../view-spec.md) of a SQL view that aim to be interpreted across multiple query engines.
+This section covers how to create and manage views in Spark using Spark 3.4 and above (earlier versions of Spark are not supported).
+
+!!! note
+
+    All the SQL examples in this section follow the official Spark SQL syntax:
+
+     * [CREATE VIEW](https://spark.apache.org/docs/latest/sql-ref-syntax-ddl-create-view.html#create-view)
+     * [ALTER VIEW](https://spark.apache.org/docs/latest/sql-ref-syntax-ddl-alter-view.html)
+     * [DROP VIEW](https://spark.apache.org/docs/latest/sql-ref-syntax-ddl-drop-view.html)
+     * [SHOW VIEWS](https://spark.apache.org/docs/latest/sql-ref-syntax-aux-show-views.html)
+     * [SHOW TBLPROPERTIES](https://spark.apache.org/docs/latest/sql-ref-syntax-aux-show-tblproperties.html)
+     * [SHOW CREATE TABLE](https://spark.apache.org/docs/latest/sql-ref-syntax-aux-show-create-table.html)
+
+
+#### Creating a view
+
+Create a simple view without any comments or properties:
+```sql
+CREATE VIEW <viewName> AS SELECT * FROM <tableName>
+```
+
+Using `IF NOT EXISTS` prevents the SQL statement from failing in case the view already exists:
+```sql
+CREATE VIEW IF NOT EXISTS <viewName> AS SELECT * FROM <tableName>
+```
+
+Create a view with a comment, including aliased and commented columns that are different from the source table:
+```sql
+CREATE VIEW <viewName> (ID COMMENT 'Unique ID', ZIP COMMENT 'Zipcode')
+    COMMENT 'View Comment'
+    AS SELECT id, zip FROM <tableName>
+```
+
+#### Creating a view with properties
+
+Create a view with properties using `TBLPROPERTIES`:
+```sql
+CREATE VIEW <viewName>
+    TBLPROPERTIES ('key1' = 'val1', 'key2' = 'val2')
+    AS SELECT * FROM <tableName>
+```
+
+Display view properties:
+```sql
+SHOW TBLPROPERTIES <viewName>
+```
+
+#### Dropping a view
+
+Drop an existing view:
+```sql
+DROP VIEW <viewName>
+```
+
+Using `IF EXISTS` prevents the SQL statement from failing if the view does not exist:
+```sql
+DROP VIEW IF EXISTS <viewName>
+```
+
+#### Replacing a view
+
+Update a view's schema, its properties, or the underlying SQL statement using `CREATE OR REPLACE`:
+```sql
+CREATE OR REPLACE <viewName> (updated_id COMMENT 'updated ID')
+    TBLPROPERTIES ('key1' = 'new_val1')
+    AS SELECT id FROM <tableName>
+```
+
+#### Setting and removing view properties
+
+Set the properties of an existing view using `ALTER VIEW ... SET TBLPROPERTIES`:
+```sql
+ALTER VIEW <viewName> SET TBLPROPERTIES ('key1' = 'val1', 'key2' = 'val2')
+```
+
+Remove the properties from an existing view using `ALTER VIEW ... UNSET TBLPROPERTIES`:
+```sql
+ALTER VIEW <viewName> UNSET TBLPROPERTIES ('key1', 'key2')
+```
+
+#### Showing available views
+
+List all views in the currently set namespace (via `USE <namespace>`):
+```sql
+SHOW VIEWS
+```
+
+List all available views in the defined catalog and/or namespace using one of the below variations:
+```sql
+SHOW VIEWS IN <catalog>
+```
+```sql
+SHOW VIEWS IN <namespace>
+```
+```sql
+SHOW VIEWS IN <catalog>.<namespace>
+```
+
+#### Showing the CREATE statement of a view
+
+Show the CREATE statement of a view:
+```sql
+SHOW CREATE TABLE <viewName>
+```
+
+#### Displaying view details
+
+Display additional view details using `DESCRIBE`:
+
+```sql
+DESCRIBE [EXTENDED] <viewName>
+```
