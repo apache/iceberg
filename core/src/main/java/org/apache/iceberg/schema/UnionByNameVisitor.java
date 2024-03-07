@@ -92,7 +92,6 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
                 addColumn(partnerId, field);
                 if (pos > 0) {
                   Types.NestedField beforeField = fields.get(pos - 1);
-                  // SchemaUpdate::moveAfter is modified to include searches through added fields
                   moveAfter(field.name(), beforeField.name());
                 } else {
                   moveFirst(field.name());
