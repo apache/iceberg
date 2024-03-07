@@ -680,7 +680,7 @@ Apache Iceberg 0.13.0 was released on February 4th, 2022.
 
 **Other notable changes:**
 
-* The community has finalized the long-term strategy of Spark, Flink and Hive support. See [Multi-Engine Support](multi-engine-support.md) page for more details.
+* The community has finalized the long-term strategy of Spark, Flink and Hive support. See [Multi-Engine Support](site:multi-engine-support/) page for more details.
 
 ### 0.12.1
 
@@ -769,7 +769,7 @@ Apache Iceberg 0.12.0 was released on August 15, 2021. It consists of 395 commit
 
 **Other notable changes:**
 
-* The Iceberg Community [voted to approve](https://mail-archives.apache.org/mod_mbox/iceberg-dev/202107.mbox/%3cCAMwmD1-k1gnShK=wQ0PD88it6cg9mY7Y1hKHjDZ7L-jcDzpyZA@mail.gmail.com%3e) version 2 of the Apache Iceberg Format Specification. The differences between version 1 and 2 of the specification are documented [here](spec.md#version-2).
+* The Iceberg Community [voted to approve](https://mail-archives.apache.org/mod_mbox/iceberg-dev/202107.mbox/%3cCAMwmD1-k1gnShK=wQ0PD88it6cg9mY7Y1hKHjDZ7L-jcDzpyZA@mail.gmail.com%3e) version 2 of the Apache Iceberg Format Specification. The differences between version 1 and 2 of the specification are documented [here](site:spec/#version-2).
 * Bugfixes and stability improvements for NessieCatalog.
 * Improvements and fixes for Iceberg's Python library.
 * Added a vectorized reader for Apache Arrow [[\#2286](https://github.com/apache/iceberg/pull/2286)].

@@ -384,7 +384,7 @@ A PR needs to be published in the `iceberg-docs` repository with the following c
 
 Each Apache Iceberg release is validated by the community by holding a vote. A community release manager
 will prepare a release candidate and call a vote on the Iceberg
-[dev list](community.md#mailing-lists).
+[dev list](site:community/#mailing-lists).
 To validate the release candidate, community members will test it out in their downstream projects and environments.
 It's recommended to report the Java, Scala, Spark, Flink and Hive versions you have tested against when you vote.
 

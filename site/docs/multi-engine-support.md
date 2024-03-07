@@ -115,4 +115,4 @@ Projects such as [Trino](https://trino.io/docs/current/connector/iceberg.html) a
 In this approach, an Iceberg version upgrade is needed for an engine to consume new Iceberg features.
 To facilitate engine development against unreleased Iceberg features, a daily snapshot is published in the [Apache snapshot repository](https://repository.apache.org/content/repositories/snapshots/org/apache/iceberg/).
 
-If bringing an engine directly to the Iceberg main repository is needed, please raise a discussion thread in the [Iceberg community](community.md).
+If bringing an engine directly to the Iceberg main repository is needed, please raise a discussion thread in the [Iceberg community](site:community/).

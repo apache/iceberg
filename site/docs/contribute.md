@@ -24,7 +24,7 @@ these are hard rules and they're meant as a collection of helpful suggestions to
 experience as possible.
 
 If you are thinking of contributing but first would like to discuss the change you wish to make, we welcome you to
-head over to the [Community](community.md) page on the official Iceberg documentation site
+head over to the [Community](site:community/) page on the official Iceberg documentation site
 to find a number of ways to connect with the community, including slack and our mailing lists. Of course, always feel
 free to just open a [new issue](https://github.com/apache/iceberg/issues/new) in the GitHub repo. You can also check the following for a [good first issue](https://github.com/apache/iceberg/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
 
@@ -443,4 +443,4 @@ Some PRs/changesets might require running benchmarks to determine whether they a
 no "push a single button to get a performance comparison" solution available, therefore one has to run JMH performance tests on their local machine and
 post the results on the PR.
 
-See [Benchmarks](benchmarks.md) for a summary of available benchmarks and how to run them.
+See [Benchmarks](site:benchmarks/) for a summary of available benchmarks and how to run them.

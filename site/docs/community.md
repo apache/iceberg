@@ -26,7 +26,7 @@ Community discussions happen primarily on the dev mailing list, on apache-iceber
 
 ## Contribute
 
-See [Contributing](contribute.md) for more details on how to contribute to Iceberg.
+See [Contributing](site:contribute/) for more details on how to contribute to Iceberg.
 
 ## Issues
 
