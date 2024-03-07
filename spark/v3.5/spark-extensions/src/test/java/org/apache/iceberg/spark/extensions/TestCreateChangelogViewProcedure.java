@@ -103,14 +103,12 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
     table.refresh();
     Snapshot snap1 = table.currentSnapshot();
 
-    sql("INSERT OVERWRITE %s VALUES (-2, 'b')", tableName);
+    sql("UPDATE %s SET id=-2 WHERE data='b'", tableName);
     table.refresh();
     Snapshot snap2 = table.currentSnapshot();
 
     List<Object[]> returns =
-        sql(
-            "CALL %s.system.create_changelog_view(" + "table => '%s')",
-            catalogName, tableName, "cdc_view");
+        sql("CALL %s.system.create_changelog_view(" + "table => '%s')", catalogName, tableName);
 
     String viewName = (String) returns.get(0)[0];
     assertEquals(
@@ -137,11 +135,11 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
     table.refresh();
     Snapshot snap1 = table.currentSnapshot();
 
-    sql("INSERT OVERWRITE %s VALUES (-2, 'b')", tableName);
+    sql("UPDATE %s SET id = -2 WHERE data = 'b'", tableName);
     table.refresh();
     Snapshot snap2 = table.currentSnapshot();
 
-    long afterInsertOverwrite = waitUntilAfter(snap2.timestampMillis());
+    long afterUpdate = waitUntilAfter(snap2.timestampMillis());
     List<Object[]> returns =
         sql(
             "CALL %s.system.create_changelog_view(table => '%s', "
@@ -151,7 +149,7 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
             SparkReadOptions.START_TIMESTAMP,
             beginning,
             SparkReadOptions.END_TIMESTAMP,
-            afterInsertOverwrite);
+            afterUpdate);
 
     assertEquals(
         "Rows should match",
@@ -172,7 +170,7 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
             SparkReadOptions.START_TIMESTAMP,
             afterFirstInsert,
             SparkReadOptions.END_TIMESTAMP,
-            afterInsertOverwrite);
+            afterUpdate);
 
     assertEquals(
         "Rows should match",
@@ -197,6 +195,14 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
     table.refresh();
     Snapshot snap2 = table.currentSnapshot();
 
+    sql("UPDATE %s SET data = 'e' WHERE id = 2", tableName);
+    table.refresh();
+    Snapshot snap3 = table.currentSnapshot();
+
+    sql("DELETE FROM %s where id = 3", tableName);
+    table.refresh();
+    Snapshot snap4 = table.currentSnapshot();
+
     List<Object[]> returns =
         sql(
             "CALL %s.system.create_changelog_view(table => '%s', identifier_columns => array('id'))",
@@ -210,7 +216,10 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
             row(2, "b", INSERT, 0, snap1.snapshotId()),
             row(2, "b", UPDATE_BEFORE, 1, snap2.snapshotId()),
             row(2, "d", UPDATE_AFTER, 1, snap2.snapshotId()),
-            row(3, "c", INSERT, 1, snap2.snapshotId())),
+            row(3, "c", INSERT, 1, snap2.snapshotId()),
+            row(2, "d", UPDATE_BEFORE, 2, snap3.snapshotId()),
+            row(2, "e", UPDATE_AFTER, 2, snap3.snapshotId()),
+            row(3, "c", DELETE, 3, snap4.snapshotId())),
         sql("select * from %s order by _change_ordinal, id, data", viewName));
   }
 
@@ -226,6 +235,14 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
     table.refresh();
     Snapshot snap2 = table.currentSnapshot();
 
+    sql("UPDATE %s SET data = 'e' WHERE id = 2", tableName);
+    table.refresh();
+    Snapshot snap3 = table.currentSnapshot();
+
+    sql("DELETE FROM %s where id = 3", tableName);
+    table.refresh();
+    Snapshot snap4 = table.currentSnapshot();
+
     List<Object[]> returns =
         sql(
             "CALL %s.system.create_changelog_view(table => '%s', compute_updates => true)",
@@ -238,7 +255,10 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
             row(2, "b", INSERT, 0, snap1.snapshotId()),
             row(2, "b", UPDATE_BEFORE, 1, snap2.snapshotId()),
             row(2, "d", UPDATE_AFTER, 1, snap2.snapshotId()),
-            row(3, "c", INSERT, 1, snap2.snapshotId())),
+            row(3, "c", INSERT, 1, snap2.snapshotId()),
+            row(2, "d", UPDATE_BEFORE, 2, snap3.snapshotId()),
+            row(2, "e", UPDATE_AFTER, 2, snap3.snapshotId()),
+            row(3, "c", DELETE, 3, snap4.snapshotId())),
         sql("select * from %s order by _change_ordinal, id, data", viewName));
   }
 
@@ -256,6 +276,14 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
     table.refresh();
     Snapshot snap2 = table.currentSnapshot();
 
+    sql("UPDATE %s SET data = 'e' WHERE id = 2", tableName);
+    table.refresh();
+    Snapshot snap3 = table.currentSnapshot();
+
+    sql("DELETE FROM %s where id = 3", tableName);
+    table.refresh();
+    Snapshot snap4 = table.currentSnapshot();
+
     List<Object[]> returns =
         sql(
             "CALL %s.system.create_changelog_view(table => '%s', identifier_columns => array('id'))",
@@ -268,7 +296,9 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
             row(1, "a", INSERT, 0, snap1.snapshotId()),
             row(2, "b", INSERT, 0, snap1.snapshotId()),
             row(2, "b", UPDATE_BEFORE, 1, snap2.snapshotId()),
-            row(2, "d", UPDATE_AFTER, 1, snap2.snapshotId())),
+            row(2, "d", UPDATE_AFTER, 1, snap2.snapshotId()),
+            row(2, "d", UPDATE_BEFORE, 2, snap3.snapshotId()),
+            row(2, "e", UPDATE_AFTER, 2, snap3.snapshotId())),
         // the predicate on partition columns will filter out the insert of (3, 'c') at the planning
         // phase
         sql("select * from %s where id != 3 order by _change_ordinal, id, data", viewName));
@@ -286,6 +316,14 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
     table.refresh();
     Snapshot snap2 = table.currentSnapshot();
 
+    sql("UPDATE %s SET data = 'f' WHERE id = 2 AND age = 12", tableName);
+    table.refresh();
+    Snapshot snap3 = table.currentSnapshot();
+
+    sql("DELETE FROM %s where id = 3", tableName);
+    table.refresh();
+    Snapshot snap4 = table.currentSnapshot();
+
     List<Object[]> returns =
         sql(
             "CALL %s.system.create_changelog_view("
@@ -302,7 +340,10 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
             row(2, "b", 11, UPDATE_BEFORE, 1, snap2.snapshotId()),
             row(2, "d", 11, UPDATE_AFTER, 1, snap2.snapshotId()),
             row(2, "e", 12, INSERT, 1, snap2.snapshotId()),
-            row(3, "c", 13, INSERT, 1, snap2.snapshotId())),
+            row(3, "c", 13, INSERT, 1, snap2.snapshotId()),
+            row(2, "e", 12, UPDATE_BEFORE, 2, snap3.snapshotId()),
+            row(2, "f", 12, UPDATE_AFTER, 2, snap3.snapshotId()),
+            row(3, "c", 13, DELETE, 3, snap4.snapshotId())),
         sql("select * from %s order by _change_ordinal, id, data", viewName));
   }
 
@@ -394,6 +435,12 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
     table.refresh();
     Snapshot snap3 = table.currentSnapshot();
 
+    // delete rows: (2, 'e', 12)
+    // insert rows: (2, 'f', 12)
+    sql("UPDATE %s SET data = 'f' WHERE id = 2 AND age = 12", tableName);
+    table.refresh();
+    Snapshot snap4 = table.currentSnapshot();
+
     // test with all snapshots
     List<Object[]> returns =
         sql(
@@ -407,10 +454,10 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
         ImmutableList.of(
             row(1, "a", 12, INSERT, 0, snap1.snapshotId()),
             row(3, "c", 15, INSERT, 2, snap3.snapshotId()),
-            row(2, "e", 12, INSERT, 2, snap3.snapshotId())),
+            row(2, "f", 12, INSERT, 3, snap4.snapshotId())),
         sql("select * from %s order by _change_ordinal, data", viewName));
 
-    // test with snap2 and snap3
+    // test with snap2, snap3 and snap4
     sql(
         "CALL %s.system.create_changelog_view(table => '%s', "
             + "options => map('start-snapshot-id','%s'), "
@@ -421,7 +468,9 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
         "Rows should match",
         ImmutableList.of(
             row(2, "b", 11, DELETE, 0, snap2.snapshotId()),
-            row(3, "c", 15, INSERT, 1, snap3.snapshotId())),
+            row(3, "c", 15, INSERT, 1, snap3.snapshotId()),
+            row(2, "e", 12, DELETE, 2, snap4.snapshotId()),
+            row(2, "f", 12, INSERT, 2, snap4.snapshotId())),
         sql("select * from %s order by _change_ordinal, data", viewName));
   }
 
