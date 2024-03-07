@@ -228,6 +228,10 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
 
     TableIdentifier to = removeCatalogName(originalTo);
     Preconditions.checkArgument(isValidIdentifier(to), "Invalid identifier: %s", to);
+    if (!namespaceExists(to.namespace())) {
+      throw new NoSuchNamespaceException(
+          "Cannot rename %s to %s. Namespace does not exist: %s", from, to, to.namespace());
+    }
 
     String toDatabase = to.namespace().level(0);
     String fromDatabase = from.namespace().level(0);
