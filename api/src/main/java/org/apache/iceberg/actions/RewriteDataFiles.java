@@ -120,6 +120,15 @@ public interface RewriteDataFiles
   String REWRITE_JOB_ORDER_DEFAULT = RewriteJobOrder.NONE.orderName();
 
   /**
+   * The partition specification ID to be used for rewritten files
+   *
+   * <p>output-spec-id ID is used by the file rewriter during the rewrite operation to identify the
+   * specific output partition spec. Data will be reorganized during the rewrite to align with the
+   * output partitioning. Defaults to the current table specification.
+   */
+  String OUTPUT_SPEC_ID = "output-spec-id";
+
+  /**
    * Choose BINPACK as a strategy for this rewrite operation
    *
    * @return this for method chaining

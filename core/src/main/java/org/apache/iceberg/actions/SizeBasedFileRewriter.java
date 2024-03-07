@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentScanTask;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -111,6 +112,8 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
   private boolean rewriteAll;
   private long maxGroupSize;
 
+  private int outputSpecId;
+
   protected SizeBasedFileRewriter(Table table) {
     this.table = table;
   }
@@ -146,6 +149,7 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
     this.minInputFiles = minInputFiles(options);
     this.rewriteAll = rewriteAll(options);
     this.maxGroupSize = maxGroupSize(options);
+    this.outputSpecId = outputSpecId(options);
 
     if (rewriteAll) {
       LOG.info("Configured to rewrite all provided files in table {}", table.name());
@@ -256,6 +260,24 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
    */
   protected long writeMaxFileSize() {
     return (long) (targetFileSize + ((maxFileSize - targetFileSize) * 0.5));
+  }
+
+  protected PartitionSpec outputSpec() {
+    return table.specs().get(outputSpecId);
+  }
+
+  protected int outputSpecId() {
+    return outputSpecId;
+  }
+
+  private int outputSpecId(Map<String, String> options) {
+    int specId =
+        PropertyUtil.propertyAsInt(options, RewriteDataFiles.OUTPUT_SPEC_ID, table.spec().specId());
+    Preconditions.checkArgument(
+        table.specs().containsKey(specId),
+        "Cannot use output spec id %s because the table does not contain a reference to this spec-id.",
+        specId);
+    return specId;
   }
 
   private Map<String, Long> sizeThresholds(Map<String, String> options) {
