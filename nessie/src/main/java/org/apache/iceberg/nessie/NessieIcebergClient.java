@@ -354,7 +354,6 @@ public class NessieIcebergClient implements AutoCloseable {
 
   private static void checkNamespaceIsValid(Namespace namespace) {
     if (namespace.isEmpty()) {
-      // As creating empty namespace is not supported
       throw new NoSuchNamespaceException("Invalid namespace: %s", namespace);
     }
   }

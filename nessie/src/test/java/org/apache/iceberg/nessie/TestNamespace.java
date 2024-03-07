@@ -140,20 +140,25 @@ public class TestNamespace extends BaseTestIceberg {
             () -> catalog.createNamespace(Namespace.empty(), Collections.emptyMap()))
         .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessage("Invalid namespace: ");
+
     Assertions.assertThat(catalog.namespaceExists(Namespace.empty())).isFalse();
+
     Assertions.assertThatThrownBy(() -> catalog.loadNamespaceMetadata(Namespace.empty()))
         .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessage("Invalid namespace: ");
+
     Assertions.assertThatThrownBy(
             () ->
                 catalog.setProperties(
                     Namespace.empty(), ImmutableMap.of("prop2", "val2", "prop", "val")))
         .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessage("Invalid namespace: ");
+
     Assertions.assertThatThrownBy(
             () -> catalog.removeProperties(Namespace.empty(), ImmutableSet.of("prop2")))
         .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessage("Invalid namespace: ");
+
     Assertions.assertThatThrownBy(() -> catalog.dropNamespace(Namespace.empty()))
         .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessage("Invalid namespace: ");
