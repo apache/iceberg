@@ -92,9 +92,9 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
                 addColumn(partnerId, field);
                 if (pos > 0) {
                   Types.NestedField beforeField = fields.get(pos - 1);
-                  moveAfter(field.name(), beforeField.name());
+                  api.moveAfter(field.name(), beforeField.name());
                 } else {
-                  moveFirst(field.name());
+                  api.moveFirst(field.name());
                 }
               } else {
                 Types.NestedField nestedField =
@@ -163,14 +163,6 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
   private void addColumn(int parentId, Types.NestedField field) {
     String parentName = partnerSchema.findColumnName(parentId);
     api.addColumn(parentName, field.name(), field.type(), field.doc());
-  }
-
-  private void moveAfter(String name, String after) {
-    api.moveAfter(name, after);
-  }
-
-  private void moveFirst(String name) {
-    api.moveFirst(name);
   }
 
   private void updateColumn(Types.NestedField field, Types.NestedField existingField) {
