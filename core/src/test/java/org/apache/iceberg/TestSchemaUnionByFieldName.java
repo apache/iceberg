@@ -130,17 +130,22 @@ public class TestSchemaUnionByFieldName {
   }
 
   @Test
-  public void testAddNestedPrimitiveWithSameName() {
+  public void testAddMultipleNestedPrimitives() {
     for (PrimitiveType primitiveType : primitiveTypes()) {
       Schema currentSchema =
-          new Schema(
-              optional(1, "aStruct", Types.StructType.of()),
-              optional(2, "bStruct", Types.StructType.of()));
+              new Schema(
+                      optional(1, "aStruct", Types.StructType.of(optional(3, "primitive", primitiveType))),
+                      optional(2, "bStruct", Types.StructType.of(optional(4, "primitive", primitiveType))));
       Schema newSchema =
-          new Schema(
-              optional(1, "aStruct", Types.StructType.of(optional(3, "primitive", primitiveType))),
-              optional(2, "bStruct", Types.StructType.of(optional(4, "primitive", primitiveType))));
-      Schema applied = new SchemaUpdate(currentSchema, 2).unionByNameWith(newSchema).apply();
+              new Schema(
+                      optional(1, "aStruct", Types.StructType.of(
+                              optional(5, "before_primitive", primitiveType),
+                              optional(3, "primitive", primitiveType))),
+                      optional(2, "bStruct", Types.StructType.of(
+                              optional(4, "primitive", primitiveType),
+                              optional(6, "middle_primitive", primitiveType),
+                              optional(7, "after_primitive", primitiveType))));
+      Schema applied = new SchemaUpdate(currentSchema, 4).unionByNameWith(newSchema).apply();
       Assertions.assertThat(applied.asStruct()).isEqualTo(newSchema.asStruct());
     }
   }
