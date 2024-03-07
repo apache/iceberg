@@ -90,11 +90,14 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
               Types.NestedField field = fields.get(pos);
               if (isMissing) {
                 addColumn(partnerId, field);
+                String parentName = partnerSchema.findColumnName(partnerId);
+                String fullName =
+                    (parentName != null) ? parentName + "." + field.name() : field.name();
                 if (pos > 0) {
                   Types.NestedField beforeField = fields.get(pos - 1);
-                  api.moveAfter(field.name(), beforeField.name());
+                  api.moveAfter(fullName, beforeField.name());
                 } else {
-                  api.moveFirst(field.name());
+                  api.moveFirst(fullName);
                 }
               } else {
                 Types.NestedField nestedField =

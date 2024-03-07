@@ -130,6 +130,22 @@ public class TestSchemaUnionByFieldName {
   }
 
   @Test
+  public void testAddNestedPrimitiveWithSameName() {
+    for (PrimitiveType primitiveType : primitiveTypes()) {
+      Schema currentSchema =
+          new Schema(
+              optional(1, "aStruct", Types.StructType.of()),
+              optional(2, "bStruct", Types.StructType.of()));
+      Schema newSchema =
+          new Schema(
+              optional(1, "aStruct", Types.StructType.of(optional(3, "primitive", primitiveType))),
+              optional(2, "bStruct", Types.StructType.of(optional(4, "primitive", primitiveType))));
+      Schema applied = new SchemaUpdate(currentSchema, 2).unionByNameWith(newSchema).apply();
+      Assertions.assertThat(applied.asStruct()).isEqualTo(newSchema.asStruct());
+    }
+  }
+
+  @Test
   public void testAddNestedPrimitives() {
     Schema currentSchema = new Schema(optional(1, "aStruct", Types.StructType.of()));
     Schema newSchema =
