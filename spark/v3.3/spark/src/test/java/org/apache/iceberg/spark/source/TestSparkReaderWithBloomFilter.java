@@ -309,10 +309,10 @@ public class TestSparkReaderWithBloomFilter {
     factory.set(
         PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_fixed_decimal",
         Boolean.toString(useBloomFilterCol10));
-    int blockSize =
-        PropertyUtil.propertyAsInt(
+    long blockSize =
+        PropertyUtil.propertyAsLong(
             table.properties(), PARQUET_ROW_GROUP_SIZE_BYTES, PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT);
-    factory.set(PARQUET_ROW_GROUP_SIZE_BYTES, Integer.toString(blockSize));
+    factory.set(PARQUET_ROW_GROUP_SIZE_BYTES, Long.toString(blockSize));
 
     FileAppender<Record> writer = factory.newAppender(out, format);
     try (Closeable toClose = writer) {

@@ -71,7 +71,7 @@ public class TestParquet {
     // PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT configs.
     // Even though row group size is 16 bytes, we still have to write 101 records
     // as default PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT is 100.
-    File parquetFile = generateFile(null, 101, 4 * Integer.BYTES, null, null).first();
+    File parquetFile = generateFile(null, 101, 4L * Integer.BYTES, null, null).first();
 
     try (ParquetFileReader reader =
         ParquetFileReader.open(ParquetIO.file(localInput(parquetFile)))) {
@@ -86,7 +86,7 @@ public class TestParquet {
     // We should just need to write 5 integers (20 bytes)
     // to create two row groups with row group size configured at 16 bytes.
     File parquetFile =
-        generateFile(ParquetAvroWriter::buildWriter, 5, 4 * Integer.BYTES, 1, 2).first();
+        generateFile(ParquetAvroWriter::buildWriter, 5, 4L * Integer.BYTES, 1, 2).first();
 
     try (ParquetFileReader reader =
         ParquetFileReader.open(ParquetIO.file(localInput(parquetFile)))) {
@@ -222,7 +222,7 @@ public class TestParquet {
   private Pair<File, Long> generateFile(
       Function<MessageType, ParquetValueWriter<?>> createWriterFunc,
       int desiredRecordCount,
-      Integer rowGroupSizeBytes,
+      Long rowGroupSizeBytes,
       Integer minCheckRecordCount,
       Integer maxCheckRecordCount)
       throws IOException {
@@ -230,7 +230,7 @@ public class TestParquet {
 
     ImmutableMap.Builder<String, String> propsBuilder = ImmutableMap.builder();
     if (rowGroupSizeBytes != null) {
-      propsBuilder.put(PARQUET_ROW_GROUP_SIZE_BYTES, Integer.toString(rowGroupSizeBytes));
+      propsBuilder.put(PARQUET_ROW_GROUP_SIZE_BYTES, Long.toString(rowGroupSizeBytes));
     }
     if (minCheckRecordCount != null) {
       propsBuilder.put(

@@ -75,7 +75,7 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
       writer.addAll(nonDictionaryData);
     }
 
-    int rowGroupSize = PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT;
+    long rowGroupSize = PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT;
     File mixedFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", mixedFile.delete());
     Parquet.concat(
