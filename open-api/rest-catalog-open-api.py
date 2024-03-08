@@ -224,10 +224,6 @@ class PlanTask(BaseModel):
     """
 
 
-class FileContent(BaseModel):
-    __root__: Literal['data', 'position-deletes', 'equality-deletes']
-
-
 class SQLViewRepresentation(BaseModel):
     type: str
     sql: str
@@ -770,30 +766,6 @@ class CountMap(BaseModel):
     )
 
 
-class FileFormat(BaseModel):
-    __root__: Literal['avro', 'orc', 'parquet']
-
-
-class CreateNamespaceRequest(BaseModel):
-    namespace: Namespace
-    properties: Optional[Dict[str, str]] = Field(
-        {},
-        description='Configured string to string map of properties for the namespace',
-        example={'owner': 'Hank Bendickson'},
-    )
-
-
-class RenameTableRequest(BaseModel):
-    source: TableIdentifier
-    destination: TableIdentifier
-
-
-class TransformTerm(BaseModel):
-    type: Literal['transform']
-    transform: Transform
-    term: Reference
-
-
 class PrimitiveTypeValue(BaseModel):
     __root__: Union[
         BooleanTypeValue,
@@ -813,6 +785,10 @@ class PrimitiveTypeValue(BaseModel):
         FixedTypeValue,
         BinaryTypeValue,
     ]
+
+
+class FileFormat(BaseModel):
+    __root__: Literal['avro', 'orc', 'parquet']
 
 
 class ContentFile(BaseModel):
@@ -838,6 +814,37 @@ class ContentFile(BaseModel):
         None, alias='split-offsets', description='List of splittable offsets'
     )
     sort_order_id: Optional[int] = Field(None, alias='sort-order-id')
+
+
+class PositionDeleteFile(ContentFile):
+    content: Literal['position-deletes']
+
+
+class EqualityDeleteFile(ContentFile):
+    content: Literal['equality-deletes']
+    equality_ids: Optional[List[int]] = Field(
+        None, alias='equality-ids', description='List of equality field IDs'
+    )
+
+
+class CreateNamespaceRequest(BaseModel):
+    namespace: Namespace
+    properties: Optional[Dict[str, str]] = Field(
+        {},
+        description='Configured string to string map of properties for the namespace',
+        example={'owner': 'Hank Bendickson'},
+    )
+
+
+class RenameTableRequest(BaseModel):
+    source: TableIdentifier
+    destination: TableIdentifier
+
+
+class TransformTerm(BaseModel):
+    type: Literal['transform']
+    transform: Transform
+    term: Reference
 
 
 class SetPartitionStatisticsUpdate(BaseUpdate):
@@ -897,17 +904,6 @@ class DataFile(ContentFile):
         None,
         alias='upper-bounds',
         description='Map of column id to upper bound primitive type values',
-    )
-
-
-class PositionDeleteFile(ContentFile):
-    content: Literal['position-deletes']
-
-
-class EqualityDeleteFile(ContentFile):
-    content: Literal['equality-deletes']
-    equality_ids: Optional[List[int]] = Field(
-        None, alias='equality-ids', description='List of equality field IDs'
     )
 
 
@@ -1035,19 +1031,6 @@ class FileScanTask(BaseModel):
         alias='residual-filter',
         description='An optional residual filter provided by a service, if not present clients shall calculate this residual or use the original filter.',
     )
-
-
-class TypeValue(BaseModel):
-    __root__: Union[PrimitiveTypeValue, MapTypeValue, StructTypeValue]
-
-
-class MapTypeValue(BaseModel):
-    keys: Optional[List[TypeValue]] = None
-    values: Optional[List[TypeValue]] = None
-
-
-class StructTypeValue(BaseModel):
-    __root__: Optional[Dict[str, TypeValue]] = None
 
 
 class ViewMetadata(BaseModel):
@@ -1287,7 +1270,6 @@ MapType.update_forward_refs()
 Expression.update_forward_refs()
 TableMetadata.update_forward_refs()
 FileScanTask.update_forward_refs()
-TypeValue.update_forward_refs()
 ViewMetadata.update_forward_refs()
 AddSchemaUpdate.update_forward_refs()
 CreateTableRequest.update_forward_refs()
