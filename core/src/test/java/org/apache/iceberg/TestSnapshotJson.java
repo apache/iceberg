@@ -31,12 +31,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 public class TestSnapshotJson {
-  @TempDir private static Path temp;
+  @TempDir private Path temp;
 
-  public TableOperations ops =
-      new LocalTableOperations(java.nio.file.Files.createTempDirectory(temp, "junit"));
-
-  public TestSnapshotJson() throws IOException {}
+  public TableOperations ops = new LocalTableOperations(temp);
 
   @Test
   public void testJsonConversion() throws IOException {
@@ -51,19 +48,7 @@ public class TestSnapshotJson {
     Snapshot snapshot = SnapshotParser.fromJson(json);
 
     assertThat(snapshot.snapshotId()).isEqualTo(expected.snapshotId());
-    assertThat(snapshot.allManifests(ops.io())).hasSize(2);
-
-    for (int i = 0; i < snapshot.allManifests(ops.io()).size(); i++) {
-      ManifestFile actualManifestFile = snapshot.allManifests(ops.io()).get(i);
-      ManifestFile expectedManifestFile = expected.allManifests(ops.io()).get(i);
-
-      assertThat(actualManifestFile.content()).isEqualTo(expectedManifestFile.content());
-      assertThat(actualManifestFile.path()).isEqualTo(expectedManifestFile.path());
-      assertThat(actualManifestFile.length()).isEqualTo(expectedManifestFile.length());
-      assertThat(actualManifestFile.partitionSpecId())
-          .isEqualTo(expectedManifestFile.partitionSpecId());
-    }
-
+    assertThat(snapshot.allManifests(ops.io())).isEqualTo(expected.allManifests(ops.io()));
     assertThat(snapshot.operation()).isNull();
     assertThat(snapshot.summary()).isNull();
     assertThat(snapshot.schemaId()).isEqualTo(1);
@@ -82,19 +67,7 @@ public class TestSnapshotJson {
     Snapshot snapshot = SnapshotParser.fromJson(json);
 
     assertThat(snapshot.snapshotId()).isEqualTo(expected.snapshotId());
-    assertThat(snapshot.allManifests(ops.io())).hasSize(2);
-
-    for (int i = 0; i < snapshot.allManifests(ops.io()).size(); i++) {
-      ManifestFile actualManifestFile = snapshot.allManifests(ops.io()).get(i);
-      ManifestFile expectedManifestFile = expected.allManifests(ops.io()).get(i);
-
-      assertThat(actualManifestFile.content()).isEqualTo(expectedManifestFile.content());
-      assertThat(actualManifestFile.path()).isEqualTo(expectedManifestFile.path());
-      assertThat(actualManifestFile.length()).isEqualTo(expectedManifestFile.length());
-      assertThat(actualManifestFile.partitionSpecId())
-          .isEqualTo(expectedManifestFile.partitionSpecId());
-    }
-
+    assertThat(snapshot.allManifests(ops.io())).isEqualTo(expected.allManifests(ops.io()));
     assertThat(snapshot.operation()).isNull();
     assertThat(snapshot.summary()).isNull();
     assertThat(snapshot.schemaId()).isNull();
@@ -128,20 +101,7 @@ public class TestSnapshotJson {
     assertThat(snapshot.timestampMillis()).isEqualTo(expected.timestampMillis());
     assertThat(snapshot.parentId()).isEqualTo(expected.parentId());
     assertThat(snapshot.manifestListLocation()).isEqualTo(expected.manifestListLocation());
-
-    assertThat(snapshot.allManifests(ops.io())).hasSize(2);
-
-    for (int i = 0; i < snapshot.allManifests(ops.io()).size(); i++) {
-      ManifestFile actualManifestFile = snapshot.allManifests(ops.io()).get(i);
-      ManifestFile expectedManifestFile = expected.allManifests(ops.io()).get(i);
-
-      assertThat(actualManifestFile.content()).isEqualTo(expectedManifestFile.content());
-      assertThat(actualManifestFile.path()).isEqualTo(expectedManifestFile.path());
-      assertThat(actualManifestFile.length()).isEqualTo(expectedManifestFile.length());
-      assertThat(actualManifestFile.partitionSpecId())
-          .isEqualTo(expectedManifestFile.partitionSpecId());
-    }
-
+    assertThat(snapshot.allManifests(ops.io())).isEqualTo(expected.allManifests(ops.io()));
     assertThat(snapshot.operation()).isEqualTo(expected.operation());
     assertThat(snapshot.summary()).isEqualTo(expected.summary());
     assertThat(snapshot.schemaId()).isEqualTo(expected.schemaId());
@@ -186,22 +146,14 @@ public class TestSnapshotJson {
     Snapshot snapshot = SnapshotParser.fromJson(json);
     assertThat(snapshot).isEqualTo(expected);
 
-    assertThat(snapshot.sequenceNumber()).isEqualTo(0);
+    assertThat(snapshot.sequenceNumber())
+        .as("Sequence number should default to 0 for v1")
+        .isEqualTo(0);
     assertThat(snapshot.snapshotId()).isEqualTo(expected.snapshotId());
     assertThat(snapshot.timestampMillis()).isEqualTo(expected.timestampMillis());
     assertThat(snapshot.parentId()).isEqualTo(expected.parentId());
     assertThat(snapshot.manifestListLocation()).isEqualTo(expected.manifestListLocation());
-
-    assertThat(snapshot.allManifests(ops.io())).hasSize(2);
-
-    for (int i = 0; i < snapshot.allManifests(ops.io()).size(); i++) {
-      ManifestFile actualManifestFile = snapshot.allManifests(ops.io()).get(i);
-      ManifestFile expectedManifestFile = expected.allManifests(ops.io()).get(i);
-
-      assertThat(actualManifestFile.content()).isEqualTo(expectedManifestFile.content());
-      assertThat(actualManifestFile.path()).isEqualTo(expectedManifestFile.path());
-    }
-
+    assertThat(snapshot.allManifests(ops.io())).isEqualTo(expected.allManifests(ops.io()));
     assertThat(snapshot.operation()).isEqualTo(expected.operation());
     assertThat(snapshot.summary()).isEqualTo(expected.summary());
     assertThat(snapshot.schemaId()).isEqualTo(expected.schemaId());
@@ -209,7 +161,7 @@ public class TestSnapshotJson {
 
   private String createManifestListWithManifestFiles(long snapshotId, Long parentSnapshotId)
       throws IOException {
-    File manifestList = java.nio.file.Files.createTempDirectory(temp, "junit").toFile();
+    File manifestList = File.createTempFile("junit", null, temp.toFile());
     manifestList.deleteOnExit();
 
     List<ManifestFile> manifests =

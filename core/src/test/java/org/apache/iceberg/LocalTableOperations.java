@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
@@ -27,7 +28,6 @@ import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 class LocalTableOperations implements TableOperations {
-
   private final Path temp;
 
   private final FileIO io;
@@ -65,9 +65,7 @@ class LocalTableOperations implements TableOperations {
         fileName,
         name -> {
           try {
-            return java.nio.file.Files.createTempDirectory(temp, "junit")
-                .toFile()
-                .getAbsolutePath();
+            return File.createTempFile("junit", null, temp.toFile()).getAbsolutePath();
           } catch (IOException e) {
             throw new RuntimeIOException(e);
           }

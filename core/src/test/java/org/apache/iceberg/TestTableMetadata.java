@@ -86,7 +86,7 @@ public class TestTableMetadata {
           .desc(Expressions.bucket("z", 4), NullOrder.NULLS_LAST)
           .build();
 
-  @TempDir protected static Path temp;
+  @TempDir private Path temp;
 
   public TableOperations ops = new LocalTableOperations(temp);
 
@@ -1730,7 +1730,7 @@ public class TestTableMetadata {
 
   private String createManifestListWithManifestFile(
       long snapshotId, Long parentSnapshotId, String manifestFile) throws IOException {
-    File manifestList = java.nio.file.Files.createTempDirectory(temp, "junit").toFile();
+    File manifestList = File.createTempFile("junit", null, temp.toFile());
     manifestList.deleteOnExit();
 
     try (ManifestListWriter writer =

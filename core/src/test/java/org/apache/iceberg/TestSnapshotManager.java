@@ -222,8 +222,7 @@ public class TestSnapshotManager extends TestBase {
     // Test a basic case of creating a branch
     table.manageSnapshots().createBranch("branch1", snapshotId).commit();
     SnapshotRef expectedBranch = table.ops().refresh().ref("branch1");
-    assertThat(expectedBranch).isNotNull();
-    assertThat(expectedBranch).isEqualTo(SnapshotRef.branchBuilder(snapshotId).build());
+    assertThat(expectedBranch).isNotNull().isEqualTo(SnapshotRef.branchBuilder(snapshotId).build());
   }
 
   @TestTemplate
@@ -233,8 +232,7 @@ public class TestSnapshotManager extends TestBase {
     // Test a basic case of creating a branch
     table.manageSnapshots().createBranch("branch1").commit();
     SnapshotRef actualBranch = table.ops().refresh().ref("branch1");
-    assertThat(actualBranch).isNotNull();
-    assertThat(actualBranch).isEqualTo(SnapshotRef.branchBuilder(snapshotId).build());
+    assertThat(actualBranch).isNotNull().isEqualTo(SnapshotRef.branchBuilder(snapshotId).build());
   }
 
   @TestTemplate
@@ -304,8 +302,7 @@ public class TestSnapshotManager extends TestBase {
     table.manageSnapshots().createTag("tag1", snapshotId).commit();
     SnapshotRef expectedTag = table.ops().refresh().ref("tag1");
 
-    assertThat(expectedTag).isNotNull();
-    assertThat(expectedTag).isEqualTo(SnapshotRef.tagBuilder(snapshotId).build());
+    assertThat(expectedTag).isNotNull().isEqualTo(SnapshotRef.tagBuilder(snapshotId).build());
   }
 
   @TestTemplate
@@ -714,7 +711,7 @@ public class TestSnapshotManager extends TestBase {
 
     assertThat(readMetadata())
         .as("Base metadata should not change when manageSnapshots is created")
-        .isEqualTo(base);
+        .isSameAs(base);
     assertThat(version())
         .as("Table should be on version 2 after creating manageSnapshots")
         .isEqualTo(2);
@@ -723,12 +720,12 @@ public class TestSnapshotManager extends TestBase {
 
     assertThat(readMetadata())
         .as("Base metadata should not change when invoking rollbackTo")
-        .isEqualTo(base);
+        .isSameAs(base);
     assertThat(version()).as("Table should be on version 2 after invoking rollbackTo").isEqualTo(2);
 
     txn.commitTransaction();
 
-    assertThat(readMetadata().currentSnapshot()).isEqualTo(snapshotAfterFirstAppend);
+    assertThat(readMetadata().currentSnapshot()).isSameAs(snapshotAfterFirstAppend);
     validateSnapshot(null, snapshotAfterFirstAppend, FILE_A);
     assertThat(version()).as("Table should be on version 3 after invoking rollbackTo").isEqualTo(3);
   }
@@ -750,14 +747,14 @@ public class TestSnapshotManager extends TestBase {
     txn.updateProperties().set("some_prop", "some_prop_value").commit();
     assertThat(readMetadata())
         .as("Base metadata should not change when transaction is not committed")
-        .isEqualTo(base);
+        .isSameAs(base);
     assertThat(version())
         .as("Table should remain on version 2 when transaction is not committed")
         .isEqualTo(2);
 
     txn.commitTransaction();
 
-    assertThat(readMetadata().currentSnapshot()).isEqualTo(snapshotAfterFirstAppend);
+    assertThat(readMetadata().currentSnapshot()).isSameAs(snapshotAfterFirstAppend);
     assertThat(version()).as("Table should be on version 3 after invoking rollbackTo").isEqualTo(3);
   }
 
