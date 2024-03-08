@@ -61,9 +61,8 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestTableMetadata {
   private static final String TEST_LOCATION = "s3://bucket/test/location";
@@ -87,7 +86,7 @@ public class TestTableMetadata {
           .desc(Expressions.bucket("z", 4), NullOrder.NULLS_LAST)
           .build();
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
   public TableOperations ops = new LocalTableOperations(temp);
 
@@ -1731,7 +1730,7 @@ public class TestTableMetadata {
 
   private String createManifestListWithManifestFile(
       long snapshotId, Long parentSnapshotId, String manifestFile) throws IOException {
-    File manifestList = temp.newFile("manifests" + UUID.randomUUID());
+    File manifestList = java.nio.file.Files.createTempDirectory(temp, "junit").toFile();
     manifestList.deleteOnExit();
 
     try (ManifestListWriter writer =

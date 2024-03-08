@@ -19,20 +19,22 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Map;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.junit.rules.TemporaryFolder;
 
 class LocalTableOperations implements TableOperations {
-  private final TemporaryFolder temp;
+
+  private final Path temp;
+
   private final FileIO io;
 
   private final Map<String, String> createdMetadataFilePaths = Maps.newHashMap();
 
-  LocalTableOperations(TemporaryFolder temp) {
+  LocalTableOperations(Path temp) {
     this.temp = temp;
     this.io = new TestTables.LocalFileIO();
   }
@@ -63,7 +65,9 @@ class LocalTableOperations implements TableOperations {
         fileName,
         name -> {
           try {
-            return temp.newFile(name).getAbsolutePath();
+            return java.nio.file.Files.createTempDirectory(temp, "junit")
+                .toFile()
+                .getAbsolutePath();
           } catch (IOException e) {
             throw new RuntimeIOException(e);
           }

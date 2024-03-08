@@ -18,9 +18,10 @@
  */
 package org.apache.iceberg;
 
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import org.junit.jupiter.api.Test;
 
 public class TestSnapshotRefParser {
 
@@ -28,24 +29,27 @@ public class TestSnapshotRefParser {
   public void testTagToJsonDefault() {
     String json = "{\"snapshot-id\":1,\"type\":\"tag\"}";
     SnapshotRef ref = SnapshotRef.tagBuilder(1L).build();
-    Assert.assertEquals(
-        "Should be able to serialize default tag", json, SnapshotRefParser.toJson(ref));
+    assertThat(SnapshotRefParser.toJson(ref))
+        .as("Should be able to serialize default tag")
+        .isEqualTo(json);
   }
 
   @Test
   public void testTagToJsonAllFields() {
     String json = "{\"snapshot-id\":1,\"type\":\"tag\",\"max-ref-age-ms\":1}";
     SnapshotRef ref = SnapshotRef.tagBuilder(1L).maxRefAgeMs(1L).build();
-    Assert.assertEquals(
-        "Should be able to serialize tag with all fields", json, SnapshotRefParser.toJson(ref));
+    assertThat(SnapshotRefParser.toJson(ref))
+        .as("Should be able to serialize tag with all fields")
+        .isEqualTo(json);
   }
 
   @Test
   public void testBranchToJsonDefault() {
     String json = "{\"snapshot-id\":1,\"type\":\"branch\"}";
     SnapshotRef ref = SnapshotRef.branchBuilder(1L).build();
-    Assert.assertEquals(
-        "Should be able to serialize default branch", json, SnapshotRefParser.toJson(ref));
+    assertThat(SnapshotRefParser.toJson(ref))
+        .as("Should be able to serialize default branch")
+        .isEqualTo(json);
   }
 
   @Test
@@ -59,32 +63,36 @@ public class TestSnapshotRefParser {
             .maxSnapshotAgeMs(3L)
             .maxRefAgeMs(4L)
             .build();
-    Assert.assertEquals(
-        "Should be able to serialize branch with all fields", json, SnapshotRefParser.toJson(ref));
+    assertThat(SnapshotRefParser.toJson(ref))
+        .as("Should be able to serialize branch with all fields")
+        .isEqualTo(json);
   }
 
   @Test
   public void testTagFromJsonDefault() {
     String json = "{\"snapshot-id\":1,\"type\":\"tag\"}";
     SnapshotRef ref = SnapshotRef.tagBuilder(1L).build();
-    Assert.assertEquals(
-        "Should be able to deserialize default tag", ref, SnapshotRefParser.fromJson(json));
+    assertThat(SnapshotRefParser.fromJson(json))
+        .as("Should be able to deserialize default tag")
+        .isEqualTo(ref);
   }
 
   @Test
   public void testTagFromJsonAllFields() {
     String json = "{\"snapshot-id\":1,\"type\":\"tag\",\"max-ref-age-ms\":1}";
     SnapshotRef ref = SnapshotRef.tagBuilder(1L).maxRefAgeMs(1L).build();
-    Assert.assertEquals(
-        "Should be able to deserialize tag with all fields", ref, SnapshotRefParser.fromJson(json));
+    assertThat(SnapshotRefParser.fromJson(json))
+        .as("Should be able to deserialize tag with all fields")
+        .isEqualTo(ref);
   }
 
   @Test
   public void testBranchFromJsonDefault() {
     String json = "{\"snapshot-id\":1,\"type\":\"branch\"}";
     SnapshotRef ref = SnapshotRef.branchBuilder(1L).build();
-    Assert.assertEquals(
-        "Should be able to deserialize default branch", ref, SnapshotRefParser.fromJson(json));
+    assertThat(SnapshotRefParser.fromJson(json))
+        .as("Should be able to deserialize default branch")
+        .isEqualTo(ref);
   }
 
   @Test
@@ -98,21 +106,20 @@ public class TestSnapshotRefParser {
             .maxSnapshotAgeMs(3L)
             .maxRefAgeMs(4L)
             .build();
-    Assert.assertEquals(
-        "Should be able to deserialize branch with all fields",
-        ref,
-        SnapshotRefParser.fromJson(json));
+    assertThat(SnapshotRefParser.fromJson(json))
+        .as("Should be able to deserialize branch with all fields")
+        .isEqualTo(ref);
   }
 
   @Test
   public void testFailParsingWhenNullOrEmptyJson() {
     String nullJson = null;
-    Assertions.assertThatThrownBy(() -> SnapshotRefParser.fromJson(nullJson))
+    assertThatThrownBy(() -> SnapshotRefParser.fromJson(nullJson))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot parse snapshot ref from invalid JSON");
 
     String emptyJson = "";
-    Assertions.assertThatThrownBy(() -> SnapshotRefParser.fromJson(emptyJson))
+    assertThatThrownBy(() -> SnapshotRefParser.fromJson(emptyJson))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot parse snapshot ref from invalid JSON");
   }
@@ -120,12 +127,12 @@ public class TestSnapshotRefParser {
   @Test
   public void testFailParsingWhenMissingRequiredFields() {
     String refMissingType = "{\"snapshot-id\":1}";
-    Assertions.assertThatThrownBy(() -> SnapshotRefParser.fromJson(refMissingType))
+    assertThatThrownBy(() -> SnapshotRefParser.fromJson(refMissingType))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot parse missing string");
 
     String refMissingSnapshotId = "{\"type\":\"branch\"}";
-    Assertions.assertThatThrownBy(() -> SnapshotRefParser.fromJson(refMissingSnapshotId))
+    assertThatThrownBy(() -> SnapshotRefParser.fromJson(refMissingSnapshotId))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot parse missing long");
   }
@@ -134,31 +141,31 @@ public class TestSnapshotRefParser {
   public void testFailWhenFieldsHaveInvalidValues() {
     String invalidSnapshotId =
         "{\"snapshot-id\":\"invalid-snapshot-id\",\"type\":\"not-a-valid-tag-type\"}";
-    Assertions.assertThatThrownBy(() -> SnapshotRefParser.fromJson(invalidSnapshotId))
+    assertThatThrownBy(() -> SnapshotRefParser.fromJson(invalidSnapshotId))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to a long value: snapshot-id: \"invalid-snapshot-id\"");
 
     String invalidTagType = "{\"snapshot-id\":1,\"type\":\"not-a-valid-tag-type\"}";
-    Assertions.assertThatThrownBy(() -> SnapshotRefParser.fromJson(invalidTagType))
+    assertThatThrownBy(() -> SnapshotRefParser.fromJson(invalidTagType))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid snapshot ref type: not-a-valid-tag-type");
 
     String invalidRefAge =
         "{\"snapshot-id\":1,\"type\":\"tag\",\"max-ref-age-ms\":\"not-a-valid-value\"}";
-    Assertions.assertThatThrownBy(() -> SnapshotRefParser.fromJson(invalidRefAge))
+    assertThatThrownBy(() -> SnapshotRefParser.fromJson(invalidRefAge))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to a long value: max-ref-age-ms: \"not-a-valid-value\"");
 
     String invalidSnapshotsToKeep =
         "{\"snapshot-id\":1,\"type\":\"branch\", "
             + "\"min-snapshots-to-keep\":\"invalid-number\"}";
-    Assertions.assertThatThrownBy(() -> SnapshotRefParser.fromJson(invalidSnapshotsToKeep))
+    assertThatThrownBy(() -> SnapshotRefParser.fromJson(invalidSnapshotsToKeep))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to an integer value: min-snapshots-to-keep: \"invalid-number\"");
 
     String invalidMaxSnapshotAge =
         "{\"snapshot-id\":1,\"type\":\"branch\", " + "\"max-snapshot-age-ms\":\"invalid-age\"}";
-    Assertions.assertThatThrownBy(() -> SnapshotRefParser.fromJson(invalidMaxSnapshotAge))
+    assertThatThrownBy(() -> SnapshotRefParser.fromJson(invalidMaxSnapshotAge))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to a long value: max-snapshot-age-ms: \"invalid-age\"");
   }
