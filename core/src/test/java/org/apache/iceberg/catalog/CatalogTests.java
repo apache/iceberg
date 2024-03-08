@@ -784,6 +784,26 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
+  public void renameTableNamespaceMissing() {
+    TableIdentifier from = TableIdentifier.of("ns", "table");
+    TableIdentifier to = TableIdentifier.of("non_existing", "renamedTable");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(from.namespace());
+    }
+
+    Assertions.assertThat(catalog().tableExists(from)).as("Table should not exist").isFalse();
+
+    catalog().buildTable(from, SCHEMA).create();
+
+    Assertions.assertThat(catalog().tableExists(from)).as("Table should exist").isTrue();
+
+    Assertions.assertThatThrownBy(() -> catalog().renameTable(from, to))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessageContaining("Namespace does not exist: non_existing");
+  }
+
+  @Test
   public void testRenameTableDestinationTableAlreadyExists() {
     C catalog = catalog();
 
