@@ -136,13 +136,18 @@ public class OAuth2Util {
     Set<String> optionalParamKeys =
         ImmutableSet.of(OAuth2Properties.AUDIENCE, OAuth2Properties.RESOURCE);
     ImmutableMap.Builder<String, String> optionalParamBuilder = ImmutableMap.builder();
+    // add scope too,
+    optionalParamBuilder.put(
+        OAuth2Properties.SCOPE,
+        properties.getOrDefault(OAuth2Properties.SCOPE, OAuth2Properties.CATALOG_SCOPE));
+    // add all other parameters
     for (String key : optionalParamKeys) {
       String value = properties.get(key);
       if (value != null) {
         optionalParamBuilder.put(key, value);
       }
     }
-    return optionalParamBuilder.build();
+    return optionalParamBuilder.buildKeepingLast();
   }
 
   private static OAuthTokenResponse refreshToken(
@@ -289,7 +294,7 @@ public class OAuth2Util {
     }
     formData.putAll(optionalParams);
 
-    return formData.build();
+    return formData.buildKeepingLast();
   }
 
   private static Pair<String, String> parseCredential(String credential) {
@@ -329,7 +334,7 @@ public class OAuth2Util {
     formData.put(SCOPE, toScope(scopes));
     formData.putAll(optionalOAuthParams);
 
-    return formData.build();
+    return formData.buildKeepingLast();
   }
 
   public static String tokenResponseToJson(OAuthTokenResponse response) {

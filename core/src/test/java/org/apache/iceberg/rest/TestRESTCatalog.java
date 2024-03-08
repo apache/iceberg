@@ -22,7 +22,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.times;
@@ -746,7 +745,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         ImmutableMap.of(
             "Authorization", "Bearer token-exchange-token:sub=access-token,act=bearer-token"),
         oauth2ServerUri,
-        ImmutableMap.of("audience", "test_audience", "resource", "test_resource"));
+        ImmutableMap.of(
+            "scope", "custom_scope", "audience", "test_audience", "resource", "test_resource"));
   }
 
   @ParameterizedTest
@@ -856,7 +856,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               eq(HTTPMethod.POST),
               eq(oauth2ServerUri),
               any(),
-              argThat(
+              Mockito.argThat(
                   body ->
                       ((Map<String, String>) body)
                           .keySet()
@@ -1485,7 +1485,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                       eq(HTTPMethod.POST),
                       eq(oauth2ServerUri),
                       any(),
-                      argThat(firstRefreshRequest::equals),
+                      Mockito.argThat(firstRefreshRequest::equals),
                       eq(OAuthTokenResponse.class),
                       eq(catalogHeaders),
                       any());
@@ -1507,7 +1507,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                       eq(HTTPMethod.POST),
                       eq(oauth2ServerUri),
                       any(),
-                      argThat(secondRefreshRequest::equals),
+                      Mockito.argThat(secondRefreshRequest::equals),
                       eq(OAuthTokenResponse.class),
                       eq(secondRefreshHeaders),
                       any());
@@ -1604,7 +1604,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                       eq(HTTPMethod.POST),
                       eq(oauth2ServerUri),
                       any(),
-                      argThat(firstRefreshRequest::equals),
+                      Mockito.argThat(firstRefreshRequest::equals),
                       eq(OAuthTokenResponse.class),
                       eq(catalogHeaders),
                       any());
@@ -1763,7 +1763,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(HTTPMethod.POST),
             eq(oauth2ServerUri),
             any(),
-            argThat(firstRefreshRequest::equals),
+            Mockito.argThat(firstRefreshRequest::equals),
             eq(OAuthTokenResponse.class),
             eq(OAuth2Util.basicAuthHeaders(credential)),
             any());
@@ -1780,7 +1780,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(HTTPMethod.POST),
             eq(oauth2ServerUri),
             any(),
-            argThat(secondRefreshRequest::equals),
+            Mockito.argThat(secondRefreshRequest::equals),
             eq(OAuthTokenResponse.class),
             eq(OAuth2Util.basicAuthHeaders(credential)),
             any());
@@ -1887,7 +1887,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(HTTPMethod.POST),
             eq(oauth2ServerUri),
             any(),
-            argThat(firstRefreshRequest::equals),
+            Mockito.argThat(firstRefreshRequest::equals),
             eq(OAuthTokenResponse.class),
             eq(catalogHeaders),
             any());
@@ -1948,7 +1948,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                       eq(HTTPMethod.POST),
                       eq(oauth2ServerUri),
                       any(),
-                      argThat(firstRefreshRequest::equals),
+                      Mockito.argThat(firstRefreshRequest::equals),
                       eq(OAuthTokenResponse.class),
                       eq(catalogHeaders),
                       any());
@@ -1960,7 +1960,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                       eq(HTTPMethod.POST),
                       eq(oauth2ServerUri),
                       any(),
-                      argThat(firstRefreshRequest::equals),
+                      Mockito.argThat(firstRefreshRequest::equals),
                       eq(OAuthTokenResponse.class),
                       eq(basicHeaders),
                       any());
@@ -2071,7 +2071,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                       eq(HTTPMethod.POST),
                       eq(oauth2ServerUri),
                       any(),
-                      argThat(firstRefreshRequest::equals),
+                      Mockito.argThat(firstRefreshRequest::equals),
                       eq(OAuthTokenResponse.class),
                       eq(catalogHeaders),
                       any());
@@ -2179,7 +2179,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(HTTPMethod.POST),
             eq(oauth2ServerUri),
             any(),
-            argThat(fetchTokenFromCredential::equals),
+            Mockito.argThat(fetchTokenFromCredential::equals),
             eq(OAuthTokenResponse.class),
             eq(ImmutableMap.of()),
             any());
