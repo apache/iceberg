@@ -61,7 +61,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 public class TestTableMetadata {
@@ -86,7 +86,7 @@ public class TestTableMetadata {
           .desc(Expressions.bucket("z", 4), NullOrder.NULLS_LAST)
           .build();
 
-  @TempDir private Path temp;
+  @TempDir protected static Path temp;
 
   public TableOperations ops = new LocalTableOperations(temp);
 
