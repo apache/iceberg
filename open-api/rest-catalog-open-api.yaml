@@ -2749,7 +2749,7 @@ components:
       allOf:
         - $ref: "#/components/schemas/TableRequirement"
       description:
-        The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`;
+        The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; 
         if `snapshot-id` is `null` or missing, the ref must not already exist
       required:
         - type
