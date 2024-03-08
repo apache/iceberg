@@ -545,14 +545,11 @@ paths:
     post:
       tags:
         - Catalog API
-      summary: Find plan-tasks based on a plan context.
+      summary: Prepare a list of plan tasks that can be used later for table scan planning
       description:
-        Scan pre-planning creates a set of opaque planning tasks for a set of scan configuration options. 
-        Each task can be passed to the plan endpoint to fetch a (disjoint) subset of the file scan tasks for the scan.
-
-        Scan pre-planning enables breaking scan planning across multiple tasks. 
-        This can be used to parallelize scan planning requests, use fewer resources in each planning request,
-        or to delay parts of scan planning that may not be needed.
+        Prepare a list of plan tasks that can be used later for table scan planning.
+        Each plan task in the response of this API can be used as the `plan-task` in the `PlanTable` API request to perform scan planning against a subset of the table files.
+        This can be used to parallelize and distribute table scan planning.
       operationId: PreplanTable
       requestBody:
         content:
@@ -597,12 +594,11 @@ paths:
     post:
       tags:
         - Catalog API
-      summary: Initiate plan on table to find relevant file scan tasks for a specific query.
+      summary: Perform scan planning against a table
       operationId: PlanTable
       description:
-        When a user submits a query, a plan will be initiated to find the relevant file scan tasks
-        based on the user's selected columns, and filters. For enhanced query performance, 
-        users can provide a plan-task which will distribute the planning work.
+        Perform scan planning against a table based on the user's scan requirements including selected columns and filters.
+        Users can provide an optional `plan-task` from the response of `PreplanTable` API to limit scan planning to only a subset of table files.
       requestBody:
         content:
           application/json:
@@ -629,7 +625,7 @@ paths:
                   $ref: '#/components/examples/NoSuchTableError'
 
         413:
-          $ref: '#/components/responses/PayLoadTooLargeResponse'
+          $ref: '#/components/responses/PayloadTooLargeResponse'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         422:
@@ -3999,9 +3995,9 @@ components:
             EmptyResponse:
               $ref: '#/components/examples/ListNamespacesEmptyExample'
 
-    PayLoadTooLargeResponse:
+    PayloadTooLargeResponse:
       description:
-        Payload is too large, clients should leverage the preplan endpoint and provide a plan-task before doing a plan.
+        Payload is too large.
       content:
         application/json:
           schema:
