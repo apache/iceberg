@@ -361,7 +361,7 @@ public class TestPartitioning {
     Schema projectedSchema = table.schema().select("id", "data");
 
     StructType expectedType =
-        StructType.of(NestedField.optional(1001, "data", Types.StringType.get()));
+        StructType.of(NestedField.optional(10001, "data", Types.StringType.get()));
     StructType actualType = Partitioning.groupingKeyType(projectedSchema, table.specs().values());
     Assert.assertEquals("Types must match", expectedType, actualType);
   }

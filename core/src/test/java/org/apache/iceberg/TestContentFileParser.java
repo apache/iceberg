@@ -126,7 +126,7 @@ public class TestContentFileParser {
           + "\"partition\":{},\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0}";
     } else {
       return "{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data-a.parquet\",\"file-format\":\"PARQUET\","
-          + "\"partition\":{\"1000\":1},\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0}";
+          + "\"partition\":{\"10000\":1},\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0}";
     }
   }
 
@@ -144,7 +144,7 @@ public class TestContentFileParser {
           + "\"split-offsets\":[128,256],\"sort-order-id\":1}";
     } else {
       return "{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data-with-stats.parquet\","
-          + "\"file-format\":\"PARQUET\",\"partition\":{\"1000\":1},\"file-size-in-bytes\":350,\"record-count\":10,"
+          + "\"file-format\":\"PARQUET\",\"partition\":{\"10000\":1},\"file-size-in-bytes\":350,\"record-count\":10,"
           + "\"column-sizes\":{\"keys\":[3,4],\"values\":[100,200]},"
           + "\"value-counts\":{\"keys\":[3,4],\"values\":[90,180]},"
           + "\"null-value-counts\":{\"keys\":[3,4],\"values\":[10,20]},"
@@ -281,7 +281,7 @@ public class TestContentFileParser {
           + "\"file-format\":\"PARQUET\",\"partition\":{},\"file-size-in-bytes\":1234,\"record-count\":9}";
     } else {
       return "{\"spec-id\":0,\"content\":\"POSITION_DELETES\",\"file-path\":\"/path/to/delete-a.parquet\","
-          + "\"file-format\":\"PARQUET\",\"partition\":{\"1000\":9},\"file-size-in-bytes\":1234,\"record-count\":9}";
+          + "\"file-format\":\"PARQUET\",\"partition\":{\"10000\":9},\"file-size-in-bytes\":1234,\"record-count\":9}";
     }
   }
 
@@ -299,7 +299,7 @@ public class TestContentFileParser {
           + "\"split-offsets\":[128],\"equality-ids\":[3],\"sort-order-id\":1}";
     } else {
       return "{\"spec-id\":0,\"content\":\"EQUALITY_DELETES\",\"file-path\":\"/path/to/delete-with-stats.parquet\","
-          + "\"file-format\":\"PARQUET\",\"partition\":{\"1000\":9},\"file-size-in-bytes\":1234,\"record-count\":10,"
+          + "\"file-format\":\"PARQUET\",\"partition\":{\"10000\":9},\"file-size-in-bytes\":1234,\"record-count\":10,"
           + "\"column-sizes\":{\"keys\":[3,4],\"values\":[100,200]},"
           + "\"value-counts\":{\"keys\":[3,4],\"values\":[90,180]},"
           + "\"null-value-counts\":{\"keys\":[3,4],\"values\":[10,20]},"

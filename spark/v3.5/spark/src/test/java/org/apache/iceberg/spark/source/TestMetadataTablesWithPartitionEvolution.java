@@ -474,7 +474,7 @@ public class TestMetadataTablesWithPartitionEvolution extends CatalogTestBase {
               row(null, "c3", "d3"),
               row("d1", "c1", null),
               row("d2", "c2", null)),
-          "STRUCT<data_1000:STRING,category:STRING,data:STRING>",
+          "STRUCT<data_10000:STRING,category:STRING,data:STRING>",
           PARTITIONS);
     } else {
       // In V2 re-adding a former partition field that was part of an older spec will not change its
@@ -579,13 +579,13 @@ public class TestMetadataTablesWithPartitionEvolution extends CatalogTestBase {
 
     assertPartitions(
         ImmutableList.of(row(null, "c2", null), row(null, "c2", "d2"), row("d2", "c2", null)),
-        "STRUCT<data_1000:STRING,category:STRING,data:STRING>",
+        "STRUCT<data_10000:STRING,category:STRING,data:STRING>",
         PARTITIONS,
         "partition.category = 'c2'");
 
     assertPartitions(
         ImmutableList.of(row(null, "c1", "d1")),
-        "STRUCT<data_1000:STRING,category:STRING,data:STRING>",
+        "STRUCT<data_10000:STRING,category:STRING,data:STRING>",
         PARTITIONS,
         "partition.data = 'd1'");
   }

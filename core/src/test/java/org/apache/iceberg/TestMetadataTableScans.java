@@ -577,7 +577,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             Types.NestedField.optional(10001, "data_bucket_16", Types.IntegerType.get()),
             Types.NestedField.optional(10002, "data_trunc_2", Types.StringType.get()));
     assertThat(actualType).as("Partition type must match").isEqualTo(expectedType);
-    Accessor<StructLike> accessor = schema.accessorForField(1000);
+    Accessor<StructLike> accessor = schema.accessorForField(10000);
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
       Set<Integer> results =
