@@ -25,15 +25,17 @@ import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENA
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import java.io.Closeable;
-import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogUtil;
@@ -66,6 +68,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkValueConverter;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.SparkSession;
 import org.junit.jupiter.api.AfterAll;
@@ -106,7 +110,12 @@ public class TestSparkReaderWithBloomFilter {
           Types.NestedField.optional(7, "id_date", Types.DateType.get()),
           Types.NestedField.optional(8, "id_int_decimal", Types.DecimalType.of(8, 2)),
           Types.NestedField.optional(9, "id_long_decimal", Types.DecimalType.of(14, 2)),
-          Types.NestedField.optional(10, "id_fixed_decimal", Types.DecimalType.of(31, 2)));
+          Types.NestedField.optional(10, "id_fixed_decimal", Types.DecimalType.of(31, 2)),
+          Types.NestedField.optional(
+              11,
+              "id_nested",
+              Types.StructType.of(
+                  Types.NestedField.optional(12, "nested_id", Types.IntegerType.get()))));
 
   private static final int INT_MIN_VALUE = 30;
   private static final int INT_MAX_VALUE = 329;
@@ -128,36 +137,26 @@ public class TestSparkReaderWithBloomFilter {
     GenericRecord record = GenericRecord.create(table.schema());
 
     for (int i = 0; i < INT_VALUE_COUNT; i += 1) {
-      records.add(
-          record.copy(
-              ImmutableMap.of(
-                  "id",
-                  INT_MIN_VALUE + i,
-                  "id_long",
-                  LONG_BASE + INT_MIN_VALUE + i,
-                  "id_double",
-                  DOUBLE_BASE + INT_MIN_VALUE + i,
-                  "id_float",
-                  FLOAT_BASE + INT_MIN_VALUE + i,
-                  "id_string",
-                  BINARY_PREFIX + (INT_MIN_VALUE + i),
-                  "id_boolean",
-                  i % 2 == 0,
-                  "id_date",
-                  LocalDate.parse("2021-09-05"),
-                  "id_int_decimal",
-                  new BigDecimal(String.valueOf(77.77)),
-                  "id_long_decimal",
-                  new BigDecimal(String.valueOf(88.88)),
-                  "id_fixed_decimal",
-                  new BigDecimal(String.valueOf(99.99)))));
+      GenericRecord newRecord = record.copy();
+      newRecord.setField("id", INT_MIN_VALUE + i);
+      newRecord.setField("id_long", LONG_BASE + INT_MIN_VALUE + i);
+      newRecord.setField("id_double", DOUBLE_BASE + INT_MIN_VALUE + i);
+      newRecord.setField("id_float", FLOAT_BASE + INT_MIN_VALUE + i);
+      newRecord.setField("id_string", BINARY_PREFIX + (INT_MIN_VALUE + i));
+      newRecord.setField("id_boolean", i % 2 == 0);
+      newRecord.setField("id_date", LocalDate.parse("2021-09-05"));
+      newRecord.setField("id_int_decimal", new BigDecimal(String.valueOf(77.77)));
+      newRecord.setField("id_long_decimal", new BigDecimal(String.valueOf(88.88)));
+      newRecord.setField("id_fixed_decimal", new BigDecimal(String.valueOf(99.99)));
+      GenericRecord nested =
+          GenericRecord.create(
+              table.schema().findField("id_nested").type().asNestedType().asStructType());
+      nested.setField("nested_id", INT_MIN_VALUE + i);
+      newRecord.setField("id_nested", nested);
+      records.add(newRecord);
     }
 
-    this.dataFile =
-        writeDataFile(
-            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
-            Row.of(0),
-            records);
+    this.dataFile = writeDataFile(Files.localOutput(temp.toFile()), Row.of(0), records);
 
     table.newAppend().appendFile(dataFile).commit();
   }
@@ -225,6 +224,7 @@ public class TestSparkReaderWithBloomFilter {
           .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_int_decimal", "true")
           .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_long_decimal", "true")
           .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_fixed_decimal", "true")
+          .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_nested.nested_id", "true")
           .commit();
     }
 
@@ -315,6 +315,14 @@ public class TestSparkReaderWithBloomFilter {
     factory.set(
         PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_fixed_decimal",
         Boolean.toString(useBloomFilterCol10));
+    boolean useBloomFilterCol11 =
+        PropertyUtil.propertyAsBoolean(
+            table.properties(),
+            PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_nested.nested_id",
+            false);
+    factory.set(
+        PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_nested.nested_id",
+        Boolean.toString(useBloomFilterCol11));
     int blockSize =
         PropertyUtil.propertyAsInt(
             table.properties(), PARQUET_ROW_GROUP_SIZE_BYTES, PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT);
@@ -351,7 +359,8 @@ public class TestSparkReaderWithBloomFilter {
             .filter(
                 "id = 30 AND id_long = 1030 AND id_double = 10030.0 AND id_float = 100030.0"
                     + " AND id_string = 'BINARY测试_30' AND id_boolean = true AND id_date = '2021-09-05'"
-                    + " AND id_int_decimal = 77.77 AND id_long_decimal = 88.88 AND id_fixed_decimal = 99.99");
+                    + " AND id_int_decimal = 77.77 AND id_long_decimal = 88.88 AND id_fixed_decimal = 99.99"
+                    + " AND id_nested.nested_id = 30");
 
     Record record = SparkValueConverter.convert(table.schema(), df.collectAsList().get(0));
 
@@ -367,11 +376,27 @@ public class TestSparkReaderWithBloomFilter {
             .filter(
                 "id = 250 AND id_long = 1250 AND id_double = 10250.0 AND id_float = 100250.0"
                     + " AND id_string = 'BINARY测试_250' AND id_boolean = true AND id_date = '2021-09-05'"
-                    + " AND id_int_decimal = 77.77 AND id_long_decimal = 88.88 AND id_fixed_decimal = 99.99");
+                    + " AND id_int_decimal = 77.77 AND id_long_decimal = 88.88 AND id_fixed_decimal = 99.99"
+                    + " AND id_nested.nested_id = 250");
 
     record = SparkValueConverter.convert(table.schema(), df.collectAsList().get(0));
 
     assertThat(df.collectAsList()).as("Table should contain 1 row").hasSize(1);
     assertThat(record.get(0)).as("Table should contain expected rows").isEqualTo(250);
+  }
+
+  @TestTemplate
+  public void testBloomCreation() throws IOException {
+    org.apache.hadoop.fs.Path path = new org.apache.hadoop.fs.Path(temp.toString());
+    ParquetMetadata parquetMetadata = ParquetFileReader.readFooter(new Configuration(), path);
+    for (int i = 0; i < 11; i++) {
+      if (useBloomFilter) {
+        assertNotEquals(
+            parquetMetadata.getBlocks().get(0).getColumns().get(0).getBloomFilterOffset(), -1L);
+      } else {
+        assertEquals(
+            parquetMetadata.getBlocks().get(0).getColumns().get(0).getBloomFilterOffset(), -1L);
+      }
+    }
   }
 }
