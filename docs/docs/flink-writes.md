@@ -267,8 +267,8 @@ Check out all the options here: [write-options](flink-configuration.md#write-opt
 ## Notes
 
 Flink streaming write jobs rely on snapshot summary to keep the last committed checkpoint ID, and
-store uncommitted data as temporary files. Therefore, [expiring snapshots](../tables/maintenance#expire-snapshots)
-and [deleting orphan files](../tables/maintenance#delete-orphan-files) could possibly corrupt
+store uncommitted data as temporary files. Therefore, [expiring snapshots](../maintenance.md#expire-snapshots)
+and [deleting orphan files](../maintenance.md#delete-orphan-files) could possibly corrupt
 the state of the Flink job. To avoid that, make sure to keep the last snapshot created by the Flink
 job (which can be identified by the `flink.job-id` property in the summary), and only delete
 orphan files that are old enough.

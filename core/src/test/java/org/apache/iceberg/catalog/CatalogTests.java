@@ -68,9 +68,9 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
-  private static final Namespace NS = Namespace.of("newdb");
+  protected static final Namespace NS = Namespace.of("newdb");
   protected static final TableIdentifier TABLE = TableIdentifier.of(NS, "table");
-  private static final TableIdentifier RENAMED_TABLE = TableIdentifier.of(NS, "table_renamed");
+  protected static final TableIdentifier RENAMED_TABLE = TableIdentifier.of(NS, "table_renamed");
 
   // Schema passed to create tables
   protected static final Schema SCHEMA =
@@ -79,39 +79,39 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
           required(4, "data", Types.StringType.get()));
 
   // This is the actual schema for the table, with column IDs reassigned
-  private static final Schema TABLE_SCHEMA =
+  protected static final Schema TABLE_SCHEMA =
       new Schema(
           required(1, "id", Types.IntegerType.get(), "unique ID 🤪"),
           required(2, "data", Types.StringType.get()));
 
   // This is the actual schema for the table, with column IDs reassigned
-  private static final Schema REPLACE_SCHEMA =
+  protected static final Schema REPLACE_SCHEMA =
       new Schema(
           required(2, "id", Types.IntegerType.get(), "unique ID 🤪"),
           required(3, "data", Types.StringType.get()));
 
   // another schema that is not the same
-  private static final Schema OTHER_SCHEMA =
+  protected static final Schema OTHER_SCHEMA =
       new Schema(required(1, "some_id", Types.IntegerType.get()));
 
   // Partition spec used to create tables
-  private static final PartitionSpec SPEC =
+  protected static final PartitionSpec SPEC =
       PartitionSpec.builderFor(SCHEMA).bucket("id", 16).build();
 
-  private static final PartitionSpec TABLE_SPEC =
+  protected static final PartitionSpec TABLE_SPEC =
       PartitionSpec.builderFor(TABLE_SCHEMA).bucket("id", 16).build();
 
-  private static final PartitionSpec REPLACE_SPEC =
+  protected static final PartitionSpec REPLACE_SPEC =
       PartitionSpec.builderFor(REPLACE_SCHEMA).bucket("id", 16).withSpecId(1).build();
 
   // Partition spec used to create tables
-  static final SortOrder WRITE_ORDER =
+  protected static final SortOrder WRITE_ORDER =
       SortOrder.builderFor(SCHEMA).asc(Expressions.bucket("id", 16)).asc("id").build();
 
-  static final SortOrder TABLE_WRITE_ORDER =
+  protected static final SortOrder TABLE_WRITE_ORDER =
       SortOrder.builderFor(TABLE_SCHEMA).asc(Expressions.bucket("id", 16)).asc("id").build();
 
-  static final SortOrder REPLACE_WRITE_ORDER =
+  protected static final SortOrder REPLACE_WRITE_ORDER =
       SortOrder.builderFor(REPLACE_SCHEMA).asc(Expressions.bucket("id", 16)).asc("id").build();
 
   protected static final DataFile FILE_A =
@@ -122,7 +122,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
           .withRecordCount(2) // needs at least one record or else metrics will filter it out
           .build();
 
-  static final DataFile FILE_B =
+  protected static final DataFile FILE_B =
       DataFiles.builder(SPEC)
           .withPath("/path/to/data-b.parquet")
           .withFileSizeInBytes(10)
@@ -130,7 +130,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
           .withRecordCount(2) // needs at least one record or else metrics will filter it out
           .build();
 
-  static final DataFile FILE_C =
+  protected static final DataFile FILE_C =
       DataFiles.builder(SPEC)
           .withPath("/path/to/data-c.parquet")
           .withFileSizeInBytes(10)
@@ -781,6 +781,26 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assertions.assertThat(catalog.tableExists(RENAMED_TABLE))
         .as("Destination table should not exist after failed rename")
         .isFalse();
+  }
+
+  @Test
+  public void renameTableNamespaceMissing() {
+    TableIdentifier from = TableIdentifier.of("ns", "table");
+    TableIdentifier to = TableIdentifier.of("non_existing", "renamedTable");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(from.namespace());
+    }
+
+    Assertions.assertThat(catalog().tableExists(from)).as("Table should not exist").isFalse();
+
+    catalog().buildTable(from, SCHEMA).create();
+
+    Assertions.assertThat(catalog().tableExists(from)).as("Table should exist").isTrue();
+
+    Assertions.assertThatThrownBy(() -> catalog().renameTable(from, to))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessageContaining("Namespace does not exist: non_existing");
   }
 
   @Test
