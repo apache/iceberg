@@ -258,6 +258,7 @@ public final class ORCSchemaUtil {
    *
    * @param schema an Iceberg schema
    * @param originalOrcSchema an existing ORC file schema
+   * @param config Hadoop configuration
    * @return the resulting ORC schema
    */
   public static TypeDescription buildOrcProjection(
