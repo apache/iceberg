@@ -55,10 +55,11 @@ public class ManifestFiles {
 
   @VisibleForTesting
   static Caffeine<Object, Object> newManifestCacheBuilder() {
+    int maxSize = SystemConfigs.IO_MANIFEST_CACHE_MAX_FILEIO.value();
     return Caffeine.newBuilder()
         .weakKeys()
         .softValues()
-        .maximumSize(maxFileIO())
+        .maximumSize(maxSize)
         .removalListener(
             (io, contentCache, cause) ->
                 LOG.debug("Evicted {} from FileIO-level cache ({})", io, cause))
@@ -125,7 +126,7 @@ public class ManifestFiles {
         manifest.content() == ManifestContent.DATA,
         "Cannot read a delete manifest with a ManifestReader: %s",
         manifest);
-    InputFile file = newInputFile(io, manifest.path(), manifest.length());
+    InputFile file = newInputFile(io, manifest);
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
     return new ManifestReader<>(
         file, manifest.partitionSpecId(), specsById, inheritableMetadata, FileType.DATA_FILES);
@@ -180,7 +181,7 @@ public class ManifestFiles {
         manifest.content() == ManifestContent.DELETES,
         "Cannot read a data manifest with a DeleteManifestReader: %s",
         manifest);
-    InputFile file = newInputFile(io, manifest.path(), manifest.length());
+    InputFile file = newInputFile(io, manifest);
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
     return new ManifestReader<>(
         file, manifest.partitionSpecId(), specsById, inheritableMetadata, FileType.DELETE_FILES);
@@ -344,46 +345,24 @@ public class ManifestFiles {
     return writer.toManifestFile();
   }
 
-  private static InputFile newInputFile(FileIO io, String path, long length) {
-    boolean enabled;
-
-    try {
-      enabled = cachingEnabled(io);
-    } catch (UnsupportedOperationException e) {
-      // There is an issue reading io.properties(). Disable caching.
-      enabled = false;
+  private static InputFile newInputFile(FileIO io, ManifestFile manifest) {
+    InputFile input = io.newInputFile(manifest);
+    if (cachingEnabled(io)) {
+      return contentCache(io).tryCache(input);
     }
 
-    if (enabled) {
-      ContentCache cache = contentCache(io);
-      Preconditions.checkNotNull(
-          cache,
-          "ContentCache creation failed. Check that all manifest caching configurations has valid value.");
-      LOG.debug("FileIO-level cache stats: {}", CONTENT_CACHES.stats());
-      return cache.tryCache(io, path, length);
-    }
-
-    // caching is not enable for this io or caught RuntimeException.
-    return io.newInputFile(path, length);
-  }
-
-  private static int maxFileIO() {
-    String value = System.getProperty(SystemProperties.IO_MANIFEST_CACHE_MAX_FILEIO);
-    if (value != null) {
-      try {
-        return Integer.parseUnsignedInt(value);
-      } catch (NumberFormatException e) {
-        // will return the default
-      }
-    }
-    return SystemProperties.IO_MANIFEST_CACHE_MAX_FILEIO_DEFAULT;
+    return input;
   }
 
   static boolean cachingEnabled(FileIO io) {
-    return PropertyUtil.propertyAsBoolean(
-        io.properties(),
-        CatalogProperties.IO_MANIFEST_CACHE_ENABLED,
-        CatalogProperties.IO_MANIFEST_CACHE_ENABLED_DEFAULT);
+    try {
+      return PropertyUtil.propertyAsBoolean(
+          io.properties(),
+          CatalogProperties.IO_MANIFEST_CACHE_ENABLED,
+          CatalogProperties.IO_MANIFEST_CACHE_ENABLED_DEFAULT);
+    } catch (UnsupportedOperationException e) {
+      return false;
+    }
   }
 
   static long cacheDurationMs(FileIO io) {

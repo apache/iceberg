@@ -190,7 +190,7 @@ public class ScanSummary {
               "Cannot satisfy time filters: time range may include expired snapshots");
         }
 
-        // filter down to the the set of manifest files that were added after the start of the
+        // filter down to the set of manifest files that were added after the start of the
         // time range. manifests after the end of the time range must be included because
         // compaction may create a manifest after the time range that includes files added in the
         // range.

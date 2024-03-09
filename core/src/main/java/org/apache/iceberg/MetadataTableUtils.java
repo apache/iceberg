@@ -31,53 +31,63 @@ public class MetadataTableUtils {
 
   public static Table createMetadataTableInstance(Table table, MetadataTableType type) {
     if (table instanceof BaseTable) {
-      TableOperations ops = ((BaseTable) table).operations();
-      return createMetadataTableInstance(ops, table, metadataTableName(table.name(), type), type);
+      return createMetadataTableInstance(table, metadataTableName(table.name(), type), type);
+    } else if (table instanceof HasTableOperations) {
+      return createMetadataTableInstance(
+          ((HasTableOperations) table).operations(),
+          table.name(),
+          metadataTableName(table.name(), type),
+          type);
     } else {
       throw new IllegalArgumentException(
-          String.format("Cannot create metadata table for table %s: not a base table", table));
+          String.format(
+              "Cannot create metadata table for table %s: "
+                  + "table is not a base table or does not have table operations",
+              table));
     }
   }
 
   public static Table createMetadataTableInstance(
       TableOperations ops, String baseTableName, String metadataTableName, MetadataTableType type) {
     Table baseTable = new BaseTable(ops, baseTableName);
-    return createMetadataTableInstance(ops, baseTable, metadataTableName, type);
+    return createMetadataTableInstance(baseTable, metadataTableName, type);
   }
 
   private static Table createMetadataTableInstance(
-      TableOperations ops, Table baseTable, String metadataTableName, MetadataTableType type) {
+      Table baseTable, String metadataTableName, MetadataTableType type) {
     switch (type) {
       case ENTRIES:
-        return new ManifestEntriesTable(ops, baseTable, metadataTableName);
+        return new ManifestEntriesTable(baseTable, metadataTableName);
       case FILES:
-        return new FilesTable(ops, baseTable, metadataTableName);
+        return new FilesTable(baseTable, metadataTableName);
       case DATA_FILES:
-        return new DataFilesTable(ops, baseTable, metadataTableName);
+        return new DataFilesTable(baseTable, metadataTableName);
       case DELETE_FILES:
-        return new DeleteFilesTable(ops, baseTable, metadataTableName);
+        return new DeleteFilesTable(baseTable, metadataTableName);
       case HISTORY:
-        return new HistoryTable(ops, baseTable, metadataTableName);
+        return new HistoryTable(baseTable, metadataTableName);
       case SNAPSHOTS:
-        return new SnapshotsTable(ops, baseTable, metadataTableName);
+        return new SnapshotsTable(baseTable, metadataTableName);
       case METADATA_LOG_ENTRIES:
-        return new MetadataLogEntriesTable(ops, baseTable, metadataTableName);
+        return new MetadataLogEntriesTable(baseTable, metadataTableName);
       case REFS:
-        return new RefsTable(ops, baseTable, metadataTableName);
+        return new RefsTable(baseTable, metadataTableName);
       case MANIFESTS:
-        return new ManifestsTable(ops, baseTable, metadataTableName);
+        return new ManifestsTable(baseTable, metadataTableName);
       case PARTITIONS:
-        return new PartitionsTable(ops, baseTable, metadataTableName);
+        return new PartitionsTable(baseTable, metadataTableName);
       case ALL_DATA_FILES:
-        return new AllDataFilesTable(ops, baseTable, metadataTableName);
+        return new AllDataFilesTable(baseTable, metadataTableName);
       case ALL_DELETE_FILES:
-        return new AllDeleteFilesTable(ops, baseTable, metadataTableName);
+        return new AllDeleteFilesTable(baseTable, metadataTableName);
       case ALL_FILES:
-        return new AllFilesTable(ops, baseTable, metadataTableName);
+        return new AllFilesTable(baseTable, metadataTableName);
       case ALL_MANIFESTS:
-        return new AllManifestsTable(ops, baseTable, metadataTableName);
+        return new AllManifestsTable(baseTable, metadataTableName);
       case ALL_ENTRIES:
-        return new AllEntriesTable(ops, baseTable, metadataTableName);
+        return new AllEntriesTable(baseTable, metadataTableName);
+      case POSITION_DELETES:
+        return new PositionDeletesTable(baseTable, metadataTableName);
       default:
         throw new NoSuchTableException(
             "Unknown metadata table type: %s for %s", type, metadataTableName);

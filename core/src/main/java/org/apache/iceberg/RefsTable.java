@@ -39,17 +39,17 @@ public class RefsTable extends BaseMetadataTable {
           Types.NestedField.optional(5, "min_snapshots_to_keep", Types.IntegerType.get()),
           Types.NestedField.optional(6, "max_snapshot_age_in_ms", Types.LongType.get()));
 
-  RefsTable(TableOperations ops, Table table) {
-    this(ops, table, table.name() + ".refs");
+  RefsTable(Table table) {
+    this(table, table.name() + ".refs");
   }
 
-  RefsTable(TableOperations ops, Table table, String name) {
-    super(ops, table, name);
+  RefsTable(Table table, String name) {
+    super(table, name);
   }
 
   @Override
   public TableScan newScan() {
-    return new RefsTableScan(operations(), table());
+    return new RefsTableScan(table());
   }
 
   @Override
@@ -58,14 +58,13 @@ public class RefsTable extends BaseMetadataTable {
   }
 
   private DataTask task(BaseTableScan scan) {
-    TableOperations ops = operations();
-    Collection<String> refNames = ops.current().refs().keySet();
+    Collection<String> refNames = table().refs().keySet();
     return StaticDataTask.of(
-        ops.io().newInputFile(ops.current().metadataFileLocation()),
+        table().io().newInputFile(table().operations().current().metadataFileLocation()),
         schema(),
         scan.schema(),
         refNames,
-        referencesToRows(ops.current().refs()));
+        referencesToRows(table().refs()));
   }
 
   @Override
@@ -74,18 +73,17 @@ public class RefsTable extends BaseMetadataTable {
   }
 
   private class RefsTableScan extends StaticTableScan {
-    RefsTableScan(TableOperations ops, Table table) {
-      super(ops, table, SNAPSHOT_REF_SCHEMA, MetadataTableType.REFS, RefsTable.this::task);
+    RefsTableScan(Table table) {
+      super(table, SNAPSHOT_REF_SCHEMA, MetadataTableType.REFS, RefsTable.this::task);
     }
 
-    RefsTableScan(TableOperations ops, Table table, TableScanContext context) {
-      super(ops, table, SNAPSHOT_REF_SCHEMA, MetadataTableType.REFS, RefsTable.this::task, context);
+    RefsTableScan(Table table, TableScanContext context) {
+      super(table, SNAPSHOT_REF_SCHEMA, MetadataTableType.REFS, RefsTable.this::task, context);
     }
 
     @Override
-    protected TableScan newRefinedScan(
-        TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      return new RefsTableScan(ops, table, context);
+    protected TableScan newRefinedScan(Table table, Schema schema, TableScanContext context) {
+      return new RefsTableScan(table, context);
     }
 
     @Override

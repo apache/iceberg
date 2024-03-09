@@ -85,6 +85,7 @@ public class EqualityDeleteWriter<T> implements FileWriter<T, DeleteWriteResult>
               .withEncryptionKeyMetadata(keyMetadata)
               .withFileSizeInBytes(appender.length())
               .withMetrics(appender.metrics())
+              .withSplitOffsets(appender.splitOffsets())
               .withSortOrder(sortOrder)
               .build();
     }

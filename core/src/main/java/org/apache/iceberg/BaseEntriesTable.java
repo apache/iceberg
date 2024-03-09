@@ -21,6 +21,8 @@ package org.apache.iceberg;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ManifestEvaluator;
@@ -33,14 +35,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.StructProjection;
 
 /** Base class logic for entries metadata tables */
 abstract class BaseEntriesTable extends BaseMetadataTable {
 
-  BaseEntriesTable(TableOperations ops, Table table, String name) {
-    super(ops, table, name);
+  BaseEntriesTable(Table table, String name) {
+    super(table, name);
   }
 
   @Override
@@ -48,12 +51,12 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
     StructType partitionType = Partitioning.partitionType(table());
     Schema schema = ManifestEntry.getSchema(partitionType);
     if (partitionType.fields().size() < 1) {
-      // avoid returning an empty struct, which is not always supported. instead, drop the partition
-      // field (id 102)
-      return TypeUtil.selectNot(schema, Sets.newHashSet(DataFile.PARTITION_ID));
-    } else {
-      return schema;
+      // avoid returning an empty struct, which is not always supported.
+      // instead, drop the partition field (id 102)
+      schema = TypeUtil.selectNot(schema, Sets.newHashSet(DataFile.PARTITION_ID));
     }
+
+    return TypeUtil.join(schema, MetricsUtil.readableMetricsSchema(table().schema(), schema));
   }
 
   static CloseableIterable<FileScanTask> planFiles(
@@ -92,8 +95,9 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
   }
 
   static class ManifestReadTask extends BaseFileScanTask implements DataTask {
-    private final Schema schema;
-    private final Schema fileSchema;
+    private final Schema projection;
+    private final Schema fileProjection;
+    private final Schema dataTableSchema;
     private final FileIO io;
     private final ManifestFile manifest;
     private final Map<Integer, PartitionSpec> specsById;
@@ -101,20 +105,21 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
     ManifestReadTask(
         Table table,
         ManifestFile manifest,
-        Schema schema,
+        Schema projection,
         String schemaString,
         String specString,
         ResidualEvaluator residuals) {
       super(DataFiles.fromManifest(manifest), null, schemaString, specString, residuals);
-      this.schema = schema;
+      this.projection = projection;
       this.io = table.io();
       this.manifest = manifest;
       this.specsById = Maps.newHashMap(table.specs());
+      this.dataTableSchema = table.schema();
 
-      Type fileProjection = schema.findType("data_file");
-      this.fileSchema =
-          fileProjection != null
-              ? new Schema(fileProjection.asStructType().fields())
+      Type fileProjectionType = projection.findType("data_file");
+      this.fileProjection =
+          fileProjectionType != null
+              ? new Schema(fileProjectionType.asStructType().fields())
               : new Schema();
     }
 
@@ -125,26 +130,85 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
 
     @Override
     public CloseableIterable<StructLike> rows() {
-      // Project data-file fields
-      CloseableIterable<StructLike> prunedRows;
-      if (manifest.content() == ManifestContent.DATA) {
-        prunedRows =
-            CloseableIterable.transform(
-                ManifestFiles.read(manifest, io).project(fileSchema).entries(),
-                file -> (GenericManifestEntry<DataFile>) file);
-      } else {
-        prunedRows =
-            CloseableIterable.transform(
-                ManifestFiles.readDeleteManifest(manifest, io, specsById)
-                    .project(fileSchema)
-                    .entries(),
-                file -> (GenericManifestEntry<DeleteFile>) file);
-      }
+      Types.NestedField readableMetricsField = projection.findField(MetricsUtil.READABLE_METRICS);
 
-      // Project non-readable fields
-      Schema readSchema = ManifestEntry.wrapFileSchema(fileSchema.asStruct());
-      StructProjection projection = StructProjection.create(readSchema, schema);
-      return CloseableIterable.transform(prunedRows, projection::wrap);
+      if (readableMetricsField == null) {
+        StructProjection structProjection = structProjection(projection);
+
+        return CloseableIterable.transform(
+            entries(fileProjection), entry -> structProjection.wrap((StructLike) entry));
+      } else {
+        Schema requiredFileProjection = requiredFileProjection();
+        Schema actualProjection = removeReadableMetrics(projection, readableMetricsField);
+        StructProjection structProjection = structProjection(actualProjection);
+
+        return CloseableIterable.transform(
+            entries(requiredFileProjection),
+            entry -> withReadableMetrics(structProjection, entry, readableMetricsField));
+      }
+    }
+
+    /**
+     * Ensure that the underlying metrics used to populate readable metrics column are part of the
+     * file projection.
+     */
+    private Schema requiredFileProjection() {
+      Schema projectionForReadableMetrics =
+          new Schema(
+              MetricsUtil.READABLE_METRIC_COLS.stream()
+                  .map(MetricsUtil.ReadableMetricColDefinition::originalCol)
+                  .collect(Collectors.toList()));
+      return TypeUtil.join(fileProjection, projectionForReadableMetrics);
+    }
+
+    private Schema removeReadableMetrics(
+        Schema projectionSchema, Types.NestedField readableMetricsField) {
+      Set<Integer> readableMetricsIds = TypeUtil.getProjectedIds(readableMetricsField.type());
+      return TypeUtil.selectNot(projectionSchema, readableMetricsIds);
+    }
+
+    private StructProjection structProjection(Schema projectedSchema) {
+      Schema manifestEntrySchema = ManifestEntry.wrapFileSchema(fileProjection.asStruct());
+      return StructProjection.create(manifestEntrySchema, projectedSchema);
+    }
+
+    /**
+     * @param fileStructProjection projection to apply on the 'data_files' struct
+     * @return entries of this read task's manifest
+     */
+    private CloseableIterable<? extends ManifestEntry<? extends ContentFile<?>>> entries(
+        Schema fileStructProjection) {
+      return ManifestFiles.open(manifest, io, specsById).project(fileStructProjection).entries();
+    }
+
+    /**
+     * Given a manifest entry and its projection, append a 'readable_metrics' column that returns
+     * the entry's metrics in human-readable form.
+     *
+     * @param entry manifest entry
+     * @param structProjection projection to apply on the manifest entry
+     * @param readableMetricsField projected "readable_metrics" field
+     * @return struct representing projected manifest entry, with appended readable_metrics field
+     */
+    private StructLike withReadableMetrics(
+        StructProjection structProjection,
+        ManifestEntry<? extends ContentFile<?>> entry,
+        Types.NestedField readableMetricsField) {
+      StructProjection struct = structProjection.wrap((StructLike) entry);
+      int structSize = projection.columns().size();
+
+      MetricsUtil.ReadableMetricsStruct readableMetrics =
+          readableMetrics(entry.file(), readableMetricsField);
+      int metricsPosition = projection.columns().indexOf(readableMetricsField);
+
+      return new MetricsUtil.StructWithReadableMetrics(
+          struct, structSize, readableMetrics, metricsPosition);
+    }
+
+    private MetricsUtil.ReadableMetricsStruct readableMetrics(
+        ContentFile<?> file, Types.NestedField readableMetricsField) {
+      StructType projectedMetricType = readableMetricsField.type().asStructType();
+      return MetricsUtil.readableMetricsStruct(dataTableSchema, file, projectedMetricType);
     }
 
     @Override

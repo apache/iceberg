@@ -18,11 +18,12 @@
  */
 package org.apache.iceberg.types;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 import org.apache.iceberg.expressions.Literal;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 /**
  * Tests the comparator returned by binary and fixed literals.
@@ -40,7 +41,9 @@ public class TestBinaryComparator {
 
     Comparator<ByteBuffer> cmp = Literal.of(b1).comparator();
 
-    Assert.assertTrue("Negative bytes should sort after positive bytes", cmp.compare(b1, b2) < 0);
+    assertThat(cmp.compare(b1, b2))
+        .as("Negative bytes should sort after positive bytes")
+        .isLessThan(0);
   }
 
   @Test
@@ -52,7 +55,9 @@ public class TestBinaryComparator {
     Literal<ByteBuffer> fixedLit = Literal.of(b1).to(Types.FixedType.ofLength(3));
     Comparator<ByteBuffer> cmp = fixedLit.comparator();
 
-    Assert.assertTrue("Negative bytes should sort after positive bytes", cmp.compare(b1, b2) < 0);
+    assertThat(cmp.compare(b1, b2))
+        .as("Negative bytes should sort after positive bytes")
+        .isLessThan(0);
   }
 
   @Test
@@ -60,8 +65,8 @@ public class TestBinaryComparator {
     ByteBuffer buf = ByteBuffer.allocate(0);
 
     Comparator<ByteBuffer> cmp = Literal.of(buf).comparator();
-    Assert.assertTrue("null comes before non-null", cmp.compare(null, buf) < 0);
-    Assert.assertTrue("null comes before non-null", cmp.compare(buf, null) > 0);
-    Assert.assertEquals("null equals null", 0, cmp.compare(null, null));
+    assertThat(cmp.compare(null, buf)).as("null comes before non-null").isLessThan(0);
+    assertThat(cmp.compare(buf, null)).as("null comes before non-null").isGreaterThan(0);
+    assertThat(cmp.compare(null, null)).as("null equals null").isZero();
   }
 }

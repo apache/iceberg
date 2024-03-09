@@ -66,10 +66,10 @@ public class FixedReservoirHistogram implements Histogram {
 
     double sum = 0.0d;
     double sumSquares = 0.0d;
-    for (int i = 0; i < values.length; ++i) {
-      sum += values[i];
+    for (long x : values) {
+      sum += x;
       // Convert to double value to avoid potential overflow of square
-      double value = (double) values[i];
+      double value = (double) x;
       sumSquares += value * value;
     }
 

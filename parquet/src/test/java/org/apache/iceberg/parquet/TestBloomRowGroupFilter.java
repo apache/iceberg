@@ -36,8 +36,10 @@ import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
+import static org.apache.iceberg.expressions.Expressions.year;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -70,14 +72,13 @@ import org.apache.iceberg.types.Types.UUIDType;
 import org.apache.parquet.column.values.bloomfilter.BloomFilter;
 import org.apache.parquet.hadoop.BloomFilterReader;
 import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.ParquetOutputFormat;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.schema.MessageType;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestBloomRowGroupFilter {
 
@@ -183,20 +184,21 @@ public class TestBloomRowGroupFilter {
   private BlockMetaData rowGroupMetadata = null;
   private BloomFilterReader bloomStore = null;
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private File temp;
 
-  @Before
+  @BeforeEach
   public void createInputFile() throws IOException {
-    File parquetFile = temp.newFile();
-    Assert.assertTrue(parquetFile.delete());
+
+    assertThat(temp.delete()).isTrue();
 
     // build struct field schema
     org.apache.avro.Schema structSchema = AvroSchemaUtil.convert(_structFieldType);
 
-    OutputFile outFile = Files.localOutput(parquetFile);
+    OutputFile outFile = Files.localOutput(temp);
     try (FileAppender<Record> appender =
         Parquet.write(outFile)
             .schema(FILE_SCHEMA)
+            .set(ParquetOutputFormat.ENABLE_DICTIONARY, "false")
             .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "_id", "true")
             .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "_long", "true")
             .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "_double", "true")
@@ -248,7 +250,7 @@ public class TestBloomRowGroupFilter {
         structNotNull.put("_int_field", INT_MIN_VALUE + i);
         builder.set("_struct_not_null", structNotNull); // struct with int
         builder.set("_no_stats", TOO_LONG_FOR_STATS); // value longer than 4k will produce no stats
-        builder.set("_boolean", (i % 2 == 0) ? true : false);
+        builder.set("_boolean", i % 2 == 0);
         builder.set("_time", instant.plusSeconds(i * 86400).toEpochMilli());
         builder.set("_date", instant.plusSeconds(i * 86400).getEpochSecond());
         builder.set("_timestamp", instant.plusSeconds(i * 86400).toEpochMilli());
@@ -262,11 +264,11 @@ public class TestBloomRowGroupFilter {
       }
     }
 
-    InputFile inFile = Files.localInput(parquetFile);
+    InputFile inFile = Files.localInput(temp);
 
     ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inFile));
 
-    Assert.assertEquals("Should create only one row group", 1, reader.getRowGroups().size());
+    assertThat(reader.getRowGroups()).as("Should create only one row group").hasSize(1);
     rowGroupMetadata = reader.getRowGroups().get(0);
     parquetSchema = reader.getFileMetaData().getSchema();
     bloomStore = reader.getBloomFilterDataReader(rowGroupMetadata);
@@ -277,22 +279,24 @@ public class TestBloomRowGroupFilter {
     boolean shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, notNull("all_nulls"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, notNull("some_nulls"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, notNull("no_nulls"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, notNull("struct_not_null.int_field"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: this field is required and are always not-null", shouldRead);
+    assertThat(shouldRead)
+        .as("Should read: this field is required and are always not-null")
+        .isTrue();
   }
 
   @Test
@@ -300,22 +304,24 @@ public class TestBloomRowGroupFilter {
     boolean shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, isNull("all_nulls"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, isNull("some_nulls"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, isNull("no_nulls"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, isNull("struct_not_null.int_field"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertFalse("Should skip: this field is required and are always not-null", shouldRead);
+    assertThat(shouldRead)
+        .as("Should skip: this field is required and are always not-null")
+        .isFalse();
   }
 
   @Test
@@ -323,12 +329,12 @@ public class TestBloomRowGroupFilter {
     boolean shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, notNull("required"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: required columns are always non-null", shouldRead);
+    assertThat(shouldRead).as("Should read: required columns are always non-null").isTrue();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, isNull("required"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertFalse("Should skip: required columns are always non-null", shouldRead);
+    assertThat(shouldRead).as("Should skip: required columns are always non-null").isFalse();
   }
 
   @Test
@@ -336,17 +342,17 @@ public class TestBloomRowGroupFilter {
     boolean shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, isNaN("all_nans"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, isNaN("some_nans"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, isNaN("no_nans"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
   }
 
   @Test
@@ -354,17 +360,17 @@ public class TestBloomRowGroupFilter {
     boolean shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, notNaN("all_nans"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, notNaN("some_nans"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, notNaN("no_nans"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
   }
 
   @Test
@@ -372,37 +378,37 @@ public class TestBloomRowGroupFilter {
     boolean shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, startsWith("non_bloom", "re"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: no bloom", shouldRead);
+    assertThat(shouldRead).as("Should read: no bloom").isTrue();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, startsWith("required", "re"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, startsWith("required", "req"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, startsWith("some_nulls", "so"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, startsWith("required", "reqs"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, startsWith("some_nulls", "somex"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, startsWith("no_nulls", "xxx"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
   }
 
   @Test
@@ -435,7 +441,7 @@ public class TestBloomRowGroupFilter {
       boolean shouldRead =
           new ParquetBloomRowGroupFilter(SCHEMA, expr)
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      Assert.assertTrue("Should read: bloom filter cannot be found: " + expr, shouldRead);
+      assertThat(shouldRead).as("Should read: bloom filter cannot be found: " + expr).isTrue();
     }
   }
 
@@ -452,7 +458,7 @@ public class TestBloomRowGroupFilter {
       boolean shouldRead =
           new ParquetBloomRowGroupFilter(SCHEMA, expr)
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      Assert.assertTrue("Should read: bloom filter cannot be found: " + expr, shouldRead);
+      assertThat(shouldRead).as("Should read: bloom filter cannot be found: " + expr).isTrue();
     }
   }
 
@@ -461,7 +467,9 @@ public class TestBloomRowGroupFilter {
     boolean shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, equal("no_stats", "a"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertFalse("Should skip: stats are missing but bloom filter is present", shouldRead);
+    assertThat(shouldRead)
+        .as("Should skip: stats are missing but bloom filter is present")
+        .isFalse();
   }
 
   @Test
@@ -472,7 +480,7 @@ public class TestBloomRowGroupFilter {
       boolean shouldRead =
           new ParquetBloomRowGroupFilter(SCHEMA, not(equal("id", i)))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+      assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
     }
   }
 
@@ -484,19 +492,19 @@ public class TestBloomRowGroupFilter {
         new ParquetBloomRowGroupFilter(
                 SCHEMA, and(equal("id", INT_MIN_VALUE - 25), equal("id", INT_MIN_VALUE + 30)))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertFalse("Should skip: and(false, true)", shouldRead);
+    assertThat(shouldRead).as("Should skip: and(false, true)").isFalse();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(
                 SCHEMA, and(equal("id", INT_MIN_VALUE - 25), equal("id", INT_MAX_VALUE + 1)))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertFalse("Should skip: and(false, false)", shouldRead);
+    assertThat(shouldRead).as("Should skip: and(false, false)").isFalse();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(
                 SCHEMA, and(equal("id", INT_MIN_VALUE + 25), equal("id", INT_MIN_VALUE)))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: and(true, true)", shouldRead);
+    assertThat(shouldRead).as("Should read: and(true, true)").isTrue();
 
     // AND filters that refer different columns ("id", "long", "binary")
     shouldRead =
@@ -507,7 +515,7 @@ public class TestBloomRowGroupFilter {
                     equal("long", LONG_BASE + 30),
                     equal("binary", RANDOM_BYTES.get(30))))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: and(true, true, true)", shouldRead);
+    assertThat(shouldRead).as("Should read: and(true, true, true)").isTrue();
 
     // AND filters that refer different columns ("id", "long", "binary")
     shouldRead =
@@ -518,7 +526,7 @@ public class TestBloomRowGroupFilter {
                     equal("long", LONG_BASE + 30),
                     equal("binary", RANDOM_BYTES.get(30))))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertFalse("Should skip: and(false, true, true)", shouldRead);
+    assertThat(shouldRead).as("Should skip: and(false, true, true)").isFalse();
 
     // In And, one of the filter's column doesn't have bloom filter
     shouldRead =
@@ -530,7 +538,7 @@ public class TestBloomRowGroupFilter {
                     equal("binary", RANDOM_BYTES.get(30)),
                     equal("non_bloom", "a")))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: and(true, true, true, true)", shouldRead);
+    assertThat(shouldRead).as("Should read: and(true, true, true, true)").isTrue();
 
     // In And, one of the filter's column doesn't have bloom filter
     shouldRead =
@@ -542,7 +550,7 @@ public class TestBloomRowGroupFilter {
                     equal("binary", RANDOM_BYTES.get(30)),
                     equal("non_bloom", "a")))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertFalse("Should skip: and(false, true, true, true)", shouldRead);
+    assertThat(shouldRead).as("Should skip: and(false, true, true, true)").isFalse();
 
     // In And, one of the filter's column is not in the file
     shouldRead =
@@ -554,7 +562,7 @@ public class TestBloomRowGroupFilter {
                     equal("binary", RANDOM_BYTES.get(30)),
                     equal("not_in_file", 1.0f)))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: and(true, true, true, true)", shouldRead);
+    assertThat(shouldRead).as("Should read: and(true, true, true, true)").isTrue();
 
     // In And, one of the filter's column is not in the file
     shouldRead =
@@ -566,7 +574,7 @@ public class TestBloomRowGroupFilter {
                     equal("binary", RANDOM_BYTES.get(30)),
                     equal("not_in_file", 1.0f)))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertFalse("Should skip: and(false, true, true, true)", shouldRead);
+    assertThat(shouldRead).as("Should skip: and(false, true, true, true)").isFalse();
   }
 
   @Test
@@ -577,13 +585,13 @@ public class TestBloomRowGroupFilter {
         new ParquetBloomRowGroupFilter(
                 SCHEMA, or(equal("id", INT_MIN_VALUE - 25), equal("id", INT_MAX_VALUE + 1)))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertFalse("Should skip: or(false, false)", shouldRead);
+    assertThat(shouldRead).as("Should skip: or(false, false)").isFalse();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(
                 SCHEMA, or(equal("id", INT_MIN_VALUE - 25), equal("id", INT_MAX_VALUE - 19)))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: or(false, true)", shouldRead);
+    assertThat(shouldRead).as("Should read: or(false, true)").isTrue();
   }
 
   @Test
@@ -592,7 +600,7 @@ public class TestBloomRowGroupFilter {
       boolean shouldRead =
           new ParquetBloomRowGroupFilter(SCHEMA, lessThan("id", i))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+      assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
     }
   }
 
@@ -602,7 +610,7 @@ public class TestBloomRowGroupFilter {
       boolean shouldRead =
           new ParquetBloomRowGroupFilter(SCHEMA, lessThanOrEqual("id", i))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+      assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
     }
   }
 
@@ -612,7 +620,7 @@ public class TestBloomRowGroupFilter {
       boolean shouldRead =
           new ParquetBloomRowGroupFilter(SCHEMA, greaterThan("id", i))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+      assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
     }
   }
 
@@ -622,7 +630,7 @@ public class TestBloomRowGroupFilter {
       boolean shouldRead =
           new ParquetBloomRowGroupFilter(SCHEMA, greaterThanOrEqual("id", i))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+      assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
     }
   }
 
@@ -633,9 +641,9 @@ public class TestBloomRowGroupFilter {
           new ParquetBloomRowGroupFilter(SCHEMA, equal("id", i))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
       if (i >= INT_MIN_VALUE && i <= INT_MAX_VALUE) {
-        Assert.assertTrue("Should read: integer within range", shouldRead);
+        assertThat(shouldRead).as("Should read: integer within range").isTrue();
       } else {
-        Assert.assertFalse("Should not read: integer outside range", shouldRead);
+        assertThat(shouldRead).as("Should not read: integer outside range").isFalse();
       }
     }
   }
@@ -647,9 +655,9 @@ public class TestBloomRowGroupFilter {
           new ParquetBloomRowGroupFilter(SCHEMA, equal("long", LONG_BASE + i))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
       if (i >= INT_MIN_VALUE && i <= INT_MAX_VALUE) {
-        Assert.assertTrue("Should read: long within range", shouldRead);
+        assertThat(shouldRead).as("Should read: long within range").isTrue();
       } else {
-        Assert.assertFalse("Should not read: long outside range", shouldRead);
+        assertThat(shouldRead).as("Should not read: long outside range").isFalse();
       }
     }
   }
@@ -660,7 +668,7 @@ public class TestBloomRowGroupFilter {
       boolean shouldRead =
           new ParquetBloomRowGroupFilter(SCHEMA, equal("binary", RANDOM_BYTES.get(i)))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      Assert.assertTrue("Should read: binary within range", shouldRead);
+      assertThat(shouldRead).as("Should read: binary within range").isTrue();
     }
 
     Random rd = new Random(54321);
@@ -670,7 +678,7 @@ public class TestBloomRowGroupFilter {
       boolean shouldRead =
           new ParquetBloomRowGroupFilter(SCHEMA, equal("binary", byteArray))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      Assert.assertFalse("Should not read: cannot match a new generated binary", shouldRead);
+      assertThat(shouldRead).as("Should not read: cannot match a new generated binary").isFalse();
     }
   }
 
@@ -681,13 +689,13 @@ public class TestBloomRowGroupFilter {
           new ParquetBloomRowGroupFilter(
                   SCHEMA, equal("int_decimal", new BigDecimal(String.valueOf(77.77 + i))))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      Assert.assertTrue("Should read: decimal within range", shouldRead);
+      assertThat(shouldRead).as("Should read: decimal within range").isTrue();
     }
 
     boolean shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, equal("int_decimal", new BigDecimal("1234.56")))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertFalse("Should not read: decimal outside range", shouldRead);
+    assertThat(shouldRead).as("Should not read: decimal outside range").isFalse();
   }
 
   @Test
@@ -697,13 +705,13 @@ public class TestBloomRowGroupFilter {
           new ParquetBloomRowGroupFilter(
                   SCHEMA, equal("long_decimal", new BigDecimal(String.valueOf(88.88 + i))))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      Assert.assertTrue("Should read: decimal within range", shouldRead);
+      assertThat(shouldRead).as("Should read: decimal within range").isTrue();
     }
 
     boolean shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, equal("long_decimal", new BigDecimal("1234.56")))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertFalse("Should not read: decimal outside range", shouldRead);
+    assertThat(shouldRead).as("Should not read: decimal outside range").isFalse();
   }
 
   @Test
@@ -713,13 +721,13 @@ public class TestBloomRowGroupFilter {
           new ParquetBloomRowGroupFilter(
                   SCHEMA, equal("fixed_decimal", new BigDecimal(String.valueOf(99.99 + i))))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      Assert.assertTrue("Should read: decimal within range", shouldRead);
+      assertThat(shouldRead).as("Should read: decimal within range").isTrue();
     }
 
     boolean shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, equal("fixed_decimal", new BigDecimal("1234.56")))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertFalse("Should not read: decimal outside range", shouldRead);
+    assertThat(shouldRead).as("Should not read: decimal outside range").isFalse();
   }
 
   @Test
@@ -729,9 +737,9 @@ public class TestBloomRowGroupFilter {
           new ParquetBloomRowGroupFilter(SCHEMA, equal("double", DOUBLE_BASE + i))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
       if (i >= INT_MIN_VALUE && i <= INT_MAX_VALUE) {
-        Assert.assertTrue("Should read: double within range", shouldRead);
+        assertThat(shouldRead).as("Should read: double within range").isTrue();
       } else {
-        Assert.assertFalse("Should not read: double outside range", shouldRead);
+        assertThat(shouldRead).as("Should not read: double outside range").isFalse();
       }
     }
   }
@@ -743,9 +751,9 @@ public class TestBloomRowGroupFilter {
           new ParquetBloomRowGroupFilter(SCHEMA, equal("float", FLOAT_BASE + i))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
       if (i >= INT_MIN_VALUE && i <= INT_MAX_VALUE) {
-        Assert.assertTrue("Should read: float within range", shouldRead);
+        assertThat(shouldRead).as("Should read: float within range").isTrue();
       } else {
-        Assert.assertFalse("Should not read: float outside range", shouldRead);
+        assertThat(shouldRead).as("Should not read: float outside range").isFalse();
       }
     }
   }
@@ -757,9 +765,9 @@ public class TestBloomRowGroupFilter {
           new ParquetBloomRowGroupFilter(SCHEMA, equal("string", BINARY_PREFIX + i))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
       if (i >= INT_MIN_VALUE && i <= INT_MAX_VALUE) {
-        Assert.assertTrue("Should read: string within range", shouldRead);
+        assertThat(shouldRead).as("Should read: string within range").isTrue();
       } else {
-        Assert.assertFalse("Should not read: string outside range", shouldRead);
+        assertThat(shouldRead).as("Should not read: string outside range").isFalse();
       }
     }
   }
@@ -770,7 +778,7 @@ public class TestBloomRowGroupFilter {
       boolean shouldRead =
           new ParquetBloomRowGroupFilter(SCHEMA, equal("uuid", RANDOM_UUIDS.get(i)))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      Assert.assertTrue("Should read: uuid within range", shouldRead);
+      assertThat(shouldRead).as("Should read: uuid within range").isTrue();
     }
 
     Random rd = new Random(1357);
@@ -778,7 +786,9 @@ public class TestBloomRowGroupFilter {
         new ParquetBloomRowGroupFilter(
                 SCHEMA, equal("uuid", new UUID(rd.nextLong(), rd.nextLong()).toString()))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertFalse("Should not read: cannot match a new generated random uuid", shouldRead);
+    assertThat(shouldRead)
+        .as("Should not read: cannot match a new generated random uuid")
+        .isFalse();
   }
 
   @Test
@@ -786,12 +796,12 @@ public class TestBloomRowGroupFilter {
     boolean shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, equal("boolean", true))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: bloom filter is not supported for Boolean", shouldRead);
+    assertThat(shouldRead).as("Should read: bloom filter is not supported for Boolean").isTrue();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, equal("boolean", false))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: bloom filter is not supported for Boolean", shouldRead);
+    assertThat(shouldRead).as("Should read: bloom filter is not supported for Boolean").isTrue();
   }
 
   @Test
@@ -802,9 +812,9 @@ public class TestBloomRowGroupFilter {
           new ParquetBloomRowGroupFilter(SCHEMA, equal("time", ins.toEpochMilli()))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
       if (i >= 0 && i < INT_VALUE_COUNT) {
-        Assert.assertTrue("Should read: time within range", shouldRead);
+        assertThat(shouldRead).as("Should read: time within range").isTrue();
       } else {
-        Assert.assertFalse("Should not read: time outside range", shouldRead);
+        assertThat(shouldRead).as("Should not read: time outside range").isFalse();
       }
     }
   }
@@ -817,9 +827,9 @@ public class TestBloomRowGroupFilter {
           new ParquetBloomRowGroupFilter(SCHEMA, equal("date", ins.getEpochSecond()))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
       if (i >= 0 && i < INT_VALUE_COUNT) {
-        Assert.assertTrue("Should read: date within range", shouldRead);
+        assertThat(shouldRead).as("Should read: date within range").isTrue();
       } else {
-        Assert.assertFalse("Should not read: date outside range", shouldRead);
+        assertThat(shouldRead).as("Should not read: date outside range").isFalse();
       }
     }
   }
@@ -832,9 +842,9 @@ public class TestBloomRowGroupFilter {
           new ParquetBloomRowGroupFilter(SCHEMA, equal("timestamp", ins.toEpochMilli()))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
       if (i >= 0 && i < INT_VALUE_COUNT) {
-        Assert.assertTrue("Should read: timestamp within range", shouldRead);
+        assertThat(shouldRead).as("Should read: timestamp within range").isTrue();
       } else {
-        Assert.assertFalse("Should not read: timestamp outside range", shouldRead);
+        assertThat(shouldRead).as("Should not read: timestamp outside range").isFalse();
       }
     }
   }
@@ -847,9 +857,9 @@ public class TestBloomRowGroupFilter {
           new ParquetBloomRowGroupFilter(SCHEMA, equal("timestamptz", ins.toEpochMilli()))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
       if (i >= 0 && i < INT_VALUE_COUNT) {
-        Assert.assertTrue("Should read: timestamptz within range", shouldRead);
+        assertThat(shouldRead).as("Should read: timestamptz within range").isTrue();
       } else {
-        Assert.assertFalse("Should not read: timestamptz outside range", shouldRead);
+        assertThat(shouldRead).as("Should not read: timestamptz outside range").isFalse();
       }
     }
   }
@@ -860,7 +870,7 @@ public class TestBloomRowGroupFilter {
       boolean shouldRead =
           new ParquetBloomRowGroupFilter(SCHEMA, notEqual("id", i))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+      assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
     }
   }
 
@@ -870,7 +880,7 @@ public class TestBloomRowGroupFilter {
       boolean shouldRead =
           new ParquetBloomRowGroupFilter(SCHEMA, not(equal("id", i)))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+      assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
     }
   }
 
@@ -879,12 +889,12 @@ public class TestBloomRowGroupFilter {
     boolean shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, notEqual("some_nulls", "some"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, notEqual("no_nulls", ""))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
   }
 
   @Test
@@ -893,7 +903,7 @@ public class TestBloomRowGroupFilter {
       boolean shouldRead =
           new ParquetBloomRowGroupFilter(SCHEMA, lessThan("struct_not_null.int_field", i))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+      assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
     }
   }
 
@@ -903,7 +913,7 @@ public class TestBloomRowGroupFilter {
       boolean shouldRead =
           new ParquetBloomRowGroupFilter(SCHEMA, lessThanOrEqual("struct_not_null.int_field", i))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+      assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
     }
   }
 
@@ -913,7 +923,7 @@ public class TestBloomRowGroupFilter {
       boolean shouldRead =
           new ParquetBloomRowGroupFilter(SCHEMA, greaterThan("struct_not_null.int_field", i))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+      assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
     }
   }
 
@@ -923,7 +933,7 @@ public class TestBloomRowGroupFilter {
       boolean shouldRead =
           new ParquetBloomRowGroupFilter(SCHEMA, greaterThanOrEqual("struct_not_null.int_field", i))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+      assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
     }
   }
 
@@ -934,9 +944,9 @@ public class TestBloomRowGroupFilter {
           new ParquetBloomRowGroupFilter(SCHEMA, equal("struct_not_null.int_field", i))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
       if (i >= INT_MIN_VALUE && i <= INT_MAX_VALUE) {
-        Assert.assertTrue("Should read: value within range", shouldRead);
+        assertThat(shouldRead).as("Should read: value within range").isTrue();
       } else {
-        Assert.assertFalse("Should not read: value outside range", shouldRead);
+        assertThat(shouldRead).as("Should not read: value outside range").isFalse();
       }
     }
   }
@@ -947,7 +957,7 @@ public class TestBloomRowGroupFilter {
       boolean shouldRead =
           new ParquetBloomRowGroupFilter(SCHEMA, notEqual("struct_not_null.int_field", i))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+      assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
     }
   }
 
@@ -958,7 +968,7 @@ public class TestBloomRowGroupFilter {
     boolean shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, equal("Required", "Req"), false)
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertFalse("Should skip: contains only 'req'", shouldRead);
+    assertThat(shouldRead).as("Should skip: contains only 'req'").isFalse();
   }
 
   @Test
@@ -994,7 +1004,7 @@ public class TestBloomRowGroupFilter {
           new ParquetBloomRowGroupFilter(
                   SCHEMA, in("id", INT_MIN_VALUE - 3 * i, INT_MIN_VALUE + i, INT_MAX_VALUE + 3 * i))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      Assert.assertTrue("Should read: integer within range", shouldRead);
+      assertThat(shouldRead).as("Should read: integer within range").isTrue();
     }
 
     // all values are present
@@ -1007,7 +1017,7 @@ public class TestBloomRowGroupFilter {
                         .boxed()
                         .collect(Collectors.toList())))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: the bloom is a subset of the in set", shouldRead);
+    assertThat(shouldRead).as("Should read: the bloom is a subset of the in set").isTrue();
 
     // all values are present
     shouldRead =
@@ -1019,7 +1029,7 @@ public class TestBloomRowGroupFilter {
                         .boxed()
                         .collect(Collectors.toList())))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: the bloom is equal to the in set", shouldRead);
+    assertThat(shouldRead).as("Should read: the bloom is equal to the in set").isTrue();
 
     // no values are present
     shouldRead =
@@ -1031,7 +1041,7 @@ public class TestBloomRowGroupFilter {
                         .boxed()
                         .collect(Collectors.toList())))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertFalse("Should not read: value outside range", shouldRead);
+    assertThat(shouldRead).as("Should not read: value outside range").isFalse();
   }
 
   @Test
@@ -1039,29 +1049,35 @@ public class TestBloomRowGroupFilter {
     boolean shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, in("all_nulls", 1, 2))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertFalse("Should not read: in on all nulls column (bloom is empty) ", shouldRead);
+    assertThat(shouldRead)
+        .as("Should not read: in on all nulls column (bloom is empty) ")
+        .isFalse();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, in("some_nulls", "aaa", "some"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: in on some nulls column", shouldRead);
+    assertThat(shouldRead).as("Should read: in on some nulls column").isTrue();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, in("some_nulls", "aaa", "bbb"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertFalse("Should not read: some_nulls values are not within the set", shouldRead);
+    assertThat(shouldRead)
+        .as("Should not read: some_nulls values are not within the set")
+        .isFalse();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, in("no_nulls", "aaa", "bbb"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertFalse(
-        "Should not read: in on no nulls column (empty string is not within the set)", shouldRead);
+    assertThat(shouldRead)
+        .as("Should not read: in on no nulls column (empty string is not within the set)")
+        .isFalse();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, in("no_nulls", "aaa", ""))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue(
-        "Should read: in on no nulls column (empty string is within the set)", shouldRead);
+    assertThat(shouldRead)
+        .as("Should read: in on no nulls column (empty string is within the set)")
+        .isTrue();
   }
 
   @Test
@@ -1073,7 +1089,7 @@ public class TestBloomRowGroupFilter {
                   SCHEMA,
                   notIn("id", INT_MIN_VALUE - 3 * i, INT_MIN_VALUE + i, INT_MAX_VALUE + 3 * i))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+      assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
     }
 
     // all values are present
@@ -1086,7 +1102,7 @@ public class TestBloomRowGroupFilter {
                         .boxed()
                         .collect(Collectors.toList())))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
 
     // all values are present
     shouldRead =
@@ -1098,7 +1114,7 @@ public class TestBloomRowGroupFilter {
                         .boxed()
                         .collect(Collectors.toList())))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
 
     // no values are present
     shouldRead =
@@ -1110,7 +1126,7 @@ public class TestBloomRowGroupFilter {
                         .boxed()
                         .collect(Collectors.toList())))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
   }
 
   @Test
@@ -1118,22 +1134,22 @@ public class TestBloomRowGroupFilter {
     boolean shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, notIn("all_nulls", 1, 2))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, notIn("some_nulls", "aaa", "bbb"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, notIn("no_nulls", "aaa", "bbb"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, notIn("no_nulls", "aaa", ""))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+    assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
   }
 
   @Test
@@ -1141,26 +1157,36 @@ public class TestBloomRowGroupFilter {
     boolean shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, equal("long", LONG_BASE + INT_MIN_VALUE + 1), true)
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: Integer value promoted", shouldRead);
+    assertThat(shouldRead).as("Should read: Integer value promoted").isTrue();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, equal("long", LONG_BASE + INT_MIN_VALUE - 1), true)
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertFalse("Should not read: Integer value promoted", shouldRead);
+    assertThat(shouldRead).as("Should not read: Integer value promoted").isFalse();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, equal("id", (long) (INT_MIN_VALUE + 1)), true)
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertTrue("Should read: Long value truncated", shouldRead);
+    assertThat(shouldRead).as("Should read: Long value truncated").isTrue();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, equal("id", (long) (INT_MIN_VALUE - 1)), true)
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertFalse("Should not read: Long value truncated", shouldRead);
+    assertThat(shouldRead).as("Should not read: Long value truncated").isFalse();
 
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, equal("id", ((long) Integer.MAX_VALUE) + 1), true)
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    Assert.assertFalse("Should not read: Long value outside Integer range", shouldRead);
+    assertThat(shouldRead).as("Should not read: Long value outside Integer range").isFalse();
+  }
+
+  @Test
+  public void testTransformFilter() {
+    boolean shouldRead =
+        new ParquetBloomRowGroupFilter(SCHEMA, equal(year("timestamp"), 10), true)
+            .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
+    assertThat(shouldRead)
+        .as("Should read: filter contains non-reference evaluate as True")
+        .isTrue();
   }
 }

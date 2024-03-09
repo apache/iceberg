@@ -20,12 +20,10 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFAULT;
-import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED;
-import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -57,7 +55,6 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
   private final TableOperations ops;
   private final Map<Integer, PartitionSpec> specsById;
   private final long manifestTargetSizeBytes;
-  private final boolean snapshotIdInheritanceEnabled;
 
   private final Set<ManifestFile> deletedManifests = Sets.newHashSet();
   private final List<ManifestFile> addedManifests = Lists.newArrayList();
@@ -82,10 +79,6 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     this.manifestTargetSizeBytes =
         ops.current()
             .propertyAsLong(MANIFEST_TARGET_SIZE_BYTES, MANIFEST_TARGET_SIZE_BYTES_DEFAULT);
-    this.snapshotIdInheritanceEnabled =
-        ops.current()
-            .propertyAsBoolean(
-                SNAPSHOT_ID_INHERITANCE_ENABLED, SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT);
   }
 
   @Override
@@ -148,7 +141,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     Preconditions.checkArgument(
         manifest.sequenceNumber() == -1, "Sequence must be assigned during commit");
 
-    if (snapshotIdInheritanceEnabled && manifest.snapshotId() == null) {
+    if (canInheritSnapshotId() && manifest.snapshotId() == null) {
       addedManifests.add(manifest);
     } else {
       // the manifest must be rewritten with this update's snapshot ID
@@ -173,23 +166,9 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
         summaryBuilder);
   }
 
-  /**
-   * Apply the update's changes to the base table metadata and return the new manifest list.
-   *
-   * @param base the base table metadata to apply changes to
-   * @return a manifest list for the new snapshot.
-   * @deprecated Will be removed in 1.2.0, use {@link BaseRewriteManifests#apply(TableMetadata,
-   *     Snapshot)}.
-   */
-  @Deprecated
-  @Override
-  public List<ManifestFile> apply(TableMetadata base) {
-    return super.apply(base);
-  }
-
   @Override
   public List<ManifestFile> apply(TableMetadata base, Snapshot snapshot) {
-    List<ManifestFile> currentManifests = base.currentSnapshot().dataManifests(ops.io());
+    List<ManifestFile> currentManifests = base.currentSnapshot().allManifests(ops.io());
     Set<ManifestFile> currentManifestSet = ImmutableSet.copyOf(currentManifests);
 
     validateDeletedManifests(currentManifestSet);
@@ -211,7 +190,6 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     List<ManifestFile> apply = Lists.newArrayList();
     Iterables.addAll(apply, newManifestsWithMetadata);
     apply.addAll(keptManifests);
-    apply.addAll(base.currentSnapshot().deleteManifests(ops.io()));
 
     return apply;
   }
@@ -263,13 +241,13 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
           .executeWith(workerPool())
           .run(
               manifest -> {
-                if (predicate != null && !predicate.test(manifest)) {
+                if (containsDeletes(manifest) || !matchesPredicate(manifest)) {
                   keptManifests.add(manifest);
                 } else {
                   rewrittenManifests.add(manifest);
                   try (ManifestReader<DataFile> reader =
                       ManifestFiles.read(manifest, ops.io(), ops.current().specsById())
-                          .select(Arrays.asList("*"))) {
+                          .select(Collections.singletonList("*"))) {
                     reader
                         .liveEntries()
                         .forEach(
@@ -287,6 +265,14 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     } finally {
       Tasks.foreach(writers.values()).executeWith(workerPool()).run(WriterWrapper::close);
     }
+  }
+
+  private boolean containsDeletes(ManifestFile manifest) {
+    return manifest.content() == ManifestContent.DELETES;
+  }
+
+  private boolean matchesPredicate(ManifestFile manifest) {
+    return predicate == null || predicate.test(manifest);
   }
 
   private void validateDeletedManifests(Set<ManifestFile> currentManifests) {

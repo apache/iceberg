@@ -29,17 +29,17 @@ import org.apache.iceberg.io.CloseableIterable;
  */
 public class AllDeleteFilesTable extends BaseFilesTable {
 
-  AllDeleteFilesTable(TableOperations ops, Table table) {
-    this(ops, table, table.name() + ".all_delete_files");
+  AllDeleteFilesTable(Table table) {
+    this(table, table.name() + ".all_delete_files");
   }
 
-  AllDeleteFilesTable(TableOperations ops, Table table, String name) {
-    super(ops, table, name);
+  AllDeleteFilesTable(Table table, String name) {
+    super(table, name);
   }
 
   @Override
   public TableScan newScan() {
-    return new AllDeleteFilesTableScan(operations(), table(), schema());
+    return new AllDeleteFilesTableScan(table(), schema());
   }
 
   @Override
@@ -49,24 +49,22 @@ public class AllDeleteFilesTable extends BaseFilesTable {
 
   public static class AllDeleteFilesTableScan extends BaseAllFilesTableScan {
 
-    AllDeleteFilesTableScan(TableOperations ops, Table table, Schema schema) {
-      super(ops, table, schema, MetadataTableType.ALL_DELETE_FILES);
+    AllDeleteFilesTableScan(Table table, Schema schema) {
+      super(table, schema, MetadataTableType.ALL_DELETE_FILES);
     }
 
-    private AllDeleteFilesTableScan(
-        TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      super(ops, table, schema, MetadataTableType.ALL_DELETE_FILES, context);
+    private AllDeleteFilesTableScan(Table table, Schema schema, TableScanContext context) {
+      super(table, schema, MetadataTableType.ALL_DELETE_FILES, context);
     }
 
     @Override
-    protected TableScan newRefinedScan(
-        TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      return new AllDeleteFilesTableScan(ops, table, schema, context);
+    protected TableScan newRefinedScan(Table table, Schema schema, TableScanContext context) {
+      return new AllDeleteFilesTableScan(table, schema, context);
     }
 
     @Override
     protected CloseableIterable<ManifestFile> manifests() {
-      return reachableManifests(snapshot -> snapshot.deleteManifests(tableOps().io()));
+      return reachableManifests(snapshot -> snapshot.deleteManifests(table().io()));
     }
   }
 }

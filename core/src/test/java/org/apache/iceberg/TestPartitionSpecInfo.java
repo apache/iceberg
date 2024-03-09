@@ -64,10 +64,19 @@ public class TestPartitionSpecInfo {
   }
 
   @Test
+  public void testSpecIsUnpartitionedForVoidTranforms() {
+    PartitionSpec spec =
+        PartitionSpec.builderFor(schema).alwaysNull("id").alwaysNull("data").build();
+
+    Assert.assertTrue(spec.isUnpartitioned());
+  }
+
+  @Test
   public void testSpecInfoUnpartitionedTable() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     TestTables.TestTable table = TestTables.create(tableDir, "test", schema, spec, formatVersion);
 
+    Assert.assertTrue(spec.isUnpartitioned());
     Assert.assertEquals(spec, table.spec());
     Assert.assertEquals(spec.lastAssignedFieldId(), table.spec().lastAssignedFieldId());
     Assert.assertEquals(ImmutableMap.of(spec.specId(), spec), table.specs());

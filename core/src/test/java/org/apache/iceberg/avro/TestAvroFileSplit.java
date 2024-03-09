@@ -18,7 +18,10 @@
  */
 package org.apache.iceberg.avro;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
 import org.apache.iceberg.Files;
@@ -36,11 +39,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestAvroFileSplit {
   private static final Schema SCHEMA =
@@ -50,16 +51,16 @@ public class TestAvroFileSplit {
 
   private static final int NUM_RECORDS = 100_000;
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir Path temp;
 
   public List<Record> expected = null;
   public InputFile file = null;
 
-  @Before
+  @BeforeEach
   public void writeDataFile() throws IOException {
     this.expected = Lists.newArrayList();
 
-    OutputFile out = Files.localOutput(temp.newFile());
+    OutputFile out = Files.localOutput(temp.toFile());
 
     try (FileAppender<Object> writer =
         Avro.write(out)
@@ -86,22 +87,21 @@ public class TestAvroFileSplit {
     long splitLocation = end / 2;
 
     List<Record> firstHalf = readAvro(file, SCHEMA, 0, splitLocation);
-    Assert.assertNotEquals("First split should not be empty", 0, firstHalf.size());
+    assertThat(firstHalf.size()).as("First split should not be empty").isNotEqualTo(0);
 
     List<Record> secondHalf = readAvro(file, SCHEMA, splitLocation + 1, end - splitLocation - 1);
-    Assert.assertNotEquals("Second split should not be empty", 0, secondHalf.size());
+    assertThat(secondHalf.size()).as("Second split should not be empty").isNotEqualTo(0);
 
-    Assert.assertEquals(
-        "Total records should match expected",
-        expected.size(),
-        firstHalf.size() + secondHalf.size());
+    assertThat(firstHalf.size() + secondHalf.size())
+        .as("Total records should match expected")
+        .isEqualTo(expected.size());
 
     for (int i = 0; i < firstHalf.size(); i += 1) {
-      Assert.assertEquals(expected.get(i), firstHalf.get(i));
+      assertThat(firstHalf.get(i)).isEqualTo(expected.get(i));
     }
 
     for (int i = 0; i < secondHalf.size(); i += 1) {
-      Assert.assertEquals(expected.get(firstHalf.size() + i), secondHalf.get(i));
+      assertThat(secondHalf.get(i)).isEqualTo(expected.get(firstHalf.size() + i));
     }
   }
 
@@ -113,16 +113,17 @@ public class TestAvroFileSplit {
     List<Record> records = readAvro(file, projection, 0, file.getLength());
 
     for (int i = 0; i < expected.size(); i += 1) {
-      Assert.assertEquals(
-          "Field _pos should match",
-          (long) i,
-          records.get(i).getField(MetadataColumns.ROW_POSITION.name()));
-      Assert.assertEquals(
-          "Field id should match", expected.get(i).getField("id"), records.get(i).getField("id"));
-      Assert.assertEquals(
-          "Field data should match",
-          expected.get(i).getField("data"),
-          records.get(i).getField("data"));
+      assertThat(records.get(i).getField(MetadataColumns.ROW_POSITION.name()))
+          .as("Field _pos should match")
+          .isEqualTo((long) i);
+
+      assertThat(records.get(i).getField("id"))
+          .as("Field id should match")
+          .isEqualTo(expected.get(i).getField("id"));
+
+      assertThat(records.get(i).getField("data"))
+          .as("Field data should match")
+          .isEqualTo(expected.get(i).getField("data"));
     }
   }
 
@@ -136,42 +137,37 @@ public class TestAvroFileSplit {
 
     List<Record> secondHalf =
         readAvro(file, projection, splitLocation + 1, end - splitLocation - 1);
-    Assert.assertNotEquals("Second split should not be empty", 0, secondHalf.size());
+    assertThat(secondHalf.size()).as("Second split should not be empty").isNotEqualTo(0);
 
     List<Record> firstHalf = readAvro(file, projection, 0, splitLocation);
-    Assert.assertNotEquals("First split should not be empty", 0, firstHalf.size());
+    assertThat(firstHalf.size()).as("First split should not be empty").isNotEqualTo(0);
 
-    Assert.assertEquals(
-        "Total records should match expected",
-        expected.size(),
-        firstHalf.size() + secondHalf.size());
+    assertThat(firstHalf.size() + secondHalf.size())
+        .as("Total records should match expected")
+        .isEqualTo(expected.size());
 
     for (int i = 0; i < firstHalf.size(); i += 1) {
-      Assert.assertEquals(
-          "Field _pos should match",
-          (long) i,
-          firstHalf.get(i).getField(MetadataColumns.ROW_POSITION.name()));
-      Assert.assertEquals(
-          "Field id should match", expected.get(i).getField("id"), firstHalf.get(i).getField("id"));
-      Assert.assertEquals(
-          "Field data should match",
-          expected.get(i).getField("data"),
-          firstHalf.get(i).getField("data"));
+      assertThat(firstHalf.get(i).getField(MetadataColumns.ROW_POSITION.name()))
+          .as("Field _pos should match")
+          .isEqualTo((long) i);
+      assertThat(firstHalf.get(i).getField("id"))
+          .as("Field id should match")
+          .isEqualTo(expected.get(i).getField("id"));
+      assertThat(firstHalf.get(i).getField("data"))
+          .as("Field data should match")
+          .isEqualTo(expected.get(i).getField("data"));
     }
 
     for (int i = 0; i < secondHalf.size(); i += 1) {
-      Assert.assertEquals(
-          "Field _pos should match",
-          (long) (firstHalf.size() + i),
-          secondHalf.get(i).getField(MetadataColumns.ROW_POSITION.name()));
-      Assert.assertEquals(
-          "Field id should match",
-          expected.get(firstHalf.size() + i).getField("id"),
-          secondHalf.get(i).getField("id"));
-      Assert.assertEquals(
-          "Field data should match",
-          expected.get(firstHalf.size() + i).getField("data"),
-          secondHalf.get(i).getField("data"));
+      assertThat(secondHalf.get(i).getField(MetadataColumns.ROW_POSITION.name()))
+          .as("Field _pos should match")
+          .isEqualTo((long) (firstHalf.size() + i));
+      assertThat(secondHalf.get(i).getField("id"))
+          .as("Field id should match")
+          .isEqualTo(expected.get(firstHalf.size() + i).getField("id"));
+      assertThat(secondHalf.get(i).getField("data"))
+          .as("Field data should match")
+          .isEqualTo(expected.get(firstHalf.size() + i).getField("data"));
     }
   }
 
@@ -183,7 +179,7 @@ public class TestAvroFileSplit {
     long end = file.getLength();
 
     List<Record> records = readAvro(file, projection, end - 10, 10);
-    Assert.assertEquals("Should not read any records", 0, records.size());
+    assertThat(records.size()).as("Should not read any records").isEqualTo(0);
   }
 
   public List<Record> readAvro(InputFile in, Schema projection, long start, long length)

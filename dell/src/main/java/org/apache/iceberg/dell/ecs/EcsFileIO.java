@@ -86,7 +86,11 @@ public class EcsFileIO implements FileIO {
     this.dellProperties = new DellProperties(properties);
     this.dellClientFactory = DellClientFactories.from(properties);
     this.s3 = dellClientFactory::ecsS3;
+    initMetrics(properties);
+  }
 
+  @SuppressWarnings("CatchBlockLogException")
+  private void initMetrics(Map<String, String> properties) {
     // Report Hadoop metrics if Hadoop is available
     try {
       DynConstructors.Ctor<MetricsContext> ctor =
@@ -98,9 +102,7 @@ public class EcsFileIO implements FileIO {
       this.metrics = context;
     } catch (NoClassDefFoundError | NoSuchMethodException | ClassCastException e) {
       LOG.warn(
-          "Unable to load metrics class: '{}', falling back to null metrics",
-          DEFAULT_METRICS_IMPL,
-          e);
+          "Unable to load metrics class: '{}', falling back to null metrics", DEFAULT_METRICS_IMPL);
     }
   }
 

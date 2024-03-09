@@ -1,0 +1,103 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
+name: "JMH Benchmarks"
+on:
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: 'Repo name with owner, such as apache/iceberg'
+        required: true
+      ref:
+        description: 'The branch name'
+        required: true
+      spark_version:
+        description: 'The spark project version to use, such as iceberg-spark-3.5'
+        default: 'iceberg-spark-3.5'
+        required: true
+      benchmarks:
+        description: 'A list of comma-separated double-quoted Benchmark names, such as "IcebergSourceFlatParquetDataReadBenchmark", "IcebergSourceFlatParquetDataFilterBenchmark"'
+        required: true
+
+jobs:
+  matrix:
+    runs-on: ubuntu-22.04
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      foundlabel: ${{ steps.set-matrix.outputs.foundlabel }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.inputs.repo }}
+          ref: ${{ github.event.inputs.ref }}
+      - id: set-matrix
+        run: |
+          matrix=$(echo '[${{ github.event.inputs.benchmarks }}]' | jq '.[] | select(endswith("Benchmark")) | .')
+          matrix=$(echo $matrix | sed 's/ /,/g' | sed 's/"/\"/g')
+          echo "matrix=[$matrix]" >> $GITHUB_OUTPUT
+          echo "foundlabel=$(echo "[$matrix]" | jq 'if . | length > 0 then true else false end')" >> $GITHUB_OUTPUT
+
+  show-matrix:
+    needs: matrix
+    runs-on: ubuntu-22.04
+    steps:
+      - run: |
+          echo "Repo: ${{ github.event.inputs.repo }}"
+          echo "Ref: ${{ github.event.inputs.ref }}"
+          echo "Benchmarks: ${{ needs.matrix.outputs.matrix }}"
+          echo "Spark Project Version: ${{ needs.matrix.outputs.spark_version }}"
+          echo "Found Benchmarks? ${{ needs.matrix.outputs.foundlabel }}"
+
+  run-benchmark:
+    if: ${{ needs.matrix.outputs.foundlabel == 'true' }}
+    needs: matrix
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        benchmark: ${{ fromJson(needs.matrix.outputs.matrix) }}
+    env:
+      SPARK_LOCAL_IP: localhost
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        repository: ${{ github.event.inputs.repo }}
+        ref: ${{ github.event.inputs.ref }}
+    - uses: actions/setup-java@v4
+      with:
+        distribution: zulu
+        java-version: 11
+    - uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: ${{ runner.os }}-gradle-
+    - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
+
+    - name: Run Benchmark
+      run: ./gradlew :iceberg-spark:${{ github.event.inputs.spark_version }}:jmh -PjmhIncludeRegex=${{ matrix.benchmark }} -PjmhOutputPath=benchmark/${{ matrix.benchmark }}.txt
+
+    - uses: actions/upload-artifact@v4
+      if: ${{ always() }}
+      with:
+        name: benchmark-results
+        path: |
+          **/benchmark/*.txt

@@ -42,10 +42,8 @@ import org.apache.orc.impl.OrcIndex;
 import org.apache.orc.impl.RecordReaderImpl;
 import org.apache.orc.impl.WriterImpl;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestBloomFilter {
   private static final Schema DATA_SCHEMA =
@@ -54,12 +52,11 @@ public class TestBloomFilter {
           required(101, "name", Types.StringType.get()),
           required(102, "price", Types.DoubleType.get()));
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private File testFile;
 
   @Test
   public void testWriteOption() throws Exception {
-    File testFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", testFile.delete());
+    Assertions.assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     OutputFile outFile = Files.localOutput(testFile);
     try (FileAppender<Record> writer =
@@ -84,9 +81,9 @@ public class TestBloomFilter {
       double bloomFilterFpp = (double) bloomFilterFppField.get(orcWriter);
 
       // Validate whether the bloom filters are set in ORC SDK or not
-      Assert.assertTrue(bloomFilterColumns[1]);
-      Assert.assertTrue(bloomFilterColumns[2]);
-      Assert.assertEquals(0.04, bloomFilterFpp, 1e-15);
+      Assertions.assertThat(bloomFilterColumns[1]).isTrue();
+      Assertions.assertThat(bloomFilterColumns[2]).isTrue();
+      Assertions.assertThat(bloomFilterFpp).isCloseTo(0.04, Assertions.offset(1e-15));
 
       Record recordTemplate = GenericRecord.create(DATA_SCHEMA);
       Record record1 = recordTemplate.copy("id", 1L, "name", "foo", "price", 1.0);
@@ -132,8 +129,7 @@ public class TestBloomFilter {
 
   @Test
   public void testInvalidFppOption() throws Exception {
-    File testFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", testFile.delete());
+    Assertions.assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     Assertions.assertThatThrownBy(
             () ->

@@ -18,11 +18,17 @@
  */
 package org.apache.iceberg.deletes;
 
+import static org.apache.iceberg.MetadataColumns.DELETE_FILE_PATH;
+import static org.apache.iceberg.MetadataColumns.DELETE_FILE_POS;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Set;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileMetadata;
+import org.apache.iceberg.Metrics;
+import org.apache.iceberg.MetricsUtil;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
@@ -30,9 +36,20 @@ import org.apache.iceberg.io.DeleteWriteResult;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.util.CharSequenceSet;
 
+/**
+ * A position delete writer that can handle deletes ordered by file and position.
+ *
+ * <p>This writer does not keep track of seen deletes and assumes all incoming records are ordered
+ * by file and position as required by the spec. If there is no external process to order the
+ * records, consider using {@link SortingPositionOnlyDeleteWriter} instead.
+ */
 public class PositionDeleteWriter<T> implements FileWriter<PositionDelete<T>, DeleteWriteResult> {
+  private static final Set<Integer> FILE_AND_POS_FIELD_IDS =
+      ImmutableSet.of(DELETE_FILE_PATH.fieldId(), DELETE_FILE_POS.fieldId());
+
   private final FileAppender<StructLike> appender;
   private final FileFormat format;
   private final String location;
@@ -80,8 +97,9 @@ public class PositionDeleteWriter<T> implements FileWriter<PositionDelete<T>, De
               .withPath(location)
               .withPartition(partition)
               .withEncryptionKeyMetadata(keyMetadata)
+              .withSplitOffsets(appender.splitOffsets())
               .withFileSizeInBytes(appender.length())
-              .withMetrics(appender.metrics())
+              .withMetrics(metrics())
               .build();
     }
   }
@@ -98,5 +116,14 @@ public class PositionDeleteWriter<T> implements FileWriter<PositionDelete<T>, De
   @Override
   public DeleteWriteResult result() {
     return new DeleteWriteResult(toDeleteFile(), referencedDataFiles());
+  }
+
+  private Metrics metrics() {
+    Metrics metrics = appender.metrics();
+    if (referencedDataFiles.size() > 1) {
+      return MetricsUtil.copyWithoutFieldCountsAndBounds(metrics, FILE_AND_POS_FIELD_IDS);
+    } else {
+      return MetricsUtil.copyWithoutFieldCounts(metrics, FILE_AND_POS_FIELD_IDS);
+    }
   }
 }

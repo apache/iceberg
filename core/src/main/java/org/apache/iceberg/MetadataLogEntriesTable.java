@@ -34,12 +34,12 @@ public class MetadataLogEntriesTable extends BaseMetadataTable {
           Types.NestedField.optional(4, "latest_schema_id", Types.IntegerType.get()),
           Types.NestedField.optional(5, "latest_sequence_number", Types.LongType.get()));
 
-  MetadataLogEntriesTable(TableOperations ops, Table table) {
-    this(ops, table, table.name() + ".metadata_log_entries");
+  MetadataLogEntriesTable(Table table) {
+    this(table, table.name() + ".metadata_log_entries");
   }
 
-  MetadataLogEntriesTable(TableOperations ops, Table table, String name) {
-    super(ops, table, name);
+  MetadataLogEntriesTable(Table table, String name) {
+    super(table, name);
   }
 
   @Override
@@ -49,7 +49,7 @@ public class MetadataLogEntriesTable extends BaseMetadataTable {
 
   @Override
   public TableScan newScan() {
-    return new MetadataLogScan(operations(), table());
+    return new MetadataLogScan(table());
   }
 
   @Override
@@ -58,14 +58,14 @@ public class MetadataLogEntriesTable extends BaseMetadataTable {
   }
 
   private DataTask task(TableScan scan) {
-    TableOperations ops = operations();
+    TableMetadata current = table().operations().current();
     List<TableMetadata.MetadataLogEntry> metadataLogEntries =
-        Lists.newArrayList(ops.current().previousFiles().listIterator());
+        Lists.newArrayList(current.previousFiles().listIterator());
     metadataLogEntries.add(
         new TableMetadata.MetadataLogEntry(
-            ops.current().lastUpdatedMillis(), ops.current().metadataFileLocation()));
+            current.lastUpdatedMillis(), current.metadataFileLocation()));
     return StaticDataTask.of(
-        ops.io().newInputFile(ops.current().metadataFileLocation()),
+        table().io().newInputFile(current.metadataFileLocation()),
         schema(),
         scan.schema(),
         metadataLogEntries,
@@ -74,18 +74,16 @@ public class MetadataLogEntriesTable extends BaseMetadataTable {
   }
 
   private class MetadataLogScan extends StaticTableScan {
-    MetadataLogScan(TableOperations ops, Table table) {
+    MetadataLogScan(Table table) {
       super(
-          ops,
           table,
           METADATA_LOG_ENTRIES_SCHEMA,
           MetadataTableType.METADATA_LOG_ENTRIES,
           MetadataLogEntriesTable.this::task);
     }
 
-    MetadataLogScan(TableOperations ops, Table table, TableScanContext context) {
+    MetadataLogScan(Table table, TableScanContext context) {
       super(
-          ops,
           table,
           METADATA_LOG_ENTRIES_SCHEMA,
           MetadataTableType.METADATA_LOG_ENTRIES,
@@ -94,9 +92,8 @@ public class MetadataLogEntriesTable extends BaseMetadataTable {
     }
 
     @Override
-    protected TableScan newRefinedScan(
-        TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      return new MetadataLogScan(ops, table, context);
+    protected TableScan newRefinedScan(Table table, Schema schema, TableScanContext context) {
+      return new MetadataLogScan(table, context);
     }
 
     @Override

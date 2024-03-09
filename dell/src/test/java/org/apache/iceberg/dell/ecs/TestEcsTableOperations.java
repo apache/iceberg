@@ -21,7 +21,6 @@ package org.apache.iceberg.dell.ecs;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Schema;
@@ -34,14 +33,15 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
-import org.junit.Rule;
-import org.junit.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 public class TestEcsTableOperations {
 
   static final Schema SCHEMA = new Schema(required(1, "id", Types.IntegerType.get()));
 
-  @Rule public EcsS3MockRule rule = EcsS3MockRule.create();
+  @RegisterExtension public EcsS3MockRule rule = EcsS3MockRule.create();
 
   @Test
   public void testConcurrentCommit() {
@@ -57,15 +57,16 @@ public class TestEcsTableOperations {
     // Use the TableOperations to test the CommitFailedException
     // High level actions, such as Table#updateProperties(), may refresh metadata.
     TableOperations operations = ((HasTableOperations) catalog2Table).operations();
-    AssertHelpers.assertThrows(
-        "Commit failed when use out-dated status",
-        CommitFailedException.class,
-        () ->
-            operations.commit(
-                operations.current(),
-                TableMetadata.buildFrom(operations.current())
-                    .removeProperties(ImmutableSet.of("a"))
-                    .build()));
+    Assertions.assertThatThrownBy(
+            () ->
+                operations.commit(
+                    operations.current(),
+                    TableMetadata.buildFrom(operations.current())
+                        .removeProperties(ImmutableSet.of("a"))
+                        .build()))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageStartingWith("Replace failed, E-Tag")
+        .hasMessageContaining("mismatch for table test2.t1");
   }
 
   public EcsCatalog createCatalog(String name) {

@@ -21,12 +21,14 @@ package org.apache.iceberg.parquet;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.function.Function;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Type;
 import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotation;
 import org.apache.parquet.schema.PrimitiveType;
 
 class ParquetConversions {
@@ -89,7 +91,9 @@ class ParquetConversions {
           // decode to CharSequence to avoid copying into a new String
           return binary -> StandardCharsets.UTF_8.decode(((Binary) binary).toByteBuffer());
         case DECIMAL:
-          int scale = type.getDecimalMetadata().getScale();
+          DecimalLogicalTypeAnnotation decimal =
+              (DecimalLogicalTypeAnnotation) type.getLogicalTypeAnnotation();
+          int scale = decimal.getScale();
           switch (type.getPrimitiveTypeName()) {
             case INT32:
             case INT64:
@@ -109,6 +113,10 @@ class ParquetConversions {
       case FIXED_LEN_BYTE_ARRAY:
       case BINARY:
         return binary -> ByteBuffer.wrap(((Binary) binary).getBytes());
+      case INT96:
+        return binary ->
+            ParquetUtil.extractTimestampInt96(
+                ByteBuffer.wrap(((Binary) binary).getBytes()).order(ByteOrder.LITTLE_ENDIAN));
       default:
     }
 

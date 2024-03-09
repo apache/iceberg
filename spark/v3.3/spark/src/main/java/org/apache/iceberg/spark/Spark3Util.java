@@ -29,7 +29,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.BaseMetadataTable;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.NullOrder;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableOperations;
@@ -255,6 +258,21 @@ public class Spark3Util {
     return sparkTable.table();
   }
 
+  public static Transform[] toTransforms(Schema schema, List<PartitionField> fields) {
+    SpecTransformToSparkTransform visitor = new SpecTransformToSparkTransform(schema);
+
+    List<Transform> transforms = Lists.newArrayList();
+
+    for (PartitionField field : fields) {
+      Transform transform = PartitionSpecVisitor.visit(schema, field, visitor);
+      if (transform != null) {
+        transforms.add(transform);
+      }
+    }
+
+    return transforms.toArray(new Transform[0]);
+  }
+
   /**
    * Converts a PartitionSpec to Spark transforms.
    *
@@ -262,67 +280,68 @@ public class Spark3Util {
    * @return an array of Transforms
    */
   public static Transform[] toTransforms(PartitionSpec spec) {
-    Map<Integer, String> quotedNameById = SparkSchemaUtil.indexQuotedNameById(spec.schema());
-    List<Transform> transforms =
-        PartitionSpecVisitor.visit(
-            spec,
-            new PartitionSpecVisitor<Transform>() {
-              @Override
-              public Transform identity(String sourceName, int sourceId) {
-                return Expressions.identity(quotedName(sourceId));
-              }
-
-              @Override
-              public Transform bucket(String sourceName, int sourceId, int numBuckets) {
-                return Expressions.bucket(numBuckets, quotedName(sourceId));
-              }
-
-              @Override
-              public Transform truncate(String sourceName, int sourceId, int width) {
-                return Expressions.apply(
-                    "truncate",
-                    Expressions.column(quotedName(sourceId)),
-                    Expressions.literal(width));
-              }
-
-              @Override
-              public Transform year(String sourceName, int sourceId) {
-                return Expressions.years(quotedName(sourceId));
-              }
-
-              @Override
-              public Transform month(String sourceName, int sourceId) {
-                return Expressions.months(quotedName(sourceId));
-              }
-
-              @Override
-              public Transform day(String sourceName, int sourceId) {
-                return Expressions.days(quotedName(sourceId));
-              }
-
-              @Override
-              public Transform hour(String sourceName, int sourceId) {
-                return Expressions.hours(quotedName(sourceId));
-              }
-
-              @Override
-              public Transform alwaysNull(int fieldId, String sourceName, int sourceId) {
-                // do nothing for alwaysNull, it doesn't need to be converted to a transform
-                return null;
-              }
-
-              @Override
-              public Transform unknown(
-                  int fieldId, String sourceName, int sourceId, String transform) {
-                return Expressions.apply(transform, Expressions.column(quotedName(sourceId)));
-              }
-
-              private String quotedName(int id) {
-                return quotedNameById.get(id);
-              }
-            });
-
+    SpecTransformToSparkTransform visitor = new SpecTransformToSparkTransform(spec.schema());
+    List<Transform> transforms = PartitionSpecVisitor.visit(spec, visitor);
     return transforms.stream().filter(Objects::nonNull).toArray(Transform[]::new);
+  }
+
+  private static class SpecTransformToSparkTransform implements PartitionSpecVisitor<Transform> {
+    private final Map<Integer, String> quotedNameById;
+
+    SpecTransformToSparkTransform(Schema schema) {
+      this.quotedNameById = SparkSchemaUtil.indexQuotedNameById(schema);
+    }
+
+    @Override
+    public Transform identity(String sourceName, int sourceId) {
+      return Expressions.identity(quotedName(sourceId));
+    }
+
+    @Override
+    public Transform bucket(String sourceName, int sourceId, int numBuckets) {
+      return Expressions.bucket(numBuckets, quotedName(sourceId));
+    }
+
+    @Override
+    public Transform truncate(String sourceName, int sourceId, int width) {
+      NamedReference column = Expressions.column(quotedName(sourceId));
+      return Expressions.apply("truncate", Expressions.literal(width), column);
+    }
+
+    @Override
+    public Transform year(String sourceName, int sourceId) {
+      return Expressions.years(quotedName(sourceId));
+    }
+
+    @Override
+    public Transform month(String sourceName, int sourceId) {
+      return Expressions.months(quotedName(sourceId));
+    }
+
+    @Override
+    public Transform day(String sourceName, int sourceId) {
+      return Expressions.days(quotedName(sourceId));
+    }
+
+    @Override
+    public Transform hour(String sourceName, int sourceId) {
+      return Expressions.hours(quotedName(sourceId));
+    }
+
+    @Override
+    public Transform alwaysNull(int fieldId, String sourceName, int sourceId) {
+      // do nothing for alwaysNull, it doesn't need to be converted to a transform
+      return null;
+    }
+
+    @Override
+    public Transform unknown(int fieldId, String sourceName, int sourceId, String transform) {
+      return Expressions.apply(transform, Expressions.column(quotedName(sourceId)));
+    }
+
+    private String quotedName(int id) {
+      return quotedNameById.get(id);
+    }
   }
 
   public static NamedReference toNamedReference(String name) {
@@ -342,14 +361,18 @@ public class Spark3Util {
           return org.apache.iceberg.expressions.Expressions.ref(colName);
         case "bucket":
           return org.apache.iceberg.expressions.Expressions.bucket(colName, findWidth(transform));
+        case "year":
         case "years":
           return org.apache.iceberg.expressions.Expressions.year(colName);
+        case "month":
         case "months":
           return org.apache.iceberg.expressions.Expressions.month(colName);
         case "date":
+        case "day":
         case "days":
           return org.apache.iceberg.expressions.Expressions.day(colName);
         case "date_hour":
+        case "hour":
         case "hours":
           return org.apache.iceberg.expressions.Expressions.hour(colName);
         case "truncate":
@@ -399,17 +422,21 @@ public class Spark3Util {
         case "bucket":
           builder.bucket(colName, findWidth(transform));
           break;
+        case "year":
         case "years":
           builder.year(colName);
           break;
+        case "month":
         case "months":
           builder.month(colName);
           break;
         case "date":
+        case "day":
         case "days":
           builder.day(colName);
           break;
         case "date_hour":
+        case "hour":
         case "hours":
           builder.hour(colName);
           break;
@@ -471,6 +498,10 @@ public class Spark3Util {
       return DOT.join(Arrays.copyOfRange(fieldNames, 0, fieldNames.length - 1));
     }
     return null;
+  }
+
+  public static String describe(List<org.apache.iceberg.expressions.Expression> exprs) {
+    return exprs.stream().map(Spark3Util::describe).collect(Collectors.joining(", "));
   }
 
   public static String describe(org.apache.iceberg.expressions.Expression expr) {
@@ -618,9 +649,9 @@ public class Spark3Util {
         case NOT_EQ:
           return pred.ref().name() + " != " + sqlString(pred.literal());
         case STARTS_WITH:
-          return pred.ref().name() + " LIKE '" + pred.literal() + "%'";
+          return pred.ref().name() + " LIKE '" + pred.literal().value() + "%'";
         case NOT_STARTS_WITH:
-          return pred.ref().name() + " NOT LIKE '" + pred.literal() + "%'";
+          return pred.ref().name() + " NOT LIKE '" + pred.literal().value() + "%'";
         case IN:
           return pred.ref().name() + " IN (" + sqlString(pred.literals()) + ")";
         case NOT_IN:
@@ -815,10 +846,38 @@ public class Spark3Util {
    * @param format format of the file
    * @param partitionFilter partitionFilter of the file
    * @return all table's partitions
+   * @deprecated use {@link Spark3Util#getPartitions(SparkSession, Path, String, Map,
+   *     PartitionSpec)}
    */
+  @Deprecated
   public static List<SparkPartition> getPartitions(
       SparkSession spark, Path rootPath, String format, Map<String, String> partitionFilter) {
+    return getPartitions(spark, rootPath, format, partitionFilter, null);
+  }
+
+  /**
+   * Use Spark to list all partitions in the table.
+   *
+   * @param spark a Spark session
+   * @param rootPath a table identifier
+   * @param format format of the file
+   * @param partitionFilter partitionFilter of the file
+   * @param partitionSpec partitionSpec of the table
+   * @return all table's partitions
+   */
+  public static List<SparkPartition> getPartitions(
+      SparkSession spark,
+      Path rootPath,
+      String format,
+      Map<String, String> partitionFilter,
+      PartitionSpec partitionSpec) {
     FileStatusCache fileStatusCache = FileStatusCache.getOrCreate(spark);
+
+    Option<StructType> userSpecifiedSchema =
+        partitionSpec == null
+            ? Option.empty()
+            : Option.apply(
+                SparkSchemaUtil.convert(new Schema(partitionSpec.partitionType().fields())));
 
     InMemoryFileIndex fileIndex =
         new InMemoryFileIndex(
@@ -827,7 +886,7 @@ public class Spark3Util {
                 .asScala()
                 .toSeq(),
             scala.collection.immutable.Map$.MODULE$.<String, String>empty(),
-            Option.empty(),
+            userSpecifiedSchema,
             fileStatusCache,
             Option.empty(),
             Option.empty());
@@ -886,6 +945,17 @@ public class Spark3Util {
     String table = identifier.name();
     Option<String> database = namespace.length == 1 ? Option.apply(namespace[0]) : Option.empty();
     return org.apache.spark.sql.catalyst.TableIdentifier.apply(table, database);
+  }
+
+  static String baseTableUUID(org.apache.iceberg.Table table) {
+    if (table instanceof HasTableOperations) {
+      TableOperations ops = ((HasTableOperations) table).operations();
+      return ops.current().uuid();
+    } else if (table instanceof BaseMetadataTable) {
+      return ((BaseMetadataTable) table).table().operations().current().uuid();
+    } else {
+      throw new UnsupportedOperationException("Cannot retrieve UUID for table " + table.name());
+    }
   }
 
   private static class DescribeSortOrderVisitor implements SortOrderVisitor<String> {

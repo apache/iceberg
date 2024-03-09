@@ -104,13 +104,24 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
 
   @Override
   public Type union(Schema union, List<Type> options) {
-    Preconditions.checkArgument(
-        AvroSchemaUtil.isOptionSchema(union), "Unsupported type: non-option union: %s", union);
-    // records, arrays, and maps will check nullability later
-    if (options.get(0) == null) {
-      return options.get(1);
+    if (AvroSchemaUtil.isOptionSchema(union)) {
+      if (options.get(0) == null) {
+        return options.get(1);
+      } else {
+        return options.get(0);
+      }
     } else {
-      return options.get(0);
+      // Create list of Iceberg schema fields
+      List<Types.NestedField> fields = Lists.newArrayListWithExpectedSize(options.size());
+      int tagIndex = 0;
+      fields.add(Types.NestedField.required(allocateId(), "tag", Types.IntegerType.get()));
+      for (Type option : options) {
+        if (option != null) {
+          fields.add(Types.NestedField.optional(allocateId(), "field" + tagIndex, option));
+          tagIndex++;
+        }
+      }
+      return Types.StructType.of(fields);
     }
   }
 

@@ -387,11 +387,17 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   private Integer findForMove(String name) {
+    Integer addedId = addedNameToId.get(name);
+    if (addedId != null) {
+      return addedId;
+    }
+
     Types.NestedField field = findField(name);
     if (field != null) {
       return field.fieldId();
     }
-    return addedNameToId.get(name);
+
+    return null;
   }
 
   private void internalMove(String name, Move move) {
@@ -788,6 +794,15 @@ class SchemaUpdate implements UpdateSchema {
       FIRST,
       BEFORE,
       AFTER
+    }
+
+    @Override
+    public String toString() {
+      String suffix = "";
+      if (type != MoveType.FIRST) {
+        suffix = " field " + referenceFieldId;
+      }
+      return "Move column " + fieldId + " " + type.toString() + suffix;
     }
 
     static Move first(int fieldId) {

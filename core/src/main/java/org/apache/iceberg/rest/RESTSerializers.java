@@ -42,13 +42,24 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.TableIdentifierParser;
 import org.apache.iceberg.rest.auth.OAuth2Util;
+import org.apache.iceberg.rest.requests.CommitTransactionRequest;
+import org.apache.iceberg.rest.requests.CommitTransactionRequestParser;
+import org.apache.iceberg.rest.requests.CreateViewRequest;
+import org.apache.iceberg.rest.requests.CreateViewRequestParser;
+import org.apache.iceberg.rest.requests.ImmutableCreateViewRequest;
+import org.apache.iceberg.rest.requests.ImmutableRegisterTableRequest;
 import org.apache.iceberg.rest.requests.ImmutableReportMetricsRequest;
+import org.apache.iceberg.rest.requests.RegisterTableRequest;
+import org.apache.iceberg.rest.requests.RegisterTableRequestParser;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequestParser;
-import org.apache.iceberg.rest.requests.UpdateRequirementParser;
-import org.apache.iceberg.rest.requests.UpdateTableRequest.UpdateRequirement;
+import org.apache.iceberg.rest.requests.UpdateTableRequest;
+import org.apache.iceberg.rest.requests.UpdateTableRequestParser;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
+import org.apache.iceberg.rest.responses.ImmutableLoadViewResponse;
+import org.apache.iceberg.rest.responses.LoadViewResponse;
+import org.apache.iceberg.rest.responses.LoadViewResponseParser;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.util.JsonUtil;
 
@@ -75,33 +86,54 @@ public class RESTSerializers {
         .addDeserializer(MetadataUpdate.class, new MetadataUpdateDeserializer())
         .addSerializer(TableMetadata.class, new TableMetadataSerializer())
         .addDeserializer(TableMetadata.class, new TableMetadataDeserializer())
-        .addSerializer(UpdateRequirement.class, new UpdateRequirementSerializer())
-        .addDeserializer(UpdateRequirement.class, new UpdateRequirementDeserializer())
+        .addSerializer(org.apache.iceberg.UpdateRequirement.class, new UpdateReqSerializer())
+        .addDeserializer(org.apache.iceberg.UpdateRequirement.class, new UpdateReqDeserializer())
         .addSerializer(OAuthTokenResponse.class, new OAuthTokenResponseSerializer())
         .addDeserializer(OAuthTokenResponse.class, new OAuthTokenResponseDeserializer())
         .addSerializer(ReportMetricsRequest.class, new ReportMetricsRequestSerializer<>())
         .addDeserializer(ReportMetricsRequest.class, new ReportMetricsRequestDeserializer<>())
         .addSerializer(ImmutableReportMetricsRequest.class, new ReportMetricsRequestSerializer<>())
         .addDeserializer(
-            ImmutableReportMetricsRequest.class, new ReportMetricsRequestDeserializer<>());
+            ImmutableReportMetricsRequest.class, new ReportMetricsRequestDeserializer<>())
+        .addSerializer(CommitTransactionRequest.class, new CommitTransactionRequestSerializer())
+        .addDeserializer(CommitTransactionRequest.class, new CommitTransactionRequestDeserializer())
+        .addSerializer(UpdateTableRequest.class, new UpdateTableRequestSerializer())
+        .addDeserializer(UpdateTableRequest.class, new UpdateTableRequestDeserializer())
+        .addSerializer(RegisterTableRequest.class, new RegisterTableRequestSerializer<>())
+        .addDeserializer(RegisterTableRequest.class, new RegisterTableRequestDeserializer<>())
+        .addSerializer(ImmutableRegisterTableRequest.class, new RegisterTableRequestSerializer<>())
+        .addDeserializer(
+            ImmutableRegisterTableRequest.class, new RegisterTableRequestDeserializer<>())
+        .addSerializer(CreateViewRequest.class, new CreateViewRequestSerializer<>())
+        .addSerializer(ImmutableCreateViewRequest.class, new CreateViewRequestSerializer<>())
+        .addDeserializer(CreateViewRequest.class, new CreateViewRequestDeserializer<>())
+        .addDeserializer(ImmutableCreateViewRequest.class, new CreateViewRequestDeserializer<>())
+        .addSerializer(LoadViewResponse.class, new LoadViewResponseSerializer<>())
+        .addSerializer(ImmutableLoadViewResponse.class, new LoadViewResponseSerializer<>())
+        .addDeserializer(LoadViewResponse.class, new LoadViewResponseDeserializer<>())
+        .addDeserializer(ImmutableLoadViewResponse.class, new LoadViewResponseDeserializer<>());
+
     mapper.registerModule(module);
   }
 
-  public static class UpdateRequirementDeserializer extends JsonDeserializer<UpdateRequirement> {
+  static class UpdateReqDeserializer
+      extends JsonDeserializer<org.apache.iceberg.UpdateRequirement> {
     @Override
-    public UpdateRequirement deserialize(JsonParser p, DeserializationContext ctxt)
-        throws IOException {
+    public org.apache.iceberg.UpdateRequirement deserialize(
+        JsonParser p, DeserializationContext ctxt) throws IOException {
       JsonNode node = p.getCodec().readTree(p);
-      return UpdateRequirementParser.fromJson(node);
+      return org.apache.iceberg.UpdateRequirementParser.fromJson(node);
     }
   }
 
-  public static class UpdateRequirementSerializer extends JsonSerializer<UpdateRequirement> {
+  static class UpdateReqSerializer extends JsonSerializer<org.apache.iceberg.UpdateRequirement> {
     @Override
     public void serialize(
-        UpdateRequirement value, JsonGenerator gen, SerializerProvider serializers)
+        org.apache.iceberg.UpdateRequirement value,
+        JsonGenerator gen,
+        SerializerProvider serializers)
         throws IOException {
-      UpdateRequirementParser.toJson(value, gen);
+      org.apache.iceberg.UpdateRequirementParser.toJson(value, gen);
     }
   }
 
@@ -278,6 +310,96 @@ public class RESTSerializers {
     public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
       return (T) ReportMetricsRequestParser.fromJson(jsonNode);
+    }
+  }
+
+  public static class CommitTransactionRequestSerializer
+      extends JsonSerializer<CommitTransactionRequest> {
+    @Override
+    public void serialize(
+        CommitTransactionRequest request, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      CommitTransactionRequestParser.toJson(request, gen);
+    }
+  }
+
+  public static class CommitTransactionRequestDeserializer
+      extends JsonDeserializer<CommitTransactionRequest> {
+    @Override
+    public CommitTransactionRequest deserialize(JsonParser p, DeserializationContext context)
+        throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return CommitTransactionRequestParser.fromJson(jsonNode);
+    }
+  }
+
+  public static class UpdateTableRequestSerializer extends JsonSerializer<UpdateTableRequest> {
+    @Override
+    public void serialize(
+        UpdateTableRequest request, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      UpdateTableRequestParser.toJson(request, gen);
+    }
+  }
+
+  public static class UpdateTableRequestDeserializer extends JsonDeserializer<UpdateTableRequest> {
+    @Override
+    public UpdateTableRequest deserialize(JsonParser p, DeserializationContext context)
+        throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return UpdateTableRequestParser.fromJson(jsonNode);
+    }
+  }
+
+  public static class RegisterTableRequestSerializer<T extends RegisterTableRequest>
+      extends JsonSerializer<T> {
+    @Override
+    public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      RegisterTableRequestParser.toJson(request, gen);
+    }
+  }
+
+  public static class RegisterTableRequestDeserializer<T extends RegisterTableRequest>
+      extends JsonDeserializer<T> {
+    @Override
+    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return (T) RegisterTableRequestParser.fromJson(jsonNode);
+    }
+  }
+
+  static class CreateViewRequestSerializer<T extends CreateViewRequest> extends JsonSerializer<T> {
+    @Override
+    public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      CreateViewRequestParser.toJson(request, gen);
+    }
+  }
+
+  static class CreateViewRequestDeserializer<T extends CreateViewRequest>
+      extends JsonDeserializer<T> {
+    @Override
+    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return (T) CreateViewRequestParser.fromJson(jsonNode);
+    }
+  }
+
+  static class LoadViewResponseSerializer<T extends LoadViewResponse> extends JsonSerializer<T> {
+    @Override
+    public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      LoadViewResponseParser.toJson(request, gen);
+    }
+  }
+
+  static class LoadViewResponseDeserializer<T extends LoadViewResponse>
+      extends JsonDeserializer<T> {
+    @Override
+    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return (T) LoadViewResponseParser.fromJson(jsonNode);
     }
   }
 }

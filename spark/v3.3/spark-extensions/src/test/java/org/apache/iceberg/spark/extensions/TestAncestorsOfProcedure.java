@@ -156,7 +156,7 @@ public class TestAncestorsOfProcedure extends SparkExtensionsTestBase {
     AssertHelpers.assertThrows(
         "Should reject calls with empty table identifier",
         IllegalArgumentException.class,
-        "Cannot handle an empty identifier for argument table",
+        "Cannot handle an empty identifier for parameter 'table'",
         () -> sql("CALL %s.system.ancestors_of('')", catalogName));
 
     AssertHelpers.assertThrows(

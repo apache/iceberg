@@ -48,6 +48,7 @@ import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DE
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -65,12 +66,16 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.SystemConfigs;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.encryption.NativeEncryptionInputFile;
+import org.apache.iceberg.encryption.NativeEncryptionOutputFile;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopInputFile;
@@ -86,9 +91,11 @@ import org.apache.iceberg.parquet.ParquetValueWriters.PositionDeleteStructWriter
 import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.ArrayUtil;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.parquet.HadoopReadOptions;
 import org.apache.parquet.ParquetReadOptions;
@@ -96,8 +103,11 @@ import org.apache.parquet.avro.AvroReadSupport;
 import org.apache.parquet.avro.AvroWriteSupport;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.column.ParquetProperties.WriterVersion;
+import org.apache.parquet.crypto.FileDecryptionProperties;
+import org.apache.parquet.crypto.FileEncryptionProperties;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetFileWriter;
+import org.apache.parquet.hadoop.ParquetOutputFormat;
 import org.apache.parquet.hadoop.ParquetReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.api.ReadSupport;
@@ -112,10 +122,22 @@ public class Parquet {
       Sets.newHashSet(
           "parquet.read.filter",
           "parquet.private.read.filter.predicate",
-          "parquet.read.support.class");
+          "parquet.read.support.class",
+          "parquet.crypto.factory.class");
 
   public static WriteBuilder write(OutputFile file) {
     return new WriteBuilder(file);
+  }
+
+  public static WriteBuilder write(EncryptedOutputFile file) {
+    if (file instanceof NativeEncryptionOutputFile) {
+      NativeEncryptionOutputFile nativeFile = (NativeEncryptionOutputFile) file;
+      return write(nativeFile.plainOutputFile())
+          .withFileEncryptionKey(nativeFile.keyMetadata().encryptionKey())
+          .withAADPrefix(nativeFile.keyMetadata().aadPrefix());
+    } else {
+      return write(file.encryptingOutputFile());
+    }
   }
 
   public static class WriteBuilder {
@@ -131,6 +153,8 @@ public class Parquet {
     private ParquetFileWriter.Mode writeMode = ParquetFileWriter.Mode.CREATE;
     private WriterVersion writerVersion = WriterVersion.PARQUET_1_0;
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
+    private ByteBuffer fileEncryptionKey = null;
+    private ByteBuffer fileAADPrefix = null;
 
     private WriteBuilder(OutputFile file) {
       this.file = file;
@@ -203,6 +227,16 @@ public class Parquet {
       return this;
     }
 
+    public WriteBuilder withFileEncryptionKey(ByteBuffer encryptionKey) {
+      this.fileEncryptionKey = encryptionKey;
+      return this;
+    }
+
+    public WriteBuilder withAADPrefix(ByteBuffer aadPrefix) {
+      this.fileAADPrefix = aadPrefix;
+      return this;
+    }
+
     @SuppressWarnings("unchecked")
     private <T> WriteSupport<T> getWriteSupport(MessageType type) {
       if (writeSupport != null) {
@@ -251,6 +285,7 @@ public class Parquet {
       int rowGroupCheckMaxRecordCount = context.rowGroupCheckMaxRecordCount();
       int bloomFilterMaxBytes = context.bloomFilterMaxBytes();
       Map<String, String> columnBloomFilterEnabled = context.columnBloomFilterEnabled();
+      boolean dictionaryEnabled = context.dictionaryEnabled();
 
       if (compressionLevel != null) {
         switch (codec) {
@@ -273,6 +308,20 @@ public class Parquet {
       set("parquet.avro.write-old-list-structure", "false");
       MessageType type = ParquetSchemaUtil.convert(schema, name);
 
+      FileEncryptionProperties fileEncryptionProperties = null;
+      if (fileEncryptionKey != null) {
+        byte[] encryptionKeyArray = ByteBuffers.toByteArray(fileEncryptionKey);
+        byte[] aadPrefixArray = ByteBuffers.toByteArray(fileAADPrefix);
+
+        fileEncryptionProperties =
+            FileEncryptionProperties.builder(encryptionKeyArray)
+                .withAADPrefix(aadPrefixArray)
+                .withoutAADPrefixStorage()
+                .build();
+      } else {
+        Preconditions.checkState(fileAADPrefix == null, "AAD prefix set with null encryption key");
+      }
+
       if (createWriterFunc != null) {
         Preconditions.checkArgument(
             writeSupport == null, "Cannot write with both write support and Parquet value writer");
@@ -286,6 +335,7 @@ public class Parquet {
                 .withWriterVersion(writerVersion)
                 .withPageSize(pageSize)
                 .withPageRowCountLimit(pageRowLimit)
+                .withDictionaryEncoding(dictionaryEnabled)
                 .withDictionaryPageSize(dictionaryPageSize)
                 .withMinRowCountForPageSizeCheck(rowGroupCheckMinRecordCount)
                 .withMaxRowCountForPageSizeCheck(rowGroupCheckMaxRecordCount)
@@ -309,7 +359,8 @@ public class Parquet {
             codec,
             parquetProperties,
             metricsConfig,
-            writeMode);
+            writeMode,
+            fileEncryptionProperties);
       } else {
         ParquetWriteBuilder<D> parquetWriteBuilder =
             new ParquetWriteBuilder<D>(ParquetIO.file(file))
@@ -323,7 +374,9 @@ public class Parquet {
                 .withRowGroupSize(rowGroupSize)
                 .withPageSize(pageSize)
                 .withPageRowCountLimit(pageRowLimit)
-                .withDictionaryPageSize(dictionaryPageSize);
+                .withDictionaryEncoding(dictionaryEnabled)
+                .withDictionaryPageSize(dictionaryPageSize)
+                .withEncryption(fileEncryptionProperties);
 
         for (Map.Entry<String, String> entry : columnBloomFilterEnabled.entrySet()) {
           String colPath = entry.getKey();
@@ -346,6 +399,7 @@ public class Parquet {
       private final int rowGroupCheckMaxRecordCount;
       private final int bloomFilterMaxBytes;
       private final Map<String, String> columnBloomFilterEnabled;
+      private final boolean dictionaryEnabled;
 
       private Context(
           int rowGroupSize,
@@ -357,7 +411,8 @@ public class Parquet {
           int rowGroupCheckMinRecordCount,
           int rowGroupCheckMaxRecordCount,
           int bloomFilterMaxBytes,
-          Map<String, String> columnBloomFilterEnabled) {
+          Map<String, String> columnBloomFilterEnabled,
+          boolean dictionaryEnabled) {
         this.rowGroupSize = rowGroupSize;
         this.pageSize = pageSize;
         this.pageRowLimit = pageRowLimit;
@@ -368,6 +423,7 @@ public class Parquet {
         this.rowGroupCheckMaxRecordCount = rowGroupCheckMaxRecordCount;
         this.bloomFilterMaxBytes = bloomFilterMaxBytes;
         this.columnBloomFilterEnabled = columnBloomFilterEnabled;
+        this.dictionaryEnabled = dictionaryEnabled;
       }
 
       static Context dataContext(Map<String, String> config) {
@@ -425,6 +481,9 @@ public class Parquet {
         Map<String, String> columnBloomFilterEnabled =
             PropertyUtil.propertiesWithPrefix(config, PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX);
 
+        boolean dictionaryEnabled =
+            PropertyUtil.propertyAsBoolean(config, ParquetOutputFormat.ENABLE_DICTIONARY, true);
+
         return new Context(
             rowGroupSize,
             pageSize,
@@ -435,7 +494,8 @@ public class Parquet {
             rowGroupCheckMinRecordCount,
             rowGroupCheckMaxRecordCount,
             bloomFilterMaxBytes,
-            columnBloomFilterEnabled);
+            columnBloomFilterEnabled,
+            dictionaryEnabled);
       }
 
       static Context deleteContext(Map<String, String> config) {
@@ -488,13 +548,8 @@ public class Parquet {
             rowGroupCheckMaxRecordCount >= rowGroupCheckMinRecordCount,
             "Row group check maximum record count must be >= minimal record count");
 
-        int bloomFilterMaxBytes =
-            PropertyUtil.propertyAsInt(
-                config, PARQUET_BLOOM_FILTER_MAX_BYTES, PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT);
-        Preconditions.checkArgument(bloomFilterMaxBytes > 0, "bloom Filter Max Bytes must be > 0");
-
-        Map<String, String> columnBloomFilterEnabled =
-            PropertyUtil.propertiesWithPrefix(config, PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX);
+        boolean dictionaryEnabled =
+            PropertyUtil.propertyAsBoolean(config, ParquetOutputFormat.ENABLE_DICTIONARY, true);
 
         return new Context(
             rowGroupSize,
@@ -505,8 +560,9 @@ public class Parquet {
             compressionLevel,
             rowGroupCheckMinRecordCount,
             rowGroupCheckMaxRecordCount,
-            bloomFilterMaxBytes,
-            columnBloomFilterEnabled);
+            PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT,
+            ImmutableMap.of(),
+            dictionaryEnabled);
       }
 
       private static CompressionCodecName toCodec(String codecAsString) {
@@ -556,11 +612,26 @@ public class Parquet {
       Map<String, String> columnBloomFilterEnabled() {
         return columnBloomFilterEnabled;
       }
+
+      boolean dictionaryEnabled() {
+        return dictionaryEnabled;
+      }
     }
   }
 
   public static DataWriteBuilder writeData(OutputFile file) {
     return new DataWriteBuilder(file);
+  }
+
+  public static DataWriteBuilder writeData(EncryptedOutputFile file) {
+    if (file instanceof NativeEncryptionOutputFile) {
+      NativeEncryptionOutputFile nativeFile = (NativeEncryptionOutputFile) file;
+      return writeData(nativeFile.plainOutputFile())
+          .withFileEncryptionKey(nativeFile.keyMetadata().encryptionKey())
+          .withAADPrefix(nativeFile.keyMetadata().aadPrefix());
+    } else {
+      return writeData(file.encryptingOutputFile());
+    }
   }
 
   public static class DataWriteBuilder {
@@ -639,6 +710,16 @@ public class Parquet {
       return this;
     }
 
+    public DataWriteBuilder withFileEncryptionKey(ByteBuffer fileEncryptionKey) {
+      appenderBuilder.withFileEncryptionKey(fileEncryptionKey);
+      return this;
+    }
+
+    public DataWriteBuilder withAADPrefix(ByteBuffer aadPrefix) {
+      appenderBuilder.withAADPrefix(aadPrefix);
+      return this;
+    }
+
     public DataWriteBuilder withSortOrder(SortOrder newSortOrder) {
       this.sortOrder = newSortOrder;
       return this;
@@ -658,6 +739,17 @@ public class Parquet {
 
   public static DeleteWriteBuilder writeDeletes(OutputFile file) {
     return new DeleteWriteBuilder(file);
+  }
+
+  public static DeleteWriteBuilder writeDeletes(EncryptedOutputFile file) {
+    if (file instanceof NativeEncryptionOutputFile) {
+      NativeEncryptionOutputFile nativeFile = (NativeEncryptionOutputFile) file;
+      return writeDeletes(nativeFile.plainOutputFile())
+          .withFileEncryptionKey(nativeFile.keyMetadata().encryptionKey())
+          .withAADPrefix(nativeFile.keyMetadata().aadPrefix());
+    } else {
+      return writeDeletes(file.encryptingOutputFile());
+    }
   }
 
   public static class DeleteWriteBuilder {
@@ -737,6 +829,16 @@ public class Parquet {
 
     public DeleteWriteBuilder withKeyMetadata(EncryptionKeyMetadata metadata) {
       this.keyMetadata = metadata;
+      return this;
+    }
+
+    public DeleteWriteBuilder withFileEncryptionKey(ByteBuffer fileEncryptionKey) {
+      appenderBuilder.withFileEncryptionKey(fileEncryptionKey);
+      return this;
+    }
+
+    public DeleteWriteBuilder withAADPrefix(ByteBuffer aadPrefix) {
+      appenderBuilder.withAADPrefix(aadPrefix);
       return this;
     }
 
@@ -892,7 +994,14 @@ public class Parquet {
   }
 
   public static ReadBuilder read(InputFile file) {
-    return new ReadBuilder(file);
+    if (file instanceof NativeEncryptionInputFile) {
+      NativeEncryptionInputFile nativeFile = (NativeEncryptionInputFile) file;
+      return new ReadBuilder(nativeFile.encryptedInputFile())
+          .withFileEncryptionKey(nativeFile.keyMetadata().encryptionKey())
+          .withAADPrefix(nativeFile.keyMetadata().aadPrefix());
+    } else {
+      return new ReadBuilder(file);
+    }
   }
 
   public static class ReadBuilder {
@@ -911,6 +1020,8 @@ public class Parquet {
     private boolean reuseContainers = false;
     private int maxRecordsPerBatch = 10000;
     private NameMapping nameMapping = null;
+    private ByteBuffer fileEncryptionKey = null;
+    private ByteBuffer fileAADPrefix = null;
 
     private ReadBuilder(InputFile file) {
       this.file = file;
@@ -953,6 +1064,8 @@ public class Parquet {
       return this;
     }
 
+    /** @deprecated will be removed in 2.0.0; use {@link #createReaderFunc(Function)} instead */
+    @Deprecated
     public ReadBuilder readSupport(ReadSupport<?> newFilterSupport) {
       this.readSupport = newFilterSupport;
       return this;
@@ -980,6 +1093,8 @@ public class Parquet {
       return this;
     }
 
+    /** @deprecated will be removed in 2.0.0; use {@link #createReaderFunc(Function)} instead */
+    @Deprecated
     public ReadBuilder callInit() {
       this.callInit = true;
       return this;
@@ -1000,8 +1115,31 @@ public class Parquet {
       return this;
     }
 
+    public ReadBuilder withFileEncryptionKey(ByteBuffer encryptionKey) {
+      this.fileEncryptionKey = encryptionKey;
+      return this;
+    }
+
+    public ReadBuilder withAADPrefix(ByteBuffer aadPrefix) {
+      this.fileAADPrefix = aadPrefix;
+      return this;
+    }
+
     @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity"})
     public <D> CloseableIterable<D> build() {
+      FileDecryptionProperties fileDecryptionProperties = null;
+      if (fileEncryptionKey != null) {
+        byte[] encryptionKeyArray = ByteBuffers.toByteArray(fileEncryptionKey);
+        byte[] aadPrefixArray = ByteBuffers.toByteArray(fileAADPrefix);
+        fileDecryptionProperties =
+            FileDecryptionProperties.builder()
+                .withFooterKey(encryptionKeyArray)
+                .withAADPrefix(aadPrefixArray)
+                .build();
+      } else {
+        Preconditions.checkState(fileAADPrefix == null, "AAD prefix set with null encryption key");
+      }
+
       if (readerFunc != null || batchedReaderFunc != null) {
         ParquetReadOptions.Builder optionsBuilder;
         if (file instanceof HadoopInputFile) {
@@ -1011,12 +1149,8 @@ public class Parquet {
             conf.unset(property);
           }
           optionsBuilder = HadoopReadOptions.builder(conf);
-          // page size not used by decompressors
-          optionsBuilder.withCodecFactory(new ParquetCodecFactory(conf, 0));
         } else {
           optionsBuilder = ParquetReadOptions.builder();
-          // page size not used by decompressors
-          optionsBuilder.withCodecFactory(new ParquetCodecFactory(new Configuration(), 0));
         }
 
         for (Map.Entry<String, String> entry : properties.entrySet()) {
@@ -1027,7 +1161,20 @@ public class Parquet {
           optionsBuilder.withRange(start, start + length);
         }
 
+        if (fileDecryptionProperties != null) {
+          optionsBuilder.withDecryption(fileDecryptionProperties);
+        }
+
         ParquetReadOptions options = optionsBuilder.build();
+
+        NameMapping mapping;
+        if (nameMapping != null) {
+          mapping = nameMapping;
+        } else if (SystemConfigs.NETFLIX_UNSAFE_PARQUET_ID_FALLBACK_ENABLED.value()) {
+          mapping = null;
+        } else {
+          mapping = NameMapping.empty();
+        }
 
         if (batchedReaderFunc != null) {
           return new VectorizedParquetReader<>(
@@ -1035,21 +1182,14 @@ public class Parquet {
               schema,
               options,
               batchedReaderFunc,
-              nameMapping,
+              mapping,
               filter,
               reuseContainers,
               caseSensitive,
               maxRecordsPerBatch);
         } else {
           return new org.apache.iceberg.parquet.ParquetReader<>(
-              file,
-              schema,
-              options,
-              readerFunc,
-              nameMapping,
-              filter,
-              reuseContainers,
-              caseSensitive);
+              file, schema, options, readerFunc, mapping, filter, reuseContainers, caseSensitive);
         }
       }
 
@@ -1078,8 +1218,11 @@ public class Parquet {
       if (filter != null) {
         // TODO: should not need to get the schema to push down before opening the file.
         // Parquet should allow setting a filter inside its read support
+        ParquetReadOptions decryptOptions =
+            ParquetReadOptions.builder().withDecryption(fileDecryptionProperties).build();
         MessageType type;
-        try (ParquetFileReader schemaReader = ParquetFileReader.open(ParquetIO.file(file))) {
+        try (ParquetFileReader schemaReader =
+            ParquetFileReader.open(ParquetIO.file(file), decryptOptions)) {
           type = schemaReader.getFileMetaData().getSchema();
         } catch (IOException e) {
           throw new RuntimeIOException(e);
@@ -1110,6 +1253,10 @@ public class Parquet {
 
       if (nameMapping != null) {
         builder.withNameMapping(nameMapping);
+      }
+
+      if (fileDecryptionProperties != null) {
+        builder.withDecryption(fileDecryptionProperties);
       }
 
       return new ParquetIterable<>(builder);

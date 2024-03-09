@@ -31,8 +31,9 @@ public class TestMergeOnReadMerge extends TestMerge {
       Map<String, String> config,
       String fileFormat,
       boolean vectorized,
-      String distributionMode) {
-    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode);
+      String distributionMode,
+      String branch) {
+    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode, branch);
   }
 
   @Override

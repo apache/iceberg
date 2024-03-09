@@ -30,12 +30,11 @@ public class MetadataColumns {
   private MetadataColumns() {}
 
   // IDs Integer.MAX_VALUE - (1-100) are used for metadata columns
+  public static final int FILE_PATH_COLUMN_ID = Integer.MAX_VALUE - 1;
+  public static final String FILE_PATH_COLUMN_DOC = "Path of the file in which a row is stored";
   public static final NestedField FILE_PATH =
       NestedField.required(
-          Integer.MAX_VALUE - 1,
-          "_file",
-          Types.StringType.get(),
-          "Path of the file in which a row is stored");
+          FILE_PATH_COLUMN_ID, "_file", Types.StringType.get(), FILE_PATH_COLUMN_DOC);
   public static final NestedField ROW_POSITION =
       NestedField.required(
           Integer.MAX_VALUE - 2,
@@ -48,12 +47,11 @@ public class MetadataColumns {
           "_deleted",
           Types.BooleanType.get(),
           "Whether the row has been deleted");
+  public static final int SPEC_ID_COLUMN_ID = Integer.MAX_VALUE - 4;
+  public static final String SPEC_ID_COLUMN_DOC = "Spec ID used to track the file containing a row";
   public static final NestedField SPEC_ID =
       NestedField.required(
-          Integer.MAX_VALUE - 4,
-          "_spec_id",
-          Types.IntegerType.get(),
-          "Spec ID used to track the file containing a row");
+          SPEC_ID_COLUMN_ID, "_spec_id", Types.IntegerType.get(), SPEC_ID_COLUMN_DOC);
   // the partition column type is not static and depends on all specs in the table
   public static final int PARTITION_COLUMN_ID = Integer.MAX_VALUE - 5;
   public static final String PARTITION_COLUMN_NAME = "_partition";
@@ -127,6 +125,10 @@ public class MetadataColumns {
 
   public static boolean isMetadataColumn(String name) {
     return name.equals(PARTITION_COLUMN_NAME) || META_COLUMNS.containsKey(name);
+  }
+
+  public static boolean isMetadataColumn(int id) {
+    return META_IDS.contains(id);
   }
 
   public static boolean nonMetadataColumn(String name) {

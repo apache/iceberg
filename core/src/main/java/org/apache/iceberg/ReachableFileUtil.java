@@ -20,6 +20,8 @@ package org.apache.iceberg;
 
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.hadoop.Util;
@@ -45,8 +47,8 @@ public class ReachableFileUtil {
    */
   public static String versionHintLocation(Table table) {
     // only Hadoop tables have a hint file and such tables have a fixed metadata layout
-    Path metadataPath = new Path(table.location(), METADATA_FOLDER_NAME);
-    Path versionHintPath = new Path(metadataPath, Util.VERSION_HINT_FILENAME);
+    Path metadataPath = new Path(table.location() + "/" + METADATA_FOLDER_NAME);
+    Path versionHintPath = new Path(metadataPath + "/" + Util.VERSION_HINT_FILENAME);
     return versionHintPath.toString();
   }
 
@@ -70,7 +72,7 @@ public class ReachableFileUtil {
   private static void metadataFileLocations(
       TableMetadata metadata, Set<String> metadataFileLocations, FileIO io, boolean recursive) {
     List<MetadataLogEntry> metadataLogEntries = metadata.previousFiles();
-    if (metadataLogEntries.size() > 0) {
+    if (!metadataLogEntries.isEmpty()) {
       for (MetadataLogEntry metadataLogEntry : metadataLogEntries) {
         metadataFileLocations.add(metadataLogEntry.file());
       }
@@ -131,17 +133,65 @@ public class ReachableFileUtil {
   }
 
   /**
-   * Returns locations of statistics files in a table.
+   * Returns locations of all statistics files in a table.
    *
    * @param table table for which statistics files needs to be listed
    * @return the location of statistics files
    */
   public static List<String> statisticsFilesLocations(Table table) {
-    List<String> statisticsFilesLocations = Lists.newArrayList();
-    for (StatisticsFile statisticsFile : table.statisticsFiles()) {
-      statisticsFilesLocations.add(statisticsFile.path());
+    return statisticsFilesLocationsForSnapshots(table, null);
+  }
+
+  /**
+   * Returns locations of statistics files for a table matching the given predicate .
+   *
+   * @param table table for which statistics files needs to be listed
+   * @param predicate predicate for filtering the statistics files
+   * @return the location of statistics files
+   * @deprecated since 1.5.0, will be removed in 1.6.0; use the {@code
+   *     statisticsFilesLocationsForSnapshots(table, snapshotIds)} instead.
+   */
+  @Deprecated
+  public static List<String> statisticsFilesLocations(
+      Table table, Predicate<StatisticsFile> predicate) {
+    return table.statisticsFiles().stream()
+        .filter(predicate)
+        .map(StatisticsFile::path)
+        .collect(Collectors.toList());
+  }
+
+  /**
+   * Returns locations of all statistics files for a table matching the given snapshot IDs.
+   *
+   * @param table table for which statistics files needs to be listed
+   * @param snapshotIds ids of snapshots for which statistics files will be returned. If null,
+   *     statistics files for all the snapshots will be returned.
+   * @return the location of statistics files
+   */
+  public static List<String> statisticsFilesLocationsForSnapshots(
+      Table table, Set<Long> snapshotIds) {
+    List<String> statsFileLocations = Lists.newArrayList();
+
+    Predicate<StatisticsFile> statsFilePredicate;
+    Predicate<PartitionStatisticsFile> partitionStatsFilePredicate;
+    if (snapshotIds == null) {
+      statsFilePredicate = file -> true;
+      partitionStatsFilePredicate = file -> true;
+    } else {
+      statsFilePredicate = file -> snapshotIds.contains(file.snapshotId());
+      partitionStatsFilePredicate = file -> snapshotIds.contains(file.snapshotId());
     }
 
-    return statisticsFilesLocations;
+    table.statisticsFiles().stream()
+        .filter(statsFilePredicate)
+        .map(StatisticsFile::path)
+        .forEach(statsFileLocations::add);
+
+    table.partitionStatisticsFiles().stream()
+        .filter(partitionStatsFilePredicate)
+        .map(PartitionStatisticsFile::path)
+        .forEach(statsFileLocations::add);
+
+    return statsFileLocations;
   }
 }

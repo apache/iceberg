@@ -203,11 +203,13 @@ public class OrcSplit extends FileSplit implements ColumnarSplit, LlapAwareSplit
   }
 
   /**
-   * @return {@code true} if file schema doesn't have Acid metadata columns Such file may be in a
-   *     delta_x_y/ or base_x due to being added via "load data" command. It could be at
-   *     partition|table root due to table having been converted from non-acid to acid table. It
-   *     could even be something like "warehouse/t/HIVE_UNION_SUBDIR_15/000000_0" if it was written
-   *     by an "insert into t select ... from A union all select ... from B"
+   * Returns {@code true} if file schema doesn't have Acid metadata columns Such file may be in a
+   * delta_x_y/ or base_x due to being added via "load data" command. It could be at partition|table
+   * root due to table having been converted from non-acid to acid table. It could even be something
+   * like "warehouse/t/HIVE_UNION_SUBDIR_15/000000_0" if it was written by an "insert into t select
+   * ... from A union all select ... from B"
+   *
+   * @return {@code true} if file schema doesn't have Acid metadata columns
    */
   public boolean isOriginal() {
     return isOriginal;
@@ -236,7 +238,7 @@ public class OrcSplit extends FileSplit implements ColumnarSplit, LlapAwareSplit
    * @return true if is ACID
    */
   public boolean isAcid() {
-    return hasBase || deltas.size() > 0;
+    return hasBase || !deltas.isEmpty();
   }
 
   public long getProjectedColumnsUncompressedSize() {

@@ -31,9 +31,13 @@ import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.expressions.PredicateHelper
 import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.Call
+import org.apache.spark.sql.catalyst.plans.logical.CreateOrReplaceBranch
+import org.apache.spark.sql.catalyst.plans.logical.CreateOrReplaceTag
 import org.apache.spark.sql.catalyst.plans.logical.DeleteFromIcebergTable
+import org.apache.spark.sql.catalyst.plans.logical.DropBranch
 import org.apache.spark.sql.catalyst.plans.logical.DropIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
+import org.apache.spark.sql.catalyst.plans.logical.DropTag
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.MergeRows
 import org.apache.spark.sql.catalyst.plans.logical.NoStatsUnaryNode
@@ -61,6 +65,20 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
     case AddPartitionField(IcebergCatalogAndIdentifier(catalog, ident), transform, name) =>
       AddPartitionFieldExec(catalog, ident, transform, name) :: Nil
 
+    case CreateOrReplaceBranch(
+        IcebergCatalogAndIdentifier(catalog, ident), branch, branchOptions, create, replace, ifNotExists) =>
+      CreateOrReplaceBranchExec(catalog, ident, branch, branchOptions, create, replace, ifNotExists) :: Nil
+
+    case CreateOrReplaceTag(
+        IcebergCatalogAndIdentifier(catalog, ident), tag, tagOptions, create, replace, ifNotExists) =>
+      CreateOrReplaceTagExec(catalog, ident, tag, tagOptions, create, replace, ifNotExists) :: Nil
+
+    case DropBranch(IcebergCatalogAndIdentifier(catalog, ident), branch, ifExists) =>
+      DropBranchExec(catalog, ident, branch, ifExists) :: Nil
+
+    case DropTag(IcebergCatalogAndIdentifier(catalog, ident), tag, ifExists) =>
+      DropTagExec(catalog, ident, tag, ifExists) :: Nil
+
     case DropPartitionField(IcebergCatalogAndIdentifier(catalog, ident), transform) =>
       DropPartitionFieldExec(catalog, ident, transform) :: Nil
 
@@ -86,11 +104,11 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
       WriteDeltaExec(planLater(query), refreshCache(r), projs, write) :: Nil
 
     case MergeRows(isSourceRowPresent, isTargetRowPresent, matchedConditions, matchedOutputs, notMatchedConditions,
-        notMatchedOutputs, targetOutput, rowIdAttrs, performCardinalityCheck, emitNotMatchedTargetRows,
+        notMatchedOutputs, targetOutput, performCardinalityCheck, emitNotMatchedTargetRows,
         output, child) =>
 
       MergeRowsExec(isSourceRowPresent, isTargetRowPresent, matchedConditions, matchedOutputs, notMatchedConditions,
-        notMatchedOutputs, targetOutput, rowIdAttrs, performCardinalityCheck, emitNotMatchedTargetRows,
+        notMatchedOutputs, targetOutput, performCardinalityCheck, emitNotMatchedTargetRows,
         output, planLater(child)) :: Nil
 
     case DeleteFromIcebergTable(DataSourceV2ScanRelation(r, _, output, _), condition, None) =>

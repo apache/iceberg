@@ -38,6 +38,7 @@ public interface SessionCatalog {
     private final String identity;
     private final Map<String, String> credentials;
     private final Map<String, String> properties;
+    private final Object wrappedIdentity;
 
     public static SessionContext createEmpty() {
       return new SessionContext(UUID.randomUUID().toString(), null, null, ImmutableMap.of());
@@ -48,10 +49,20 @@ public interface SessionCatalog {
         String identity,
         Map<String, String> credentials,
         Map<String, String> properties) {
+      this(sessionId, identity, credentials, properties, null);
+    }
+
+    public SessionContext(
+        String sessionId,
+        String identity,
+        Map<String, String> credentials,
+        Map<String, String> properties,
+        Object wrappedIdentity) {
       this.sessionId = sessionId;
       this.identity = identity;
       this.credentials = credentials;
       this.properties = properties;
+      this.wrappedIdentity = wrappedIdentity;
     }
 
     /**
@@ -94,6 +105,15 @@ public interface SessionCatalog {
      */
     public Map<String, String> properties() {
       return properties;
+    }
+
+    /**
+     * Returns the opaque wrapped identity object.
+     *
+     * @return the wrapped identity
+     */
+    public Object wrappedIdentity() {
+      return wrappedIdentity;
     }
   }
 
@@ -250,21 +270,40 @@ public interface SessionCatalog {
    * method must return ["a"] in the result array.
    *
    * @param context session context
-   * @return an List of namespace {@link Namespace} names
+   * @return a List of namespace {@link Namespace} names
    */
   default List<Namespace> listNamespaces(SessionContext context) {
     return listNamespaces(context, Namespace.empty());
   }
 
   /**
-   * List namespaces from the namespace.
+   * List child namespaces from the namespace.
    *
-   * <p>For example, if table a.b.t exists, use 'SELECT NAMESPACE IN a' this method must return
-   * Namepace.of("a","b") {@link Namespace}.
+   * <p>For two existing tables named 'a.b.c.table' and 'a.b.d.table', this method returns:
+   *
+   * <ul>
+   *   <li>Given: {@code Namespace.empty()}
+   *   <li>Returns: {@code Namespace.of("a")}
+   * </ul>
+   *
+   * <ul>
+   *   <li>Given: {@code Namespace.of("a")}
+   *   <li>Returns: {@code Namespace.of("a", "b")}
+   * </ul>
+   *
+   * <ul>
+   *   <li>Given: {@code Namespace.of("a", "b")}
+   *   <li>Returns: {@code Namespace.of("a", "b", "c")} and {@code Namespace.of("a", "b", "d")}
+   * </ul>
+   *
+   * <ul>
+   *   <li>Given: {@code Namespace.of("a", "b", "c")}
+   *   <li>Returns: empty list, because there are no child namespaces
+   * </ul>
    *
    * @param context session context
    * @param namespace a {@link Namespace namespace}
-   * @return a List of namespace {@link Namespace} names
+   * @return a List of child {@link Namespace} names from the given namespace
    * @throws NoSuchNamespaceException If the namespace does not exist (optional)
    */
   List<Namespace> listNamespaces(SessionContext context, Namespace namespace);

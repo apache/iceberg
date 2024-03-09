@@ -24,11 +24,13 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogProperties;
@@ -37,6 +39,8 @@ import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
@@ -85,16 +89,25 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  * <p>This supports the following catalog configuration options:
  *
  * <ul>
- *   <li><code>type</code> - catalog type, "hive" or "hadoop". To specify a non-hive or hadoop
- *       catalog, use the <code>catalog-impl</code> option.
- *   <li><code>uri</code> - the Hive Metastore URI (Hive catalog only)
+ *   <li><code>type</code> - catalog type, "hive" or "hadoop" or "rest". To specify a non-hive or
+ *       hadoop catalog, use the <code>catalog-impl</code> option.
+ *   <li><code>uri</code> - the Hive Metastore URI for Hive catalog or REST URI for REST catalog
  *   <li><code>warehouse</code> - the warehouse path (Hadoop catalog only)
  *   <li><code>catalog-impl</code> - a custom {@link Catalog} implementation to use
+ *   <li><code>io-impl</code> - a custom {@link org.apache.iceberg.io.FileIO} implementation to use
+ *   <li><code>metrics-reporter-impl</code> - a custom {@link
+ *       org.apache.iceberg.metrics.MetricsReporter} implementation to use
  *   <li><code>default-namespace</code> - a namespace to use as the default
  *   <li><code>cache-enabled</code> - whether to enable catalog cache
+ *   <li><code>cache.case-sensitive</code> - whether the catalog cache should compare table
+ *       identifiers in a case sensitive way
  *   <li><code>cache.expiration-interval-ms</code> - interval in millis before expiring tables from
  *       catalog cache. Refer to {@link CatalogProperties#CACHE_EXPIRATION_INTERVAL_MS} for further
  *       details and significant values.
+ *   <li><code>table-default.$tablePropertyKey</code> - table property $tablePropertyKey default at
+ *       catalog level
+ *   <li><code>table-override.$tablePropertyKey</code> - table property $tablePropertyKey enforced
+ *       at catalog level
  * </ul>
  *
  * <p>
@@ -104,6 +117,8 @@ public class SparkCatalog extends BaseCatalog {
   private static final Splitter COMMA = Splitter.on(",");
   private static final Pattern AT_TIMESTAMP = Pattern.compile("at_timestamp_(\\d+)");
   private static final Pattern SNAPSHOT_ID = Pattern.compile("snapshot_id_(\\d+)");
+  private static final Pattern BRANCH = Pattern.compile("branch_(.*)");
+  private static final Pattern TAG = Pattern.compile("tag_(.*)");
 
   private String catalogName = null;
   private Catalog icebergCatalog = null;
@@ -156,10 +171,23 @@ public class SparkCatalog extends BaseCatalog {
       SparkTable sparkTable = (SparkTable) table;
 
       Preconditions.checkArgument(
-          sparkTable.snapshotId() == null,
+          sparkTable.snapshotId() == null && sparkTable.branch() == null,
           "Cannot do time-travel based on both table identifier and AS OF");
 
-      return sparkTable.copyWithSnapshotId(Long.parseLong(version));
+      try {
+        return sparkTable.copyWithSnapshotId(Long.parseLong(version));
+      } catch (NumberFormatException e) {
+        SnapshotRef ref = sparkTable.table().refs().get(version);
+        ValidationException.check(
+            ref != null,
+            "Cannot find matching snapshot ID or reference name for version " + version);
+
+        if (ref.isBranch()) {
+          return sparkTable.copyWithBranch(version);
+        } else {
+          return sparkTable.copyWithSnapshotId(ref.snapshotId());
+        }
+      }
 
     } else if (table instanceof SparkChangelogTable) {
       throw new UnsupportedOperationException("AS OF is not supported for changelogs");
@@ -326,9 +354,8 @@ public class SparkCatalog extends BaseCatalog {
       boolean dropped = dropTableWithoutPurging(ident);
 
       if (dropped) {
-        // We should check whether the metadata file exists. Because the HadoopCatalog/HadoopTables
-        // will drop the
-        // warehouse directly and ignore the `purge` argument.
+        // check whether the metadata file exists because HadoopCatalog/HadoopTables
+        // will drop the warehouse directly and ignore the `purge` argument
         boolean metadataFileExists = table.io().newInputFile(metadataFileLocation).exists();
 
         if (metadataFileExists) {
@@ -504,6 +531,12 @@ public class SparkCatalog extends BaseCatalog {
         PropertyUtil.propertyAsBoolean(
             options, CatalogProperties.CACHE_ENABLED, CatalogProperties.CACHE_ENABLED_DEFAULT);
 
+    boolean cacheCaseSensitive =
+        PropertyUtil.propertyAsBoolean(
+            options,
+            CatalogProperties.CACHE_CASE_SENSITIVE,
+            CatalogProperties.CACHE_CASE_SENSITIVE_DEFAULT);
+
     long cacheExpirationIntervalMs =
         PropertyUtil.propertyAsLong(
             options,
@@ -525,7 +558,9 @@ public class SparkCatalog extends BaseCatalog {
     this.tables =
         new HadoopTables(SparkUtil.hadoopConfCatalogOverrides(SparkSession.active(), name));
     this.icebergCatalog =
-        cacheEnabled ? CachingCatalog.wrap(catalog, cacheExpirationIntervalMs) : catalog;
+        cacheEnabled
+            ? CachingCatalog.wrap(catalog, cacheCaseSensitive, cacheExpirationIntervalMs)
+            : catalog;
     if (catalog instanceof SupportsNamespaces) {
       this.asNamespaceCatalog = (SupportsNamespaces) catalog;
       if (options.containsKey("default-namespace")) {
@@ -553,8 +588,7 @@ public class SparkCatalog extends BaseCatalog {
       List<TableChange> propertyChanges,
       List<TableChange> schemaChanges) {
     // don't allow setting the snapshot and picking a commit at the same time because order is
-    // ambiguous and choosing
-    // one order leads to different results
+    // ambiguous and choosing one order leads to different results
     Preconditions.checkArgument(
         setSnapshotId == null || pickSnapshotId == null,
         "Cannot set the current the current snapshot ID and cherry-pick snapshot changes");
@@ -645,6 +679,19 @@ public class SparkCatalog extends BaseCatalog {
         return new SparkTable(table, snapshotId, !cacheEnabled);
       }
 
+      Matcher branch = BRANCH.matcher(ident.name());
+      if (branch.matches()) {
+        return new SparkTable(table, branch.group(1), !cacheEnabled);
+      }
+
+      Matcher tag = TAG.matcher(ident.name());
+      if (tag.matches()) {
+        Snapshot tagSnapshot = table.snapshot(tag.group(1));
+        if (tagSnapshot != null) {
+          return new SparkTable(table, tagSnapshot.snapshotId(), !cacheEnabled);
+        }
+      }
+
       // the name wasn't a valid snapshot selector and did not point to the changelog
       // throw the original exception
       throw e;
@@ -669,6 +716,8 @@ public class SparkCatalog extends BaseCatalog {
     String metadataTableName = null;
     Long asOfTimestamp = null;
     Long snapshotId = null;
+    String branch = null;
+    String tag = null;
     boolean isChangelog = false;
 
     for (String meta : parsed.second()) {
@@ -691,13 +740,28 @@ public class SparkCatalog extends BaseCatalog {
       Matcher id = SNAPSHOT_ID.matcher(meta);
       if (id.matches()) {
         snapshotId = Long.parseLong(id.group(1));
+        continue;
+      }
+
+      Matcher branchRef = BRANCH.matcher(meta);
+      if (branchRef.matches()) {
+        branch = branchRef.group(1);
+        continue;
+      }
+
+      Matcher tagRef = TAG.matcher(meta);
+      if (tagRef.matches()) {
+        tag = tagRef.group(1);
       }
     }
 
     Preconditions.checkArgument(
-        asOfTimestamp == null || snapshotId == null,
-        "Cannot specify both snapshot-id and as-of-timestamp: %s",
-        ident.location());
+        Stream.of(snapshotId, asOfTimestamp, branch, tag).filter(Objects::nonNull).count() <= 1,
+        "Can specify only one of snapshot-id (%s), as-of-timestamp (%s), branch (%s), tag (%s)",
+        snapshotId,
+        asOfTimestamp,
+        branch,
+        tag);
 
     Preconditions.checkArgument(
         !isChangelog || (snapshotId == null && asOfTimestamp == null),
@@ -712,6 +776,15 @@ public class SparkCatalog extends BaseCatalog {
     } else if (asOfTimestamp != null) {
       long snapshotIdAsOfTime = SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp);
       return new SparkTable(table, snapshotIdAsOfTime, !cacheEnabled);
+
+    } else if (branch != null) {
+      return new SparkTable(table, branch, !cacheEnabled);
+
+    } else if (tag != null) {
+      Snapshot tagSnapshot = table.snapshot(tag);
+      Preconditions.checkArgument(
+          tagSnapshot != null, "Cannot find snapshot associated with tag name: %s", tag);
+      return new SparkTable(table, tagSnapshot.snapshotId(), !cacheEnabled);
 
     } else {
       return new SparkTable(table, snapshotId, !cacheEnabled);

@@ -18,35 +18,17 @@
  */
 package org.apache.iceberg.view;
 
-import java.util.List;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.catalog.Namespace;
-
+/** SQLViewRepresentation represents views in SQL with a given dialect */
 public interface SQLViewRepresentation extends ViewRepresentation {
 
   @Override
-  default Type type() {
+  default String type() {
     return Type.SQL;
   }
 
   /** The view query SQL text. */
-  String query();
+  String sql();
 
   /** The view query SQL dialect. */
   String dialect();
-
-  /** The default catalog when the view is created. */
-  String defaultCatalog();
-
-  /** The default namespace when the view is created. */
-  Namespace defaultNamespace();
-
-  /** The query output schema at version create time, without aliases. */
-  Schema schema();
-
-  /** The view field aliases. */
-  List<String> fieldComments();
-
-  /** The view field comments. */
-  List<String> fieldAliases();
 }

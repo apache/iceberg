@@ -198,7 +198,7 @@ public class Partitioning {
   }
 
   /**
-   * Builds a grouping key type considering all provided specs.
+   * Builds a grouping key type considering the provided schema and specs.
    *
    * <p>A grouping key defines how data is split between files and consists of partition fields with
    * non-void transforms that are present in each provided spec. Iceberg guarantees that records
@@ -215,11 +215,15 @@ public class Partitioning {
    * that have the same field ID but use a void transform under the hood. Such fields cannot be part
    * of the grouping key as void transforms always return null.
    *
+   * <p>If the provided schema is not null, this method will only take into account partition fields
+   * on top of columns present in the schema. Otherwise, all partition fields will be considered.
+   *
+   * @param schema a schema specifying a set of source columns to consider (null to consider all)
    * @param specs one or many specs
    * @return the constructed grouping key type
    */
-  public static StructType groupingKeyType(Collection<PartitionSpec> specs) {
-    return buildPartitionProjectionType("grouping key", specs, commonActiveFieldIds(specs));
+  public static StructType groupingKeyType(Schema schema, Collection<PartitionSpec> specs) {
+    return buildPartitionProjectionType("grouping key", specs, commonActiveFieldIds(schema, specs));
   }
 
   /**
@@ -341,15 +345,15 @@ public class Partitioning {
   }
 
   // collects IDs of partition fields with non-void transforms that are present in each spec
-  private static Set<Integer> commonActiveFieldIds(Collection<PartitionSpec> specs) {
+  private static Set<Integer> commonActiveFieldIds(Schema schema, Collection<PartitionSpec> specs) {
     Set<Integer> commonActiveFieldIds = Sets.newHashSet();
 
     int specIndex = 0;
     for (PartitionSpec spec : specs) {
       if (specIndex == 0) {
-        commonActiveFieldIds.addAll(activeFieldIds(spec));
+        commonActiveFieldIds.addAll(activeFieldIds(schema, spec));
       } else {
-        commonActiveFieldIds.retainAll(activeFieldIds(spec));
+        commonActiveFieldIds.retainAll(activeFieldIds(schema, spec));
       }
 
       specIndex++;
@@ -358,8 +362,9 @@ public class Partitioning {
     return commonActiveFieldIds;
   }
 
-  private static List<Integer> activeFieldIds(PartitionSpec spec) {
+  private static List<Integer> activeFieldIds(Schema schema, PartitionSpec spec) {
     return spec.fields().stream()
+        .filter(field -> schema == null || schema.findField(field.sourceId()) != null)
         .filter(field -> !isVoidTransform(field))
         .map(PartitionField::fieldId)
         .collect(Collectors.toList());

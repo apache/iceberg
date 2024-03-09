@@ -25,6 +25,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -67,6 +68,8 @@ import org.apache.parquet.schema.PrimitiveType;
 public class ParquetUtil {
   // not meant to be instantiated
   private ParquetUtil() {}
+
+  private static final long UNIX_EPOCH_JULIAN = 2_440_588L;
 
   public static Metrics fileMetrics(InputFile file, MetricsConfig metricsConfig) {
     return fileMetrics(file, metricsConfig, null);
@@ -130,9 +133,7 @@ public class ParquetUtil {
         increment(valueCounts, fieldId, column.getValueCount());
 
         Statistics stats = column.getStatistics();
-        if (stats == null) {
-          missingStats.add(fieldId);
-        } else if (!stats.isEmpty()) {
+        if (stats != null && !stats.isEmpty()) {
           increment(nullValueCounts, fieldId, stats.getNumNulls());
 
           // when there are metrics gathered by Iceberg for a column, we should use those instead
@@ -150,6 +151,8 @@ public class ParquetUtil {
               updateMax(upperBounds, fieldId, field.type(), max, metricsMode);
             }
           }
+        } else {
+          missingStats.add(fieldId);
         }
       }
     }
@@ -402,5 +405,18 @@ public class ParquetUtil {
       }
     }
     return primitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32;
+  }
+
+  /**
+   * Method to read timestamp (parquet Int96) from bytebuffer. Read 12 bytes in byteBuffer: 8 bytes
+   * (time of day nanos) + 4 bytes(julianDay)
+   */
+  public static long extractTimestampInt96(ByteBuffer buffer) {
+    // 8 bytes (time of day nanos)
+    long timeOfDayNanos = buffer.getLong();
+    // 4 bytes(julianDay)
+    int julianDay = buffer.getInt();
+    return TimeUnit.DAYS.toMicros(julianDay - UNIX_EPOCH_JULIAN)
+        + TimeUnit.NANOSECONDS.toMicros(timeOfDayNanos);
   }
 }

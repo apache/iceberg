@@ -27,12 +27,14 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestWriter;
@@ -41,8 +43,10 @@ import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.TableMigrationUtil;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.hadoop.Util;
@@ -372,7 +376,9 @@ public class SparkTableUtil {
       FileIO io = new HadoopFileIO(conf.get());
       TaskContext ctx = TaskContext.get();
       String suffix =
-          String.format("stage-%d-task-%d-manifest", ctx.stageId(), ctx.taskAttemptId());
+          String.format(
+              "stage-%d-task-%d-manifest-%s",
+              ctx.stageId(), ctx.taskAttemptId(), UUID.randomUUID());
       Path location = new Path(basePath, suffix);
       String outputPath = FileFormat.AVRO.addExtension(location.toString());
       OutputFile outputFile = io.newOutputFile(outputPath);
@@ -437,12 +443,12 @@ public class SparkTableUtil {
       } else {
         List<SparkPartition> sourceTablePartitions =
             getPartitions(spark, sourceTableIdent, partitionFilter);
-        Preconditions.checkArgument(
-            !sourceTablePartitions.isEmpty(),
-            "Cannot find any partitions in table %s",
-            sourceTableIdent);
-        importSparkPartitions(
-            spark, sourceTablePartitions, targetTable, spec, stagingDir, checkDuplicateFiles);
+        if (sourceTablePartitions.isEmpty()) {
+          targetTable.newAppend().commit();
+        } else {
+          importSparkPartitions(
+              spark, sourceTablePartitions, targetTable, spec, stagingDir, checkDuplicateFiles);
+        }
       }
     } catch (AnalysisException e) {
       throw SparkExceptionUtil.toUncheckedException(
@@ -531,7 +537,7 @@ public class SparkTableUtil {
                 .createDataset(Lists.transform(files, f -> f.path().toString()), Encoders.STRING())
                 .toDF("file_path");
         Dataset<Row> existingFiles =
-            loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES);
+            loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES).filter("status != 2");
         Column joinCond =
             existingFiles.col("data_file.file_path").equalTo(importedFiles.col("file_path"));
         Dataset<String> duplicates =
@@ -602,7 +608,8 @@ public class SparkTableUtil {
           filesToImport
               .map((MapFunction<DataFile, String>) f -> f.path().toString(), Encoders.STRING())
               .toDF("file_path");
-      Dataset<Row> existingFiles = loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES);
+      Dataset<Row> existingFiles =
+          loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES).filter("status != 2");
       Column joinCond =
           existingFiles.col("data_file.file_path").equalTo(importedFiles.col("file_path"));
       Dataset<String> duplicates =
@@ -628,6 +635,8 @@ public class SparkTableUtil {
             .collectAsList();
 
     try {
+      TableOperations ops = ((HasTableOperations) targetTable).operations();
+      int formatVersion = ops.current().formatVersion();
       boolean snapshotIdInheritanceEnabled =
           PropertyUtil.propertyAsBoolean(
               targetTable.properties(),
@@ -638,7 +647,7 @@ public class SparkTableUtil {
       manifests.forEach(append::appendManifest);
       append.commit();
 
-      if (!snapshotIdInheritanceEnabled) {
+      if (formatVersion == 1 && !snapshotIdInheritanceEnabled) {
         // delete original manifests as they were rewritten before the commit
         deleteManifests(targetTable.io(), manifests);
       }
@@ -709,6 +718,43 @@ public class SparkTableUtil {
     CaseInsensitiveStringMap options = new CaseInsensitiveStringMap(extraOptions);
     return Dataset.ofRows(
         spark, DataSourceV2Relation.create(metadataTable, Some.empty(), Some.empty(), options));
+  }
+
+  /**
+   * Determine the write branch.
+   *
+   * <p>Validate wap config and determine the write branch.
+   *
+   * @param spark a Spark Session
+   * @param branch write branch if there is no WAP branch configured
+   * @return branch for write operation
+   */
+  public static String determineWriteBranch(SparkSession spark, String branch) {
+    String wapId = spark.conf().get(SparkSQLProperties.WAP_ID, null);
+    String wapBranch = spark.conf().get(SparkSQLProperties.WAP_BRANCH, null);
+    ValidationException.check(
+        wapId == null || wapBranch == null,
+        "Cannot set both WAP ID and branch, but got ID [%s] and branch [%s]",
+        wapId,
+        wapBranch);
+
+    if (wapBranch != null) {
+      ValidationException.check(
+          branch == null,
+          "Cannot write to both branch and WAP branch, but got branch [%s] and WAP branch [%s]",
+          branch,
+          wapBranch);
+
+      return wapBranch;
+    }
+    return branch;
+  }
+
+  public static boolean wapEnabled(Table table) {
+    return PropertyUtil.propertyAsBoolean(
+        table.properties(),
+        TableProperties.WRITE_AUDIT_PUBLISH_ENABLED,
+        Boolean.getBoolean(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT));
   }
 
   /** Class representing a table partition. */

@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.source;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
@@ -34,7 +35,9 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.source.metrics.NumDeletes;
 import org.apache.iceberg.spark.source.metrics.NumSplits;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.metric.CustomMetric;
@@ -57,6 +60,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   private final Schema expectedSchema;
   private final List<Expression> filterExpressions;
   private final boolean readTimestampWithoutZone;
+  private final String branch;
 
   // lazy variables
   private StructType readSchema;
@@ -67,8 +71,8 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
       SparkReadConf readConf,
       Schema expectedSchema,
       List<Expression> filters) {
-
-    SparkSchemaUtil.validateMetadataColumnReferences(table.schema(), expectedSchema);
+    Schema snapshotSchema = SnapshotUtil.schemaFor(table, readConf.branch());
+    SparkSchemaUtil.validateMetadataColumnReferences(snapshotSchema, expectedSchema);
 
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
@@ -77,10 +81,15 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     this.expectedSchema = expectedSchema;
     this.filterExpressions = filters != null ? filters : Collections.emptyList();
     this.readTimestampWithoutZone = readConf.handleTimestampWithoutZone();
+    this.branch = readConf.branch();
   }
 
   protected Table table() {
     return table;
+  }
+
+  protected String branch() {
+    return branch;
   }
 
   protected boolean caseSensitive() {
@@ -95,11 +104,16 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     return filterExpressions;
   }
 
+  protected Types.StructType groupingKeyType() {
+    return Types.StructType.of();
+  }
+
   protected abstract List<? extends ScanTaskGroup<?>> taskGroups();
 
   @Override
   public Batch toBatch() {
-    return new SparkBatch(sparkContext, table, readConf, taskGroups(), expectedSchema, hashCode());
+    return new SparkBatch(
+        sparkContext, table, readConf, groupingKeyType(), taskGroups(), expectedSchema, hashCode());
   }
 
   @Override
@@ -121,7 +135,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
   @Override
   public Statistics estimateStatistics() {
-    return estimateStatistics(table.currentSnapshot());
+    return estimateStatistics(SnapshotUtil.latestSnapshot(table, branch));
   }
 
   protected Statistics estimateStatistics(Snapshot snapshot) {
@@ -130,13 +144,14 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
       return new Stats(0L, 0L);
     }
 
-    // estimate stats using snapshot summary only for partitioned tables (metadata tables are
-    // unpartitioned)
+    // estimate stats using snapshot summary only for partitioned tables
+    // (metadata tables are unpartitioned)
     if (!table.spec().isUnpartitioned() && filterExpressions.isEmpty()) {
-      LOG.debug("using table metadata to estimate table statistics");
-      long totalRecords =
-          PropertyUtil.propertyAsLong(
-              snapshot.summary(), SnapshotSummary.TOTAL_RECORDS_PROP, Long.MAX_VALUE);
+      LOG.debug(
+          "Using snapshot {} metadata to estimate statistics for table {}",
+          snapshot.snapshotId(),
+          table.name());
+      long totalRecords = totalRecords(snapshot);
       return new Stats(SparkSchemaUtil.estimateSize(readSchema(), totalRecords), totalRecords);
     }
 
@@ -145,11 +160,21 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     return new Stats(sizeInBytes, rowsCount);
   }
 
+  private long totalRecords(Snapshot snapshot) {
+    Map<String, String> summary = snapshot.summary();
+    return PropertyUtil.propertyAsLong(summary, SnapshotSummary.TOTAL_RECORDS_PROP, Long.MAX_VALUE);
+  }
+
   @Override
   public String description() {
-    String filters =
-        filterExpressions.stream().map(Spark3Util::describe).collect(Collectors.joining(", "));
-    return String.format("%s [filters=%s]", table, filters);
+    String groupingKeyFieldNamesAsString =
+        groupingKeyType().fields().stream()
+            .map(Types.NestedField::name)
+            .collect(Collectors.joining(", "));
+
+    return String.format(
+        "%s (branch=%s) [filters=%s, groupedBy=%s]",
+        table(), branch(), Spark3Util.describe(filterExpressions), groupingKeyFieldNamesAsString);
   }
 
   @Override

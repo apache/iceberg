@@ -35,6 +35,8 @@ import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.ResolvingFileIO;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,6 +44,8 @@ import org.slf4j.LoggerFactory;
 public class Util {
 
   public static final String VERSION_HINT_FILENAME = "version-hint.text";
+
+  private static final Set<String> LOCALITY_WHITELIST_FS = ImmutableSet.of("hdfs");
 
   private static final Logger LOG = LoggerFactory.getLogger(Util.class);
 
@@ -72,14 +76,6 @@ public class Util {
     return locationSets.toArray(new String[0]);
   }
 
-  /**
-   * @deprecated Will be removed in 1.2.0, use {@link Util#blockLocations(FileIO, ContentScanTask)}.
-   */
-  @Deprecated
-  public static String[] blockLocations(FileIO io, CombinedScanTask task) {
-    return blockLocations(io, (ScanTaskGroup<FileScanTask>) task);
-  }
-
   public static String[] blockLocations(FileIO io, ScanTaskGroup<?> taskGroup) {
     Set<String> locations = Sets.newHashSet();
 
@@ -92,13 +88,46 @@ public class Util {
     return locations.toArray(HadoopInputFile.NO_LOCATION_PREFERENCE);
   }
 
+  public static boolean mayHaveBlockLocations(FileIO io, String location) {
+    if (usesHadoopFileIO(io, location)) {
+      InputFile inputFile = io.newInputFile(location);
+      if (inputFile instanceof HadoopInputFile) {
+        String scheme = ((HadoopInputFile) inputFile).getFileSystem().getScheme();
+        return LOCALITY_WHITELIST_FS.contains(scheme);
+
+      } else {
+        return false;
+      }
+    }
+
+    return false;
+  }
+
   private static String[] blockLocations(FileIO io, ContentScanTask<?> task) {
-    InputFile inputFile = io.newInputFile(task.file().path().toString());
-    if (inputFile instanceof HadoopInputFile) {
-      HadoopInputFile hadoopInputFile = (HadoopInputFile) inputFile;
-      return hadoopInputFile.getBlockLocations(task.start(), task.length());
+    String location = task.file().path().toString();
+    if (usesHadoopFileIO(io, location)) {
+      InputFile inputFile = io.newInputFile(location);
+      if (inputFile instanceof HadoopInputFile) {
+        return ((HadoopInputFile) inputFile).getBlockLocations(task.start(), task.length());
+
+      } else {
+        return HadoopInputFile.NO_LOCATION_PREFERENCE;
+      }
     } else {
       return HadoopInputFile.NO_LOCATION_PREFERENCE;
+    }
+  }
+
+  private static boolean usesHadoopFileIO(FileIO io, String location) {
+    if (io instanceof HadoopFileIO) {
+      return true;
+
+    } else if (io instanceof ResolvingFileIO) {
+      ResolvingFileIO resolvingFileIO = (ResolvingFileIO) io;
+      return HadoopFileIO.class.isAssignableFrom(resolvingFileIO.ioClass(location));
+
+    } else {
+      return false;
     }
   }
 

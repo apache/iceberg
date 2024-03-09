@@ -32,6 +32,12 @@ public class SparkReadOptions {
   // End snapshot ID used in incremental scans (inclusive)
   public static final String END_SNAPSHOT_ID = "end-snapshot-id";
 
+  // Start timestamp used in multi-snapshot scans (exclusive)
+  public static final String START_TIMESTAMP = "start-timestamp";
+
+  // End timestamp used in multi-snapshot scans (inclusive)
+  public static final String END_TIMESTAMP = "end-timestamp";
+
   // A timestamp in milliseconds; the snapshot used will be the snapshot current at this time.
   public static final String AS_OF_TIMESTAMP = "as-of-timestamp";
 
@@ -50,14 +56,14 @@ public class SparkReadOptions {
   // Overrides the table's read.split.open-file-cost
   public static final String FILE_OPEN_COST = "file-open-cost";
 
-  // Overrides the table's read.split.open-file-cost
+  // Overrides table's vectorization enabled properties
   public static final String VECTORIZATION_ENABLED = "vectorization-enabled";
 
   // Overrides the table's read.parquet.vectorization.batch-size
   public static final String VECTORIZATION_BATCH_SIZE = "batch-size";
 
-  // Set ID that is used to fetch file scan tasks
-  public static final String FILE_SCAN_TASK_SET_ID = "file-scan-task-set-id";
+  // Set ID that is used to fetch scan tasks
+  public static final String SCAN_TASK_SET_ID = "scan-task-set-id";
 
   // skip snapshots of type delete while reading stream out of iceberg table
   public static final String STREAMING_SKIP_DELETE_SNAPSHOTS = "streaming-skip-delete-snapshots";
@@ -78,10 +84,19 @@ public class SparkReadOptions {
   // Timestamp in milliseconds; start a stream from the snapshot that occurs after this timestamp
   public static final String STREAM_FROM_TIMESTAMP = "stream-from-timestamp";
 
+  // maximum file per micro_batch
+  public static final String STREAMING_MAX_FILES_PER_MICRO_BATCH =
+      "streaming-max-files-per-micro-batch";
+  // maximum rows per micro_batch
+  public static final String STREAMING_MAX_ROWS_PER_MICRO_BATCH =
+      "streaming-max-rows-per-micro-batch";
+
   // Table path
   public static final String PATH = "path";
 
   public static final String VERSION_AS_OF = "versionAsOf";
 
   public static final String TIMESTAMP_AS_OF = "timestampAsOf";
+
+  public static final String AGGREGATE_PUSH_DOWN_ENABLED = "aggregate-push-down-enabled";
 }

@@ -35,6 +35,8 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.SupportsBulkOperations;
+import org.apache.iceberg.metrics.LoggingMetricsReporter;
+import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -65,10 +67,16 @@ public class CatalogUtil {
   public static final String ICEBERG_CATALOG_TYPE_HADOOP = "hadoop";
   public static final String ICEBERG_CATALOG_TYPE_HIVE = "hive";
   public static final String ICEBERG_CATALOG_TYPE_REST = "rest";
+  public static final String ICEBERG_CATALOG_TYPE_GLUE = "glue";
+  public static final String ICEBERG_CATALOG_TYPE_NESSIE = "nessie";
+  public static final String ICEBERG_CATALOG_TYPE_JDBC = "jdbc";
 
   public static final String ICEBERG_CATALOG_HADOOP = "org.apache.iceberg.hadoop.HadoopCatalog";
   public static final String ICEBERG_CATALOG_HIVE = "org.apache.iceberg.hive.HiveCatalog";
   public static final String ICEBERG_CATALOG_REST = "org.apache.iceberg.rest.RESTCatalog";
+  public static final String ICEBERG_CATALOG_GLUE = "org.apache.iceberg.aws.glue.GlueCatalog";
+  public static final String ICEBERG_CATALOG_NESSIE = "org.apache.iceberg.nessie.NessieCatalog";
+  public static final String ICEBERG_CATALOG_JDBC = "org.apache.iceberg.jdbc.JdbcCatalog";
 
   private CatalogUtil() {}
 
@@ -114,6 +122,16 @@ public class CatalogUtil {
         io,
         Iterables.transform(metadata.previousFiles(), TableMetadata.MetadataLogEntry::file),
         "previous metadata",
+        true);
+    deleteFiles(
+        io,
+        Iterables.transform(metadata.statisticsFiles(), StatisticsFile::path),
+        "statistics",
+        true);
+    deleteFiles(
+        io,
+        Iterables.transform(metadata.partitionStatisticsFiles(), PartitionStatisticsFile::path),
+        "partition statistics",
         true);
     deleteFile(io, metadata.metadataFileLocation(), "metadata");
   }
@@ -162,7 +180,7 @@ public class CatalogUtil {
    * @param type type of files being deleted
    * @param concurrent controls concurrent deletion. Only applicable for non-bulk FileIO
    */
-  private static void deleteFiles(
+  public static void deleteFiles(
       FileIO io, Iterable<String> files, String type, boolean concurrent) {
     if (io instanceof SupportsBulkOperations) {
       try {
@@ -266,6 +284,15 @@ public class CatalogUtil {
         case ICEBERG_CATALOG_TYPE_REST:
           catalogImpl = ICEBERG_CATALOG_REST;
           break;
+        case ICEBERG_CATALOG_TYPE_GLUE:
+          catalogImpl = ICEBERG_CATALOG_GLUE;
+          break;
+        case ICEBERG_CATALOG_TYPE_NESSIE:
+          catalogImpl = ICEBERG_CATALOG_NESSIE;
+          break;
+        case ICEBERG_CATALOG_TYPE_JDBC:
+          catalogImpl = ICEBERG_CATALOG_JDBC;
+          break;
         default:
           throw new UnsupportedOperationException("Unknown catalog type: " + catalogType);
       }
@@ -307,7 +334,7 @@ public class CatalogUtil {
               .buildChecked();
     } catch (NoSuchMethodException e) {
       throw new IllegalArgumentException(
-          String.format("Cannot initialize FileIO, missing no-arg constructor: %s", impl), e);
+          String.format("Cannot initialize FileIO implementation %s: %s", impl, e.getMessage()), e);
     }
 
     FileIO fileIO;
@@ -399,5 +426,51 @@ public class CatalogUtil {
     }
 
     setConf.invoke(conf);
+  }
+
+  /**
+   * Load a custom {@link MetricsReporter} implementation.
+   *
+   * <p>The implementation must have a no-arg constructor.
+   *
+   * @param properties catalog properties which contains class name of a custom {@link
+   *     MetricsReporter} implementation
+   * @return An initialized {@link MetricsReporter}.
+   * @throws IllegalArgumentException if class path not found or right constructor not found or the
+   *     loaded class cannot be cast to the given interface type
+   */
+  public static MetricsReporter loadMetricsReporter(Map<String, String> properties) {
+    String impl = properties.get(CatalogProperties.METRICS_REPORTER_IMPL);
+    if (impl == null) {
+      return LoggingMetricsReporter.instance();
+    }
+
+    LOG.info("Loading custom MetricsReporter implementation: {}", impl);
+    DynConstructors.Ctor<MetricsReporter> ctor;
+    try {
+      ctor =
+          DynConstructors.builder(MetricsReporter.class)
+              .loader(CatalogUtil.class.getClassLoader())
+              .impl(impl)
+              .buildChecked();
+    } catch (NoSuchMethodException e) {
+      throw new IllegalArgumentException(
+          String.format("Cannot initialize MetricsReporter, missing no-arg constructor: %s", impl),
+          e);
+    }
+
+    MetricsReporter reporter;
+    try {
+      reporter = ctor.newInstance();
+    } catch (ClassCastException e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot initialize MetricsReporter, %s does not implement MetricsReporter.", impl),
+          e);
+    }
+
+    reporter.initialize(properties);
+
+    return reporter;
   }
 }

@@ -28,7 +28,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import org.apache.iceberg.AppendFiles;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.PartitionSpec;
@@ -41,11 +40,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestHadoopTables {
 
@@ -55,69 +52,54 @@ public class TestHadoopTables {
           required(1, "id", Types.IntegerType.get(), "unique ID"),
           required(2, "data", Types.StringType.get()));
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
-  private File tableDir = null;
-
-  @Before
-  public void setupTableLocation() throws Exception {
-    tableDir = temp.newFolder();
-  }
+  @TempDir private File tableDir;
+  @TempDir private File dataDir;
 
   @Test
   public void testTableExists() {
-    Assert.assertFalse(TABLES.exists(tableDir.toURI().toString()));
+    Assertions.assertThat(TABLES.exists(tableDir.toURI().toString())).isFalse();
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("data", 16).build();
     TABLES.create(SCHEMA, spec, tableDir.toURI().toString());
-    Assert.assertTrue(TABLES.exists(tableDir.toURI().toString()));
+    Assertions.assertThat(TABLES.exists(tableDir.toURI().toString())).isTrue();
   }
 
   @Test
   public void testDropTable() {
     TABLES.create(SCHEMA, tableDir.toURI().toString());
     TABLES.dropTable(tableDir.toURI().toString());
-    AssertHelpers.assertThrows(
-        "Should complain about missing table",
-        NoSuchTableException.class,
-        "Table does not exist",
-        () -> TABLES.load(tableDir.toURI().toString()));
+
+    Assertions.assertThatThrownBy(() -> TABLES.load(tableDir.toURI().toString()))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageStartingWith("Table does not exist");
   }
 
   @Test
   public void testDropTableWithPurge() throws IOException {
-    File dataDir = temp.newFolder();
 
     createDummyTable(tableDir, dataDir);
 
     TABLES.dropTable(tableDir.toURI().toString(), true);
-    AssertHelpers.assertThrows(
-        "Should complain about missing table",
-        NoSuchTableException.class,
-        "Table does not exist",
-        () -> TABLES.load(tableDir.toURI().toString()));
+    Assertions.assertThatThrownBy(() -> TABLES.load(tableDir.toURI().toString()))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageStartingWith("Table does not exist");
 
-    Assert.assertEquals(0, dataDir.listFiles().length);
-    Assert.assertFalse(tableDir.exists());
-
-    Assert.assertFalse(TABLES.dropTable(tableDir.toURI().toString()));
+    Assertions.assertThat(dataDir.listFiles()).hasSize(0);
+    Assertions.assertThat(tableDir).doesNotExist();
+    Assertions.assertThat(TABLES.dropTable(tableDir.toURI().toString())).isFalse();
   }
 
   @Test
   public void testDropTableWithoutPurge() throws IOException {
-    File dataDir = temp.newFolder();
-
     createDummyTable(tableDir, dataDir);
 
     TABLES.dropTable(tableDir.toURI().toString(), false);
-    AssertHelpers.assertThrows(
-        "Should complain about missing table",
-        NoSuchTableException.class,
-        "Table does not exist",
-        () -> TABLES.load(tableDir.toURI().toString()));
+    Assertions.assertThatThrownBy(() -> TABLES.load(tableDir.toURI().toString()))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageStartingWith("Table does not exist");
 
-    Assert.assertEquals(1, dataDir.listFiles().length);
-    Assert.assertFalse(tableDir.exists());
-
-    Assert.assertFalse(TABLES.dropTable(tableDir.toURI().toString()));
+    Assertions.assertThat(dataDir.listFiles()).hasSize(1);
+    Assertions.assertThat(tableDir).doesNotExist();
+    Assertions.assertThat(TABLES.dropTable(tableDir.toURI().toString())).isFalse();
   }
 
   @Test
@@ -126,8 +108,8 @@ public class TestHadoopTables {
     Table table = TABLES.create(SCHEMA, spec, tableDir.toURI().toString());
 
     SortOrder sortOrder = table.sortOrder();
-    Assert.assertEquals("Order ID must match", 0, sortOrder.orderId());
-    Assert.assertTrue("Order must unsorted", sortOrder.isUnsorted());
+    Assertions.assertThat(sortOrder.orderId()).as("Order ID must match").isEqualTo(0);
+    Assertions.assertThat(sortOrder.isUnsorted()).as("Order must be unsorted").isTrue();
   }
 
   @Test
@@ -138,13 +120,18 @@ public class TestHadoopTables {
         TABLES.create(SCHEMA, spec, order, Maps.newHashMap(), tableDir.toURI().toString());
 
     SortOrder sortOrder = table.sortOrder();
-    Assert.assertEquals("Order ID must match", 1, sortOrder.orderId());
-    Assert.assertEquals("Order must have 1 field", 1, sortOrder.fields().size());
-    Assert.assertEquals("Direction must match ", ASC, sortOrder.fields().get(0).direction());
-    Assert.assertEquals(
-        "Null order must match ", NULLS_FIRST, sortOrder.fields().get(0).nullOrder());
+    Assertions.assertThat(sortOrder.orderId()).as("Order ID must match").isEqualTo(1);
+    Assertions.assertThat(sortOrder.fields()).as("Order must have 1 field").hasSize(1);
+    Assertions.assertThat(sortOrder.fields().get(0).direction())
+        .as("Direction must match")
+        .isEqualTo(ASC);
+    Assertions.assertThat(sortOrder.fields().get(0).nullOrder())
+        .as("Null order must match")
+        .isEqualTo(NULLS_FIRST);
     Transform<?, ?> transform = Transforms.identity();
-    Assert.assertEquals("Transform must match", transform, sortOrder.fields().get(0).transform());
+    Assertions.assertThat(sortOrder.fields().get(0).transform())
+        .as("Transform must match")
+        .isEqualTo(transform);
   }
 
   @Test
@@ -154,10 +141,12 @@ public class TestHadoopTables {
     TABLES.create(SCHEMA, spec, location);
 
     Table table = TABLES.load(location);
-    Assert.assertEquals("Name must match", location, table.name());
+    Assertions.assertThat(table.name()).as("Name must match").isEqualTo(location);
 
     Table snapshotsTable = TABLES.load(location + "#snapshots");
-    Assert.assertEquals("Name must match", location + "#snapshots", snapshotsTable.name());
+    Assertions.assertThat(snapshotsTable.name())
+        .as("Name must match")
+        .isEqualTo(location + "#snapshots");
   }
 
   private static void createDummyTable(File tableDir, File dataDir) throws IOException {
@@ -175,7 +164,7 @@ public class TestHadoopTables {
     append.commit();
 
     // Make sure that the data file and the manifest dir is created
-    Assert.assertEquals(1, dataDir.listFiles().length);
-    Assert.assertEquals(1, tableDir.listFiles().length);
+    Assertions.assertThat(dataDir.listFiles()).hasSize(1);
+    Assertions.assertThat(tableDir.listFiles()).hasSize(1);
   }
 }

@@ -21,7 +21,7 @@ name: "Open-API"
 on:
   push:
     branches:
-      - 'master'
+      - 'main'
       - '0.**'
     tags:
       - 'apache-iceberg-**'
@@ -36,16 +36,25 @@ concurrency:
 
 jobs:
   openapi-spec-validator:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
 
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: 3.9
       - name: Install
         working-directory: ./open-api
-        run: pip install openapi-spec-validator
-      - name: Validate
+        run: make install
+      - name: Validate REST catalog spec
         working-directory: ./open-api
-        run: openapi-spec-validator rest-catalog-open-api.yaml
+        run: make lint
+      - name: Generate REST catalog spec Python code
+        working-directory: ./open-api
+        run: make generate
+      - name: Check if code is up to date
+        working-directory: ./open-api
+        run: git diff --exit-code
+      - name: Validate S3 REST Signer spec
+        working-directory: ./aws/src/main/resources
+        run: openapi-spec-validator s3-signer-open-api.yaml

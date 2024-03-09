@@ -74,7 +74,7 @@ project(':iceberg-hive3-orc-bundle') {
       exclude 'shaded/parquet/**/*'
     }
 
-    classifier null
+    archiveClassifier.set(null)
   }
 
   jar {

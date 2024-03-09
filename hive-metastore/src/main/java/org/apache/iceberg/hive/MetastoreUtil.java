@@ -18,20 +18,17 @@
  */
 package org.apache.iceberg.hive;
 
+import java.util.Map;
 import org.apache.hadoop.hive.common.StatsSetupConst;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.EnvironmentContext;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.thrift.TException;
 
 public class MetastoreUtil {
-
-  // this class is unique to Hive3 and cannot be found in Hive2, therefore a good proxy to see if
-  // we are working against Hive3 dependencies
-  private static final String HIVE3_UNIQUE_CLASS =
-      "org.apache.hadoop.hive.serde2.io.DateWritableV2";
-
   private static final DynMethods.UnboundMethod ALTER_TABLE =
       DynMethods.builder("alter_table")
           .impl(
@@ -51,33 +48,41 @@ public class MetastoreUtil {
           .impl(IMetaStoreClient.class, "alter_table", String.class, String.class, Table.class)
           .build();
 
-  private static final boolean HIVE3_PRESENT_ON_CLASSPATH = detectHive3();
-
   private MetastoreUtil() {}
 
-  /** Returns true if Hive3 dependencies are found on classpath, false otherwise. */
-  public static boolean hive3PresentOnClasspath() {
-    return HIVE3_PRESENT_ON_CLASSPATH;
+  /**
+   * Calls alter_table method using the metastore client. If the HMS supports it, environmental
+   * context will be set in a way that turns off stats updates to avoid recursive file listing.
+   */
+  public static void alterTable(
+      IMetaStoreClient client, String databaseName, String tblName, Table table) throws TException {
+    alterTable(client, databaseName, tblName, table, ImmutableMap.of());
   }
 
   /**
-   * Calls alter_table method using the metastore client. If possible, an environmental context will
-   * be used that turns off stats updates to avoid recursive listing.
+   * Calls alter_table method using the metastore client. If the HMS supports it, environmental
+   * context will be set in a way that turns off stats updates to avoid recursive file listing.
    */
   public static void alterTable(
-      IMetaStoreClient client, String databaseName, String tblName, Table table) {
-    EnvironmentContext envContext =
-        new EnvironmentContext(
-            ImmutableMap.of(StatsSetupConst.DO_NOT_UPDATE_STATS, StatsSetupConst.TRUE));
-    ALTER_TABLE.invoke(client, databaseName, tblName, table, envContext);
-  }
+      IMetaStoreClient client,
+      String databaseName,
+      String tblName,
+      Table table,
+      Map<String, String> extraEnv)
+      throws TException {
+    Map<String, String> env = Maps.newHashMapWithExpectedSize(extraEnv.size() + 1);
+    env.putAll(extraEnv);
+    env.put(StatsSetupConst.DO_NOT_UPDATE_STATS, StatsSetupConst.TRUE);
 
-  private static boolean detectHive3() {
     try {
-      Class.forName(HIVE3_UNIQUE_CLASS);
-      return true;
-    } catch (ClassNotFoundException e) {
-      return false;
+      ALTER_TABLE.invoke(client, databaseName, tblName, table, new EnvironmentContext(env));
+    } catch (RuntimeException e) {
+      // TException would be wrapped into RuntimeException during reflection
+      if (e.getCause() instanceof TException) {
+        throw (TException) e.getCause();
+      } else {
+        throw e;
+      }
     }
   }
 }

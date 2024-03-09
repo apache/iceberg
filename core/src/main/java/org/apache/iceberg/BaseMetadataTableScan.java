@@ -24,19 +24,14 @@ abstract class BaseMetadataTableScan extends BaseTableScan {
 
   private final MetadataTableType tableType;
 
-  protected BaseMetadataTableScan(
-      TableOperations ops, Table table, Schema schema, MetadataTableType tableType) {
-    super(ops, table, schema);
+  protected BaseMetadataTableScan(Table table, Schema schema, MetadataTableType tableType) {
+    super(table, schema, TableScanContext.empty());
     this.tableType = tableType;
   }
 
   protected BaseMetadataTableScan(
-      TableOperations ops,
-      Table table,
-      Schema schema,
-      MetadataTableType tableType,
-      TableScanContext context) {
-    super(ops, table, schema, context);
+      Table table, Schema schema, MetadataTableType tableType, TableScanContext context) {
+    super(table, schema, context);
     this.tableType = tableType;
   }
 
@@ -65,7 +60,8 @@ abstract class BaseMetadataTableScan extends BaseTableScan {
   @Override
   public long targetSplitSize() {
     long tableValue =
-        tableOps()
+        ((BaseTable) table())
+            .operations()
             .current()
             .propertyAsLong(
                 TableProperties.METADATA_SPLIT_SIZE, TableProperties.METADATA_SPLIT_SIZE_DEFAULT);

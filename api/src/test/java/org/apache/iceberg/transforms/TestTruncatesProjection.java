@@ -28,6 +28,7 @@ import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -42,8 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestTruncatesProjection {
 
@@ -57,10 +57,10 @@ public class TestTruncatesProjection {
     Expression projection = Projections.strict(spec).project(filter);
     UnboundPredicate<?> predicate = assertAndUnwrapUnbound(projection);
 
-    Assert.assertEquals(expectedOp, predicate.op());
-
-    Assert.assertNotEquals(
-        "Strict projection never runs for IN", Expression.Operation.IN, predicate.op());
+    assertThat(predicate.op())
+        .isEqualTo(expectedOp)
+        .as("Strict projection never runs for IN")
+        .isNotEqualTo(Expression.Operation.IN);
 
     Transform<Object, Object> transform =
         (Transform<Object, Object>) spec.getFieldsBySourceId(1).get(0).transform();
@@ -73,11 +73,11 @@ public class TestTruncatesProjection {
               .map(v -> transform.toHumanString(type, v))
               .collect(Collectors.toList())
               .toString();
-      Assert.assertEquals(expectedLiteral, actual);
+      assertThat(actual).isEqualTo(expectedLiteral);
     } else {
       Literal<?> literal = predicate.literal();
       String output = transform.toHumanString(type, literal.value());
-      Assert.assertEquals(expectedLiteral, output);
+      assertThat(output).isEqualTo(expectedLiteral);
     }
   }
 
@@ -85,14 +85,14 @@ public class TestTruncatesProjection {
       PartitionSpec spec, UnboundPredicate<?> filter, Expression.Operation expectedOp) {
 
     Expression projection = Projections.strict(spec).project(filter);
-    Assert.assertEquals(projection.op(), expectedOp);
+    assertThat(expectedOp).isEqualTo(projection.op());
   }
 
   public void assertProjectionInclusiveValue(
       PartitionSpec spec, UnboundPredicate<?> filter, Expression.Operation expectedOp) {
 
     Expression projection = Projections.inclusive(spec).project(filter);
-    Assert.assertEquals(projection.op(), expectedOp);
+    assertThat(expectedOp).isEqualTo(projection.op());
   }
 
   @SuppressWarnings("unchecked")
@@ -104,10 +104,11 @@ public class TestTruncatesProjection {
     Expression projection = Projections.inclusive(spec).project(filter);
     UnboundPredicate<?> predicate = assertAndUnwrapUnbound(projection);
 
-    Assert.assertEquals(predicate.op(), expectedOp);
-
-    Assert.assertNotEquals(
-        "Inclusive projection never runs for NOT_IN", Expression.Operation.NOT_IN, predicate.op());
+    assertThat(predicate.op())
+        .as("Operation should match")
+        .isEqualTo(expectedOp)
+        .as("Inclusive projection never runs for NOT_IN")
+        .isNotEqualTo(Expression.Operation.NOT_IN);
 
     Transform<Object, Object> transform =
         (Transform<Object, Object>) spec.getFieldsBySourceId(1).get(0).transform();
@@ -120,11 +121,11 @@ public class TestTruncatesProjection {
               .map(v -> transform.toHumanString(type, v))
               .collect(Collectors.toList())
               .toString();
-      Assert.assertEquals(expectedLiteral, actual);
+      assertThat(actual).isEqualTo(expectedLiteral);
     } else {
       Literal<?> literal = predicate.literal();
       String output = transform.toHumanString(type, literal.value());
-      Assert.assertEquals(expectedLiteral, output);
+      assertThat(output).isEqualTo(expectedLiteral);
     }
   }
 

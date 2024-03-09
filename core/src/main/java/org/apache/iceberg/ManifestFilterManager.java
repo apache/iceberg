@@ -165,6 +165,12 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     deletePaths.add(path);
   }
 
+  boolean containsDeletes() {
+    return !deletePaths.isEmpty()
+        || deleteExpression != Expressions.alwaysFalse()
+        || !dropPartitions.isEmpty();
+  }
+
   /**
    * Filter deleted files out of a list of manifests.
    *
@@ -329,7 +335,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     }
 
     boolean canContainDroppedPartitions;
-    if (dropPartitions.size() > 0) {
+    if (!dropPartitions.isEmpty()) {
       canContainDroppedPartitions =
           ManifestFileUtil.canContainAny(manifest, dropPartitions, specsById);
     } else {
@@ -339,7 +345,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     boolean canContainDroppedFiles;
     if (hasPathOnlyDeletes) {
       canContainDroppedFiles = true;
-    } else if (deletePaths.size() > 0) {
+    } else if (!deletePaths.isEmpty()) {
       // because there were no path-only deletes, the set of deleted file partitions is valid
       canContainDroppedFiles =
           ManifestFileUtil.canContainAny(manifest, deleteFilePartitions, specsById);
@@ -444,8 +450,8 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
                           // only add the file to deletes if it is a new delete
                           // this keeps the snapshot summary accurate for non-duplicate data
                           deletedFiles.add(entry.file().copyWithoutStats());
+                          deletedPaths.add(wrapper);
                         }
-                        deletedPaths.add(wrapper);
                       } else {
                         writer.existing(entry);
                       }
@@ -510,16 +516,19 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       // in other words, ResidualEvaluator returns a part of the expression that needs to be
       // evaluated
       // for rows in the given partition using metrics
-      return metricsEvaluators.computeIfAbsent(
-          file.partition(),
-          partition -> {
-            Expression residual = residualEvaluator.residualFor(partition);
-            InclusiveMetricsEvaluator inclusive =
-                new InclusiveMetricsEvaluator(tableSchema, residual, caseSensitive);
-            StrictMetricsEvaluator strict =
-                new StrictMetricsEvaluator(tableSchema, residual, caseSensitive);
-            return Pair.of(inclusive, strict);
-          });
+      PartitionData partition = (PartitionData) file.partition();
+      if (!metricsEvaluators.containsKey(partition)) {
+        Expression residual = residualEvaluator.residualFor(partition);
+        InclusiveMetricsEvaluator inclusive =
+            new InclusiveMetricsEvaluator(tableSchema, residual, caseSensitive);
+        StrictMetricsEvaluator strict =
+            new StrictMetricsEvaluator(tableSchema, residual, caseSensitive);
+
+        metricsEvaluators.put(
+            partition.copy(), // The partition may be a re-used container so a copy is required
+            Pair.of(inclusive, strict));
+      }
+      return metricsEvaluators.get(partition);
     }
   }
 }

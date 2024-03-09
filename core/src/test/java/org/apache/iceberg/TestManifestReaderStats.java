@@ -27,6 +27,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -220,6 +221,42 @@ public class TestManifestReaderStats extends TableTestBase {
     Assert.assertEquals(LOWER_BOUNDS, dataFile.lowerBounds());
     Assert.assertEquals(UPPER_BOUNDS, dataFile.upperBounds());
 
+    if (dataFile.valueCounts() != null) {
+      Assertions.assertThatThrownBy(
+              () -> dataFile.valueCounts().clear(), "Should not be modifiable")
+          .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    if (dataFile.nullValueCounts() != null) {
+      Assertions.assertThatThrownBy(
+              () -> dataFile.nullValueCounts().clear(), "Should not be modifiable")
+          .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    if (dataFile.nanValueCounts() != null) {
+      Assertions.assertThatThrownBy(
+              () -> dataFile.nanValueCounts().clear(), "Should not be modifiable")
+          .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    if (dataFile.upperBounds() != null) {
+      Assertions.assertThatThrownBy(
+              () -> dataFile.upperBounds().clear(), "Should not be modifiable")
+          .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    if (dataFile.lowerBounds() != null) {
+      Assertions.assertThatThrownBy(
+              () -> dataFile.lowerBounds().clear(), "Should not be modifiable")
+          .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    if (dataFile.columnSizes() != null) {
+      Assertions.assertThatThrownBy(
+              () -> dataFile.columnSizes().clear(), "Should not be modifiable")
+          .isInstanceOf(UnsupportedOperationException.class);
+    }
+
     Assert.assertEquals(FILE_PATH, dataFile.path()); // always select file path in all test cases
   }
 
@@ -238,9 +275,6 @@ public class TestManifestReaderStats extends TableTestBase {
 
   private void assertNullRecordCount(DataFile dataFile) {
     // record count is a primitive type, accessing null record count will throw NPE
-    AssertHelpers.assertThrows(
-        "Should throw NPE when accessing non-populated record count field",
-        NullPointerException.class,
-        dataFile::recordCount);
+    Assertions.assertThatThrownBy(dataFile::recordCount).isInstanceOf(NullPointerException.class);
   }
 }

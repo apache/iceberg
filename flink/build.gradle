@@ -19,14 +19,14 @@
 
 def flinkVersions = (System.getProperty("flinkVersions") != null ? System.getProperty("flinkVersions") : System.getProperty("defaultFlinkVersions")).split(",")
 
-if (flinkVersions.contains("1.14")) {
-  apply from: file("$projectDir/v1.14/build.gradle")
-}
-
-if (flinkVersions.contains("1.15")) {
-  apply from: file("$projectDir/v1.15/build.gradle")
-}
-
 if (flinkVersions.contains("1.16")) {
   apply from: file("$projectDir/v1.16/build.gradle")
+}
+
+if (flinkVersions.contains("1.17")) {
+  apply from: file("$projectDir/v1.17/build.gradle")
+}
+
+if (flinkVersions.contains("1.18")) {
+  apply from: file("$projectDir/v1.18/build.gradle")
 }

@@ -23,6 +23,7 @@ import org.apache.iceberg.exceptions.DuplicateWAPCommitException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -86,11 +87,11 @@ public class TestWapWorkflow extends TableTestBase {
             .get();
 
     // try to cherry-pick, which should fail because the overwrite's parent is no longer current
-    AssertHelpers.assertThrows(
-        "Should reject overwrite that is not a fast-forward commit",
-        ValidationException.class,
-        "not append, dynamic overwrite, or fast-forward",
-        () -> table.manageSnapshots().cherrypick(overwrite.snapshotId()).commit());
+    Assertions.assertThatThrownBy(
+            () -> table.manageSnapshots().cherrypick(overwrite.snapshotId()).commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(
+            "Cannot cherry-pick snapshot 2: not append, dynamic overwrite, or fast-forward");
 
     // the table state should not have changed
     validateTableFiles(table, FILE_A, FILE_C);
@@ -193,14 +194,11 @@ public class TestWapWorkflow extends TableTestBase {
         "Snapshot log should indicate number of snapshots committed", 1, base.snapshotLog().size());
 
     // do rollback
-    AssertHelpers.assertThrows(
-        "should fail on invalid snapshot",
-        ValidationException.class,
-        "Cannot roll back to snapshot, not an ancestor of the current state: 2",
-        () -> {
-          // rollback to snapshot that is not an ancestor
-          table.manageSnapshots().rollbackTo(wapSnapshot.snapshotId()).commit();
-        });
+    Assertions.assertThatThrownBy(
+            // rollback to snapshot that is not an ancestor
+            () -> table.manageSnapshots().rollbackTo(wapSnapshot.snapshotId()).commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Cannot roll back to snapshot, not an ancestor of the current state: 2");
     base = readMetadata();
 
     Assert.assertEquals(
@@ -652,14 +650,11 @@ public class TestWapWorkflow extends TableTestBase {
     Assert.assertEquals(
         "Snapshot log should indicate number of snapshots committed", 2, base.snapshotLog().size());
 
-    AssertHelpers.assertThrows(
-        "should throw exception",
-        CherrypickAncestorCommitException.class,
-        String.format("Cannot cherrypick snapshot %s: already an ancestor", 1),
-        () -> {
-          // duplicate cherry-pick snapshot
-          table.manageSnapshots().cherrypick(firstSnapshotId).commit();
-        });
+    Assertions.assertThatThrownBy(
+            // duplicate cherry-pick snapshot
+            () -> table.manageSnapshots().cherrypick(firstSnapshotId).commit())
+        .isInstanceOf(CherrypickAncestorCommitException.class)
+        .hasMessage("Cannot cherrypick snapshot 1: already an ancestor");
   }
 
   @Test
@@ -710,15 +705,12 @@ public class TestWapWorkflow extends TableTestBase {
     Assert.assertEquals(
         "Snapshot log should indicate number of snapshots committed", 2, base.snapshotLog().size());
 
-    AssertHelpers.assertThrows(
-        "should throw exception",
-        DuplicateWAPCommitException.class,
-        String.format(
-            "Duplicate request to cherry pick wap id that was published already: %s", 123456789),
-        () -> {
-          // duplicate cherry-pick snapshot
-          table.manageSnapshots().cherrypick(wapSnapshot2.snapshotId()).commit();
-        });
+    Assertions.assertThatThrownBy(
+            // duplicate cherry-pick snapshot
+            () -> table.manageSnapshots().cherrypick(wapSnapshot2.snapshotId()).commit())
+        .isInstanceOf(DuplicateWAPCommitException.class)
+        .hasMessage(
+            "Duplicate request to cherry pick wap id that was published already: 123456789");
   }
 
   @Test
@@ -762,23 +754,18 @@ public class TestWapWorkflow extends TableTestBase {
         table.currentSnapshot().snapshotId());
 
     // try double cherrypicking of the third snapshot
-    AssertHelpers.assertThrows(
-        "should not allow cherrypicking ancestor",
-        CherrypickAncestorCommitException.class,
-        String.format("Cannot cherrypick snapshot %s: already an ancestor", 3),
-        () -> {
-          // double cherrypicking of second snapshot
-          table.manageSnapshots().cherrypick(thirdSnapshotId).commit();
-        });
+    Assertions.assertThatThrownBy(
+            // double cherrypicking of second snapshot
+            () -> table.manageSnapshots().cherrypick(thirdSnapshotId).commit())
+        .isInstanceOf(CherrypickAncestorCommitException.class)
+        .hasMessage("Cannot cherrypick snapshot 3: already an ancestor");
 
     // try cherrypicking an ancestor
-    AssertHelpers.assertThrows(
-        "should not allow double cherrypick",
-        CherrypickAncestorCommitException.class,
-        String.format("Cannot cherrypick snapshot %s: already an ancestor", firstSnapshotId),
-        () -> {
-          // double cherrypicking of second snapshot
-          table.manageSnapshots().cherrypick(firstSnapshotId).commit();
-        });
+    Assertions.assertThatThrownBy(
+            // double cherrypicking of second snapshot
+            () -> table.manageSnapshots().cherrypick(firstSnapshotId).commit())
+        .isInstanceOf(CherrypickAncestorCommitException.class)
+        .hasMessage(
+            String.format("Cannot cherrypick snapshot %s: already an ancestor", firstSnapshotId));
   }
 }

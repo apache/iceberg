@@ -81,6 +81,11 @@ class ReachableFileCleanup extends FileCleanupStrategy {
     }
 
     deleteFiles(manifestListsToDelete, "manifest list");
+
+    if (hasAnyStatisticsFiles(beforeExpiration)) {
+      deleteFiles(
+          expiredStatisticsFilesLocations(beforeExpiration, afterExpiration), "statistics files");
+    }
   }
 
   private Set<ManifestFile> pruneReferencedManifests(

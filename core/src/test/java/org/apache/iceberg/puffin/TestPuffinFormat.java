@@ -28,7 +28,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestPuffinFormat {
   @Test

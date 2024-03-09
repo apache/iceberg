@@ -19,14 +19,15 @@
 #
 
 SCALA_VERSION=2.12
-FLINK_VERSIONS=1.14,1.15,1.16
-SPARK_VERSIONS=2.4,3.1,3.2,3.3
+FLINK_VERSIONS=1.16,1.17,1.18
+SPARK_VERSIONS=3.3,3.4,3.5
 HIVE_VERSIONS=2,3
 
 ./gradlew -Prelease -DscalaVersion=$SCALA_VERSION -DflinkVersions=$FLINK_VERSIONS -DsparkVersions=$SPARK_VERSIONS -DhiveVersions=$HIVE_VERSIONS publishApachePublicationToMavenRepository
 
 # Also publish Scala 2.13 Artifacts for versions that support it.
 # Flink does not yet support 2.13 (and is largely dropping a user-facing dependency on Scala). Hive doesn't need a Scala specification.
-./gradlew -Prelease -DscalaVersion=2.13 -DsparkVersions=3.2 :iceberg-spark:iceberg-spark-3.2_2.13:publishApachePublicationToMavenRepository :iceberg-spark:iceberg-spark-extensions-3.2_2.13:publishApachePublicationToMavenRepository :iceberg-spark:iceberg-spark-runtime-3.2_2.13:publishApachePublicationToMavenRepository
 ./gradlew -Prelease -DscalaVersion=2.13 -DsparkVersions=3.3 :iceberg-spark:iceberg-spark-3.3_2.13:publishApachePublicationToMavenRepository :iceberg-spark:iceberg-spark-extensions-3.3_2.13:publishApachePublicationToMavenRepository :iceberg-spark:iceberg-spark-runtime-3.3_2.13:publishApachePublicationToMavenRepository
+./gradlew -Prelease -DscalaVersion=2.13 -DsparkVersions=3.4 :iceberg-spark:iceberg-spark-3.4_2.13:publishApachePublicationToMavenRepository :iceberg-spark:iceberg-spark-extensions-3.4_2.13:publishApachePublicationToMavenRepository :iceberg-spark:iceberg-spark-runtime-3.4_2.13:publishApachePublicationToMavenRepository
+./gradlew -Prelease -DscalaVersion=2.13 -DsparkVersions=3.5 :iceberg-spark:iceberg-spark-3.5_2.13:publishApachePublicationToMavenRepository :iceberg-spark:iceberg-spark-extensions-3.5_2.13:publishApachePublicationToMavenRepository :iceberg-spark:iceberg-spark-runtime-3.5_2.13:publishApachePublicationToMavenRepository
 

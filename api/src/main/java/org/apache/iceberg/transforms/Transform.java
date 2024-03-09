@@ -137,6 +137,15 @@ public interface Transform<S, T> extends Serializable {
   }
 
   /**
+   * Return whether this transform is the void transform.
+   *
+   * @return true if this is a void transform, false otherwise
+   */
+  default boolean isVoid() {
+    return false;
+  }
+
+  /**
    * Returns a human-readable String representation of a transformed value.
    *
    * <p>null values will return "null"

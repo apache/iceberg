@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.aws.AwsProperties;
+import org.apache.iceberg.aws.util.RetryDetector;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -102,8 +103,10 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
 
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
-    String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
+    boolean newTable = base == null;
+    String newMetadataLocation = writeNewMetadataIfRequired(newTable, metadata);
     CommitStatus commitStatus = CommitStatus.FAILURE;
+    RetryDetector retryDetector = new RetryDetector();
     Map<String, AttributeValue> tableKey = DynamoDbCatalog.tablePrimaryKey(tableIdentifier);
     try {
       GetItemResponse table =
@@ -115,20 +118,28 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
                   .build());
       checkMetadataLocation(table, base);
       Map<String, String> properties = prepareProperties(table, newMetadataLocation);
-      persistTable(tableKey, table, properties);
+      persistTable(tableKey, table, properties, retryDetector);
       commitStatus = CommitStatus.SUCCESS;
-    } catch (ConditionalCheckFailedException e) {
-      throw new CommitFailedException(
-          e, "Cannot commit %s: concurrent update detected", tableName());
     } catch (CommitFailedException e) {
       // any explicit commit failures are passed up and out to the retry handler
       throw e;
     } catch (RuntimeException persistFailure) {
-      LOG.error(
-          "Confirming if commit to {} indeed failed to persist, attempting to reconnect and check.",
-          fullTableName,
-          persistFailure);
-      commitStatus = checkCommitStatus(newMetadataLocation, metadata);
+      boolean conditionCheckFailed = persistFailure instanceof ConditionalCheckFailedException;
+
+      // If we got an exception we weren't expecting, or we got a ConditionalCheckFailedException
+      // but retries were performed, attempt to reconcile the actual commit status.
+      if (!conditionCheckFailed || retryDetector.retried()) {
+        LOG.warn(
+            "Received unexpected failure when committing to {}, validating if commit ended up succeeding.",
+            fullTableName,
+            persistFailure);
+        commitStatus = checkCommitStatus(newMetadataLocation, metadata);
+      }
+
+      if (commitStatus != CommitStatus.SUCCESS && conditionCheckFailed) {
+        throw new CommitFailedException(
+            persistFailure, "Cannot commit %s: concurrent update detected", tableName());
+      }
 
       switch (commitStatus) {
         case SUCCESS:
@@ -187,7 +198,10 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
   }
 
   void persistTable(
-      Map<String, AttributeValue> tableKey, GetItemResponse table, Map<String, String> parameters) {
+      Map<String, AttributeValue> tableKey,
+      GetItemResponse table,
+      Map<String, String> parameters,
+      RetryDetector retryDetector) {
     if (table.hasItem()) {
       LOG.debug("Committing existing DynamoDb catalog table: {}", tableName());
       List<String> updateParts = Lists.newArrayList();
@@ -208,6 +222,7 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
       attributeValues.put(":v", table.item().get(DynamoDbCatalog.COL_VERSION));
       dynamo.updateItem(
           UpdateItemRequest.builder()
+              .overrideConfiguration(c -> c.addMetricPublisher(retryDetector))
               .tableName(awsProperties.dynamoDbTableName())
               .key(tableKey)
               .conditionExpression(DynamoDbCatalog.COL_VERSION + " = :v")
@@ -225,6 +240,7 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
 
       dynamo.putItem(
           PutItemRequest.builder()
+              .overrideConfiguration(c -> c.addMetricPublisher(retryDetector))
               .tableName(awsProperties.dynamoDbTableName())
               .item(values)
               .conditionExpression("attribute_not_exists(" + DynamoDbCatalog.COL_VERSION + ")")

@@ -23,6 +23,7 @@ import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
@@ -30,12 +31,12 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
 
-/** Factory responsible for generating unique but recognizable data file names. */
+/** Factory responsible for generating unique but recognizable data/delete file names. */
 public class OutputFileFactory {
   private final PartitionSpec defaultSpec;
   private final FileFormat format;
   private final LocationProvider locations;
-  private final FileIO io;
+  private final Supplier<FileIO> ioSupplier;
   private final EncryptionManager encryptionManager;
   private final int partitionId;
   private final long taskId;
@@ -46,6 +47,7 @@ public class OutputFileFactory {
   // with a recursive listing and grep.
   private final String operationId;
   private final AtomicInteger fileCount = new AtomicInteger(0);
+  private final String suffix;
 
   /**
    * Constructor with specific operationId. The [partitionId, taskId, operationId] triplet has to be
@@ -55,29 +57,32 @@ public class OutputFileFactory {
    * @param spec Partition specification used by the location provider
    * @param format File format used for the extension
    * @param locations Location provider used for generating locations
-   * @param io FileIO to store the files
+   * @param ioSupplier Supplier of FileIO to store the files
    * @param encryptionManager Encryption manager used for encrypting the files
    * @param partitionId First part of the file name
    * @param taskId Second part of the file name
    * @param operationId Third part of the file name
+   * @param suffix Suffix part of the file name
    */
   private OutputFileFactory(
       PartitionSpec spec,
       FileFormat format,
       LocationProvider locations,
-      FileIO io,
+      Supplier<FileIO> ioSupplier,
       EncryptionManager encryptionManager,
       int partitionId,
       long taskId,
-      String operationId) {
+      String operationId,
+      String suffix) {
     this.defaultSpec = spec;
     this.format = format;
     this.locations = locations;
-    this.io = io;
+    this.ioSupplier = ioSupplier;
     this.encryptionManager = encryptionManager;
     this.partitionId = partitionId;
     this.taskId = taskId;
     this.operationId = operationId;
+    this.suffix = suffix;
   }
 
   public static Builder builderFor(Table table, int partitionId, long taskId) {
@@ -87,12 +92,17 @@ public class OutputFileFactory {
   private String generateFilename() {
     return format.addExtension(
         String.format(
-            "%05d-%d-%s-%05d", partitionId, taskId, operationId, fileCount.incrementAndGet()));
+            "%05d-%d-%s-%05d%s",
+            partitionId,
+            taskId,
+            operationId,
+            fileCount.incrementAndGet(),
+            null != suffix ? "-" + suffix : ""));
   }
 
   /** Generates an {@link EncryptedOutputFile} for unpartitioned writes. */
   public EncryptedOutputFile newOutputFile() {
-    OutputFile file = io.newOutputFile(locations.newDataLocation(generateFilename()));
+    OutputFile file = ioSupplier.get().newOutputFile(locations.newDataLocation(generateFilename()));
     return encryptionManager.encrypt(file);
   }
 
@@ -104,7 +114,7 @@ public class OutputFileFactory {
   /** Generates an {@link EncryptedOutputFile} for partitioned writes in a given spec. */
   public EncryptedOutputFile newOutputFile(PartitionSpec spec, StructLike partition) {
     String newDataLocation = locations.newDataLocation(spec, partition, generateFilename());
-    OutputFile rawOutputFile = io.newOutputFile(newDataLocation);
+    OutputFile rawOutputFile = ioSupplier.get().newOutputFile(newDataLocation);
     return encryptionManager.encrypt(rawOutputFile);
   }
 
@@ -115,6 +125,8 @@ public class OutputFileFactory {
     private PartitionSpec defaultSpec;
     private String operationId;
     private FileFormat format;
+    private String suffix;
+    private Supplier<FileIO> ioSupplier;
 
     private Builder(Table table, int partitionId, long taskId) {
       this.table = table;
@@ -126,6 +138,7 @@ public class OutputFileFactory {
       String formatAsString =
           table.properties().getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
       this.format = FileFormat.fromString(formatAsString);
+      this.ioSupplier = table::io;
     }
 
     public Builder defaultSpec(PartitionSpec newDefaultSpec) {
@@ -143,12 +156,36 @@ public class OutputFileFactory {
       return this;
     }
 
+    public Builder suffix(String newSuffix) {
+      this.suffix = newSuffix;
+      return this;
+    }
+
+    /**
+     * Configures a {@link FileIO} supplier, which can potentially be used to dynamically refresh
+     * the file IO instance when a table is refreshed.
+     *
+     * @param newIoSupplier The file IO supplier
+     * @return this builder instance
+     */
+    public Builder ioSupplier(Supplier<FileIO> newIoSupplier) {
+      this.ioSupplier = newIoSupplier;
+      return this;
+    }
+
     public OutputFileFactory build() {
       LocationProvider locations = table.locationProvider();
-      FileIO io = table.io();
       EncryptionManager encryption = table.encryption();
       return new OutputFileFactory(
-          defaultSpec, format, locations, io, encryption, partitionId, taskId, operationId);
+          defaultSpec,
+          format,
+          locations,
+          ioSupplier,
+          encryption,
+          partitionId,
+          taskId,
+          operationId,
+          suffix);
     }
   }
 }

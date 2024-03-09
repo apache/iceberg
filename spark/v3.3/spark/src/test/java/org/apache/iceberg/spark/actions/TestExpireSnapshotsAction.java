@@ -57,7 +57,6 @@ import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Row;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -208,7 +207,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
 
     long t4 = rightAfterSnapshot();
 
-    Set<String> deletedFiles = Sets.newHashSet();
+    Set<String> deletedFiles = ConcurrentHashMap.newKeySet();
     Set<String> deleteThreads = ConcurrentHashMap.newKeySet();
     AtomicInteger deleteThreadsIndex = new AtomicInteger(0);
 
@@ -1159,9 +1158,9 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
             .expireSnapshots(table)
             .expireOlderThan(tAfterCommits)
             .deleteWith(deletedFiles::add);
-    Dataset<Row> pendingDeletes = action.expire();
+    Dataset<FileInfo> pendingDeletes = action.expireFiles();
 
-    List<Row> pending = pendingDeletes.collectAsList();
+    List<FileInfo> pending = pendingDeletes.collectAsList();
 
     Assert.assertEquals(
         "Should not change current snapshot", snapshotId, table.currentSnapshot().snapshotId());
@@ -1172,16 +1171,16 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
     Assert.assertEquals(
         "Pending delete should be the expired manifest list location",
         firstSnapshot.manifestListLocation(),
-        pending.get(0).getString(0));
+        pending.get(0).getPath());
     Assert.assertEquals(
-        "Pending delete should be a manifest list", "Manifest List", pending.get(0).getString(1));
+        "Pending delete should be a manifest list", "Manifest List", pending.get(0).getType());
 
     Assert.assertEquals("Should not delete any files", 0, deletedFiles.size());
 
     Assert.assertEquals(
         "Multiple calls to expire should return the same count of deleted files",
         pendingDeletes.count(),
-        action.expire().count());
+        action.expireFiles().count());
   }
 
   @Test
@@ -1249,7 +1248,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
     List<FileInfo> typedExpiredFiles = action.expireFiles().collectAsList();
     Assert.assertEquals("Expired results must match", 1, typedExpiredFiles.size());
 
-    List<Row> untypedExpiredFiles = action.expire().collectAsList();
+    List<FileInfo> untypedExpiredFiles = action.expireFiles().collectAsList();
     Assert.assertEquals("Expired results must match", 1, untypedExpiredFiles.size());
   }
 

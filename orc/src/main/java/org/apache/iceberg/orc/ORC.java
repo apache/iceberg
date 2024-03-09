@@ -39,6 +39,7 @@ import static org.apache.iceberg.TableProperties.ORC_WRITE_BATCH_SIZE;
 import static org.apache.iceberg.TableProperties.ORC_WRITE_BATCH_SIZE_DEFAULT;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
@@ -62,7 +63,10 @@ import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.orc.GenericOrcWriters;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.encryption.NativeEncryptionInputFile;
+import org.apache.iceberg.encryption.NativeEncryptionOutputFile;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopInputFile;
@@ -85,6 +89,7 @@ import org.apache.orc.OrcFile.CompressionStrategy;
 import org.apache.orc.OrcFile.ReaderOptions;
 import org.apache.orc.Reader;
 import org.apache.orc.TypeDescription;
+import org.apache.orc.Writer;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
 @SuppressWarnings("checkstyle:AbbreviationAsWordInName")
@@ -97,6 +102,12 @@ public class ORC {
 
   public static WriteBuilder write(OutputFile file) {
     return new WriteBuilder(file);
+  }
+
+  public static WriteBuilder write(EncryptedOutputFile file) {
+    Preconditions.checkState(
+        !(file instanceof NativeEncryptionOutputFile), "Native ORC encryption is not supported");
+    return new WriteBuilder(file.encryptingOutputFile());
   }
 
   public static class WriteBuilder {
@@ -129,19 +140,6 @@ public class ORC {
     public WriteBuilder metadata(String property, String value) {
       metadata.put(property, value.getBytes(StandardCharsets.UTF_8));
       return this;
-    }
-
-    /**
-     * Setting a specific configuration value for the writer.
-     *
-     * @param property The property to set
-     * @param value The value to set
-     * @return The resulting builder for chaining purposes
-     * @deprecated Please use #set(String, String) instead
-     */
-    @Deprecated
-    public WriteBuilder config(String property, String value) {
-      return set(property, value);
     }
 
     public WriteBuilder set(String property, String value) {
@@ -393,6 +391,12 @@ public class ORC {
     return new DataWriteBuilder(file);
   }
 
+  public static DataWriteBuilder writeData(EncryptedOutputFile file) {
+    Preconditions.checkState(
+        !(file instanceof NativeEncryptionOutputFile), "Native ORC encryption is not supported");
+    return new DataWriteBuilder(file.encryptingOutputFile());
+  }
+
   public static class DataWriteBuilder {
     private final WriteBuilder appenderBuilder;
     private final String location;
@@ -488,6 +492,12 @@ public class ORC {
 
   public static DeleteWriteBuilder writeDeletes(OutputFile file) {
     return new DeleteWriteBuilder(file);
+  }
+
+  public static DeleteWriteBuilder writeDeletes(EncryptedOutputFile file) {
+    Preconditions.checkState(
+        !(file instanceof NativeEncryptionOutputFile), "Native ORC encryption is not supported");
+    return new DeleteWriteBuilder(file.encryptingOutputFile());
   }
 
   public static class DeleteWriteBuilder {
@@ -668,6 +678,9 @@ public class ORC {
   }
 
   public static ReadBuilder read(InputFile file) {
+    Preconditions.checkState(
+        !(file instanceof NativeEncryptionInputFile), "Native ORC encryption is not supported");
+
     return new ReadBuilder(file);
   }
 
@@ -777,19 +790,41 @@ public class ORC {
     }
   }
 
-  static Reader newFileReader(String location, ReaderOptions readerOptions) {
-    try {
-      return OrcFile.createReader(new Path(location), readerOptions);
-    } catch (IOException ioe) {
-      throw new RuntimeIOException(ioe, "Failed to open file: %s", location);
-    }
-  }
-
   static Reader newFileReader(InputFile file, Configuration config) {
     ReaderOptions readerOptions = OrcFile.readerOptions(config).useUTCTimestamp(true);
     if (file instanceof HadoopInputFile) {
       readerOptions.filesystem(((HadoopInputFile) file).getFileSystem());
+    } else {
+      // In case of any other InputFile we wrap the InputFile with InputFileSystem that only
+      // supports the creation of an InputStream. To prevent a file status call to determine the
+      // length we supply the length as input
+      readerOptions.filesystem(new FileIOFSUtil.InputFileSystem(file)).maxLength(file.getLength());
     }
-    return newFileReader(file.location(), readerOptions);
+    try {
+      return OrcFile.createReader(new Path(file.location()), readerOptions);
+    } catch (IOException ioe) {
+      throw new RuntimeIOException(ioe, "Failed to open file: %s", file.location());
+    }
+  }
+
+  static Writer newFileWriter(
+      OutputFile file, OrcFile.WriterOptions options, Map<String, byte[]> metadata) {
+    if (file instanceof HadoopOutputFile) {
+      options.fileSystem(((HadoopOutputFile) file).getFileSystem());
+    } else {
+      options.fileSystem(new FileIOFSUtil.OutputFileSystem(file));
+    }
+    final Path locPath = new Path(file.location());
+    final Writer writer;
+
+    try {
+      writer = OrcFile.createWriter(locPath, options);
+    } catch (IOException ioe) {
+      throw new RuntimeIOException(ioe, "Can't create file %s", locPath);
+    }
+
+    metadata.forEach((key, value) -> writer.addUserMetadata(key, ByteBuffer.wrap(value)));
+
+    return writer;
   }
 }

@@ -19,7 +19,6 @@
 package org.apache.iceberg.arrow.vectorized.parquet;
 
 import java.io.IOException;
-import org.apache.arrow.vector.DecimalVector;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.VarBinaryVector;
@@ -171,7 +170,7 @@ public class VectorizedPageIterator extends BasePageIterator {
     return actualBatchSize;
   }
 
-  abstract class BagePageReader {
+  abstract class BasePageReader {
     public int nextBatch(
         FieldVector vector,
         int expectedBatchSize,
@@ -200,7 +199,7 @@ public class VectorizedPageIterator extends BasePageIterator {
   }
 
   /** Method for reading a batch of values of INT32 data type */
-  class IntPageReader extends BagePageReader {
+  class IntPageReader extends BasePageReader {
     @Override
     protected void nextVal(
         FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
@@ -226,7 +225,7 @@ public class VectorizedPageIterator extends BasePageIterator {
   }
 
   /** Method for reading a batch of values of INT64 data type */
-  class LongPageReader extends BagePageReader {
+  class LongPageReader extends BasePageReader {
 
     @Override
     protected void nextVal(
@@ -257,7 +256,7 @@ public class VectorizedPageIterator extends BasePageIterator {
    * always represented in micro-seconds. So we multiply values stored in millis with 1000 before
    * writing them to the vector.
    */
-  class TimestampMillisPageReader extends BagePageReader {
+  class TimestampMillisPageReader extends BasePageReader {
 
     @Override
     protected void nextVal(
@@ -283,8 +282,34 @@ public class VectorizedPageIterator extends BasePageIterator {
     }
   }
 
+  /** Method for reading a batch of values of TimestampInt96 data type. */
+  class TimestampInt96PageReader extends BasePageReader {
+    @Override
+    protected void nextVal(
+        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+      vectorizedDefinitionLevelReader
+          .timestampInt96Reader()
+          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader);
+    }
+
+    @Override
+    protected void nextDictEncodedVal(
+        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+      vectorizedDefinitionLevelReader
+          .timestampInt96Reader()
+          .nextDictEncodedBatch(
+              vector,
+              numVals,
+              typeWidth,
+              batchSize,
+              holder,
+              dictionaryEncodedValuesReader,
+              dictionary);
+    }
+  }
+
   /** Method for reading a batch of values of FLOAT data type. */
-  class FloatPageReader extends BagePageReader {
+  class FloatPageReader extends BasePageReader {
 
     @Override
     protected void nextVal(
@@ -311,7 +336,7 @@ public class VectorizedPageIterator extends BasePageIterator {
   }
 
   /** Method for reading a batch of values of DOUBLE data type */
-  class DoublePageReader extends BagePageReader {
+  class DoublePageReader extends BasePageReader {
 
     @Override
     protected void nextVal(
@@ -341,95 +366,7 @@ public class VectorizedPageIterator extends BasePageIterator {
     return Math.min(expectedBatchSize, triplesCount - triplesRead);
   }
 
-  /**
-   * Method for reading a batch of decimals backed by INT32 and INT64 parquet data types. Since
-   * Arrow stores all decimals in 16 bytes, byte arrays are appropriately padded before being
-   * written to Arrow data buffers.
-   */
-  class IntBackedDecimalPageReader extends BagePageReader {
-    @Override
-    protected void nextVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
-      vectorizedDefinitionLevelReader
-          .intBackedDecimalReader()
-          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader);
-    }
-
-    @Override
-    protected void nextDictEncodedVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
-      vectorizedDefinitionLevelReader
-          .intBackedDecimalReader()
-          .nextDictEncodedBatch(
-              vector,
-              numVals,
-              typeWidth,
-              batchSize,
-              holder,
-              dictionaryEncodedValuesReader,
-              dictionary);
-    }
-  }
-
-  class LongBackedDecimalPageReader extends BagePageReader {
-    @Override
-    protected void nextVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
-      vectorizedDefinitionLevelReader
-          .longBackedDecimalReader()
-          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader);
-    }
-
-    @Override
-    protected void nextDictEncodedVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
-      vectorizedDefinitionLevelReader
-          .longBackedDecimalReader()
-          .nextDictEncodedBatch(
-              vector,
-              numVals,
-              typeWidth,
-              batchSize,
-              holder,
-              dictionaryEncodedValuesReader,
-              dictionary);
-    }
-  }
-
-  /**
-   * Method for reading a batch of decimals backed by fixed length byte array parquet data type.
-   * Arrow stores all decimals in 16 bytes. This method provides the necessary padding to the
-   * decimals read. Moreover, Arrow interprets the decimals in Arrow buffer as little endian.
-   * Parquet stores fixed length decimals as big endian. So, this method uses {@link
-   * DecimalVector#setBigEndian(int, byte[])} method so that the data in Arrow vector is indeed
-   * little endian.
-   */
-  class FixedLengthDecimalPageReader extends BagePageReader {
-    @Override
-    protected void nextVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
-      vectorizedDefinitionLevelReader
-          .fixedLengthDecimalReader()
-          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader);
-    }
-
-    @Override
-    protected void nextDictEncodedVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
-      vectorizedDefinitionLevelReader
-          .fixedLengthDecimalReader()
-          .nextDictEncodedBatch(
-              vector,
-              numVals,
-              typeWidth,
-              batchSize,
-              holder,
-              dictionaryEncodedValuesReader,
-              dictionary);
-    }
-  }
-
-  class FixedSizeBinaryPageReader extends BagePageReader {
+  class FixedSizeBinaryPageReader extends BasePageReader {
     @Override
     protected void nextVal(
         FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
@@ -455,7 +392,7 @@ public class VectorizedPageIterator extends BasePageIterator {
   }
 
   /** Method for reading a batch of variable width data type (ENUM, JSON, UTF8, BSON). */
-  class VarWidthTypePageReader extends BagePageReader {
+  class VarWidthTypePageReader extends BasePageReader {
     @Override
     protected void nextVal(
         FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
@@ -485,7 +422,7 @@ public class VectorizedPageIterator extends BasePageIterator {
    * fixed width binary data type. To work around this limitation, the data is read as fixed width
    * binary from parquet and stored in a {@link VarBinaryVector} in Arrow.
    */
-  class FixedWidthBinaryPageReader extends BagePageReader {
+  class FixedWidthBinaryPageReader extends BasePageReader {
     @Override
     protected void nextVal(
         FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
@@ -511,7 +448,7 @@ public class VectorizedPageIterator extends BasePageIterator {
   }
 
   /** Method for reading batches of booleans. */
-  class BooleanPageReader extends BagePageReader {
+  class BooleanPageReader extends BasePageReader {
     @Override
     protected void nextVal(
         FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
@@ -539,24 +476,16 @@ public class VectorizedPageIterator extends BasePageIterator {
     return new TimestampMillisPageReader();
   }
 
+  TimestampInt96PageReader timestampInt96PageReader() {
+    return new TimestampInt96PageReader();
+  }
+
   FloatPageReader floatPageReader() {
     return new FloatPageReader();
   }
 
   DoublePageReader doublePageReader() {
     return new DoublePageReader();
-  }
-
-  IntBackedDecimalPageReader intBackedDecimalPageReader() {
-    return new IntBackedDecimalPageReader();
-  }
-
-  LongBackedDecimalPageReader longBackedDecimalPageReader() {
-    return new LongBackedDecimalPageReader();
-  }
-
-  FixedLengthDecimalPageReader fixedLengthDecimalPageReader() {
-    return new FixedLengthDecimalPageReader();
   }
 
   FixedSizeBinaryPageReader fixedSizeBinaryPageReader() {

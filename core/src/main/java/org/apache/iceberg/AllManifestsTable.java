@@ -32,7 +32,6 @@ import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
-import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -78,17 +77,17 @@ public class AllManifestsTable extends BaseMetadataTable {
                       Types.NestedField.optional(13, "upper_bound", Types.StringType.get())))),
           REF_SNAPSHOT_ID);
 
-  AllManifestsTable(TableOperations ops, Table table) {
-    this(ops, table, table.name() + ".all_manifests");
+  AllManifestsTable(Table table) {
+    this(table, table.name() + ".all_manifests");
   }
 
-  AllManifestsTable(TableOperations ops, Table table, String name) {
-    super(ops, table, name);
+  AllManifestsTable(Table table, String name) {
+    super(table, name);
   }
 
   @Override
   public TableScan newScan() {
-    return new AllManifestsTableScan(operations(), table(), MANIFEST_FILE_SCHEMA);
+    return new AllManifestsTableScan(table(), MANIFEST_FILE_SCHEMA);
   }
 
   @Override
@@ -103,29 +102,24 @@ public class AllManifestsTable extends BaseMetadataTable {
 
   public static class AllManifestsTableScan extends BaseAllMetadataTableScan {
 
-    AllManifestsTableScan(TableOperations ops, Table table, Schema fileSchema) {
-      super(ops, table, fileSchema, MetadataTableType.ALL_MANIFESTS);
+    AllManifestsTableScan(Table table, Schema fileSchema) {
+      super(table, fileSchema, MetadataTableType.ALL_MANIFESTS);
     }
 
-    private AllManifestsTableScan(
-        TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      super(ops, table, schema, MetadataTableType.ALL_MANIFESTS, context);
+    private AllManifestsTableScan(Table table, Schema schema, TableScanContext context) {
+      super(table, schema, MetadataTableType.ALL_MANIFESTS, context);
     }
 
     @Override
-    protected TableScan newRefinedScan(
-        TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      return new AllManifestsTableScan(ops, table, schema, context);
+    protected TableScan newRefinedScan(Table table, Schema schema, TableScanContext context) {
+      return new AllManifestsTableScan(table, schema, context);
     }
 
     @Override
     protected CloseableIterable<FileScanTask> doPlanFiles() {
       FileIO io = table().io();
-      String schemaString = SchemaParser.toJson(schema());
-      String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
       Map<Integer, PartitionSpec> specs = Maps.newHashMap(table().specs());
       Expression filter = shouldIgnoreResiduals() ? Expressions.alwaysTrue() : filter();
-      ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
 
       SnapshotEvaluator snapshotEvaluator =
           new SnapshotEvaluator(filter, MANIFEST_FILE_SCHEMA.asStruct(), isCaseSensitive());
@@ -137,22 +131,12 @@ public class AllManifestsTable extends BaseMetadataTable {
               filteredSnapshots,
               snap -> {
                 if (snap.manifestListLocation() != null) {
-                  DataFile manifestListAsDataFile =
-                      DataFiles.builder(PartitionSpec.unpartitioned())
-                          .withInputFile(io.newInputFile(snap.manifestListLocation()))
-                          .withRecordCount(1)
-                          .withFormat(FileFormat.AVRO)
-                          .build();
                   return new ManifestListReadTask(
-                      io,
-                      schema(),
-                      specs,
-                      new BaseFileScanTask(
-                          manifestListAsDataFile, null, schemaString, specString, residuals),
-                      snap.snapshotId());
+                      io, schema(), specs, snap.manifestListLocation(), filter, snap.snapshotId());
                 } else {
                   return StaticDataTask.of(
-                      io.newInputFile(tableOps().current().metadataFileLocation()),
+                      io.newInputFile(
+                          ((BaseTable) table()).operations().current().metadataFileLocation()),
                       MANIFEST_FILE_SCHEMA,
                       schema(),
                       snap.allManifests(io),
@@ -168,31 +152,35 @@ public class AllManifestsTable extends BaseMetadataTable {
     private final FileIO io;
     private final Schema schema;
     private final Map<Integer, PartitionSpec> specs;
-    private final FileScanTask manifestListTask;
+    private final String manifestListLocation;
+    private final Expression residual;
     private final long referenceSnapshotId;
+    private DataFile lazyDataFile = null;
 
     ManifestListReadTask(
         FileIO io,
         Schema schema,
         Map<Integer, PartitionSpec> specs,
-        FileScanTask manifestListTask,
+        String manifestListLocation,
+        Expression residual,
         long referenceSnapshotId) {
       this.io = io;
       this.schema = schema;
       this.specs = specs;
-      this.manifestListTask = manifestListTask;
+      this.manifestListLocation = manifestListLocation;
+      this.residual = residual;
       this.referenceSnapshotId = referenceSnapshotId;
     }
 
     @Override
     public List<DeleteFile> deletes() {
-      return manifestListTask.deletes();
+      return ImmutableList.of();
     }
 
     @Override
     public CloseableIterable<StructLike> rows() {
       try (CloseableIterable<ManifestFile> manifests =
-          Avro.read(io.newInputFile(manifestListTask.file().path().toString()))
+          Avro.read(io.newInputFile(manifestListLocation))
               .rename("manifest_file", GenericManifestFile.class.getName())
               .rename("partitions", GenericPartitionFieldSummary.class.getName())
               .rename("r508", GenericPartitionFieldSummary.class.getName())
@@ -212,19 +200,27 @@ public class AllManifestsTable extends BaseMetadataTable {
         return CloseableIterable.transform(rowIterable, projection::wrap);
 
       } catch (IOException e) {
-        throw new RuntimeIOException(
-            e, "Cannot read manifest list file: %s", manifestListTask.file().path());
+        throw new RuntimeIOException(e, "Cannot read manifest list file: %s", manifestListLocation);
       }
     }
 
     @Override
     public DataFile file() {
-      return manifestListTask.file();
+      if (lazyDataFile == null) {
+        this.lazyDataFile =
+            DataFiles.builder(PartitionSpec.unpartitioned())
+                .withInputFile(io.newInputFile(manifestListLocation))
+                .withRecordCount(1)
+                .withFormat(FileFormat.AVRO)
+                .build();
+      }
+
+      return lazyDataFile;
     }
 
     @Override
     public PartitionSpec spec() {
-      return manifestListTask.spec();
+      return PartitionSpec.unpartitioned();
     }
 
     @Override
@@ -234,12 +230,14 @@ public class AllManifestsTable extends BaseMetadataTable {
 
     @Override
     public long length() {
-      return manifestListTask.length();
+      // return a generic length to avoid looking up the actual length
+      return 8192;
     }
 
     @Override
     public Expression residual() {
-      return manifestListTask.residual();
+      // this table is unpartitioned so the residual is always constant
+      return residual;
     }
 
     @Override

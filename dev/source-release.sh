@@ -161,6 +161,10 @@ Please vote in the next 72 hours.
 [ ] +1 Release this as Apache Iceberg ${version}
 [ ] +0
 [ ] -1 Do not release this because...
+
+Only PMC members have binding votes, but other community members are encouraged to cast
+non-binding votes. This vote will pass if there are 3 binding +1 votes and more binding
++1 votes than -1 votes.
 EOF
 
 echo "Success! The release candidate is available here:"

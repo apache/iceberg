@@ -27,26 +27,39 @@ github:
     - iceberg
     - apache
     - hacktoberfest
+  
+  enabled_merge_buttons:
+    merge: false
+    squash: true
+    rebase: true
+
+  protected_branches:
+    main:
+      required_linear_history: true
+  
   features:
     wiki: true
     issues: true
     projects: true
-  collaborators:  # Note: the number of collaborators is limited to 20
+  collaborators:  # Note: the number of collaborators is limited to 10
     - chenjunjiedada
-    - kbendick
     - jun-he
     - marton-bod
-    - nastra
     - samarthjain
     - findepi
     - SreeramGarlapati
     - samredai
     - gaborkaszab
+    - bitsondatadev
+    - ajantha-bhat
   ghp_branch: gh-pages
-  ghp_path: ~
+  ghp_path: /
 
 notifications:
     commits:      commits@iceberg.apache.org
     issues:       issues@iceberg.apache.org
     pullrequests: issues@iceberg.apache.org
     jira_options: link label link label
+
+publish:
+    whoami:  asf-site

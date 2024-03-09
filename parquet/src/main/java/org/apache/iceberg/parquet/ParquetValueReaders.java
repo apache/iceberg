@@ -727,8 +727,8 @@ public class ParquetValueReaders {
 
     @Override
     public final void setPageSource(PageReadStore pageStore, long rowPosition) {
-      for (int i = 0; i < readers.length; i += 1) {
-        readers[i].setPageSource(pageStore, rowPosition);
+      for (ParquetValueReader<?> reader : readers) {
+        reader.setPageSource(pageStore, rowPosition);
       }
     }
 

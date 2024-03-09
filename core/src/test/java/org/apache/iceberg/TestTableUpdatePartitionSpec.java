@@ -20,8 +20,10 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.expressions.Expressions.truncate;
+import static org.apache.iceberg.expressions.Expressions.year;
 
 import org.apache.iceberg.transforms.Transforms;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -185,6 +187,44 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
         table.spec());
 
     Assert.assertEquals(10001, table.spec().lastAssignedFieldId());
+  }
+
+  @Test
+  public void testRemoveAndAddYearField() {
+    table.updateSchema().addColumn("year_field", Types.DateType.get()).commit();
+    table.updateSpec().addField(year("year_field")).commit();
+
+    PartitionSpec evolvedSpec =
+        PartitionSpec.builderFor(table.schema())
+            .withSpecId(1)
+            .bucket("data", 16)
+            .year("year_field")
+            .build();
+
+    Assert.assertEquals("should match evolved spec", evolvedSpec, table.spec());
+    Assert.assertEquals(1001, table.spec().lastAssignedFieldId());
+
+    table.updateSpec().removeField("year_field_year").addField(year("year_field")).commit();
+
+    V1Assert.assertEquals(
+        "Should soft delete id and data buckets",
+        PartitionSpec.builderFor(table.schema())
+            .withSpecId(1)
+            .bucket("data", 16)
+            .year("year_field")
+            .build(),
+        table.spec());
+
+    V2Assert.assertEquals(
+        "Should remove and then add a year field",
+        PartitionSpec.builderFor(table.schema())
+            .withSpecId(1)
+            .bucket("data", 16)
+            .add(3, 1001, "year_field_year", Transforms.year())
+            .build(),
+        table.spec());
+
+    Assert.assertEquals(1001, table.spec().lastAssignedFieldId());
   }
 
   @Test

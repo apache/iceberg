@@ -27,7 +27,7 @@ import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.util.ByteBuffers;
 
@@ -41,6 +41,8 @@ public class DataFiles {
 
   static PartitionData copyPartitionData(
       PartitionSpec spec, StructLike partitionData, PartitionData reuse) {
+    Preconditions.checkArgument(
+        spec.isPartitioned(), "Can't copy partition data to a unpartitioned table");
     PartitionData data = reuse;
     if (data == null) {
       data = newPartitionData(spec);
@@ -87,6 +89,26 @@ public class DataFiles {
     return data;
   }
 
+  static PartitionData fillFromValues(
+      PartitionSpec spec, List<String> partitionValues, PartitionData reuse) {
+    PartitionData data = reuse;
+    if (data == null) {
+      data = newPartitionData(spec);
+    }
+
+    Preconditions.checkArgument(
+        partitionValues.size() == spec.fields().size(),
+        "Invalid partition data, expecting %s fields, found %s",
+        spec.fields().size(),
+        partitionValues.size());
+
+    for (int i = 0; i < partitionValues.size(); i += 1) {
+      data.set(i, Conversions.fromPartitionString(data.getType(i), partitionValues.get(i)));
+    }
+
+    return data;
+  }
+
   public static PartitionData data(PartitionSpec spec, String partitionPath) {
     return fillFromPath(spec, partitionPath, null);
   }
@@ -121,7 +143,6 @@ public class DataFiles {
     private FileFormat format = null;
     private long recordCount = -1L;
     private long fileSizeInBytes = -1L;
-    private Integer sortOrderId = SortOrder.unsorted().orderId();
 
     // optional fields
     private Map<Integer, Long> columnSizes = null;
@@ -132,11 +153,12 @@ public class DataFiles {
     private Map<Integer, ByteBuffer> upperBounds = null;
     private ByteBuffer keyMetadata = null;
     private List<Long> splitOffsets = null;
+    private Integer sortOrderId = SortOrder.unsorted().orderId();
 
     public Builder(PartitionSpec spec) {
       this.spec = spec;
       this.specId = spec.specId();
-      this.isPartitioned = spec.fields().size() > 0;
+      this.isPartitioned = spec.isPartitioned();
       this.partitionData = isPartitioned ? newPartitionData(spec) : null;
     }
 
@@ -176,7 +198,8 @@ public class DataFiles {
       this.upperBounds = toCopy.upperBounds();
       this.keyMetadata =
           toCopy.keyMetadata() == null ? null : ByteBuffers.copy(toCopy.keyMetadata());
-      this.splitOffsets = toCopy.splitOffsets() == null ? null : copyList(toCopy.splitOffsets());
+      this.splitOffsets =
+          toCopy.splitOffsets() == null ? null : ImmutableList.copyOf(toCopy.splitOffsets());
       this.sortOrderId = toCopy.sortOrderId();
       return this;
     }
@@ -219,7 +242,9 @@ public class DataFiles {
     }
 
     public Builder withPartition(StructLike newPartition) {
-      this.partitionData = copyPartitionData(spec, newPartition, partitionData);
+      if (isPartitioned) {
+        this.partitionData = copyPartitionData(spec, newPartition, partitionData);
+      }
       return this;
     }
 
@@ -243,6 +268,16 @@ public class DataFiles {
       return this;
     }
 
+    public Builder withPartitionValues(List<String> partitionValues) {
+      Preconditions.checkArgument(
+          isPartitioned ^ partitionValues.isEmpty(),
+          "Table must be partitioned or partition values must be empty");
+      if (!partitionValues.isEmpty()) {
+        this.partitionData = fillFromValues(spec, partitionValues, partitionData);
+      }
+      return this;
+    }
+
     public Builder withMetrics(Metrics metrics) {
       // check for null to avoid NPE when unboxing
       this.recordCount = metrics.recordCount() == null ? -1 : metrics.recordCount();
@@ -257,11 +292,17 @@ public class DataFiles {
 
     public Builder withSplitOffsets(List<Long> offsets) {
       if (offsets != null) {
-        this.splitOffsets = copyList(offsets);
+        this.splitOffsets = ImmutableList.copyOf(offsets);
       } else {
         this.splitOffsets = null;
       }
       return this;
+    }
+
+    /** @deprecated since 1.5.0, will be removed in 1.6.0; must not be set for data files. */
+    @Deprecated
+    public Builder withEqualityFieldIds(List<Integer> equalityIds) {
+      throw new UnsupportedOperationException("Equality field IDs must not be set for data files");
     }
 
     public Builder withEncryptionKeyMetadata(ByteBuffer newKeyMetadata) {
@@ -307,11 +348,5 @@ public class DataFiles {
           splitOffsets,
           sortOrderId);
     }
-  }
-
-  private static <E> List<E> copyList(List<E> toCopy) {
-    List<E> copy = Lists.newArrayListWithExpectedSize(toCopy.size());
-    copy.addAll(toCopy);
-    return copy;
   }
 }

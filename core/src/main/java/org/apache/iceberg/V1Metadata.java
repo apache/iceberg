@@ -23,6 +23,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.types.Types;
@@ -296,16 +297,6 @@ class V1Metadata {
     }
 
     @Override
-    public Long sequenceNumber() {
-      return wrapped.sequenceNumber();
-    }
-
-    @Override
-    public void setSequenceNumber(long sequenceNumber) {
-      wrapped.setSequenceNumber(sequenceNumber);
-    }
-
-    @Override
     public Long fileSequenceNumber() {
       return wrapped.fileSequenceNumber();
     }
@@ -481,8 +472,23 @@ class V1Metadata {
     }
 
     @Override
+    public Long dataSequenceNumber() {
+      return wrapped.dataSequenceNumber();
+    }
+
+    @Override
+    public Long fileSequenceNumber() {
+      return wrapped.fileSequenceNumber();
+    }
+
+    @Override
     public DataFile copy() {
       return wrapped.copy();
+    }
+
+    @Override
+    public DataFile copyWithStats(Set<Integer> requestedColumnIds) {
+      return wrapped.copyWithStats(requestedColumnIds);
     }
 
     @Override

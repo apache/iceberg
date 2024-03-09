@@ -18,22 +18,23 @@
  */
 package org.apache.iceberg.dell.ecs;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.emc.object.Range;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.dell.mock.ecs.EcsS3MockRule;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
-import org.junit.Assert;
-import org.junit.ClassRule;
-import org.junit.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 public class TestEcsOutputFile {
 
-  @ClassRule public static EcsS3MockRule rule = EcsS3MockRule.create();
+  @RegisterExtension public static EcsS3MockRule rule = EcsS3MockRule.create();
 
   @Test
   public void testFileWrite() throws IOException {
@@ -48,10 +49,9 @@ public class TestEcsOutputFile {
 
     try (InputStream input =
         rule.client().readObjectStream(rule.bucket(), objectName, Range.fromOffset(0))) {
-      Assert.assertEquals(
-          "File content is expected",
-          "1234567890",
-          new String(ByteStreams.toByteArray(input), StandardCharsets.UTF_8));
+      assertThat(new String(ByteStreams.toByteArray(input), StandardCharsets.UTF_8))
+          .as("File content is expected")
+          .isEqualTo("1234567890");
     }
   }
 
@@ -71,10 +71,9 @@ public class TestEcsOutputFile {
 
     try (InputStream input =
         rule.client().readObjectStream(rule.bucket(), objectName, Range.fromOffset(0))) {
-      Assert.assertEquals(
-          "File content should be overwritten",
-          "abcdefghij",
-          new String(ByteStreams.toByteArray(input), StandardCharsets.UTF_8));
+      assertThat(new String(ByteStreams.toByteArray(input), StandardCharsets.UTF_8))
+          .as("File content should be overwritten")
+          .isEqualTo("abcdefghij");
     }
   }
 
@@ -88,10 +87,8 @@ public class TestEcsOutputFile {
       output.write("1234567890".getBytes());
     }
 
-    AssertHelpers.assertThrows(
-        "Create should throw exception",
-        AlreadyExistsException.class,
-        outputFile.location(),
-        outputFile::create);
+    Assertions.assertThatThrownBy(outputFile::create)
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessage("ECS object already exists: " + outputFile.location());
   }
 }

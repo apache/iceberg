@@ -22,6 +22,7 @@ package org.apache.spark.sql.catalyst.analysis
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.ProjectingInternalRow
 import org.apache.spark.sql.catalyst.expressions.Alias
+import org.apache.spark.sql.catalyst.expressions.And
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
 import org.apache.spark.sql.catalyst.expressions.AttributeSet
@@ -32,6 +33,7 @@ import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.expressions.Literal.FalseLiteral
 import org.apache.spark.sql.catalyst.expressions.Literal.TrueLiteral
 import org.apache.spark.sql.catalyst.expressions.MonotonicallyIncreasingID
+import org.apache.spark.sql.catalyst.expressions.PredicateHelper
 import org.apache.spark.sql.catalyst.plans.FullOuter
 import org.apache.spark.sql.catalyst.plans.Inner
 import org.apache.spark.sql.catalyst.plans.LeftAnti
@@ -74,7 +76,7 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap
  * This rule assumes the commands have been fully resolved and all assignments have been aligned.
  * That's why it must be run after AlignRowLevelCommandAssignments.
  */
-object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand {
+object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with PredicateHelper {
 
   private final val ROW_FROM_SOURCE = "__row_from_source"
   private final val ROW_FROM_TARGET = "__row_from_target"
@@ -82,7 +84,6 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand {
 
   private final val ROW_FROM_SOURCE_REF = FieldReference(ROW_FROM_SOURCE)
   private final val ROW_FROM_TARGET_REF = FieldReference(ROW_FROM_TARGET)
-  private final val ROW_ID_REF = FieldReference(ROW_ID)
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
     case m @ MergeIntoIcebergTable(aliasedTable, source, cond, matchedActions, notMatchedActions, None)
@@ -137,7 +138,6 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand {
             notMatchedConditions = notMatchedConditions,
             notMatchedOutputs = notMatchedOutputs,
             targetOutput = Nil,
-            rowIdAttrs = Nil,
             performCardinalityCheck = false,
             emitNotMatchedTargetRows = false,
             output = buildMergeRowsOutput(Nil, notMatchedOutputs, r.output),
@@ -185,11 +185,17 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand {
     val readRelation = buildRelationWithAttrs(relation, operationTable, metadataAttrs)
     val readAttrs = readRelation.output
 
+    val performCardinalityCheck = isCardinalityCheckNeeded(matchedActions)
+
     // project an extra column to check if a target row exists after the join
-    // project a synthetic row ID to perform the cardinality check
+    // if needed, project a synthetic row ID to perform the cardinality check
     val rowFromTarget = Alias(TrueLiteral, ROW_FROM_TARGET)()
-    val rowId = Alias(MonotonicallyIncreasingID(), ROW_ID)()
-    val targetTableProjExprs = readAttrs ++ Seq(rowFromTarget, rowId)
+    val targetTableProjExprs = if (performCardinalityCheck) {
+      val rowId = Alias(MonotonicallyIncreasingID(), ROW_ID)()
+      readAttrs ++ Seq(rowFromTarget, rowId)
+    } else {
+      readAttrs :+ rowFromTarget
+    }
     val targetTableProj = Project(targetTableProjExprs, readRelation)
 
     // project an extra column to check if a source row exists after the join
@@ -212,7 +218,6 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand {
     val notMatchedConditions = notMatchedActions.map(actionCondition)
     val notMatchedOutputs = notMatchedActions.map(actionOutput(_, metadataAttrs))
 
-    val rowIdAttr = resolveAttrRef(ROW_ID_REF, joinPlan)
     val rowFromSourceAttr = resolveAttrRef(ROW_FROM_SOURCE_REF, joinPlan)
     val rowFromTargetAttr = resolveAttrRef(ROW_FROM_TARGET_REF, joinPlan)
 
@@ -224,8 +229,7 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand {
       notMatchedConditions = notMatchedConditions,
       notMatchedOutputs = notMatchedOutputs,
       targetOutput = readAttrs,
-      rowIdAttrs = Seq(rowIdAttr),
-      performCardinalityCheck = isCardinalityCheckNeeded(matchedActions),
+      performCardinalityCheck = performCardinalityCheck,
       emitNotMatchedTargetRows = true,
       output = buildMergeRowsOutput(matchedOutputs, notMatchedOutputs, readAttrs),
       joinPlan)
@@ -253,9 +257,20 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand {
     val readRelation = buildRelationWithAttrs(relation, operationTable, rowIdAttrs ++ metadataAttrs)
     val readAttrs = readRelation.output
 
+    val (targetCond, joinCond) = splitMergeCond(cond, readRelation)
+
+    val performCardinalityCheck = isCardinalityCheckNeeded(matchedActions)
+
     // project an extra column to check if a target row exists after the join
-    val targetTableProjExprs = readAttrs :+ Alias(TrueLiteral, ROW_FROM_TARGET)()
-    val targetTableProj = Project(targetTableProjExprs, readRelation)
+    // if needed, project a synthetic row ID to perform the cardinality check
+    val rowFromTarget = Alias(TrueLiteral, ROW_FROM_TARGET)()
+    val targetTableProjExprs = if (performCardinalityCheck) {
+      val rowId = Alias(MonotonicallyIncreasingID(), ROW_ID)()
+      readAttrs ++ Seq(rowFromTarget, rowId)
+    } else {
+      readAttrs :+ rowFromTarget
+    }
+    val targetTableProj = Project(targetTableProjExprs, Filter(targetCond, readRelation))
 
     // project an extra column to check if a source row exists after the join
     val sourceTableProjExprs = source.output :+ Alias(TrueLiteral, ROW_FROM_SOURCE)()
@@ -266,7 +281,7 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand {
     // also disable broadcasts for the target table to perform the cardinality check
     val joinType = if (notMatchedActions.isEmpty) Inner else RightOuter
     val joinHint = JoinHint(leftHint = Some(HintInfo(Some(NO_BROADCAST_HASH))), rightHint = None)
-    val joinPlan = Join(NoStatsUnaryNode(targetTableProj), sourceTableProj, joinType, Some(cond), joinHint)
+    val joinPlan = Join(NoStatsUnaryNode(targetTableProj), sourceTableProj, joinType, Some(joinCond), joinHint)
 
     val deleteRowValues = buildDeltaDeleteRowValues(rowAttrs, rowIdAttrs)
     val metadataReadAttrs = readAttrs.filterNot(relation.outputSet.contains)
@@ -293,8 +308,7 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand {
       notMatchedOutputs = notMatchedOutputs,
       // only needed if emitting unmatched target rows
       targetOutput = Nil,
-      rowIdAttrs = rowIdAttrs,
-      performCardinalityCheck = isCardinalityCheckNeeded(matchedActions),
+      performCardinalityCheck = performCardinalityCheck,
       emitNotMatchedTargetRows = false,
       output = mergeRowsOutput,
       joinPlan)
@@ -438,5 +452,18 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand {
     val schema = StructType(structFields)
 
     ProjectingInternalRow(schema, projectedOrdinals)
+  }
+
+  // splits the MERGE condition into a predicate that references columns only from the target table,
+  // which can be pushed down, and a predicate used as a join condition to find matches
+  private def splitMergeCond(
+      cond: Expression,
+      targetTable: LogicalPlan): (Expression, Expression) = {
+
+    val (targetPredicates, joinPredicates) = splitConjunctivePredicates(cond)
+      .partition(_.references.subsetOf(targetTable.outputSet))
+    val targetCond = targetPredicates.reduceOption(And).getOrElse(TrueLiteral)
+    val joinCond = joinPredicates.reduceOption(And).getOrElse(TrueLiteral)
+    (targetCond, joinCond)
   }
 }

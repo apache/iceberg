@@ -36,13 +36,14 @@ Each compute engine stores the metadata of the view in its proprietary format in
 ## Overview
 
 View metadata storage mirrors how Iceberg table metadata is stored and retrieved. View metadata is maintained in metadata files. All changes to view state create a new view metadata file and completely replace the old metadata using an atomic swap. Like Iceberg tables, this atomic swap is delegated to the metastore that tracks tables and/or views by name. The view metadata file tracks the view schema, custom properties, current and past versions, as well as other metadata.
-Each metadata file is self-sufficient. It contains the history of the last few operations performed on the view and can be used to roll back the view to a previous version.
+
+Each metadata file is self-sufficient. It contains the history of the last few versions of the view and can be used to roll back the view to a previous version.
 
 ### Metadata Location
 
 An atomic swap of one view metadata file for another provides the basis for making atomic changes. Readers use the version of the view that was current when they loaded the view metadata and are not affected by changes until they refresh and pick up a new metadata location.
 
-Writers create view metadata files optimistically, assuming that the current metadata location will not be changed before the writer’s commit. Once a writer has created an update, it commits by swapping the view's metadata file pointer from the base location to the new location.
+Writers create view metadata files optimistically, assuming that the current metadata location will not be changed before the writer's commit. Once a writer has created an update, it commits by swapping the view's metadata file pointer from the base location to the new location.
 
 ## Specification
 
@@ -55,68 +56,110 @@ Writers create view metadata files optimistically, assuming that the current met
 
 The view version metadata file has the following fields:
 
-| Required/Optional | Field Name | Description |
-|-------------------|------------|-------------|
-| Required | format-version | An integer version number for the view format. Currently, this must be 1. Implementations must throw an exception if the view's version is higher than the supported version. |
-| Required | location | The view's base location. This is used to determine where to store view metadata files. |
-| Required | current-version-id | Current version of the view. Set to ‘1’ when the view is first created. |
-| Optional | properties | A string to string map of view properties. This is used for metadata such as "comment" and for settings that affect view maintenance. This is not intended to be used for arbitrary metadata. |
-| Required | versions | An array of structs describing the known versions of the view. The number of versions to retain is controlled by the table property: “version.history.num-entries”. See section [Versions](#versions). |
-| Required | version-log | A list of timestamp and version ID pairs that encodes changes to the current version for the view. Each time the current-version-id is changed, a new entry should be added with the last-updated-ms and the new current-version-id. |
-| Optional | schemas | A list of schemas, the same as the ‘schemas’ field from Iceberg table spec. |
-| Optional | current-schema-id | ID of the current schema of the view |
+| Requirement | Field name           | Description |
+|-------------|----------------------|-------------|
+| _required_  | `view-uuid`          | A UUID that identifies the view, generated when the view is created. Implementations must throw an exception if a view's UUID does not match the expected UUID after refreshing metadata |
+| _required_  | `format-version`     | An integer version number for the view format; must be 1 |
+| _required_  | `location`           | The view's base location; used to create metadata file locations |
+| _required_  | `schemas`            | A list of known schemas |
+| _required_  | `current-version-id` | ID of the current version of the view (`version-id`) |
+| _required_  | `versions`           | A list of known [versions](#versions) of the view [1] |
+| _required_  | `version-log`        | A list of [version log](#version-log) entries with the timestamp and `version-id` for every change to `current-version-id` |
+| _optional_  | `properties`         | A string to string map of view properties [2] |
+
+Notes:
+1. The number of versions to retain is controlled by the table property: `version.history.num-entries`.
+2. Properties are used for metadata such as `comment` and for settings that affect view maintenance. This is not intended to be used for arbitrary metadata.
 
 #### Versions
 
-Field "versions" is an array of structs with the following fields:
+Each version in `versions` is a struct with the following fields:
 
-| Required/Optional | Field Name | Description |
-|-------------------|------------|-------------|
-| Required | version-id | Monotonically increasing id indicating the version of the view. Starts with 1. |
-| Required | timestamp-ms | Timestamp expressed in ms since epoch at which the version of the view was created. |
-| Required | summary | A string map summarizes the version changes, including `operation`, described in [Summary](#summary). |
-| Required | representations | A list of "representations" as described in [Representations](#representations). |
+| Requirement | Field name          | Description                                                                   |
+|-------------|---------------------|-------------------------------------------------------------------------------|
+| _required_  | `version-id`        | ID for the version                                                            |
+| _required_  | `schema-id`         | ID of the schema for the view version                                         |
+| _required_  | `timestamp-ms`      | Timestamp when the version was created (ms from epoch)                        |
+| _required_  | `summary`           | A string to string map of [summary metadata](#summary) about the version      |
+| _required_  | `representations`   | A list of [representations](#representations) for the view definition         |
+| _optional_  | `default-catalog`   | Catalog name to use when a reference in the SELECT does not contain a catalog |
+| _required_  | `default-namespace` | Namespace to use when a reference in the SELECT is a single identifier        |
 
-#### Version Log
-
-Field “version-log” is an array of structs that describe when each version was considered "current". Creation time is different and is stored in each version's metadata. This allows you to reconstruct what someone would have seen at some point in time. If the view has been updated and rolled back, this will show it. The struct has the following fields:
-
-| Required/Optional | Field Name | Description |
-|-------------------|------------|-------------|
-| Required | timestamp-ms | The timestamp when the referenced version was made the current version |
-| Required | version-id | Version id of the view  |
+When `default-catalog` is `null` or not set, the catalog in which the view is stored must be used as the default catalog.
 
 #### Summary
 
-Field “summary” is a string map with the following keys. Only `operation` is required. Engines may store additional key-value pairs in this map.
+Summary is a string to string map of metadata about a view version. Common metadata keys are documented here.
 
-| Required/Optional | Key | Value |
-|-------------------|-----|-------|
-| Required | operation | A string value indicating the view operation that caused this metadata to be created. Allowed values are “create” and “replace”. |
-| Optional | engine-version | A string value indicating the version of the engine that performed the operation |
+| Requirement | Key              | Value |
+|-------------|------------------|-------|
+| _optional_  | `engine-name`    | Name of the engine that created the view version |
+| _optional_  | `engine-version` | Version of the engine that created the view version |
 
 #### Representations
 
-Each representation is stored as an object with only one common field "type".
-The rest of the fields are interpreted based on the type.
+View definitions can be represented in multiple ways. Representations are documented ways to express a view definition.
 
-##### Original View Definition in SQL
+A view version can have more than one representation. All representations for a version must express the same underlying definition. Engines are free to choose the representation to use.
 
-This type of representation stores the original view definition in SQL and its SQL dialect.
+View versions are immutable. Once a version is created, it cannot be changed. This means that representations for a version cannot be changed. If a view definition changes (or new representations are to be added), a new version must be created.
 
-| Required/Optional | Field Name | Description |
-|-------------------|------------|-------------|
-| Required | type | A string indicating the type of representation. It is set to "sql" for this type. |
-| Required | sql | A string representing the original view definition in SQL |
-| Required | dialect | A string specifying the dialect of the ‘sql’ field. It can be used by the engines to detect the SQL dialect. |
-| Optional | schema-id | ID of the view's schema when the version was created |
-| Optional | default-catalog | A string specifying the catalog to use when the table or view references in the view definition do not contain an explicit catalog. |
-| Optional | default-namespace | The namespace to use when the table or view references in the view definition do not contain an explicit namespace. Since the namespace may contain multiple parts, it is serialized as a list of strings. |
-| Optional | field-aliases | A list of strings of field aliases optionally specified in the create view statement. The list should have the same length as the schema's top level fields. See the example below. |
-| Optional | field-docs | A list of strings of field comments optionally specified in the create view statement. The list should have the same length as the schema's top level fields. See the example below. |
+Each representation is an object with at least one common field, `type`, that is one of the following:
+* `sql`: a SQL SELECT statement that defines the view
 
-For `CREATE VIEW v (alias_name COMMENT 'docs', alias_name2, ...) AS SELECT col1, col2, ...`,
-the field aliases are 'alias_name', 'alias_name2', and etc., and the field docs are 'docs', null, and etc.
+Representations further define metadata for each type.
+
+##### SQL representation
+
+The SQL representation stores the view definition as a SQL SELECT, with metadata such as the SQL dialect.
+
+A view version can have multiple SQL representations of different dialects, but only one SQL representation per dialect.
+
+| Requirement | Field name          | Type           | Description |
+|-------------|---------------------|----------------|-------------|
+| _required_  | `type`              | `string`       | Must be `sql` |
+| _required_  | `sql`               | `string`       | A SQL SELECT statement |
+| _required_  | `dialect`           | `string`       | The dialect of the `sql` SELECT statement (e.g., "trino" or "spark") |
+
+For example:
+
+```sql
+USE prod.default
+```
+```sql
+CREATE OR REPLACE VIEW event_agg (
+    event_count COMMENT 'Count of events',
+    event_date) AS
+SELECT
+    COUNT(1), CAST(event_ts AS DATE)
+FROM events
+GROUP BY 2
+```
+
+This create statement would produce the following `sql` representation metadata:
+
+| Field name          | Value |
+|---------------------|-------|
+| `type`              | `"sql"` |
+| `sql`               | `"SELECT\n    COUNT(1), CAST(event_ts AS DATE)\nFROM events\nGROUP BY 2"` |
+| `dialect`           | `"spark"` |
+
+If a create statement does not include column names or comments before `AS`, the fields should be omitted.
+
+The `event_count` (with the `Count of events` comment) and `event_date` field aliases must be part of the view version's `schema`.
+
+#### Version log
+
+The version log tracks changes to the view's current version. This is the view's history and allows reconstructing what version of the view would have been used at some point in time.
+
+Note that this is not the version's creation time, which is stored in each version's metadata. A version can appear multiple times in the version log, indicating that the view definition was rolled back.
+
+Each entry in `version-log` is a struct with the following fields:
+
+| Requirement | Field name     | Description |
+|-------------|----------------|-------------|
+| _required_  | `timestamp-ms` | Timestamp when the view's `current-version-id` was updated (ms from epoch) |
+| _required_  | `version-id`   | ID that `current-version-id` was set to |
 
 ## Appendix A: An Example
 
@@ -124,145 +167,160 @@ The JSON metadata file format is described using an example below.
 
 Imagine the following sequence of operations:
 
-* `CREATE TABLE base_tab(c1 int, c2 varchar);`
-* `INSERT INTO base_tab VALUES (1,’one’), (2,’two’);`
-* `CREATE VIEW common_view AS SELECT * FROM base_tab;`
-* `CREATE OR REPLACE VIEW common_view AS SELECT count(*) AS my_cnt FROM base_tab;`
+```sql
+USE prod.default
+```
+```sql
+CREATE OR REPLACE VIEW event_agg (
+    event_count COMMENT 'Count of events',
+    event_date)
+COMMENT 'Daily event counts'
+AS
+SELECT
+    COUNT(1), CAST(event_ts AS DATE)
+FROM events
+GROUP BY 2
+```
 
-The metadata JSON file created at the end of step 3 looks as follows. The file path looks like:
-`s3://my_company/my/warehouse/anorwood.db/common_view`
 
-The path is intentionally similar to the path for iceberg tables and contains a ‘metadata’ directory. (`METASTORE_WAREHOUSE_DIR/<dbname>.db/<viewname>/metadata`)
+The metadata JSON file created looks as follows.
 
-The metadata directory contains View Version Metadata files. The text after '=>' symbols describes the fields.
+The path is intentionally similar to the path for Iceberg tables and uses a `metadata` directory.
+
+```
+s3://bucket/warehouse/default.db/event_agg/metadata/00001-(uuid).metadata.json
+```
 ```
 {
-  "format-version" : 1, => JSON format. Will change as format evolves.
-  "location" : "s3n://my_company/my/warehouse/anorwood.db/common_view",
-  "current-version-id" : 1, => current / latest version of the view. ‘1’ here since this metadata was created when the view was created.
-  "properties" : {  => shows properties of the view
-    "comment" : "View captures all the data from the table" => View comment
-  },
-  "versions" : [ { => Last few versions of the view.
-    "version-id" : 1,
-    "parent-version-id" : -1,
-    "timestamp-ms" : 1573518431292,
-    "summary" : {
-      "operation" : "create", => View operation that caused this metadata to be created
-      "engineVersion" : "presto-350", => Version of the engine that performed the operation (create / replace)
-    },
-    "representations" : [ { => SQL metadata of the view
-      "type" : "sql",
-      "sql" : "SELECT *\nFROM\n  base_tab\n", => original view SQL
-      "dialect" : "presto",
-      "schema-id" : 1,
-      "default-catalog" : "iceberg",
-      "default-namespace" : [ "anorwood" ]
-    } ],
-  } ],
-  "version-log" : [ { => Log of the created versions
-    "timestamp-ms" : 1573518431292,
-    "version-id" : 1
-  } ],
-  "schemas": [ { => Schema of the view expressed in Iceberg types
-    "schema-id": 1,
-    "type" : "struct",
-    "fields" : [ {
-      "id" : 0,
-      "name" : "c1",
-      "required" : false,
-      "type" : "int",
-      "doc" : "" => Column comment
-    }, {
-      "id" : 1,
-      "name" : "c2",
-      "required" : false,
-      "type" : "string",
-      "doc" : ""
-    } ]
-  } ],
-  "current-schema-id": 1
-}
-```
-
-The Iceberg / view library creates a new metadata JSON file every time the view undergoes a DDL change. This way the history of how the view evolved can be maintained. Following metadata JSON file was created at the end of Step 4.
-
-```
-{
+  "view-uuid": "fa6506c3-7681-40c8-86dc-e36561f83385",
   "format-version" : 1,
-  "location" : "s3n://my_company/my/warehouse/anorwood.db/common_view",
-  "current-version-id" : 2,
-  "properties" : {  => shows properties of the view
-    "comment" : "View captures count of the data from the table"
+  "location" : "s3://bucket/warehouse/default.db/event_agg",
+  "current-version-id" : 1,
+  "properties" : {
+    "comment" : "Daily event counts"
   },
   "versions" : [ {
     "version-id" : 1,
-    "parent-version-id" : -1,
     "timestamp-ms" : 1573518431292,
+    "schema-id" : 1,
+    "default-catalog" : "prod",
+    "default-namespace" : [ "default" ],
     "summary" : {
-      "operation" : "create",
-      "engineVersion" : "presto-350",
+      "engine-name" : "Spark",
+      "engineVersion" : "3.3.2"
     },
     "representations" : [ {
       "type" : "sql",
-      "sql" : "SELECT *\nFROM\n  base_tab\n",
-      "dialect" : "presto",
-      "schema-id" : 1,
-      "default-catalog" : "iceberg",
-      "default-namespace" : [ "anorwood" ]
-    } ],
-    "properties" : { }
+      "sql" : "SELECT\n    COUNT(1), CAST(event_ts AS DATE)\nFROM events\nGROUP BY 2",
+      "dialect" : "spark"
+    } ]
+  } ],
+  "schemas": [ {
+    "schema-id": 1,
+    "type" : "struct",
+    "fields" : [ {
+      "id" : 1,
+      "name" : "event_count",
+      "required" : false,
+      "type" : "int",
+      "doc" : "Count of events"
+    }, {
+      "id" : 2,
+      "name" : "event_date",
+      "required" : false,
+      "type" : "date"
+    } ]
+  } ],
+  "version-log" : [ {
+    "timestamp-ms" : 1573518431292,
+    "version-id" : 1
+  } ]
+}
+```
+
+Each change creates a new metadata JSON file.
+In the below example, the underlying SQL is modified by specifying the fully-qualified table name.
+
+```sql
+USE prod.other_db;
+CREATE OR REPLACE VIEW default.event_agg (
+    event_count COMMENT 'Count of events',
+    event_date)
+COMMENT 'Daily event counts'
+AS
+SELECT
+    COUNT(1), CAST(event_ts AS DATE)
+FROM prod.default.events
+GROUP BY 2
+```
+
+Updating the view produces a new metadata file that completely replaces the old:
+
+```
+s3://bucket/warehouse/default.db/event_agg/metadata/00002-(uuid).metadata.json
+```
+```
+{
+  "view-uuid": "fa6506c3-7681-40c8-86dc-e36561f83385",
+  "format-version" : 1,
+  "location" : "s3://bucket/warehouse/default.db/event_agg",
+  "current-version-id" : 1,
+  "properties" : {
+    "comment" : "Daily event counts"
+  },
+  "versions" : [ {
+    "version-id" : 1,
+    "timestamp-ms" : 1573518431292,
+    "schema-id" : 1,
+    "default-catalog" : "prod",
+    "default-namespace" : [ "default" ],
+    "summary" : {
+      "engine-name" : "Spark",
+      "engineVersion" : "3.3.2"
+    },
+    "representations" : [ {
+      "type" : "sql",
+      "sql" : "SELECT\n    COUNT(1), CAST(event_ts AS DATE)\nFROM events\nGROUP BY 2",
+      "dialect" : "spark"
+    } ]
   }, {
     "version-id" : 2,
-    "parent-version-id" : 1, => Version 2 was created on top of version 1, making parent-version-id 1
-    "timestamp-ms" : 1573518440265,
+    "timestamp-ms" : 1573518981593,
+    "schema-id" : 1,
+    "default-catalog" : "prod",
+    "default-namespace" : [ "default" ],
     "summary" : {
-      "operation" : "replace", => The ‘replace’ operation caused this latest version creation
-      "engineVersion" : "spark-2.4.4",
+      "engine-name" : "Spark",
+      "engineVersion" : "3.3.2"
     },
     "representations" : [ {
       "type" : "sql",
-      "sql" : "SELECT \"count\"(*) my_cnt\nFROM\n  base_tab\n", => Note the updated text from the ‘replace’ view statement
-      "dialect" : "spark",
-      "schema-id" : 2,
-      "default-catalog" : "iceberg",
-      "default-namespace" : [ "anorwood" ]
-    },
+      "sql" : "SELECT\n    COUNT(1), CAST(event_ts AS DATE)\nFROM prod.default.events\nGROUP BY 2",
+      "dialect" : "spark"
+    } ]
+  } ],
+  "schemas": [ {
+    "schema-id": 1,
+    "type" : "struct",
+    "fields" : [ {
+      "id" : 1,
+      "name" : "event_count",
+      "required" : false,
+      "type" : "int",
+      "doc" : "Count of events"
+    }, {
+      "id" : 2,
+      "name" : "event_date",
+      "required" : false,
+      "type" : "date"
+    } ]
   } ],
   "version-log" : [ {
     "timestamp-ms" : 1573518431292,
     "version-id" : 1
   }, {
-    "timestamp-ms" : 1573518440265,
+    "timestamp-ms" : 1573518981593,
     "version-id" : 2
-  } ],
-  "schemas": [ { => Schema of the view expressed in Iceberg types
-    "schema-id": 1,
-    "type" : "struct",
-    "fields" : [ {
-      "id" : 0,
-      "name" : "c1",
-      "required" : false,
-      "type" : "int",
-      "doc" : "" => Column comment
-    }, {
-      "id" : 1,
-      "name" : "c2",
-      "required" : false,
-      "type" : "string",
-      "doc" : ""
-    } ]
-  }, { => Schema change is reflected here
-    "schema-id": 2,
-    "type" : "struct",
-    "fields" : [ {
-      "id" : 0,
-      "name" : "my_cnt",
-      "required" : false,
-      "type" : "long",
-      "doc" : ""
-    } ]
-  } ],
-  "current-schema-id": 2
+  } ]
 }
 ```

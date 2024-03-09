@@ -18,27 +18,22 @@
  */
 package org.apache.iceberg.spark.source;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.BatchScan;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableScan;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkReadConf;
-import org.apache.iceberg.util.TableScanUtil;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.expressions.Expressions;
 import org.apache.spark.sql.connector.expressions.NamedReference;
@@ -46,15 +41,15 @@ import org.apache.spark.sql.connector.read.Statistics;
 import org.apache.spark.sql.connector.read.SupportsRuntimeFiltering;
 import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.sources.In;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-class SparkCopyOnWriteScan extends SparkScan implements SupportsRuntimeFiltering {
+class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
+    implements SupportsRuntimeFiltering {
 
-  private final TableScan scan;
+  private static final Logger LOG = LoggerFactory.getLogger(SparkCopyOnWriteScan.class);
+
   private final Snapshot snapshot;
-
-  // lazy variables
-  private List<FileScanTask> files = null; // lazy cache of files
-  private List<CombinedScanTask> tasks = null; // lazy cache of tasks
   private Set<String> filteredLocations = null;
 
   SparkCopyOnWriteScan(
@@ -69,26 +64,28 @@ class SparkCopyOnWriteScan extends SparkScan implements SupportsRuntimeFiltering
   SparkCopyOnWriteScan(
       SparkSession spark,
       Table table,
-      TableScan scan,
+      BatchScan scan,
       Snapshot snapshot,
       SparkReadConf readConf,
       Schema expectedSchema,
       List<Expression> filters) {
 
-    super(spark, table, readConf, expectedSchema, filters);
+    super(spark, table, scan, readConf, expectedSchema, filters);
 
-    this.scan = scan;
     this.snapshot = snapshot;
 
     if (scan == null) {
-      this.files = Collections.emptyList();
-      this.tasks = Collections.emptyList();
       this.filteredLocations = Collections.emptySet();
     }
   }
 
   Long snapshotId() {
     return snapshot != null ? snapshot.snapshotId() : null;
+  }
+
+  @Override
+  protected Class<FileScanTask> taskJavaClass() {
+    return FileScanTask.class;
   }
 
   @Override
@@ -126,43 +123,25 @@ class SparkCopyOnWriteScan extends SparkScan implements SupportsRuntimeFiltering
         // as such cases are rewritten using UNION and the same scan on both sides
         // so filter files only if it is beneficial
         if (filteredLocations == null || fileLocations.size() < filteredLocations.size()) {
-          this.tasks = null;
           this.filteredLocations = fileLocations;
-          this.files =
-              files().stream()
+          List<FileScanTask> filteredTasks =
+              tasks().stream()
                   .filter(file -> fileLocations.contains(file.file().path().toString()))
                   .collect(Collectors.toList());
+
+          LOG.info(
+              "{} of {} task(s) for table {} matched runtime file filter with {} location(s)",
+              filteredTasks.size(),
+              tasks().size(),
+              table().name(),
+              fileLocations.size());
+
+          resetTasks(filteredTasks);
         }
+      } else {
+        LOG.warn("Unsupported runtime filter {}", filter);
       }
     }
-  }
-
-  // should be accessible to the write
-  synchronized List<FileScanTask> files() {
-    if (files == null) {
-      try (CloseableIterable<FileScanTask> filesIterable = scan.planFiles()) {
-        this.files = Lists.newArrayList(filesIterable);
-      } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to close table scan: %s", scan);
-      }
-    }
-
-    return files;
-  }
-
-  @Override
-  protected synchronized List<CombinedScanTask> taskGroups() {
-    if (tasks == null) {
-      CloseableIterable<FileScanTask> splitFiles =
-          TableScanUtil.splitFiles(
-              CloseableIterable.withNoopClose(files()), scan.targetSplitSize());
-      CloseableIterable<CombinedScanTask> scanTasks =
-          TableScanUtil.planTasks(
-              splitFiles, scan.targetSplitSize(), scan.splitLookback(), scan.splitOpenFileCost());
-      tasks = Lists.newArrayList(scanTasks);
-    }
-
-    return tasks;
   }
 
   @Override
@@ -177,9 +156,8 @@ class SparkCopyOnWriteScan extends SparkScan implements SupportsRuntimeFiltering
 
     SparkCopyOnWriteScan that = (SparkCopyOnWriteScan) o;
     return table().name().equals(that.table().name())
-        && readSchema().equals(that.readSchema())
-        && // compare Spark schemas to ignore field ids
-        filterExpressions().toString().equals(that.filterExpressions().toString())
+        && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field ids
+        && filterExpressions().toString().equals(that.filterExpressions().toString())
         && Objects.equals(snapshotId(), that.snapshotId())
         && Objects.equals(filteredLocations, that.filteredLocations);
   }
@@ -202,7 +180,7 @@ class SparkCopyOnWriteScan extends SparkScan implements SupportsRuntimeFiltering
   }
 
   private Long currentSnapshotId() {
-    Snapshot currentSnapshot = table().currentSnapshot();
+    Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table(), branch());
     return currentSnapshot != null ? currentSnapshot.snapshotId() : null;
   }
 }

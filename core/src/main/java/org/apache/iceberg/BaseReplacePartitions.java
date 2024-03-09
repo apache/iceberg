@@ -79,53 +79,34 @@ public class BaseReplacePartitions extends MergingSnapshotProducer<ReplacePartit
     return this;
   }
 
-  /**
-   * Validate the current metadata.
-   *
-   * <p>Child operations can override this to add custom validation.
-   *
-   * @param currentMetadata current table metadata to validate
-   * @deprecated Will be removed in 1.2.0, use {@link SnapshotProducer#validate(TableMetadata,
-   *     Snapshot)}.
-   */
-  @Deprecated
-  public void validate(TableMetadata currentMetadata) {
-    super.validate(currentMetadata);
+  @Override
+  public BaseReplacePartitions toBranch(String branch) {
+    targetBranch(branch);
+    return this;
   }
 
   @Override
-  public void validate(TableMetadata currentMetadata, Snapshot snapshot) {
+  public void validate(TableMetadata currentMetadata, Snapshot parent) {
     if (validateConflictingData) {
       if (dataSpec().isUnpartitioned()) {
-        validateAddedDataFiles(currentMetadata, startingSnapshotId, Expressions.alwaysTrue());
+        validateAddedDataFiles(
+            currentMetadata, startingSnapshotId, Expressions.alwaysTrue(), parent);
       } else {
-        validateAddedDataFiles(currentMetadata, startingSnapshotId, replacedPartitions);
+        validateAddedDataFiles(currentMetadata, startingSnapshotId, replacedPartitions, parent);
       }
     }
 
     if (validateConflictingDeletes) {
       if (dataSpec().isUnpartitioned()) {
-        validateDeletedDataFiles(currentMetadata, startingSnapshotId, Expressions.alwaysTrue());
-        validateNoNewDeleteFiles(currentMetadata, startingSnapshotId, Expressions.alwaysTrue());
+        validateDeletedDataFiles(
+            currentMetadata, startingSnapshotId, Expressions.alwaysTrue(), parent);
+        validateNoNewDeleteFiles(
+            currentMetadata, startingSnapshotId, Expressions.alwaysTrue(), parent);
       } else {
-        validateDeletedDataFiles(currentMetadata, startingSnapshotId, replacedPartitions);
-        validateNoNewDeleteFiles(currentMetadata, startingSnapshotId, replacedPartitions);
+        validateDeletedDataFiles(currentMetadata, startingSnapshotId, replacedPartitions, parent);
+        validateNoNewDeleteFiles(currentMetadata, startingSnapshotId, replacedPartitions, parent);
       }
     }
-  }
-
-  /**
-   * Apply the update's changes to the base table metadata and return the new manifest list.
-   *
-   * @param base the base table metadata to apply changes to
-   * @return a manifest list for the new snapshot.
-   * @deprecated Will be removed in 1.2.0, use {@link BaseReplacePartitions#apply(TableMetadata,
-   *     Snapshot)}.
-   */
-  @Deprecated
-  @Override
-  public List<ManifestFile> apply(TableMetadata base) {
-    return super.apply(base);
   }
 
   @Override

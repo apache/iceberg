@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Superinterface of {@link DataFile} and {@link DeleteFile} that exposes common methods.
@@ -63,7 +64,8 @@ public interface ContentFile<F> {
   Map<Integer, Long> columnSizes();
 
   /**
-   * Returns if collected, map from column ID to the count of its non-null values, null otherwise.
+   * Returns if collected, map from column ID to the count of its values (including null and NaN
+   * values), null otherwise.
    */
   Map<Integer, Long> valueCounts();
 
@@ -114,6 +116,40 @@ public interface ContentFile<F> {
   }
 
   /**
+   * Returns the data sequence number of the file.
+   *
+   * <p>This method represents the sequence number to which the file should apply. Note the data
+   * sequence number may differ from the sequence number of the snapshot in which the underlying
+   * file was added (a.k.a the file sequence number). New snapshots can add files that belong to
+   * older sequence numbers (e.g. compaction). The data sequence number also does not change when
+   * the file is marked as deleted.
+   *
+   * <p>This method can return null if the data sequence number is unknown. This may happen while
+   * reading a v2 manifest that did not persist the data sequence number for manifest entries with
+   * status DELETED (older Iceberg versions).
+   */
+  default Long dataSequenceNumber() {
+    return null;
+  }
+
+  /**
+   * Returns the file sequence number.
+   *
+   * <p>The file sequence number represents the sequence number of the snapshot in which the
+   * underlying file was added. The file sequence number is always assigned at commit and cannot be
+   * provided explicitly, unlike the data sequence number. The file sequence number does not change
+   * upon assigning. In case of rewrite (like compaction), file sequence number can be higher than
+   * the data sequence number.
+   *
+   * <p>This method can return null if the file sequence number is unknown. This may happen while
+   * reading a v2 manifest that did not persist the file sequence number for manifest entries with
+   * status EXISTING or DELETED (older Iceberg versions).
+   */
+  default Long fileSequenceNumber() {
+    return null;
+  }
+
+  /**
    * Copies this file. Manifest readers can reuse file instances; use this method to copy data when
    * collecting files from tasks.
    *
@@ -129,6 +165,20 @@ public interface ContentFile<F> {
    *     counts, or nan value counts
    */
   F copyWithoutStats();
+
+  /**
+   * Copies this file with column stats only for specific columns. Manifest readers can reuse file
+   * instances; use this method to copy data with stats only for specific columns when collecting
+   * files.
+   *
+   * @param requestedColumnIds column IDs for which to keep stats.
+   * @return a copy of data file, with lower bounds, upper bounds, value counts, null value counts,
+   *     and nan value counts for only specific columns.
+   */
+  default F copyWithStats(Set<Integer> requestedColumnIds) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement copyWithStats");
+  }
 
   /**
    * Copies this file (potentially without file stats). Manifest readers can reuse file instances;

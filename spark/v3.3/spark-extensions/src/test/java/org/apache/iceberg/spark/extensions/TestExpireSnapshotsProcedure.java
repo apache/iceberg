@@ -20,7 +20,10 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
@@ -29,19 +32,27 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.GenericBlobMetadata;
+import org.apache.iceberg.GenericStatisticsFile;
+import org.apache.iceberg.PartitionStatisticsFile;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.puffin.Blob;
+import org.apache.iceberg.puffin.Puffin;
+import org.apache.iceberg.puffin.PuffinWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -63,7 +74,8 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
 
     List<Object[]> output = sql("CALL %s.system.expire_snapshots('%s')", catalogName, tableIdent);
-    assertEquals("Should not delete any files", ImmutableList.of(row(0L, 0L, 0L, 0L, 0L)), output);
+    assertEquals(
+        "Should not delete any files", ImmutableList.of(row(0L, 0L, 0L, 0L, 0L, 0L)), output);
   }
 
   @Test
@@ -91,7 +103,8 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
         sql(
             "CALL %s.system.expire_snapshots('%s', TIMESTAMP '%s')",
             catalogName, tableIdent, secondSnapshotTimestamp);
-    assertEquals("Procedure output must match", ImmutableList.of(row(0L, 0L, 0L, 0L, 1L)), output1);
+    assertEquals(
+        "Procedure output must match", ImmutableList.of(row(0L, 0L, 0L, 0L, 1L, 0L)), output1);
 
     table.refresh();
 
@@ -117,7 +130,8 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
         sql(
             "CALL %s.system.expire_snapshots('%s', TIMESTAMP '%s', 2)",
             catalogName, tableIdent, currentTimestamp);
-    assertEquals("Procedure output must match", ImmutableList.of(row(2L, 0L, 0L, 2L, 1L)), output);
+    assertEquals(
+        "Procedure output must match", ImmutableList.of(row(2L, 0L, 0L, 2L, 1L, 0L)), output);
   }
 
   @Test
@@ -137,12 +151,10 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
 
     List<Object[]> output =
         sql(
-            "CALL %s.system.expire_snapshots("
-                + "older_than => TIMESTAMP '%s',"
-                + "table => '%s',"
-                + "retain_last => 1)",
+            "CALL %s.system.expire_snapshots(older_than => TIMESTAMP '%s',table => '%s')",
             catalogName, currentTimestamp, tableIdent);
-    assertEquals("Procedure output must match", ImmutableList.of(row(0L, 0L, 0L, 0L, 1L)), output);
+    assertEquals(
+        "Procedure output must match", ImmutableList.of(row(0L, 0L, 0L, 0L, 1L, 0L)), output);
   }
 
   @Test
@@ -231,12 +243,11 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
             "CALL %s.system.expire_snapshots("
                 + "older_than => TIMESTAMP '%s',"
                 + "table => '%s',"
-                + "max_concurrent_deletes => %s,"
-                + "retain_last => 1)",
+                + "max_concurrent_deletes => %s)",
             catalogName, currentTimestamp, tableIdent, 4);
     assertEquals(
         "Expiring snapshots concurrently should succeed",
-        ImmutableList.of(row(0L, 0L, 0L, 0L, 3L)),
+        ImmutableList.of(row(0L, 0L, 0L, 0L, 3L, 0L)),
         output);
   }
 
@@ -283,7 +294,7 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
         .append();
     sql("DELETE FROM %s WHERE id=1", tableName);
 
-    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
 
     Assert.assertEquals(
         "Should have 1 delete manifest", 1, TestHelpers.deleteManifests(table).size());
@@ -318,15 +329,12 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
     Timestamp currentTimestamp = Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis()));
     List<Object[]> output =
         sql(
-            "CALL %s.system.expire_snapshots("
-                + "older_than => TIMESTAMP '%s',"
-                + "table => '%s',"
-                + "retain_last => 1)",
+            "CALL %s.system.expire_snapshots(older_than => TIMESTAMP '%s',table => '%s')",
             catalogName, currentTimestamp, tableIdent);
 
     assertEquals(
         "Should deleted 1 data and pos delete file and 4 manifests and lists (one for each txn)",
-        ImmutableList.of(row(1L, 1L, 0L, 4L, 4L)),
+        ImmutableList.of(row(1L, 1L, 0L, 4L, 4L, 0L)),
         output);
     Assert.assertFalse("Delete manifest should be removed", localFs.exists(deleteManifestPath));
     Assert.assertFalse("Delete file should be removed", localFs.exists(deleteFilePath));
@@ -352,10 +360,63 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
             "CALL %s.system.expire_snapshots("
                 + "older_than => TIMESTAMP '%s',"
                 + "table => '%s',"
-                + "retain_last => 1, "
                 + "stream_results => true)",
             catalogName, currentTimestamp, tableIdent);
-    assertEquals("Procedure output must match", ImmutableList.of(row(0L, 0L, 0L, 0L, 1L)), output);
+    assertEquals(
+        "Procedure output must match", ImmutableList.of(row(0L, 0L, 0L, 0L, 1L, 0L)), output);
+  }
+
+  @Test
+  public void testExpireSnapshotsWithSnapshotId() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    Assert.assertEquals("Should be 2 snapshots", 2, Iterables.size(table.snapshots()));
+
+    // Expiring the snapshot specified by snapshot_id should keep only a single snapshot.
+    long firstSnapshotId = table.currentSnapshot().parentId();
+    sql(
+        "CALL %s.system.expire_snapshots(" + "table => '%s'," + "snapshot_ids => ARRAY(%d))",
+        catalogName, tableIdent, firstSnapshotId);
+
+    // There should only be one single snapshot left.
+    table.refresh();
+    Assert.assertEquals("Should be 1 snapshots", 1, Iterables.size(table.snapshots()));
+    Assert.assertEquals(
+        "Snapshot ID should not be present",
+        0,
+        Iterables.size(
+            Iterables.filter(
+                table.snapshots(), snapshot -> snapshot.snapshotId() == firstSnapshotId)));
+  }
+
+  @Test
+  public void testExpireSnapshotShouldFailForCurrentSnapshot() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertEquals("Should be 2 snapshots", 2, Iterables.size(table.snapshots()));
+
+    AssertHelpers.assertThrows(
+        "Should reject call",
+        IllegalArgumentException.class,
+        "Cannot expire",
+        () ->
+            sql(
+                "CALL %s.system.expire_snapshots("
+                    + "table => '%s',"
+                    + "snapshot_ids => ARRAY(%d, %d))",
+                catalogName,
+                tableIdent,
+                table.currentSnapshot().snapshotId(),
+                table.currentSnapshot().parentId()));
   }
 
   @Test
@@ -381,13 +442,139 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
             + "/* And comments that span *multiple* \n"
             + " lines */ CALL /* this is the actual CALL */ %s.system.expire_snapshots("
             + "   older_than => TIMESTAMP '%s',"
-            + "   table => '%s',"
-            + "   retain_last => 1)";
+            + "   table => '%s')";
     List<Object[]> output = sql(callStatement, catalogName, currentTimestamp, tableIdent);
-    assertEquals("Procedure output must match", ImmutableList.of(row(0L, 0L, 0L, 0L, 1L)), output);
+    assertEquals(
+        "Procedure output must match", ImmutableList.of(row(0L, 0L, 0L, 0L, 1L, 0L)), output);
 
     table.refresh();
 
     Assert.assertEquals("Should be 1 snapshot remaining", 1, Iterables.size(table.snapshots()));
+  }
+
+  @Test
+  public void testExpireSnapshotsWithStatisticFiles() throws Exception {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (10, 'abc')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    String statsFileLocation1 = ProcedureUtil.statsFileLocation(table.location());
+    StatisticsFile statisticsFile1 =
+        writeStatsFile(
+            table.currentSnapshot().snapshotId(),
+            table.currentSnapshot().sequenceNumber(),
+            statsFileLocation1,
+            table.io());
+    table.updateStatistics().setStatistics(statisticsFile1.snapshotId(), statisticsFile1).commit();
+
+    sql("INSERT INTO %s SELECT 20, 'def'", tableName);
+    table.refresh();
+    String statsFileLocation2 = ProcedureUtil.statsFileLocation(table.location());
+    StatisticsFile statisticsFile2 =
+        writeStatsFile(
+            table.currentSnapshot().snapshotId(),
+            table.currentSnapshot().sequenceNumber(),
+            statsFileLocation2,
+            table.io());
+    table.updateStatistics().setStatistics(statisticsFile2.snapshotId(), statisticsFile2).commit();
+
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    Timestamp currentTimestamp = Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis()));
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.expire_snapshots(older_than => TIMESTAMP '%s',table => '%s')",
+            catalogName, currentTimestamp, tableIdent);
+    Assertions.assertThat(output.get(0)[5]).as("should be 1 deleted statistics file").isEqualTo(1L);
+
+    table.refresh();
+    Assertions.assertThat(table.statisticsFiles())
+        .as(
+            "Statistics file entry in TableMetadata should be present only for the snapshot %s",
+            statisticsFile2.snapshotId())
+        .extracting(StatisticsFile::snapshotId)
+        .containsExactly(statisticsFile2.snapshotId());
+
+    Assertions.assertThat(new File(statsFileLocation1))
+        .as("Statistics file should not exist for snapshot %s", statisticsFile1.snapshotId())
+        .doesNotExist();
+
+    Assertions.assertThat(new File(statsFileLocation2))
+        .as("Statistics file should exist for snapshot %s", statisticsFile2.snapshotId())
+        .exists();
+  }
+
+  @Test
+  public void testExpireSnapshotsWithPartitionStatisticFiles() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (10, 'abc')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    String partitionStatsFileLocation1 = ProcedureUtil.statsFileLocation(table.location());
+    PartitionStatisticsFile partitionStatisticsFile1 =
+        ProcedureUtil.writePartitionStatsFile(
+            table.currentSnapshot().snapshotId(), partitionStatsFileLocation1, table.io());
+    table.updatePartitionStatistics().setPartitionStatistics(partitionStatisticsFile1).commit();
+
+    sql("INSERT INTO %s SELECT 20, 'def'", tableName);
+    table.refresh();
+    String partitionStatsFileLocation2 = ProcedureUtil.statsFileLocation(table.location());
+    PartitionStatisticsFile partitionStatisticsFile2 =
+        ProcedureUtil.writePartitionStatsFile(
+            table.currentSnapshot().snapshotId(), partitionStatsFileLocation2, table.io());
+    table.updatePartitionStatistics().setPartitionStatistics(partitionStatisticsFile2).commit();
+
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    Timestamp currentTimestamp = Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis()));
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.expire_snapshots(older_than => TIMESTAMP '%s',table => '%s')",
+            catalogName, currentTimestamp, tableIdent);
+    Assertions.assertThat(output.get(0)[5])
+        .as("should be 1 deleted partition statistics file")
+        .isEqualTo(1L);
+
+    table.refresh();
+    Assertions.assertThat(table.partitionStatisticsFiles())
+        .as(
+            "partition statistics file entry in TableMetadata should be present only for the snapshot %s",
+            partitionStatisticsFile2.snapshotId())
+        .extracting(PartitionStatisticsFile::snapshotId)
+        .containsExactly(partitionStatisticsFile2.snapshotId());
+
+    Assertions.assertThat(new File(partitionStatsFileLocation1))
+        .as(
+            "partition statistics file should not exist for snapshot %s",
+            partitionStatisticsFile1.snapshotId())
+        .doesNotExist();
+
+    Assertions.assertThat(new File(partitionStatsFileLocation2))
+        .as(
+            "partition statistics file should exist for snapshot %s",
+            partitionStatisticsFile2.snapshotId())
+        .exists();
+  }
+
+  private static StatisticsFile writeStatsFile(
+      long snapshotId, long snapshotSequenceNumber, String statsLocation, FileIO fileIO)
+      throws IOException {
+    try (PuffinWriter puffinWriter = Puffin.write(fileIO.newOutputFile(statsLocation)).build()) {
+      puffinWriter.add(
+          new Blob(
+              "some-blob-type",
+              ImmutableList.of(1),
+              snapshotId,
+              snapshotSequenceNumber,
+              ByteBuffer.wrap("blob content".getBytes(StandardCharsets.UTF_8))));
+      puffinWriter.finish();
+
+      return new GenericStatisticsFile(
+          snapshotId,
+          statsLocation,
+          puffinWriter.fileSize(),
+          puffinWriter.footerSize(),
+          puffinWriter.writtenBlobsMetadata().stream()
+              .map(GenericBlobMetadata::from)
+              .collect(ImmutableList.toImmutableList()));
+    }
   }
 }

@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.rest;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -33,15 +34,19 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import org.apache.iceberg.AssertHelpers;
+import java.util.function.Consumer;
+import org.apache.hc.core5.http.EntityDetails;
+import org.apache.hc.core5.http.HttpException;
+import org.apache.hc.core5.http.HttpRequestInterceptor;
+import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.mockserver.integration.ClientAndServer;
 import org.mockserver.model.HttpRequest;
 import org.mockserver.model.HttpResponse;
@@ -62,15 +67,15 @@ public class TestHTTPClient {
   private static ClientAndServer mockServer;
   private static RESTClient restClient;
 
-  @BeforeClass
+  @BeforeAll
   public static void beforeClass() {
     mockServer = startClientAndServer(PORT);
-    restClient = HTTPClient.builder().uri(URI).build();
+    restClient = HTTPClient.builder(ImmutableMap.of()).uri(URI).build();
     icebergBuildGitCommitShort = IcebergBuild.gitCommitShortId();
     icebergBuildFullVersion = IcebergBuild.fullVersion();
   }
 
-  @AfterClass
+  @AfterAll
   public static void stopServer() throws IOException {
     mockServer.stop();
     restClient.close();
@@ -116,6 +121,18 @@ public class TestHTTPClient {
     testHttpMethodOnFailure(HttpMethod.HEAD);
   }
 
+  @Test
+  public void testDynamicHttpRequestInterceptorLoading() {
+    Map<String, String> properties = ImmutableMap.of("key", "val");
+
+    HttpRequestInterceptor interceptor =
+        HTTPClient.loadInterceptorDynamically(
+            TestHttpRequestInterceptor.class.getName(), properties);
+
+    assertThat(interceptor).isInstanceOf(TestHttpRequestInterceptor.class);
+    assertThat(((TestHttpRequestInterceptor) interceptor).properties).isEqualTo(properties);
+  }
+
   public static void testHttpMethodOnSuccess(HttpMethod method) throws JsonProcessingException {
     Item body = new Item(0L, "hank");
     int statusCode = 200;
@@ -125,13 +142,13 @@ public class TestHTTPClient {
 
     String path = addRequestTestCaseAndGetPath(method, body, statusCode);
 
-    Item successResponse = doExecuteRequest(method, path, body, onError);
+    Item successResponse =
+        doExecuteRequest(method, path, body, onError, h -> assertThat(h).isNotEmpty());
 
     if (method.usesRequestBody()) {
-      Assert.assertEquals(
-          "On a successful " + method + ", the correct response body should be returned",
-          successResponse,
-          body);
+      Assertions.assertThat(body)
+          .as("On a successful " + method + ", the correct response body should be returned")
+          .isEqualTo(successResponse);
     }
 
     verify(onError, never()).accept(any());
@@ -152,12 +169,11 @@ public class TestHTTPClient {
 
     String path = addRequestTestCaseAndGetPath(method, body, statusCode);
 
-    AssertHelpers.assertThrows(
-        "A response indicating a failed request should throw",
-        RuntimeException.class,
-        String.format(
-            "Called error handler for method %s due to status code: %d", method, statusCode),
-        () -> doExecuteRequest(method, path, body, onError));
+    Assertions.assertThatThrownBy(() -> doExecuteRequest(method, path, body, onError, h -> {}))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessage(
+            String.format(
+                "Called error handler for method %s due to status code: %d", method, statusCode));
 
     verify(onError).accept(any());
   }
@@ -208,11 +224,15 @@ public class TestHTTPClient {
   }
 
   private static Item doExecuteRequest(
-      HttpMethod method, String path, Item body, ErrorHandler onError) {
+      HttpMethod method,
+      String path,
+      Item body,
+      ErrorHandler onError,
+      Consumer<Map<String, String>> responseHeaders) {
     Map<String, String> headers = ImmutableMap.of("Authorization", "Bearer " + BEARER_AUTH_TOKEN);
     switch (method) {
       case POST:
-        return restClient.post(path, body, Item.class, headers, onError);
+        return restClient.post(path, body, Item.class, headers, onError, responseHeaders);
       case GET:
         return restClient.get(path, Item.class, headers, onError);
       case HEAD:
@@ -257,5 +277,18 @@ public class TestHTTPClient {
       Item item = (Item) o;
       return Objects.equals(id, item.id) && Objects.equals(data, item.data);
     }
+  }
+
+  public static class TestHttpRequestInterceptor implements HttpRequestInterceptor {
+    private Map<String, String> properties;
+
+    public void initialize(Map<String, String> props) {
+      this.properties = props;
+    }
+
+    @Override
+    public void process(
+        org.apache.hc.core5.http.HttpRequest request, EntityDetails entity, HttpContext context)
+        throws HttpException, IOException {}
   }
 }

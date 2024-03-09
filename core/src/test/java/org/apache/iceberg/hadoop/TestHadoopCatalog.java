@@ -28,7 +28,6 @@ import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -37,6 +36,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -52,14 +52,16 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestHadoopCatalog extends HadoopTableTestBase {
   private static ImmutableMap<String, String> meta = ImmutableMap.of();
 
-  @Test
-  public void testCreateTableBuilder() throws Exception {
+  @ParameterizedTest
+  @ValueSource(ints = {1, 2})
+  public void testCreateTableBuilder(int formatVersion) throws Exception {
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
     Table table =
         hadoopCatalog()
@@ -67,30 +69,38 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
             .withPartitionSpec(SPEC)
             .withProperties(null)
             .withProperty("key1", "value1")
+            .withProperty(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion))
             .withProperties(ImmutableMap.of("key2", "value2"))
             .create();
 
-    Assert.assertEquals(TABLE_SCHEMA.toString(), table.schema().toString());
-    Assert.assertEquals(1, table.spec().fields().size());
-    Assert.assertEquals("value1", table.properties().get("key1"));
-    Assert.assertEquals("value2", table.properties().get("key2"));
+    Assertions.assertThat(table.schema().toString()).isEqualTo(TABLE_SCHEMA.toString());
+    Assertions.assertThat(table.spec().fields()).hasSize(1);
+    Assertions.assertThat(table.properties())
+        .containsEntry("key1", "value1")
+        .containsEntry("key2", "value2");
   }
 
-  @Test
-  public void testCreateTableTxnBuilder() throws Exception {
+  @ParameterizedTest
+  @ValueSource(ints = {1, 2})
+  public void testCreateTableTxnBuilder(int formatVersion) throws Exception {
     HadoopCatalog catalog = hadoopCatalog();
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
     Transaction txn =
-        catalog.buildTable(tableIdent, SCHEMA).withPartitionSpec(null).createTransaction();
+        catalog
+            .buildTable(tableIdent, SCHEMA)
+            .withPartitionSpec(null)
+            .withProperty(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion))
+            .createTransaction();
     txn.commitTransaction();
     Table table = catalog.loadTable(tableIdent);
 
-    Assert.assertEquals(TABLE_SCHEMA.toString(), table.schema().toString());
-    Assert.assertTrue(table.spec().isUnpartitioned());
+    Assertions.assertThat(table.schema().toString()).isEqualTo(TABLE_SCHEMA.toString());
+    Assertions.assertThat(table.spec().isUnpartitioned()).isTrue();
   }
 
-  @Test
-  public void testReplaceTxnBuilder() throws Exception {
+  @ParameterizedTest
+  @ValueSource(ints = {1, 2})
+  public void testReplaceTxnBuilder(int formatVersion) throws Exception {
     HadoopCatalog catalog = hadoopCatalog();
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
 
@@ -99,6 +109,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
             .buildTable(tableIdent, SCHEMA)
             .withPartitionSpec(SPEC)
             .withProperty("key1", "value1")
+            .withProperty(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion))
             .createOrReplaceTransaction();
 
     createTxn.newAppend().appendFile(FILE_A).commit();
@@ -106,23 +117,33 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     createTxn.commitTransaction();
 
     Table table = catalog.loadTable(tableIdent);
-    Assert.assertNotNull(table.currentSnapshot());
+    Assertions.assertThat(table.currentSnapshot()).isNotNull();
 
     Transaction replaceTxn =
         catalog.buildTable(tableIdent, SCHEMA).withProperty("key2", "value2").replaceTransaction();
     replaceTxn.commitTransaction();
 
     table = catalog.loadTable(tableIdent);
-    Assert.assertNull(table.currentSnapshot());
-    PartitionSpec v1Expected =
-        PartitionSpec.builderFor(table.schema())
-            .alwaysNull("data", "data_bucket")
-            .withSpecId(1)
-            .build();
-    Assert.assertEquals("Table should have a spec with one void field", v1Expected, table.spec());
+    Assertions.assertThat(table.currentSnapshot()).isNull();
 
-    Assert.assertEquals("value1", table.properties().get("key1"));
-    Assert.assertEquals("value2", table.properties().get("key2"));
+    if (formatVersion == 1) {
+      PartitionSpec v1Expected =
+          PartitionSpec.builderFor(table.schema())
+              .alwaysNull("data", "data_bucket")
+              .withSpecId(1)
+              .build();
+      Assertions.assertThat(table.spec())
+          .as("Table should have a spec with one void field")
+          .isEqualTo(v1Expected);
+    } else {
+      Assertions.assertThat(table.spec().isUnpartitioned())
+          .as("Table spec should be unpartitioned")
+          .isTrue();
+    }
+
+    Assertions.assertThat(table.properties())
+        .containsEntry("key1", "value1")
+        .containsEntry("key2", "value2");
   }
 
   @Test
@@ -130,27 +151,24 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     HadoopCatalog catalog = hadoopCatalog();
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
 
-    AssertHelpers.assertThrows(
-        "Should reject a custom location",
-        IllegalArgumentException.class,
-        "Cannot set a custom location for a path-based table",
-        () -> catalog.buildTable(tableIdent, SCHEMA).withLocation("custom").create());
+    Assertions.assertThatThrownBy(
+            () -> catalog.buildTable(tableIdent, SCHEMA).withLocation("custom").create())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot set a custom location for a path-based table");
 
-    AssertHelpers.assertThrows(
-        "Should reject a custom location",
-        IllegalArgumentException.class,
-        "Cannot set a custom location for a path-based table",
-        () -> catalog.buildTable(tableIdent, SCHEMA).withLocation("custom").createTransaction());
+    Assertions.assertThatThrownBy(
+            () -> catalog.buildTable(tableIdent, SCHEMA).withLocation("custom").createTransaction())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot set a custom location for a path-based table");
 
-    AssertHelpers.assertThrows(
-        "Should reject a custom location",
-        IllegalArgumentException.class,
-        "Cannot set a custom location for a path-based table",
-        () ->
-            catalog
-                .buildTable(tableIdent, SCHEMA)
-                .withLocation("custom")
-                .createOrReplaceTransaction());
+    Assertions.assertThatThrownBy(
+            () ->
+                catalog
+                    .buildTable(tableIdent, SCHEMA)
+                    .withLocation("custom")
+                    .createOrReplaceTransaction())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot set a custom location for a path-based table");
   }
 
   @Test
@@ -159,8 +177,8 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     Table table = hadoopCatalog().createTable(tableIdent, SCHEMA, SPEC);
 
     SortOrder sortOrder = table.sortOrder();
-    Assert.assertEquals("Order ID must match", 0, sortOrder.orderId());
-    Assert.assertTrue("Order must unsorted", sortOrder.isUnsorted());
+    Assertions.assertThat(sortOrder.orderId()).as("Order ID must match").isEqualTo(0);
+    Assertions.assertThat(sortOrder.isUnsorted()).as("Order must be unsorted").isTrue();
   }
 
   @Test
@@ -175,13 +193,18 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
             .create();
 
     SortOrder sortOrder = table.sortOrder();
-    Assert.assertEquals("Order ID must match", 1, sortOrder.orderId());
-    Assert.assertEquals("Order must have 1 field", 1, sortOrder.fields().size());
-    Assert.assertEquals("Direction must match ", ASC, sortOrder.fields().get(0).direction());
-    Assert.assertEquals(
-        "Null order must match ", NULLS_FIRST, sortOrder.fields().get(0).nullOrder());
+    Assertions.assertThat(sortOrder.orderId()).as("Order ID must match").isEqualTo(1);
+    Assertions.assertThat(sortOrder.fields().size()).as("Order must have 1 field").isEqualTo(1);
+    Assertions.assertThat(sortOrder.fields().get(0).direction())
+        .as("Direction must match")
+        .isEqualTo(ASC);
+    Assertions.assertThat(sortOrder.fields().get(0).nullOrder())
+        .as("Null order must match")
+        .isEqualTo(NULLS_FIRST);
     Transform<?, ?> transform = Transforms.identity();
-    Assert.assertEquals("Transform must match", transform, sortOrder.fields().get(0).transform());
+    Assertions.assertThat(sortOrder.fields().get(0).transform())
+        .as("Transform must match")
+        .isEqualTo(transform);
   }
 
   @Test
@@ -192,10 +215,27 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     String metaLocation = catalog.defaultWarehouseLocation(testTable);
 
     FileSystem fs = Util.getFs(new Path(metaLocation), catalog.getConf());
-    Assert.assertTrue(fs.isDirectory(new Path(metaLocation)));
+    Assertions.assertThat(fs.isDirectory(new Path(metaLocation))).isTrue();
 
     catalog.dropTable(testTable);
-    Assert.assertFalse(fs.isDirectory(new Path(metaLocation)));
+    Assertions.assertThat(fs.isDirectory(new Path(metaLocation))).isFalse();
+  }
+
+  @Test
+  public void testHadoopFileIOProperties() {
+    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    ImmutableMap<String, String> catalogProps =
+        ImmutableMap.of(
+            "warehouse", "/hive/testwarehouse",
+            "io.manifest.cache-enabled", "true");
+
+    HadoopCatalog catalog = new HadoopCatalog();
+    catalog.setConf(new Configuration());
+    catalog.initialize("hadoop", catalogProps);
+    FileIO fileIO = catalog.newTableOps(tableIdent).io();
+
+    Assertions.assertThat(fileIO.properties()).containsEntry("warehouse", "/hive/testwarehouse");
+    Assertions.assertThat(fileIO.properties()).containsEntry("io.manifest.cache-enabled", "true");
   }
 
   @Test
@@ -205,15 +245,15 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     TableIdentifier testTable = TableIdentifier.of("tbl");
     Table table = catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned());
 
-    Assert.assertEquals(table.schema().toString(), TABLE_SCHEMA.toString());
-    Assert.assertEquals("hadoop.tbl", table.name());
+    Assertions.assertThat(table.schema().toString()).isEqualTo(TABLE_SCHEMA.toString());
+    Assertions.assertThat(table.name()).isEqualTo("hadoop.tbl");
     String metaLocation = catalog.defaultWarehouseLocation(testTable);
 
     FileSystem fs = Util.getFs(new Path(metaLocation), catalog.getConf());
-    Assert.assertTrue(fs.isDirectory(new Path(metaLocation)));
+    Assertions.assertThat(fs.isDirectory(new Path(metaLocation))).isTrue();
 
     catalog.dropTable(testTable);
-    Assert.assertFalse(fs.isDirectory(new Path(metaLocation)));
+    Assertions.assertThat(fs.isDirectory(new Path(metaLocation))).isFalse();
   }
 
   @Test
@@ -224,10 +264,10 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     String metaLocation = catalog.defaultWarehouseLocation(testTable);
 
     FileSystem fs = Util.getFs(new Path(metaLocation), catalog.getConf());
-    Assert.assertTrue(fs.isDirectory(new Path(metaLocation)));
+    Assertions.assertThat(fs.isDirectory(new Path(metaLocation))).isTrue();
 
     catalog.dropTable(testTable);
-    Assert.assertFalse(fs.isDirectory(new Path(metaLocation)));
+    Assertions.assertThat(fs.isDirectory(new Path(metaLocation))).isFalse();
   }
 
   @Test
@@ -236,14 +276,14 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     TableIdentifier testTable = TableIdentifier.of("db", "ns1", "ns2", "tbl");
     String metaLocation = catalog.defaultWarehouseLocation(testTable);
     // testing with non existent directory
-    Assert.assertFalse(catalog.dropTable(testTable));
+    Assertions.assertThat(catalog.dropTable(testTable)).isFalse();
 
     FileSystem fs = Util.getFs(new Path(metaLocation), catalog.getConf());
     fs.mkdirs(new Path(metaLocation));
-    Assert.assertTrue(fs.isDirectory(new Path(metaLocation)));
+    Assertions.assertThat(fs.isDirectory(new Path(metaLocation))).isTrue();
 
-    Assert.assertFalse(catalog.dropTable(testTable));
-    Assert.assertTrue(fs.isDirectory(new Path(metaLocation)));
+    Assertions.assertThat(catalog.dropTable(testTable)).isFalse();
+    Assertions.assertThat(fs.isDirectory(new Path(metaLocation))).isTrue();
   }
 
   @Test
@@ -251,13 +291,10 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     HadoopCatalog catalog = hadoopCatalog();
     TableIdentifier testTable = TableIdentifier.of("db", "tbl1");
     catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned());
-    AssertHelpers.assertThrows(
-        "should throw exception",
-        UnsupportedOperationException.class,
-        "Cannot rename Hadoop tables",
-        () -> {
-          catalog.renameTable(testTable, TableIdentifier.of("db", "tbl2"));
-        });
+    Assertions.assertThatThrownBy(
+            () -> catalog.renameTable(testTable, TableIdentifier.of("db", "tbl2")))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot rename Hadoop tables");
   }
 
   @Test
@@ -274,21 +311,15 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
     List<TableIdentifier> tbls1 = catalog.listTables(Namespace.of("db"));
     Set<String> tblSet = Sets.newHashSet(tbls1.stream().map(t -> t.name()).iterator());
-    Assert.assertEquals(2, tblSet.size());
-    Assert.assertTrue(tblSet.contains("tbl1"));
-    Assert.assertTrue(tblSet.contains("tbl2"));
+    Assertions.assertThat(tblSet).hasSize(2).contains("tbl1").contains("tbl2");
 
     List<TableIdentifier> tbls2 = catalog.listTables(Namespace.of("db", "ns1"));
-    Assert.assertEquals("table identifiers", 1, tbls2.size());
-    Assert.assertEquals("table name", "tbl3", tbls2.get(0).name());
+    Assertions.assertThat(tbls2).hasSize(1);
+    Assertions.assertThat(tbls2.get(0).name()).isEqualTo("tbl3");
 
-    AssertHelpers.assertThrows(
-        "should throw exception",
-        NoSuchNamespaceException.class,
-        "Namespace does not exist: ",
-        () -> {
-          catalog.listTables(Namespace.of("db", "ns1", "ns2"));
-        });
+    Assertions.assertThatThrownBy(() -> catalog.listTables(Namespace.of("db", "ns1", "ns2")))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Namespace does not exist: db.ns1.ns2");
   }
 
   @Test
@@ -300,14 +331,15 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     create.table().locationProvider(); // NPE triggered if not handled appropriately
     create.commitTransaction();
 
-    Assert.assertEquals(
-        "1 table expected", 1, catalog.listTables(Namespace.of("ns1", "ns2")).size());
+    Assertions.assertThat(catalog.listTables(Namespace.of("ns1", "ns2")))
+        .as("1 table expected")
+        .hasSize(1);
     catalog.dropTable(tableIdent, true);
   }
 
   @Test
   public void testCreateNamespace() throws Exception {
-    String warehouseLocation = temp.newFolder().getAbsolutePath();
+    String warehouseLocation = tableDir.getAbsolutePath();
     HadoopCatalog catalog = new HadoopCatalog();
     catalog.setConf(new Configuration());
     catalog.initialize(
@@ -320,19 +352,15 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
     String metaLocation1 = warehouseLocation + "/" + "db/ns1/ns2";
     FileSystem fs1 = Util.getFs(new Path(metaLocation1), catalog.getConf());
-    Assert.assertTrue(fs1.isDirectory(new Path(metaLocation1)));
+    Assertions.assertThat(fs1.isDirectory(new Path(metaLocation1))).isTrue();
 
     String metaLocation2 = warehouseLocation + "/" + "db/ns2/ns3";
     FileSystem fs2 = Util.getFs(new Path(metaLocation2), catalog.getConf());
-    Assert.assertTrue(fs2.isDirectory(new Path(metaLocation2)));
+    Assertions.assertThat(fs2.isDirectory(new Path(metaLocation2))).isTrue();
 
-    AssertHelpers.assertThrows(
-        "Should fail to create when namespace already exist: " + tbl1.namespace(),
-        org.apache.iceberg.exceptions.AlreadyExistsException.class,
-        "Namespace already exists: " + tbl1.namespace(),
-        () -> {
-          catalog.createNamespace(tbl1.namespace());
-        });
+    Assertions.assertThatThrownBy(() -> catalog.createNamespace(tbl1.namespace()))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessage("Namespace already exists: " + tbl1.namespace());
   }
 
   @Test
@@ -350,34 +378,27 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
     List<Namespace> nsp1 = catalog.listNamespaces(Namespace.of("db"));
     Set<String> tblSet = Sets.newHashSet(nsp1.stream().map(t -> t.toString()).iterator());
-    Assert.assertEquals(3, tblSet.size());
-    Assert.assertTrue(tblSet.contains("db.ns1"));
-    Assert.assertTrue(tblSet.contains("db.ns2"));
-    Assert.assertTrue(tblSet.contains("db.ns3"));
+    Assertions.assertThat(tblSet)
+        .hasSize(3)
+        .contains("db.ns1")
+        .contains("db.ns2")
+        .contains("db.ns3");
 
     List<Namespace> nsp2 = catalog.listNamespaces(Namespace.of("db", "ns1"));
-    Assert.assertEquals(1, nsp2.size());
-    Assert.assertTrue(nsp2.get(0).toString().equals("db.ns1.ns2"));
+    Assertions.assertThat(nsp2).hasSize(1);
+    Assertions.assertThat(nsp2.get(0).toString()).isEqualTo("db.ns1.ns2");
 
     List<Namespace> nsp3 = catalog.listNamespaces();
     Set<String> tblSet2 = Sets.newHashSet(nsp3.stream().map(t -> t.toString()).iterator());
-    Assert.assertEquals(2, tblSet2.size());
-    Assert.assertTrue(tblSet2.contains("db"));
-    Assert.assertTrue(tblSet2.contains("db2"));
+    Assertions.assertThat(tblSet2).hasSize(2).contains("db").contains("db2");
 
     List<Namespace> nsp4 = catalog.listNamespaces();
     Set<String> tblSet3 = Sets.newHashSet(nsp4.stream().map(t -> t.toString()).iterator());
-    Assert.assertEquals(2, tblSet3.size());
-    Assert.assertTrue(tblSet3.contains("db"));
-    Assert.assertTrue(tblSet3.contains("db2"));
+    Assertions.assertThat(tblSet3).hasSize(2).contains("db").contains("db2");
 
-    AssertHelpers.assertThrows(
-        "Should fail to list namespace doesn't exist",
-        NoSuchNamespaceException.class,
-        "Namespace does not exist: ",
-        () -> {
-          catalog.listNamespaces(Namespace.of("db", "db2", "ns2"));
-        });
+    Assertions.assertThatThrownBy(() -> catalog.listNamespaces(Namespace.of("db", "db2", "ns2")))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Namespace does not exist: db.db2.ns2");
   }
 
   @Test
@@ -393,13 +414,10 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
         .forEach(t -> catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned()));
     catalog.loadNamespaceMetadata(Namespace.of("db"));
 
-    AssertHelpers.assertThrows(
-        "Should fail to load namespace doesn't exist",
-        NoSuchNamespaceException.class,
-        "Namespace does not exist: ",
-        () -> {
-          catalog.loadNamespaceMetadata(Namespace.of("db", "db2", "ns2"));
-        });
+    Assertions.assertThatThrownBy(
+            () -> catalog.loadNamespaceMetadata(Namespace.of("db", "db2", "ns2")))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Namespace does not exist: db.db2.ns2");
   }
 
   @Test
@@ -413,30 +431,28 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
     Lists.newArrayList(tbl1, tbl2, tbl3, tbl4)
         .forEach(t -> catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned()));
-    Assert.assertTrue(
-        "Should true to namespace exist",
-        catalog.namespaceExists(Namespace.of("db", "ns1", "ns2")));
-    Assert.assertTrue(
-        "Should false to namespace doesn't exist",
-        !catalog.namespaceExists(Namespace.of("db", "db2", "ns2")));
+    Assertions.assertThat(catalog.namespaceExists(Namespace.of("db", "ns1", "ns2")))
+        .as("Should be true as namespace exists")
+        .isTrue();
+    Assertions.assertThat(catalog.namespaceExists(Namespace.of("db", "db2", "ns2")))
+        .as("Should be false as namespace doesn't exist")
+        .isFalse();
   }
 
   @Test
   public void testAlterNamespaceMeta() throws IOException {
     HadoopCatalog catalog = hadoopCatalog();
-    AssertHelpers.assertThrows(
-        "Should fail to change namespace",
-        UnsupportedOperationException.class,
-        "Cannot set namespace properties db.db2.ns2 : setProperties is not supported",
-        () -> {
-          catalog.setProperties(
-              Namespace.of("db", "db2", "ns2"), ImmutableMap.of("property", "test"));
-        });
+    Assertions.assertThatThrownBy(
+            () ->
+                catalog.setProperties(
+                    Namespace.of("db", "db2", "ns2"), ImmutableMap.of("property", "test")))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot set namespace properties db.db2.ns2 : setProperties is not supported");
   }
 
   @Test
   public void testDropNamespace() throws IOException {
-    String warehouseLocation = temp.newFolder().getAbsolutePath();
+    String warehouseLocation = tableDir.getAbsolutePath();
     HadoopCatalog catalog = new HadoopCatalog();
     catalog.setConf(new Configuration());
     catalog.initialize(
@@ -450,22 +466,19 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     Lists.newArrayList(tbl1, tbl2)
         .forEach(t -> catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned()));
 
-    AssertHelpers.assertThrows(
-        "Should fail to drop namespace is not empty " + namespace1,
-        NamespaceNotEmptyException.class,
-        "Namespace " + namespace1 + " is not empty.",
-        () -> {
-          catalog.dropNamespace(Namespace.of("db"));
-        });
-    Assert.assertFalse(
-        "Should fail to drop namespace doesn't exist", catalog.dropNamespace(Namespace.of("db2")));
-    Assert.assertTrue(catalog.dropTable(tbl1));
-    Assert.assertTrue(catalog.dropTable(tbl2));
-    Assert.assertTrue(catalog.dropNamespace(namespace2));
-    Assert.assertTrue(catalog.dropNamespace(namespace1));
+    Assertions.assertThatThrownBy(() -> catalog.dropNamespace(Namespace.of("db")))
+        .isInstanceOf(NamespaceNotEmptyException.class)
+        .hasMessage("Namespace " + namespace1 + " is not empty.");
+    Assertions.assertThat(catalog.dropNamespace(Namespace.of("db2")))
+        .as("Should fail to drop namespace that doesn't exist")
+        .isFalse();
+    Assertions.assertThat(catalog.dropTable(tbl1)).isTrue();
+    Assertions.assertThat(catalog.dropTable(tbl2)).isTrue();
+    Assertions.assertThat(catalog.dropNamespace(namespace2)).isTrue();
+    Assertions.assertThat(catalog.dropNamespace(namespace1)).isTrue();
     String metaLocation = warehouseLocation + "/" + "db";
     FileSystem fs = Util.getFs(new Path(metaLocation), catalog.getConf());
-    Assert.assertFalse(fs.isDirectory(new Path(metaLocation)));
+    Assertions.assertThat(fs.isDirectory(new Path(metaLocation))).isFalse();
   }
 
   @Test
@@ -485,9 +498,9 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     }
 
     // Check the result of the findVersion(), and load the table and check the current snapshotId
-    Assert.assertEquals(1, tableOperations.findVersion());
-    Assert.assertEquals(
-        secondSnapshotId, TABLES.load(tableLocation).currentSnapshot().snapshotId());
+    Assertions.assertThat(tableOperations.findVersion()).isEqualTo(1);
+    Assertions.assertThat(TABLES.load(tableLocation).currentSnapshot().snapshotId())
+        .isEqualTo(secondSnapshotId);
 
     // Write newer data to confirm that we are writing the correct file
     io.deleteFile(versionHintFile.getPath());
@@ -496,26 +509,26 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     }
 
     // Check the result of the findVersion(), and load the table and check the current snapshotId
-    Assert.assertEquals(3, tableOperations.findVersion());
-    Assert.assertEquals(
-        secondSnapshotId, TABLES.load(tableLocation).currentSnapshot().snapshotId());
+    Assertions.assertThat(tableOperations.findVersion()).isEqualTo(3);
+    Assertions.assertThat(TABLES.load(tableLocation).currentSnapshot().snapshotId())
+        .isEqualTo(secondSnapshotId);
 
     // Write an empty version hint file
     io.deleteFile(versionHintFile.getPath());
     io.newOutputFile(versionHintFile.getPath()).create().close();
 
     // Check the result of the findVersion(), and load the table and check the current snapshotId
-    Assert.assertEquals(3, tableOperations.findVersion());
-    Assert.assertEquals(
-        secondSnapshotId, TABLES.load(tableLocation).currentSnapshot().snapshotId());
+    Assertions.assertThat(tableOperations.findVersion()).isEqualTo(3);
+    Assertions.assertThat(TABLES.load(tableLocation).currentSnapshot().snapshotId())
+        .isEqualTo(secondSnapshotId);
 
     // Just delete the file
     io.deleteFile(versionHintFile.getPath());
 
     // Check the result of the versionHint(), and load the table and check the current snapshotId
-    Assert.assertEquals(3, tableOperations.findVersion());
-    Assert.assertEquals(
-        secondSnapshotId, TABLES.load(tableLocation).currentSnapshot().snapshotId());
+    Assertions.assertThat(tableOperations.findVersion()).isEqualTo(3);
+    Assertions.assertThat(TABLES.load(tableLocation).currentSnapshot().snapshotId())
+        .isEqualTo(secondSnapshotId);
   }
 
   @Test
@@ -535,9 +548,9 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     io.deleteFile(tableOperations.getMetadataFile(1).toString());
 
     // Check the result of the findVersion(), and load the table and check the current snapshotId
-    Assert.assertEquals(3, tableOperations.findVersion());
-    Assert.assertEquals(
-        secondSnapshotId, TABLES.load(tableLocation).currentSnapshot().snapshotId());
+    Assertions.assertThat(tableOperations.findVersion()).isEqualTo(3);
+    Assertions.assertThat(TABLES.load(tableLocation).currentSnapshot().snapshotId())
+        .isEqualTo(secondSnapshotId);
 
     // Remove all the version files, and see if we can recover. Hint... not :)
     io.deleteFile(tableOperations.getMetadataFile(2).toString());
@@ -545,12 +558,10 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
     // Check that we got 0 findVersion, and a NoSuchTableException is thrown when trying to load the
     // table
-    Assert.assertEquals(0, tableOperations.findVersion());
-    AssertHelpers.assertThrows(
-        "Should not be able to find the table",
-        NoSuchTableException.class,
-        "Table does not exist",
-        () -> TABLES.load(tableLocation));
+    Assertions.assertThat(tableOperations.findVersion()).isEqualTo(0);
+    Assertions.assertThatThrownBy(() -> TABLES.load(tableLocation))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageStartingWith("Table does not exist");
   }
 
   @Test
@@ -560,13 +571,12 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     catalog.buildTable(tableIdent, SCHEMA).withPartitionSpec(SPEC).create();
 
     Table table = catalog.loadTable(tableIdent);
-    Assert.assertEquals("Name must match", "hadoop.db.ns1.ns2.tbl", table.name());
+    Assertions.assertThat(table.name()).isEqualTo("hadoop.db.ns1.ns2.tbl");
 
     TableIdentifier snapshotsTableIdent =
         TableIdentifier.of("db", "ns1", "ns2", "tbl", "snapshots");
     Table snapshotsTable = catalog.loadTable(snapshotsTableIdent);
-    Assert.assertEquals(
-        "Name must match", "hadoop.db.ns1.ns2.tbl.snapshots", snapshotsTable.name());
+    Assertions.assertThat(snapshotsTable.name()).isEqualTo("hadoop.db.ns1.ns2.tbl.snapshots");
   }
 
   private static void addVersionsToTable(Table table) {
@@ -609,28 +619,25 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
             .withProperty("key5", "table-key5")
             .create();
 
-    Assert.assertEquals(
-        "Table defaults set for the catalog must be added to the table properties.",
-        "catalog-default-key1",
-        table.properties().get("key1"));
-    Assert.assertEquals(
-        "Table property must override table default properties set at catalog level.",
-        "table-key2",
-        table.properties().get("key2"));
-    Assert.assertEquals(
-        "Table property override set at catalog level must override table default"
-            + " properties set at catalog level and table property specified.",
-        "catalog-override-key3",
-        table.properties().get("key3"));
-    Assert.assertEquals(
-        "Table override not in table props or defaults should be added to table properties",
-        "catalog-override-key4",
-        table.properties().get("key4"));
-    Assert.assertEquals(
-        "Table properties without any catalog level default or override should be added to table"
-            + " properties.",
-        "table-key5",
-        table.properties().get("key5"));
+    Assertions.assertThat(table.properties().get("key1"))
+        .as("Table defaults set for the catalog must be added to the table properties.")
+        .isEqualTo("catalog-default-key1");
+    Assertions.assertThat(table.properties().get("key2"))
+        .as("Table property must override table default properties set at catalog level.")
+        .isEqualTo("table-key2");
+    Assertions.assertThat(table.properties().get("key3"))
+        .as(
+            "Table property override set at catalog level must override table default"
+                + " properties set at catalog level and table property specified.")
+        .isEqualTo("catalog-override-key3");
+    Assertions.assertThat(table.properties().get("key4"))
+        .as("Table override not in table props or defaults should be added to table properties")
+        .isEqualTo("catalog-override-key4");
+    Assertions.assertThat(table.properties().get("key5"))
+        .as(
+            "Table properties without any catalog level default or override should be added to table"
+                + " properties.")
+        .isEqualTo("table-key5");
   }
 
   @Test

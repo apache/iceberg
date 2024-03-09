@@ -18,8 +18,7 @@
  */
 package org.apache.iceberg.gcp.gcs;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
@@ -31,7 +30,7 @@ import java.util.UUID;
 import java.util.stream.Stream;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.metrics.MetricsContext;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -70,11 +69,11 @@ public class GCSOutputStreamTest {
         new GCSOutputStream(client, uri, properties, MetricsContext.nullMetrics())) {
       if (arrayWrite) {
         stream.write(data);
-        assertEquals(data.length, stream.getPos());
+        assertThat(stream.getPos()).isEqualTo(data.length);
       } else {
         for (int i = 0; i < data.length; i++) {
           stream.write(data[i]);
-          assertEquals(i + 1, stream.getPos());
+          assertThat(stream.getPos()).isEqualTo(i + 1);
         }
       }
     } catch (IOException e) {
@@ -82,7 +81,7 @@ public class GCSOutputStreamTest {
     }
 
     byte[] actual = readGCSData(uri);
-    assertArrayEquals(data, actual);
+    assertThat(actual).isEqualTo(data);
   }
 
   private byte[] readGCSData(BlobId blobId) {

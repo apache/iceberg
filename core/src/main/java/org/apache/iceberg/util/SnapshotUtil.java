@@ -27,7 +27,9 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.HistoryEntry;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -149,8 +151,8 @@ public class SnapshotUtil {
   }
 
   /**
-   * Traverses the history of the table's current snapshot and finds the first snapshot committed
-   * after the given time.
+   * Traverses the history of the table's current snapshot, finds the oldest snapshot that was
+   * committed either at or after a given time.
    *
    * @param table a table
    * @param timestampMillis a timestamp in milliseconds
@@ -235,6 +237,10 @@ public class SnapshotUtil {
             public boolean hasNext() {
               if (!consumed) {
                 return true;
+              }
+
+              if (next == null) {
+                return false;
               }
 
               Long parentId = next.parentId();
@@ -331,6 +337,17 @@ public class SnapshotUtil {
    *     timestamp
    */
   public static long snapshotIdAsOfTime(Table table, long timestampMillis) {
+    Long snapshotId = nullableSnapshotIdAsOfTime(table, timestampMillis);
+
+    Preconditions.checkArgument(
+        snapshotId != null,
+        "Cannot find a snapshot older than %s",
+        DateTimeUtil.formatTimestampMillis(timestampMillis));
+
+    return snapshotId;
+  }
+
+  public static Long nullableSnapshotIdAsOfTime(Table table, long timestampMillis) {
     Long snapshotId = null;
     for (HistoryEntry logEntry : table.history()) {
       if (logEntry.timestampMillis() <= timestampMillis) {
@@ -338,10 +355,6 @@ public class SnapshotUtil {
       }
     }
 
-    Preconditions.checkArgument(
-        snapshotId != null,
-        "Cannot find a snapshot older than %s",
-        DateTimeUtil.formatTimestampMillis(timestampMillis));
     return snapshotId;
   }
 
@@ -393,5 +406,100 @@ public class SnapshotUtil {
     }
 
     return table.schema();
+  }
+
+  /**
+   * Return the schema of the snapshot at a given ref.
+   *
+   * <p>If the ref does not exist or the ref is a branch, the table schema is returned because it
+   * will be the schema when the new branch is created. If the ref is a tag, then the snapshot
+   * schema is returned.
+   *
+   * @param table a {@link Table}
+   * @param ref ref name of the table (nullable)
+   * @return schema of the specific snapshot at the given ref
+   */
+  public static Schema schemaFor(Table table, String ref) {
+    if (ref == null || ref.equals(SnapshotRef.MAIN_BRANCH)) {
+      return table.schema();
+    }
+
+    SnapshotRef snapshotRef = table.refs().get(ref);
+    if (null == snapshotRef || snapshotRef.isBranch()) {
+      return table.schema();
+    }
+
+    return schemaFor(table, snapshotRef.snapshotId());
+  }
+
+  /**
+   * Return the schema of the snapshot at a given ref.
+   *
+   * <p>If the ref does not exist or the ref is a branch, the table schema is returned because it
+   * will be the schema when the new branch is created. If the ref is a tag, then the snapshot
+   * schema is returned.
+   *
+   * @param metadata a {@link TableMetadata}
+   * @param ref ref name of the table (nullable)
+   * @return schema of the specific snapshot at the given branch
+   */
+  public static Schema schemaFor(TableMetadata metadata, String ref) {
+    if (ref == null || ref.equals(SnapshotRef.MAIN_BRANCH)) {
+      return metadata.schema();
+    }
+
+    SnapshotRef snapshotRef = metadata.ref(ref);
+    if (snapshotRef == null || snapshotRef.isBranch()) {
+      return metadata.schema();
+    }
+
+    Snapshot snapshot = metadata.snapshot(snapshotRef.snapshotId());
+    return metadata.schemas().get(snapshot.schemaId());
+  }
+
+  /**
+   * Fetch the snapshot at the head of the given branch in the given table.
+   *
+   * <p>This method calls {@link Table#currentSnapshot()} instead of using branch API {@link
+   * Table#snapshot(String)} for the main branch so that existing code still goes through the old
+   * code path to ensure backwards compatibility.
+   *
+   * @param table a {@link Table}
+   * @param branch branch name of the table (nullable)
+   * @return the latest snapshot for the given branch
+   */
+  public static Snapshot latestSnapshot(Table table, String branch) {
+    if (branch == null || branch.equals(SnapshotRef.MAIN_BRANCH)) {
+      return table.currentSnapshot();
+    }
+
+    return table.snapshot(branch);
+  }
+
+  /**
+   * Fetch the snapshot at the head of the given branch in the given table.
+   *
+   * <p>This method calls {@link TableMetadata#currentSnapshot()} instead of using branch API {@link
+   * TableMetadata#ref(String)}} for the main branch so that existing code still goes through the
+   * old code path to ensure backwards compatibility.
+   *
+   * <p>If branch does not exist, the table's latest snapshot is returned it will be the schema when
+   * the new branch is created.
+   *
+   * @param metadata a {@link TableMetadata}
+   * @param branch branch name of the table metadata (nullable)
+   * @return the latest snapshot for the given branch
+   */
+  public static Snapshot latestSnapshot(TableMetadata metadata, String branch) {
+    if (branch == null || branch.equals(SnapshotRef.MAIN_BRANCH)) {
+      return metadata.currentSnapshot();
+    }
+
+    SnapshotRef ref = metadata.ref(branch);
+    if (ref == null) {
+      return metadata.currentSnapshot();
+    }
+
+    return metadata.snapshot(ref.snapshotId());
   }
 }

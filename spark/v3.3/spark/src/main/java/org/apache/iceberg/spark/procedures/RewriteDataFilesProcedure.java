@@ -67,7 +67,8 @@ class RewriteDataFilesProcedure extends BaseProcedure {
             new StructField(
                 "rewritten_data_files_count", DataTypes.IntegerType, false, Metadata.empty()),
             new StructField(
-                "added_data_files_count", DataTypes.IntegerType, false, Metadata.empty())
+                "added_data_files_count", DataTypes.IntegerType, false, Metadata.empty()),
+            new StructField("rewritten_bytes_count", DataTypes.LongType, false, Metadata.empty())
           });
 
   public static ProcedureBuilder builder() {
@@ -133,7 +134,7 @@ class RewriteDataFilesProcedure extends BaseProcedure {
             SparkExpressionConverter.collectResolvedSparkExpression(spark(), tableName, where);
         return action.filter(SparkExpressionConverter.convertToIcebergExpression(expression));
       } catch (AnalysisException e) {
-        throw new IllegalArgumentException("Cannot parse predicates in where option: " + where);
+        throw new IllegalArgumentException("Cannot parse predicates in where option: " + where, e);
       }
     }
     return action;
@@ -183,8 +184,10 @@ class RewriteDataFilesProcedure extends BaseProcedure {
                 .flatMap(zOrder -> zOrder.refs().stream().map(NamedReference::name))
                 .toArray(String[]::new);
         return action.zOrder(columnNames);
-      } else {
+      } else if (!sortOrderFields.isEmpty()) {
         return action.sort(buildSortOrder(sortOrderFields, schema));
+      } else {
+        return action.sort();
       }
     }
     if (strategy.equalsIgnoreCase("binpack")) {
@@ -211,8 +214,10 @@ class RewriteDataFilesProcedure extends BaseProcedure {
 
   private InternalRow[] toOutputRows(RewriteDataFiles.Result result) {
     int rewrittenDataFilesCount = result.rewrittenDataFilesCount();
+    long rewrittenBytesCount = result.rewrittenBytesCount();
     int addedDataFilesCount = result.addedDataFilesCount();
-    InternalRow row = newInternalRow(rewrittenDataFilesCount, addedDataFilesCount);
+    InternalRow row =
+        newInternalRow(rewrittenDataFilesCount, addedDataFilesCount, rewrittenBytesCount);
     return new InternalRow[] {row};
   }
 

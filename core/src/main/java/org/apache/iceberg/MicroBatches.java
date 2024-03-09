@@ -28,6 +28,7 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.Pair;
 import org.slf4j.Logger;
@@ -35,6 +36,96 @@ import org.slf4j.LoggerFactory;
 
 public class MicroBatches {
   private MicroBatches() {}
+
+  public static List<Pair<ManifestFile, Integer>> skippedManifestIndexesFromSnapshot(
+      FileIO io, Snapshot snapshot, long startFileIndex, boolean scanAllFiles) {
+    List<ManifestFile> manifests =
+        scanAllFiles
+            ? snapshot.dataManifests(io)
+            : snapshot.dataManifests(io).stream()
+                .filter(m -> m.snapshotId().equals(snapshot.snapshotId()))
+                .collect(Collectors.toList());
+
+    List<Pair<ManifestFile, Integer>> manifestIndexes = indexManifests(manifests);
+
+    return skipManifests(manifestIndexes, startFileIndex);
+  }
+
+  public static CloseableIterable<FileScanTask> openManifestFile(
+      FileIO io,
+      Map<Integer, PartitionSpec> specsById,
+      boolean caseSensitive,
+      Snapshot snapshot,
+      ManifestFile manifestFile,
+      boolean scanAllFiles) {
+
+    ManifestGroup manifestGroup =
+        new ManifestGroup(io, ImmutableList.of(manifestFile))
+            .specsById(specsById)
+            .caseSensitive(caseSensitive);
+    if (!scanAllFiles) {
+      manifestGroup =
+          manifestGroup
+              .filterManifestEntries(
+                  entry ->
+                      entry.snapshotId() == snapshot.snapshotId()
+                          && entry.status() == ManifestEntry.Status.ADDED)
+              .ignoreDeleted();
+    }
+
+    return manifestGroup.planFiles();
+  }
+
+  /**
+   * Method to index the data files for each manifest. For example, if manifest m1 has 3 data files,
+   * manifest m2 has 2 data files, manifest m3 has 1 data file, then the index will be (m1, 0), (m2,
+   * 3), (m3, 5).
+   *
+   * @param manifestFiles List of input manifests used to index.
+   * @return a list pairing each manifest with the index number of the first data file entry in that
+   *     manifest.
+   */
+  private static List<Pair<ManifestFile, Integer>> indexManifests(
+      List<ManifestFile> manifestFiles) {
+    int currentFileIndex = 0;
+    List<Pair<ManifestFile, Integer>> manifestIndexes = Lists.newArrayList();
+
+    for (ManifestFile manifest : manifestFiles) {
+      manifestIndexes.add(Pair.of(manifest, currentFileIndex));
+      currentFileIndex += manifest.addedFilesCount() + manifest.existingFilesCount();
+    }
+
+    return manifestIndexes;
+  }
+
+  /**
+   * Method to skip the manifest file whose index is smaller than startFileIndex. For example, if
+   * the index list is : (m1, 0), (m2, 3), (m3, 5), and startFileIndex is 4, then the returned
+   * manifest index list is: (m2, 3), (m3, 5).
+   *
+   * @param indexedManifests List of input manifests.
+   * @param startFileIndex Index used to skip all manifests with an index less than or equal to this
+   *     value.
+   * @return a sub-list of manifest file index which only contains the manifest indexes larger than
+   *     the startFileIndex.
+   */
+  private static List<Pair<ManifestFile, Integer>> skipManifests(
+      List<Pair<ManifestFile, Integer>> indexedManifests, long startFileIndex) {
+    if (startFileIndex == 0) {
+      return indexedManifests;
+    }
+
+    int manifestIndex = 0;
+    for (Pair<ManifestFile, Integer> manifest : indexedManifests) {
+      if (manifest.second() > startFileIndex) {
+        break;
+      }
+
+      manifestIndex++;
+    }
+
+    return indexedManifests.subList(Math.max(manifestIndex - 1, 0), indexedManifests.size());
+  }
 
   public static class MicroBatch {
     private final long snapshotId;
@@ -113,73 +204,27 @@ public class MicroBatches {
     }
 
     public MicroBatch generate(long startFileIndex, long targetSizeInBytes, boolean scanAllFiles) {
+      return generate(
+          startFileIndex,
+          Iterables.size(snapshot.addedDataFiles(io)),
+          targetSizeInBytes,
+          scanAllFiles);
+    }
+
+    public MicroBatch generate(
+        long startFileIndex, long endFileIndex, long targetSizeInBytes, boolean scanAllFiles) {
+      Preconditions.checkArgument(endFileIndex >= 0, "endFileIndex is unexpectedly smaller than 0");
       Preconditions.checkArgument(
           startFileIndex >= 0, "startFileIndex is unexpectedly smaller than 0");
       Preconditions.checkArgument(
           targetSizeInBytes > 0, "targetSizeInBytes should be larger than 0");
 
-      List<ManifestFile> manifests =
-          scanAllFiles
-              ? snapshot.dataManifests(io)
-              : snapshot.dataManifests(io).stream()
-                  .filter(m -> m.snapshotId().equals(snapshot.snapshotId()))
-                  .collect(Collectors.toList());
-
-      List<Pair<ManifestFile, Integer>> manifestIndexes = indexManifests(manifests);
-      List<Pair<ManifestFile, Integer>> skippedManifestIndexes =
-          skipManifests(manifestIndexes, startFileIndex);
-
       return generateMicroBatch(
-          skippedManifestIndexes, startFileIndex, targetSizeInBytes, scanAllFiles);
-    }
-
-    /**
-     * Method to index the data files for each manifest. For example, if manifest m1 has 3 data
-     * files, manifest m2 has 2 data files, manifest m3 has 1 data file, then the index will be (m1,
-     * 0), (m2, 3), (m3, 5).
-     *
-     * @param manifestFiles List of input manifests used to index.
-     * @return a list of manifest index with key as manifest file, value as file counts.
-     */
-    private static List<Pair<ManifestFile, Integer>> indexManifests(
-        List<ManifestFile> manifestFiles) {
-      int currentFileIndex = 0;
-      List<Pair<ManifestFile, Integer>> manifestIndexes = Lists.newArrayList();
-
-      for (ManifestFile manifest : manifestFiles) {
-        manifestIndexes.add(Pair.of(manifest, currentFileIndex));
-        currentFileIndex += manifest.addedFilesCount() + manifest.existingFilesCount();
-      }
-
-      return manifestIndexes;
-    }
-
-    /**
-     * Method to skip the manifest file in which the index is smaller than startFileIndex. For
-     * example, if the index list is : (m1, 0), (m2, 3), (m3, 5), and startFileIndex is 4, then the
-     * returned manifest index list is: (m2, 3), (m3, 5).
-     *
-     * @param indexedManifests List of input manifests.
-     * @param startFileIndex Index used to skip the processed manifests.
-     * @return a sub-list of manifest file index which only contains the manifest indexes larger
-     *     than the startFileIndex.
-     */
-    private static List<Pair<ManifestFile, Integer>> skipManifests(
-        List<Pair<ManifestFile, Integer>> indexedManifests, long startFileIndex) {
-      if (startFileIndex == 0) {
-        return indexedManifests;
-      }
-
-      int manifestIndex = 0;
-      for (Pair<ManifestFile, Integer> manifest : indexedManifests) {
-        if (manifest.second() > startFileIndex) {
-          break;
-        }
-
-        manifestIndex++;
-      }
-
-      return indexedManifests.subList(manifestIndex - 1, indexedManifests.size());
+          skippedManifestIndexesFromSnapshot(io, snapshot, startFileIndex, scanAllFiles),
+          startFileIndex,
+          endFileIndex,
+          targetSizeInBytes,
+          scanAllFiles);
     }
 
     /**
@@ -188,25 +233,23 @@ public class MicroBatches {
      *
      * @param indexedManifests A list of indexed manifests to generate MicroBatch
      * @param startFileIndex A startFileIndex used to skip processed files.
+     * @param endFileIndex An endFileIndex used to find files to include, exclusive.
      * @param targetSizeInBytes Used to control the size of MicroBatch, the processed file bytes
      *     must be smaller than this size.
      * @param scanAllFiles Used to check whether all the data files should be processed, or only
      *     added files.
      * @return A MicroBatch.
      */
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     private MicroBatch generateMicroBatch(
         List<Pair<ManifestFile, Integer>> indexedManifests,
         long startFileIndex,
+        long endFileIndex,
         long targetSizeInBytes,
         boolean scanAllFiles) {
       if (indexedManifests.isEmpty()) {
         return new MicroBatch(
-            snapshot.snapshotId(),
-            startFileIndex,
-            startFileIndex + 1,
-            0L,
-            Collections.emptyList(),
-            true);
+            snapshot.snapshotId(), startFileIndex, endFileIndex, 0L, Collections.emptyList(), true);
       }
 
       long currentSizeInBytes = 0L;
@@ -218,11 +261,18 @@ public class MicroBatches {
         currentFileIndex = indexedManifests.get(idx).second();
 
         try (CloseableIterable<FileScanTask> taskIterable =
-                open(indexedManifests.get(idx).first(), scanAllFiles);
+                openManifestFile(
+                    io,
+                    specsById,
+                    caseSensitive,
+                    snapshot,
+                    indexedManifests.get(idx).first(),
+                    scanAllFiles);
             CloseableIterator<FileScanTask> taskIter = taskIterable.iterator()) {
           while (taskIter.hasNext()) {
             FileScanTask task = taskIter.next();
-            if (currentFileIndex >= startFileIndex) {
+            // want to read [startFileIndex ... endFileIndex)
+            if (currentFileIndex >= startFileIndex && currentFileIndex < endFileIndex) {
               // Make sure there's at least one task in each MicroBatch to void job to be stuck,
               // always add task
               // firstly.
@@ -231,7 +281,7 @@ public class MicroBatches {
             }
 
             currentFileIndex++;
-            if (currentSizeInBytes >= targetSizeInBytes) {
+            if (currentSizeInBytes >= targetSizeInBytes || currentFileIndex >= endFileIndex) {
               break;
             }
           }
@@ -259,6 +309,7 @@ public class MicroBatches {
         }
       }
 
+      // [startFileIndex ....currentFileIndex)
       return new MicroBatch(
           snapshot.snapshotId(),
           startFileIndex,
@@ -266,24 +317,6 @@ public class MicroBatches {
           currentSizeInBytes,
           tasks,
           isLastIndex);
-    }
-
-    private CloseableIterable<FileScanTask> open(ManifestFile manifestFile, boolean scanAllFiles) {
-      ManifestGroup manifestGroup =
-          new ManifestGroup(io, ImmutableList.of(manifestFile))
-              .specsById(specsById)
-              .caseSensitive(caseSensitive);
-      if (!scanAllFiles) {
-        manifestGroup =
-            manifestGroup
-                .filterManifestEntries(
-                    entry ->
-                        entry.snapshotId() == snapshot.snapshotId()
-                            && entry.status() == ManifestEntry.Status.ADDED)
-                .ignoreDeleted();
-      }
-
-      return manifestGroup.planFiles();
     }
   }
 }

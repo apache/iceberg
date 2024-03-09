@@ -25,7 +25,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.StringWriter;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.List;
@@ -110,6 +109,7 @@ public class TableMetadataParser {
   static final String METADATA_FILE = "metadata-file";
   static final String METADATA_LOG = "metadata-log";
   static final String STATISTICS = "statistics";
+  static final String PARTITION_STATISTICS = "partition-statistics";
 
   public static void overwrite(TableMetadata metadata, OutputFile outputFile) {
     internalWrite(metadata, outputFile, true);
@@ -232,6 +232,12 @@ public class TableMetadataParser {
     }
     generator.writeEndArray();
 
+    generator.writeArrayFieldStart(PARTITION_STATISTICS);
+    for (PartitionStatisticsFile partitionStatisticsFile : metadata.partitionStatisticsFiles()) {
+      PartitionStatisticsFileParser.toJson(partitionStatisticsFile, generator);
+    }
+    generator.writeEndArray();
+
     generator.writeArrayFieldStart(SNAPSHOT_LOG);
     for (HistoryEntry logEntry : metadata.snapshotLog()) {
       generator.writeStartObject();
@@ -297,15 +303,10 @@ public class TableMetadataParser {
    * @return a TableMetadata object
    */
   public static TableMetadata fromJson(String metadataLocation, String json) {
-    try {
-      JsonNode node = JsonUtil.mapper().readValue(json, JsonNode.class);
-      return fromJson(metadataLocation, node);
-    } catch (IOException e) {
-      throw new UncheckedIOException("Failed to read JSON string: " + json, e);
-    }
+    return JsonUtil.parse(json, node -> TableMetadataParser.fromJson(metadataLocation, node));
   }
 
-  static TableMetadata fromJson(InputFile file, JsonNode node) {
+  public static TableMetadata fromJson(InputFile file, JsonNode node) {
     return fromJson(file.location(), node);
   }
 
@@ -314,7 +315,7 @@ public class TableMetadataParser {
   }
 
   @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:MethodLength"})
-  static TableMetadata fromJson(String metadataLocation, JsonNode node) {
+  public static TableMetadata fromJson(String metadataLocation, JsonNode node) {
     Preconditions.checkArgument(
         node.isObject(), "Cannot parse metadata from a non-object: %s", node);
 
@@ -426,7 +427,7 @@ public class TableMetadataParser {
       defaultSortOrderId = JsonUtil.getInt(DEFAULT_SORT_ORDER_ID, node);
       ImmutableList.Builder<SortOrder> sortOrdersBuilder = ImmutableList.builder();
       for (JsonNode sortOrder : sortOrderArray) {
-        sortOrdersBuilder.add(SortOrderParser.fromJson(schema, sortOrder));
+        sortOrdersBuilder.add(SortOrderParser.fromJson(schema, sortOrder, defaultSortOrderId));
       }
       sortOrders = sortOrdersBuilder.build();
     } else {
@@ -437,15 +438,26 @@ public class TableMetadataParser {
       defaultSortOrderId = defaultSortOrder.orderId();
     }
 
-    // parse properties map
-    Map<String, String> properties = JsonUtil.getStringMap(PROPERTIES, node);
-    long currentSnapshotId = JsonUtil.getLong(CURRENT_SNAPSHOT_ID, node);
+    Map<String, String> properties;
+    if (node.has(PROPERTIES)) {
+      // parse properties map
+      properties = JsonUtil.getStringMap(PROPERTIES, node);
+    } else {
+      properties = ImmutableMap.of();
+    }
+
+    Long currentSnapshotId = JsonUtil.getLongOrNull(CURRENT_SNAPSHOT_ID, node);
+    if (currentSnapshotId == null) {
+      // This field is optional, but internally we set this to -1 when not set
+      currentSnapshotId = -1L;
+    }
+
     long lastUpdatedMillis = JsonUtil.getLong(LAST_UPDATED_MILLIS, node);
 
     Map<String, SnapshotRef> refs;
     if (node.has(REFS)) {
       refs = refsFromJson(node.get(REFS));
-    } else if (currentSnapshotId != -1) {
+    } else if (currentSnapshotId != -1L) {
       // initialize the main branch if there are no refs
       refs =
           ImmutableMap.of(
@@ -454,14 +466,19 @@ public class TableMetadataParser {
       refs = ImmutableMap.of();
     }
 
-    JsonNode snapshotArray = JsonUtil.get(SNAPSHOTS, node);
-    Preconditions.checkArgument(
-        snapshotArray.isArray(), "Cannot parse snapshots from non-array: %s", snapshotArray);
+    List<Snapshot> snapshots;
+    if (node.has(SNAPSHOTS)) {
+      JsonNode snapshotArray = JsonUtil.get(SNAPSHOTS, node);
+      Preconditions.checkArgument(
+          snapshotArray.isArray(), "Cannot parse snapshots from non-array: %s", snapshotArray);
 
-    List<Snapshot> snapshots = Lists.newArrayListWithExpectedSize(snapshotArray.size());
-    Iterator<JsonNode> iterator = snapshotArray.elements();
-    while (iterator.hasNext()) {
-      snapshots.add(SnapshotParser.fromJson(iterator.next()));
+      snapshots = Lists.newArrayListWithExpectedSize(snapshotArray.size());
+      Iterator<JsonNode> iterator = snapshotArray.elements();
+      while (iterator.hasNext()) {
+        snapshots.add(SnapshotParser.fromJson(iterator.next()));
+      }
+    } else {
+      snapshots = ImmutableList.of();
     }
 
     List<StatisticsFile> statisticsFiles;
@@ -469,6 +486,13 @@ public class TableMetadataParser {
       statisticsFiles = statisticsFilesFromJson(node.get(STATISTICS));
     } else {
       statisticsFiles = ImmutableList.of();
+    }
+
+    List<PartitionStatisticsFile> partitionStatisticsFiles;
+    if (node.has(PARTITION_STATISTICS)) {
+      partitionStatisticsFiles = partitionStatsFilesFromJson(node.get(PARTITION_STATISTICS));
+    } else {
+      partitionStatisticsFiles = ImmutableList.of();
     }
 
     ImmutableList.Builder<HistoryEntry> entries = ImmutableList.builder();
@@ -513,10 +537,12 @@ public class TableMetadataParser {
         properties,
         currentSnapshotId,
         snapshots,
+        null,
         entries.build(),
         metadataEntries.build(),
         refs,
         statisticsFiles,
+        partitionStatisticsFiles,
         ImmutableList.of() /* no changes from the file */);
   }
 
@@ -549,5 +575,19 @@ public class TableMetadataParser {
     }
 
     return statisticsFilesBuilder.build();
+  }
+
+  private static List<PartitionStatisticsFile> partitionStatsFilesFromJson(JsonNode filesList) {
+    Preconditions.checkArgument(
+        filesList.isArray(),
+        "Cannot parse partition statistics files from non-array: %s",
+        filesList);
+
+    ImmutableList.Builder<PartitionStatisticsFile> statsFileBuilder = ImmutableList.builder();
+    for (JsonNode partitionStatsFile : filesList) {
+      statsFileBuilder.add(PartitionStatisticsFileParser.fromJson(partitionStatsFile));
+    }
+
+    return statsFileBuilder.build();
   }
 }

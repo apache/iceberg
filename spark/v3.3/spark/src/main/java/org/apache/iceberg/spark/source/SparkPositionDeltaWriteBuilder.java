@@ -59,6 +59,7 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
   SparkPositionDeltaWriteBuilder(
       SparkSession spark,
       Table table,
+      String branch,
       Command command,
       Scan scan,
       IsolationLevel isolationLevel,
@@ -68,7 +69,7 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
     this.command = command;
     this.scan = (SparkBatchQueryScan) scan;
     this.isolationLevel = isolationLevel;
-    this.writeConf = new SparkWriteConf(spark, table, info.options());
+    this.writeConf = new SparkWriteConf(spark, table, branch, info.options());
     this.info = info;
     this.handleTimestampWithoutZone = writeConf.handleTimestampWithoutZone();
     this.checkNullability = writeConf.checkNullability();

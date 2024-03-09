@@ -43,6 +43,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
@@ -70,6 +71,7 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
   protected final String fileFormat;
   protected final boolean vectorized;
   protected final String distributionMode;
+  protected final String branch;
 
   public SparkRowLevelOperationsTestBase(
       String catalogName,
@@ -77,17 +79,19 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
       Map<String, String> config,
       String fileFormat,
       boolean vectorized,
-      String distributionMode) {
+      String distributionMode,
+      String branch) {
     super(catalogName, implementation, config);
     this.fileFormat = fileFormat;
     this.vectorized = vectorized;
     this.distributionMode = distributionMode;
+    this.branch = branch;
   }
 
   @Parameters(
       name =
           "catalogName = {0}, implementation = {1}, config = {2},"
-              + " format = {3}, vectorized = {4}, distributionMode = {5}")
+              + " format = {3}, vectorized = {4}, distributionMode = {5}, branch = {6}")
   public static Object[][] parameters() {
     return new Object[][] {
       {
@@ -98,7 +102,8 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
             "default-namespace", "default"),
         "orc",
         true,
-        WRITE_DISTRIBUTION_MODE_NONE
+        WRITE_DISTRIBUTION_MODE_NONE,
+        SnapshotRef.MAIN_BRANCH
       },
       {
         "testhive",
@@ -108,7 +113,8 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
             "default-namespace", "default"),
         "parquet",
         true,
-        WRITE_DISTRIBUTION_MODE_NONE
+        WRITE_DISTRIBUTION_MODE_NONE,
+        "test",
       },
       {
         "testhadoop",
@@ -116,7 +122,8 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
         ImmutableMap.of("type", "hadoop"),
         "parquet",
         RANDOM.nextBoolean(),
-        WRITE_DISTRIBUTION_MODE_HASH
+        WRITE_DISTRIBUTION_MODE_HASH,
+        null
       },
       {
         "spark_catalog",
@@ -131,7 +138,8 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
             ),
         "avro",
         false,
-        WRITE_DISTRIBUTION_MODE_RANGE
+        WRITE_DISTRIBUTION_MODE_RANGE,
+        "test"
       }
     };
   }
@@ -170,13 +178,18 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
   }
 
   protected void createAndInitTable(String schema, String jsonData) {
-    sql("CREATE TABLE %s (%s) USING iceberg", tableName, schema);
+    createAndInitTable(schema, "", jsonData);
+  }
+
+  protected void createAndInitTable(String schema, String partitioning, String jsonData) {
+    sql("CREATE TABLE %s (%s) USING iceberg %s", tableName, schema, partitioning);
     initTable();
 
     if (jsonData != null) {
       try {
         Dataset<Row> ds = toDS(schema, jsonData);
-        ds.writeTo(tableName).append();
+        ds.coalesce(1).writeTo(tableName).append();
+        createBranchIfNeeded();
       } catch (NoSuchTableException e) {
         throw new RuntimeException("Failed to write data", e);
       }
@@ -212,7 +225,7 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
   private Dataset<Row> toDS(String schema, String jsonData) {
     List<String> jsonRows =
         Arrays.stream(jsonData.split("\n"))
-            .filter(str -> str.trim().length() > 0)
+            .filter(str -> !str.trim().isEmpty())
             .collect(Collectors.toList());
     Dataset<String> jsonDS = spark.createDataset(jsonRows, Encoders.STRING());
 
@@ -309,6 +322,22 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
 
     } catch (IOException e) {
       throw new UncheckedIOException(e);
+    }
+  }
+
+  @Override
+  protected String commitTarget() {
+    return branch == null ? tableName : String.format("%s.branch_%s", tableName, branch);
+  }
+
+  @Override
+  protected String selectTarget() {
+    return branch == null ? tableName : String.format("%s VERSION AS OF '%s'", tableName, branch);
+  }
+
+  protected void createBranchIfNeeded() {
+    if (branch != null && !branch.equals(SnapshotRef.MAIN_BRANCH)) {
+      sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branch);
     }
   }
 }

@@ -22,10 +22,9 @@ import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.SequenceInputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -43,7 +42,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
-import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.metrics.Counter;
@@ -85,7 +83,7 @@ class S3OutputStream extends PositionOutputStream {
   private final StackTraceElement[] createStack;
   private final S3Client s3;
   private final S3URI location;
-  private final AwsProperties awsProperties;
+  private final S3FileIOProperties s3FileIOProperties;
   private final Set<Tag> writeTags;
 
   private CountingOutputStream stream;
@@ -107,7 +105,8 @@ class S3OutputStream extends PositionOutputStream {
   private boolean closed = false;
 
   @SuppressWarnings("StaticAssignmentInConstructor")
-  S3OutputStream(S3Client s3, S3URI location, AwsProperties awsProperties, MetricsContext metrics)
+  S3OutputStream(
+      S3Client s3, S3URI location, S3FileIOProperties s3FileIOProperties, MetricsContext metrics)
       throws IOException {
     if (executorService == null) {
       synchronized (S3OutputStream.class) {
@@ -116,7 +115,7 @@ class S3OutputStream extends PositionOutputStream {
               MoreExecutors.getExitingExecutorService(
                   (ThreadPoolExecutor)
                       Executors.newFixedThreadPool(
-                          awsProperties.s3FileIoMultipartUploadThreads(),
+                          s3FileIOProperties.multipartUploadThreads(),
                           new ThreadFactoryBuilder()
                               .setDaemon(true)
                               .setNameFormat("iceberg-s3fileio-upload-%d")
@@ -127,16 +126,16 @@ class S3OutputStream extends PositionOutputStream {
 
     this.s3 = s3;
     this.location = location;
-    this.awsProperties = awsProperties;
-    this.writeTags = awsProperties.s3WriteTags();
+    this.s3FileIOProperties = s3FileIOProperties;
+    this.writeTags = s3FileIOProperties.writeTags();
 
     this.createStack = Thread.currentThread().getStackTrace();
 
-    this.multiPartSize = awsProperties.s3FileIoMultiPartSize();
+    this.multiPartSize = s3FileIOProperties.multiPartSize();
     this.multiPartThresholdSize =
-        (int) (multiPartSize * awsProperties.s3FileIOMultipartThresholdFactor());
-    this.stagingDirectory = new File(awsProperties.s3fileIoStagingDirectory());
-    this.isChecksumEnabled = awsProperties.isS3ChecksumEnabled();
+        (int) (multiPartSize * s3FileIOProperties.multipartThresholdFactor());
+    this.stagingDirectory = new File(s3FileIOProperties.stagingDirectory());
+    this.isChecksumEnabled = s3FileIOProperties.isChecksumEnabled();
     try {
       this.completeMessageDigest =
           isChecksumEnabled ? MessageDigest.getInstance(digestAlgorithm) : null;
@@ -228,6 +227,7 @@ class S3OutputStream extends PositionOutputStream {
     }
 
     stagingFiles.add(new FileAndDigest(currentStagingFile, currentPartMessageDigest));
+    OutputStream outputStream = Files.newOutputStream(currentStagingFile.toPath());
 
     if (isChecksumEnabled) {
       DigestOutputStream digestOutputStream;
@@ -236,22 +236,18 @@ class S3OutputStream extends PositionOutputStream {
       if (multipartUploadId != null) {
         digestOutputStream =
             new DigestOutputStream(
-                new BufferedOutputStream(new FileOutputStream(currentStagingFile)),
-                currentPartMessageDigest);
+                new BufferedOutputStream(outputStream), currentPartMessageDigest);
       } else {
         digestOutputStream =
             new DigestOutputStream(
                 new DigestOutputStream(
-                    new BufferedOutputStream(new FileOutputStream(currentStagingFile)),
-                    currentPartMessageDigest),
+                    new BufferedOutputStream(outputStream), currentPartMessageDigest),
                 completeMessageDigest);
       }
 
       stream = new CountingOutputStream(digestOutputStream);
     } else {
-      stream =
-          new CountingOutputStream(
-              new BufferedOutputStream(new FileOutputStream(currentStagingFile)));
+      stream = new CountingOutputStream(new BufferedOutputStream(outputStream));
     }
   }
 
@@ -278,9 +274,12 @@ class S3OutputStream extends PositionOutputStream {
     if (writeTags != null && !writeTags.isEmpty()) {
       requestBuilder.tagging(Tagging.builder().tagSet(writeTags).build());
     }
+    if (s3FileIOProperties.writeStorageClass() != null) {
+      requestBuilder.storageClass(s3FileIOProperties.writeStorageClass());
+    }
 
-    S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
-    S3RequestUtil.configurePermission(awsProperties, requestBuilder);
+    S3RequestUtil.configureEncryption(s3FileIOProperties, requestBuilder);
+    S3RequestUtil.configurePermission(s3FileIOProperties, requestBuilder);
 
     multipartUploadId = s3.createMultipartUpload(requestBuilder.build()).uploadId();
   }
@@ -312,7 +311,7 @@ class S3OutputStream extends PositionOutputStream {
                 requestBuilder.contentMD5(BinaryUtils.toBase64(fileAndDigest.digest()));
               }
 
-              S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
+              S3RequestUtil.configureEncryption(s3FileIOProperties, requestBuilder);
 
               UploadPartRequest uploadRequest = requestBuilder.build();
 
@@ -425,12 +424,16 @@ class S3OutputStream extends PositionOutputStream {
         requestBuilder.tagging(Tagging.builder().tagSet(writeTags).build());
       }
 
+      if (s3FileIOProperties.writeStorageClass() != null) {
+        requestBuilder.storageClass(s3FileIOProperties.writeStorageClass());
+      }
+
       if (isChecksumEnabled) {
         requestBuilder.contentMD5(BinaryUtils.toBase64(completeMessageDigest.digest()));
       }
 
-      S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
-      S3RequestUtil.configurePermission(awsProperties, requestBuilder);
+      S3RequestUtil.configureEncryption(s3FileIOProperties, requestBuilder);
+      S3RequestUtil.configurePermission(s3FileIOProperties, requestBuilder);
 
       s3.putObject(
           requestBuilder.build(),
@@ -444,7 +447,7 @@ class S3OutputStream extends PositionOutputStream {
 
   private static InputStream uncheckedInputStream(File file) {
     try {
-      return new FileInputStream(file);
+      return Files.newInputStream(file.toPath());
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

@@ -85,8 +85,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
       this.closed = true;
 
       // cancel background tasks
-      for (int i = 0; i < taskFutures.length; i += 1) {
-        Future<?> taskFuture = taskFutures[i];
+      for (Future<?> taskFuture : taskFutures) {
         if (taskFuture != null && !taskFuture.isDone()) {
           taskFuture.cancel(true);
         }

@@ -18,10 +18,7 @@
  */
 package org.apache.iceberg.view;
 
-import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.ViewCatalog;
 
 /**
@@ -29,70 +26,7 @@ import org.apache.iceberg.catalog.ViewCatalog;
  *
  * <p>Call {@link ViewCatalog#buildView} to create a new builder.
  */
-public interface ViewBuilder {
-  /**
-   * Set the view schema.
-   *
-   * @param schema view schema
-   * @return this for method chaining
-   */
-  ViewBuilder withSchema(Schema schema);
-
-  /**
-   * Set the view query.
-   *
-   * @param query view query
-   * @return this for method chaining
-   */
-  ViewBuilder withQuery(String query);
-
-  /**
-   * Set the view SQL dialect.
-   *
-   * @param dialect view SQL dialect
-   * @return this for method chaining
-   */
-  ViewBuilder withDialect(String dialect);
-
-  /**
-   * Set the view default catalog.
-   *
-   * @param defaultCatalog view default catalog
-   * @return this for method chaining
-   */
-  ViewBuilder withDefaultCatalog(String defaultCatalog);
-
-  /**
-   * Set the view default namespace.
-   *
-   * @param defaultNamespace view default namespace
-   * @return this for method chaining
-   */
-  ViewBuilder withDefaultNamespace(Namespace defaultNamespace);
-
-  /**
-   * Set the view query column names.
-   *
-   * @param queryColumnNames view query column names
-   * @return this for method chaining
-   */
-  ViewBuilder withQueryColumnNames(List<String> queryColumnNames);
-
-  /**
-   * Set the view field aliases.
-   *
-   * @param fieldAliases view field aliases
-   * @return this for method chaining
-   */
-  ViewBuilder withFieldAliases(List<String> fieldAliases);
-
-  /**
-   * Set the view field comments.
-   *
-   * @param fieldComments view field comments
-   * @return this for method chaining
-   */
-  ViewBuilder withFieldComments(List<String> fieldComments);
+public interface ViewBuilder extends VersionBuilder<ViewBuilder> {
 
   /**
    * Add key/value properties to the view.
@@ -110,6 +44,16 @@ public interface ViewBuilder {
    * @return this for method chaining
    */
   ViewBuilder withProperty(String key, String value);
+
+  /**
+   * Sets a location for the view
+   *
+   * @param location the location to set for the view
+   * @return this for method chaining
+   */
+  default ViewBuilder withLocation(String location) {
+    throw new UnsupportedOperationException("Setting a view's location is not supported");
+  }
 
   /**
    * Create the view.

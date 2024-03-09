@@ -21,6 +21,7 @@ package org.apache.iceberg.actions;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.io.SupportsBulkOperations;
 
 /**
  * An action that expires snapshots in a table.
@@ -80,11 +81,14 @@ public interface ExpireSnapshots extends Action<ExpireSnapshots, ExpireSnapshots
   ExpireSnapshots deleteWith(Consumer<String> deleteFunc);
 
   /**
-   * Passes an alternative executor service that will be used for manifests, data and delete files
-   * deletion.
+   * Passes an alternative executor service that will be used for files removal. This service will
+   * only be used if a custom delete function is provided by {@link #deleteWith(Consumer)} or if the
+   * FileIO does not {@link SupportsBulkOperations support bulk deletes}. Otherwise, parallelism
+   * should be controlled by the IO specific {@link SupportsBulkOperations#deleteFiles(Iterable)
+   * deleteFiles} method.
    *
-   * <p>If this method is not called, unnecessary manifests and content files will still be deleted
-   * in the current thread.
+   * <p>If this method is not called and bulk deletes are not supported, unnecessary manifests and
+   * content files will still be deleted in the current thread.
    *
    * <p>Identical to {@link org.apache.iceberg.ExpireSnapshots#executeDeleteWith(ExecutorService)}
    *
@@ -109,5 +113,10 @@ public interface ExpireSnapshots extends Action<ExpireSnapshots, ExpireSnapshots
 
     /** Returns the number of deleted manifest lists. */
     long deletedManifestListsCount();
+
+    /** Returns the number of deleted statistics files. */
+    default long deletedStatisticsFilesCount() {
+      return 0L;
+    }
   }
 }

@@ -21,7 +21,6 @@ package org.apache.iceberg.aws.s3;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
-import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.IOUtil;
@@ -36,6 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
+import software.amazon.awssdk.http.Abortable;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
@@ -46,7 +46,7 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   private final StackTraceElement[] createStack;
   private final S3Client s3;
   private final S3URI location;
-  private final AwsProperties awsProperties;
+  private final S3FileIOProperties s3FileIOProperties;
 
   private InputStream stream;
   private long pos = 0;
@@ -59,13 +59,14 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   private int skipSize = 1024 * 1024;
 
   S3InputStream(S3Client s3, S3URI location) {
-    this(s3, location, new AwsProperties(), MetricsContext.nullMetrics());
+    this(s3, location, new S3FileIOProperties(), MetricsContext.nullMetrics());
   }
 
-  S3InputStream(S3Client s3, S3URI location, AwsProperties awsProperties, MetricsContext metrics) {
+  S3InputStream(
+      S3Client s3, S3URI location, S3FileIOProperties s3FileIOProperties, MetricsContext metrics) {
     this.s3 = s3;
     this.location = location;
-    this.awsProperties = awsProperties;
+    this.s3FileIOProperties = s3FileIOProperties;
 
     this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Unit.BYTES);
     this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
@@ -136,7 +137,7 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     GetObjectRequest.Builder requestBuilder =
         GetObjectRequest.builder().bucket(location.bucket()).key(location.key()).range(range);
 
-    S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
+    S3RequestUtil.configureEncryption(s3FileIOProperties, requestBuilder);
 
     return s3.getObject(requestBuilder.build(), ResponseTransformer.toInputStream());
   }
@@ -183,7 +184,7 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
             .key(location.key())
             .range(String.format("bytes=%s-", pos));
 
-    S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
+    S3RequestUtil.configureEncryption(s3FileIOProperties, requestBuilder);
 
     closeStream();
 
@@ -196,7 +197,29 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
 
   private void closeStream() throws IOException {
     if (stream != null) {
-      stream.close();
+      // if we aren't at the end of the stream, and the stream is abortable, then
+      // call abort() so we don't read the remaining data with the Apache HTTP client
+      abortStream();
+      try {
+        stream.close();
+      } catch (IOException e) {
+        // the Apache HTTP client will throw a ConnectionClosedException
+        // when closing an aborted stream, which is expected
+        if (!e.getClass().getSimpleName().equals("ConnectionClosedException")) {
+          throw e;
+        }
+      }
+      stream = null;
+    }
+  }
+
+  private void abortStream() {
+    try {
+      if (stream instanceof Abortable && stream.read() != -1) {
+        ((Abortable) stream).abort();
+      }
+    } catch (Exception e) {
+      LOG.warn("An error occurred while aborting the stream", e);
     }
   }
 

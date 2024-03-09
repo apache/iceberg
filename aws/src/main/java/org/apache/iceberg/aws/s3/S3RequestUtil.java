@@ -20,7 +20,6 @@ package org.apache.iceberg.aws.s3;
 
 import java.util.Locale;
 import java.util.function.Function;
-import org.apache.iceberg.aws.AwsProperties;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
@@ -40,9 +39,9 @@ public class S3RequestUtil {
   private S3RequestUtil() {}
 
   static void configureEncryption(
-      AwsProperties awsProperties, PutObjectRequest.Builder requestBuilder) {
+      S3FileIOProperties s3FileIOProperties, PutObjectRequest.Builder requestBuilder) {
     configureEncryption(
-        awsProperties,
+        s3FileIOProperties,
         requestBuilder::serverSideEncryption,
         requestBuilder::ssekmsKeyId,
         requestBuilder::sseCustomerAlgorithm,
@@ -51,9 +50,9 @@ public class S3RequestUtil {
   }
 
   static void configureEncryption(
-      AwsProperties awsProperties, CreateMultipartUploadRequest.Builder requestBuilder) {
+      S3FileIOProperties s3FileIOProperties, CreateMultipartUploadRequest.Builder requestBuilder) {
     configureEncryption(
-        awsProperties,
+        s3FileIOProperties,
         requestBuilder::serverSideEncryption,
         requestBuilder::ssekmsKeyId,
         requestBuilder::sseCustomerAlgorithm,
@@ -62,9 +61,9 @@ public class S3RequestUtil {
   }
 
   static void configureEncryption(
-      AwsProperties awsProperties, UploadPartRequest.Builder requestBuilder) {
+      S3FileIOProperties s3FileIOProperties, UploadPartRequest.Builder requestBuilder) {
     configureEncryption(
-        awsProperties,
+        s3FileIOProperties,
         NULL_SSE_SETTER,
         NULL_STRING_SETTER,
         requestBuilder::sseCustomerAlgorithm,
@@ -73,9 +72,9 @@ public class S3RequestUtil {
   }
 
   static void configureEncryption(
-      AwsProperties awsProperties, GetObjectRequest.Builder requestBuilder) {
+      S3FileIOProperties s3FileIOProperties, GetObjectRequest.Builder requestBuilder) {
     configureEncryption(
-        awsProperties,
+        s3FileIOProperties,
         NULL_SSE_SETTER,
         NULL_STRING_SETTER,
         requestBuilder::sseCustomerAlgorithm,
@@ -84,9 +83,9 @@ public class S3RequestUtil {
   }
 
   static void configureEncryption(
-      AwsProperties awsProperties, HeadObjectRequest.Builder requestBuilder) {
+      S3FileIOProperties s3FileIOProperties, HeadObjectRequest.Builder requestBuilder) {
     configureEncryption(
-        awsProperties,
+        s3FileIOProperties,
         NULL_SSE_SETTER,
         NULL_STRING_SETTER,
         requestBuilder::sseCustomerAlgorithm,
@@ -96,52 +95,53 @@ public class S3RequestUtil {
 
   @SuppressWarnings("ReturnValueIgnored")
   static void configureEncryption(
-      AwsProperties awsProperties,
+      S3FileIOProperties s3FileIOProperties,
       Function<ServerSideEncryption, S3Request.Builder> encryptionSetter,
       Function<String, S3Request.Builder> kmsKeySetter,
       Function<String, S3Request.Builder> customAlgorithmSetter,
       Function<String, S3Request.Builder> customKeySetter,
       Function<String, S3Request.Builder> customMd5Setter) {
 
-    switch (awsProperties.s3FileIoSseType().toLowerCase(Locale.ENGLISH)) {
-      case AwsProperties.S3FILEIO_SSE_TYPE_NONE:
+    switch (s3FileIOProperties.sseType().toLowerCase(Locale.ENGLISH)) {
+      case S3FileIOProperties.SSE_TYPE_NONE:
         break;
 
-      case AwsProperties.S3FILEIO_SSE_TYPE_KMS:
+      case S3FileIOProperties.SSE_TYPE_KMS:
         encryptionSetter.apply(ServerSideEncryption.AWS_KMS);
-        kmsKeySetter.apply(awsProperties.s3FileIoSseKey());
+        kmsKeySetter.apply(s3FileIOProperties.sseKey());
         break;
 
-      case AwsProperties.S3FILEIO_SSE_TYPE_S3:
+      case S3FileIOProperties.SSE_TYPE_S3:
         encryptionSetter.apply(ServerSideEncryption.AES256);
         break;
 
-      case AwsProperties.S3FILEIO_SSE_TYPE_CUSTOM:
+      case S3FileIOProperties.SSE_TYPE_CUSTOM:
         // setters for SSE-C exist for all request builders, no need to check null
         customAlgorithmSetter.apply(ServerSideEncryption.AES256.name());
-        customKeySetter.apply(awsProperties.s3FileIoSseKey());
-        customMd5Setter.apply(awsProperties.s3FileIoSseMd5());
+        customKeySetter.apply(s3FileIOProperties.sseKey());
+        customMd5Setter.apply(s3FileIOProperties.sseMd5());
         break;
 
       default:
         throw new IllegalArgumentException(
-            "Cannot support given S3 encryption type: " + awsProperties.s3FileIoSseType());
+            "Cannot support given S3 encryption type: " + s3FileIOProperties.sseType());
     }
   }
 
   static void configurePermission(
-      AwsProperties awsProperties, PutObjectRequest.Builder requestBuilder) {
-    configurePermission(awsProperties, requestBuilder::acl);
+      S3FileIOProperties s3FileIOProperties, PutObjectRequest.Builder requestBuilder) {
+    configurePermission(s3FileIOProperties, requestBuilder::acl);
   }
 
   static void configurePermission(
-      AwsProperties awsProperties, CreateMultipartUploadRequest.Builder requestBuilder) {
-    configurePermission(awsProperties, requestBuilder::acl);
+      S3FileIOProperties s3FileIOProperties, CreateMultipartUploadRequest.Builder requestBuilder) {
+    configurePermission(s3FileIOProperties, requestBuilder::acl);
   }
 
   @SuppressWarnings("ReturnValueIgnored")
   static void configurePermission(
-      AwsProperties awsProperties, Function<ObjectCannedACL, S3Request.Builder> aclSetter) {
-    aclSetter.apply(awsProperties.s3FileIoAcl());
+      S3FileIOProperties s3FileIOProperties,
+      Function<ObjectCannedACL, S3Request.Builder> aclSetter) {
+    aclSetter.apply(s3FileIOProperties.acl());
   }
 }

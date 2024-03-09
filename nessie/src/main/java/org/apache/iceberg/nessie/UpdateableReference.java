@@ -52,19 +52,8 @@ class UpdateableReference {
     this.reference = Preconditions.checkNotNull(ref, "ref is null");
   }
 
-  public boolean isBranch() {
-    return reference instanceof Branch;
-  }
-
   public String getHash() {
     return reference.getHash();
-  }
-
-  public Branch getAsBranch() {
-    if (!isBranch()) {
-      throw new IllegalArgumentException("Reference is not a branch");
-    }
-    return (Branch) reference;
   }
 
   public Reference getReference() {
@@ -73,10 +62,15 @@ class UpdateableReference {
 
   public void checkMutable() {
     Preconditions.checkArgument(
-        mutable, "You can only mutate tables when using a branch without a hash or timestamp.");
+        mutable,
+        "You can only mutate tables/views when using a branch without a hash or timestamp.");
   }
 
   public String getName() {
     return reference.getName();
+  }
+
+  public boolean isMutable() {
+    return mutable;
   }
 }

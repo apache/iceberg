@@ -77,4 +77,10 @@ public class BaseReplaceSortOrder implements ReplaceSortOrder {
     builder.desc(term, nullOrder);
     return this;
   }
+
+  @Override
+  public ReplaceSortOrder caseSensitive(boolean caseSensitive) {
+    builder.caseSensitive(caseSensitive);
+    return this;
+  }
 }

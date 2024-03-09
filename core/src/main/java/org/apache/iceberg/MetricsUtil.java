@@ -41,6 +41,55 @@ public class MetricsUtil {
   private MetricsUtil() {}
 
   /**
+   * Copies a metrics object without value, NULL and NaN counts for given fields.
+   *
+   * @param excludedFieldIds field IDs for which the counts must be dropped
+   * @return a new metrics object without counts for given fields
+   */
+  public static Metrics copyWithoutFieldCounts(Metrics metrics, Set<Integer> excludedFieldIds) {
+    return new Metrics(
+        metrics.recordCount(),
+        metrics.columnSizes(),
+        copyWithoutKeys(metrics.valueCounts(), excludedFieldIds),
+        copyWithoutKeys(metrics.nullValueCounts(), excludedFieldIds),
+        copyWithoutKeys(metrics.nanValueCounts(), excludedFieldIds),
+        metrics.lowerBounds(),
+        metrics.upperBounds());
+  }
+
+  /**
+   * Copies a metrics object without counts and bounds for given fields.
+   *
+   * @param excludedFieldIds field IDs for which the counts and bounds must be dropped
+   * @return a new metrics object without lower and upper bounds for given fields
+   */
+  public static Metrics copyWithoutFieldCountsAndBounds(
+      Metrics metrics, Set<Integer> excludedFieldIds) {
+    return new Metrics(
+        metrics.recordCount(),
+        metrics.columnSizes(),
+        copyWithoutKeys(metrics.valueCounts(), excludedFieldIds),
+        copyWithoutKeys(metrics.nullValueCounts(), excludedFieldIds),
+        copyWithoutKeys(metrics.nanValueCounts(), excludedFieldIds),
+        copyWithoutKeys(metrics.lowerBounds(), excludedFieldIds),
+        copyWithoutKeys(metrics.upperBounds(), excludedFieldIds));
+  }
+
+  private static <K, V> Map<K, V> copyWithoutKeys(Map<K, V> map, Set<K> keys) {
+    if (map == null) {
+      return null;
+    }
+
+    Map<K, V> filteredMap = Maps.newHashMap(map);
+
+    for (K key : keys) {
+      filteredMap.remove(key);
+    }
+
+    return filteredMap.isEmpty() ? null : filteredMap;
+  }
+
+  /**
    * Construct mapping relationship between column id to NaN value counts from input metrics and
    * metrics config.
    */
@@ -355,5 +404,56 @@ public class MetricsUtil {
     colMetrics.sort(Comparator.comparing(ReadableColMetricsStruct::columnName));
     return new ReadableMetricsStruct(
         colMetrics.stream().map(m -> (StructLike) m).collect(Collectors.toList()));
+  }
+
+  /** Custom struct that returns a 'readable_metric' column at a specific position */
+  static class StructWithReadableMetrics implements StructLike {
+    private final StructLike struct;
+    private final MetricsUtil.ReadableMetricsStruct readableMetrics;
+    private final int projectionColumnCount;
+    private final int metricsPosition;
+
+    /**
+     * Constructs a struct with readable metrics column
+     *
+     * @param struct struct on which to append 'readable_metrics' struct
+     * @param structSize total number of struct columns, including 'readable_metrics' column
+     * @param readableMetrics struct of 'readable_metrics'
+     * @param metricsPosition position of 'readable_metrics' column
+     */
+    StructWithReadableMetrics(
+        StructLike struct,
+        int structSize,
+        MetricsUtil.ReadableMetricsStruct readableMetrics,
+        int metricsPosition) {
+      this.struct = struct;
+      this.readableMetrics = readableMetrics;
+      this.projectionColumnCount = structSize;
+      this.metricsPosition = metricsPosition;
+    }
+
+    @Override
+    public int size() {
+      return projectionColumnCount;
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      if (pos < metricsPosition) {
+        return struct.get(pos, javaClass);
+      } else if (pos == metricsPosition) {
+        return javaClass.cast(readableMetrics);
+      } else {
+        // columnCount = fileAsStruct column count + the readable metrics field.
+        // When pos is greater than metricsPosition, the actual position of the field in
+        // fileAsStruct should be subtracted by 1.
+        return struct.get(pos - 1, javaClass);
+      }
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("StructWithReadableMetrics is read only");
+    }
   }
 }

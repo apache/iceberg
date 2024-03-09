@@ -26,17 +26,19 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.MetadataUpdate;
@@ -45,51 +47,73 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.Transactions;
-import org.apache.iceberg.catalog.BaseSessionCatalog;
+import org.apache.iceberg.catalog.BaseViewSessionCatalog;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.NoSuchViewException;
+import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.hadoop.Configurable;
+import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.ResolvingFileIO;
-import org.apache.iceberg.metrics.LoggingMetricsReporter;
-import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
+import org.apache.iceberg.metrics.MetricsReporters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.auth.OAuth2Util.AuthSession;
+import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
+import org.apache.iceberg.rest.requests.CreateViewRequest;
+import org.apache.iceberg.rest.requests.ImmutableCreateViewRequest;
+import org.apache.iceberg.rest.requests.ImmutableRegisterTableRequest;
+import org.apache.iceberg.rest.requests.RegisterTableRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
-import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
+import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
+import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.EnvironmentUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.ThreadPools;
+import org.apache.iceberg.view.BaseView;
+import org.apache.iceberg.view.ImmutableSQLViewRepresentation;
+import org.apache.iceberg.view.ImmutableViewVersion;
+import org.apache.iceberg.view.View;
+import org.apache.iceberg.view.ViewBuilder;
+import org.apache.iceberg.view.ViewMetadata;
+import org.apache.iceberg.view.ViewRepresentation;
+import org.apache.iceberg.view.ViewUtil;
+import org.apache.iceberg.view.ViewVersion;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class RESTSessionCatalog extends BaseSessionCatalog
-    implements Configurable<Configuration>, Closeable {
+public class RESTSessionCatalog extends BaseViewSessionCatalog
+    implements Configurable<Object>, Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(RESTSessionCatalog.class);
-  private static final long MAX_REFRESH_WINDOW_MILLIS = 300_000; // 5 minutes
-  private static final long MIN_REFRESH_WAIT_MILLIS = 10;
+  private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
+  private static final String REST_METRICS_REPORTING_ENABLED = "rest-metrics-reporting-enabled";
+  private static final String REST_SNAPSHOT_LOADING_MODE = "snapshot-loading-mode";
   private static final List<String> TOKEN_PREFERENCE_ORDER =
       ImmutableList.of(
           OAuth2Properties.ID_TOKEN_TYPE,
@@ -99,24 +123,43 @@ public class RESTSessionCatalog extends BaseSessionCatalog
           OAuth2Properties.SAML1_TOKEN_TYPE);
 
   private final Function<Map<String, String>, RESTClient> clientBuilder;
+  private final BiFunction<SessionContext, Map<String, String>, FileIO> ioBuilder;
   private Cache<String, AuthSession> sessions = null;
+  private Cache<String, AuthSession> tableSessions = null;
+  private Cache<TableOperations, FileIO> fileIOCloser;
   private AuthSession catalogAuth = null;
-  private boolean refreshAuthByDefault = false;
+  private boolean keepTokenRefreshed = true;
   private RESTClient client = null;
   private ResourcePaths paths = null;
+  private SnapshotMode snapshotMode = null;
   private Object conf = null;
   private FileIO io = null;
   private MetricsReporter reporter = null;
+  private boolean reportingViaRestEnabled;
+  private CloseableGroup closeables = null;
 
   // a lazy thread pool for token refresh
   private volatile ScheduledExecutorService refreshExecutor = null;
 
-  public RESTSessionCatalog() {
-    this(config -> HTTPClient.builder().uri(config.get(CatalogProperties.URI)).build());
+  enum SnapshotMode {
+    ALL,
+    REFS;
+
+    Map<String, String> params() {
+      return ImmutableMap.of("snapshots", this.name().toLowerCase(Locale.US));
+    }
   }
 
-  RESTSessionCatalog(Function<Map<String, String>, RESTClient> clientBuilder) {
+  public RESTSessionCatalog() {
+    this(config -> HTTPClient.builder(config).uri(config.get(CatalogProperties.URI)).build(), null);
+  }
+
+  public RESTSessionCatalog(
+      Function<Map<String, String>, RESTClient> clientBuilder,
+      BiFunction<SessionContext, Map<String, String>, FileIO> ioBuilder) {
+    Preconditions.checkNotNull(clientBuilder, "Invalid client builder: null");
     this.clientBuilder = clientBuilder;
+    this.ioBuilder = ioBuilder;
   }
 
   @Override
@@ -134,18 +177,19 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     // fetch auth and config to complete initialization
     ConfigResponse config;
     OAuthTokenResponse authResponse;
+    String credential = props.get(OAuth2Properties.CREDENTIAL);
+    String scope = props.getOrDefault(OAuth2Properties.SCOPE, OAuth2Properties.CATALOG_SCOPE);
+    String oauth2ServerUri =
+        props.getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens());
     try (RESTClient initClient = clientBuilder.apply(props)) {
       Map<String, String> initHeaders =
           RESTUtil.merge(configHeaders(props), OAuth2Util.authHeaders(initToken));
-      String credential = props.get(OAuth2Properties.CREDENTIAL);
       if (credential != null && !credential.isEmpty()) {
-        String scope = props.getOrDefault(OAuth2Properties.SCOPE, OAuth2Properties.CATALOG_SCOPE);
-        authResponse = OAuth2Util.fetchToken(initClient, initHeaders, credential, scope);
-        config =
-            fetchConfig(
-                initClient,
-                RESTUtil.merge(initHeaders, OAuth2Util.authHeaders(authResponse.token())),
-                props);
+        authResponse =
+            OAuth2Util.fetchToken(initClient, initHeaders, credential, scope, oauth2ServerUri);
+        Map<String, String> authHeaders =
+            RESTUtil.merge(initHeaders, OAuth2Util.authHeaders(authResponse.token()));
+        config = fetchConfig(initClient, authHeaders, props);
       } else {
         authResponse = null;
         config = fetchConfig(initClient, initHeaders, props);
@@ -157,35 +201,65 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     // build the final configuration and set up the catalog's auth
     Map<String, String> mergedProps = config.merge(props);
     Map<String, String> baseHeaders = configHeaders(mergedProps);
-    this.catalogAuth = new AuthSession(baseHeaders, null, null);
-    if (authResponse != null) {
-      this.catalogAuth = newSession(authResponse, startTimeMillis, catalogAuth);
-    } else if (initToken != null) {
-      this.catalogAuth = newSession(initToken, expiresInMs(mergedProps), catalogAuth);
-    }
 
     this.sessions = newSessionCache(mergedProps);
-    this.refreshAuthByDefault =
+    this.tableSessions = newSessionCache(mergedProps);
+    this.keepTokenRefreshed =
         PropertyUtil.propertyAsBoolean(
             mergedProps,
-            CatalogProperties.AUTH_DEFAULT_REFRESH_ENABLED,
-            CatalogProperties.AUTH_DEFAULT_REFRESH_ENABLED_DEFAULT);
+            OAuth2Properties.TOKEN_REFRESH_ENABLED,
+            OAuth2Properties.TOKEN_REFRESH_ENABLED_DEFAULT);
     this.client = clientBuilder.apply(mergedProps);
     this.paths = ResourcePaths.forCatalogProperties(mergedProps);
 
-    String ioImpl = mergedProps.get(CatalogProperties.FILE_IO_IMPL);
-    this.io =
-        CatalogUtil.loadFileIO(
-            ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), mergedProps, conf);
-    this.reporter = new LoggingMetricsReporter();
+    String token = mergedProps.get(OAuth2Properties.TOKEN);
+    this.catalogAuth = new AuthSession(baseHeaders, null, null, credential, scope, oauth2ServerUri);
+    if (authResponse != null) {
+      this.catalogAuth =
+          AuthSession.fromTokenResponse(
+              client, tokenRefreshExecutor(), authResponse, startTimeMillis, catalogAuth);
+    } else if (token != null) {
+      this.catalogAuth =
+          AuthSession.fromAccessToken(
+              client, tokenRefreshExecutor(), token, expiresAtMillis(mergedProps), catalogAuth);
+    }
 
+    this.io = newFileIO(SessionContext.createEmpty(), mergedProps);
+
+    this.fileIOCloser = newFileIOCloser();
+    this.closeables = new CloseableGroup();
+    this.closeables.addCloseable(this.io);
+    this.closeables.addCloseable(this.client);
+    this.closeables.setSuppressCloseFailure(true);
+
+    this.snapshotMode =
+        SnapshotMode.valueOf(
+            PropertyUtil.propertyAsString(
+                    mergedProps, REST_SNAPSHOT_LOADING_MODE, SnapshotMode.ALL.name())
+                .toUpperCase(Locale.US));
+
+    this.reporter = CatalogUtil.loadMetricsReporter(mergedProps);
+
+    this.reportingViaRestEnabled =
+        PropertyUtil.propertyAsBoolean(mergedProps, REST_METRICS_REPORTING_ENABLED, true);
     super.initialize(name, mergedProps);
   }
 
   private AuthSession session(SessionContext context) {
-    return sessions.get(
-        context.sessionId(),
-        id -> newSession(context.credentials(), context.properties(), catalogAuth));
+    AuthSession session =
+        sessions.get(
+            context.sessionId(),
+            id -> {
+              Pair<String, Supplier<AuthSession>> newSession =
+                  newSession(context.credentials(), context.properties(), catalogAuth);
+              if (null != newSession) {
+                return newSession.second().get();
+              }
+
+              return null;
+            });
+
+    return session != null ? session : catalogAuth;
   }
 
   private Supplier<Map<String, String>> headers(SessionContext context) {
@@ -193,7 +267,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   }
 
   @Override
-  public void setConf(Configuration newConf) {
+  public void setConf(Object newConf) {
     this.conf = newConf;
   }
 
@@ -252,9 +326,11 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     client.post(paths.rename(), request, null, headers(context), ErrorHandlers.tableErrorHandler());
   }
 
-  private LoadTableResponse loadInternal(SessionContext context, TableIdentifier identifier) {
+  private LoadTableResponse loadInternal(
+      SessionContext context, TableIdentifier identifier, SnapshotMode mode) {
     return client.get(
         paths.table(identifier),
+        mode.params(),
         LoadTableResponse.class,
         headers(context),
         ErrorHandlers.tableErrorHandler());
@@ -268,7 +344,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     LoadTableResponse response;
     TableIdentifier loadedIdent;
     try {
-      response = loadInternal(context, identifier);
+      response = loadInternal(context, identifier, snapshotMode);
       loadedIdent = identifier;
       metadataType = null;
 
@@ -278,7 +354,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
         // attempt to load a metadata table using the identifier's namespace as the base table
         TableIdentifier baseIdent = TableIdentifier.of(identifier.namespace().levels());
         try {
-          response = loadInternal(context, baseIdent);
+          response = loadInternal(context, baseIdent, snapshotMode);
           loadedIdent = baseIdent;
         } catch (NoSuchTableException ignored) {
           // the base table does not exist
@@ -290,21 +366,41 @@ public class RESTSessionCatalog extends BaseSessionCatalog
       }
     }
 
+    TableIdentifier finalIdentifier = loadedIdent;
     AuthSession session = tableSession(response.config(), session(context));
+    TableMetadata tableMetadata;
+
+    if (snapshotMode == SnapshotMode.REFS) {
+      tableMetadata =
+          TableMetadata.buildFrom(response.tableMetadata())
+              .withMetadataLocation(response.metadataLocation())
+              .setPreviousFileLocation(null)
+              .setSnapshotsSupplier(
+                  () ->
+                      loadInternal(context, finalIdentifier, SnapshotMode.ALL)
+                          .tableMetadata()
+                          .snapshots())
+              .discardChanges()
+              .build();
+    } else {
+      tableMetadata = response.tableMetadata();
+    }
+
     RESTTableOperations ops =
         new RESTTableOperations(
             client,
-            paths.table(loadedIdent),
+            paths.table(finalIdentifier),
             session::headers,
-            tableFileIO(response.config()),
-            response.tableMetadata());
+            tableFileIO(context, response.config()),
+            tableMetadata);
 
-    TableIdentifier tableIdentifier = loadedIdent;
+    trackFileIO(ops);
+
     BaseTable table =
         new BaseTable(
             ops,
-            fullTableName(loadedIdent),
-            report -> reportMetrics(tableIdentifier, report, session::headers));
+            fullTableName(finalIdentifier),
+            metricsReporter(paths.metrics(finalIdentifier), session::headers));
     if (metadataType != null) {
       return MetadataTableUtils.createMetadataTableInstance(table, metadataType);
     }
@@ -312,20 +408,20 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     return table;
   }
 
-  private void reportMetrics(
-      TableIdentifier tableIdentifier,
-      MetricsReport report,
-      Supplier<Map<String, String>> headers) {
-    reporter.report(report);
-    try {
-      client.post(
-          paths.metrics(tableIdentifier),
-          ReportMetricsRequest.of(report),
-          null,
-          headers,
-          ErrorHandlers.defaultErrorHandler());
-    } catch (Exception e) {
-      LOG.warn("Failed to report metrics to REST endpoint for table {}", tableIdentifier, e);
+  private void trackFileIO(RESTTableOperations ops) {
+    if (io != ops.io()) {
+      fileIOCloser.put(ops, ops.io());
+    }
+  }
+
+  private MetricsReporter metricsReporter(
+      String metricsEndpoint, Supplier<Map<String, String>> headers) {
+    if (reportingViaRestEnabled) {
+      RESTMetricsReporter restMetricsReporter =
+          new RESTMetricsReporter(client, metricsEndpoint, headers);
+      return MetricsReporters.combine(reporter, restMetricsReporter);
+    } else {
+      return this.reporter;
     }
   }
 
@@ -341,7 +437,40 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   @Override
   public Table registerTable(
       SessionContext context, TableIdentifier ident, String metadataFileLocation) {
-    throw new UnsupportedOperationException("Register table is not supported");
+    checkIdentifierIsValid(ident);
+
+    Preconditions.checkArgument(
+        metadataFileLocation != null && !metadataFileLocation.isEmpty(),
+        "Invalid metadata file location: %s",
+        metadataFileLocation);
+
+    RegisterTableRequest request =
+        ImmutableRegisterTableRequest.builder()
+            .name(ident.name())
+            .metadataLocation(metadataFileLocation)
+            .build();
+
+    LoadTableResponse response =
+        client.post(
+            paths.register(ident.namespace()),
+            request,
+            LoadTableResponse.class,
+            headers(context),
+            ErrorHandlers.tableErrorHandler());
+
+    AuthSession session = tableSession(response.config(), session(context));
+    RESTTableOperations ops =
+        new RESTTableOperations(
+            client,
+            paths.table(ident),
+            session::headers,
+            tableFileIO(context, response.config()),
+            response.tableMetadata());
+
+    trackFileIO(ops);
+
+    return new BaseTable(
+        ops, fullTableName(ident), metricsReporter(paths.metrics(ident), session::headers));
   }
 
   @Override
@@ -426,6 +555,10 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   }
 
   private ScheduledExecutorService tokenRefreshExecutor() {
+    if (!keepTokenRefreshed) {
+      return null;
+    }
+
     if (refreshExecutor == null) {
       synchronized (this) {
         if (refreshExecutor == null) {
@@ -437,40 +570,17 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     return refreshExecutor;
   }
 
-  @SuppressWarnings("FutureReturnValueIgnored")
-  private void scheduleTokenRefresh(
-      AuthSession session, long startTimeMillis, long expiresIn, TimeUnit unit) {
-    // convert expiration interval to milliseconds
-    long expiresInMillis = unit.toMillis(expiresIn);
-    // how much ahead of time to start the request to allow it to complete
-    long refreshWindowMillis = Math.min(expiresInMillis / 10, MAX_REFRESH_WINDOW_MILLIS);
-    // how much time to wait before expiration
-    long waitIntervalMillis = expiresInMillis - refreshWindowMillis;
-    // how much time has already elapsed since the new token was issued
-    long elapsedMillis = System.currentTimeMillis() - startTimeMillis;
-    // how much time to actually wait
-    long timeToWait = Math.max(waitIntervalMillis - elapsedMillis, MIN_REFRESH_WAIT_MILLIS);
-
-    tokenRefreshExecutor()
-        .schedule(
-            () -> {
-              long refreshStartTime = System.currentTimeMillis();
-              Pair<Integer, TimeUnit> expiration = session.refresh(client);
-              if (expiration != null) {
-                scheduleTokenRefresh(
-                    session, refreshStartTime, expiration.first(), expiration.second());
-              }
-            },
-            timeToWait,
-            TimeUnit.MILLISECONDS);
-  }
-
   @Override
   public void close() throws IOException {
     shutdownRefreshExecutor();
 
-    if (client != null) {
-      client.close();
+    if (closeables != null) {
+      closeables.close();
+    }
+
+    if (fileIOCloser != null) {
+      fileIOCloser.invalidateAll();
+      fileIOCloser.cleanUp();
     }
   }
 
@@ -573,10 +683,13 @@ public class RESTSessionCatalog extends BaseSessionCatalog
               client,
               paths.table(ident),
               session::headers,
-              tableFileIO(response.config()),
+              tableFileIO(context, response.config()),
               response.tableMetadata());
 
-      return new BaseTable(ops, fullTableName(ident));
+      trackFileIO(ops);
+
+      return new BaseTable(
+          ops, fullTableName(ident), metricsReporter(paths.metrics(ident), session::headers));
     }
 
     @Override
@@ -592,17 +705,31 @@ public class RESTSessionCatalog extends BaseSessionCatalog
               client,
               paths.table(ident),
               session::headers,
-              tableFileIO(response.config()),
+              tableFileIO(context, response.config()),
               RESTTableOperations.UpdateType.CREATE,
               createChanges(meta),
               meta);
 
-      return Transactions.createTableTransaction(fullName, ops, meta);
+      trackFileIO(ops);
+
+      return Transactions.createTableTransaction(
+          fullName, ops, meta, metricsReporter(paths.metrics(ident), session::headers));
     }
 
     @Override
     public Transaction replaceTransaction() {
-      LoadTableResponse response = loadInternal(context, ident);
+      try {
+        if (viewExists(context, ident)) {
+          throw new AlreadyExistsException("View with same name already exists: %s", ident);
+        }
+      } catch (RESTException | UnsupportedOperationException e) {
+        // don't fail if the server doesn't support views, which could be due to:
+        // 1. server or backing catalog doesn't support views
+        // 2. newer client talks to an older server that doesn't support views
+        LOG.debug("Failed to check whether view {} exists", ident, e);
+      }
+
+      LoadTableResponse response = loadInternal(context, ident, snapshotMode);
       String fullName = fullTableName(ident);
 
       AuthSession session = tableSession(response.config(), session(context));
@@ -642,12 +769,15 @@ public class RESTSessionCatalog extends BaseSessionCatalog
               client,
               paths.table(ident),
               session::headers,
-              tableFileIO(response.config()),
+              tableFileIO(context, response.config()),
               RESTTableOperations.UpdateType.REPLACE,
               changes.build(),
               base);
 
-      return Transactions.replaceTableTransaction(fullName, ops, replacement);
+      trackFileIO(ops);
+
+      return Transactions.replaceTableTransaction(
+          fullName, ops, replacement, metricsReporter(paths.metrics(ident), session::headers));
     }
 
     @Override
@@ -731,20 +861,34 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     return String.format("%s.%s", name(), ident);
   }
 
-  private FileIO tableFileIO(Map<String, String> config) {
-    if (config.isEmpty()) {
+  private FileIO newFileIO(SessionContext context, Map<String, String> properties) {
+    if (null != ioBuilder) {
+      return ioBuilder.apply(context, properties);
+    } else {
+      String ioImpl = properties.getOrDefault(CatalogProperties.FILE_IO_IMPL, DEFAULT_FILE_IO_IMPL);
+      return CatalogUtil.loadFileIO(ioImpl, properties, conf);
+    }
+  }
+
+  private FileIO tableFileIO(SessionContext context, Map<String, String> config) {
+    if (config.isEmpty() && ioBuilder == null) {
       return io; // reuse client and io since config is the same
     }
 
     Map<String, String> fullConf = RESTUtil.merge(properties(), config);
-    String ioImpl = fullConf.get(CatalogProperties.FILE_IO_IMPL);
 
-    return CatalogUtil.loadFileIO(
-        ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), fullConf, this.conf);
+    return newFileIO(context, fullConf);
   }
 
   private AuthSession tableSession(Map<String, String> tableConf, AuthSession parent) {
-    return newSession(tableConf, tableConf, parent);
+    Pair<String, Supplier<AuthSession>> newSession = newSession(tableConf, tableConf, parent);
+    if (null == newSession) {
+      return parent;
+    }
+
+    AuthSession session = tableSessions.get(newSession.first(), id -> newSession.second().get());
+
+    return session != null ? session : parent;
   }
 
   private static ConfigResponse fetchConfig(
@@ -772,77 +916,61 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     return configResponse;
   }
 
-  private AuthSession newSession(
+  private Pair<String, Supplier<AuthSession>> newSession(
       Map<String, String> credentials, Map<String, String> properties, AuthSession parent) {
     if (credentials != null) {
       // use the bearer token without exchanging
       if (credentials.containsKey(OAuth2Properties.TOKEN)) {
-        return newSession(credentials.get(OAuth2Properties.TOKEN), expiresInMs(properties), parent);
+        return Pair.of(
+            credentials.get(OAuth2Properties.TOKEN),
+            () ->
+                AuthSession.fromAccessToken(
+                    client,
+                    tokenRefreshExecutor(),
+                    credentials.get(OAuth2Properties.TOKEN),
+                    expiresAtMillis(properties),
+                    parent));
       }
 
       if (credentials.containsKey(OAuth2Properties.CREDENTIAL)) {
         // fetch a token using the client credentials flow
-        return newSession(credentials.get(OAuth2Properties.CREDENTIAL), parent);
+        return Pair.of(
+            credentials.get(OAuth2Properties.CREDENTIAL),
+            () ->
+                AuthSession.fromCredential(
+                    client,
+                    tokenRefreshExecutor(),
+                    credentials.get(OAuth2Properties.CREDENTIAL),
+                    parent));
       }
 
       for (String tokenType : TOKEN_PREFERENCE_ORDER) {
         if (credentials.containsKey(tokenType)) {
           // exchange the token for an access token using the token exchange flow
-          return newSession(credentials.get(tokenType), tokenType, parent);
+          return Pair.of(
+              credentials.get(tokenType),
+              () ->
+                  AuthSession.fromTokenExchange(
+                      client,
+                      tokenRefreshExecutor(),
+                      credentials.get(tokenType),
+                      tokenType,
+                      parent));
         }
       }
     }
 
-    return parent;
+    return null;
   }
 
-  private AuthSession newSession(String token, Long expirationMs, AuthSession parent) {
-    AuthSession session =
-        new AuthSession(parent.headers(), token, OAuth2Properties.ACCESS_TOKEN_TYPE);
-    if (expirationMs != null) {
-      scheduleTokenRefresh(
-          session, System.currentTimeMillis(), expirationMs, TimeUnit.MILLISECONDS);
-    }
-    return session;
-  }
-
-  private AuthSession newSession(String token, String tokenType, AuthSession parent) {
-    long startTimeMillis = System.currentTimeMillis();
-    OAuthTokenResponse response =
-        OAuth2Util.exchangeToken(
-            client,
-            parent.headers(),
-            token,
-            tokenType,
-            parent.token(),
-            parent.tokenType(),
-            OAuth2Properties.CATALOG_SCOPE);
-    return newSession(response, startTimeMillis, parent);
-  }
-
-  private AuthSession newSession(String credential, AuthSession parent) {
-    long startTimeMillis = System.currentTimeMillis();
-    OAuthTokenResponse response =
-        OAuth2Util.fetchToken(client, parent.headers(), credential, OAuth2Properties.CATALOG_SCOPE);
-    return newSession(response, startTimeMillis, parent);
-  }
-
-  private AuthSession newSession(
-      OAuthTokenResponse response, long startTimeMillis, AuthSession parent) {
-    AuthSession session =
-        new AuthSession(parent.headers(), response.token(), response.issuedTokenType());
-    if (response.expiresInSeconds() != null) {
-      scheduleTokenRefresh(session, startTimeMillis, response.expiresInSeconds(), TimeUnit.SECONDS);
-    }
-    return session;
-  }
-
-  private Long expiresInMs(Map<String, String> properties) {
-    if (refreshAuthByDefault || properties.containsKey(OAuth2Properties.TOKEN_EXPIRES_IN_MS)) {
-      return PropertyUtil.propertyAsLong(
-          properties,
-          OAuth2Properties.TOKEN_EXPIRES_IN_MS,
-          OAuth2Properties.TOKEN_EXPIRES_IN_MS_DEFAULT);
+  private Long expiresAtMillis(Map<String, String> properties) {
+    if (properties.containsKey(OAuth2Properties.TOKEN_EXPIRES_IN_MS)) {
+      long expiresInMillis =
+          PropertyUtil.propertyAsLong(
+              properties,
+              OAuth2Properties.TOKEN_EXPIRES_IN_MS,
+              OAuth2Properties.TOKEN_EXPIRES_IN_MS_DEFAULT);
+      return System.currentTimeMillis() + expiresInMillis;
     } else {
       return null;
     }
@@ -851,6 +979,12 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   private void checkIdentifierIsValid(TableIdentifier tableIdentifier) {
     if (tableIdentifier.namespace().isEmpty()) {
       throw new NoSuchTableException("Invalid table identifier: %s", tableIdentifier);
+    }
+  }
+
+  private void checkViewIdentifierIsValid(TableIdentifier identifier) {
+    if (identifier.namespace().isEmpty()) {
+      throw new NoSuchViewException("Invalid view identifier: %s", identifier);
     }
   }
 
@@ -876,5 +1010,283 @@ public class RESTSessionCatalog extends BaseSessionCatalog
         .removalListener(
             (RemovalListener<String, AuthSession>) (id, auth, cause) -> auth.stopRefreshing())
         .build();
+  }
+
+  private Cache<TableOperations, FileIO> newFileIOCloser() {
+    return Caffeine.newBuilder()
+        .weakKeys()
+        .removalListener(
+            (RemovalListener<TableOperations, FileIO>)
+                (ops, fileIO, cause) -> {
+                  if (null != fileIO) {
+                    fileIO.close();
+                  }
+                })
+        .build();
+  }
+
+  public void commitTransaction(SessionContext context, List<TableCommit> commits) {
+    List<UpdateTableRequest> tableChanges = Lists.newArrayListWithCapacity(commits.size());
+
+    for (TableCommit commit : commits) {
+      tableChanges.add(
+          UpdateTableRequest.create(commit.identifier(), commit.requirements(), commit.updates()));
+    }
+
+    client.post(
+        paths.commitTransaction(),
+        new CommitTransactionRequest(tableChanges),
+        null,
+        headers(context),
+        ErrorHandlers.tableCommitHandler());
+  }
+
+  @Override
+  public List<TableIdentifier> listViews(SessionContext context, Namespace namespace) {
+    checkNamespaceIsValid(namespace);
+
+    ListTablesResponse response =
+        client.get(
+            paths.views(namespace),
+            ListTablesResponse.class,
+            headers(context),
+            ErrorHandlers.namespaceErrorHandler());
+    return response.identifiers();
+  }
+
+  @Override
+  public View loadView(SessionContext context, TableIdentifier identifier) {
+    checkViewIdentifierIsValid(identifier);
+
+    LoadViewResponse response;
+    try {
+      response =
+          client.get(
+              paths.view(identifier),
+              LoadViewResponse.class,
+              headers(context),
+              ErrorHandlers.viewErrorHandler());
+    } catch (UnsupportedOperationException | RESTException e) {
+      // Normally, copying an exception message is a bad practice but engines may show just the
+      // message and suppress the exception cause when the view does not exist. Since 401 and 403
+      // responses can trigger this case, including the message increases the chances that the "Not
+      // authorized" or "Forbidden" message is preserved and shown.
+      throw new NoSuchViewException(
+          e, "Unable to load view %s.%s: %s", name(), identifier, e.getMessage());
+    }
+
+    AuthSession session = tableSession(response.config(), session(context));
+    ViewMetadata metadata = response.metadata();
+
+    RESTViewOperations ops =
+        new RESTViewOperations(client, paths.view(identifier), session::headers, metadata);
+
+    return new BaseView(ops, ViewUtil.fullViewName(name(), identifier));
+  }
+
+  @Override
+  public RESTViewBuilder buildView(SessionContext context, TableIdentifier identifier) {
+    return new RESTViewBuilder(context, identifier);
+  }
+
+  @Override
+  public boolean dropView(SessionContext context, TableIdentifier identifier) {
+    checkViewIdentifierIsValid(identifier);
+
+    try {
+      client.delete(
+          paths.view(identifier), null, headers(context), ErrorHandlers.viewErrorHandler());
+      return true;
+    } catch (NoSuchViewException e) {
+      return false;
+    }
+  }
+
+  @Override
+  public void renameView(SessionContext context, TableIdentifier from, TableIdentifier to) {
+    checkViewIdentifierIsValid(from);
+    checkViewIdentifierIsValid(to);
+
+    RenameTableRequest request =
+        RenameTableRequest.builder().withSource(from).withDestination(to).build();
+
+    client.post(
+        paths.renameView(), request, null, headers(context), ErrorHandlers.viewErrorHandler());
+  }
+
+  private class RESTViewBuilder implements ViewBuilder {
+    private final SessionContext context;
+    private final TableIdentifier identifier;
+    private final Map<String, String> properties = Maps.newHashMap();
+    private final List<ViewRepresentation> representations = Lists.newArrayList();
+    private Namespace defaultNamespace = null;
+    private String defaultCatalog = null;
+    private Schema schema = null;
+    private String location = null;
+
+    private RESTViewBuilder(SessionContext context, TableIdentifier identifier) {
+      checkViewIdentifierIsValid(identifier);
+      this.identifier = identifier;
+      this.context = context;
+    }
+
+    @Override
+    public ViewBuilder withSchema(Schema newSchema) {
+      this.schema = newSchema;
+      return this;
+    }
+
+    @Override
+    public ViewBuilder withQuery(String dialect, String sql) {
+      representations.add(
+          ImmutableSQLViewRepresentation.builder().dialect(dialect).sql(sql).build());
+      return this;
+    }
+
+    @Override
+    public ViewBuilder withDefaultCatalog(String catalog) {
+      this.defaultCatalog = catalog;
+      return this;
+    }
+
+    @Override
+    public ViewBuilder withDefaultNamespace(Namespace namespace) {
+      this.defaultNamespace = namespace;
+      return this;
+    }
+
+    @Override
+    public ViewBuilder withProperties(Map<String, String> newProperties) {
+      this.properties.putAll(newProperties);
+      return this;
+    }
+
+    @Override
+    public ViewBuilder withProperty(String key, String value) {
+      this.properties.put(key, value);
+      return this;
+    }
+
+    @Override
+    public ViewBuilder withLocation(String newLocation) {
+      this.location = newLocation;
+      return this;
+    }
+
+    @Override
+    public View create() {
+      Preconditions.checkState(
+          !representations.isEmpty(), "Cannot create view without specifying a query");
+      Preconditions.checkState(null != schema, "Cannot create view without specifying schema");
+      Preconditions.checkState(
+          null != defaultNamespace, "Cannot create view without specifying a default namespace");
+
+      ViewVersion viewVersion =
+          ImmutableViewVersion.builder()
+              .versionId(1)
+              .schemaId(schema.schemaId())
+              .addAllRepresentations(representations)
+              .defaultNamespace(defaultNamespace)
+              .defaultCatalog(defaultCatalog)
+              .timestampMillis(System.currentTimeMillis())
+              .putAllSummary(EnvironmentContext.get())
+              .build();
+
+      CreateViewRequest request =
+          ImmutableCreateViewRequest.builder()
+              .name(identifier.name())
+              .location(location)
+              .schema(schema)
+              .viewVersion(viewVersion)
+              .properties(properties)
+              .build();
+
+      LoadViewResponse response =
+          client.post(
+              paths.views(identifier.namespace()),
+              request,
+              LoadViewResponse.class,
+              headers(context),
+              ErrorHandlers.viewErrorHandler());
+
+      AuthSession session = tableSession(response.config(), session(context));
+      RESTViewOperations ops =
+          new RESTViewOperations(
+              client, paths.view(identifier), session::headers, response.metadata());
+
+      return new BaseView(ops, ViewUtil.fullViewName(name(), identifier));
+    }
+
+    @Override
+    public View createOrReplace() {
+      try {
+        return replace(loadView());
+      } catch (NoSuchViewException e) {
+        return create();
+      }
+    }
+
+    @Override
+    public View replace() {
+      if (tableExists(context, identifier)) {
+        throw new AlreadyExistsException("Table with same name already exists: %s", identifier);
+      }
+
+      return replace(loadView());
+    }
+
+    private LoadViewResponse loadView() {
+      return client.get(
+          paths.view(identifier),
+          LoadViewResponse.class,
+          headers(context),
+          ErrorHandlers.viewErrorHandler());
+    }
+
+    private View replace(LoadViewResponse response) {
+      Preconditions.checkState(
+          !representations.isEmpty(), "Cannot replace view without specifying a query");
+      Preconditions.checkState(null != schema, "Cannot replace view without specifying schema");
+      Preconditions.checkState(
+          null != defaultNamespace, "Cannot replace view without specifying a default namespace");
+
+      ViewMetadata metadata = response.metadata();
+
+      int maxVersionId =
+          metadata.versions().stream()
+              .map(ViewVersion::versionId)
+              .max(Integer::compareTo)
+              .orElseGet(metadata::currentVersionId);
+
+      ViewVersion viewVersion =
+          ImmutableViewVersion.builder()
+              .versionId(maxVersionId + 1)
+              .schemaId(schema.schemaId())
+              .addAllRepresentations(representations)
+              .defaultNamespace(defaultNamespace)
+              .defaultCatalog(defaultCatalog)
+              .timestampMillis(System.currentTimeMillis())
+              .putAllSummary(EnvironmentContext.get())
+              .build();
+
+      ViewMetadata.Builder builder =
+          ViewMetadata.buildFrom(metadata)
+              .setProperties(properties)
+              .setCurrentVersion(viewVersion, schema);
+
+      if (null != location) {
+        builder.setLocation(location);
+      }
+
+      ViewMetadata replacement = builder.build();
+
+      AuthSession session = tableSession(response.config(), session(context));
+      RESTViewOperations ops =
+          new RESTViewOperations(client, paths.view(identifier), session::headers, metadata);
+
+      ops.commit(metadata, replacement);
+
+      return new BaseView(ops, ViewUtil.fullViewName(name(), identifier));
+    }
   }
 }

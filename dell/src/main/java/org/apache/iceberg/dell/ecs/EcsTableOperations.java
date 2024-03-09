@@ -87,7 +87,8 @@ public class EcsTableOperations extends BaseMetastoreTableOperations {
 
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
-    String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
+    boolean newTable = base == null;
+    String newMetadataLocation = writeNewMetadataIfRequired(newTable, metadata);
     if (base == null) {
       // create a new table, the metadataKey should be absent
       if (!catalog.putNewProperties(tableObject, buildProperties(newMetadataLocation))) {

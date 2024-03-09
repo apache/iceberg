@@ -24,8 +24,8 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
-import org.junit.Assert;
-import org.junit.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 public class TestEstimateOrcAvgWidthVisitor {
 
@@ -78,7 +78,9 @@ public class TestEstimateOrcAvgWidthVisitor {
     Schema integerSchema = new Schema(ID_FIELD);
     TypeDescription integerOrcSchema = ORCSchemaUtil.convert(integerSchema);
     long estimateLength = getEstimateLength(integerOrcSchema);
-    Assert.assertEquals("Estimated average length of integer must be 8.", 8, estimateLength);
+    Assertions.assertThat(estimateLength)
+        .as("Estimated average length of integer must be 8.")
+        .isEqualTo(8);
   }
 
   @Test
@@ -86,7 +88,9 @@ public class TestEstimateOrcAvgWidthVisitor {
     Schema stringSchema = new Schema(DATA_FIELD);
     TypeDescription stringOrcSchema = ORCSchemaUtil.convert(stringSchema);
     long estimateLength = getEstimateLength(stringOrcSchema);
-    Assert.assertEquals("Estimated average length of string must be 128.", 128, estimateLength);
+    Assertions.assertThat(estimateLength)
+        .as("Estimated average length of string must be 128.")
+        .isEqualTo(128);
   }
 
   @Test
@@ -94,7 +98,9 @@ public class TestEstimateOrcAvgWidthVisitor {
     Schema floatSchema = new Schema(FLOAT_FIELD);
     TypeDescription floatOrcSchema = ORCSchemaUtil.convert(floatSchema);
     long estimateLength = getEstimateLength(floatOrcSchema);
-    Assert.assertEquals("Estimated average length of float must be 8.", 8, estimateLength);
+    Assertions.assertThat(estimateLength)
+        .as("Estimated average length of float must be 8.")
+        .isEqualTo(8);
   }
 
   @Test
@@ -102,7 +108,9 @@ public class TestEstimateOrcAvgWidthVisitor {
     Schema doubleSchema = new Schema(DOUBLE_FIELD);
     TypeDescription doubleOrcSchema = ORCSchemaUtil.convert(doubleSchema);
     long estimateLength = getEstimateLength(doubleOrcSchema);
-    Assert.assertEquals("Estimated average length of double must be 8.", 8, estimateLength);
+    Assertions.assertThat(estimateLength)
+        .as("Estimated average length of double must be 8.")
+        .isEqualTo(8);
   }
 
   @Test
@@ -110,7 +118,9 @@ public class TestEstimateOrcAvgWidthVisitor {
     Schema decimalSchema = new Schema(DECIMAL_FIELD);
     TypeDescription decimalOrcSchema = ORCSchemaUtil.convert(decimalSchema);
     long estimateLength = getEstimateLength(decimalOrcSchema);
-    Assert.assertEquals("Estimated average length of decimal must be 7.", 7, estimateLength);
+    Assertions.assertThat(estimateLength)
+        .as("Estimated average length of decimal must be 7.")
+        .isEqualTo(7);
   }
 
   @Test
@@ -118,7 +128,9 @@ public class TestEstimateOrcAvgWidthVisitor {
     Schema fixedSchema = new Schema(FIXED_FIELD);
     TypeDescription fixedOrcSchema = ORCSchemaUtil.convert(fixedSchema);
     long estimateLength = getEstimateLength(fixedOrcSchema);
-    Assert.assertEquals("Estimated average length of fixed must be 128.", 128, estimateLength);
+    Assertions.assertThat(estimateLength)
+        .as("Estimated average length of fixed must be 128.")
+        .isEqualTo(128);
   }
 
   @Test
@@ -126,7 +138,9 @@ public class TestEstimateOrcAvgWidthVisitor {
     Schema binarySchema = new Schema(BINARY_FIELD);
     TypeDescription binaryOrcSchema = ORCSchemaUtil.convert(binarySchema);
     long estimateLength = getEstimateLength(binaryOrcSchema);
-    Assert.assertEquals("Estimated average length of binary must be 128.", 128, estimateLength);
+    Assertions.assertThat(estimateLength)
+        .as("Estimated average length of binary must be 128.")
+        .isEqualTo(128);
   }
 
   @Test
@@ -134,7 +148,9 @@ public class TestEstimateOrcAvgWidthVisitor {
     Schema listSchema = new Schema(FLOAT_LIST_FIELD);
     TypeDescription listOrcSchema = ORCSchemaUtil.convert(listSchema);
     long estimateLength = getEstimateLength(listOrcSchema);
-    Assert.assertEquals("Estimated average length of list must be 8.", 8, estimateLength);
+    Assertions.assertThat(estimateLength)
+        .as("Estimated average length of list must be 8.")
+        .isEqualTo(8);
   }
 
   @Test
@@ -142,7 +158,9 @@ public class TestEstimateOrcAvgWidthVisitor {
     Schema longSchema = new Schema(LONG_FIELD);
     TypeDescription longOrcSchema = ORCSchemaUtil.convert(longSchema);
     long estimateLength = getEstimateLength(longOrcSchema);
-    Assert.assertEquals("Estimated average length of long must be 8.", 8, estimateLength);
+    Assertions.assertThat(estimateLength)
+        .as("Estimated average length of long must be 8.")
+        .isEqualTo(8);
   }
 
   @Test
@@ -150,7 +168,9 @@ public class TestEstimateOrcAvgWidthVisitor {
     Schema booleanSchema = new Schema(BOOLEAN_FIELD);
     TypeDescription booleanOrcSchema = ORCSchemaUtil.convert(booleanSchema);
     long estimateLength = getEstimateLength(booleanOrcSchema);
-    Assert.assertEquals("Estimated average length of boolean must be 8.", 8, estimateLength);
+    Assertions.assertThat(estimateLength)
+        .as("Estimated average length of boolean must be 8.")
+        .isEqualTo(8);
   }
 
   @Test
@@ -158,13 +178,16 @@ public class TestEstimateOrcAvgWidthVisitor {
     Schema timestampZoneSchema = new Schema(TIMESTAMP_ZONE_FIELD);
     TypeDescription timestampZoneOrcSchema = ORCSchemaUtil.convert(timestampZoneSchema);
     long estimateLength = getEstimateLength(timestampZoneOrcSchema);
-    Assert.assertEquals(
-        "Estimated average length of timestamps with zone must be 12.", 12, estimateLength);
+    Assertions.assertThat(estimateLength)
+        .as("Estimated average length of timestamps with zone must be 12.")
+        .isEqualTo(12);
 
     Schema timestampSchema = new Schema(TIMESTAMP_FIELD);
     TypeDescription timestampOrcSchema = ORCSchemaUtil.convert(timestampSchema);
     estimateLength = getEstimateLength(timestampOrcSchema);
-    Assert.assertEquals("Estimated average length of timestamp must be 12.", 12, estimateLength);
+    Assertions.assertThat(estimateLength)
+        .as("Estimated average length of timestamp must be 12.")
+        .isEqualTo(12);
   }
 
   @Test
@@ -172,7 +195,9 @@ public class TestEstimateOrcAvgWidthVisitor {
     Schema dateSchema = new Schema(DATE_FIELD);
     TypeDescription dateOrcSchema = ORCSchemaUtil.convert(dateSchema);
     long estimateLength = getEstimateLength(dateOrcSchema);
-    Assert.assertEquals("Estimated average length of date must be 8.", 8, estimateLength);
+    Assertions.assertThat(estimateLength)
+        .as("Estimated average length of date must be 8.")
+        .isEqualTo(8);
   }
 
   @Test
@@ -180,7 +205,9 @@ public class TestEstimateOrcAvgWidthVisitor {
     Schema uuidSchema = new Schema(UUID_FIELD);
     TypeDescription uuidOrcSchema = ORCSchemaUtil.convert(uuidSchema);
     long estimateLength = getEstimateLength(uuidOrcSchema);
-    Assert.assertEquals("Estimated average length of uuid must be 128.", 128, estimateLength);
+    Assertions.assertThat(estimateLength)
+        .as("Estimated average length of uuid must be 128.")
+        .isEqualTo(128);
   }
 
   @Test
@@ -188,7 +215,9 @@ public class TestEstimateOrcAvgWidthVisitor {
     Schema mapSchema = new Schema(MAP_FIELD_1);
     TypeDescription mapOrcSchema = ORCSchemaUtil.convert(mapSchema);
     long estimateLength = getEstimateLength(mapOrcSchema);
-    Assert.assertEquals("Estimated average length of map must be 136.", 136, estimateLength);
+    Assertions.assertThat(estimateLength)
+        .as("Estimated average length of map must be 136.")
+        .isEqualTo(136);
   }
 
   @Test
@@ -196,7 +225,9 @@ public class TestEstimateOrcAvgWidthVisitor {
     Schema structSchema = new Schema(STRUCT_FIELD);
     TypeDescription structOrcSchema = ORCSchemaUtil.convert(structSchema);
     long estimateLength = getEstimateLength(structOrcSchema);
-    Assert.assertEquals("Estimated average length of struct must be 28.", 28, estimateLength);
+    Assertions.assertThat(estimateLength)
+        .as("Estimated average length of struct must be 28.")
+        .isEqualTo(28);
   }
 
   @Test
@@ -217,7 +248,9 @@ public class TestEstimateOrcAvgWidthVisitor {
             STRUCT_FIELD);
     TypeDescription fullOrcSchema = ORCSchemaUtil.convert(fullSchema);
     long estimateLength = getEstimateLength(fullOrcSchema);
-    Assert.assertEquals("Estimated average length of the row must be 611.", 611, estimateLength);
+    Assertions.assertThat(estimateLength)
+        .as("Estimated average length of the row must be 611.")
+        .isEqualTo(611);
   }
 
   private Integer getEstimateLength(TypeDescription orcSchemaWithDate) {

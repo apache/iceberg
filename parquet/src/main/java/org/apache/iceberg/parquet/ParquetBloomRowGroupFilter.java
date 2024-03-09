@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.UUID;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Binder;
+import org.apache.iceberg.expressions.Bound;
 import org.apache.iceberg.expressions.BoundReference;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
@@ -44,11 +45,16 @@ import org.apache.parquet.hadoop.BloomFilterReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.io.api.Binary;
-import org.apache.parquet.schema.DecimalMetadata;
+import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ParquetBloomRowGroupFilter {
+
+  private static final Logger LOG = LoggerFactory.getLogger(ParquetBloomRowGroupFilter.class);
+
   private final Schema schema;
   private final Expression expr;
   private final boolean caseSensitive;
@@ -113,10 +119,13 @@ public class ParquetBloomRowGroupFilter {
 
       Set<Integer> filterRefs =
           Binder.boundReferences(schema.asStruct(), ImmutableList.of(expr), caseSensitive);
-      // If the filter's column set doesn't overlap with any bloom filter columns, exit early with
-      // ROWS_MIGHT_MATCH
-      if (filterRefs.size() > 0 && Sets.intersection(fieldsWithBloomFilter, filterRefs).isEmpty()) {
-        return ROWS_MIGHT_MATCH;
+      if (!filterRefs.isEmpty()) {
+        Set<Integer> overlappedBloomFilters = Sets.intersection(fieldsWithBloomFilter, filterRefs);
+        if (overlappedBloomFilters.isEmpty()) {
+          return ROWS_MIGHT_MATCH;
+        } else {
+          LOG.debug("Using Bloom filters for columns with IDs: {}", overlappedBloomFilters);
+        }
       }
 
       return ExpressionVisitors.visitEvaluator(expr, this);
@@ -314,7 +323,8 @@ public class ParquetBloomRowGroupFilter {
               hashValue = bloom.hash(Binary.fromConstantByteBuffer((ByteBuffer) value));
               return bloom.findHash(hashValue);
             case DECIMAL:
-              DecimalMetadata metadata = primitiveType.getDecimalMetadata();
+              DecimalLogicalTypeAnnotation metadata =
+                  (DecimalLogicalTypeAnnotation) primitiveType.getLogicalTypeAnnotation();
               int scale = metadata.getScale();
               int precision = metadata.getPrecision();
               byte[] requiredBytes = new byte[TypeUtil.decimalRequiredBytes(precision)];
@@ -332,6 +342,11 @@ public class ParquetBloomRowGroupFilter {
         default:
           return ROWS_MIGHT_MATCH;
       }
+    }
+
+    @Override
+    public <T> Boolean handleNonReference(Bound<T> term) {
+      return ROWS_MIGHT_MATCH;
     }
   }
 }

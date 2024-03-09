@@ -19,22 +19,23 @@
 package org.apache.iceberg.hive;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestHiveSchemaUtil {
   private static final Schema SIMPLE_ICEBERG_SCHEMA =
@@ -113,8 +114,8 @@ public class TestHiveSchemaUtil {
 
   @Test
   public void testSimpleSchemaConvertToIcebergSchema() {
-    Assert.assertEquals(
-        SIMPLE_ICEBERG_SCHEMA.asStruct(), HiveSchemaUtil.convert(SIMPLE_HIVE_SCHEMA).asStruct());
+    assertThat(HiveSchemaUtil.convert(SIMPLE_HIVE_SCHEMA).asStruct())
+        .isEqualTo(SIMPLE_ICEBERG_SCHEMA.asStruct());
   }
 
   @Test
@@ -127,44 +128,42 @@ public class TestHiveSchemaUtil {
             .collect(Collectors.toList());
     List<String> comments =
         SIMPLE_HIVE_SCHEMA.stream().map(FieldSchema::getComment).collect(Collectors.toList());
-    Assert.assertEquals(
-        SIMPLE_ICEBERG_SCHEMA.asStruct(),
-        HiveSchemaUtil.convert(names, types, comments).asStruct());
+    assertThat(HiveSchemaUtil.convert(names, types, comments).asStruct())
+        .isEqualTo(SIMPLE_ICEBERG_SCHEMA.asStruct());
   }
 
   @Test
   public void testComplexSchemaConvertToIcebergSchema() {
-    Assert.assertEquals(
-        COMPLEX_ICEBERG_SCHEMA.asStruct(), HiveSchemaUtil.convert(COMPLEX_HIVE_SCHEMA).asStruct());
+    assertThat(HiveSchemaUtil.convert(COMPLEX_HIVE_SCHEMA).asStruct())
+        .isEqualTo(COMPLEX_ICEBERG_SCHEMA.asStruct());
   }
 
   @Test
   public void testSchemaConvertToIcebergSchemaForEveryPrimitiveType() {
     Schema schemaWithEveryType = HiveSchemaUtil.convert(getSupportedFieldSchemas());
-    Assert.assertEquals(getSchemaWithSupportedTypes().asStruct(), schemaWithEveryType.asStruct());
+    assertThat(schemaWithEveryType.asStruct()).isEqualTo(getSchemaWithSupportedTypes().asStruct());
   }
 
   @Test
   public void testNotSupportedTypes() {
     for (FieldSchema notSupportedField : getNotSupportedFieldSchemas()) {
-      AssertHelpers.assertThrows(
-          "should throw exception",
-          IllegalArgumentException.class,
-          "Unsupported Hive type",
-          () -> {
-            HiveSchemaUtil.convert(Lists.newArrayList(Arrays.asList(notSupportedField)));
-          });
+      assertThatThrownBy(
+              () ->
+                  HiveSchemaUtil.convert(
+                      Lists.newArrayList(Collections.singletonList(notSupportedField))))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageStartingWith("Unsupported Hive type");
     }
   }
 
   @Test
   public void testSimpleSchemaConvertToHiveSchema() {
-    Assert.assertEquals(SIMPLE_HIVE_SCHEMA, HiveSchemaUtil.convert(SIMPLE_ICEBERG_SCHEMA));
+    assertThat(HiveSchemaUtil.convert(SIMPLE_ICEBERG_SCHEMA)).isEqualTo(SIMPLE_HIVE_SCHEMA);
   }
 
   @Test
   public void testComplexSchemaConvertToHiveSchema() {
-    Assert.assertEquals(COMPLEX_HIVE_SCHEMA, HiveSchemaUtil.convert(COMPLEX_ICEBERG_SCHEMA));
+    assertThat(HiveSchemaUtil.convert(COMPLEX_ICEBERG_SCHEMA)).isEqualTo(COMPLEX_HIVE_SCHEMA);
   }
 
   @Test
@@ -201,9 +200,9 @@ public class TestHiveSchemaUtil {
             Arrays.asList(
                 TypeInfoUtils.getTypeInfoFromTypeString(serdeConstants.BIGINT_TYPE_NAME),
                 TypeInfoUtils.getTypeInfoFromTypeString(serdeConstants.STRING_TYPE_NAME)),
-            Arrays.asList("customer comment"));
+            Collections.singletonList("customer comment"));
 
-    Assert.assertEquals(expected.asStruct(), schema.asStruct());
+    assertThat(schema.asStruct()).isEqualTo(expected.asStruct());
   }
 
   protected List<FieldSchema> getSupportedFieldSchemas() {
@@ -255,7 +254,7 @@ public class TestHiveSchemaUtil {
    */
   private void checkConvert(TypeInfo typeInfo, Type type) {
     // Convert to TypeInfo
-    Assert.assertEquals(typeInfo, HiveSchemaUtil.convert(type));
+    assertThat(HiveSchemaUtil.convert(type)).isEqualTo(typeInfo);
     // Convert to Type
     assertEquals(type, HiveSchemaUtil.convert(typeInfo));
   }
@@ -268,13 +267,13 @@ public class TestHiveSchemaUtil {
    */
   private void assertEquals(Type expected, Type actual) {
     if (actual.isPrimitiveType()) {
-      Assert.assertEquals(expected, actual);
+      assertThat(actual).isEqualTo(expected);
     } else {
       List<Types.NestedField> expectedFields = ((Type.NestedType) expected).fields();
       List<Types.NestedField> actualFields = ((Type.NestedType) actual).fields();
       for (int i = 0; i < expectedFields.size(); ++i) {
         assertEquals(expectedFields.get(i).type(), actualFields.get(i).type());
-        Assert.assertEquals(expectedFields.get(i).name(), actualFields.get(i).name());
+        assertThat(actualFields.get(i).name()).isEqualTo(expectedFields.get(i).name());
       }
     }
   }

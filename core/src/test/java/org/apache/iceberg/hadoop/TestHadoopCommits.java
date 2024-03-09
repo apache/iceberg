@@ -21,9 +21,6 @@ package org.apache.iceberg.hadoop;
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -31,20 +28,24 @@ import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
-import org.apache.iceberg.AssertHelpers;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.LockManager;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -58,8 +59,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Tasks;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.awaitility.Awaitility;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mockito;
 
 public class TestHadoopCommits extends HadoopTableTestBase {
@@ -68,55 +70,53 @@ public class TestHadoopCommits extends HadoopTableTestBase {
   public void testCreateTable() throws Exception {
     PartitionSpec expectedSpec = PartitionSpec.builderFor(TABLE_SCHEMA).bucket("data", 16).build();
 
-    Assert.assertEquals(
-        "Table schema should match schema with reassigned ids",
-        TABLE_SCHEMA.asStruct(),
-        table.schema().asStruct());
-    Assert.assertEquals(
-        "Table partition spec should match with reassigned ids", expectedSpec, table.spec());
+    Assertions.assertThat(table.schema().asStruct())
+        .as("Table schema should match schema with reassigned ids")
+        .isEqualTo(TABLE_SCHEMA.asStruct());
+    Assertions.assertThat(table.spec())
+        .as("Table partition spec should match with reassigned ids")
+        .isEqualTo(expectedSpec);
 
     List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles());
-    Assert.assertEquals("Should not create any scan tasks", 0, tasks.size());
-
-    Assert.assertTrue("Table location should exist", tableDir.exists());
-    Assert.assertTrue(
-        "Should create metadata folder", metadataDir.exists() && metadataDir.isDirectory());
-    Assert.assertTrue("Should create v1 metadata", version(1).exists() && version(1).isFile());
-    Assert.assertFalse("Should not create v2 or newer versions", version(2).exists());
-    Assert.assertTrue("Should create version hint file", versionHintFile.exists());
-    Assert.assertEquals("Should write the current version to the hint file", 1, readVersionHint());
-
+    Assertions.assertThat(tasks).as("Should not create any scan tasks").isEmpty();
+    Assertions.assertThat(tableDir).as("Table location should exist").exists();
+    Assertions.assertThat(metadataDir).as("Should create metadata folder").exists().isDirectory();
+    Assertions.assertThat(version(1)).as("Should create v1 metadata").exists().isFile();
+    Assertions.assertThat(version(2)).as("Should not create v2 or newer versions").doesNotExist();
+    Assertions.assertThat(versionHintFile).as("Should create version hint file").exists();
+    Assertions.assertThat(readVersionHint())
+        .as("Should write the current version to the hint file")
+        .isEqualTo(1);
     List<File> manifests = listManifestFiles();
-    Assert.assertEquals("Should contain 0 Avro manifest files", 0, manifests.size());
+    Assertions.assertThat(manifests).as("Should contain 0 Avro manifest files").isEmpty();
   }
 
   @Test
   public void testSchemaUpdate() throws Exception {
-    Assert.assertTrue("Should create v1 metadata", version(1).exists() && version(1).isFile());
-    Assert.assertFalse("Should not create v2 or newer versions", version(2).exists());
+    Assertions.assertThat(version(1)).as("Should create v1 metadata").exists().isFile();
+    Assertions.assertThat(version(2)).as("Should not create v2 or newer versions").doesNotExist();
 
     table.updateSchema().addColumn("n", Types.IntegerType.get()).commit();
 
-    Assert.assertTrue(
-        "Should create v2 for the update", version(2).exists() && version(2).isFile());
-    Assert.assertEquals("Should write the current version to the hint file", 2, readVersionHint());
-
-    Assert.assertEquals(
-        "Table schema should match schema with reassigned ids",
-        UPDATED_SCHEMA.asStruct(),
-        table.schema().asStruct());
+    Assertions.assertThat(version(2)).as("Should create v2 for the update").exists().isFile();
+    Assertions.assertThat(readVersionHint())
+        .as("Should write the current version to the hint file")
+        .isEqualTo(2);
+    Assertions.assertThat(table.schema().asStruct())
+        .as("Table schema should match schema with reassigned ids")
+        .isEqualTo(UPDATED_SCHEMA.asStruct());
 
     List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles());
-    Assert.assertEquals("Should not create any scan tasks", 0, tasks.size());
+    Assertions.assertThat(tasks).as("Should not create any scan tasks").isEmpty();
 
     List<File> manifests = listManifestFiles();
-    Assert.assertEquals("Should contain 0 Avro manifest files", 0, manifests.size());
+    Assertions.assertThat(manifests).as("Should contain 0 Avro manifest files").isEmpty();
   }
 
   @Test
   public void testSchemaUpdateComplexType() throws Exception {
-    Assert.assertTrue("Should create v1 metadata", version(1).exists() && version(1).isFile());
-    Assert.assertFalse("Should not create v2 or newer versions", version(2).exists());
+    Assertions.assertThat(version(1)).as("Should create v1 metadata").exists().isFile();
+    Assertions.assertThat(version(2)).as("Should not create v2 or newer versions").doesNotExist();
 
     Types.StructType complexColumn =
         Types.StructType.of(
@@ -146,25 +146,25 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
     table.updateSchema().addColumn("complex", complexColumn).commit();
 
-    Assert.assertTrue(
-        "Should create v2 for the update", version(2).exists() && version(2).isFile());
-    Assert.assertEquals("Should write the current version to the hint file", 2, readVersionHint());
-    Assert.assertEquals(
-        "Table schema should match schema with reassigned ids",
-        updatedSchema.asStruct(),
-        table.schema().asStruct());
+    Assertions.assertThat(version(2)).as("Should create v2 for the update").exists().isFile();
+    Assertions.assertThat(readVersionHint())
+        .as("Should write the current version to the hint file")
+        .isEqualTo(2);
+    Assertions.assertThat(table.schema().asStruct())
+        .as("Table schema should match schema with reassigned ids")
+        .isEqualTo(updatedSchema.asStruct());
 
     List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles());
-    Assert.assertEquals("Should not create any scan tasks", 0, tasks.size());
+    Assertions.assertThat(tasks).as("Should not create any scan tasks").isEmpty();
 
     List<File> manifests = listManifestFiles();
-    Assert.assertEquals("Should contain 0 Avro manifest files", 0, manifests.size());
+    Assertions.assertThat(manifests).as("Should contain 0 Avro manifest files").isEmpty();
   }
 
   @Test
   public void testSchemaUpdateIdentifierFields() throws Exception {
-    Assert.assertTrue("Should create v1 metadata", version(1).exists() && version(1).isFile());
-    Assert.assertFalse("Should not create v2 or newer versions", version(2).exists());
+    Assertions.assertThat(version(1)).as("Should create v1 metadata").exists().isFile();
+    Assertions.assertThat(version(2)).as("Should not create v2 or newer versions").doesNotExist();
 
     Schema updatedSchema =
         new Schema(
@@ -175,17 +175,16 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
     table.updateSchema().setIdentifierFields("id").commit();
 
-    Assert.assertTrue(
-        "Should create v2 for the update", version(2).exists() && version(2).isFile());
-    Assert.assertEquals("Should write the current version to the hint file", 2, readVersionHint());
-    Assert.assertEquals(
-        "Table schema should match schema with reassigned ids",
-        updatedSchema.asStruct(),
-        table.schema().asStruct());
-    Assert.assertEquals(
-        "Identifier fields should match schema with reassigned ids",
-        updatedSchema.identifierFieldIds(),
-        table.schema().identifierFieldIds());
+    Assertions.assertThat(version(2)).as("Should create v2 for the update").exists().isFile();
+    Assertions.assertThat(readVersionHint())
+        .as("Should write the current version to the hint file")
+        .isEqualTo(2);
+    Assertions.assertThat(table.schema().asStruct())
+        .as("Table schema should match schema with reassigned ids")
+        .isEqualTo(updatedSchema.asStruct());
+    Assertions.assertThat(table.schema().identifierFieldIds())
+        .as("Identifier fields should match schema with reassigned ids")
+        .isEqualTo(updatedSchema.identifierFieldIds());
   }
 
   @Test
@@ -194,27 +193,25 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     UpdateSchema update = table.updateSchema().addColumn("n", Types.IntegerType.get());
     update.apply();
 
-    Assert.assertTrue("Should create v1 metadata", version(1).exists() && version(1).isFile());
-    Assert.assertFalse("Should not create v2 or newer versions", version(2).exists());
+    Assertions.assertThat(version(1)).as("Should create v1 metadata").exists().isFile();
+    Assertions.assertThat(version(2)).as("Should not create v2 or newer versions").doesNotExist();
 
     version(2).createNewFile();
 
-    AssertHelpers.assertThrows(
-        "Should fail to commit change based on v1 when v2 exists",
-        CommitFailedException.class,
-        "Version 2 already exists",
-        update::commit);
+    Assertions.assertThatThrownBy(update::commit)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageStartingWith("Version 2 already exists");
 
     List<File> manifests = listManifestFiles();
-    Assert.assertEquals("Should contain 0 Avro manifest files", 0, manifests.size());
+    Assertions.assertThat(manifests).as("Should contain 0 Avro manifest files").isEmpty();
   }
 
   @Test
   public void testStaleMetadata() throws Exception {
     Table tableCopy = TABLES.load(tableLocation);
 
-    Assert.assertTrue("Should create v1 metadata", version(1).exists() && version(1).isFile());
-    Assert.assertFalse("Should not create v2 or newer versions", version(2).exists());
+    Assertions.assertThat(version(1)).as("Should create v1 metadata").exists().isFile();
+    Assertions.assertThat(version(2)).as("Should not create v2 or newer versions").doesNotExist();
 
     // prepare changes on the copy without committing
     UpdateSchema updateCopy = tableCopy.updateSchema().addColumn("m", Types.IntegerType.get());
@@ -222,61 +219,55 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
     table.updateSchema().addColumn("n", Types.IntegerType.get()).commit();
 
-    Assert.assertTrue(
-        "Should create v2 for the update", version(2).exists() && version(2).isFile());
-    Assert.assertNotEquals(
-        "Unmodified copy should be out of date after update",
-        table.schema().asStruct(),
-        tableCopy.schema().asStruct());
+    Assertions.assertThat(version(2)).as("Should create v2 for the update").exists().isFile();
+    Assertions.assertThat(table.schema().asStruct())
+        .as("Unmodified copy should be out of date after update")
+        .isNotEqualTo(tableCopy.schema().asStruct());
 
     // update the table
     tableCopy.refresh();
 
-    Assert.assertEquals(
-        "Copy should be back in sync", table.schema().asStruct(), tableCopy.schema().asStruct());
+    Assertions.assertThat(table.schema().asStruct())
+        .as("Copy should be back in sync")
+        .isEqualTo(tableCopy.schema().asStruct());
 
-    AssertHelpers.assertThrows(
-        "Should fail with stale base metadata",
-        CommitFailedException.class,
-        "based on stale table metadata",
-        updateCopy::commit);
+    Assertions.assertThatThrownBy(updateCopy::commit)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Cannot commit changes based on stale table metadata");
 
     List<File> manifests = listManifestFiles();
-    Assert.assertEquals("Should contain 0 Avro manifest files", 0, manifests.size());
+    Assertions.assertThat(manifests).as("Should contain 0 Avro manifest files").isEmpty();
   }
 
   @Test
   public void testStaleVersionHint() throws Exception {
     Table stale = TABLES.load(tableLocation);
 
-    Assert.assertTrue("Should create v1 metadata", version(1).exists() && version(1).isFile());
-    Assert.assertFalse("Should not create v2 or newer versions", version(2).exists());
+    Assertions.assertThat(version(1)).as("Should create v1 metadata").exists().isFile();
+    Assertions.assertThat(version(2)).as("Should not create v2 or newer versions").doesNotExist();
 
     table.updateSchema().addColumn("n", Types.IntegerType.get()).commit();
 
-    Assert.assertTrue(
-        "Should create v2 for the update", version(2).exists() && version(2).isFile());
-    Assert.assertEquals("Should write the current version to the hint file", 2, readVersionHint());
-
-    Assert.assertNotEquals(
-        "Stable table schema should not match",
-        UPDATED_SCHEMA.asStruct(),
-        stale.schema().asStruct());
+    Assertions.assertThat(version(2)).as("Should create v2 for the update").exists().isFile();
+    Assertions.assertThat(readVersionHint())
+        .as("Should write the current version to the hint file")
+        .isEqualTo(2);
+    Assertions.assertThat(stale.schema().asStruct())
+        .as("Stable table schema should not match")
+        .isNotEqualTo(UPDATED_SCHEMA.asStruct());
 
     // roll the version hint back to 1
     replaceVersionHint(1);
 
     Table reloaded = TABLES.load(tableLocation);
-    Assert.assertEquals(
-        "Updated schema for newly loaded table should match",
-        UPDATED_SCHEMA.asStruct(),
-        reloaded.schema().asStruct());
+    Assertions.assertThat(reloaded.schema().asStruct())
+        .as("Updated schema for newly loaded table should match")
+        .isEqualTo(UPDATED_SCHEMA.asStruct());
 
     stale.refresh();
-    Assert.assertEquals(
-        "Refreshed schema for stale table should match",
-        UPDATED_SCHEMA.asStruct(),
-        reloaded.schema().asStruct());
+    Assertions.assertThat(reloaded.schema().asStruct())
+        .as("Refreshed schema for stale table should match")
+        .isEqualTo(UPDATED_SCHEMA.asStruct());
   }
 
   @Test
@@ -284,33 +275,35 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     // first append
     table.newFastAppend().appendFile(FILE_A).commit();
 
-    Assert.assertTrue(
-        "Should create v2 for the update", version(2).exists() && version(2).isFile());
-    Assert.assertEquals("Should write the current version to the hint file", 2, readVersionHint());
+    Assertions.assertThat(version(2)).as("Should create v2 for the update").exists().isFile();
+    Assertions.assertThat(readVersionHint())
+        .as("Should write the current version to the hint file")
+        .isEqualTo(2);
 
     List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles());
-    Assert.assertEquals("Should scan 1 file", 1, tasks.size());
+    Assertions.assertThat(tasks).as("Should scan 1 file").hasSize(1);
 
     List<File> manifests = listManifestFiles();
-    Assert.assertEquals("Should contain only one Avro manifest file", 1, manifests.size());
+    Assertions.assertThat(manifests).as("Should contain only one Avro manifest file").hasSize(1);
 
     // second append
     table.newFastAppend().appendFile(FILE_B).commit();
 
-    Assert.assertTrue(
-        "Should create v3 for the update", version(3).exists() && version(3).isFile());
-    Assert.assertEquals("Should write the current version to the hint file", 3, readVersionHint());
+    Assertions.assertThat(version(3)).as("Should create v3 for the update").exists().isFile();
+    Assertions.assertThat(readVersionHint())
+        .as("Should write the current version to the hint file")
+        .isEqualTo(3);
 
     tasks = Lists.newArrayList(table.newScan().planFiles());
-    Assert.assertEquals("Should scan 2 files", 2, tasks.size());
-
-    Assert.assertEquals("Should contain 2 Avro manifest files", 2, listManifestFiles().size());
+    Assertions.assertThat(tasks).as("Should scan 2 files").hasSize(2);
+    Assertions.assertThat(listManifestFiles())
+        .as("Should contain 2 Avro manifest files")
+        .hasSize(2);
 
     TableMetadata metadata = readMetadataVersion(3);
-    Assert.assertEquals(
-        "Current snapshot should contain 2 manifests",
-        2,
-        metadata.currentSnapshot().allManifests(table.io()).size());
+    Assertions.assertThat(metadata.currentSnapshot().allManifests(table.io()))
+        .as("Current snapshot should contain 2 manifests")
+        .hasSize(2);
   }
 
   @Test
@@ -324,15 +317,16 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     table.newAppend().appendFile(FILE_C).commit();
 
     List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles());
-    Assert.assertEquals("Should scan 3 files", 3, tasks.size());
+    Assertions.assertThat(tasks).as("Should scan 3 files").hasSize(3);
 
-    Assert.assertEquals("Should contain 3 Avro manifest files", 3, listManifestFiles().size());
+    Assertions.assertThat(listManifestFiles())
+        .as("Should contain 3 Avro manifest files")
+        .hasSize(3);
 
     TableMetadata metadata = readMetadataVersion(5);
-    Assert.assertEquals(
-        "Current snapshot should contain 1 merged manifest",
-        1,
-        metadata.currentSnapshot().allManifests(table.io()).size());
+    Assertions.assertThat(metadata.currentSnapshot().allManifests(table.io()))
+        .as("Current snapshot should contain 1 merged manifest")
+        .hasSize(1);
   }
 
   @Test
@@ -356,9 +350,9 @@ public class TestHadoopCommits extends HadoopTableTestBase {
    * provided {@link FileSystem} object. The provided FileSystem will be injected for commit call.
    */
   private void testRenameWithFileSystem(FileSystem mockFs) throws Exception {
-    assertTrue("Should create v1 metadata", version(1).exists() && version(1).isFile());
-    assertFalse("Should not create v2 or newer versions", version(2).exists());
-    assertTrue(table instanceof BaseTable);
+    Assertions.assertThat(version(1)).as("Should create v1 metadata").exists().isFile();
+    Assertions.assertThat(version(2)).as("Should not create v2 or newer versions").doesNotExist();
+    Assertions.assertThat(table).isInstanceOf(BaseTable.class);
     BaseTable baseTable = (BaseTable) table;
     // use v1 metafile as the test rename destination.
     TableMetadata meta1 = baseTable.operations().current();
@@ -367,12 +361,14 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     // (so that we have 2 valid and different metadata files, which will reach the rename part
     // during commit)
     table.updateSchema().addColumn("n", Types.IntegerType.get()).commit();
-    assertTrue("Should create v2 for the update", version(2).exists() && version(2).isFile());
-    assertEquals("Should write the current version to the hint file", 2, readVersionHint());
+    Assertions.assertThat(version(2)).as("Should create v2 for the update").exists().isFile();
+    Assertions.assertThat(readVersionHint())
+        .as("Should write the current version to the hint file")
+        .isEqualTo(2);
 
     // mock / spy the classes for testing
     TableOperations tops = baseTable.operations();
-    assertTrue(tops instanceof HadoopTableOperations);
+    Assertions.assertThat(tops).isInstanceOf(HadoopTableOperations.class);
     HadoopTableOperations spyOps = Mockito.spy((HadoopTableOperations) tops);
 
     // inject the mockFS into the TableOperations
@@ -384,12 +380,14 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     Set<String> actual =
         listMetadataJsonFiles().stream().map(File::getName).collect(Collectors.toSet());
     Set<String> expected = Sets.newHashSet("v1.metadata.json", "v2.metadata.json");
-    assertEquals("only v1 and v2 metadata.json should exist.", expected, actual);
+    Assertions.assertThat(actual)
+        .as("only v1 and v2 metadata.json should exist.")
+        .isEqualTo(expected);
   }
 
   @Test
   public void testCanReadOldCompressedManifestFiles() throws Exception {
-    assertTrue("Should create v1 metadata", version(1).exists() && version(1).isFile());
+    Assertions.assertThat(version(1)).as("Should create v1 metadata").exists().isFile();
 
     // do a file append
     table.newAppend().appendFile(FILE_A).commit();
@@ -401,22 +399,20 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
     List<File> metadataFiles = listMetadataJsonFiles();
 
-    assertEquals("Should have two versions", 2, metadataFiles.size());
-    assertTrue(
-        "Metadata should be compressed with old format.",
-        metadataFiles.stream().allMatch(f -> f.getName().endsWith(".metadata.json.gz")));
+    Assertions.assertThat(metadataFiles).as("Should have two versions").hasSize(2);
+    Assertions.assertThat(metadataFiles.stream().map(File::getName))
+        .as("Metadata should be compressed with old format.")
+        .allMatch(f -> f.endsWith(".metadata.json.gz"));
 
     Table reloaded = TABLES.load(tableLocation);
 
     List<FileScanTask> tasks = Lists.newArrayList(reloaded.newScan().planFiles());
-    Assert.assertEquals("Should scan 1 files", 1, tasks.size());
+    Assertions.assertThat(tasks).as("Should scan 1 files").hasSize(1);
   }
 
   @Test
-  public void testConcurrentFastAppends() throws Exception {
-    assertTrue("Should create v1 metadata", version(1).exists() && version(1).isFile());
-    File dir = temp.newFolder();
-    dir.delete();
+  public void testConcurrentFastAppends(@TempDir File dir) throws Exception {
+    Assertions.assertThat(version(1)).as("Should create v1 metadata").exists().isFile();
     int threadsCount = 5;
     int numberOfCommitedFilesPerThread = 10;
     Table tableWithHighRetries =
@@ -445,21 +441,54 @@ public class TestHadoopCommits extends HadoopTableTestBase {
               for (int numCommittedFiles = 0;
                   numCommittedFiles < numberOfCommitedFilesPerThread;
                   numCommittedFiles++) {
-                while (barrier.get() < numCommittedFiles * threadsCount) {
-                  try {
-                    Thread.sleep(10);
-                  } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                  }
-                }
+                final int currentFilesCount = numCommittedFiles;
+                Awaitility.await()
+                    .pollInterval(Duration.ofMillis(10))
+                    .atMost(Duration.ofSeconds(10))
+                    .until(() -> barrier.get() >= currentFilesCount * threadsCount);
                 tableWithHighRetries.newFastAppend().appendFile(file).commit();
                 barrier.incrementAndGet();
               }
             });
 
     tableWithHighRetries.refresh();
-    assertEquals(
-        threadsCount * numberOfCommitedFilesPerThread,
-        Lists.newArrayList(tableWithHighRetries.snapshots()).size());
+    Assertions.assertThat(Lists.newArrayList(tableWithHighRetries.snapshots()))
+        .hasSize(threadsCount * numberOfCommitedFilesPerThread);
+  }
+
+  @Test
+  public void testCommitFailedToAcquireLock() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Configuration conf = new Configuration();
+    LockManager lockManager = new NoLockManager();
+    HadoopTableOperations tableOperations =
+        new HadoopTableOperations(
+            new Path(table.location()), new HadoopFileIO(conf), conf, lockManager);
+    tableOperations.refresh();
+    BaseTable baseTable = (BaseTable) table;
+    TableMetadata meta2 = baseTable.operations().current();
+    Assertions.assertThatThrownBy(() -> tableOperations.commit(tableOperations.current(), meta2))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageStartingWith("Failed to acquire lock on file");
+  }
+
+  // Always returns false when trying to acquire
+  static class NoLockManager implements LockManager {
+
+    @Override
+    public boolean acquire(String entityId, String ownerId) {
+      return false;
+    }
+
+    @Override
+    public boolean release(String entityId, String ownerId) {
+      return false;
+    }
+
+    @Override
+    public void close() throws Exception {}
+
+    @Override
+    public void initialize(Map<String, String> properties) {}
   }
 }

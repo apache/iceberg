@@ -159,8 +159,7 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
 
   private StructType positionDeleteSparkType() {
     if (positionDeleteSparkType == null) {
-      // wrap the optional row schema into the position delete schema that contains path and
-      // position
+      // wrap the optional row schema into the position delete schema containing path and position
       Schema positionDeleteSchema = DeleteSchemaUtil.posDeleteSchema(positionDeleteRowSchema());
       this.positionDeleteSparkType = SparkSchemaUtil.convert(positionDeleteSchema);
     }

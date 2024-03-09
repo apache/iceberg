@@ -34,8 +34,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 class BaseSnapshot implements Snapshot {
-  private static final long INITIAL_SEQUENCE_NUMBER = 0;
-
   private final long snapshotId;
   private final Long parentId;
   private final long sequenceNumber;

@@ -170,4 +170,127 @@ public class TestSnapshot extends TableTestBase {
     Assert.assertEquals(
         "Partition must match", thirdSnapshotDeleteFile.partition(), addedDeleteFile.partition());
   }
+
+  @Test
+  public void testSequenceNumbersInAddedDataFiles() {
+    long expectedSequenceNumber = 0L;
+    if (formatVersion >= 2) {
+      expectedSequenceNumber = 1L;
+    }
+
+    runAddedDataFileSequenceNumberTest(expectedSequenceNumber);
+
+    if (formatVersion >= 2) {
+      ++expectedSequenceNumber;
+    }
+
+    runAddedDataFileSequenceNumberTest(expectedSequenceNumber);
+  }
+
+  private void runAddedDataFileSequenceNumberTest(long expectedSequenceNumber) {
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    Snapshot snapshot = table.currentSnapshot();
+    Iterable<DataFile> addedDataFiles = snapshot.addedDataFiles(table.io());
+
+    Assert.assertEquals(
+        "Sequence number mismatch in Snapshot", expectedSequenceNumber, snapshot.sequenceNumber());
+
+    for (DataFile df : addedDataFiles) {
+      Assert.assertEquals(
+          "Data sequence number mismatch",
+          expectedSequenceNumber,
+          df.dataSequenceNumber().longValue());
+      Assert.assertEquals(
+          "File sequence number mismatch",
+          expectedSequenceNumber,
+          df.fileSequenceNumber().longValue());
+    }
+  }
+
+  @Test
+  public void testSequenceNumbersInRemovedDataFiles() {
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    long expectedSnapshotSequenceNumber = 0L;
+    if (formatVersion >= 2) {
+      expectedSnapshotSequenceNumber = 2L;
+    }
+
+    long expectedFileSequenceNumber = 0L;
+    if (formatVersion >= 2) {
+      expectedFileSequenceNumber = 1L;
+    }
+
+    runRemovedDataFileSequenceNumberTest(
+        FILE_A, expectedSnapshotSequenceNumber, expectedFileSequenceNumber);
+
+    if (formatVersion >= 2) {
+      ++expectedSnapshotSequenceNumber;
+    }
+
+    runRemovedDataFileSequenceNumberTest(
+        FILE_B, expectedSnapshotSequenceNumber, expectedFileSequenceNumber);
+  }
+
+  private void runRemovedDataFileSequenceNumberTest(
+      DataFile fileToRemove, long expectedSnapshotSequenceNumber, long expectedFileSequenceNumber) {
+    table.newDelete().deleteFile(fileToRemove).commit();
+
+    Snapshot snapshot = table.currentSnapshot();
+    Iterable<DataFile> removedDataFiles = snapshot.removedDataFiles(table.io());
+    Assert.assertEquals("Must have 1 removed data file", 1, Iterables.size(removedDataFiles));
+
+    DataFile removedDataFile = Iterables.getOnlyElement(removedDataFiles);
+
+    Assert.assertEquals(
+        "Sequence number mismatch in Snapshot",
+        expectedSnapshotSequenceNumber,
+        snapshot.sequenceNumber());
+
+    Assert.assertEquals(
+        "Data sequence number mismatch",
+        expectedFileSequenceNumber,
+        removedDataFile.dataSequenceNumber().longValue());
+    Assert.assertEquals(
+        "File sequence number mismatch",
+        expectedFileSequenceNumber,
+        removedDataFile.fileSequenceNumber().longValue());
+  }
+
+  @Test
+  public void testSequenceNumbersInAddedDeleteFiles() {
+    Assume.assumeTrue("Delete files only supported in V2", formatVersion >= 2);
+
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    int specId = table.spec().specId();
+
+    runAddedDeleteFileSequenceNumberTest(newDeleteFile(specId, "data_bucket=8"), 2);
+
+    runAddedDeleteFileSequenceNumberTest(newDeleteFile(specId, "data_bucket=28"), 3);
+  }
+
+  private void runAddedDeleteFileSequenceNumberTest(
+      DeleteFile deleteFileToAdd, long expectedSequenceNumber) {
+    table.newRowDelta().addDeletes(deleteFileToAdd).commit();
+
+    Snapshot snapshot = table.currentSnapshot();
+    Iterable<DeleteFile> addedDeleteFiles = snapshot.addedDeleteFiles(table.io());
+    Assert.assertEquals("Must have 1 added delete file", 1, Iterables.size(addedDeleteFiles));
+
+    DeleteFile addedDeleteFile = Iterables.getOnlyElement(addedDeleteFiles);
+
+    Assert.assertEquals(
+        "Sequence number mismatch in Snapshot", expectedSequenceNumber, snapshot.sequenceNumber());
+
+    Assert.assertEquals(
+        "Data sequence number mismatch",
+        expectedSequenceNumber,
+        addedDeleteFile.dataSequenceNumber().longValue());
+    Assert.assertEquals(
+        "File sequence number mismatch",
+        expectedSequenceNumber,
+        addedDeleteFile.fileSequenceNumber().longValue());
+  }
 }

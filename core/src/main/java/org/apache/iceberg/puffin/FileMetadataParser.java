@@ -21,7 +21,6 @@ package org.apache.iceberg.puffin;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -49,11 +48,7 @@ public final class FileMetadataParser {
   }
 
   public static FileMetadata fromJson(String json) {
-    try {
-      return fromJson(JsonUtil.mapper().readValue(json, JsonNode.class));
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
+    return JsonUtil.parse(json, FileMetadataParser::fromJson);
   }
 
   static FileMetadata fromJson(JsonNode json) {

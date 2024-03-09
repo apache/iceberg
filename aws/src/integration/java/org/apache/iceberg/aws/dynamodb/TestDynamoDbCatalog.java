@@ -24,7 +24,6 @@ import java.util.UUID;
 import java.util.concurrent.ForkJoinPool;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Schema;
@@ -105,27 +104,19 @@ public class TestDynamoDbCatalog {
         "namespace must be stored in DynamoDB",
         namespace.toString(),
         response.item().get("namespace").s());
-
-    AssertHelpers.assertThrows(
-        "should not create duplicated namespace",
-        AlreadyExistsException.class,
-        "already exists",
-        () -> catalog.createNamespace(namespace));
+    Assertions.assertThatThrownBy(() -> catalog.createNamespace(namespace))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("already exists");
   }
 
   @Test
   public void testCreateNamespaceBadName() {
-    AssertHelpers.assertThrows(
-        "should not create namespace with empty level",
-        ValidationException.class,
-        "must not be empty",
-        () -> catalog.createNamespace(Namespace.of("a", "", "b")));
-
-    AssertHelpers.assertThrows(
-        "should not create namespace with dot in level",
-        ValidationException.class,
-        "must not contain dot",
-        () -> catalog.createNamespace(Namespace.of("a", "b.c")));
+    Assertions.assertThatThrownBy(() -> catalog.createNamespace(Namespace.of("a", "", "b")))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("must not be empty");
+    Assertions.assertThatThrownBy(() -> catalog.createNamespace(Namespace.of("a", "b.c")))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("must not contain dot");
   }
 
   @Test
@@ -180,29 +171,23 @@ public class TestDynamoDbCatalog {
         "table must be stored in DynamoDB with namespace as sort key",
         namespace.toString(),
         response.item().get("namespace").s());
-
-    AssertHelpers.assertThrows(
-        "should not create duplicated table",
-        AlreadyExistsException.class,
-        "already exists",
-        () -> catalog.createTable(tableIdentifier, SCHEMA));
+    Assertions.assertThatThrownBy(() -> catalog.createTable(tableIdentifier, SCHEMA))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("already exists");
   }
 
   @Test
   public void testCreateTableBadName() {
     Namespace namespace = Namespace.of(genRandomName());
     catalog.createNamespace(namespace);
-    AssertHelpers.assertThrows(
-        "should not create table name with empty namespace",
-        ValidationException.class,
-        "Table namespace must not be empty",
-        () -> catalog.createTable(TableIdentifier.of(Namespace.empty(), "a"), SCHEMA));
-
-    AssertHelpers.assertThrows(
-        "should not create table name with dot",
-        ValidationException.class,
-        "must not contain dot",
-        () -> catalog.createTable(TableIdentifier.of(namespace, "a.b"), SCHEMA));
+    Assertions.assertThatThrownBy(
+            () -> catalog.createTable(TableIdentifier.of(Namespace.empty(), "a"), SCHEMA))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Table namespace must not be empty");
+    Assertions.assertThatThrownBy(
+            () -> catalog.createTable(TableIdentifier.of(namespace, "a.b"), SCHEMA))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("must not contain dot");
   }
 
   @Test
@@ -243,15 +228,18 @@ public class TestDynamoDbCatalog {
                     .key(DynamoDbCatalog.tablePrimaryKey(tableIdentifier))
                     .build())
             .hasItem());
-    AssertHelpers.assertThrows(
-        "metadata location should be deleted",
-        NoSuchKeyException.class,
-        () ->
-            s3.headObject(
-                HeadObjectRequest.builder()
-                    .bucket(testBucket)
-                    .key(metadataLocation.substring(testBucket.length() + 6)) // s3:// + end slash
-                    .build()));
+    Assertions.assertThatThrownBy(
+            () ->
+                s3.headObject(
+                    HeadObjectRequest.builder()
+                        .bucket(testBucket)
+                        .key(
+                            metadataLocation.substring(
+                                testBucket.length() + 6)) // s3:// + end slash
+                        .build()))
+        .as("metadata location should be deleted")
+        .isInstanceOf(NoSuchKeyException.class)
+        .hasMessageContaining("not found");
   }
 
   @Test
@@ -263,18 +251,14 @@ public class TestDynamoDbCatalog {
     TableIdentifier tableIdentifier = TableIdentifier.of(namespace, genRandomName());
     catalog.createTable(tableIdentifier, SCHEMA);
     TableIdentifier tableIdentifier2 = TableIdentifier.of(namespace2, genRandomName());
+    Assertions.assertThatThrownBy(
+            () -> catalog.renameTable(TableIdentifier.of(namespace, "a"), tableIdentifier2))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageContaining("does not exist");
 
-    AssertHelpers.assertThrows(
-        "should not be able to rename a table not exist",
-        NoSuchTableException.class,
-        "does not exist",
-        () -> catalog.renameTable(TableIdentifier.of(namespace, "a"), tableIdentifier2));
-
-    AssertHelpers.assertThrows(
-        "should not be able to rename an existing table",
-        AlreadyExistsException.class,
-        "already exists",
-        () -> catalog.renameTable(tableIdentifier, tableIdentifier));
+    Assertions.assertThatThrownBy(() -> catalog.renameTable(tableIdentifier, tableIdentifier))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("already exists");
 
     String metadataLocation =
         dynamo
@@ -369,10 +353,29 @@ public class TestDynamoDbCatalog {
     Assertions.assertThat(catalog.dropTable(identifier, false)).isTrue();
     TableOperations ops = ((HasTableOperations) registeringTable).operations();
     String metadataLocation = ((DynamoDbTableOperations) ops).currentMetadataLocation();
-    Assertions.assertThat(catalog.registerTable(identifier, metadataLocation)).isNotNull();
+    Table registeredTable = catalog.registerTable(identifier, metadataLocation);
+    Assertions.assertThat(registeredTable).isNotNull();
+    String expectedMetadataLocation =
+        ((HasTableOperations) registeredTable).operations().current().metadataFileLocation();
+    Assertions.assertThat(metadataLocation).isEqualTo(expectedMetadataLocation);
     Assertions.assertThat(catalog.loadTable(identifier)).isNotNull();
     Assertions.assertThat(catalog.dropTable(identifier, true)).isTrue();
     Assertions.assertThat(catalog.dropNamespace(namespace)).isTrue();
+  }
+
+  @Test
+  public void testDefaultWarehousePathWithLocation() {
+    String namespaceName = genRandomName();
+    String defaultLocation = "s3://" + testBucket + "/namespace/" + namespaceName;
+
+    Namespace namespace = Namespace.of(namespaceName);
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(DynamoDbCatalog.defaultLocationProperty(), defaultLocation);
+    catalog.createNamespace(namespace, properties);
+    String tableName = genRandomName();
+    Assertions.assertThat(
+            catalog.defaultWarehouseLocation(TableIdentifier.of(namespaceName, tableName)))
+        .isEqualTo(defaultLocation + "/" + tableName);
   }
 
   @Test
@@ -385,7 +388,8 @@ public class TestDynamoDbCatalog {
     TableOperations ops = ((HasTableOperations) registeringTable).operations();
     String metadataLocation = ((DynamoDbTableOperations) ops).currentMetadataLocation();
     Assertions.assertThatThrownBy(() -> catalog.registerTable(identifier, metadataLocation))
-        .isInstanceOf(AlreadyExistsException.class);
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("already exists");
     Assertions.assertThat(catalog.dropTable(identifier, true)).isTrue();
     Assertions.assertThat(catalog.dropNamespace(namespace)).isTrue();
   }

@@ -135,23 +135,6 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   /**
    * Add an existing entry for a file.
    *
-   * <p>The original data sequence number and snapshot ID, which were assigned at commit, must be
-   * preserved when adding an existing entry.
-   *
-   * @param existingFile a file
-   * @param fileSnapshotId snapshot ID when the data file was added to the table
-   * @param dataSequenceNumber a data sequence number of the file (assigned when the file was added)
-   * @deprecated since 1.1.0, will be removed in 1.2.0; use {@link #existing(ContentFile, long,
-   *     long, Long)}.
-   */
-  @Deprecated
-  public void existing(F existingFile, long fileSnapshotId, long dataSequenceNumber) {
-    addEntry(reused.wrapExisting(fileSnapshotId, dataSequenceNumber, null, existingFile));
-  }
-
-  /**
-   * Add an existing entry for a file.
-   *
    * <p>The original data and file sequence numbers, snapshot ID, which were assigned at commit,
    * must be preserved when adding an existing entry.
    *
@@ -168,22 +151,6 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
   void existing(ManifestEntry<F> entry) {
     addEntry(reused.wrapExisting(entry));
-  }
-
-  /**
-   * Add a delete entry for a file.
-   *
-   * <p>This method must not be used as the original data sequence number of the file must be
-   * preserved when the file is marked as deleted.
-   *
-   * @param deletedFile a file
-   * @deprecated since 1.1.0, will be removed in 1.2.0; use {@link #delete(ContentFile, long,
-   *     Long)}.
-   */
-  @Deprecated
-  public void delete(F deletedFile) {
-    throw new UnsupportedOperationException(
-        "Can't add a delete entry without a data sequence number");
   }
 
   /**

@@ -22,8 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import org.apache.iceberg.ContentScanTask;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
@@ -31,40 +29,9 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.types.Types.StructType;
 
 public class PartitionUtil {
   private PartitionUtil() {}
-
-  /**
-   * @deprecated Will be removed in 1.2.0, use {@link PartitionUtil#constantsMap(ContentScanTask)}.
-   */
-  @Deprecated
-  public static Map<Integer, ?> constantsMap(FileScanTask task) {
-    return constantsMap((ContentScanTask<DataFile>) task);
-  }
-
-  /**
-   * @deprecated Will be removed in 1.2.0, use {@link PartitionUtil#constantsMap(ContentScanTask,
-   *     BiFunction)}.
-   */
-  @Deprecated
-  public static Map<Integer, ?> constantsMap(
-      FileScanTask task, BiFunction<Type, Object, Object> convertConstant) {
-    return constantsMap((ContentScanTask<DataFile>) task, convertConstant);
-  }
-
-  /**
-   * @deprecated Will be removed in 1.2.0, use {@link PartitionUtil#constantsMap(ContentScanTask,
-   *     StructType, BiFunction)}.
-   */
-  @Deprecated
-  public static Map<Integer, ?> constantsMap(
-      FileScanTask task,
-      Types.StructType partitionType,
-      BiFunction<Type, Object, Object> convertConstant) {
-    return constantsMap((ContentScanTask<DataFile>) task, partitionType, convertConstant);
-  }
 
   public static Map<Integer, ?> constantsMap(ContentScanTask<?> task) {
     return constantsMap(task, null, (type, constant) -> constant);
@@ -97,7 +64,7 @@ public class PartitionUtil {
 
     // add _partition
     if (partitionType != null) {
-      if (partitionType.fields().size() > 0) {
+      if (!partitionType.fields().isEmpty()) {
         StructLike coercedPartition = coercePartition(partitionType, spec, partitionData);
         idToConstant.put(
             MetadataColumns.PARTITION_COLUMN_ID,
@@ -124,7 +91,7 @@ public class PartitionUtil {
   }
 
   // adapts the provided partition data to match the table partition type
-  private static StructLike coercePartition(
+  public static StructLike coercePartition(
       Types.StructType partitionType, PartitionSpec spec, StructLike partition) {
     StructProjection projection =
         StructProjection.createAllowMissing(spec.partitionType(), partitionType);

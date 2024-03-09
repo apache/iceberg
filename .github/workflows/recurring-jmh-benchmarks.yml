@@ -1,0 +1,73 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
+name: "Recurring JMH Benchmarks"
+on:
+  schedule:
+    # * is a special character in YAML so you have to quote this string
+    # this schedules a workflow to run at specific UTC times using POSIX cron syntax -> https://crontab.guru/
+    # we're running benchmarks every Sunday at 00:00 UTC
+    - cron:  '0 0 * * 0'
+
+jobs:
+  run-benchmark:
+    if: github.repository_owner == 'apache'
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        # TODO: "IcebergSortCompactionBenchmark" seems to run indefinitely
+        benchmark: ["SparkParquetReadersFlatDataBenchmark", "SparkParquetReadersNestedDataBenchmark",
+                    "SparkParquetWritersFlatDataBenchmark", "SparkParquetWritersNestedDataBenchmark",
+                    "IcebergSourceFlatParquetDataFilterBenchmark",
+                    "IcebergSourceFlatParquetDataReadBenchmark", "IcebergSourceFlatParquetDataWriteBenchmark",
+                    "IcebergSourceNestedListParquetDataWriteBenchmark", "IcebergSourceNestedParquetDataFilterBenchmark",
+                    "IcebergSourceNestedParquetDataReadBenchmark", "IcebergSourceNestedParquetDataWriteBenchmark",
+                    "IcebergSourceParquetEqDeleteBenchmark", "IcebergSourceParquetMultiDeleteFileBenchmark",
+                    "IcebergSourceParquetPosDeleteBenchmark", "IcebergSourceParquetWithUnrelatedDeleteBenchmark"]
+        spark_version: ['iceberg-spark-3.5']
+    env:
+      SPARK_LOCAL_IP: localhost
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.inputs.repo }}
+          ref: ${{ github.event.inputs.ref }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: 11
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: ${{ runner.os }}-gradle-
+      - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
+
+      - name: Run Benchmark
+        run: ./gradlew :iceberg-spark:${{ matrix.spark_version }}:jmh -PjmhIncludeRegex=${{ matrix.benchmark }} -PjmhOutputPath=benchmark/${{ matrix.benchmark }}.txt -PjmhJsonOutputPath=benchmark/${{ matrix.benchmark }}.json
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: benchmark-results
+          path: |
+            **/benchmark/*

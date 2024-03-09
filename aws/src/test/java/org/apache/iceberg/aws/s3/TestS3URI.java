@@ -18,14 +18,12 @@
  */
 package org.apache.iceberg.aws.s3;
 
-import static org.junit.Assert.assertEquals;
-
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.junit.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 public class TestS3URI {
 
@@ -34,9 +32,9 @@ public class TestS3URI {
     String p1 = "s3://bucket/path/to/file";
     S3URI uri1 = new S3URI(p1);
 
-    assertEquals("bucket", uri1.bucket());
-    assertEquals("path/to/file", uri1.key());
-    assertEquals(p1, uri1.toString());
+    Assertions.assertThat(uri1.bucket()).isEqualTo("bucket");
+    Assertions.assertThat(uri1.key()).isEqualTo("path/to/file");
+    Assertions.assertThat(uri1.toString()).isEqualTo(p1);
   }
 
   @Test
@@ -44,36 +42,27 @@ public class TestS3URI {
     String p1 = "s3://bucket/path%20to%20file";
     S3URI uri1 = new S3URI(p1);
 
-    assertEquals("bucket", uri1.bucket());
-    assertEquals("path%20to%20file", uri1.key());
-    assertEquals(p1, uri1.toString());
-  }
-
-  @Test
-  public void testEmptyPath() {
-    AssertHelpers.assertThrows(
-        "Should not allow missing object key",
-        ValidationException.class,
-        "Invalid S3 URI, path is empty",
-        () -> new S3URI("https://bucket/"));
+    Assertions.assertThat(uri1.bucket()).isEqualTo("bucket");
+    Assertions.assertThat(uri1.key()).isEqualTo("path%20to%20file");
+    Assertions.assertThat(uri1.toString()).isEqualTo(p1);
   }
 
   @Test
   public void testMissingScheme() {
-    AssertHelpers.assertThrows(
-        "Should not allow missing scheme",
-        ValidationException.class,
-        "Invalid S3 URI, cannot determine scheme",
-        () -> new S3URI("/path/to/file"));
+
+    Assertions.assertThatThrownBy(() -> new S3URI("/path/to/file"))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Invalid S3 URI, cannot determine scheme: /path/to/file");
   }
 
   @Test
-  public void testMissingBucket() {
-    AssertHelpers.assertThrows(
-        "Should not allow missing bucket",
-        ValidationException.class,
-        "Invalid S3 URI, cannot determine bucket",
-        () -> new S3URI("https://bucket"));
+  public void testOnlyBucketNameLocation() {
+    String p1 = "s3://bucket";
+    S3URI url1 = new S3URI(p1);
+
+    Assertions.assertThat(url1.bucket()).isEqualTo("bucket");
+    Assertions.assertThat(url1.key()).isEqualTo("");
+    Assertions.assertThat(url1.toString()).isEqualTo(p1);
   }
 
   @Test
@@ -81,17 +70,17 @@ public class TestS3URI {
     String p1 = "s3://bucket/path/to/file?query=foo#bar";
     S3URI uri1 = new S3URI(p1);
 
-    assertEquals("bucket", uri1.bucket());
-    assertEquals("path/to/file", uri1.key());
-    assertEquals(p1, uri1.toString());
+    Assertions.assertThat(uri1.bucket()).isEqualTo("bucket");
+    Assertions.assertThat(uri1.key()).isEqualTo("path/to/file");
+    Assertions.assertThat(uri1.toString()).isEqualTo(p1);
   }
 
   @Test
   public void testValidSchemes() {
     for (String scheme : Lists.newArrayList("https", "s3", "s3a", "s3n", "gs")) {
       S3URI uri = new S3URI(scheme + "://bucket/path/to/file");
-      assertEquals("bucket", uri.bucket());
-      assertEquals("path/to/file", uri.key());
+      Assertions.assertThat(uri.bucket()).isEqualTo("bucket");
+      Assertions.assertThat(uri.key()).isEqualTo("path/to/file");
     }
   }
 
@@ -101,8 +90,8 @@ public class TestS3URI {
     Map<String, String> bucketToAccessPointMapping = ImmutableMap.of("bucket", "access-point");
     S3URI uri1 = new S3URI(p1, bucketToAccessPointMapping);
 
-    assertEquals("access-point", uri1.bucket());
-    assertEquals("path/to/file", uri1.key());
-    assertEquals(p1, uri1.toString());
+    Assertions.assertThat(uri1.bucket()).isEqualTo("access-point");
+    Assertions.assertThat(uri1.key()).isEqualTo("path/to/file");
+    Assertions.assertThat(uri1.toString()).isEqualTo(p1);
   }
 }

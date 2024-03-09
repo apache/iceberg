@@ -21,7 +21,7 @@ package org.apache.iceberg.metrics;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.assertj.core.api.Assertions;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestCounterResultParser {
 

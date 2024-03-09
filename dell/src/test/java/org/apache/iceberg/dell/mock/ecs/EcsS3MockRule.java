@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.dell.mock.ecs;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.emc.object.s3.S3Client;
 import com.emc.object.s3.bean.ListObjectsResult;
 import com.emc.object.s3.bean.ObjectKey;
@@ -31,17 +33,16 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.dell.DellClientFactories;
 import org.apache.iceberg.dell.DellProperties;
 import org.apache.iceberg.dell.mock.MockDellClientFactory;
-import org.junit.Assert;
-import org.junit.rules.TestRule;
-import org.junit.runner.Description;
-import org.junit.runners.model.Statement;
+import org.junit.jupiter.api.extension.AfterEachCallback;
+import org.junit.jupiter.api.extension.BeforeEachCallback;
+import org.junit.jupiter.api.extension.ExtensionContext;
 
 /**
- * Mock rule of ECS S3 mock.
+ * Mock Extension of ECS S3 mock.
  *
  * <p>Use environment parameter to specify use mock client or real client.
  */
-public class EcsS3MockRule implements TestRule {
+public class EcsS3MockRule implements BeforeEachCallback, AfterEachCallback {
 
   /** Object ID generator */
   private static final AtomicInteger ID = new AtomicInteger(0);
@@ -71,27 +72,12 @@ public class EcsS3MockRule implements TestRule {
   /** Load rule from thread local and check bucket */
   public static EcsS3MockRule rule(String id) {
     EcsS3MockRule rule = TEST_RULE_FOR_MOCK_CLIENT.get();
-    Assert.assertTrue("Test Rule must match id", rule != null && rule.bucket().equals(id));
+    assertThat(rule).isNotNull().extracting(EcsS3MockRule::bucket).isEqualTo(id);
     return rule;
   }
 
   public EcsS3MockRule(boolean autoCreateBucket) {
     this.autoCreateBucket = autoCreateBucket;
-  }
-
-  @Override
-  public Statement apply(Statement base, Description description) {
-    return new Statement() {
-      @Override
-      public void evaluate() throws Throwable {
-        initialize();
-        try {
-          base.evaluate();
-        } finally {
-          cleanUp();
-        }
-      }
-    };
   }
 
   private void initialize() {
@@ -176,5 +162,15 @@ public class EcsS3MockRule implements TestRule {
 
   public String randomObjectName() {
     return "test-" + ID.getAndIncrement() + "-" + UUID.randomUUID();
+  }
+
+  @Override
+  public void afterEach(ExtensionContext extensionContext) {
+    cleanUp();
+  }
+
+  @Override
+  public void beforeEach(ExtensionContext extensionContext) {
+    initialize();
   }
 }

@@ -35,6 +35,7 @@ import org.apache.avro.util.Utf8;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.DecimalUtil;
+import org.apache.iceberg.util.UUIDUtil;
 
 public class ValueWriters {
   private ValueWriters() {}
@@ -263,12 +264,8 @@ public class ValueWriters {
     @Override
     @SuppressWarnings("ByteBufferBackingArray")
     public void write(UUID uuid, Encoder encoder) throws IOException {
-      // TODO: direct conversion from string to byte buffer
-      ByteBuffer buffer = BUFFER.get();
-      buffer.rewind();
-      buffer.putLong(uuid.getMostSignificantBits());
-      buffer.putLong(uuid.getLeastSignificantBits());
-      encoder.writeFixed(buffer.array());
+      // calling array() is safe because the buffer is always allocated by the thread-local
+      encoder.writeFixed(UUIDUtil.convertToByteBuffer(uuid, BUFFER.get()).array());
     }
   }
 

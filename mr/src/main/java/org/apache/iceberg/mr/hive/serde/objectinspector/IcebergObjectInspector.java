@@ -27,7 +27,7 @@ import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.common.DynMethods;
-import org.apache.iceberg.hive.MetastoreUtil;
+import org.apache.iceberg.hive.HiveVersion;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -38,7 +38,7 @@ public final class IcebergObjectInspector extends TypeUtil.SchemaVisitor<ObjectI
   // we need to do this because there is a breaking API change in Date/TimestampObjectInspector
   // between Hive2 and Hive3
   private static final String DATE_INSPECTOR_CLASS =
-      MetastoreUtil.hive3PresentOnClasspath()
+      HiveVersion.min(HiveVersion.HIVE_3)
           ? "org.apache.iceberg.mr.hive.serde.objectinspector.IcebergDateObjectInspectorHive3"
           : "org.apache.iceberg.mr.hive.serde.objectinspector.IcebergDateObjectInspector";
 
@@ -46,12 +46,12 @@ public final class IcebergObjectInspector extends TypeUtil.SchemaVisitor<ObjectI
       DynMethods.builder("get").impl(DATE_INSPECTOR_CLASS).buildStatic().invoke();
 
   private static final String TIMESTAMP_INSPECTOR_CLASS =
-      MetastoreUtil.hive3PresentOnClasspath()
+      HiveVersion.min(HiveVersion.HIVE_3)
           ? "org.apache.iceberg.mr.hive.serde.objectinspector.IcebergTimestampObjectInspectorHive3"
           : "org.apache.iceberg.mr.hive.serde.objectinspector.IcebergTimestampObjectInspector";
 
   private static final String TIMESTAMPTZ_INSPECTOR_CLASS =
-      MetastoreUtil.hive3PresentOnClasspath()
+      HiveVersion.min(HiveVersion.HIVE_3)
           ? "org.apache.iceberg.mr.hive.serde.objectinspector.IcebergTimestampWithZoneObjectInspectorHive3"
           : "org.apache.iceberg.mr.hive.serde.objectinspector.IcebergTimestampWithZoneObjectInspector";
 

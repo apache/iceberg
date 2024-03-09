@@ -23,14 +23,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.Collections;
+import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.junit.Test;
+import org.awaitility.Awaitility;
+import org.junit.jupiter.api.Test;
 
 public class TestParallelIterable {
   @Test
@@ -60,9 +63,18 @@ public class TestParallelIterable {
 
     assertThat(iterator.hasNext()).isTrue();
     assertThat(iterator.next()).isNotNull();
-    assertThat(queue).isNotEmpty();
-
+    Awaitility.await("Queue is populated")
+        .atMost(5, TimeUnit.SECONDS)
+        .untilAsserted(() -> queueHasElements(iterator, queue));
     iterator.close();
-    assertThat(queue).isEmpty();
+    Awaitility.await("Queue is cleared")
+        .atMost(5, TimeUnit.SECONDS)
+        .untilAsserted(() -> assertThat(queue).isEmpty());
+  }
+
+  private void queueHasElements(CloseableIterator<Integer> iterator, Queue queue) {
+    assertThat(iterator.hasNext()).isTrue();
+    assertThat(iterator.next()).isNotNull();
+    assertThat(queue).isNotEmpty();
   }
 }

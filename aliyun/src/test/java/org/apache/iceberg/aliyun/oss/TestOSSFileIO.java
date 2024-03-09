@@ -39,10 +39,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.apache.iceberg.util.SerializationUtil;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class TestOSSFileIO extends AliyunOSSTestBase {
   private static final String OSS_IMPL_CLASS = OSSFileIO.class.getName();
@@ -51,12 +51,12 @@ public class TestOSSFileIO extends AliyunOSSTestBase {
 
   private FileIO fileIO;
 
-  @Before
+  @BeforeEach
   public void beforeFile() {
     fileIO = new OSSFileIO(ossClient());
   }
 
-  @After
+  @AfterEach
   public void afterFile() {
     if (fileIO != null) {
       fileIO.close();
@@ -73,28 +73,33 @@ public class TestOSSFileIO extends AliyunOSSTestBase {
     writeOSSData(out, data);
 
     OSSURI uri = new OSSURI(location);
-    Assert.assertTrue(
-        "OSS file should exist", ossClient().get().doesObjectExist(uri.bucket(), uri.key()));
-    Assert.assertEquals("Should have expected location", location, out.location());
-    Assert.assertEquals("Should have expected length", dataSize, ossDataLength(uri));
-    Assert.assertArrayEquals("Should have expected content", data, ossDataContent(uri, dataSize));
+    Assertions.assertThat(ossClient().get().doesObjectExist(uri.bucket(), uri.key()))
+        .as("OSS file should exist")
+        .isTrue();
+    Assertions.assertThat(out.location()).as("Should have expected location").isEqualTo(location);
+    Assertions.assertThat(ossDataLength(uri)).as("Should have expected length").isEqualTo(dataSize);
+    Assertions.assertThat(ossDataContent(uri, dataSize))
+        .as("Should have expected content")
+        .isEqualTo(data);
   }
 
   @Test
   public void testInputFile() throws IOException {
     String location = randomLocation();
     InputFile in = fileIO().newInputFile(location);
-    Assert.assertFalse("OSS file should not exist", in.exists());
+    Assertions.assertThat(in.exists()).as("OSS file should not exist").isFalse();
 
     int dataSize = 1024 * 10;
     byte[] data = randomData(dataSize);
     OutputFile out = fileIO().newOutputFile(location);
     writeOSSData(out, data);
 
-    Assert.assertTrue("OSS file should exist", in.exists());
-    Assert.assertEquals("Should have expected location", location, in.location());
-    Assert.assertEquals("Should have expected length", dataSize, in.getLength());
-    Assert.assertArrayEquals("Should have expected content", data, inFileContent(in, dataSize));
+    Assertions.assertThat(in.exists()).as("OSS file should exist").isTrue();
+    Assertions.assertThat(in.location()).as("Should have expected location").isEqualTo(location);
+    Assertions.assertThat(in.getLength()).as("Should have expected length").isEqualTo(dataSize);
+    Assertions.assertThat(inFileContent(in, dataSize))
+        .as("Should have expected content")
+        .isEqualTo(data);
   }
 
   @Test
@@ -106,20 +111,24 @@ public class TestOSSFileIO extends AliyunOSSTestBase {
     writeOSSData(out, data);
 
     InputFile in = fileIO().newInputFile(location);
-    Assert.assertTrue("OSS file should exist", in.exists());
+    Assertions.assertThat(in.exists()).as("OSS file should exist").isTrue();
+
     fileIO().deleteFile(in);
-    Assert.assertFalse("OSS file should not exist", fileIO().newInputFile(location).exists());
+    Assertions.assertThat(fileIO().newInputFile(location).exists())
+        .as("OSS file should not exist")
+        .isFalse();
   }
 
   @Test
   public void testLoadFileIO() {
     FileIO file = CatalogUtil.loadFileIO(OSS_IMPL_CLASS, ImmutableMap.of(), conf);
-    Assert.assertTrue("Should be OSSFileIO", file instanceof OSSFileIO);
+    Assertions.assertThat(file).as("Should be OSSFileIO").isInstanceOf(OSSFileIO.class);
 
     byte[] data = SerializationUtil.serializeToBytes(file);
     FileIO expectedFileIO = SerializationUtil.deserializeFromBytes(data);
-    Assert.assertTrue(
-        "The deserialized FileIO should be OSSFileIO", expectedFileIO instanceof OSSFileIO);
+    Assertions.assertThat(expectedFileIO)
+        .as("The deserialized FileIO should be OSSFileIO")
+        .isInstanceOf(OSSFileIO.class);
   }
 
   @Test
@@ -134,19 +143,24 @@ public class TestOSSFileIO extends AliyunOSSTestBase {
     SerializableSupplier<OSS> post = SerializationUtil.deserializeFromBytes(data);
 
     OSS client = post.get();
-    Assert.assertTrue("Should be instance of oss client", client instanceof OSSClient);
+    Assertions.assertThat(client)
+        .as("Should be instance of oss client")
+        .isInstanceOf(OSSClient.class);
 
     OSSClient oss = (OSSClient) client;
-    Assert.assertEquals(
-        "Should have expected endpoint", new URI("http://" + endpoint), oss.getEndpoint());
-    Assert.assertEquals(
-        "Should have expected access key",
-        accessKeyId,
-        oss.getCredentialsProvider().getCredentials().getAccessKeyId());
-    Assert.assertEquals(
-        "Should have expected secret key",
-        accessSecret,
-        oss.getCredentialsProvider().getCredentials().getSecretAccessKey());
+    Assertions.assertThat(oss.getEndpoint())
+        .as("Should have expected endpoint")
+        .isEqualTo(new URI("http://" + endpoint));
+
+    Assertions.assertThat(oss.getCredentialsProvider().getCredentials().getAccessKeyId())
+        .as("Should have expected access key")
+        .isEqualTo(accessKeyId);
+    Assertions.assertThat(oss.getCredentialsProvider().getCredentials().getSecretAccessKey())
+        .as("Should have expected secret key")
+        .isEqualTo(accessSecret);
+    Assertions.assertThat(oss.getCredentialsProvider().getCredentials().getSecurityToken())
+        .as("Should have no security token")
+        .isNull();
   }
 
   private FileIO fileIO() {

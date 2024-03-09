@@ -31,7 +31,6 @@ import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericFixed;
 import org.apache.avro.specific.SpecificData;
-import org.apache.commons.math3.util.Pair;
 import org.apache.iceberg.avro.AvroSchemaVisitor;
 import org.apache.iceberg.avro.UUIDConversion;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
@@ -366,6 +365,28 @@ class ParquetAvro {
       }
 
       return copy;
+    }
+  }
+
+  private static class Pair<K, V> {
+    private final K first;
+    private final V second;
+
+    Pair(final K first, final V second) {
+      this.first = first;
+      this.second = second;
+    }
+
+    public static <K, V> Pair<K, V> of(K first, V second) {
+      return new Pair<>(first, second);
+    }
+
+    public K getFirst() {
+      return first;
+    }
+
+    public V getSecond() {
+      return second;
     }
   }
 }

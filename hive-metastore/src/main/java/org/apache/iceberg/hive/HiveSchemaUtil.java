@@ -160,7 +160,7 @@ public final class HiveSchemaUtil {
         return "string";
       case TIMESTAMP:
         Types.TimestampType timestampType = (Types.TimestampType) type;
-        if (MetastoreUtil.hive3PresentOnClasspath() && timestampType.shouldAdjustToUTC()) {
+        if (HiveVersion.min(HiveVersion.HIVE_3) && timestampType.shouldAdjustToUTC()) {
           return "timestamp with local time zone";
         }
         return "timestamp";

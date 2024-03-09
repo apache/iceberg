@@ -26,12 +26,17 @@ import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.Util;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.broadcast.Broadcast;
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.connector.read.HasPartitionKey;
 import org.apache.spark.sql.connector.read.InputPartition;
 
-class SparkInputPartition implements InputPartition, Serializable {
+class SparkInputPartition implements InputPartition, HasPartitionKey, Serializable {
+  private final Types.StructType groupingKeyType;
   private final ScanTaskGroup<?> taskGroup;
   private final Broadcast<Table> tableBroadcast;
+  private final String branch;
   private final String expectedSchemaString;
   private final boolean caseSensitive;
 
@@ -39,13 +44,17 @@ class SparkInputPartition implements InputPartition, Serializable {
   private transient String[] preferredLocations = null;
 
   SparkInputPartition(
+      Types.StructType groupingKeyType,
       ScanTaskGroup<?> taskGroup,
       Broadcast<Table> tableBroadcast,
+      String branch,
       String expectedSchemaString,
       boolean caseSensitive,
       boolean localityPreferred) {
+    this.groupingKeyType = groupingKeyType;
     this.taskGroup = taskGroup;
     this.tableBroadcast = tableBroadcast;
+    this.branch = branch;
     this.expectedSchemaString = expectedSchemaString;
     this.caseSensitive = caseSensitive;
     if (localityPreferred) {
@@ -61,6 +70,11 @@ class SparkInputPartition implements InputPartition, Serializable {
     return preferredLocations;
   }
 
+  @Override
+  public InternalRow partitionKey() {
+    return new StructInternalRow(groupingKeyType).setStruct(taskGroup.groupingKey());
+  }
+
   @SuppressWarnings("unchecked")
   public <T extends ScanTask> ScanTaskGroup<T> taskGroup() {
     return (ScanTaskGroup<T>) taskGroup;
@@ -72,6 +86,10 @@ class SparkInputPartition implements InputPartition, Serializable {
 
   public Table table() {
     return tableBroadcast.value();
+  }
+
+  public String branch() {
+    return branch;
   }
 
   public boolean isCaseSensitive() {

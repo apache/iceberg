@@ -18,13 +18,14 @@
  */
 package org.apache.iceberg.util;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.Set;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestStructLikeSet {
   private static final Types.StructType STRUCT_TYPE =
@@ -35,17 +36,17 @@ public class TestStructLikeSet {
   @Test
   public void testNullElements() {
     Set<StructLike> set = StructLikeSet.create(STRUCT_TYPE);
-    Assert.assertFalse(set.contains(null));
+    assertThat(set).doesNotContain((StructLike) null);
 
     set.add(null);
-    Assert.assertTrue(set.contains(null));
+    assertThat(set).contains((StructLike) null);
 
     boolean added = set.add(null);
-    Assert.assertFalse(added);
+    assertThat(added).isFalse();
 
     boolean removed = set.remove(null);
-    Assert.assertTrue(removed);
-    Assert.assertTrue(set.isEmpty());
+    assertThat(removed).isTrue();
+    assertThat(set).isEmpty();
   }
 
   @Test
@@ -58,13 +59,12 @@ public class TestStructLikeSet {
     set.add(record1);
     set.add(record2);
 
-    Assert.assertTrue(set.contains(record1));
-    Assert.assertTrue(set.contains(record2));
+    assertThat(set).contains(record1, record2);
 
     Record record3 = record1.copy();
-    Assert.assertTrue(set.contains(record3));
+    assertThat(set).contains(record3);
 
     boolean removed = set.remove(record3);
-    Assert.assertTrue(removed);
+    assertThat(removed).isTrue();
   }
 }

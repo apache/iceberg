@@ -21,5 +21,7 @@ package org.apache.iceberg;
 /** An enum representing possible operations in a changelog. */
 public enum ChangelogOperation {
   INSERT,
-  DELETE
+  DELETE,
+  UPDATE_BEFORE,
+  UPDATE_AFTER
 }

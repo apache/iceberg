@@ -20,7 +20,7 @@ package org.apache.iceberg.metrics;
 
 import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.assertj.core.api.Assertions;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestDefaultCounter {
 
@@ -48,15 +48,5 @@ public class TestDefaultCounter {
     Assertions.assertThat(counter.value()).isEqualTo(6L);
     Assertions.assertThat(counter.unit()).isEqualTo(MetricsContext.Unit.BYTES);
     Assertions.assertThat(counter.isNoop()).isFalse();
-  }
-
-  @Test
-  public void counterOverflow() {
-    Counter counter = new DefaultCounter(MetricsContext.Unit.COUNT);
-    counter.increment(Long.MAX_VALUE);
-    Assertions.assertThatThrownBy(counter::increment)
-        .isInstanceOf(ArithmeticException.class)
-        .hasMessage("long overflow");
-    Assertions.assertThat(counter.value()).isEqualTo(Long.MAX_VALUE);
   }
 }

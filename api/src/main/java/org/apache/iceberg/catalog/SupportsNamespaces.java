@@ -68,19 +68,38 @@ public interface SupportsNamespaces {
    * exist and must be returned by this discovery method. For example, if table a.b.t exists, this
    * method must return ["a"] in the result array.
    *
-   * @return an List of namespace {@link Namespace} names
+   * @return a List of namespace {@link Namespace} names
    */
   default List<Namespace> listNamespaces() {
     return listNamespaces(Namespace.empty());
   }
 
   /**
-   * List namespaces from the namespace.
+   * List child namespaces from the namespace.
    *
-   * <p>For example, if table a.b.t exists, use 'SELECT NAMESPACE IN a' this method must return
-   * Namepace.of("a","b") {@link Namespace}.
+   * <p>For two existing tables named 'a.b.c.table' and 'a.b.d.table', this method returns:
    *
-   * @return a List of namespace {@link Namespace} names
+   * <ul>
+   *   <li>Given: {@code Namespace.empty()}
+   *   <li>Returns: {@code Namespace.of("a")}
+   * </ul>
+   *
+   * <ul>
+   *   <li>Given: {@code Namespace.of("a")}
+   *   <li>Returns: {@code Namespace.of("a", "b")}
+   * </ul>
+   *
+   * <ul>
+   *   <li>Given: {@code Namespace.of("a", "b")}
+   *   <li>Returns: {@code Namespace.of("a", "b", "c")} and {@code Namespace.of("a", "b", "d")}
+   * </ul>
+   *
+   * <ul>
+   *   <li>Given: {@code Namespace.of("a", "b", "c")}
+   *   <li>Returns: empty list, because there are no child namespaces
+   * </ul>
+   *
+   * @return a List of child {@link Namespace} names from the given namespace
    * @throws NoSuchNamespaceException If the namespace does not exist (optional)
    */
   List<Namespace> listNamespaces(Namespace namespace) throws NoSuchNamespaceException;

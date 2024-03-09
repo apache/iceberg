@@ -19,10 +19,12 @@
 package org.apache.iceberg.io;
 
 import java.io.IOException;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 public class BasePositionDeltaWriter<T> implements PositionDeltaWriter<T> {
 
@@ -34,13 +36,17 @@ public class BasePositionDeltaWriter<T> implements PositionDeltaWriter<T> {
   private boolean closed;
 
   public BasePositionDeltaWriter(
+      PartitioningWriter<T, DataWriteResult> dataWriter,
+      PartitioningWriter<PositionDelete<T>, DeleteWriteResult> deleteWriter) {
+    this(dataWriter, dataWriter, deleteWriter);
+  }
+
+  public BasePositionDeltaWriter(
       PartitioningWriter<T, DataWriteResult> insertWriter,
       PartitioningWriter<T, DataWriteResult> updateWriter,
       PartitioningWriter<PositionDelete<T>, DeleteWriteResult> deleteWriter) {
     Preconditions.checkArgument(insertWriter != null, "Insert writer cannot be null");
     Preconditions.checkArgument(updateWriter != null, "Update writer cannot be null");
-    Preconditions.checkArgument(
-        insertWriter != updateWriter, "Update and insert writers must be different");
     Preconditions.checkArgument(deleteWriter != null, "Delete writer cannot be null");
 
     this.insertWriter = insertWriter;
@@ -69,16 +75,24 @@ public class BasePositionDeltaWriter<T> implements PositionDeltaWriter<T> {
   public WriteResult result() {
     Preconditions.checkState(closed, "Cannot get result from unclosed writer");
 
-    DataWriteResult insertWriteResult = insertWriter.result();
-    DataWriteResult updateWriteResult = updateWriter.result();
     DeleteWriteResult deleteWriteResult = deleteWriter.result();
 
     return WriteResult.builder()
-        .addDataFiles(insertWriteResult.dataFiles())
-        .addDataFiles(updateWriteResult.dataFiles())
+        .addDataFiles(dataFiles())
         .addDeleteFiles(deleteWriteResult.deleteFiles())
         .addReferencedDataFiles(deleteWriteResult.referencedDataFiles())
         .build();
+  }
+
+  private Iterable<DataFile> dataFiles() {
+    if (insertWriter == updateWriter) {
+      DataWriteResult result = insertWriter.result();
+      return result.dataFiles();
+    } else {
+      DataWriteResult insertWriteResult = insertWriter.result();
+      DataWriteResult updateWriteResult = updateWriter.result();
+      return Iterables.concat(insertWriteResult.dataFiles(), updateWriteResult.dataFiles());
+    }
   }
 
   @Override

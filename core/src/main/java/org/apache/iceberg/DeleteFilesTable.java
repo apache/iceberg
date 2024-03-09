@@ -23,17 +23,17 @@ import org.apache.iceberg.io.CloseableIterable;
 /** A {@link Table} implementation that exposes a table's delete files as rows. */
 public class DeleteFilesTable extends BaseFilesTable {
 
-  DeleteFilesTable(TableOperations ops, Table table) {
-    this(ops, table, table.name() + ".delete_files");
+  DeleteFilesTable(Table table) {
+    this(table, table.name() + ".delete_files");
   }
 
-  DeleteFilesTable(TableOperations ops, Table table, String name) {
-    super(ops, table, name);
+  DeleteFilesTable(Table table, String name) {
+    super(table, name);
   }
 
   @Override
   public TableScan newScan() {
-    return new DeleteFilesTableScan(operations(), table(), schema());
+    return new DeleteFilesTableScan(table(), schema());
   }
 
   @Override
@@ -43,24 +43,22 @@ public class DeleteFilesTable extends BaseFilesTable {
 
   public static class DeleteFilesTableScan extends BaseFilesTableScan {
 
-    DeleteFilesTableScan(TableOperations ops, Table table, Schema schema) {
-      super(ops, table, schema, MetadataTableType.DELETE_FILES);
+    DeleteFilesTableScan(Table table, Schema schema) {
+      super(table, schema, MetadataTableType.DELETE_FILES);
     }
 
-    DeleteFilesTableScan(
-        TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      super(ops, table, schema, MetadataTableType.DELETE_FILES, context);
+    DeleteFilesTableScan(Table table, Schema schema, TableScanContext context) {
+      super(table, schema, MetadataTableType.DELETE_FILES, context);
     }
 
     @Override
-    protected TableScan newRefinedScan(
-        TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      return new DeleteFilesTableScan(ops, table, schema, context);
+    protected TableScan newRefinedScan(Table table, Schema schema, TableScanContext context) {
+      return new DeleteFilesTableScan(table, schema, context);
     }
 
     @Override
     protected CloseableIterable<ManifestFile> manifests() {
-      return CloseableIterable.withNoopClose(snapshot().deleteManifests(tableOps().io()));
+      return CloseableIterable.withNoopClose(snapshot().deleteManifests(table().io()));
     }
   }
 }

@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AppendFiles;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
@@ -38,7 +37,7 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.aws.AwsProperties;
-import org.apache.iceberg.aws.s3.S3FileIO;
+import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -49,6 +48,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
+import org.apache.iceberg.util.LockManagers;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
@@ -73,8 +73,14 @@ public class TestGlueCatalogTable extends GlueTestBase {
   public void testCreateTable() {
     String namespace = createNamespace();
     String tableName = getRandomName();
+    String tableDescription = "Test table";
+    Map<String, String> tableProperties =
+        ImmutableMap.<String, String>builder()
+            .putAll(tableLocationProperties)
+            .put(IcebergToGlueConverter.GLUE_DESCRIPTION_KEY, tableDescription)
+            .build();
     glueCatalog.createTable(
-        TableIdentifier.of(namespace, tableName), schema, partitionSpec, tableLocationProperties);
+        TableIdentifier.of(namespace, tableName), schema, partitionSpec, tableProperties);
     // verify table exists in Glue
     GetTableResponse response =
         glue.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
@@ -105,31 +111,57 @@ public class TestGlueCatalogTable extends GlueTestBase {
     Table table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
     Assert.assertEquals(partitionSpec, table.spec());
     Assert.assertEquals(schema.toString(), table.schema().toString());
+    Assert.assertEquals(
+        tableDescription, table.properties().get(IcebergToGlueConverter.GLUE_DESCRIPTION_KEY));
+    Assert.assertEquals(tableDescription, response.table().description());
   }
 
   @Test
   public void testCreateTableDuplicate() {
     String namespace = createNamespace();
     String tableName = createTable(namespace);
-    AssertHelpers.assertThrows(
-        "should not create table with the same name",
-        AlreadyExistsException.class,
-        "Table already exists",
-        () ->
-            glueCatalog.createTable(
-                TableIdentifier.of(namespace, tableName), schema, partitionSpec));
+    Assertions.assertThatThrownBy(
+            () ->
+                glueCatalog.createTable(
+                    TableIdentifier.of(namespace, tableName), schema, partitionSpec))
+        .isInstanceOf(AlreadyExistsException.class)
+        .as("should not create table with the same name")
+        .hasMessageContaining("Table already exists");
   }
 
   @Test
   public void testCreateTableBadName() {
     String namespace = createNamespace();
-    AssertHelpers.assertThrows(
-        "should not create table with bad name",
-        IllegalArgumentException.class,
-        "Invalid table identifier",
-        () ->
-            glueCatalog.createTable(
-                TableIdentifier.of(namespace, "table-1"), schema, partitionSpec));
+    Assertions.assertThatThrownBy(
+            () ->
+                glueCatalog.createTable(
+                    TableIdentifier.of(namespace, "table-1"), schema, partitionSpec))
+        .isInstanceOf(IllegalArgumentException.class)
+        .as("should not create table with bad name")
+        .hasMessageContaining("Invalid table identifier");
+  }
+
+  @Test
+  public void testCreateAndLoadTableWithoutWarehouseLocation() {
+    GlueCatalog glueCatalogWithoutWarehouse = new GlueCatalog();
+    glueCatalogWithoutWarehouse.initialize(
+        catalogName,
+        null,
+        new AwsProperties(),
+        new S3FileIOProperties(),
+        glue,
+        LockManagers.defaultLockManager(),
+        ImmutableMap.of());
+    String namespace = createNamespace();
+    String tableName = getRandomName();
+    TableIdentifier identifier = TableIdentifier.of(namespace, tableName);
+    try {
+      glueCatalog.createTable(identifier, schema, partitionSpec, tableLocationProperties);
+      glueCatalog.loadTable(identifier);
+    } catch (RuntimeException e) {
+      throw new RuntimeException(
+          "Create and load table without warehouse location should succeed", e);
+    }
   }
 
   @Test
@@ -216,14 +248,14 @@ public class TestGlueCatalogTable extends GlueTestBase {
             .databaseName(namespace)
             .tableInput(TableInput.builder().name(newTableName).build())
             .build());
-    AssertHelpers.assertThrows(
-        "should fail to rename to an existing table",
-        software.amazon.awssdk.services.glue.model.AlreadyExistsException.class,
-        "Table already exists",
-        () ->
-            glueCatalog.renameTable(
-                TableIdentifier.of(namespace, tableName),
-                TableIdentifier.of(namespace, newTableName)));
+    Assertions.assertThatThrownBy(
+            () ->
+                glueCatalog.renameTable(
+                    TableIdentifier.of(namespace, tableName),
+                    TableIdentifier.of(namespace, newTableName)))
+        .isInstanceOf(software.amazon.awssdk.services.glue.model.AlreadyExistsException.class)
+        .as("should fail to rename to an existing table")
+        .hasMessageContaining("Table already exists");
     // old table can still be read with same metadata
     Table oldTable = glueCatalog.loadTable(id);
     Assert.assertEquals(table.location(), oldTable.location());
@@ -245,21 +277,21 @@ public class TestGlueCatalogTable extends GlueTestBase {
             .databaseName(namespace)
             .tableInput(TableInput.builder().name(tableName).parameters(Maps.newHashMap()).build())
             .build());
-    AssertHelpers.assertThrows(
-        "should fail to rename",
-        ValidationException.class,
-        "Input Glue table is not an iceberg table",
-        () ->
-            glueCatalog.renameTable(
-                TableIdentifier.of(namespace, tableName),
-                TableIdentifier.of(namespace, newTableName)));
-    AssertHelpers.assertThrows(
-        "renamed table should be deleted",
-        EntityNotFoundException.class,
-        "not found",
-        () ->
-            glue.getTable(
-                GetTableRequest.builder().databaseName(namespace).name(newTableName).build()));
+    Assertions.assertThatThrownBy(
+            () ->
+                glueCatalog.renameTable(
+                    TableIdentifier.of(namespace, tableName),
+                    TableIdentifier.of(namespace, newTableName)))
+        .isInstanceOf(ValidationException.class)
+        .as("should fail to rename")
+        .hasMessageContaining("Input Glue table is not an iceberg table");
+    Assertions.assertThatThrownBy(
+            () ->
+                glue.getTable(
+                    GetTableRequest.builder().databaseName(namespace).name(newTableName).build()))
+        .isInstanceOf(EntityNotFoundException.class)
+        .as("renamed table should be deleted")
+        .hasMessageContaining("not found");
   }
 
   @Test
@@ -267,11 +299,11 @@ public class TestGlueCatalogTable extends GlueTestBase {
     String namespace = createNamespace();
     String tableName = createTable(namespace);
     glueCatalog.dropTable(TableIdentifier.of(namespace, tableName), false);
-    AssertHelpers.assertThrows(
-        "should not have table",
-        NoSuchTableException.class,
-        "Table does not exist",
-        () -> glueCatalog.loadTable(TableIdentifier.of(namespace, tableName)));
+    Assertions.assertThatThrownBy(
+            () -> glueCatalog.loadTable(TableIdentifier.of(namespace, tableName)))
+        .isInstanceOf(NoSuchTableException.class)
+        .as("should not have table")
+        .hasMessageContaining("Table does not exist");
     String warehouseLocation =
         glueCatalog.defaultWarehouseLocation(TableIdentifier.of(namespace, tableName));
     String prefix = warehouseLocation.split(testBucketName + "/", -1)[1];
@@ -321,11 +353,11 @@ public class TestGlueCatalogTable extends GlueTestBase {
     txn.commitTransaction();
 
     glueCatalog.dropTable(TableIdentifier.of(namespace, tableName));
-    AssertHelpers.assertThrows(
-        "should not have table",
-        NoSuchTableException.class,
-        "Table does not exist",
-        () -> glueCatalog.loadTable(TableIdentifier.of(namespace, tableName)));
+    Assertions.assertThatThrownBy(
+            () -> glueCatalog.loadTable(TableIdentifier.of(namespace, tableName)))
+        .isInstanceOf(NoSuchTableException.class)
+        .as("should not have table")
+        .hasMessageContaining("Table does not exist");
     String warehouseLocation =
         glueCatalog.defaultWarehouseLocation(TableIdentifier.of(namespace, tableName));
     String prefix = warehouseLocation.split(testBucketName + "/", -1)[1];
@@ -352,6 +384,16 @@ public class TestGlueCatalogTable extends GlueTestBase {
     Schema schema = new Schema(Types.NestedField.required(1, "c1", Types.StringType.get(), "c1"));
     PartitionSpec partitionSpec = PartitionSpec.builderFor(schema).build();
     String tableName = getRandomName();
+    AwsProperties properties = new AwsProperties();
+    properties.setGlueCatalogSkipArchive(false);
+    glueCatalog.initialize(
+        catalogName,
+        testBucketPath,
+        properties,
+        new S3FileIOProperties(),
+        glue,
+        LockManagers.defaultLockManager(),
+        ImmutableMap.of());
     glueCatalog.createTable(TableIdentifier.of(namespace, tableName), schema, partitionSpec);
     Table table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
     DataFile dataFile =
@@ -372,9 +414,9 @@ public class TestGlueCatalogTable extends GlueTestBase {
             .size());
     // create table and commit with skip
     tableName = getRandomName();
-    glueCatalogWithSkip.createTable(
-        TableIdentifier.of(namespace, tableName), schema, partitionSpec);
-    table = glueCatalogWithSkip.loadTable(TableIdentifier.of(namespace, tableName));
+    glueCatalog.initialize(catalogName, ImmutableMap.of());
+    glueCatalog.createTable(TableIdentifier.of(namespace, tableName), schema, partitionSpec);
+    table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
     table.newAppend().appendFile(dataFile).commit();
     Assert.assertEquals(
         "skipArchive should not create new version",
@@ -536,7 +578,11 @@ public class TestGlueCatalogTable extends GlueTestBase {
     Table table = glueCatalog.loadTable(identifier);
     String metadataLocation = ((BaseTable) table).operations().current().metadataFileLocation();
     Assertions.assertThat(glueCatalog.dropTable(identifier, false)).isTrue();
-    Assertions.assertThat(glueCatalog.registerTable(identifier, metadataLocation)).isNotNull();
+    Table registeredTable = glueCatalog.registerTable(identifier, metadataLocation);
+    Assertions.assertThat(registeredTable).isNotNull();
+    String expectedMetadataLocation =
+        ((BaseTable) table).operations().current().metadataFileLocation();
+    Assertions.assertThat(metadataLocation).isEqualTo(expectedMetadataLocation);
     Assertions.assertThat(glueCatalog.loadTable(identifier)).isNotNull();
     Assertions.assertThat(glueCatalog.dropTable(identifier, true)).isTrue();
     Assertions.assertThat(glueCatalog.dropNamespace(Namespace.of(namespace))).isTrue();
@@ -559,15 +605,19 @@ public class TestGlueCatalogTable extends GlueTestBase {
   @Test
   public void testTableLevelS3Tags() {
     String testBucketPath = "s3://" + testBucketName + "/" + testPathPrefix;
-    S3FileIO fileIO = new S3FileIO(clientFactory::s3);
     Map<String, String> properties =
         ImmutableMap.of(
-            AwsProperties.S3_WRITE_TABLE_TAG_ENABLED,
+            S3FileIOProperties.WRITE_TABLE_TAG_ENABLED,
             "true",
-            AwsProperties.S3_WRITE_NAMESPACE_TAG_ENABLED,
+            S3FileIOProperties.WRITE_NAMESPACE_TAG_ENABLED,
             "true");
     glueCatalog.initialize(
-        catalogName, testBucketPath, new AwsProperties(properties), glue, null, fileIO);
+        catalogName,
+        testBucketPath,
+        new AwsProperties(properties),
+        new S3FileIOProperties(properties),
+        glue,
+        null);
     String namespace = createNamespace();
     String tableName = getRandomName();
     createTable(namespace, tableName);
@@ -584,9 +634,9 @@ public class TestGlueCatalogTable extends GlueTestBase {
             .tagSet();
     Map<String, String> tagMap = tags.stream().collect(Collectors.toMap(Tag::key, Tag::value));
 
-    Assert.assertTrue(tagMap.containsKey(AwsProperties.S3_TAG_ICEBERG_TABLE));
-    Assert.assertEquals(tableName, tagMap.get(AwsProperties.S3_TAG_ICEBERG_TABLE));
-    Assert.assertTrue(tagMap.containsKey(AwsProperties.S3_TAG_ICEBERG_NAMESPACE));
-    Assert.assertEquals(namespace, tagMap.get(AwsProperties.S3_TAG_ICEBERG_NAMESPACE));
+    Assert.assertTrue(tagMap.containsKey(S3FileIOProperties.S3_TAG_ICEBERG_TABLE));
+    Assert.assertEquals(tableName, tagMap.get(S3FileIOProperties.S3_TAG_ICEBERG_TABLE));
+    Assert.assertTrue(tagMap.containsKey(S3FileIOProperties.S3_TAG_ICEBERG_NAMESPACE));
+    Assert.assertEquals(namespace, tagMap.get(S3FileIOProperties.S3_TAG_ICEBERG_NAMESPACE));
   }
 }

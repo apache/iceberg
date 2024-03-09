@@ -52,7 +52,7 @@ public class TestMicroBatchBuilder extends TableTestBase {
     MicroBatch batch =
         MicroBatches.from(table.snapshot(1L), table.io())
             .specsById(table.specs())
-            .generate(0, Long.MAX_VALUE, true);
+            .generate(0, 6, Long.MAX_VALUE, true);
     Assert.assertEquals(batch.snapshotId(), 1L);
     Assert.assertEquals(batch.startFileIndex(), 0);
     Assert.assertEquals(batch.endFileIndex(), 5);
@@ -63,7 +63,7 @@ public class TestMicroBatchBuilder extends TableTestBase {
     MicroBatch batch1 =
         MicroBatches.from(table.snapshot(1L), table.io())
             .specsById(table.specs())
-            .generate(0, 15L, true);
+            .generate(0, 1, 15L, true);
     Assert.assertEquals(batch1.endFileIndex(), 1);
     Assert.assertEquals(batch1.sizeInBytes(), 10);
     Assert.assertFalse(batch1.lastIndexOfSnapshot());
@@ -72,7 +72,7 @@ public class TestMicroBatchBuilder extends TableTestBase {
     MicroBatch batch2 =
         MicroBatches.from(table.snapshot(1L), table.io())
             .specsById(table.specs())
-            .generate(batch1.endFileIndex(), 30L, true);
+            .generate(batch1.endFileIndex(), 4, 30L, true);
     Assert.assertEquals(batch2.endFileIndex(), 4);
     Assert.assertEquals(batch2.sizeInBytes(), 30);
     Assert.assertFalse(batch2.lastIndexOfSnapshot());
@@ -81,7 +81,7 @@ public class TestMicroBatchBuilder extends TableTestBase {
     MicroBatch batch3 =
         MicroBatches.from(table.snapshot(1L), table.io())
             .specsById(table.specs())
-            .generate(batch2.endFileIndex(), 50L, true);
+            .generate(batch2.endFileIndex(), 5, 50L, true);
     Assert.assertEquals(batch3.endFileIndex(), 5);
     Assert.assertEquals(batch3.sizeInBytes(), 10);
     Assert.assertTrue(batch3.lastIndexOfSnapshot());
@@ -95,7 +95,7 @@ public class TestMicroBatchBuilder extends TableTestBase {
     MicroBatch batch =
         MicroBatches.from(table.snapshot(1L), table.io())
             .specsById(table.specs())
-            .generate(0, 10L, true);
+            .generate(0, 1, 10L, true);
     Assert.assertEquals(batch.snapshotId(), 1L);
     Assert.assertEquals(batch.startFileIndex(), 0);
     Assert.assertEquals(batch.endFileIndex(), 1);
@@ -106,7 +106,7 @@ public class TestMicroBatchBuilder extends TableTestBase {
     MicroBatch batch1 =
         MicroBatches.from(table.snapshot(1L), table.io())
             .specsById(table.specs())
-            .generate(batch.endFileIndex(), 5L, true);
+            .generate(batch.endFileIndex(), 2, 5L, true);
     Assert.assertEquals(batch1.endFileIndex(), 2);
     Assert.assertEquals(batch1.sizeInBytes(), 10);
     filesMatch(Lists.newArrayList("B"), filesToScan(batch1.tasks()));
@@ -115,7 +115,7 @@ public class TestMicroBatchBuilder extends TableTestBase {
     MicroBatch batch2 =
         MicroBatches.from(table.snapshot(1L), table.io())
             .specsById(table.specs())
-            .generate(batch1.endFileIndex(), 10L, true);
+            .generate(batch1.endFileIndex(), 3, 10L, true);
     Assert.assertEquals(batch2.endFileIndex(), 3);
     Assert.assertEquals(batch2.sizeInBytes(), 10);
     filesMatch(Lists.newArrayList("C"), filesToScan(batch2.tasks()));
@@ -124,7 +124,7 @@ public class TestMicroBatchBuilder extends TableTestBase {
     MicroBatch batch3 =
         MicroBatches.from(table.snapshot(1L), table.io())
             .specsById(table.specs())
-            .generate(batch2.endFileIndex(), 10L, true);
+            .generate(batch2.endFileIndex(), 4, 10L, true);
     Assert.assertEquals(batch3.endFileIndex(), 4);
     Assert.assertEquals(batch3.sizeInBytes(), 10);
     filesMatch(Lists.newArrayList("D"), filesToScan(batch3.tasks()));
@@ -133,7 +133,7 @@ public class TestMicroBatchBuilder extends TableTestBase {
     MicroBatch batch4 =
         MicroBatches.from(table.snapshot(1L), table.io())
             .specsById(table.specs())
-            .generate(batch3.endFileIndex(), 5L, true);
+            .generate(batch3.endFileIndex(), 5, 5L, true);
     Assert.assertEquals(batch4.endFileIndex(), 5);
     Assert.assertEquals(batch4.sizeInBytes(), 10);
     filesMatch(Lists.newArrayList("E"), filesToScan(batch4.tasks()));
@@ -142,7 +142,7 @@ public class TestMicroBatchBuilder extends TableTestBase {
     MicroBatch batch5 =
         MicroBatches.from(table.snapshot(1L), table.io())
             .specsById(table.specs())
-            .generate(batch4.endFileIndex(), 5L, true);
+            .generate(batch4.endFileIndex(), 5, 5L, true);
     Assert.assertEquals(batch5.endFileIndex(), 5);
     Assert.assertEquals(batch5.sizeInBytes(), 0);
     Assert.assertTrue(Iterables.isEmpty(batch5.tasks()));

@@ -19,6 +19,7 @@
 package org.apache.iceberg.rest.requests;
 
 import java.util.Locale;
+import org.apache.iceberg.metrics.CommitReport;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -29,14 +30,16 @@ import org.immutables.value.Value;
 public interface ReportMetricsRequest extends RESTRequest {
 
   enum ReportType {
-    SCAN_REPORT;
+    UNKNOWN,
+    SCAN_REPORT,
+    COMMIT_REPORT;
 
     static ReportType fromString(String reportType) {
       Preconditions.checkArgument(null != reportType, "Invalid report type: null");
       try {
         return ReportType.valueOf(reportType.toUpperCase(Locale.ENGLISH));
       } catch (IllegalArgumentException e) {
-        throw new IllegalArgumentException(String.format("Invalid report type: %s", reportType), e);
+        return UNKNOWN;
       }
     }
   }
@@ -52,10 +55,20 @@ public interface ReportMetricsRequest extends RESTRequest {
   }
 
   static ReportMetricsRequest of(MetricsReport report) {
-    ReportType reportType = report instanceof ScanReport ? ReportType.SCAN_REPORT : null;
-    Preconditions.checkArgument(
-        null != reportType, "Unsupported report type: %s", report.getClass().getName());
+    ReportType reportType = ReportType.UNKNOWN;
+    if (report instanceof ScanReport) {
+      reportType = ReportType.SCAN_REPORT;
+    } else if (report instanceof CommitReport) {
+      reportType = ReportType.COMMIT_REPORT;
+    }
 
     return ImmutableReportMetricsRequest.builder().reportType(reportType).report(report).build();
+  }
+
+  static ReportMetricsRequest unknown() {
+    return ImmutableReportMetricsRequest.builder()
+        .reportType(ReportType.UNKNOWN)
+        .report(new MetricsReport() {})
+        .build();
   }
 }

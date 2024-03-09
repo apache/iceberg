@@ -22,7 +22,7 @@ import java.util.Map;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.actions.BaseMigrateTableActionResult;
+import org.apache.iceberg.actions.ImmutableMigrateTable;
 import org.apache.iceberg.actions.MigrateTable;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -162,7 +162,9 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
         "Successfully loaded Iceberg metadata for {} files to {}",
         migratedDataFilesCount,
         destTableIdent());
-    return new BaseMigrateTableActionResult(migratedDataFilesCount);
+    return ImmutableMigrateTable.Result.builder()
+        .migratedDataFilesCount(migratedDataFilesCount)
+        .build();
   }
 
   @Override

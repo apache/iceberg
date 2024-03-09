@@ -20,7 +20,7 @@ package org.apache.iceberg.util;
 
 import java.time.ZonedDateTime;
 import org.assertj.core.api.Assertions;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestDateTimeUtil {
 

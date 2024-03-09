@@ -18,23 +18,21 @@
  */
 package org.apache.iceberg.io;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import org.assertj.core.api.Assertions;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestClosingIterator {
   @Test
   public void testEmptyIterator() {
     CloseableIterator<String> underlying = mock(CloseableIterator.class);
     ClosingIterator<String> closingIterator = new ClosingIterator<>(underlying);
-    assertFalse(closingIterator.hasNext());
+    assertThat(closingIterator).isExhausted();
   }
 
   @Test
@@ -43,8 +41,8 @@ public class TestClosingIterator {
     when(underlying.hasNext()).thenReturn(true);
     when(underlying.next()).thenReturn("hello");
     ClosingIterator<String> closingIterator = new ClosingIterator<>(underlying);
-    assertTrue(closingIterator.hasNext());
-    assertEquals("hello", closingIterator.next());
+    assertThat(closingIterator).hasNext();
+    assertThat(closingIterator.next()).isEqualTo("hello");
   }
 
   @Test
@@ -53,10 +51,9 @@ public class TestClosingIterator {
     when(underlying.hasNext()).thenReturn(true).thenReturn(false);
     when(underlying.next()).thenReturn("hello");
     ClosingIterator<String> closingIterator = new ClosingIterator<>(underlying);
-    assertTrue(closingIterator.hasNext());
-    assertEquals("hello", closingIterator.next());
-
-    assertFalse(closingIterator.hasNext());
+    assertThat(closingIterator).hasNext();
+    assertThat(closingIterator.next()).isEqualTo("hello");
+    assertThat(closingIterator).isExhausted();
     verify(underlying, times(1)).close();
   }
 
@@ -64,8 +61,7 @@ public class TestClosingIterator {
   public void testCloseCalledOnceForMultipleHasNextCalls() throws Exception {
     CloseableIterator<String> underlying = mock(CloseableIterator.class);
     ClosingIterator<String> closingIterator = new ClosingIterator<>(underlying);
-    assertFalse(closingIterator.hasNext());
-    assertFalse(closingIterator.hasNext());
+    assertThat(closingIterator).isExhausted();
     verify(underlying, times(1)).close();
   }
 

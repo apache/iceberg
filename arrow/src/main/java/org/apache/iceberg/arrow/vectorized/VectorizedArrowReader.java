@@ -25,8 +25,8 @@ import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.BitVectorHelper;
 import org.apache.arrow.vector.DateDayVector;
-import org.apache.arrow.vector.DecimalVector;
 import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
@@ -50,6 +50,7 @@ import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
+import org.apache.parquet.schema.OriginalType;
 import org.apache.parquet.schema.PrimitiveType;
 
 /**
@@ -92,7 +93,11 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   }
 
   private VectorizedArrowReader() {
-    this.icebergField = null;
+    this(null);
+  }
+
+  private VectorizedArrowReader(Types.NestedField icebergField) {
+    this.icebergField = icebergField;
     this.batchSize = DEFAULT_BATCH_SIZE;
     this.columnDescriptor = null;
     this.rootAlloc = null;
@@ -112,9 +117,14 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     FLOAT,
     DOUBLE,
     TIMESTAMP_MILLIS,
+    TIMESTAMP_INT96,
     TIME_MICROS,
     UUID,
     DICTIONARY
+  }
+
+  protected Types.NestedField icebergField() {
+    return icebergField;
   }
 
   @Override
@@ -140,41 +150,23 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         vectorizedColumnIterator.dictionaryBatchReader().nextBatch(vec, -1, nullabilityHolder);
       } else {
         switch (readType) {
-          case FIXED_LENGTH_DECIMAL:
-            vectorizedColumnIterator
-                .fixedLengthDecimalBatchReader()
-                .nextBatch(vec, typeWidth, nullabilityHolder);
-            break;
-          case INT_BACKED_DECIMAL:
-            vectorizedColumnIterator
-                .intBackedDecimalBatchReader()
-                .nextBatch(vec, -1, nullabilityHolder);
-            break;
-          case LONG_BACKED_DECIMAL:
-            vectorizedColumnIterator
-                .longBackedDecimalBatchReader()
-                .nextBatch(vec, -1, nullabilityHolder);
-            break;
           case VARBINARY:
           case VARCHAR:
             vectorizedColumnIterator
                 .varWidthTypeBatchReader()
                 .nextBatch(vec, -1, nullabilityHolder);
             break;
-          case FIXED_WIDTH_BINARY:
-            vectorizedColumnIterator
-                .fixedWidthTypeBinaryBatchReader()
-                .nextBatch(vec, typeWidth, nullabilityHolder);
-            break;
           case BOOLEAN:
             vectorizedColumnIterator.booleanBatchReader().nextBatch(vec, -1, nullabilityHolder);
             break;
           case INT:
+          case INT_BACKED_DECIMAL:
             vectorizedColumnIterator
                 .integerBatchReader()
                 .nextBatch(vec, typeWidth, nullabilityHolder);
             break;
           case LONG:
+          case LONG_BACKED_DECIMAL:
             vectorizedColumnIterator.longBatchReader().nextBatch(vec, typeWidth, nullabilityHolder);
             break;
           case FLOAT:
@@ -192,7 +184,14 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
                 .timestampMillisBatchReader()
                 .nextBatch(vec, typeWidth, nullabilityHolder);
             break;
+          case TIMESTAMP_INT96:
+            vectorizedColumnIterator
+                .timestampInt96BatchReader()
+                .nextBatch(vec, typeWidth, nullabilityHolder);
+            break;
           case UUID:
+          case FIXED_WIDTH_BINARY:
+          case FIXED_LENGTH_DECIMAL:
             vectorizedColumnIterator
                 .fixedSizeBinaryBatchReader()
                 .nextBatch(vec, typeWidth, nullabilityHolder);
@@ -206,20 +205,45 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         vec.getValueCount(),
         numValsToRead);
     return new VectorHolder(
-        columnDescriptor, vec, dictEncoded, dictionary, nullabilityHolder, icebergField.type());
+        columnDescriptor, vec, dictEncoded, dictionary, nullabilityHolder, icebergField);
   }
 
   private void allocateFieldVector(boolean dictionaryEncodedVector) {
     if (dictionaryEncodedVector) {
       allocateDictEncodedVector();
     } else {
-      Field arrowField = ArrowSchemaUtil.convert(icebergField);
+      Field arrowField = ArrowSchemaUtil.convert(getPhysicalType(columnDescriptor, icebergField));
       if (columnDescriptor.getPrimitiveType().getOriginalType() != null) {
         allocateVectorBasedOnOriginalType(columnDescriptor.getPrimitiveType(), arrowField);
       } else {
         allocateVectorBasedOnTypeName(columnDescriptor.getPrimitiveType(), arrowField);
       }
     }
+  }
+
+  private static Types.NestedField getPhysicalType(
+      ColumnDescriptor desc, Types.NestedField logicalType) {
+    PrimitiveType primitive = desc.getPrimitiveType();
+    PrimitiveType.PrimitiveTypeName typeName = primitive.getPrimitiveTypeName();
+    Types.NestedField physicalType = logicalType;
+    if (OriginalType.DECIMAL.equals(primitive.getOriginalType())) {
+      org.apache.iceberg.types.Type type;
+      if (PrimitiveType.PrimitiveTypeName.INT64.equals(typeName)) {
+        // Use BigIntVector for long backed decimal
+        type = Types.LongType.get();
+      } else if (PrimitiveType.PrimitiveTypeName.INT32.equals(typeName)) {
+        // Use IntVector for int backed decimal
+        type = Types.IntegerType.get();
+      } else {
+        // Use FixedSizeBinaryVector for binary backed decimal
+        type = Types.FixedType.ofLength(primitive.getTypeLength());
+      }
+      physicalType =
+          Types.NestedField.of(
+              logicalType.fieldId(), logicalType.isOptional(), logicalType.name(), type);
+    }
+
+    return physicalType;
   }
 
   private void allocateDictEncodedVector() {
@@ -292,18 +316,20 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         break;
       case DECIMAL:
         this.vec = arrowField.createVector(rootAlloc);
-        ((DecimalVector) vec).allocateNew(batchSize);
         switch (primitive.getPrimitiveTypeName()) {
           case BINARY:
           case FIXED_LEN_BYTE_ARRAY:
+            ((FixedSizeBinaryVector) vec).allocateNew(batchSize);
             this.readType = ReadType.FIXED_LENGTH_DECIMAL;
             this.typeWidth = primitive.getTypeLength();
             break;
           case INT64:
+            ((BigIntVector) vec).allocateNew(batchSize);
             this.readType = ReadType.LONG_BACKED_DECIMAL;
             this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
             break;
           case INT32:
+            ((IntVector) vec).allocateNew(batchSize);
             this.readType = ReadType.INT_BACKED_DECIMAL;
             this.typeWidth = (int) IntVector.TYPE_WIDTH;
             break;
@@ -353,6 +379,17 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         ((IntVector) vec).allocateNew(batchSize);
         this.readType = ReadType.INT;
         this.typeWidth = (int) IntVector.TYPE_WIDTH;
+        break;
+      case INT96:
+        // Impala & Spark used to write timestamps as INT96 by default. For backwards
+        // compatibility we try to read INT96 as timestamps. But INT96 is not recommended
+        // and deprecated (see https://issues.apache.org/jira/browse/PARQUET-323)
+        int length = BigIntVector.TYPE_WIDTH;
+        this.readType = ReadType.TIMESTAMP_INT96;
+        this.vec = arrowField.createVector(rootAlloc);
+        vec.setInitialCapacity(batchSize * length);
+        vec.allocateNew();
+        this.typeWidth = length;
         break;
       case FLOAT:
         Field floatField =
@@ -456,6 +493,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     private NullabilityHolder nulls;
 
     PositionVectorReader(boolean setArrowValidityVector) {
+      super(MetadataColumns.ROW_POSITION);
       this.setArrowValidityVector = setArrowValidityVector;
     }
 
@@ -484,7 +522,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       rowStart += numValsToRead;
       vec.setValueCount(numValsToRead);
 
-      return new VectorHolder.PositionVectorHolder(vec, MetadataColumns.ROW_POSITION.type(), nulls);
+      return new VectorHolder.PositionVectorHolder(vec, MetadataColumns.ROW_POSITION, nulls);
     }
 
     private static BigIntVector newVector(int valueCount) {
@@ -534,13 +572,14 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   public static class ConstantVectorReader<T> extends VectorizedArrowReader {
     private final T value;
 
-    public ConstantVectorReader(T value) {
+    public ConstantVectorReader(Types.NestedField icebergField, T value) {
+      super(icebergField);
       this.value = value;
     }
 
     @Override
     public VectorHolder read(VectorHolder reuse, int numValsToRead) {
-      return VectorHolder.constantHolder(numValsToRead, value);
+      return VectorHolder.constantHolder(icebergField(), numValsToRead, value);
     }
 
     @Override
@@ -561,7 +600,9 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
    * Holder which indicates whether a given row is deleted.
    */
   public static class DeletedVectorReader extends VectorizedArrowReader {
-    public DeletedVectorReader() {}
+    public DeletedVectorReader() {
+      super(MetadataColumns.IS_DELETED);
+    }
 
     @Override
     public VectorHolder read(VectorHolder reuse, int numValsToRead) {

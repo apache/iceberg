@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner.MapJoiner;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
@@ -191,10 +192,10 @@ public class SnapshotSummary {
       setIf(trustPartitionMetrics, builder, CHANGED_PARTITION_COUNT_PROP, changedPartitions.size());
 
       if (trustPartitionMetrics && changedPartitions.size() <= maxChangedPartitionsForSummaries) {
-        setIf(changedPartitions.size() > 0, builder, PARTITION_SUMMARY_PROP, "true");
+        setIf(!changedPartitions.isEmpty(), builder, PARTITION_SUMMARY_PROP, "true");
         for (String key : changedPartitions) {
           setIf(
-              key != null,
+              !Strings.isNullOrEmpty(key),
               builder,
               CHANGED_PARTITION_PREFIX + key,
               partitionSummary(partitionMetrics.get(key)));

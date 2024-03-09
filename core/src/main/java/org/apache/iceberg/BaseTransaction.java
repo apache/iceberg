@@ -31,16 +31,21 @@ import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.UUID;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.exceptions.CleanableFailure;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.metrics.LoggingMetricsReporter;
+import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
@@ -63,7 +68,6 @@ public class BaseTransaction implements Transaction {
   private final TransactionTable transactionTable;
   private final TableOperations transactionOps;
   private final List<PendingUpdate> updates;
-  private final Set<Long> intermediateSnapshotIds;
   private final Set<String> deletedFiles =
       Sets.newHashSet(); // keep track of files deleted in the most recent commit
   private final Consumer<String> enqueueDelete = deletedFiles::add;
@@ -71,19 +75,29 @@ public class BaseTransaction implements Transaction {
   private TableMetadata base;
   private TableMetadata current;
   private boolean hasLastOpCommitted;
+  private final MetricsReporter reporter;
 
   BaseTransaction(
       String tableName, TableOperations ops, TransactionType type, TableMetadata start) {
+    this(tableName, ops, type, start, LoggingMetricsReporter.instance());
+  }
+
+  BaseTransaction(
+      String tableName,
+      TableOperations ops,
+      TransactionType type,
+      TableMetadata start,
+      MetricsReporter reporter) {
     this.tableName = tableName;
     this.ops = ops;
     this.transactionTable = new TransactionTable();
     this.current = start;
     this.transactionOps = new TransactionTableOperations();
     this.updates = Lists.newArrayList();
-    this.intermediateSnapshotIds = Sets.newHashSet();
     this.base = ops.current();
     this.type = type;
     this.hasLastOpCommitted = true;
+    this.reporter = reporter;
   }
 
   @Override
@@ -91,7 +105,15 @@ public class BaseTransaction implements Transaction {
     return transactionTable;
   }
 
+  public String tableName() {
+    return tableName;
+  }
+
   public TableMetadata startMetadata() {
+    return base;
+  }
+
+  public TableMetadata currentMetadata() {
     return current;
   }
 
@@ -148,7 +170,7 @@ public class BaseTransaction implements Transaction {
   @Override
   public AppendFiles newAppend() {
     checkLastOperationCommitted("AppendFiles");
-    AppendFiles append = new MergeAppend(tableName, transactionOps);
+    AppendFiles append = new MergeAppend(tableName, transactionOps).reportWith(reporter);
     append.deleteWith(enqueueDelete);
     updates.add(append);
     return append;
@@ -157,7 +179,7 @@ public class BaseTransaction implements Transaction {
   @Override
   public AppendFiles newFastAppend() {
     checkLastOperationCommitted("AppendFiles");
-    AppendFiles append = new FastAppend(tableName, transactionOps);
+    AppendFiles append = new FastAppend(tableName, transactionOps).reportWith(reporter);
     updates.add(append);
     return append;
   }
@@ -165,7 +187,7 @@ public class BaseTransaction implements Transaction {
   @Override
   public RewriteFiles newRewrite() {
     checkLastOperationCommitted("RewriteFiles");
-    RewriteFiles rewrite = new BaseRewriteFiles(tableName, transactionOps);
+    RewriteFiles rewrite = new BaseRewriteFiles(tableName, transactionOps).reportWith(reporter);
     rewrite.deleteWith(enqueueDelete);
     updates.add(rewrite);
     return rewrite;
@@ -174,7 +196,7 @@ public class BaseTransaction implements Transaction {
   @Override
   public RewriteManifests rewriteManifests() {
     checkLastOperationCommitted("RewriteManifests");
-    RewriteManifests rewrite = new BaseRewriteManifests(transactionOps);
+    RewriteManifests rewrite = new BaseRewriteManifests(transactionOps).reportWith(reporter);
     rewrite.deleteWith(enqueueDelete);
     updates.add(rewrite);
     return rewrite;
@@ -183,7 +205,8 @@ public class BaseTransaction implements Transaction {
   @Override
   public OverwriteFiles newOverwrite() {
     checkLastOperationCommitted("OverwriteFiles");
-    OverwriteFiles overwrite = new BaseOverwriteFiles(tableName, transactionOps);
+    OverwriteFiles overwrite =
+        new BaseOverwriteFiles(tableName, transactionOps).reportWith(reporter);
     overwrite.deleteWith(enqueueDelete);
     updates.add(overwrite);
     return overwrite;
@@ -192,7 +215,7 @@ public class BaseTransaction implements Transaction {
   @Override
   public RowDelta newRowDelta() {
     checkLastOperationCommitted("RowDelta");
-    RowDelta delta = new BaseRowDelta(tableName, transactionOps);
+    RowDelta delta = new BaseRowDelta(tableName, transactionOps).reportWith(reporter);
     delta.deleteWith(enqueueDelete);
     updates.add(delta);
     return delta;
@@ -201,7 +224,8 @@ public class BaseTransaction implements Transaction {
   @Override
   public ReplacePartitions newReplacePartitions() {
     checkLastOperationCommitted("ReplacePartitions");
-    ReplacePartitions replacePartitions = new BaseReplacePartitions(tableName, transactionOps);
+    ReplacePartitions replacePartitions =
+        new BaseReplacePartitions(tableName, transactionOps).reportWith(reporter);
     replacePartitions.deleteWith(enqueueDelete);
     updates.add(replacePartitions);
     return replacePartitions;
@@ -210,7 +234,7 @@ public class BaseTransaction implements Transaction {
   @Override
   public DeleteFiles newDelete() {
     checkLastOperationCommitted("DeleteFiles");
-    DeleteFiles delete = new StreamingDelete(tableName, transactionOps);
+    DeleteFiles delete = new StreamingDelete(tableName, transactionOps).reportWith(reporter);
     delete.deleteWith(enqueueDelete);
     updates.add(delete);
     return delete;
@@ -225,6 +249,15 @@ public class BaseTransaction implements Transaction {
   }
 
   @Override
+  public UpdatePartitionStatistics updatePartitionStatistics() {
+    checkLastOperationCommitted("UpdatePartitionStatistics");
+    UpdatePartitionStatistics updatePartitionStatistics =
+        new SetPartitionStatistics(transactionOps);
+    updates.add(updatePartitionStatistics);
+    return updatePartitionStatistics;
+  }
+
+  @Override
   public ExpireSnapshots expireSnapshots() {
     checkLastOperationCommitted("ExpireSnapshots");
     ExpireSnapshots expire = new RemoveSnapshots(transactionOps);
@@ -233,9 +266,17 @@ public class BaseTransaction implements Transaction {
     return expire;
   }
 
+  @Override
+  public ManageSnapshots manageSnapshots() {
+    SnapshotManager snapshotManager = new SnapshotManager(this);
+    updates.add(snapshotManager);
+    return snapshotManager;
+  }
+
   CherryPickOperation cherryPick() {
     checkLastOperationCommitted("CherryPick");
-    CherryPickOperation cherrypick = new CherryPickOperation(tableName, transactionOps);
+    CherryPickOperation cherrypick =
+        new CherryPickOperation(tableName, transactionOps).reportWith(reporter);
     updates.add(cherrypick);
     return cherrypick;
   }
@@ -289,18 +330,12 @@ public class BaseTransaction implements Transaction {
       throw e;
 
     } catch (RuntimeException e) {
-      // the commit failed and no files were committed. clean up each update.
-      Tasks.foreach(updates)
-          .suppressFailureWhenFinished()
-          .run(
-              update -> {
-                if (update instanceof SnapshotProducer) {
-                  ((SnapshotProducer) update).cleanAll();
-                }
-              });
+      // the commit failed and no files were committed. clean up each update
+      if (!ops.requireStrictCleanup() || e instanceof CleanableFailure) {
+        cleanAllUpdates();
+      }
 
       throw e;
-
     } finally {
       // create table never needs to retry because the table has no previous state. because retries
       // are not a
@@ -351,14 +386,9 @@ public class BaseTransaction implements Transaction {
 
     } catch (RuntimeException e) {
       // the commit failed and no files were committed. clean up each update.
-      Tasks.foreach(updates)
-          .suppressFailureWhenFinished()
-          .run(
-              update -> {
-                if (update instanceof SnapshotProducer) {
-                  ((SnapshotProducer) update).cleanAll();
-                }
-              });
+      if (!ops.requireStrictCleanup() || e instanceof CleanableFailure) {
+        cleanAllUpdates();
+      }
 
       throw e;
 
@@ -379,9 +409,8 @@ public class BaseTransaction implements Transaction {
       return;
     }
 
-    // this is always set to the latest commit attempt's snapshot id.
-    AtomicLong currentSnapshotId = new AtomicLong(-1L);
-
+    Set<Long> startingSnapshots =
+        base.snapshots().stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
     try {
       Tasks.foreach(ops)
           .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
@@ -395,11 +424,6 @@ public class BaseTransaction implements Transaction {
               underlyingOps -> {
                 applyUpdates(underlyingOps);
 
-                if (current.currentSnapshot() != null) {
-                  currentSnapshotId.set(current.currentSnapshot().snapshotId());
-                }
-
-                // fix up the snapshot log, which should not contain intermediate snapshots
                 underlyingOps.commit(base, current);
               });
 
@@ -410,24 +434,28 @@ public class BaseTransaction implements Transaction {
       cleanUpOnCommitFailure();
       throw e.wrapped();
     } catch (RuntimeException e) {
-      cleanUpOnCommitFailure();
+      if (!ops.requireStrictCleanup() || e instanceof CleanableFailure) {
+        cleanUpOnCommitFailure();
+      }
+
       throw e;
     }
 
     // the commit succeeded
 
     try {
-      if (currentSnapshotId.get() != -1) {
-        intermediateSnapshotIds.add(currentSnapshotId.get());
+      // clean up the data files that were deleted by each operation. first, get the list of
+      // committed manifests to ensure that no committed manifest is deleted.
+      // A manifest could be deleted in one successful operation commit, but reused in another
+      // successful commit of that operation if the whole transaction is retried.
+      Set<Long> newSnapshots = Sets.newHashSet();
+      for (Snapshot snapshot : current.snapshots()) {
+        if (!startingSnapshots.contains(snapshot.snapshotId())) {
+          newSnapshots.add(snapshot.snapshotId());
+        }
       }
 
-      // clean up the data files that were deleted by each operation. first, get the list of
-      // committed manifests to
-      // ensure that no committed manifest is deleted. a manifest could be deleted in one successful
-      // operation
-      // commit, but reused in another successful commit of that operation if the whole transaction
-      // is retried.
-      Set<String> committedFiles = committedFiles(ops, intermediateSnapshotIds);
+      Set<String> committedFiles = committedFiles(ops, newSnapshots);
       if (committedFiles != null) {
         // delete all of the files that were deleted in the most recent set of operation commits
         Tasks.foreach(deletedFiles)
@@ -450,6 +478,16 @@ public class BaseTransaction implements Transaction {
 
   private void cleanUpOnCommitFailure() {
     // the commit failed and no files were committed. clean up each update.
+    cleanAllUpdates();
+
+    // delete all the uncommitted files
+    Tasks.foreach(deletedFiles)
+        .suppressFailureWhenFinished()
+        .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
+        .run(ops.io()::deleteFile);
+  }
+
+  private void cleanAllUpdates() {
     Tasks.foreach(updates)
         .suppressFailureWhenFinished()
         .run(
@@ -458,12 +496,6 @@ public class BaseTransaction implements Transaction {
                 ((SnapshotProducer) update).cleanAll();
               }
             });
-
-    // delete all files that were cleaned up
-    Tasks.foreach(deletedFiles)
-        .suppressFailureWhenFinished()
-        .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
-        .run(ops.io()::deleteFile);
   }
 
   private void applyUpdates(TableOperations underlyingOps) {
@@ -484,9 +516,11 @@ public class BaseTransaction implements Transaction {
     }
   }
 
+  // committedFiles returns null whenever the set of committed files
+  // cannot be determined from the provided snapshots
   private static Set<String> committedFiles(TableOperations ops, Set<Long> snapshotIds) {
     if (snapshotIds.isEmpty()) {
-      return null;
+      return ImmutableSet.of();
     }
 
     Set<String> committedFiles = Sets.newHashSet();
@@ -502,15 +536,6 @@ public class BaseTransaction implements Transaction {
     }
 
     return committedFiles;
-  }
-
-  private static Long currentId(TableMetadata meta) {
-    if (meta != null) {
-      if (meta.currentSnapshot() != null) {
-        return meta.currentSnapshot().snapshotId();
-      }
-    }
-    return null;
   }
 
   public class TransactionTableOperations implements TableOperations {
@@ -532,13 +557,6 @@ public class BaseTransaction implements Transaction {
       if (underlyingBase != current) {
         // trigger a refresh and retry
         throw new CommitFailedException("Table metadata refresh is required");
-      }
-
-      // track the intermediate snapshot ids for rewriting the snapshot log
-      // an id is intermediate if it isn't the base snapshot id and it is replaced by a new current
-      Long oldId = currentId(current);
-      if (oldId != null && !oldId.equals(currentId(metadata)) && !oldId.equals(currentId(base))) {
-        intermediateSnapshotIds.add(oldId);
       }
 
       BaseTransaction.this.current = metadata;
@@ -725,6 +743,11 @@ public class BaseTransaction implements Transaction {
     }
 
     @Override
+    public UpdatePartitionStatistics updatePartitionStatistics() {
+      return BaseTransaction.this.updatePartitionStatistics();
+    }
+
+    @Override
     public ExpireSnapshots expireSnapshots() {
       return BaseTransaction.this.expireSnapshots();
     }
@@ -761,8 +784,18 @@ public class BaseTransaction implements Transaction {
     }
 
     @Override
+    public List<PartitionStatisticsFile> partitionStatisticsFiles() {
+      return current.partitionStatisticsFiles();
+    }
+
+    @Override
     public Map<String, SnapshotRef> refs() {
       return current.refs();
+    }
+
+    @Override
+    public UUID uuid() {
+      return UUID.fromString(current.uuid());
     }
 
     @Override

@@ -29,6 +29,8 @@ public interface Counter {
   /**
    * Increment the counter by the provided amount.
    *
+   * <p>Implementations may skip the overflow check for better write throughput.
+   *
    * @param amount to be incremented.
    */
   default void increment(int amount) {
@@ -37,6 +39,8 @@ public interface Counter {
 
   /**
    * Increment the counter by the provided amount.
+   *
+   * <p>Implementations may skip the overflow check for better write throughput.
    *
    * @param amount to be incremented.
    */

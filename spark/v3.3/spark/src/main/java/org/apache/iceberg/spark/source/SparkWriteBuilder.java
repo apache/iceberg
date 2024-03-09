@@ -73,10 +73,10 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   private Command copyOnWriteCommand = null;
   private IsolationLevel copyOnWriteIsolationLevel = null;
 
-  SparkWriteBuilder(SparkSession spark, Table table, LogicalWriteInfo info) {
+  SparkWriteBuilder(SparkSession spark, Table table, String branch, LogicalWriteInfo info) {
     this.spark = spark;
     this.table = table;
-    this.writeConf = new SparkWriteConf(spark, table, info.options());
+    this.writeConf = new SparkWriteConf(spark, table, branch, info.options());
     this.writeInfo = info;
     this.dsSchema = info.schema();
     this.overwriteMode = writeConf.overwriteMode();
@@ -86,8 +86,6 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   }
 
   public WriteBuilder overwriteFiles(Scan scan, Command command, IsolationLevel isolationLevel) {
-    Preconditions.checkArgument(
-        scan instanceof SparkCopyOnWriteScan, "%s is not SparkCopyOnWriteScan", scan);
     Preconditions.checkState(!overwriteByFilter, "Cannot overwrite individual files and by filter");
     Preconditions.checkState(
         !overwriteDynamic, "Cannot overwrite individual files and dynamically");

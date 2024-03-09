@@ -21,8 +21,8 @@ package org.apache.iceberg.util;
 import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -127,9 +127,9 @@ public class StructLikeMap<T> extends AbstractMap<StructLike, T> implements Map<
 
   private static class StructLikeEntry<R> implements Entry<StructLike, R> {
 
-    private Map.Entry<StructLikeWrapper, R> inner;
+    private final Entry<StructLikeWrapper, R> inner;
 
-    private StructLikeEntry(Map.Entry<StructLikeWrapper, R> inner) {
+    private StructLikeEntry(Entry<StructLikeWrapper, R> inner) {
       this.inner = inner;
     }
 
@@ -145,30 +145,30 @@ public class StructLikeMap<T> extends AbstractMap<StructLike, T> implements Map<
 
     @Override
     public int hashCode() {
-      int hashCode = getKey().hashCode();
-      if (getValue() != null) {
-        hashCode ^= getValue().hashCode();
-      }
-      return hashCode;
+      return inner.hashCode();
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public boolean equals(Object o) {
       if (this == o) {
         return true;
-      } else if (!(o instanceof StructLikeEntry)) {
+      } else if (o == null || getClass() != o.getClass()) {
         return false;
-      } else {
-        StructLikeEntry that = (StructLikeEntry<R>) o;
-        return Objects.equals(getKey(), that.getKey())
-            && Objects.equals(getValue(), that.getValue());
       }
+
+      StructLikeEntry<?> that = (StructLikeEntry<?>) o;
+      return inner.equals(that.inner);
     }
 
     @Override
     public R setValue(R value) {
       throw new UnsupportedOperationException("Does not support setValue.");
     }
+  }
+
+  public <U> StructLikeMap<U> transformValues(Function<T, U> func) {
+    StructLikeMap<U> result = create(type);
+    wrapperMap.forEach((key, value) -> result.put(key.get(), func.apply(value)));
+    return result;
   }
 }

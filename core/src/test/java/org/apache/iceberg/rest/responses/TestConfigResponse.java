@@ -20,13 +20,12 @@ package org.apache.iceberg.rest.responses;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RequestResponseTestBase;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
 public class TestConfigResponse extends RequestResponseTestBase<ConfigResponse> {
 
@@ -37,7 +36,7 @@ public class TestConfigResponse extends RequestResponseTestBase<ConfigResponse> 
   private static final Map<String, String> DEFAULTS_WITH_NULL_VALUE = Maps.newHashMap();
   private static final Map<String, String> OVERRIDES_WITH_NULL_VALUE = Maps.newHashMap();
 
-  @BeforeClass
+  @BeforeAll
   public static void beforeAllForRestCatalogConfig() {
     DEFAULTS_WITH_NULL_VALUE.put("warehouse", null);
     OVERRIDES_WITH_NULL_VALUE.put("clients", null);
@@ -145,64 +144,52 @@ public class TestConfigResponse extends RequestResponseTestBase<ConfigResponse> 
   public void testDeserializeInvalidResponse() {
     String jsonDefaultsHasWrongType =
         "{\"defaults\":[\"warehouse\",\"s3://bucket/warehouse\"],\"overrides\":{\"clients\":\"5\"}}";
-    AssertHelpers.assertThrows(
-        "A JSON response with the wrong type for the defaults field should fail to deserialize",
-        JsonProcessingException.class,
-        () -> deserialize(jsonDefaultsHasWrongType));
+    Assertions.assertThatThrownBy(() -> deserialize(jsonDefaultsHasWrongType))
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageContaining(
+            "Cannot deserialize value of type `java.util.LinkedHashMap<java.lang.String,java.lang.String>`");
 
     String jsonOverridesHasWrongType =
         "{\"defaults\":{\"warehouse\":\"s3://bucket/warehouse\"},\"overrides\":\"clients\"}";
-    AssertHelpers.assertThrows(
-        "A JSON response with the wrong type for the overrides field should fail to deserialize",
-        JsonProcessingException.class,
-        () -> deserialize(jsonOverridesHasWrongType));
+    Assertions.assertThatThrownBy(() -> deserialize(jsonOverridesHasWrongType))
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageContaining("Cannot construct instance of `java.util.LinkedHashMap`");
 
-    AssertHelpers.assertThrows(
-        "A null JSON response body should fail to deserialize",
-        IllegalArgumentException.class,
-        () -> deserialize(null));
+    Assertions.assertThatThrownBy(() -> deserialize(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("argument \"content\" is null");
   }
 
   @Test
   public void testBuilderDoesNotCreateInvalidObjects() {
-    AssertHelpers.assertThrows(
-        "The builder should not allow using null as a key in the properties to override",
-        NullPointerException.class,
-        "Invalid override property: null",
-        () -> ConfigResponse.builder().withOverride(null, "100").build());
+    Assertions.assertThatThrownBy(() -> ConfigResponse.builder().withOverride(null, "100").build())
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid override property: null");
 
-    AssertHelpers.assertThrows(
-        "The builder should not allow using null as a key in the default properties",
-        NullPointerException.class,
-        "Invalid default property: null",
-        () -> ConfigResponse.builder().withDefault(null, "100").build());
+    Assertions.assertThatThrownBy(() -> ConfigResponse.builder().withDefault(null, "100").build())
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid default property: null");
 
-    AssertHelpers.assertThrows(
-        "The builder should not allow passing a null map of config properties to override",
-        NullPointerException.class,
-        "Invalid override properties map: null",
-        () -> ConfigResponse.builder().withOverrides(null).build());
+    Assertions.assertThatThrownBy(() -> ConfigResponse.builder().withOverrides(null).build())
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid override properties map: null");
 
-    AssertHelpers.assertThrows(
-        "The builder should not allow passing a null map of default config properties",
-        NullPointerException.class,
-        "Invalid default properties map: null",
-        () -> ConfigResponse.builder().withDefaults(null).build());
+    Assertions.assertThatThrownBy(() -> ConfigResponse.builder().withDefaults(null).build())
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid default properties map: null");
 
     Map<String, String> mapWithNullKey = Maps.newHashMap();
     mapWithNullKey.put(null, "a");
     mapWithNullKey.put("b", "b");
-    AssertHelpers.assertThrows(
-        "The builder should not allow passing a map of default config properties with a null key",
-        IllegalArgumentException.class,
-        "Invalid default property: null",
-        () -> ConfigResponse.builder().withDefaults(mapWithNullKey).build());
+    Assertions.assertThatThrownBy(
+            () -> ConfigResponse.builder().withDefaults(mapWithNullKey).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid default property: null");
 
-    AssertHelpers.assertThrows(
-        "The builder should not allow passing a map of properties to override with a null key",
-        IllegalArgumentException.class,
-        "Invalid override property: null",
-        () -> ConfigResponse.builder().withOverrides(mapWithNullKey).build());
+    Assertions.assertThatThrownBy(
+            () -> ConfigResponse.builder().withOverrides(mapWithNullKey).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid override property: null");
   }
 
   @Test
@@ -226,12 +213,13 @@ public class TestConfigResponse extends RequestResponseTestBase<ConfigResponse> 
             "b", "from_overrides",
             "c", "from_client");
 
-    Assert.assertEquals(
-        "The merged properties map should use values from defaults, then client config, and finally overrides",
-        expected,
-        merged);
-    Assert.assertFalse(
-        "The merged properties map should omit keys with null values", merged.containsValue(null));
+    Assertions.assertThat(merged)
+        .as(
+            "The merged properties map should use values from defaults, then client config, and finally overrides")
+        .isEqualTo(expected);
+    Assertions.assertThat(merged)
+        .as("The merged properties map should omit keys with null values")
+        .doesNotContainValue(null);
   }
 
   @Override
@@ -246,14 +234,12 @@ public class TestConfigResponse extends RequestResponseTestBase<ConfigResponse> 
 
   @Override
   public void assertEquals(ConfigResponse actual, ConfigResponse expected) {
-    Assert.assertEquals(
-        "Config properties to use as defaults should be equal",
-        actual.defaults(),
-        expected.defaults());
-    Assert.assertEquals(
-        "Config properties to use as overrides should be equal",
-        actual.overrides(),
-        expected.overrides());
+    Assertions.assertThat(actual.defaults())
+        .as("Config properties to use as defaults should be equal")
+        .isEqualTo(expected.defaults());
+    Assertions.assertThat(actual.overrides())
+        .as("Config properties to use as overrides should be equal")
+        .isEqualTo(expected.overrides());
   }
 
   @Override

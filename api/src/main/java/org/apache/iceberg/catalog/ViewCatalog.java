@@ -21,8 +21,8 @@ package org.apache.iceberg.catalog;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
-import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewBuilder;
 
@@ -41,7 +41,7 @@ public interface ViewCatalog {
    *
    * @param namespace a namespace
    * @return a list of identifiers for views
-   * @throws NotFoundException if the namespace is not found
+   * @throws NoSuchNamespaceException if the namespace is not found
    */
   List<TableIdentifier> listViews(Namespace namespace);
 
@@ -92,6 +92,7 @@ public interface ViewCatalog {
    * @param to new view identifier
    * @throws NoSuchViewException if the "from" view does not exist
    * @throws AlreadyExistsException if the "to" view already exists
+   * @throws NoSuchNamespaceException if the "to" namespace doesn't exist
    */
   void renameView(TableIdentifier from, TableIdentifier to);
 

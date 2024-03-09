@@ -22,62 +22,70 @@ if (project.hasProperty('release') && jdkVersion != '8') {
 }
 
 subprojects {
+  def isBom = it.name == 'iceberg-bom'
+
   apply plugin: 'maven-publish'
   apply plugin: 'signing'
   afterEvaluate {
 
-    task sourceJar(type: Jar, dependsOn: classes) {
-      classifier = 'sources'
-      from sourceSets.main.allSource
-      group 'build'
-    }
-
-    task javadocJar(type: Jar, dependsOn: javadoc) {
-      classifier = 'javadoc'
-      from javadoc.destinationDir
-      group 'build'
-    }
-
-    task testJar(type: Jar) {
-      archiveClassifier = 'tests'
-      from sourceSets.test.output
-    }
-
-    artifacts {
-      archives sourceJar
-      archives javadocJar
-      archives testJar
-      testArtifacts testJar
-    }
-
-    // add LICENSE and NOTICE
-    [jar, sourceJar, javadocJar, testJar].each { task ->
-      task.dependsOn rootProject.tasks.buildInfo
-      task.from("${rootDir}/build") {
-        include 'iceberg-build.properties'
+    if (!isBom) {
+      task sourceJar(type: Jar, dependsOn: classes) {
+        archiveClassifier.set('sources')
+        from sourceSets.main.allSource
+        group 'build'
       }
-      task.from(rootDir) {
-        include 'LICENSE'
-        include 'NOTICE'
+
+      task javadocJar(type: Jar, dependsOn: javadoc) {
+        archiveClassifier.set('javadoc')
+        from javadoc.destinationDir
+        group 'build'
+      }
+
+      task testJar(type: Jar) {
+        archiveClassifier.set('tests')
+        from sourceSets.test.output
+      }
+
+      artifacts {
+        archives sourceJar
+        archives javadocJar
+        archives testJar
+        testArtifacts testJar
+      }
+
+      // add LICENSE and NOTICE
+      [jar, sourceJar, javadocJar, testJar].each { task ->
+        task.dependsOn rootProject.tasks.buildInfo
+        task.from("${rootDir}/build") {
+          include 'iceberg-build.properties'
+        }
+        task.from(rootDir) {
+          include 'LICENSE'
+          include 'NOTICE'
+        }
       }
     }
 
     publishing {
       publications {
         apache(MavenPublication) {
-          if (tasks.matching({task -> task.name == 'shadowJar'}).isEmpty()) {
-            from components.java
+          if (isBom) {
+            from components.javaPlatform
           } else {
-            project.shadow.component(it)
-          }
+            if (tasks.matching({task -> task.name == 'shadowJar'}).isEmpty()) {
+              from components.java
+            } else {
+              project.shadow.component(it)
+            }
 
-          artifact sourceJar
-          artifact javadocJar
-          artifact testJar
+            artifact sourceJar
+            artifact javadocJar
+            artifact testJar
 
-          versionMapping {
-            allVariants {
-              fromResolutionResult()
+            versionMapping {
+              allVariants {
+                fromResolutionResult()
+              }
             }
           }
 

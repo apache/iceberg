@@ -30,16 +30,23 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.RowLevelOperationMode;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.spark.SparkSQLProperties;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.Encoders;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.internal.SQLConf;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -53,8 +60,9 @@ public class TestCopyOnWriteDelete extends TestDelete {
       Map<String, String> config,
       String fileFormat,
       Boolean vectorized,
-      String distributionMode) {
-    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode);
+      String distributionMode,
+      String branch) {
+    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode, branch);
   }
 
   @Override
@@ -77,6 +85,7 @@ public class TestCopyOnWriteDelete extends TestDelete {
         tableName, DELETE_ISOLATION_LEVEL, "snapshot");
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
+    createBranchIfNeeded();
 
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
 
@@ -96,7 +105,7 @@ public class TestCopyOnWriteDelete extends TestDelete {
                   sleep(10);
                 }
 
-                sql("DELETE FROM %s WHERE id IN (SELECT * FROM deleted_id)", tableName);
+                sql("DELETE FROM %s WHERE id IN (SELECT * FROM deleted_id)", commitTarget());
 
                 barrier.incrementAndGet();
               }
@@ -106,7 +115,7 @@ public class TestCopyOnWriteDelete extends TestDelete {
     Future<?> appendFuture =
         executorService.submit(
             () -> {
-              GenericRecord record = GenericRecord.create(table.schema());
+              GenericRecord record = GenericRecord.create(SnapshotUtil.schemaFor(table, branch));
               record.set(0, 1); // id
               record.set(1, "hr"); // dep
 
@@ -121,7 +130,12 @@ public class TestCopyOnWriteDelete extends TestDelete {
 
                 for (int numAppends = 0; numAppends < 5; numAppends++) {
                   DataFile dataFile = writeDataFile(table, ImmutableList.of(record));
-                  table.newFastAppend().appendFile(dataFile).commit();
+                  AppendFiles appendFiles = table.newFastAppend().appendFile(dataFile);
+                  if (branch != null) {
+                    appendFiles.toBranch(branch);
+                  }
+
+                  appendFiles.commit();
                   sleep(10);
                 }
 
@@ -142,5 +156,34 @@ public class TestCopyOnWriteDelete extends TestDelete {
 
     executorService.shutdown();
     Assert.assertTrue("Timeout", executorService.awaitTermination(2, TimeUnit.MINUTES));
+  }
+
+  @Test
+  public void testRuntimeFilteringWithPreservedDataGrouping() throws NoSuchTableException {
+    createAndInitPartitionedTable();
+
+    append(tableName, new Employee(1, "hr"), new Employee(3, "hr"));
+    createBranchIfNeeded();
+    append(new Employee(1, "hardware"), new Employee(2, "hardware"));
+
+    Map<String, String> sqlConf =
+        ImmutableMap.of(
+            SQLConf.V2_BUCKETING_ENABLED().key(),
+            "true",
+            SparkSQLProperties.PRESERVE_DATA_GROUPING,
+            "true");
+
+    withSQLConf(sqlConf, () -> sql("DELETE FROM %s WHERE id = 2", commitTarget()));
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
+
+    Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
+    validateCopyOnWrite(currentSnapshot, "1", "1", "1");
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1, "hardware"), row(1, "hr"), row(3, "hr")),
+        sql("SELECT * FROM %s ORDER BY id, dep", selectTarget()));
   }
 }

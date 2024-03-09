@@ -25,30 +25,27 @@ class StaticTableScan extends BaseMetadataTableScan {
   private final Function<StaticTableScan, DataTask> buildTask;
 
   StaticTableScan(
-      TableOperations ops,
       Table table,
       Schema schema,
       MetadataTableType tableType,
       Function<StaticTableScan, DataTask> buildTask) {
-    super(ops, table, schema, tableType);
+    super(table, schema, tableType);
     this.buildTask = buildTask;
   }
 
   StaticTableScan(
-      TableOperations ops,
       Table table,
       Schema schema,
       MetadataTableType tableType,
       Function<StaticTableScan, DataTask> buildTask,
       TableScanContext context) {
-    super(ops, table, schema, tableType, context);
+    super(table, schema, tableType, context);
     this.buildTask = buildTask;
   }
 
   @Override
-  protected TableScan newRefinedScan(
-      TableOperations ops, Table table, Schema schema, TableScanContext context) {
-    return new StaticTableScan(ops, table, schema, tableType(), buildTask, context);
+  protected TableScan newRefinedScan(Table table, Schema schema, TableScanContext context) {
+    return new StaticTableScan(table, schema, tableType(), buildTask, context);
   }
 
   @Override

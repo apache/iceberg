@@ -112,6 +112,30 @@ public interface RESTClient extends Closeable {
     return post(path, body, responseType, headers.get(), errorHandler);
   }
 
+  default <T extends RESTResponse> T post(
+      String path,
+      RESTRequest body,
+      Class<T> responseType,
+      Supplier<Map<String, String>> headers,
+      Consumer<ErrorResponse> errorHandler,
+      Consumer<Map<String, String>> responseHeaders) {
+    return post(path, body, responseType, headers.get(), errorHandler, responseHeaders);
+  }
+
+  default <T extends RESTResponse> T post(
+      String path,
+      RESTRequest body,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler,
+      Consumer<Map<String, String>> responseHeaders) {
+    if (null != responseHeaders) {
+      throw new UnsupportedOperationException("Returning response headers is not supported");
+    }
+
+    return post(path, body, responseType, headers, errorHandler);
+  }
+
   <T extends RESTResponse> T post(
       String path,
       RESTRequest body,

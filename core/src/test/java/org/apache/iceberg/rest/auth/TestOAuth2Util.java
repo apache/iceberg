@@ -18,36 +18,75 @@
  */
 package org.apache.iceberg.rest.auth;
 
-import org.junit.Assert;
-import org.junit.Test;
+import static org.assertj.core.api.Assertions.assertThat;
+
+import org.junit.jupiter.api.Test;
 
 public class TestOAuth2Util {
   @Test
   public void testOAuthScopeTokenValidation() {
     // valid scope tokens are from ascii 0x21 to 0x7E, excluding 0x22 (") and 0x5C (\)
     // test characters that are outside of the ! to ~ range and the excluded characters, " and \
-    Assert.assertFalse("Should reject scope token with \\", OAuth2Util.isValidScopeToken("a\\b"));
-    Assert.assertFalse("Should reject scope token with space", OAuth2Util.isValidScopeToken("a b"));
-    Assert.assertFalse("Should reject scope token with \"", OAuth2Util.isValidScopeToken("a\"b"));
-    Assert.assertFalse(
-        "Should reject scope token with DEL", OAuth2Util.isValidScopeToken("\u007F"));
+    assertThat(OAuth2Util.isValidScopeToken("a\\b"))
+        .as("Should reject scope token with \\")
+        .isFalse();
+    assertThat(OAuth2Util.isValidScopeToken("a b"))
+        .as("Should reject scope token with space")
+        .isFalse();
+    assertThat(OAuth2Util.isValidScopeToken("a\"b"))
+        .as("Should reject scope token with \"")
+        .isFalse();
+    assertThat(OAuth2Util.isValidScopeToken("\u007F"))
+        .as("Should reject scope token with DEL")
+        .isFalse();
     // test all characters that are inside of the ! to ~ range and are not excluded
-    Assert.assertTrue(
-        "Should accept scope token with !-/", OAuth2Util.isValidScopeToken("!#$%&'()*+,-./"));
-    Assert.assertTrue(
-        "Should accept scope token with 0-9", OAuth2Util.isValidScopeToken("0123456789"));
-    Assert.assertTrue(
-        "Should accept scope token with :-@", OAuth2Util.isValidScopeToken(":;<=>?@"));
-    Assert.assertTrue(
-        "Should accept scope token with A-M", OAuth2Util.isValidScopeToken("ABCDEFGHIJKLM"));
-    Assert.assertTrue(
-        "Should accept scope token with N-Z", OAuth2Util.isValidScopeToken("NOPQRSTUVWXYZ"));
-    Assert.assertTrue(
-        "Should accept scope token with [-`, not \\", OAuth2Util.isValidScopeToken("[]^_`"));
-    Assert.assertTrue(
-        "Should accept scope token with a-m", OAuth2Util.isValidScopeToken("abcdefghijklm"));
-    Assert.assertTrue(
-        "Should accept scope token with n-z", OAuth2Util.isValidScopeToken("nopqrstuvwxyz"));
-    Assert.assertTrue("Should accept scope token with {-~", OAuth2Util.isValidScopeToken("{|}~"));
+    assertThat(OAuth2Util.isValidScopeToken("!#$%&'()*+,-./"))
+        .as("Should accept scope token with !-/")
+        .isTrue();
+    assertThat(OAuth2Util.isValidScopeToken("0123456789"))
+        .as("Should accept scope token with 0-9")
+        .isTrue();
+    assertThat(OAuth2Util.isValidScopeToken(":;<=>?@"))
+        .as("Should accept scope token with :-@")
+        .isTrue();
+    assertThat(OAuth2Util.isValidScopeToken("ABCDEFGHIJKLM"))
+        .as("Should accept scope token with A-M")
+        .isTrue();
+    assertThat(OAuth2Util.isValidScopeToken("NOPQRSTUVWXYZ"))
+        .as("Should accept scope token with N-Z")
+        .isTrue();
+    assertThat(OAuth2Util.isValidScopeToken("[]^_`"))
+        .as("Should accept scope token with [-`, not \\")
+        .isTrue();
+    assertThat(OAuth2Util.isValidScopeToken("abcdefghijklm"))
+        .as("Should accept scope token with a-m")
+        .isTrue();
+    assertThat(OAuth2Util.isValidScopeToken("nopqrstuvwxyz"))
+        .as("Should accept scope token with n-z")
+        .isTrue();
+    assertThat(OAuth2Util.isValidScopeToken("{|}~"))
+        .as("Should accept scope token with {-~")
+        .isTrue();
+  }
+
+  @Test
+  public void testExpiresAt() {
+    assertThat(OAuth2Util.expiresAtMillis(null)).isNull();
+    assertThat(OAuth2Util.expiresAtMillis("not a token")).isNull();
+
+    // expires at epoch second = 1
+    String token =
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJleHAiOjF9.gQADTbdEv-rpDWKSkGLbmafyB5UUjTdm9B_1izpuZ6E";
+    assertThat(OAuth2Util.expiresAtMillis(token)).isEqualTo(1000L);
+
+    // expires at epoch second = 19999999999
+    token =
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJleHAiOjE5OTk5OTk5OTk5fQ._3k92KJi2NTyTG6V1s2mzJ__GiQtL36DnzsZSkBdYPw";
+    assertThat(OAuth2Util.expiresAtMillis(token)).isEqualTo(19999999999000L);
+
+    // no expiration
+    token =
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
+    assertThat(OAuth2Util.expiresAtMillis(token)).isNull();
   }
 }

@@ -28,8 +28,7 @@ import java.util.UUID;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestExpressionParser {
 
@@ -102,13 +101,14 @@ public class TestExpressionParser {
       String boundJson = ExpressionParser.toJson(bound, true);
       String unboundJson = ExpressionParser.toJson(expr, true);
 
-      Assert.assertEquals(
-          "Bound and unbound should produce identical json", boundJson, unboundJson);
+      Assertions.assertThat(boundJson)
+          .as("Bound and unbound should produce identical json")
+          .isEqualTo(unboundJson);
 
       Expression parsed = ExpressionParser.fromJson(boundJson, SCHEMA);
-      Assert.assertTrue(
-          "Round-trip value should be equivalent",
-          ExpressionUtil.equivalent(expr, parsed, SUPPORTED_PRIMITIVES, true));
+      Assertions.assertThat(ExpressionUtil.equivalent(expr, parsed, SUPPORTED_PRIMITIVES, true))
+          .as("Round-trip value should be equivalent")
+          .isTrue();
     }
   }
 

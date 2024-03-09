@@ -22,10 +22,10 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.IOException;
 import java.util.List;
+import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.InMemoryOutputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -33,6 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -93,6 +94,7 @@ public class TestManifestWriterVersions {
           METRICS,
           EQUALITY_ID_ARR,
           SORT_ORDER_ID,
+          null,
           null);
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
@@ -110,11 +112,9 @@ public class TestManifestWriterVersions {
 
   @Test
   public void testV1WriteDelete() {
-    AssertHelpers.assertThrows(
-        "Should fail to write a delete manifest for v1",
-        IllegalArgumentException.class,
-        "Cannot write delete files in a v1 table",
-        () -> writeDeleteManifest(1));
+    Assertions.assertThatThrownBy(() -> writeDeleteManifest(1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot write delete files in a v1 table");
   }
 
   @Test
@@ -218,7 +218,6 @@ public class TestManifestWriterVersions {
     Assert.assertEquals("Snapshot ID", (Long) SNAPSHOT_ID, entry.snapshotId());
     Assert.assertEquals(
         "Data sequence number", expectedDataSequenceNumber, entry.dataSequenceNumber());
-    Assert.assertEquals("Sequence number", expectedDataSequenceNumber, entry.sequenceNumber());
     Assert.assertEquals(
         "File sequence number", expectedFileSequenceNumber, entry.fileSequenceNumber());
     checkDataFile(entry.file(), content);
@@ -229,7 +228,6 @@ public class TestManifestWriterVersions {
     Assert.assertEquals("Status", ManifestEntry.Status.EXISTING, entry.status());
     Assert.assertEquals("Snapshot ID", (Long) SNAPSHOT_ID, entry.snapshotId());
     Assert.assertEquals("Data sequence number", expectedSequenceNumber, entry.dataSequenceNumber());
-    Assert.assertEquals("Sequence number", expectedSequenceNumber, entry.sequenceNumber());
     checkDataFile(entry.file(), content);
   }
 

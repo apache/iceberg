@@ -30,15 +30,14 @@ import java.io.IOException;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.aliyun.AliyunProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
-import org.junit.Assert;
-import org.junit.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 public class TestOSSInputFile extends AliyunOSSTestBase {
   private final OSS ossClient = ossClient().get();
@@ -61,13 +60,12 @@ public class TestOSSInputFile extends AliyunOSSTestBase {
   @Test
   public void testOSSInputFile() {
     OSSURI uri = randomURI();
-    AssertHelpers.assertThrows(
-        "File length should not be negative",
-        ValidationException.class,
-        "Invalid file length",
-        () ->
-            new OSSInputFile(
-                ossClient().get(), uri, aliyunProperties, -1, MetricsContext.nullMetrics()));
+    Assertions.assertThatThrownBy(
+            () ->
+                new OSSInputFile(
+                    ossClient().get(), uri, aliyunProperties, -1, MetricsContext.nullMetrics()))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Invalid file length");
   }
 
   @Test
@@ -76,7 +74,7 @@ public class TestOSSInputFile extends AliyunOSSTestBase {
 
     InputFile inputFile =
         new OSSInputFile(ossMock, uri, aliyunProperties, MetricsContext.nullMetrics());
-    Assert.assertFalse("OSS file should not exist", inputFile.exists());
+    Assertions.assertThat(inputFile.exists()).as("OSS file should not exist").isFalse();
     verify(ossMock, times(1)).getSimplifiedObjectMeta(uri.bucket(), uri.key());
     reset(ossMock);
 
@@ -84,7 +82,7 @@ public class TestOSSInputFile extends AliyunOSSTestBase {
     byte[] data = randomData(dataSize);
     writeOSSData(uri, data);
 
-    Assert.assertTrue("OSS file should exist", inputFile.exists());
+    Assertions.assertThat(inputFile.exists()).as("OSS file should  exist").isTrue();
     inputFile.exists();
     verify(ossMock, times(1)).getSimplifiedObjectMeta(uri.bucket(), uri.key());
     reset(ossMock);
@@ -110,14 +108,17 @@ public class TestOSSInputFile extends AliyunOSSTestBase {
   private void readAndVerify(OSSURI uri, byte[] data) throws IOException {
     InputFile inputFile =
         new OSSInputFile(ossClient().get(), uri, aliyunProperties, MetricsContext.nullMetrics());
-    Assert.assertTrue("OSS file should exist", inputFile.exists());
-    Assert.assertEquals("Should have expected file length", data.length, inputFile.getLength());
+    Assertions.assertThat(inputFile.exists()).as("OSS file should exist").isTrue();
+    Assertions.assertThat(inputFile.getLength())
+        .as("Should have expected file length")
+        .isEqualTo(data.length);
 
     byte[] actual = new byte[data.length];
     try (SeekableInputStream in = inputFile.newStream()) {
       ByteStreams.readFully(in, actual);
     }
-    Assert.assertArrayEquals("Should have same object content", data, actual);
+
+    Assertions.assertThat(actual).as("Should have same object content").isEqualTo(data);
   }
 
   private void verifyLength(OSS ossClientMock, OSSURI uri, byte[] data, boolean isCache) {
@@ -131,7 +132,9 @@ public class TestOSSInputFile extends AliyunOSSTestBase {
           new OSSInputFile(ossClientMock, uri, aliyunProperties, MetricsContext.nullMetrics());
     }
     inputFile.getLength();
-    Assert.assertEquals("Should have expected file length", data.length, inputFile.getLength());
+    Assertions.assertThat(inputFile.getLength())
+        .as("Should have expected file length")
+        .isEqualTo(data.length);
   }
 
   private OSSURI randomURI() {

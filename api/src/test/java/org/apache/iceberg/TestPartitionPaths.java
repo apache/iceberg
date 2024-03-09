@@ -18,13 +18,14 @@
  */
 package org.apache.iceberg;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestPartitionPaths {
   private static final Schema SCHEMA =
@@ -47,10 +48,9 @@ public class TestPartitionPaths {
 
     Row partition = Row.of(tsHour, idBucket);
 
-    Assert.assertEquals(
-        "Should produce expected partition key",
-        "ts_hour=2017-12-01-10/id_bucket=" + idBucket,
-        spec.partitionToPath(partition));
+    assertThat(spec.partitionToPath(partition))
+        .as("Should produce expected partition key")
+        .isEqualTo("ts_hour=2017-12-01-10/id_bucket=" + idBucket);
   }
 
   @Test
@@ -58,9 +58,8 @@ public class TestPartitionPaths {
     PartitionSpec spec =
         PartitionSpec.builderFor(SCHEMA).identity("data").truncate("data", 10).build();
 
-    Assert.assertEquals(
-        "Should escape / as %2F",
-        "data=a%2Fb%2Fc%2Fd/data_trunc=a%2Fb%2Fc%2Fd",
-        spec.partitionToPath(Row.of("a/b/c/d", "a/b/c/d")));
+    assertThat(spec.partitionToPath(Row.of("a/b/c/d", "a/b/c/d")))
+        .as("Should escape / as %2F")
+        .isEqualTo("data=a%2Fb%2Fc%2Fd/data_trunc=a%2Fb%2Fc%2Fd");
   }
 }

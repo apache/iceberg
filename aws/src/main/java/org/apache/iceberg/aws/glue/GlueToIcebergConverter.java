@@ -18,10 +18,8 @@
  */
 package org.apache.iceberg.aws.glue;
 
-import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.exceptions.ValidationException;
 import software.amazon.awssdk.services.glue.model.Database;
 import software.amazon.awssdk.services.glue.model.Table;
 
@@ -35,21 +33,5 @@ class GlueToIcebergConverter {
 
   static TableIdentifier toTableId(Table table) {
     return TableIdentifier.of(table.databaseName(), table.name());
-  }
-
-  /**
-   * Validate the Glue table is Iceberg table by checking its parameters
-   *
-   * @param table glue table
-   * @param fullName full table name for logging
-   */
-  static void validateTable(Table table, String fullName) {
-    String tableType = table.parameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP);
-    ValidationException.check(
-        tableType != null
-            && tableType.equalsIgnoreCase(BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE),
-        "Input Glue table is not an iceberg table: %s (type=%s)",
-        fullName,
-        tableType);
   }
 }

@@ -28,24 +28,25 @@ import static org.apache.spark.sql.functions.lit;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
-import org.apache.iceberg.UpdateProperties;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
@@ -72,10 +73,13 @@ public class TestSparkMetadataColumns extends SparkTestBase {
           Types.NestedField.optional(1, "id", Types.LongType.get()),
           Types.NestedField.optional(2, "category", Types.StringType.get()),
           Types.NestedField.optional(3, "data", Types.StringType.get()));
+  private static final PartitionSpec SPEC = PartitionSpec.unpartitioned();
   private static final PartitionSpec UNKNOWN_SPEC =
-      PartitionSpecParser.fromJson(
-          SCHEMA,
-          "{ \"spec-id\": 1, \"fields\": [ { \"name\": \"id_zero\", \"transform\": \"zero\", \"source-id\": 1 } ] }");
+      TestHelpers.newExpectedSpecBuilder()
+          .withSchema(SCHEMA)
+          .withSpecId(1)
+          .addField("zero", 1, "id_zero")
+          .build();
 
   @Parameterized.Parameters(name = "fileFormat = {0}, vectorized = {1}, formatVersion = {2}")
   public static Object[][] parameters() {
@@ -264,25 +268,22 @@ public class TestSparkMetadataColumns extends SparkTestBase {
   }
 
   private void createAndInitTable() throws IOException {
-    this.table =
-        TestTables.create(temp.newFolder(), TABLE_NAME, SCHEMA, PartitionSpec.unpartitioned());
-
-    UpdateProperties updateProperties = table.updateProperties();
-    updateProperties.set(FORMAT_VERSION, String.valueOf(formatVersion));
-    updateProperties.set(DEFAULT_FILE_FORMAT, fileFormat.name());
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(FORMAT_VERSION, String.valueOf(formatVersion));
+    properties.put(DEFAULT_FILE_FORMAT, fileFormat.name());
 
     switch (fileFormat) {
       case PARQUET:
-        updateProperties.set(PARQUET_VECTORIZATION_ENABLED, String.valueOf(vectorized));
+        properties.put(PARQUET_VECTORIZATION_ENABLED, String.valueOf(vectorized));
         break;
       case ORC:
-        updateProperties.set(ORC_VECTORIZATION_ENABLED, String.valueOf(vectorized));
+        properties.put(ORC_VECTORIZATION_ENABLED, String.valueOf(vectorized));
         break;
       default:
         Preconditions.checkState(
             !vectorized, "File format %s does not support vectorized reads", fileFormat);
     }
 
-    updateProperties.commit();
+    this.table = TestTables.create(temp.newFolder(), TABLE_NAME, SCHEMA, SPEC, properties);
   }
 }

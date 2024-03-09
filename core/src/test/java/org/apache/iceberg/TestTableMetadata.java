@@ -29,6 +29,7 @@ import static org.apache.iceberg.TableMetadataParser.PROPERTIES;
 import static org.apache.iceberg.TableMetadataParser.SCHEMA;
 import static org.apache.iceberg.TableMetadataParser.SNAPSHOTS;
 import static org.apache.iceberg.TestHelpers.assertSameSchemaList;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import java.io.File;
@@ -38,6 +39,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -90,6 +92,7 @@ public class TestTableMetadata {
   public TableOperations ops = new LocalTableOperations(temp);
 
   @Test
+  @SuppressWarnings("MethodLength")
   public void testJsonConversion() throws Exception {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
 
@@ -143,6 +146,14 @@ public class TestTableMetadata {
                     new GenericBlobMetadata(
                         "some-stats", 11L, 2, ImmutableList.of(4), ImmutableMap.of()))));
 
+    List<PartitionStatisticsFile> partitionStatisticsFiles =
+        ImmutableList.of(
+            ImmutableGenericPartitionStatisticsFile.builder()
+                .snapshotId(11L)
+                .path("/some/partition/stats/file.parquet")
+                .fileSizeInBytes(42L)
+                .build());
+
     TableMetadata expected =
         new TableMetadata(
             null,
@@ -162,10 +173,12 @@ public class TestTableMetadata {
             ImmutableMap.of("property", "value"),
             currentSnapshotId,
             Arrays.asList(previousSnapshot, currentSnapshot),
+            null,
             snapshotLog,
             ImmutableList.of(),
             refs,
             statisticsFiles,
+            partitionStatisticsFiles,
             ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(expected);
@@ -232,6 +245,10 @@ public class TestTableMetadata {
         metadata.snapshot(previousSnapshotId).schemaId());
     Assert.assertEquals(
         "Statistics files should match", statisticsFiles, metadata.statisticsFiles());
+    Assert.assertEquals(
+        "Partition statistics files should match",
+        partitionStatisticsFiles,
+        metadata.partitionStatisticsFiles());
     Assert.assertEquals("Refs map should match", refs, metadata.refs());
   }
 
@@ -283,9 +300,11 @@ public class TestTableMetadata {
             ImmutableMap.of("property", "value"),
             currentSnapshotId,
             Arrays.asList(previousSnapshot, currentSnapshot),
+            null,
             ImmutableList.of(),
             ImmutableList.of(),
             ImmutableMap.of(),
+            ImmutableList.of(),
             ImmutableList.of(),
             ImmutableList.of());
 
@@ -403,34 +422,35 @@ public class TestTableMetadata {
     Map<String, SnapshotRef> refs =
         ImmutableMap.of("main", SnapshotRef.branchBuilder(previousSnapshotId).build());
 
-    AssertHelpers.assertThrows(
-        "Should fail if main branch snapshot ID does not match currentSnapshotId",
-        IllegalArgumentException.class,
-        "Current snapshot ID does not match main branch",
-        () ->
-            new TableMetadata(
-                null,
-                2,
-                UUID.randomUUID().toString(),
-                TEST_LOCATION,
-                SEQ_NO,
-                System.currentTimeMillis(),
-                3,
-                7,
-                ImmutableList.of(TEST_SCHEMA, schema),
-                5,
-                ImmutableList.of(SPEC_5),
-                SPEC_5.lastAssignedFieldId(),
-                3,
-                ImmutableList.of(SORT_ORDER_3),
-                ImmutableMap.of("property", "value"),
-                currentSnapshotId,
-                Arrays.asList(previousSnapshot, currentSnapshot),
-                snapshotLog,
-                ImmutableList.of(),
-                refs,
-                ImmutableList.of(),
-                ImmutableList.of()));
+    Assertions.assertThatThrownBy(
+            () ->
+                new TableMetadata(
+                    null,
+                    2,
+                    UUID.randomUUID().toString(),
+                    TEST_LOCATION,
+                    SEQ_NO,
+                    System.currentTimeMillis(),
+                    3,
+                    7,
+                    ImmutableList.of(TEST_SCHEMA, schema),
+                    5,
+                    ImmutableList.of(SPEC_5),
+                    SPEC_5.lastAssignedFieldId(),
+                    3,
+                    ImmutableList.of(SORT_ORDER_3),
+                    ImmutableMap.of("property", "value"),
+                    currentSnapshotId,
+                    Arrays.asList(previousSnapshot, currentSnapshot),
+                    null,
+                    snapshotLog,
+                    ImmutableList.of(),
+                    refs,
+                    ImmutableList.of(),
+                    ImmutableList.of(),
+                    ImmutableList.of()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Current snapshot ID does not match main branch");
   }
 
   @Test
@@ -447,34 +467,35 @@ public class TestTableMetadata {
     Map<String, SnapshotRef> refs =
         ImmutableMap.of("main", SnapshotRef.branchBuilder(snapshotId).build());
 
-    AssertHelpers.assertThrows(
-        "Should fail if main branch snapshot ID does not match currentSnapshotId",
-        IllegalArgumentException.class,
-        "Current snapshot is not set, but main branch exists",
-        () ->
-            new TableMetadata(
-                null,
-                2,
-                UUID.randomUUID().toString(),
-                TEST_LOCATION,
-                SEQ_NO,
-                System.currentTimeMillis(),
-                3,
-                7,
-                ImmutableList.of(TEST_SCHEMA, schema),
-                5,
-                ImmutableList.of(SPEC_5),
-                SPEC_5.lastAssignedFieldId(),
-                3,
-                ImmutableList.of(SORT_ORDER_3),
-                ImmutableMap.of("property", "value"),
-                -1,
-                ImmutableList.of(snapshot),
-                ImmutableList.of(),
-                ImmutableList.of(),
-                refs,
-                ImmutableList.of(),
-                ImmutableList.of()));
+    Assertions.assertThatThrownBy(
+            () ->
+                new TableMetadata(
+                    null,
+                    2,
+                    UUID.randomUUID().toString(),
+                    TEST_LOCATION,
+                    SEQ_NO,
+                    System.currentTimeMillis(),
+                    3,
+                    7,
+                    ImmutableList.of(TEST_SCHEMA, schema),
+                    5,
+                    ImmutableList.of(SPEC_5),
+                    SPEC_5.lastAssignedFieldId(),
+                    3,
+                    ImmutableList.of(SORT_ORDER_3),
+                    ImmutableMap.of("property", "value"),
+                    -1,
+                    ImmutableList.of(snapshot),
+                    null,
+                    ImmutableList.of(),
+                    ImmutableList.of(),
+                    refs,
+                    ImmutableList.of(),
+                    ImmutableList.of(),
+                    ImmutableList.of()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Current snapshot is not set, but main branch exists");
   }
 
   @Test
@@ -486,34 +507,35 @@ public class TestTableMetadata {
     Map<String, SnapshotRef> refs =
         ImmutableMap.of("main", SnapshotRef.branchBuilder(snapshotId).build());
 
-    AssertHelpers.assertThrows(
-        "Should fail if main branch snapshot ID does not match currentSnapshotId",
-        IllegalArgumentException.class,
-        "does not exist in the existing snapshots list",
-        () ->
-            new TableMetadata(
-                null,
-                2,
-                UUID.randomUUID().toString(),
-                TEST_LOCATION,
-                SEQ_NO,
-                System.currentTimeMillis(),
-                3,
-                7,
-                ImmutableList.of(TEST_SCHEMA, schema),
-                5,
-                ImmutableList.of(SPEC_5),
-                SPEC_5.lastAssignedFieldId(),
-                3,
-                ImmutableList.of(SORT_ORDER_3),
-                ImmutableMap.of("property", "value"),
-                -1,
-                ImmutableList.of(),
-                ImmutableList.of(),
-                ImmutableList.of(),
-                refs,
-                ImmutableList.of(),
-                ImmutableList.of()));
+    Assertions.assertThatThrownBy(
+            () ->
+                new TableMetadata(
+                    null,
+                    2,
+                    UUID.randomUUID().toString(),
+                    TEST_LOCATION,
+                    SEQ_NO,
+                    System.currentTimeMillis(),
+                    3,
+                    7,
+                    ImmutableList.of(TEST_SCHEMA, schema),
+                    5,
+                    ImmutableList.of(SPEC_5),
+                    SPEC_5.lastAssignedFieldId(),
+                    3,
+                    ImmutableList.of(SORT_ORDER_3),
+                    ImmutableMap.of("property", "value"),
+                    -1,
+                    ImmutableList.of(),
+                    null,
+                    ImmutableList.of(),
+                    ImmutableList.of(),
+                    refs,
+                    ImmutableList.of(),
+                    ImmutableList.of(),
+                    ImmutableList.of()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageEndingWith("does not exist in the existing snapshots list");
   }
 
   private static String toJsonWithoutSpecAndSchemaList(TableMetadata metadata) {
@@ -609,9 +631,11 @@ public class TestTableMetadata {
             ImmutableMap.of("property", "value"),
             currentSnapshotId,
             Arrays.asList(previousSnapshot, currentSnapshot),
+            null,
             reversedSnapshotLog,
             ImmutableList.copyOf(previousMetadataLog),
             ImmutableMap.of(),
+            ImmutableList.of(),
             ImmutableList.of(),
             ImmutableList.of());
 
@@ -687,9 +711,11 @@ public class TestTableMetadata {
             ImmutableMap.of("property", "value"),
             currentSnapshotId,
             Arrays.asList(previousSnapshot, currentSnapshot),
+            null,
             reversedSnapshotLog,
             ImmutableList.copyOf(previousMetadataLog),
             ImmutableMap.of(),
+            ImmutableList.of(),
             ImmutableList.of(),
             ImmutableList.of());
 
@@ -783,9 +809,11 @@ public class TestTableMetadata {
             ImmutableMap.of("property", "value"),
             currentSnapshotId,
             Arrays.asList(previousSnapshot, currentSnapshot),
+            null,
             reversedSnapshotLog,
             ImmutableList.copyOf(previousMetadataLog),
             ImmutableMap.of(),
+            ImmutableList.of(),
             ImmutableList.of(),
             ImmutableList.of());
 
@@ -885,9 +913,11 @@ public class TestTableMetadata {
             ImmutableMap.of("property", "value"),
             currentSnapshotId,
             Arrays.asList(previousSnapshot, currentSnapshot),
+            null,
             reversedSnapshotLog,
             ImmutableList.copyOf(previousMetadataLog),
             ImmutableMap.of(),
+            ImmutableList.of(),
             ImmutableList.of(),
             ImmutableList.of());
 
@@ -912,67 +942,69 @@ public class TestTableMetadata {
 
   @Test
   public void testV2UUIDValidation() {
-    AssertHelpers.assertThrows(
-        "Should reject v2 metadata without a UUID",
-        IllegalArgumentException.class,
-        "UUID is required in format v2",
-        () ->
-            new TableMetadata(
-                null,
-                2,
-                null,
-                TEST_LOCATION,
-                SEQ_NO,
-                System.currentTimeMillis(),
-                LAST_ASSIGNED_COLUMN_ID,
-                7,
-                ImmutableList.of(TEST_SCHEMA),
-                SPEC_5.specId(),
-                ImmutableList.of(SPEC_5),
-                SPEC_5.lastAssignedFieldId(),
-                3,
-                ImmutableList.of(SORT_ORDER_3),
-                ImmutableMap.of(),
-                -1L,
-                ImmutableList.of(),
-                ImmutableList.of(),
-                ImmutableList.of(),
-                ImmutableMap.of(),
-                ImmutableList.of(),
-                ImmutableList.of()));
+    Assertions.assertThatThrownBy(
+            () ->
+                new TableMetadata(
+                    null,
+                    2,
+                    null,
+                    TEST_LOCATION,
+                    SEQ_NO,
+                    System.currentTimeMillis(),
+                    LAST_ASSIGNED_COLUMN_ID,
+                    7,
+                    ImmutableList.of(TEST_SCHEMA),
+                    SPEC_5.specId(),
+                    ImmutableList.of(SPEC_5),
+                    SPEC_5.lastAssignedFieldId(),
+                    3,
+                    ImmutableList.of(SORT_ORDER_3),
+                    ImmutableMap.of(),
+                    -1L,
+                    ImmutableList.of(),
+                    null,
+                    ImmutableList.of(),
+                    ImmutableList.of(),
+                    ImmutableMap.of(),
+                    ImmutableList.of(),
+                    ImmutableList.of(),
+                    ImmutableList.of()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("UUID is required in format v2");
   }
 
   @Test
   public void testVersionValidation() {
     int unsupportedVersion = TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION + 1;
-    AssertHelpers.assertThrows(
-        "Should reject unsupported metadata",
-        IllegalArgumentException.class,
-        "Unsupported format version: v" + unsupportedVersion,
-        () ->
-            new TableMetadata(
-                null,
-                unsupportedVersion,
-                null,
-                TEST_LOCATION,
-                SEQ_NO,
-                System.currentTimeMillis(),
-                LAST_ASSIGNED_COLUMN_ID,
-                7,
-                ImmutableList.of(TEST_SCHEMA),
-                SPEC_5.specId(),
-                ImmutableList.of(SPEC_5),
-                SPEC_5.lastAssignedFieldId(),
-                3,
-                ImmutableList.of(SORT_ORDER_3),
-                ImmutableMap.of(),
-                -1L,
-                ImmutableList.of(),
-                ImmutableList.of(),
-                ImmutableList.of(),
-                ImmutableMap.of(),
-                ImmutableList.of(),
-                ImmutableList.of()));
+    Assertions.assertThatThrownBy(
+            () ->
+                new TableMetadata(
+                    null,
+                    unsupportedVersion,
+                    null,
+                    TEST_LOCATION,
+                    SEQ_NO,
+                    System.currentTimeMillis(),
+                    LAST_ASSIGNED_COLUMN_ID,
+                    7,
+                    ImmutableList.of(TEST_SCHEMA),
+                    SPEC_5.specId(),
+                    ImmutableList.of(SPEC_5),
+                    SPEC_5.lastAssignedFieldId(),
+                    3,
+                    ImmutableList.of(SORT_ORDER_3),
+                    ImmutableMap.of(),
+                    -1L,
+                    ImmutableList.of(),
+                    null,
+                    ImmutableList.of(),
+                    ImmutableList.of(),
+                    ImmutableMap.of(),
+                    ImmutableList.of(),
+                    ImmutableList.of(),
+                    ImmutableList.of()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unsupported format version: v" + unsupportedVersion);
   }
 
   @Test
@@ -986,63 +1018,51 @@ public class TestTableMetadata {
     Assert.assertNotNull("Should successfully read supported metadata version", parsed2);
 
     String unsupportedVersion = readTableMetadataInputFile("TableMetadataUnsupportedVersion.json");
-    AssertHelpers.assertThrows(
-        "Should not read unsupported metadata",
-        IllegalArgumentException.class,
-        "Cannot read unsupported version",
-        () -> TableMetadataParser.fromJson(unsupportedVersion));
+    Assertions.assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupportedVersion))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot read unsupported version");
   }
 
   @Test
   public void testParserV2PartitionSpecsValidation() throws Exception {
     String unsupportedVersion =
         readTableMetadataInputFile("TableMetadataV2MissingPartitionSpecs.json");
-    AssertHelpers.assertThrows(
-        "Should reject v2 metadata without partition specs",
-        IllegalArgumentException.class,
-        "partition-specs must exist in format v2",
-        () -> TableMetadataParser.fromJson(unsupportedVersion));
+    Assertions.assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupportedVersion))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("partition-specs must exist in format v2");
   }
 
   @Test
   public void testParserV2LastAssignedFieldIdValidation() throws Exception {
     String unsupportedVersion =
         readTableMetadataInputFile("TableMetadataV2MissingLastPartitionId.json");
-    AssertHelpers.assertThrows(
-        "Should reject v2 metadata without last assigned partition field id",
-        IllegalArgumentException.class,
-        "last-partition-id must exist in format v2",
-        () -> TableMetadataParser.fromJson(unsupportedVersion));
+    Assertions.assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupportedVersion))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("last-partition-id must exist in format v2");
   }
 
   @Test
   public void testParserV2SortOrderValidation() throws Exception {
     String unsupportedVersion = readTableMetadataInputFile("TableMetadataV2MissingSortOrder.json");
-    AssertHelpers.assertThrows(
-        "Should reject v2 metadata without sort order",
-        IllegalArgumentException.class,
-        "sort-orders must exist in format v2",
-        () -> TableMetadataParser.fromJson(unsupportedVersion));
+    Assertions.assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupportedVersion))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("sort-orders must exist in format v2");
   }
 
   @Test
   public void testParserV2CurrentSchemaIdValidation() throws Exception {
     String unsupported = readTableMetadataInputFile("TableMetadataV2CurrentSchemaNotFound.json");
-    AssertHelpers.assertThrows(
-        "Should reject v2 metadata without valid schema id",
-        IllegalArgumentException.class,
-        "Cannot find schema with current-schema-id=2 from schemas",
-        () -> TableMetadataParser.fromJson(unsupported));
+    Assertions.assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupported))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot find schema with current-schema-id=2 from schemas");
   }
 
   @Test
   public void testParserV2SchemasValidation() throws Exception {
     String unsupported = readTableMetadataInputFile("TableMetadataV2MissingSchemas.json");
-    AssertHelpers.assertThrows(
-        "Should reject v2 metadata without schemas",
-        IllegalArgumentException.class,
-        "schemas must exist in format v2",
-        () -> TableMetadataParser.fromJson(unsupported));
+    Assertions.assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupported))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("schemas must exist in format v2");
   }
 
   private String readTableMetadataInputFile(String fileName) throws Exception {
@@ -1095,13 +1115,16 @@ public class TestTableMetadata {
     String location = "file://tmp/db/table";
     TableMetadata metadata =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), location, ImmutableMap.of());
+            schema,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            location,
+            ImmutableMap.of(),
+            1);
 
-    AssertHelpers.assertThrows(
-        "Should fail to update an invalid partition spec",
-        ValidationException.class,
-        "Spec does not use sequential IDs that are required in v1",
-        () -> metadata.updatePartitionSpec(spec));
+    Assertions.assertThatThrownBy(() -> metadata.updatePartitionSpec(spec))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Spec does not use sequential IDs that are required in v1");
   }
 
   @Test
@@ -1328,11 +1351,133 @@ public class TestTableMetadata {
   }
 
   @Test
+  public void testPartitionStatistics() {
+    Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
+
+    TableMetadata meta =
+        TableMetadata.newTableMetadata(
+            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+    Assert.assertEquals(
+        "Should default to no partition statistics files",
+        ImmutableList.of(),
+        meta.partitionStatisticsFiles());
+  }
+
+  @Test
+  public void testSetPartitionStatistics() {
+    Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
+
+    TableMetadata meta =
+        TableMetadata.newTableMetadata(
+            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+
+    TableMetadata withPartitionStatistics =
+        TableMetadata.buildFrom(meta)
+            .setPartitionStatistics(
+                ImmutableGenericPartitionStatisticsFile.builder()
+                    .snapshotId(43)
+                    .path("/some/path/to/partition/stats/file" + ".parquet")
+                    .fileSizeInBytes(42L)
+                    .build())
+            .build();
+
+    Assertions.assertThat(withPartitionStatistics.partitionStatisticsFiles())
+        .as("There should be one partition statistics file registered")
+        .hasSize(1);
+    PartitionStatisticsFile partitionStatisticsFile =
+        Iterables.getOnlyElement(withPartitionStatistics.partitionStatisticsFiles());
+    Assert.assertEquals("Statistics file snapshot", 43L, partitionStatisticsFile.snapshotId());
+    Assert.assertEquals(
+        "Statistics file path",
+        "/some/path/to/partition/stats/file.parquet",
+        partitionStatisticsFile.path());
+    Assert.assertEquals(
+        "Statistics file size in bytes", 42L, partitionStatisticsFile.fileSizeInBytes());
+
+    TableMetadata withStatisticsReplaced =
+        TableMetadata.buildFrom(withPartitionStatistics)
+            .setPartitionStatistics(
+                ImmutableGenericPartitionStatisticsFile.builder()
+                    .snapshotId(43)
+                    .path("/some/path/to/partition/stats/file2" + ".parquet")
+                    .fileSizeInBytes(48L)
+                    .build())
+            .build();
+
+    Assertions.assertThat(withStatisticsReplaced.partitionStatisticsFiles())
+        .as("There should be one statistics file registered")
+        .hasSize(1);
+    partitionStatisticsFile =
+        Iterables.getOnlyElement(withStatisticsReplaced.partitionStatisticsFiles());
+    Assert.assertEquals("Statistics file snapshot", 43L, partitionStatisticsFile.snapshotId());
+    Assert.assertEquals(
+        "Statistics file path",
+        "/some/path/to/partition/stats/file2.parquet",
+        partitionStatisticsFile.path());
+    Assert.assertEquals(
+        "Statistics file size in bytes", 48L, partitionStatisticsFile.fileSizeInBytes());
+  }
+
+  @Test
+  public void testRemovePartitionStatistics() {
+    Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
+
+    TableMetadata meta =
+        TableMetadata.buildFrom(
+                TableMetadata.newTableMetadata(
+                    schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of()))
+            .setPartitionStatistics(
+                ImmutableGenericPartitionStatisticsFile.builder()
+                    .snapshotId(43)
+                    .path("/some/path/to/partition/stats/file1" + ".parquet")
+                    .fileSizeInBytes(48L)
+                    .build())
+            .setPartitionStatistics(
+                ImmutableGenericPartitionStatisticsFile.builder()
+                    .snapshotId(44)
+                    .path("/some/path/to/partition/stats/file2" + ".parquet")
+                    .fileSizeInBytes(49L)
+                    .build())
+            .build();
+
+    Assert.assertSame(
+        "Should detect no partition statistics to remove",
+        meta,
+        TableMetadata.buildFrom(meta).removePartitionStatistics(42L).build());
+
+    TableMetadata withOneRemoved =
+        TableMetadata.buildFrom(meta).removePartitionStatistics(43).build();
+
+    Assertions.assertThat(withOneRemoved.partitionStatisticsFiles())
+        .as("There should be one partition statistics file retained")
+        .hasSize(1);
+    PartitionStatisticsFile partitionStatisticsFile =
+        Iterables.getOnlyElement(withOneRemoved.partitionStatisticsFiles());
+    Assert.assertEquals("Statistics file snapshot", 44L, partitionStatisticsFile.snapshotId());
+    Assert.assertEquals(
+        "Statistics file path",
+        "/some/path/to/partition/stats/file2.parquet",
+        partitionStatisticsFile.path());
+    Assert.assertEquals(
+        "Statistics file size in bytes", 49L, partitionStatisticsFile.fileSizeInBytes());
+  }
+
+  @Test
   public void testParseSchemaIdentifierFields() throws Exception {
     String data = readTableMetadataInputFile("TableMetadataV2Valid.json");
     TableMetadata parsed = TableMetadataParser.fromJson(data);
     Assert.assertEquals(Sets.newHashSet(), parsed.schemasById().get(0).identifierFieldIds());
     Assert.assertEquals(Sets.newHashSet(1, 2), parsed.schemasById().get(1).identifierFieldIds());
+  }
+
+  @Test
+  public void testParseMinimal() throws Exception {
+    String data = readTableMetadataInputFile("TableMetadataV2ValidMinimal.json");
+    TableMetadata parsed = TableMetadataParser.fromJson(data);
+    Assertions.assertThat(parsed.snapshots()).isEmpty();
+    Assertions.assertThat(parsed.snapshotLog()).isEmpty();
+    Assertions.assertThat(parsed.properties()).isEmpty();
+    Assertions.assertThat(parsed.previousFiles()).isEmpty();
   }
 
   @Test
@@ -1453,14 +1598,10 @@ public class TestTableMetadata {
             null,
             ImmutableMap.of(TableProperties.FORMAT_VERSION, "2", "key", "val"));
 
-    Assert.assertEquals(
-        "format version should be configured based on the format-version key",
-        2,
-        meta.formatVersion());
-    Assert.assertEquals(
-        "should not contain format-version in properties",
-        ImmutableMap.of("key", "val"),
-        meta.properties());
+    assertThat(meta.formatVersion()).isEqualTo(2);
+    assertThat(meta.properties())
+        .containsEntry("key", "val")
+        .doesNotContainKey(TableProperties.FORMAT_VERSION);
   }
 
   @Test
@@ -1482,14 +1623,11 @@ public class TestTableMetadata {
             meta.location(),
             ImmutableMap.of(TableProperties.FORMAT_VERSION, "2", "key2", "val2"));
 
-    Assert.assertEquals(
-        "format version should be configured based on the format-version key",
-        2,
-        meta.formatVersion());
-    Assert.assertEquals(
-        "should not contain format-version but should contain old and new properties",
-        ImmutableMap.of("key", "val", "key2", "val2"),
-        meta.properties());
+    assertThat(meta.formatVersion()).isEqualTo(2);
+    assertThat(meta.properties())
+        .containsEntry("key", "val")
+        .containsEntry("key2", "val2")
+        .doesNotContainKey(TableProperties.FORMAT_VERSION);
   }
 
   @Test
@@ -1536,34 +1674,63 @@ public class TestTableMetadata {
   }
 
   @Test
+  public void testParsePartitionStatisticsFiles() throws Exception {
+    String data = readTableMetadataInputFile("TableMetadataPartitionStatisticsFiles.json");
+    TableMetadata parsed = TableMetadataParser.fromJson(data);
+    Assertions.assertThat(parsed.partitionStatisticsFiles())
+        .as("parsed partition statistics files")
+        .hasSize(1);
+    Assert.assertEquals(
+        "parsed partition statistics file",
+        ImmutableGenericPartitionStatisticsFile.builder()
+            .snapshotId(3055729675574597004L)
+            .path("s3://a/b/partition-stats.parquet")
+            .fileSizeInBytes(43L)
+            .build(),
+        Iterables.getOnlyElement(parsed.partitionStatisticsFiles()));
+  }
+
+  @Test
   public void testNoReservedPropertyForTableMetadataCreation() {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
-    AssertHelpers.assertThrows(
-        "should not allow reserved table property when creating table metadata",
-        IllegalArgumentException.class,
-        "Table properties should not contain reserved properties, but got {format-version=1}",
-        () ->
-            TableMetadata.newTableMetadata(
-                schema,
-                PartitionSpec.unpartitioned(),
-                null,
-                "/tmp",
-                ImmutableMap.of(TableProperties.FORMAT_VERSION, "1"),
-                1));
+    Assertions.assertThatThrownBy(
+            () ->
+                TableMetadata.newTableMetadata(
+                    schema,
+                    PartitionSpec.unpartitioned(),
+                    null,
+                    "/tmp",
+                    ImmutableMap.of(TableProperties.FORMAT_VERSION, "1"),
+                    1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Table properties should not contain reserved properties, but got {format-version=1}");
 
-    AssertHelpers.assertThrows(
-        "should not allow reserved table property when creating table metadata",
-        IllegalArgumentException.class,
-        "Table properties should not contain reserved properties, but got {uuid=uuid}",
-        () ->
-            TableMetadata.newTableMetadata(
-                schema,
-                PartitionSpec.unpartitioned(),
-                null,
-                "/tmp",
-                ImmutableMap.of(TableProperties.UUID, "uuid"),
-                1));
+    Assertions.assertThatThrownBy(
+            () ->
+                TableMetadata.newTableMetadata(
+                    schema,
+                    PartitionSpec.unpartitioned(),
+                    null,
+                    "/tmp",
+                    ImmutableMap.of(TableProperties.UUID, "uuid"),
+                    1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Table properties should not contain reserved properties, but got {uuid=uuid}");
+  }
+
+  @Test
+  public void testNoTrailingLocationSlash() {
+    String locationWithSlash = "/with_trailing_slash/";
+    String locationWithoutSlash = "/with_trailing_slash";
+    TableMetadata meta =
+        TableMetadata.newTableMetadata(
+            TEST_SCHEMA, SPEC_5, SORT_ORDER_3, locationWithSlash, Collections.emptyMap());
+    Assert.assertEquals(
+        "Metadata should never return a location ending in a slash",
+        locationWithoutSlash,
+        meta.location());
   }
 
   private String createManifestListWithManifestFile(
@@ -1578,5 +1745,30 @@ public class TestTableMetadata {
     }
 
     return localInput(manifestList).location();
+  }
+
+  @Test
+  public void buildReplacementKeepsSnapshotLog() throws Exception {
+    TableMetadata metadata =
+        TableMetadataParser.fromJson(readTableMetadataInputFile("TableMetadataV2Valid.json"));
+    Assertions.assertThat(metadata.currentSnapshot()).isNotNull();
+    Assertions.assertThat(metadata.snapshots()).hasSize(2);
+    Assertions.assertThat(metadata.snapshotLog()).hasSize(2);
+
+    TableMetadata replacement =
+        metadata.buildReplacement(
+            metadata.schema(),
+            metadata.spec(),
+            metadata.sortOrder(),
+            metadata.location(),
+            metadata.properties());
+
+    Assertions.assertThat(replacement.currentSnapshot()).isNull();
+    Assertions.assertThat(replacement.snapshots())
+        .hasSize(2)
+        .containsExactlyElementsOf(metadata.snapshots());
+    Assertions.assertThat(replacement.snapshotLog())
+        .hasSize(2)
+        .containsExactlyElementsOf(metadata.snapshotLog());
   }
 }

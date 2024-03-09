@@ -22,6 +22,7 @@ import java.util.Collection;
 import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
@@ -75,6 +76,20 @@ public interface Scan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>> {
    * @return a new scan based on this that loads column stats.
    */
   ThisT includeColumnStats();
+
+  /**
+   * Create a new scan from this that loads the column stats for the specific columns with each data
+   * file.
+   *
+   * <p>Column stats include: value count, null value count, lower bounds, and upper bounds.
+   *
+   * @param requestedColumns column names for which to keep the stats.
+   * @return a new scan based on this that loads column stats for specific columns.
+   */
+  default ThisT includeColumnStats(Collection<String> requestedColumns) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement includeColumnStats");
+  }
 
   /**
    * Create a new scan from this that will read the given data columns. This produces an expected
@@ -171,4 +186,13 @@ public interface Scan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>> {
 
   /** Returns the split open file cost for this scan. */
   long splitOpenFileCost();
+
+  /**
+   * Create a new scan that will report scan metrics to the provided reporter in addition to
+   * reporters maintained by the scan.
+   */
+  default ThisT metricsReporter(MetricsReporter reporter) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement metricsReporter");
+  }
 }

@@ -19,6 +19,7 @@
 package org.apache.iceberg.mr.hive.serde.objectinspector;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
@@ -27,8 +28,7 @@ import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestIcebergRecordObjectInspector {
 
@@ -47,22 +47,22 @@ public class TestIcebergRecordObjectInspector {
     Record innerRecord = record.get(1, Record.class);
 
     StructObjectInspector soi = (StructObjectInspector) IcebergObjectInspector.create(schema);
-    Assert.assertEquals(
-        ImmutableList.of(record.get(0), record.get(1)), soi.getStructFieldsDataAsList(record));
+    assertThat(soi.getStructFieldsDataAsList(record))
+        .isEqualTo(ImmutableList.of(record.get(0), record.get(1)));
 
     StructField integerField = soi.getStructFieldRef("integer_field");
-    Assert.assertEquals(record.get(0), soi.getStructFieldData(record, integerField));
+    assertThat(soi.getStructFieldData(record, integerField)).isEqualTo(record.get(0));
 
     StructField structField = soi.getStructFieldRef("struct_field");
     Object innerData = soi.getStructFieldData(record, structField);
-    Assert.assertEquals(innerRecord, innerData);
+    assertThat(innerData).isEqualTo(innerRecord);
 
     StructObjectInspector innerSoi = (StructObjectInspector) structField.getFieldObjectInspector();
     StructField stringField = innerSoi.getStructFieldRef("string_field");
 
-    Assert.assertEquals(
-        ImmutableList.of(innerRecord.get(0)), innerSoi.getStructFieldsDataAsList(innerRecord));
-    Assert.assertEquals(innerRecord.get(0), innerSoi.getStructFieldData(innerData, stringField));
+    assertThat(innerSoi.getStructFieldsDataAsList(innerRecord))
+        .isEqualTo(ImmutableList.of(innerRecord.get(0)));
+    assertThat(innerSoi.getStructFieldData(innerData, stringField)).isEqualTo(innerRecord.get(0));
   }
 
   @Test
@@ -76,8 +76,8 @@ public class TestIcebergRecordObjectInspector {
                 Types.StructType.of(
                     Types.NestedField.required(3, "string_field", Types.StringType.get()))));
     StructObjectInspector soi = (StructObjectInspector) IcebergObjectInspector.create(schema);
-    Assert.assertNull(soi.getStructFieldsDataAsList(null));
+    assertThat(soi.getStructFieldsDataAsList(null)).isNull();
     StructField integerField = soi.getStructFieldRef("integer_field");
-    Assert.assertNull(soi.getStructFieldData(null, integerField));
+    assertThat(soi.getStructFieldData(null, integerField)).isNull();
   }
 }

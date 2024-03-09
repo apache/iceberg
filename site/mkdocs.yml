@@ -1,0 +1,110 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+INHERIT: ./nav.yml
+
+site_name: Apache Iceberg
+
+theme:
+  custom_dir: overrides
+  static_templates:
+    - home.html
+  name: material
+  language: en
+  logo: assets/images/Iceberg-logo.svg
+  favicon: assets/images/favicon-96x96.png
+  font:
+    text: Nunito Sans
+  palette:
+    scheme: iceberg  
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.path
+    - navigation.top
+    - navigation.tracking
+    - toc.follow
+    - offline
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - content.code.copy
+    - content.code.annotate
+
+plugins:
+  - search
+  - macros
+  - monorepo
+  - privacy
+  - offline:
+      enabled: !ENV [OFFLINE, false]
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - admonition
+  - pymdownx.arithmatex:
+      generic: true
+  - footnotes
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true 
+  - pymdownx.mark
+  - pymdownx.tilde
+  - attr_list
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - tables
+  - md_in_html
+  - toc:
+      permalink: 🔗
+
+extra:
+  icebergVersion: '1.4.3'
+  social:
+    - icon: fontawesome/regular/comments
+      link: 'https://iceberg.apache.org/community/'
+      title: community
+    - icon: fontawesome/brands/github
+      link: 'https://github.com/apache/iceberg'
+      title: github
+    - icon: fontawesome/brands/youtube
+      link: 'https://www.youtube.com/@ApacheIceberg'
+      title: youtube
+    - icon: fontawesome/brands/slack
+      link: 'https://join.slack.com/t/apache-iceberg/shared_invite/zt-287g3akar-K9Oe_En5j1UL7Y_Ikpai3A'
+      title: slack
+
+exclude_docs: |
+  !.asf.yaml
+
+extra_css:
+  - assets/stylesheets/extra.css
+  - assets/stylesheets/bootstrap-grid.css
+  - assets/stylesheets/bootstrap-buttons.css
+  - assets/stylesheets/home.css
+  
+extra_javascript:
+  - assets/javascript/extra.js
+
+watch:
+  - nav.yml
+  - overrides

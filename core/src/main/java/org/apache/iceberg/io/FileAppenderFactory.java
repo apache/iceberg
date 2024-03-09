@@ -41,6 +41,17 @@ public interface FileAppenderFactory<T> {
   FileAppender<T> newAppender(OutputFile outputFile, FileFormat fileFormat);
 
   /**
+   * Create a new {@link FileAppender}.
+   *
+   * @param outputFile an EncryptedOutputFile used to create an output stream.
+   * @param fileFormat File format.
+   * @return a newly created {@link FileAppender}
+   */
+  default FileAppender<T> newAppender(EncryptedOutputFile outputFile, FileFormat fileFormat) {
+    return newAppender(outputFile.encryptingOutputFile(), fileFormat);
+  }
+
+  /**
    * Create a new {@link DataWriter}.
    *
    * @param outputFile an OutputFile used to create an output stream.

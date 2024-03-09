@@ -20,9 +20,11 @@ package org.apache.iceberg;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 /** Represents a table. */
 public interface Table {
@@ -286,6 +288,17 @@ public interface Table {
   }
 
   /**
+   * Create a new {@link UpdatePartitionStatistics update partition statistics API} to add or remove
+   * partition statistics files in this table.
+   *
+   * @return a new {@link UpdatePartitionStatistics}
+   */
+  default UpdatePartitionStatistics updatePartitionStatistics() {
+    throw new UnsupportedOperationException(
+        "Updating partition statistics is not supported by " + getClass().getName());
+  }
+
+  /**
    * Create a new {@link ExpireSnapshots expire API} to manage snapshots in this table and commit.
    *
    * @return a new {@link ExpireSnapshots}
@@ -326,12 +339,26 @@ public interface Table {
    */
   List<StatisticsFile> statisticsFiles();
 
+  /** Returns the current partition statistics files for the table. */
+  default List<PartitionStatisticsFile> partitionStatisticsFiles() {
+    return ImmutableList.of();
+  }
+
   /**
    * Returns the current refs for the table
    *
    * @return the current refs for the table
    */
   Map<String, SnapshotRef> refs();
+
+  /**
+   * Returns the UUID of the table
+   *
+   * @return the UUID of the table
+   */
+  default UUID uuid() {
+    throw new UnsupportedOperationException(this.getClass().getName() + " doesn't implement uuid");
+  }
 
   /**
    * Returns the snapshot referenced by the given name or null if no such reference exists.

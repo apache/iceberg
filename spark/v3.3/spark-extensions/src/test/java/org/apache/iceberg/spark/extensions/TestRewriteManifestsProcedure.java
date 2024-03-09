@@ -79,6 +79,28 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void testRewriteManifestsNoOp() {
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",
+        tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    Assert.assertEquals(
+        "Must have 1 manifest", 1, table.currentSnapshot().allManifests(table.io()).size());
+
+    List<Object[]> output = sql("CALL %s.system.rewrite_manifests('%s')", catalogName, tableIdent);
+    // should not rewrite any manifests for no-op (output of rewrite is same as before and after)
+    assertEquals("Procedure output must match", ImmutableList.of(row(0, 0)), output);
+
+    table.refresh();
+
+    Assert.assertEquals(
+        "Must have 1 manifests", 1, table.currentSnapshot().allManifests(table.io()).size());
+  }
+
+  @Test
   public void testRewriteLargeManifestsOnDatePartitionedTableWithJava8APIEnabled() {
     withSQLConf(
         ImmutableMap.of("spark.sql.datetime.java8API.enabled", "true"),
@@ -316,5 +338,40 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
         ImmutableList.of(
             row(1, Timestamp.valueOf("2022-01-01 10:00:00"), Date.valueOf("2022-01-01"))),
         sql("SELECT * FROM %s WHERE ts < current_timestamp()", tableName));
+  }
+
+  @Test
+  public void testWriteManifestWithSpecId() {
+    sql(
+        "CREATE TABLE %s (id int, dt string, hr string) USING iceberg PARTITIONED BY (dt)",
+        tableName);
+    sql("ALTER TABLE %s SET TBLPROPERTIES ('commit.manifest-merge.enabled' = 'false')", tableName);
+
+    sql("INSERT INTO %s VALUES (1, '2024-01-01', '00')", tableName);
+    sql("INSERT INTO %s VALUES (2, '2024-01-01', '00')", tableName);
+    assertEquals(
+        "Should have 2 manifests and their partition spec id should be 0",
+        ImmutableList.of(row(0), row(0)),
+        sql("SELECT partition_spec_id FROM %s.manifests order by 1 asc", tableName));
+
+    sql("ALTER TABLE %s ADD PARTITION FIELD hr", tableName);
+    sql("INSERT INTO %s VALUES (3, '2024-01-01', '00')", tableName);
+    assertEquals(
+        "Should have 3 manifests and their partition spec id should be 0 and 1",
+        ImmutableList.of(row(0), row(0), row(1)),
+        sql("SELECT partition_spec_id FROM %s.manifests order by 1 asc", tableName));
+
+    List<Object[]> output = sql("CALL %s.system.rewrite_manifests('%s')", catalogName, tableIdent);
+    assertEquals("Nothing should be rewritten", ImmutableList.of(row(0, 0)), output);
+
+    output =
+        sql(
+            "CALL %s.system.rewrite_manifests(table => '%s', spec_id => 0)",
+            catalogName, tableIdent);
+    assertEquals("There should be 2 manifests rewriten", ImmutableList.of(row(2, 1)), output);
+    assertEquals(
+        "Should have 2 manifests and their partition spec id should be 0 and 1",
+        ImmutableList.of(row(0), row(1)),
+        sql("SELECT partition_spec_id FROM %s.manifests order by 1 asc", tableName));
   }
 }

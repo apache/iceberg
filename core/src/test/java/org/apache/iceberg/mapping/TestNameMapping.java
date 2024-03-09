@@ -20,9 +20,9 @@ package org.apache.iceberg.mapping;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -176,23 +176,21 @@ public class TestNameMapping {
   @Test
   public void testFailsDuplicateId() {
     // the schema can be created because ID indexing is lazy
-    AssertHelpers.assertThrows(
-        "Should fail if IDs are reused",
-        IllegalArgumentException.class,
-        "Multiple entries with same",
-        () ->
-            new Schema(
-                required(1, "id", Types.LongType.get()),
-                required(1, "data", Types.StringType.get())));
+    Assertions.assertThatThrownBy(
+            () ->
+                new Schema(
+                    required(1, "id", Types.LongType.get()),
+                    required(1, "data", Types.StringType.get())))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Multiple entries with same key: 1=id and 1=data");
   }
 
   @Test
   public void testFailsDuplicateName() {
-    AssertHelpers.assertThrows(
-        "Should fail if names are reused",
-        IllegalArgumentException.class,
-        "Multiple entries with same key",
-        () -> new NameMapping(MappedFields.of(MappedField.of(1, "x"), MappedField.of(2, "x"))));
+    Assertions.assertThatThrownBy(
+            () -> new NameMapping(MappedFields.of(MappedField.of(1, "x"), MappedField.of(2, "x"))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Multiple entries with same key: x=2 and x=1");
   }
 
   @Test

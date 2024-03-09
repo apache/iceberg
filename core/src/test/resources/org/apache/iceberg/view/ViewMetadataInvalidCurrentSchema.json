@@ -1,0 +1,76 @@
+{
+  "view-uuid": "fa6506c3-7681-40c8-86dc-e36561f83385",
+  "format-version": 1,
+  "location": "s3://bucket/test/location",
+  "properties": {"some-key": "some-value"},
+  "schemas": [
+    {
+      "type": "struct",
+      "schema-id": 1,
+      "fields": [
+        {
+          "id": 1,
+          "name": "x",
+          "required": true,
+          "type": "long"
+        },
+        {
+          "id": 2,
+          "name": "y",
+          "required": true,
+          "type": "long",
+          "doc": "comment"
+        },
+        {
+          "id": 3,
+          "name": "z",
+          "required": true,
+          "type": "long"
+        }
+      ]
+    }
+  ],
+  "current-version-id": 2,
+  "versions": [
+    {
+      "version-id": 1,
+      "timestamp-ms": 4353,
+      "summary": {"user": "some-user"},
+      "schema-id": 1,
+      "default-catalog": "some-catalog",
+      "default-namespace": [],
+      "representations": [
+        {
+          "type": "sql",
+          "sql": "select 'foo' foo",
+          "dialect": "spark-sql"
+        }
+      ]
+    },
+    {
+      "version-id": 2,
+      "timestamp-ms": 5555,
+      "summary": {"user": "some-user"},
+      "schema-id": 1234,
+      "default-catalog": "some-catalog",
+      "default-namespace": [],
+      "representations": [
+        {
+          "type": "sql",
+          "sql": "select 1 id, 'abc' data",
+          "dialect": "spark-sql"
+        }
+      ]
+    }
+  ],
+  "version-log": [
+    {
+      "timestamp-ms": 4353,
+      "version-id": 1
+    },
+    {
+      "timestamp-ms": 5555,
+      "version-id": 2
+    }
+  ]
+}

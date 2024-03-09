@@ -24,6 +24,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.catalyst.expressions.IcebergBucketTransform;
 import org.apache.spark.sql.catalyst.expressions.IcebergTruncateTransform;
 import org.junit.After;
 import org.junit.Test;
@@ -70,5 +71,35 @@ public class TestIcebergExpressions extends SparkExtensionsTestBase {
         "Should have expected rows",
         ImmutableList.of(row(100, 10000L, new BigDecimal("10.50"), "10", "12")),
         sql("SELECT int_c, long_c, dec_c, str_c, CAST(binary_c AS STRING) FROM v"));
+  }
+
+  @Test
+  public void testBucketExpressions() {
+    sql(
+        "CREATE TABLE %s ( "
+            + "  int_c INT, long_c LONG, dec_c DECIMAL(4, 2), str_c STRING, binary_c BINARY "
+            + ") USING iceberg",
+        tableName);
+
+    sql(
+        "CREATE TEMPORARY VIEW emp "
+            + "AS SELECT * FROM VALUES (101, 10001, 10.65, '101-Employee', CAST('1234' AS BINARY)) "
+            + "AS EMP(int_c, long_c, dec_c, str_c, binary_c)");
+
+    sql("INSERT INTO %s SELECT * FROM emp", tableName);
+
+    Dataset<Row> df = spark.sql("SELECT * FROM " + tableName);
+    df.select(
+            new Column(new IcebergBucketTransform(2, df.col("int_c").expr())).as("int_c"),
+            new Column(new IcebergBucketTransform(3, df.col("long_c").expr())).as("long_c"),
+            new Column(new IcebergBucketTransform(4, df.col("dec_c").expr())).as("dec_c"),
+            new Column(new IcebergBucketTransform(5, df.col("str_c").expr())).as("str_c"),
+            new Column(new IcebergBucketTransform(6, df.col("binary_c").expr())).as("binary_c"))
+        .createOrReplaceTempView("v");
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(0, 2, 0, 4, 1)),
+        sql("SELECT int_c, long_c, dec_c, str_c, binary_c FROM v"));
   }
 }

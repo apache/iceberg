@@ -32,6 +32,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -170,16 +171,16 @@ public class TestSchemaAndMappingUpdate extends TableTestBase {
         .set("write.metadata.metrics.column.id", "full")
         .commit();
 
-    AssertHelpers.assertThrows(
-        "Creating metrics for non-existent column fails",
-        ValidationException.class,
-        null,
-        () ->
-            table
-                .updateProperties()
-                .set(TableProperties.DEFAULT_NAME_MAPPING, mappingJson)
-                .set("write.metadata.metrics.column.ids", "full")
-                .commit());
+    Assertions.assertThatThrownBy(
+            () ->
+                table
+                    .updateProperties()
+                    .set(TableProperties.DEFAULT_NAME_MAPPING, mappingJson)
+                    .set("write.metadata.metrics.column.ids", "full")
+                    .commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith(
+            "Invalid metrics config, could not find column ids from table prop write.metadata.metrics.column.ids in schema table");
 
     // Re-naming a column with metrics succeeds;
     table.updateSchema().renameColumn("id", "bloop").commit();

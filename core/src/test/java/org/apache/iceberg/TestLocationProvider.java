@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -172,13 +173,16 @@ public class TestLocationProvider extends TableTestBase {
         .set(TableProperties.WRITE_LOCATION_PROVIDER_IMPL, nonExistentImpl)
         .commit();
 
-    AssertHelpers.assertThrows(
-        "Non-existent implementation should fail on finding constructor",
-        IllegalArgumentException.class,
-        String.format(
-            "Unable to find a constructor for implementation %s of %s. ",
-            nonExistentImpl, LocationProvider.class),
-        () -> table.locationProvider());
+    Assertions.assertThatThrownBy(() -> table.locationProvider())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith(
+            String.format(
+                "Unable to find a constructor for implementation %s of %s. ",
+                nonExistentImpl, LocationProvider.class))
+        .hasMessageEndingWith(
+            "Make sure the implementation is in classpath, and that it either "
+                + "has a public no-arg constructor or a two-arg constructor "
+                + "taking in the string base table location and its property string map.");
   }
 
   @Test
@@ -193,13 +197,12 @@ public class TestLocationProvider extends TableTestBase {
         .set(TableProperties.WRITE_LOCATION_PROVIDER_IMPL, invalidImpl)
         .commit();
 
-    AssertHelpers.assertThrows(
-        "Class with missing interface implementation should fail on instantiation.",
-        IllegalArgumentException.class,
-        String.format(
-            "Provided implementation for dynamic instantiation should implement %s",
-            LocationProvider.class),
-        () -> table.locationProvider());
+    Assertions.assertThatThrownBy(() -> table.locationProvider())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            String.format(
+                "Provided implementation for dynamic instantiation should implement %s.",
+                LocationProvider.class));
   }
 
   @Test
@@ -214,13 +217,12 @@ public class TestLocationProvider extends TableTestBase {
         .set(TableProperties.WRITE_LOCATION_PROVIDER_IMPL, invalidImpl)
         .commit();
 
-    AssertHelpers.assertThrows(
-        "Implementation with invalid arg types should fail on finding constructor",
-        IllegalArgumentException.class,
-        String.format(
-            "Unable to find a constructor for implementation %s of %s. ",
-            invalidImpl, LocationProvider.class),
-        () -> table.locationProvider());
+    Assertions.assertThatThrownBy(() -> table.locationProvider())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith(
+            String.format(
+                "Unable to find a constructor for implementation %s of %s. ",
+                invalidImpl, LocationProvider.class));
   }
 
   @Test

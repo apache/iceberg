@@ -30,7 +30,6 @@ class GenericManifestEntry<F extends ContentFile<F>>
   private Status status = Status.EXISTING;
   private Long snapshotId = null;
   private Long dataSequenceNumber = null;
-  private Long sequenceNumber = null;
   private Long fileSequenceNumber = null;
   private F file = null;
 
@@ -47,7 +46,6 @@ class GenericManifestEntry<F extends ContentFile<F>>
     this.status = toCopy.status;
     this.snapshotId = toCopy.snapshotId;
     this.dataSequenceNumber = toCopy.dataSequenceNumber;
-    this.sequenceNumber = toCopy.sequenceNumber;
     this.fileSequenceNumber = toCopy.fileSequenceNumber;
     this.file = toCopy.file().copy(fullCopy);
   }
@@ -62,7 +60,6 @@ class GenericManifestEntry<F extends ContentFile<F>>
     this.status = Status.EXISTING;
     this.snapshotId = newSnapshotId;
     this.dataSequenceNumber = newDataSequenceNumber;
-    this.sequenceNumber = newDataSequenceNumber;
     this.fileSequenceNumber = newFileSequenceNumber;
     this.file = newFile;
     return this;
@@ -76,7 +73,6 @@ class GenericManifestEntry<F extends ContentFile<F>>
     this.status = Status.ADDED;
     this.snapshotId = newSnapshotId;
     this.dataSequenceNumber = newDataSequenceNumber;
-    this.sequenceNumber = newDataSequenceNumber;
     this.fileSequenceNumber = null;
     this.file = newFile;
     return this;
@@ -92,7 +88,6 @@ class GenericManifestEntry<F extends ContentFile<F>>
     this.status = Status.DELETED;
     this.snapshotId = newSnapshotId;
     this.dataSequenceNumber = newDataSequenceNumber;
-    this.sequenceNumber = null;
     this.fileSequenceNumber = newFileSequenceNumber;
     this.file = newFile;
     return this;
@@ -113,15 +108,6 @@ class GenericManifestEntry<F extends ContentFile<F>>
   @Override
   public Long dataSequenceNumber() {
     return dataSequenceNumber;
-  }
-
-  @Override
-  public Long sequenceNumber() {
-    if (sequenceNumber != null) {
-      return sequenceNumber;
-    } else {
-      return isLive() ? dataSequenceNumber : null;
-    }
   }
 
   @Override
@@ -152,14 +138,7 @@ class GenericManifestEntry<F extends ContentFile<F>>
 
   @Override
   public void setDataSequenceNumber(long newDataSequenceNumber) {
-    // always reset sequenceNumber whenever dataSequenceNumber is changed
     this.dataSequenceNumber = newDataSequenceNumber;
-    this.sequenceNumber = null;
-  }
-
-  @Override
-  public void setSequenceNumber(long newSequenceNumber) {
-    this.sequenceNumber = newSequenceNumber;
   }
 
   @Override
@@ -178,9 +157,7 @@ class GenericManifestEntry<F extends ContentFile<F>>
         this.snapshotId = (Long) v;
         return;
       case 2:
-        // always reset sequenceNumber whenever dataSequenceNumber is changed
         this.dataSequenceNumber = (Long) v;
-        this.sequenceNumber = null;
         return;
       case 3:
         this.fileSequenceNumber = (Long) v;

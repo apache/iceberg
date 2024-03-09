@@ -18,11 +18,12 @@
  */
 package org.apache.iceberg.jdbc;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.Map;
 import java.util.Properties;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.assertj.core.api.Assertions;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestJdbcUtil {
 
@@ -42,6 +43,6 @@ public class TestJdbcUtil {
 
     Properties actual = JdbcUtil.filterAndRemovePrefix(input, "jdbc.");
 
-    Assertions.assertThat(expected).isEqualTo(actual);
+    assertThat(expected).isEqualTo(actual);
   }
 }

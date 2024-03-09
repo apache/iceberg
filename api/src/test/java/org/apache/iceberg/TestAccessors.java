@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -29,8 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestAccessors {
 
@@ -130,14 +130,14 @@ public class TestAccessors {
   }
 
   private void assertAccessorReturns(Type type, Object value) {
-    Assert.assertEquals(value, direct(type).get(Row.of(value)));
+    assertThat(direct(type).get(Row.of(value))).isEqualTo(value);
 
-    Assert.assertEquals(value, nested1(type).get(Row.of(Row.of(value))));
-    Assert.assertEquals(value, nested2(type).get(Row.of(Row.of(Row.of(value)))));
-    Assert.assertEquals(value, nested3(type).get(Row.of(Row.of(Row.of(Row.of(value))))));
-    Assert.assertEquals(value, nested4(type).get(Row.of(Row.of(Row.of(Row.of(Row.of(value)))))));
+    assertThat(nested1(type).get(Row.of(Row.of(value)))).isEqualTo(value);
+    assertThat(nested2(type).get(Row.of(Row.of(Row.of(value))))).isEqualTo(value);
+    assertThat(nested3(type).get(Row.of(Row.of(Row.of(Row.of(value)))))).isEqualTo(value);
+    assertThat(nested4(type).get(Row.of(Row.of(Row.of(Row.of(Row.of(value))))))).isEqualTo(value);
 
-    Assert.assertEquals(value, nested3optional(type).get(Row.of(Row.of(Row.of(Row.of(value))))));
+    assertThat(nested3optional(type).get(Row.of(Row.of(Row.of(Row.of(value)))))).isEqualTo(value);
   }
 
   @Test
@@ -243,6 +243,6 @@ public class TestAccessors {
   @Test
   public void testEmptySchema() {
     Schema emptySchema = new Schema();
-    Assert.assertNull(emptySchema.accessorForField(17));
+    assertThat(emptySchema.accessorForField(17)).isNull();
   }
 }

@@ -225,13 +225,7 @@ public class SingleValueParser {
   }
 
   public static Object fromJson(Type type, String defaultValue) {
-    try {
-      JsonNode defaultValueJN = JsonUtil.mapper().readTree(defaultValue);
-      return fromJson(type, defaultValueJN);
-    } catch (IOException e) {
-      throw new IllegalArgumentException(
-          String.format("Failed to parse default as a %s value: %s", type, defaultValue), e);
-    }
+    return JsonUtil.parse(defaultValue, node -> SingleValueParser.fromJson(type, node));
   }
 
   public static String toJson(Type type, Object defaultValue) {

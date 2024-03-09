@@ -20,6 +20,7 @@ package org.apache.iceberg.view;
 
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.catalog.Namespace;
 
 /**
  * A version of the view at a point in time.
@@ -43,8 +44,7 @@ public interface ViewVersion {
   long timestampMillis();
 
   /**
-   * Return the version summary such as the name of the operation that created that version of the
-   * view
+   * Return the version summary
    *
    * @return a version summary
    */
@@ -58,4 +58,24 @@ public interface ViewVersion {
    * @return the list of view representations
    */
   List<ViewRepresentation> representations();
+
+  /**
+   * Return the operation which produced the view version
+   *
+   * @return the string operation which produced the view version
+   */
+  default String operation() {
+    return versionId() == 1 ? "create" : "replace";
+  }
+
+  /** The query output schema at version create time, without aliases */
+  int schemaId();
+
+  /** The default catalog when the view is created. */
+  default String defaultCatalog() {
+    return null;
+  }
+
+  /** The default namespace to use when the SQL does not contain a namespace. */
+  Namespace defaultNamespace();
 }

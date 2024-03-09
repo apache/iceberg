@@ -18,12 +18,12 @@
  */
 package org.apache.iceberg.data;
 
+import java.util.Collection;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 public class IcebergGenerics {
   private IcebergGenerics() {}
@@ -62,7 +62,12 @@ public class IcebergGenerics {
     }
 
     public ScanBuilder select(String... selectedColumns) {
-      this.tableScan = tableScan.select(ImmutableList.copyOf(selectedColumns));
+      this.tableScan = tableScan.select(selectedColumns);
+      return this;
+    }
+
+    public ScanBuilder select(Collection<String> columns) {
+      this.tableScan = tableScan.select(columns);
       return this;
     }
 

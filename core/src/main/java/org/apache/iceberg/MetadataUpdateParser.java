@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -30,6 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.util.JsonUtil;
+import org.apache.iceberg.view.ViewVersionParser;
 
 public class MetadataUpdateParser {
 
@@ -55,6 +55,10 @@ public class MetadataUpdateParser {
   static final String SET_LOCATION = "set-location";
   static final String SET_STATISTICS = "set-statistics";
   static final String REMOVE_STATISTICS = "remove-statistics";
+  static final String ADD_VIEW_VERSION = "add-view-version";
+  static final String SET_CURRENT_VIEW_VERSION = "set-current-view-version";
+  static final String SET_PARTITION_STATISTICS = "set-partition-statistics";
+  static final String REMOVE_PARTITION_STATISTICS = "remove-partition-statistics";
 
   // AssignUUID
   private static final String UUID = "uuid";
@@ -83,6 +87,9 @@ public class MetadataUpdateParser {
 
   // SetStatistics
   private static final String STATISTICS = "statistics";
+
+  // SetPartitionStatistics
+  private static final String PARTITION_STATISTICS = "partition-statistics";
 
   // AddSnapshot
   private static final String SNAPSHOT = "snapshot";
@@ -113,6 +120,12 @@ public class MetadataUpdateParser {
   // SetLocation
   private static final String LOCATION = "location";
 
+  // AddViewVersion
+  private static final String VIEW_VERSION = "view-version";
+
+  // SetCurrentViewVersion
+  private static final String VIEW_VERSION_ID = "view-version-id";
+
   private static final Map<Class<? extends MetadataUpdate>, String> ACTIONS =
       ImmutableMap.<Class<? extends MetadataUpdate>, String>builder()
           .put(MetadataUpdate.AssignUUID.class, ASSIGN_UUID)
@@ -125,6 +138,8 @@ public class MetadataUpdateParser {
           .put(MetadataUpdate.SetDefaultSortOrder.class, SET_DEFAULT_SORT_ORDER)
           .put(MetadataUpdate.SetStatistics.class, SET_STATISTICS)
           .put(MetadataUpdate.RemoveStatistics.class, REMOVE_STATISTICS)
+          .put(MetadataUpdate.SetPartitionStatistics.class, SET_PARTITION_STATISTICS)
+          .put(MetadataUpdate.RemovePartitionStatistics.class, REMOVE_PARTITION_STATISTICS)
           .put(MetadataUpdate.AddSnapshot.class, ADD_SNAPSHOT)
           .put(MetadataUpdate.RemoveSnapshot.class, REMOVE_SNAPSHOTS)
           .put(MetadataUpdate.RemoveSnapshotRef.class, REMOVE_SNAPSHOT_REF)
@@ -132,6 +147,8 @@ public class MetadataUpdateParser {
           .put(MetadataUpdate.SetProperties.class, SET_PROPERTIES)
           .put(MetadataUpdate.RemoveProperties.class, REMOVE_PROPERTIES)
           .put(MetadataUpdate.SetLocation.class, SET_LOCATION)
+          .put(MetadataUpdate.AddViewVersion.class, ADD_VIEW_VERSION)
+          .put(MetadataUpdate.SetCurrentViewVersion.class, SET_CURRENT_VIEW_VERSION)
           .buildOrThrow();
 
   public static String toJson(MetadataUpdate metadataUpdate) {
@@ -188,6 +205,14 @@ public class MetadataUpdateParser {
       case REMOVE_STATISTICS:
         writeRemoveStatistics((MetadataUpdate.RemoveStatistics) metadataUpdate, generator);
         break;
+      case SET_PARTITION_STATISTICS:
+        writeSetPartitionStatistics(
+            (MetadataUpdate.SetPartitionStatistics) metadataUpdate, generator);
+        break;
+      case REMOVE_PARTITION_STATISTICS:
+        writeRemovePartitionStatistics(
+            (MetadataUpdate.RemovePartitionStatistics) metadataUpdate, generator);
+        break;
       case ADD_SNAPSHOT:
         writeAddSnapshot((MetadataUpdate.AddSnapshot) metadataUpdate, generator);
         break;
@@ -209,6 +234,13 @@ public class MetadataUpdateParser {
       case SET_LOCATION:
         writeSetLocation((MetadataUpdate.SetLocation) metadataUpdate, generator);
         break;
+      case ADD_VIEW_VERSION:
+        writeAddViewVersion((MetadataUpdate.AddViewVersion) metadataUpdate, generator);
+        break;
+      case SET_CURRENT_VIEW_VERSION:
+        writeSetCurrentViewVersionId(
+            (MetadataUpdate.SetCurrentViewVersion) metadataUpdate, generator);
+        break;
       default:
         throw new IllegalArgumentException(
             String.format(
@@ -225,11 +257,7 @@ public class MetadataUpdateParser {
    * @return a MetadataUpdate object
    */
   public static MetadataUpdate fromJson(String json) {
-    try {
-      return fromJson(JsonUtil.mapper().readValue(json, JsonNode.class));
-    } catch (IOException e) {
-      throw new UncheckedIOException("Failed to read JSON string: " + json, e);
-    }
+    return JsonUtil.parse(json, MetadataUpdateParser::fromJson);
   }
 
   public static MetadataUpdate fromJson(JsonNode jsonNode) {
@@ -262,6 +290,10 @@ public class MetadataUpdateParser {
         return readSetStatistics(jsonNode);
       case REMOVE_STATISTICS:
         return readRemoveStatistics(jsonNode);
+      case SET_PARTITION_STATISTICS:
+        return readSetPartitionStatistics(jsonNode);
+      case REMOVE_PARTITION_STATISTICS:
+        return readRemovePartitionStatistics(jsonNode);
       case ADD_SNAPSHOT:
         return readAddSnapshot(jsonNode);
       case REMOVE_SNAPSHOTS:
@@ -276,6 +308,10 @@ public class MetadataUpdateParser {
         return readRemoveProperties(jsonNode);
       case SET_LOCATION:
         return readSetLocation(jsonNode);
+      case ADD_VIEW_VERSION:
+        return readAddViewVersion(jsonNode);
+      case SET_CURRENT_VIEW_VERSION:
+        return readCurrentViewVersionId(jsonNode);
       default:
         throw new UnsupportedOperationException(
             String.format("Cannot convert metadata update action to json: %s", action));
@@ -338,6 +374,17 @@ public class MetadataUpdateParser {
     gen.writeNumberField(SNAPSHOT_ID, update.snapshotId());
   }
 
+  private static void writeSetPartitionStatistics(
+      MetadataUpdate.SetPartitionStatistics update, JsonGenerator gen) throws IOException {
+    gen.writeFieldName(PARTITION_STATISTICS);
+    PartitionStatisticsFileParser.toJson(update.partitionStatisticsFile(), gen);
+  }
+
+  private static void writeRemovePartitionStatistics(
+      MetadataUpdate.RemovePartitionStatistics update, JsonGenerator gen) throws IOException {
+    gen.writeNumberField(SNAPSHOT_ID, update.snapshotId());
+  }
+
   private static void writeAddSnapshot(MetadataUpdate.AddSnapshot update, JsonGenerator gen)
       throws IOException {
     gen.writeFieldName(SNAPSHOT);
@@ -389,6 +436,17 @@ public class MetadataUpdateParser {
     gen.writeStringField(LOCATION, update.location());
   }
 
+  private static void writeAddViewVersion(
+      MetadataUpdate.AddViewVersion metadataUpdate, JsonGenerator gen) throws IOException {
+    gen.writeFieldName(VIEW_VERSION);
+    ViewVersionParser.toJson(metadataUpdate.viewVersion(), gen);
+  }
+
+  private static void writeSetCurrentViewVersionId(
+      MetadataUpdate.SetCurrentViewVersion metadataUpdate, JsonGenerator gen) throws IOException {
+    gen.writeNumberField(VIEW_VERSION_ID, metadataUpdate.versionId());
+  }
+
   private static MetadataUpdate readAssignUUID(JsonNode node) {
     String uuid = JsonUtil.getString(UUID, node);
     return new MetadataUpdate.AssignUUID(uuid);
@@ -402,7 +460,12 @@ public class MetadataUpdateParser {
   private static MetadataUpdate readAddSchema(JsonNode node) {
     JsonNode schemaNode = JsonUtil.get(SCHEMA, node);
     Schema schema = SchemaParser.fromJson(schemaNode);
-    int lastColumnId = JsonUtil.getInt(LAST_COLUMN_ID, node);
+    int lastColumnId;
+    if (node.has(LAST_COLUMN_ID)) {
+      lastColumnId = JsonUtil.getInt(LAST_COLUMN_ID, node);
+    } else {
+      lastColumnId = schema.highestFieldId();
+    }
     return new MetadataUpdate.AddSchema(schema, lastColumnId);
   }
 
@@ -441,8 +504,20 @@ public class MetadataUpdateParser {
   }
 
   private static MetadataUpdate readRemoveStatistics(JsonNode node) {
-    int snapshotId = JsonUtil.getInt(SNAPSHOT_ID, node);
+    long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, node);
     return new MetadataUpdate.RemoveStatistics(snapshotId);
+  }
+
+  private static MetadataUpdate readSetPartitionStatistics(JsonNode node) {
+    JsonNode partitionStatisticsFileNode = JsonUtil.get(PARTITION_STATISTICS, node);
+    PartitionStatisticsFile partitionStatisticsFile =
+        PartitionStatisticsFileParser.fromJson(partitionStatisticsFileNode);
+    return new MetadataUpdate.SetPartitionStatistics(partitionStatisticsFile);
+  }
+
+  private static MetadataUpdate readRemovePartitionStatistics(JsonNode node) {
+    long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, node);
+    return new MetadataUpdate.RemovePartitionStatistics(snapshotId);
   }
 
   private static MetadataUpdate readAddSnapshot(JsonNode node) {
@@ -511,5 +586,14 @@ public class MetadataUpdateParser {
   private static MetadataUpdate readSetLocation(JsonNode node) {
     String location = JsonUtil.getString(LOCATION, node);
     return new MetadataUpdate.SetLocation(location);
+  }
+
+  private static MetadataUpdate readAddViewVersion(JsonNode node) {
+    return new MetadataUpdate.AddViewVersion(
+        ViewVersionParser.fromJson(JsonUtil.get(VIEW_VERSION, node)));
+  }
+
+  private static MetadataUpdate readCurrentViewVersionId(JsonNode node) {
+    return new MetadataUpdate.SetCurrentViewVersion(JsonUtil.getInt(VIEW_VERSION_ID, node));
   }
 }

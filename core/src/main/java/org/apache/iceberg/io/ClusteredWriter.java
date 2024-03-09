@@ -24,7 +24,6 @@ import java.util.Comparator;
 import java.util.Set;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Comparators;
@@ -130,15 +129,5 @@ abstract class ClusteredWriter<T, R> implements PartitioningWriter<T, R> {
   public final R result() {
     Preconditions.checkState(closed, "Cannot get result from unclosed writer");
     return aggregatedResult();
-  }
-
-  protected EncryptedOutputFile newOutputFile(
-      OutputFileFactory fileFactory, PartitionSpec spec, StructLike partition) {
-    Preconditions.checkArgument(
-        spec.isUnpartitioned() || partition != null,
-        "Partition must not be null when creating output file for partitioned spec");
-    return partition == null
-        ? fileFactory.newOutputFile()
-        : fileFactory.newOutputFile(spec, partition);
   }
 }

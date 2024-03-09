@@ -23,6 +23,7 @@ import static org.junit.Assert.assertEquals;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.types.TypeUtil;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
@@ -44,9 +45,11 @@ public class TestEntriesMetadataTable extends TableTestBase {
   public void testEntriesTable() {
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
-    Table entriesTable = new ManifestEntriesTable(table.ops(), table);
+    Table entriesTable = new ManifestEntriesTable(table);
 
-    Schema expectedSchema = ManifestEntry.getSchema(table.spec().partitionType());
+    Schema readSchema = ManifestEntry.getSchema(table.spec().partitionType());
+    Schema expectedSchema =
+        TypeUtil.join(readSchema, MetricsUtil.readableMetricsSchema(table.schema(), readSchema));
 
     assertEquals(
         "A tableScan.select() should prune the schema",
@@ -58,10 +61,12 @@ public class TestEntriesMetadataTable extends TableTestBase {
   public void testEntriesTableScan() {
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
-    Table entriesTable = new ManifestEntriesTable(table.ops(), table);
+    Table entriesTable = new ManifestEntriesTable(table);
     TableScan scan = entriesTable.newScan();
 
-    Schema expectedSchema = ManifestEntry.getSchema(table.spec().partitionType());
+    Schema readSchema = ManifestEntry.getSchema(table.spec().partitionType());
+    Schema expectedSchema =
+        TypeUtil.join(readSchema, MetricsUtil.readableMetricsSchema(table.schema(), readSchema));
 
     assertEquals(
         "A tableScan.select() should prune the schema",
@@ -88,7 +93,7 @@ public class TestEntriesMetadataTable extends TableTestBase {
         .set(TableProperties.METADATA_SPLIT_SIZE, String.valueOf(128 * 1024 * 1024))
         .commit();
 
-    Table entriesTable = new ManifestEntriesTable(table.ops(), table);
+    Table entriesTable = new ManifestEntriesTable(table);
 
     Assert.assertEquals(1, Iterables.size(entriesTable.newScan().planTasks()));
 
@@ -113,7 +118,7 @@ public class TestEntriesMetadataTable extends TableTestBase {
     int splitSize =
         (int) TableProperties.METADATA_SPLIT_SIZE_DEFAULT; // default split size is 32 MB
 
-    Table entriesTable = new ManifestEntriesTable(table.ops(), table);
+    Table entriesTable = new ManifestEntriesTable(table);
     Assert.assertEquals(1, entriesTable.currentSnapshot().allManifests(table.io()).size());
 
     int expectedSplits =
@@ -128,16 +133,18 @@ public class TestEntriesMetadataTable extends TableTestBase {
   }
 
   @Test
-  public void testEntriesTableWithDeleteManifests() throws Exception {
+  public void testEntriesTableWithDeleteManifests() {
     Assume.assumeTrue("Only V2 Tables Support Deletes", formatVersion >= 2);
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
 
-    Table entriesTable = new ManifestEntriesTable(table.ops(), table);
+    Table entriesTable = new ManifestEntriesTable(table);
     TableScan scan = entriesTable.newScan();
 
-    Schema expectedSchema = ManifestEntry.getSchema(table.spec().partitionType());
+    Schema readSchema = ManifestEntry.getSchema(table.spec().partitionType());
+    Schema expectedSchema =
+        TypeUtil.join(readSchema, MetricsUtil.readableMetricsSchema(table.schema(), readSchema));
 
     assertEquals(
         "A tableScan.select() should prune the schema",

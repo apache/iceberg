@@ -24,7 +24,7 @@ import com.google.errorprone.annotations.FormatMethod;
  * Exception thrown on HTTP 401 Unauthorized. The user is either not authenticated or failed
  * authorization checks.
  */
-public class NotAuthorizedException extends RESTException {
+public class NotAuthorizedException extends RESTException implements CleanableFailure {
   @FormatMethod
   public NotAuthorizedException(String message, Object... args) {
     super(message, args);

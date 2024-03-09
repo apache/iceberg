@@ -31,6 +31,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -56,26 +57,20 @@ public class TestIncrementalDataTableScan extends TableTestBase {
   @Test
   public void testInvalidScans() {
     add(table.newAppend(), files("A"));
-    AssertHelpers.assertThrows(
-        "from and to snapshots cannot be the same, since from snapshot is exclusive and not part of the scan",
-        IllegalArgumentException.class,
-        "from and to snapshot ids cannot be the same",
-        () -> appendsBetweenScan(1, 1));
+    Assertions.assertThatThrownBy(() -> appendsBetweenScan(1, 1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("from and to snapshot ids cannot be the same");
 
     add(table.newAppend(), files("B"));
     add(table.newAppend(), files("C"));
     add(table.newAppend(), files("D"));
     add(table.newAppend(), files("E"));
-    AssertHelpers.assertThrows(
-        "Check refinement api",
-        IllegalArgumentException.class,
-        "from snapshot id 1 not in existing snapshot ids range (2, 4]",
-        () -> table.newScan().appendsBetween(2, 5).appendsBetween(1, 4));
-    AssertHelpers.assertThrows(
-        "Check refinement api",
-        IllegalArgumentException.class,
-        "to snapshot id 3 not in existing snapshot ids range (1, 2]",
-        () -> table.newScan().appendsBetween(1, 2).appendsBetween(1, 3));
+    Assertions.assertThatThrownBy(() -> table.newScan().appendsBetween(2, 5).appendsBetween(1, 4))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("from snapshot id 1 not in existing snapshot ids range (2, 4]");
+    Assertions.assertThatThrownBy(() -> table.newScan().appendsBetween(1, 2).appendsBetween(1, 3))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("to snapshot id 3 not in existing snapshot ids range (1, 2]");
   }
 
   @Test
@@ -140,11 +135,10 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     filesMatch(Lists.newArrayList("I"), appendsBetweenScan(7, 8));
 
     overwrite(table.newOverwrite(), files("H"), files("E")); // 9
-    AssertHelpers.assertThrows(
-        "Overwrites are not supported for Incremental scan",
-        UnsupportedOperationException.class,
-        "Found overwrite operation, cannot support incremental data in snapshots (8, 9]",
-        () -> appendsBetweenScan(8, 9));
+    Assertions.assertThatThrownBy(() -> appendsBetweenScan(8, 9))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(
+            "Found overwrite operation, cannot support incremental data in snapshots (8, 9]");
   }
 
   @Test

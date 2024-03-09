@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.util.Set;
+import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 
 public class TableProperties {
@@ -143,6 +144,7 @@ public class TableProperties {
   public static final String PARQUET_COMPRESSION = "write.parquet.compression-codec";
   public static final String DELETE_PARQUET_COMPRESSION = "write.delete.parquet.compression-codec";
   public static final String PARQUET_COMPRESSION_DEFAULT = "gzip";
+  public static final String PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0 = "zstd";
 
   public static final String PARQUET_COMPRESSION_LEVEL = "write.parquet.compression-level";
   public static final String DELETE_PARQUET_COMPRESSION_LEVEL =
@@ -216,6 +218,9 @@ public class TableProperties {
   public static final String SPLIT_OPEN_FILE_COST = "read.split.open-file-cost";
   public static final long SPLIT_OPEN_FILE_COST_DEFAULT = 4 * 1024 * 1024; // 4MB
 
+  public static final String ADAPTIVE_SPLIT_SIZE_ENABLED = "read.split.adaptive-size.enabled";
+  public static final boolean ADAPTIVE_SPLIT_SIZE_ENABLED_DEFAULT = true;
+
   public static final String PARQUET_VECTORIZATION_ENABLED = "read.parquet.vectorization.enabled";
   public static final boolean PARQUET_VECTORIZATION_ENABLED_DEFAULT = true;
 
@@ -227,6 +232,10 @@ public class TableProperties {
 
   public static final String ORC_BATCH_SIZE = "read.orc.vectorization.batch-size";
   public static final int ORC_BATCH_SIZE_DEFAULT = 5000;
+
+  public static final String DATA_PLANNING_MODE = "read.data-planning-mode";
+  public static final String DELETE_PLANNING_MODE = "read.delete-planning-mode";
+  public static final String PLANNING_MODE_DEFAULT = PlanningMode.AUTO.modeName();
 
   public static final String OBJECT_STORE_ENABLED = "write.object-storage.enabled";
   public static final boolean OBJECT_STORE_ENABLED_DEFAULT = false;
@@ -296,12 +305,18 @@ public class TableProperties {
   public static final String SPARK_WRITE_ACCEPT_ANY_SCHEMA = "write.spark.accept-any-schema";
   public static final boolean SPARK_WRITE_ACCEPT_ANY_SCHEMA_DEFAULT = false;
 
+  public static final String SPARK_WRITE_ADVISORY_PARTITION_SIZE_BYTES =
+      "write.spark.advisory-partition-size-bytes";
+
   public static final String SNAPSHOT_ID_INHERITANCE_ENABLED =
       "compatibility.snapshot-id-inheritance.enabled";
   public static final boolean SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT = false;
 
   public static final String ENGINE_HIVE_ENABLED = "engine.hive.enabled";
   public static final boolean ENGINE_HIVE_ENABLED_DEFAULT = false;
+
+  public static final String HIVE_LOCK_ENABLED = "engine.hive.lock-enabled";
+  public static final boolean HIVE_LOCK_ENABLED_DEFAULT = true;
 
   public static final String WRITE_DISTRIBUTION_MODE = "write.distribution-mode";
   public static final String WRITE_DISTRIBUTION_MODE_NONE = "none";
@@ -319,6 +334,9 @@ public class TableProperties {
 
   public static final String MAX_REF_AGE_MS = "history.expire.max-ref-age-ms";
   public static final long MAX_REF_AGE_MS_DEFAULT = Long.MAX_VALUE;
+
+  public static final String DELETE_GRANULARITY = "write.delete.granularity";
+  public static final String DELETE_GRANULARITY_DEFAULT = DeleteGranularity.PARTITION.toString();
 
   public static final String DELETE_ISOLATION_LEVEL = "write.delete.isolation-level";
   public static final String DELETE_ISOLATION_LEVEL_DEFAULT = "serializable";
@@ -342,24 +360,15 @@ public class TableProperties {
   public static final String MERGE_MODE = "write.merge.mode";
   public static final String MERGE_MODE_DEFAULT = RowLevelOperationMode.COPY_ON_WRITE.modeName();
 
-  /**
-   * @deprecated will be removed in 0.14.0, the cardinality check is always performed starting from
-   *     0.13.0.
-   */
-  @Deprecated
-  public static final String MERGE_CARDINALITY_CHECK_ENABLED =
-      "write.merge.cardinality-check.enabled";
-  /**
-   * @deprecated will be removed in 0.14.0, the cardinality check is always performed starting from
-   *     0.13.0.
-   */
-  @Deprecated public static final boolean MERGE_CARDINALITY_CHECK_ENABLED_DEFAULT = true;
-
   public static final String MERGE_DISTRIBUTION_MODE = "write.merge.distribution-mode";
 
   public static final String UPSERT_ENABLED = "write.upsert.enabled";
   public static final boolean UPSERT_ENABLED_DEFAULT = false;
 
-  /** @deprecated will be removed in 1.3.0, use the HMS_TABLE_OWNER constant from HiveCatalog */
-  @Deprecated public static final String HMS_TABLE_OWNER = "hive.metastore.table.owner";
+  public static final String ENCRYPTION_TABLE_KEY = "encryption.key-id";
+
+  public static final String ENCRYPTION_DEK_LENGTH = "encryption.data-key-length";
+  public static final int ENCRYPTION_DEK_LENGTH_DEFAULT = 16;
+
+  public static final int ENCRYPTION_AAD_LENGTH_DEFAULT = 16;
 }

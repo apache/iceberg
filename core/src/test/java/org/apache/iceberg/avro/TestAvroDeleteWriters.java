@@ -18,8 +18,11 @@
  */
 package org.apache.iceberg.avro;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
@@ -35,18 +38,16 @@ import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
-import org.apache.iceberg.io.InMemoryOutputFile;
+import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestAvroDeleteWriters {
   private static final Schema SCHEMA =
@@ -56,9 +57,9 @@ public class TestAvroDeleteWriters {
 
   private List<Record> records;
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir Path temp;
 
-  @Before
+  @BeforeEach
   public void createDeleteRecords() {
     GenericRecord record = GenericRecord.create(SCHEMA);
 
@@ -89,12 +90,15 @@ public class TestAvroDeleteWriters {
     }
 
     DeleteFile metadata = deleteWriter.toDeleteFile();
-    Assert.assertEquals("Format should be Avro", FileFormat.AVRO, metadata.format());
-    Assert.assertEquals(
-        "Should be equality deletes", FileContent.EQUALITY_DELETES, metadata.content());
-    Assert.assertEquals("Record count should be correct", records.size(), metadata.recordCount());
-    Assert.assertEquals("Partition should be empty", 0, metadata.partition().size());
-    Assert.assertNull("Key metadata should be null", metadata.keyMetadata());
+    assertThat(metadata.format()).as("Format should be Avro").isEqualTo(FileFormat.AVRO);
+    assertThat(metadata.content())
+        .as("Should be equality deletes")
+        .isEqualTo(FileContent.EQUALITY_DELETES);
+    assertThat(metadata.recordCount())
+        .as("Record count should be correct")
+        .isEqualTo(records.size());
+    assertThat(metadata.partition().size()).as("Partition should be empty").isEqualTo(0);
+    assertThat(metadata.keyMetadata()).as("Key metadata should be null").isNull();
 
     List<Record> deletedRecords;
     try (AvroIterable<Record> reader =
@@ -102,7 +106,7 @@ public class TestAvroDeleteWriters {
       deletedRecords = Lists.newArrayList(reader);
     }
 
-    Assert.assertEquals("Deleted records should match expected", records, deletedRecords);
+    assertThat(deletedRecords).as("Deleted records should match expected").isEqualTo(records);
   }
 
   @Test
@@ -140,12 +144,15 @@ public class TestAvroDeleteWriters {
     }
 
     DeleteFile metadata = deleteWriter.toDeleteFile();
-    Assert.assertEquals("Format should be Avro", FileFormat.AVRO, metadata.format());
-    Assert.assertEquals(
-        "Should be position deletes", FileContent.POSITION_DELETES, metadata.content());
-    Assert.assertEquals("Record count should be correct", records.size(), metadata.recordCount());
-    Assert.assertEquals("Partition should be empty", 0, metadata.partition().size());
-    Assert.assertNull("Key metadata should be null", metadata.keyMetadata());
+    assertThat(metadata.format()).as("Format should be Avro").isEqualTo(FileFormat.AVRO);
+    assertThat(metadata.content())
+        .as("Should be position deletes")
+        .isEqualTo(FileContent.POSITION_DELETES);
+    assertThat(metadata.recordCount())
+        .as("Record count should be correct")
+        .isEqualTo(records.size());
+    assertThat(metadata.partition().size()).as("Partition should be empty").isEqualTo(0);
+    assertThat(metadata.keyMetadata()).as("Key metadata should be null").isNull();
 
     List<Record> deletedRecords;
     try (AvroIterable<Record> reader =
@@ -156,13 +163,14 @@ public class TestAvroDeleteWriters {
       deletedRecords = Lists.newArrayList(reader);
     }
 
-    Assert.assertEquals(
-        "Deleted records should match expected", expectedDeleteRecords, deletedRecords);
+    assertThat(deletedRecords)
+        .as("Deleted records should match expected")
+        .isEqualTo(expectedDeleteRecords);
   }
 
   @Test
   public void testPositionDeleteWriterWithEmptyRow() throws IOException {
-    File deleteFile = temp.newFile();
+    File deleteFile = temp.toFile();
 
     Schema deleteSchema =
         new Schema(MetadataColumns.DELETE_FILE_PATH, MetadataColumns.DELETE_FILE_POS);
@@ -190,12 +198,15 @@ public class TestAvroDeleteWriters {
     }
 
     DeleteFile metadata = deleteWriter.toDeleteFile();
-    Assert.assertEquals("Format should be Avro", FileFormat.AVRO, metadata.format());
-    Assert.assertEquals(
-        "Should be position deletes", FileContent.POSITION_DELETES, metadata.content());
-    Assert.assertEquals("Record count should be correct", records.size(), metadata.recordCount());
-    Assert.assertEquals("Partition should be empty", 0, metadata.partition().size());
-    Assert.assertNull("Key metadata should be null", metadata.keyMetadata());
+    assertThat(metadata.format()).as("Format should be Avro").isEqualTo(FileFormat.AVRO);
+    assertThat(metadata.content())
+        .as("Should be position deletes")
+        .isEqualTo(FileContent.POSITION_DELETES);
+    assertThat(metadata.recordCount())
+        .as("Record count should be correct")
+        .isEqualTo(records.size());
+    assertThat(metadata.partition().size()).as("Partition should be empty").isEqualTo(0);
+    assertThat(metadata.keyMetadata()).as("Key metadata should be null").isNull();
 
     List<Record> deletedRecords;
     try (AvroIterable<Record> reader =
@@ -206,7 +217,8 @@ public class TestAvroDeleteWriters {
       deletedRecords = Lists.newArrayList(reader);
     }
 
-    Assert.assertEquals(
-        "Deleted records should match expected", expectedDeleteRecords, deletedRecords);
+    assertThat(deletedRecords)
+        .as("Deleted records should match expected")
+        .isEqualTo(expectedDeleteRecords);
   }
 }

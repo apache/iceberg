@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -27,25 +28,24 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
-import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsClientFactory;
-import org.apache.iceberg.aws.AwsProperties;
+import org.apache.iceberg.aws.S3FileIOAwsClientFactories;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.CredentialSupplier;
-import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.SupportsBulkOperations;
-import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.SetMultimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.apache.iceberg.util.Tasks;
@@ -73,8 +73,7 @@ import software.amazon.awssdk.services.s3.model.Tagging;
  * schemes s3a, s3n, https are also treated as s3 file paths. Using this FileIO with other schemes
  * will result in {@link org.apache.iceberg.exceptions.ValidationException}.
  */
-public class S3FileIO
-    implements FileIO, SupportsBulkOperations, SupportsPrefixOperations, CredentialSupplier {
+public class S3FileIO implements CredentialSupplier, DelegateFileIO {
   private static final Logger LOG = LoggerFactory.getLogger(S3FileIO.class);
   private static final String DEFAULT_METRICS_IMPL =
       "org.apache.iceberg.hadoop.HadoopMetricsContext";
@@ -82,11 +81,12 @@ public class S3FileIO
 
   private String credential = null;
   private SerializableSupplier<S3Client> s3;
-  private AwsProperties awsProperties;
+  private S3FileIOProperties s3FileIOProperties;
   private SerializableMap<String, String> properties = null;
   private transient volatile S3Client client;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
+  private transient StackTraceElement[] createStack;
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -96,59 +96,60 @@ public class S3FileIO
   public S3FileIO() {}
 
   /**
-   * Constructor with custom s3 supplier and default AWS properties.
+   * Constructor with custom s3 supplier and S3FileIO properties.
    *
    * <p>Calling {@link S3FileIO#initialize(Map)} will overwrite information set in this constructor.
    *
    * @param s3 s3 supplier
    */
   public S3FileIO(SerializableSupplier<S3Client> s3) {
-    this(s3, new AwsProperties());
+    this(s3, new S3FileIOProperties());
   }
 
   /**
-   * Constructor with custom s3 supplier and AWS properties.
+   * Constructor with custom s3 supplier and S3FileIO properties.
    *
    * <p>Calling {@link S3FileIO#initialize(Map)} will overwrite information set in this constructor.
    *
    * @param s3 s3 supplier
-   * @param awsProperties aws properties
+   * @param s3FileIOProperties S3 FileIO properties
    */
-  public S3FileIO(SerializableSupplier<S3Client> s3, AwsProperties awsProperties) {
+  public S3FileIO(SerializableSupplier<S3Client> s3, S3FileIOProperties s3FileIOProperties) {
     this.s3 = s3;
-    this.awsProperties = awsProperties;
+    this.s3FileIOProperties = s3FileIOProperties;
+    this.createStack = Thread.currentThread().getStackTrace();
   }
 
   @Override
   public InputFile newInputFile(String path) {
-    return S3InputFile.fromLocation(path, client(), awsProperties, metrics);
+    return S3InputFile.fromLocation(path, client(), s3FileIOProperties, metrics);
   }
 
   @Override
   public InputFile newInputFile(String path, long length) {
-    return S3InputFile.fromLocation(path, length, client(), awsProperties, metrics);
+    return S3InputFile.fromLocation(path, length, client(), s3FileIOProperties, metrics);
   }
 
   @Override
   public OutputFile newOutputFile(String path) {
-    return S3OutputFile.fromLocation(path, client(), awsProperties, metrics);
+    return S3OutputFile.fromLocation(path, client(), s3FileIOProperties, metrics);
   }
 
   @Override
   public void deleteFile(String path) {
-    if (awsProperties.s3DeleteTags() != null && !awsProperties.s3DeleteTags().isEmpty()) {
+    if (s3FileIOProperties.deleteTags() != null && !s3FileIOProperties.deleteTags().isEmpty()) {
       try {
-        tagFileToDelete(path, awsProperties.s3DeleteTags());
+        tagFileToDelete(path, s3FileIOProperties.deleteTags());
       } catch (S3Exception e) {
-        LOG.warn("Failed to add delete tags: {} to {}", awsProperties.s3DeleteTags(), path, e);
+        LOG.warn("Failed to add delete tags: {} to {}", s3FileIOProperties.deleteTags(), path, e);
       }
     }
 
-    if (!awsProperties.isS3DeleteEnabled()) {
+    if (!s3FileIOProperties.isDeleteEnabled()) {
       return;
     }
 
-    S3URI location = new S3URI(path, awsProperties.s3BucketToAccessPointMapping());
+    S3URI location = new S3URI(path, s3FileIOProperties.bucketToAccessPointMapping());
     DeleteObjectRequest deleteRequest =
         DeleteObjectRequest.builder().bucket(location.bucket()).key(location.key()).build();
 
@@ -170,7 +171,7 @@ public class S3FileIO
    */
   @Override
   public void deleteFiles(Iterable<String> paths) throws BulkDeletionFailureException {
-    if (awsProperties.s3DeleteTags() != null && !awsProperties.s3DeleteTags().isEmpty()) {
+    if (s3FileIOProperties.deleteTags() != null && !s3FileIOProperties.deleteTags().isEmpty()) {
       Tasks.foreach(paths)
           .noRetry()
           .executeWith(executorService())
@@ -179,22 +180,22 @@ public class S3FileIO
               (path, exc) ->
                   LOG.warn(
                       "Failed to add delete tags: {} to {}",
-                      awsProperties.s3DeleteTags(),
+                      s3FileIOProperties.deleteTags(),
                       path,
                       exc))
-          .run(path -> tagFileToDelete(path, awsProperties.s3DeleteTags()));
+          .run(path -> tagFileToDelete(path, s3FileIOProperties.deleteTags()));
     }
 
-    if (awsProperties.isS3DeleteEnabled()) {
+    if (s3FileIOProperties.isDeleteEnabled()) {
       SetMultimap<String, String> bucketToObjects =
           Multimaps.newSetMultimap(Maps.newHashMap(), Sets::newHashSet);
       List<Future<List<String>>> deletionTasks = Lists.newArrayList();
       for (String path : paths) {
-        S3URI location = new S3URI(path, awsProperties.s3BucketToAccessPointMapping());
+        S3URI location = new S3URI(path, s3FileIOProperties.bucketToAccessPointMapping());
         String bucket = location.bucket();
         String objectKey = location.key();
         bucketToObjects.get(bucket).add(objectKey);
-        if (bucketToObjects.get(bucket).size() == awsProperties.s3FileIoDeleteBatchSize()) {
+        if (bucketToObjects.get(bucket).size() == s3FileIOProperties.deleteBatchSize()) {
           Set<String> keys = Sets.newHashSet(bucketToObjects.get(bucket));
           Future<List<String>> deletionTask =
               executorService().submit(() -> deleteBatch(bucket, keys));
@@ -236,7 +237,7 @@ public class S3FileIO
   }
 
   private void tagFileToDelete(String path, Set<Tag> deleteTags) throws S3Exception {
-    S3URI location = new S3URI(path, awsProperties.s3BucketToAccessPointMapping());
+    S3URI location = new S3URI(path, s3FileIOProperties.bucketToAccessPointMapping());
     String bucket = location.bucket();
     String objectKey = location.key();
     GetObjectTaggingRequest getObjectTaggingRequest =
@@ -290,7 +291,7 @@ public class S3FileIO
 
   @Override
   public Iterable<FileInfo> listPrefix(String prefix) {
-    S3URI s3uri = new S3URI(prefix, awsProperties.s3BucketToAccessPointMapping());
+    S3URI s3uri = new S3URI(prefix, s3FileIOProperties.bucketToAccessPointMapping());
     ListObjectsV2Request request =
         ListObjectsV2Request.builder().bucket(s3uri.bucket()).prefix(s3uri.key()).build();
 
@@ -319,7 +320,7 @@ public class S3FileIO
     deleteFiles(() -> Streams.stream(listPrefix(prefix)).map(FileInfo::location).iterator());
   }
 
-  private S3Client client() {
+  public S3Client client() {
     if (client == null) {
       synchronized (this) {
         if (client == null) {
@@ -336,7 +337,7 @@ public class S3FileIO
         if (executorService == null) {
           executorService =
               ThreadPools.newWorkerPool(
-                  "iceberg-s3fileio-delete", awsProperties.s3FileIoDeleteThreads());
+                  "iceberg-s3fileio-delete", s3FileIOProperties.deleteThreads());
         }
       }
     }
@@ -352,35 +353,46 @@ public class S3FileIO
   @Override
   public void initialize(Map<String, String> props) {
     this.properties = SerializableMap.copyOf(props);
-    this.awsProperties = new AwsProperties(properties);
+    this.s3FileIOProperties = new S3FileIOProperties(properties);
+    this.createStack =
+        PropertyUtil.propertyAsBoolean(props, "init-creation-stacktrace", true)
+            ? Thread.currentThread().getStackTrace()
+            : null;
 
     // Do not override s3 client if it was provided
     if (s3 == null) {
-      AwsClientFactory clientFactory = AwsClientFactories.from(props);
+      Object clientFactory = S3FileIOAwsClientFactories.initialize(props);
+      if (clientFactory instanceof S3FileIOAwsClientFactory) {
+        this.s3 = ((S3FileIOAwsClientFactory) clientFactory)::s3;
+      }
+      if (clientFactory instanceof AwsClientFactory) {
+        this.s3 = ((AwsClientFactory) clientFactory)::s3;
+      }
       if (clientFactory instanceof CredentialSupplier) {
         this.credential = ((CredentialSupplier) clientFactory).getCredential();
       }
-      this.s3 = clientFactory::s3;
-      if (awsProperties.s3PreloadClientEnabled()) {
+      if (s3FileIOProperties.isPreloadClientEnabled()) {
         client();
       }
     }
 
+    initMetrics(properties);
+  }
+
+  @SuppressWarnings("CatchBlockLogException")
+  private void initMetrics(Map<String, String> props) {
     // Report Hadoop metrics if Hadoop is available
     try {
       DynConstructors.Ctor<MetricsContext> ctor =
           DynConstructors.builder(MetricsContext.class)
-              .loader(S3FileIO.class.getClassLoader())
               .hiddenImpl(DEFAULT_METRICS_IMPL, String.class)
               .buildChecked();
       MetricsContext context = ctor.newInstance("s3");
-      context.initialize(properties);
+      context.initialize(props);
       this.metrics = context;
     } catch (NoClassDefFoundError | NoSuchMethodException | ClassCastException e) {
       LOG.warn(
-          "Unable to load metrics class: '{}', falling back to null metrics",
-          DEFAULT_METRICS_IMPL,
-          e);
+          "Unable to load metrics class: '{}', falling back to null metrics", DEFAULT_METRICS_IMPL);
     }
   }
 
@@ -390,6 +402,21 @@ public class S3FileIO
     if (isResourceClosed.compareAndSet(false, true)) {
       if (client != null) {
         client.close();
+      }
+    }
+  }
+
+  @SuppressWarnings("checkstyle:NoFinalizer")
+  @Override
+  protected void finalize() throws Throwable {
+    super.finalize();
+    if (!isResourceClosed.get()) {
+      close();
+
+      if (null != createStack) {
+        String trace =
+            Joiner.on("\n\t").join(Arrays.copyOfRange(createStack, 1, createStack.length));
+        LOG.warn("Unclosed S3FileIO instance created by:\n\t{}", trace);
       }
     }
   }

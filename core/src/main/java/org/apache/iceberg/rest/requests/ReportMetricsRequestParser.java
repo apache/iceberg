@@ -22,6 +22,8 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.util.Locale;
+import org.apache.iceberg.metrics.CommitReport;
+import org.apache.iceberg.metrics.CommitReportParser;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.metrics.ScanReportParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -53,6 +55,10 @@ public class ReportMetricsRequestParser {
       ScanReportParser.toJsonWithoutStartEnd((ScanReport) request.report(), gen);
     }
 
+    if (ReportType.COMMIT_REPORT == request.reportType()) {
+      CommitReportParser.toJsonWithoutStartEnd((CommitReport) request.report(), gen);
+    }
+
     gen.writeEndObject();
   }
 
@@ -81,6 +87,13 @@ public class ReportMetricsRequestParser {
           .build();
     }
 
-    throw new IllegalArgumentException(String.format("Cannot build metrics request from %s", json));
+    if (ReportType.COMMIT_REPORT == type) {
+      return ImmutableReportMetricsRequest.builder()
+          .reportType(type)
+          .report(CommitReportParser.fromJson(json))
+          .build();
+    }
+
+    return ReportMetricsRequest.unknown();
   }
 }

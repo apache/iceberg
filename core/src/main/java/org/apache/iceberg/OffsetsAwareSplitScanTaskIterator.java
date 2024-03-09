@@ -20,10 +20,7 @@ package org.apache.iceberg;
 
 import java.util.List;
 import java.util.NoSuchElementException;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Ordering;
+import org.apache.iceberg.util.ArrayUtil;
 
 /**
  * An iterator that splits tasks using split offsets such as row group offsets in Parquet.
@@ -31,38 +28,41 @@ import org.apache.iceberg.relocated.com.google.common.collect.Ordering;
  * @param <T> the Java type of tasks produced by this iterator
  */
 class OffsetsAwareSplitScanTaskIterator<T extends ScanTask> implements SplitScanTaskIterator<T> {
-  private static final Ordering<Comparable<Long>> OFFSET_ORDERING = Ordering.natural();
-
   private final T parentTask;
   private final SplitScanTaskCreator<T> splitTaskCreator;
-  private final List<Long> offsets;
-  private final List<Long> splitSizes;
+  private final long[] offsets;
+  private final long[] splitSizes;
   private int splitIndex = 0;
 
   OffsetsAwareSplitScanTaskIterator(
       T parentTask,
       long parentTaskLength,
-      List<Long> offsetList,
+      List<Long> offsets,
       SplitScanTaskCreator<T> splitTaskCreator) {
-    Preconditions.checkArgument(
-        OFFSET_ORDERING.isStrictlyOrdered(offsetList), "Offsets must be sorted in asc order");
+    this(parentTask, parentTaskLength, ArrayUtil.toLongArray(offsets), splitTaskCreator);
+  }
 
+  OffsetsAwareSplitScanTaskIterator(
+      T parentTask,
+      long parentTaskLength,
+      long[] offsets,
+      SplitScanTaskCreator<T> splitTaskCreator) {
     this.parentTask = parentTask;
     this.splitTaskCreator = splitTaskCreator;
-    this.offsets = ImmutableList.copyOf(offsetList);
-    this.splitSizes = Lists.newArrayListWithCapacity(offsets.size());
-    if (offsets.size() > 0) {
-      int lastIndex = offsets.size() - 1;
+    this.offsets = offsets;
+    this.splitSizes = new long[offsets.length];
+    if (offsets.length > 0) {
+      int lastIndex = offsets.length - 1;
       for (int index = 0; index < lastIndex; index++) {
-        splitSizes.add(offsets.get(index + 1) - offsets.get(index));
+        splitSizes[index] = offsets[index + 1] - offsets[index];
       }
-      splitSizes.add(parentTaskLength - offsets.get(lastIndex));
+      splitSizes[lastIndex] = parentTaskLength - offsets[lastIndex];
     }
   }
 
   @Override
   public boolean hasNext() {
-    return splitIndex < splitSizes.size();
+    return splitIndex < splitSizes.length;
   }
 
   @Override
@@ -70,8 +70,8 @@ class OffsetsAwareSplitScanTaskIterator<T extends ScanTask> implements SplitScan
     if (!hasNext()) {
       throw new NoSuchElementException();
     }
-    long offset = offsets.get(splitIndex);
-    long splitSize = splitSizes.get(splitIndex);
+    long offset = offsets[splitIndex];
+    long splitSize = splitSizes[splitIndex];
     splitIndex += 1; // create 1 split per offset
     return splitTaskCreator.create(parentTask, offset, splitSize);
   }

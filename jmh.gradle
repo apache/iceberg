@@ -17,43 +17,51 @@
  * under the License.
  */
 
-if (jdkVersion != '8' && jdkVersion != '11') {
-  throw new GradleException("The JMH benchamrks must be run with JDK 8 or JDK 11")
+if (jdkVersion != '8' && jdkVersion != '11' && jdkVersion != '17') {
+  throw new GradleException("The JMH benchmarks must be run with JDK 8 or JDK 11 or JDK 17")
 }
 
 def sparkVersions = (System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")).split(",")
 def scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
-def jmhProjects = [project(":iceberg-core")]
-
-if (jdkVersion == '8' && sparkVersions.contains("2.4")) {
-  jmhProjects.add(project(":iceberg-spark:iceberg-spark-2.4"))
-}
-
-if (sparkVersions.contains("3.1")) {
-  jmhProjects.add(project(":iceberg-spark:iceberg-spark-3.1_2.12"))
-}
-
-if (sparkVersions.contains("3.2")) {
-  jmhProjects.add(project(":iceberg-spark:iceberg-spark-3.2_${scalaVersion}"))
-}
+def jmhProjects = [project(":iceberg-core"), project(":iceberg-data")]
 
 if (sparkVersions.contains("3.3")) {
   jmhProjects.add(project(":iceberg-spark:iceberg-spark-3.3_${scalaVersion}"))
+  jmhProjects.add(project(":iceberg-spark:iceberg-spark-extensions-3.3_${scalaVersion}"))
 }
 
-jmhProjects.add(project(":iceberg-data"))
+if (sparkVersions.contains("3.4")) {
+  jmhProjects.add(project(":iceberg-spark:iceberg-spark-3.4_${scalaVersion}"))
+  jmhProjects.add(project(":iceberg-spark:iceberg-spark-extensions-3.4_${scalaVersion}"))
+}
+
+if (sparkVersions.contains("3.5")) {
+  jmhProjects.add(project(":iceberg-spark:iceberg-spark-3.5_${scalaVersion}"))
+  jmhProjects.add(project(":iceberg-spark:iceberg-spark-extensions-3.5_${scalaVersion}"))
+}
 
 configure(jmhProjects) {
   apply plugin: 'me.champeau.jmh'
+  apply plugin: 'io.morethan.jmhreport'
+
+  def jmhReportDir = project.property("jmhJsonOutputPath").toString().replace(".json", "")
+  mkdir(file(jmhReportDir))
 
   jmh {
-    jmhVersion = '1.32'
+    jmhVersion = '1.37'
     failOnError = true
     forceGC = true
     includeTests = true
     humanOutputFile = file(jmhOutputPath)
+    resultsFile = file(jmhJsonOutputPath)
+    resultFormat = 'JSON'
     includes = [jmhIncludeRegex]
     zip64 = true
+  }
+
+  jmhReport {
+    jmhResultPath = file(jmhJsonOutputPath)
+    jmhReportOutput = file(jmhReportDir)
   }
 
   jmhCompileGeneratedClasses {
@@ -61,4 +69,6 @@ configure(jmhProjects) {
       options.errorprone.enabled = false
     }
   }
+
+  tasks.jmh.finalizedBy tasks.jmhReport
 }

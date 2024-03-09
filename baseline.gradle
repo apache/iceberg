@@ -24,6 +24,11 @@ allprojects {
 }
 
 subprojects {
+  if (it.name == 'iceberg-bom') {
+    // the BOM does not build anything, the below plugins are not necessary (and can fail)
+    return
+  }
+
   // Currently, if any subproject applies the blanket Baseline plugin, it forces the Baseline plugin
   // to be applied to ALL projects. And we are not prepared to address all of the build errors that
   // occur as a result at this time. Furthermore, baseline-format will not work out of the box for
@@ -41,6 +46,15 @@ subprojects {
   apply plugin: 'com.palantir.baseline-exact-dependencies'
   apply plugin: 'com.palantir.baseline-release-compatibility'
   apply plugin: 'com.diffplug.spotless'
+
+  pluginManager.withPlugin('com.palantir.baseline-checkstyle') {
+    checkstyle {
+      // com.palantir.baseline:gradle-baseline-java:4.42.0 (the last version supporting Java 8) pulls
+      // in an old version of the checkstyle(9.1), which has this OutOfMemory bug https://github.com/checkstyle/checkstyle/issues/10934.
+      // So, override its checkstyle version using CheckstyleExtension to 9.3 (the latest java 8 supported version) which contains a fix.
+      toolVersion '9.3'
+    }
+  }
 
   pluginManager.withPlugin('com.diffplug.spotless') {
     spotless {
@@ -84,6 +98,14 @@ subprojects {
           // Enforce hashCode over hash
           '-Xep:ObjectsHashCodeUnnecessaryVarargs:ERROR',
           '-Xep:PreferSafeLogger:OFF',
+          // Enforce safe string splitting
+          '-Xep:StringSplitter:ERROR',
+          // Enforce missing override
+          '-Xep:MissingOverride:ERROR',
+          '-Xep:IntLongMath:ERROR',
+          '-Xep:MissingSummary:ERROR',
+          '-Xep:AnnotateFormatMethod:ERROR',
+          '-Xep:CollectionUndefinedEquality:ERROR',
       )
     }
   }

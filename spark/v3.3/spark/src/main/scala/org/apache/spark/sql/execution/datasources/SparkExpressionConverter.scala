@@ -22,9 +22,12 @@ package org.apache.spark.sql.execution.datasources
 import org.apache.iceberg.spark.SparkFilters
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.plans.logical.Filter
-import org.apache.spark.sql.execution.CommandExecutionMode
+import org.apache.spark.sql.catalyst.plans.logical.LeafNode
+import org.apache.spark.sql.catalyst.plans.logical.LocalRelation
 
 object SparkExpressionConverter {
 
@@ -32,20 +35,31 @@ object SparkExpressionConverter {
     // Currently, it is a double conversion as we are converting Spark expression to Spark filter
     // and then converting Spark filter to Iceberg expression.
     // But these two conversions already exist and well tested. So, we are going with this approach.
-    SparkFilters.convert(DataSourceStrategy.translateFilter(sparkExpression, supportNestedPredicatePushdown = true).get)
+    DataSourceStrategy.translateFilter(sparkExpression, supportNestedPredicatePushdown = true) match {
+      case Some(filter) =>
+        val converted = SparkFilters.convert(filter)
+        if (converted == null) {
+          throw new IllegalArgumentException(s"Cannot convert Spark filter: $filter to Iceberg expression")
+        }
+
+        converted
+      case _ =>
+        throw new IllegalArgumentException(s"Cannot translate Spark expression: $sparkExpression to data source filter")
+    }
   }
 
   @throws[AnalysisException]
   def collectResolvedSparkExpression(session: SparkSession, tableName: String, where: String): Expression = {
-    var expression: Expression = null
-    // Add a dummy prefix linking to the table to collect the resolved spark expression from optimized plan.
-    val prefix = String.format("SELECT 42 from %s where ", tableName)
-    val logicalPlan = session.sessionState.sqlParser.parsePlan(prefix + where)
-    val optimizedLogicalPlan = session.sessionState.executePlan(logicalPlan, CommandExecutionMode.ALL).optimizedPlan
+    val tableAttrs = session.table(tableName).queryExecution.analyzed.output
+    val unresolvedExpression = session.sessionState.sqlParser.parseExpression(where)
+    val filter = Filter(unresolvedExpression, DummyRelation(tableAttrs))
+    val optimizedLogicalPlan = session.sessionState.executePlan(filter).optimizedPlan
     optimizedLogicalPlan.collectFirst {
-      case filter: Filter =>
-        expression = filter.expressions.head
-    }
-    expression
+      case filter: Filter => filter.condition
+      case dummyRelation: DummyRelation => Literal.TrueLiteral
+      case localRelation: LocalRelation => Literal.FalseLiteral
+    }.getOrElse(throw new AnalysisException("Failed to find filter expression"))
   }
+
+  case class DummyRelation(output: Seq[Attribute]) extends LeafNode
 }

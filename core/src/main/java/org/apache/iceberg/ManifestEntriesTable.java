@@ -29,17 +29,17 @@ import org.apache.iceberg.io.CloseableIterable;
  */
 public class ManifestEntriesTable extends BaseEntriesTable {
 
-  ManifestEntriesTable(TableOperations ops, Table table) {
-    this(ops, table, table.name() + ".entries");
+  ManifestEntriesTable(Table table) {
+    this(table, table.name() + ".entries");
   }
 
-  ManifestEntriesTable(TableOperations ops, Table table, String name) {
-    super(ops, table, name);
+  ManifestEntriesTable(Table table, String name) {
+    super(table, name);
   }
 
   @Override
   public TableScan newScan() {
-    return new EntriesTableScan(operations(), table(), schema());
+    return new EntriesTableScan(table(), schema());
   }
 
   @Override
@@ -49,25 +49,23 @@ public class ManifestEntriesTable extends BaseEntriesTable {
 
   private static class EntriesTableScan extends BaseMetadataTableScan {
 
-    EntriesTableScan(TableOperations ops, Table table, Schema schema) {
-      super(ops, table, schema, MetadataTableType.ENTRIES);
+    EntriesTableScan(Table table, Schema schema) {
+      super(table, schema, MetadataTableType.ENTRIES);
     }
 
-    private EntriesTableScan(
-        TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      super(ops, table, schema, MetadataTableType.ENTRIES, context);
+    private EntriesTableScan(Table table, Schema schema, TableScanContext context) {
+      super(table, schema, MetadataTableType.ENTRIES, context);
     }
 
     @Override
-    protected TableScan newRefinedScan(
-        TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      return new EntriesTableScan(ops, table, schema, context);
+    protected TableScan newRefinedScan(Table table, Schema schema, TableScanContext context) {
+      return new EntriesTableScan(table, schema, context);
     }
 
     @Override
     protected CloseableIterable<FileScanTask> doPlanFiles() {
       CloseableIterable<ManifestFile> manifests =
-          CloseableIterable.withNoopClose(snapshot().allManifests(tableOps().io()));
+          CloseableIterable.withNoopClose(snapshot().allManifests(table().io()));
       return BaseEntriesTable.planFiles(table(), manifests, tableSchema(), schema(), context());
     }
   }

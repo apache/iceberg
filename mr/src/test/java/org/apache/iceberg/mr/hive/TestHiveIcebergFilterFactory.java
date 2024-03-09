@@ -18,12 +18,15 @@
  */
 package org.apache.iceberg.mr.hive;
 
-import static org.junit.Assert.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.LocalDate;
+import java.util.Collections;
+import java.util.List;
+import org.apache.hadoop.hive.ql.io.sarg.ExpressionTree;
 import org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgumentFactory;
@@ -36,7 +39,8 @@ import org.apache.iceberg.expressions.Or;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
-import org.junit.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 public class TestHiveIcebergFilterFactory {
 
@@ -78,10 +82,10 @@ public class TestHiveIcebergFilterFactory {
     UnboundPredicate childExpressionActual = (UnboundPredicate) actual.child();
     UnboundPredicate childExpressionExpected = Expressions.equal("salary", 3000L);
 
-    assertEquals(actual.op(), expected.op());
-    assertEquals(actual.child().op(), expected.child().op());
-    assertEquals(childExpressionActual.ref().name(), childExpressionExpected.ref().name());
-    assertEquals(childExpressionActual.literal(), childExpressionExpected.literal());
+    assertThat(expected.op()).isEqualTo(actual.op());
+    assertThat(expected.child().op()).isEqualTo(actual.child().op());
+    assertThat(childExpressionExpected.ref().name()).isEqualTo(childExpressionActual.ref().name());
+    assertThat(childExpressionExpected.literal()).isEqualTo(childExpressionActual.literal());
   }
 
   @Test
@@ -94,9 +98,9 @@ public class TestHiveIcebergFilterFactory {
     UnboundPredicate actual =
         (UnboundPredicate) HiveIcebergFilterFactory.generateFilterExpression(arg);
 
-    assertEquals(actual.op(), expected.op());
-    assertEquals(actual.literal(), expected.literal());
-    assertEquals(actual.ref().name(), expected.ref().name());
+    assertThat(expected.op()).isEqualTo(actual.op());
+    assertThat(expected.literal()).isEqualTo(actual.literal());
+    assertThat(expected.ref().name()).isEqualTo(actual.ref().name());
   }
 
   @Test
@@ -122,9 +126,9 @@ public class TestHiveIcebergFilterFactory {
     UnboundPredicate actual =
         (UnboundPredicate) HiveIcebergFilterFactory.generateFilterExpression(arg);
 
-    assertEquals(actual.op(), expected.op());
-    assertEquals(actual.literals(), expected.literals());
-    assertEquals(actual.ref().name(), expected.ref().name());
+    assertThat(expected.op()).isEqualTo(actual.op());
+    assertThat(expected.literals()).isEqualTo(actual.literals());
+    assertThat(expected.ref().name()).isEqualTo(actual.ref().name());
   }
 
   @Test
@@ -140,9 +144,24 @@ public class TestHiveIcebergFilterFactory {
                 Expressions.lessThanOrEqual("salary", 3000L));
     And actual = (And) HiveIcebergFilterFactory.generateFilterExpression(arg);
 
-    assertEquals(actual.op(), expected.op());
-    assertEquals(actual.left().op(), expected.left().op());
-    assertEquals(actual.right().op(), expected.right().op());
+    assertThat(expected.op()).isEqualTo(actual.op());
+    assertThat(expected.left().op()).isEqualTo(actual.left().op());
+    assertThat(expected.right().op()).isEqualTo(actual.right().op());
+  }
+
+  @Test
+  public void testUnsupportedBetweenOperandEmptyLeaves() {
+    SearchArgument.Builder builder = SearchArgumentFactory.newBuilder();
+    final SearchArgument arg =
+        new MockSearchArgument(
+            builder
+                .startAnd()
+                .between("salary", PredicateLeaf.Type.LONG, 9000L, 15000L)
+                .end()
+                .build());
+    Assertions.assertThatThrownBy(() -> HiveIcebergFilterFactory.generateFilterExpression(arg))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Missing leaf literals: Leaf[empty]");
   }
 
   @Test
@@ -154,8 +173,8 @@ public class TestHiveIcebergFilterFactory {
     UnboundPredicate actual =
         (UnboundPredicate) HiveIcebergFilterFactory.generateFilterExpression(arg);
 
-    assertEquals(actual.op(), expected.op());
-    assertEquals(actual.ref().name(), expected.ref().name());
+    assertThat(expected.op()).isEqualTo(actual.op());
+    assertThat(expected.ref().name()).isEqualTo(actual.ref().name());
   }
 
   @Test
@@ -174,9 +193,9 @@ public class TestHiveIcebergFilterFactory {
             Expressions.and(Expressions.equal("salary", 3000L), Expressions.equal("salary", 4000L));
     And actual = (And) HiveIcebergFilterFactory.generateFilterExpression(arg);
 
-    assertEquals(actual.op(), expected.op());
-    assertEquals(actual.left().op(), expected.left().op());
-    assertEquals(actual.right().op(), expected.right().op());
+    assertThat(expected.op()).isEqualTo(actual.op());
+    assertThat(expected.left().op()).isEqualTo(actual.left().op());
+    assertThat(expected.right().op()).isEqualTo(actual.right().op());
   }
 
   @Test
@@ -194,9 +213,9 @@ public class TestHiveIcebergFilterFactory {
         (Or) Expressions.or(Expressions.equal("salary", 3000L), Expressions.equal("salary", 4000L));
     Or actual = (Or) HiveIcebergFilterFactory.generateFilterExpression(arg);
 
-    assertEquals(actual.op(), expected.op());
-    assertEquals(actual.left().op(), expected.left().op());
-    assertEquals(actual.right().op(), expected.right().op());
+    assertThat(expected.op()).isEqualTo(actual.op());
+    assertThat(expected.left().op()).isEqualTo(actual.left().op());
+    assertThat(expected.right().op()).isEqualTo(actual.right().op());
   }
 
   @Test
@@ -289,8 +308,63 @@ public class TestHiveIcebergFilterFactory {
   }
 
   private void assertPredicatesMatch(UnboundPredicate expected, UnboundPredicate actual) {
-    assertEquals(expected.op(), actual.op());
-    assertEquals(expected.literal(), actual.literal());
-    assertEquals(expected.ref().name(), actual.ref().name());
+    assertThat(actual.op()).isEqualTo(expected.op());
+    assertThat(actual.literal()).isEqualTo(expected.literal());
+    assertThat(actual.ref().name()).isEqualTo(expected.ref().name());
+  }
+
+  private static class MockSearchArgument implements SearchArgument {
+
+    private final SearchArgument delegate;
+
+    MockSearchArgument(SearchArgument original) {
+      delegate = original;
+    }
+
+    @Override
+    public ExpressionTree getExpression() {
+      return delegate.getExpression();
+    }
+
+    @Override
+    public TruthValue evaluate(TruthValue[] leaves) {
+      return delegate.evaluate(leaves);
+    }
+
+    @Override
+    public List<PredicateLeaf> getLeaves() {
+      return Collections.singletonList(
+          new PredicateLeaf() {
+            @Override
+            public Operator getOperator() {
+              return Operator.BETWEEN;
+            }
+
+            @Override
+            public Type getType() {
+              return Type.LONG;
+            }
+
+            @Override
+            public String getColumnName() {
+              return "salary";
+            }
+
+            @Override
+            public Object getLiteral() {
+              return null;
+            }
+
+            @Override
+            public List<Object> getLiteralList() {
+              return Collections.emptyList();
+            }
+
+            @Override
+            public String toString() {
+              return "Leaf[empty]";
+            }
+          });
+    }
   }
 }

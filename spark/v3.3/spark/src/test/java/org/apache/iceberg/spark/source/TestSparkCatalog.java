@@ -26,12 +26,13 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.connector.catalog.FunctionCatalog;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 
-public class TestSparkCatalog<T extends TableCatalog & SupportsNamespaces>
+public class TestSparkCatalog<T extends TableCatalog & FunctionCatalog & SupportsNamespaces>
     extends SparkSessionCatalog<T> {
 
   private static final Map<Identifier, Table> tableMap = Maps.newHashMap();

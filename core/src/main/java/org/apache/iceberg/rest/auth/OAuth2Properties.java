@@ -27,6 +27,9 @@ public class OAuth2Properties {
   /** A credential to exchange for a token in the OAuth2 client credentials flow. */
   public static final String CREDENTIAL = "credential";
 
+  /** Token endpoint URI to fetch token from if the Rest Catalog is not the authorization server. */
+  public static final String OAUTH2_SERVER_URI = "oauth2-server-uri";
+
   /**
    * Interval in milliseconds to wait before attempting to exchange the configured catalog Bearer
    * token. By default, token exchange will be attempted after 1 hour.
@@ -34,6 +37,14 @@ public class OAuth2Properties {
   public static final String TOKEN_EXPIRES_IN_MS = "token-expires-in-ms";
 
   public static final long TOKEN_EXPIRES_IN_MS_DEFAULT = 3_600_000; // 1 hour
+
+  /**
+   * Controls whether a token should be refreshed if information about its expiration time is
+   * available
+   */
+  public static final String TOKEN_REFRESH_ENABLED = "token-refresh-enabled";
+
+  public static final boolean TOKEN_REFRESH_ENABLED_DEFAULT = true;
 
   /** Additional scope for OAuth2. */
   public static final String SCOPE = "scope";

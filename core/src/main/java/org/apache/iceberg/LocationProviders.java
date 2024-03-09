@@ -18,14 +18,16 @@
  */
 package org.apache.iceberg;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
-import java.util.function.Function;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.transforms.Transforms;
-import org.apache.iceberg.types.Types;
+import org.apache.iceberg.relocated.com.google.common.hash.HashCode;
+import org.apache.iceberg.relocated.com.google.common.hash.HashFunction;
+import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
+import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
@@ -104,9 +106,10 @@ public class LocationProviders {
   }
 
   static class ObjectStoreLocationProvider implements LocationProvider {
-    private static final Function<Object, Integer> HASH_FUNC =
-        Transforms.bucket(Integer.MAX_VALUE).bind(Types.StringType.get());
 
+    private static final HashFunction HASH_FUNC = Hashing.murmur3_32_fixed();
+    private static final BaseEncoding BASE64_ENCODER = BaseEncoding.base64Url().omitPadding();
+    private static final ThreadLocal<byte[]> TEMP = ThreadLocal.withInitial(() -> new byte[4]);
     private final String storageLocation;
     private final String context;
 
@@ -143,11 +146,11 @@ public class LocationProviders {
 
     @Override
     public String newDataLocation(String filename) {
-      int hash = HASH_FUNC.apply(filename);
+      String hash = computeHash(filename);
       if (context != null) {
-        return String.format("%s/%08x/%s/%s", storageLocation, hash, context, filename);
+        return String.format("%s/%s/%s/%s", storageLocation, hash, context, filename);
       } else {
-        return String.format("%s/%08x/%s", storageLocation, hash, filename);
+        return String.format("%s/%s/%s", storageLocation, hash, filename);
       }
     }
 
@@ -166,6 +169,13 @@ public class LocationProviders {
           !resolvedContext.endsWith("/"), "Path context must not end with a slash.");
 
       return resolvedContext;
+    }
+
+    private String computeHash(String fileName) {
+      byte[] bytes = TEMP.get();
+      HashCode hash = HASH_FUNC.hashString(fileName, StandardCharsets.UTF_8);
+      hash.writeBytesTo(bytes, 0, 4);
+      return BASE64_ENCODER.encode(bytes);
     }
   }
 }

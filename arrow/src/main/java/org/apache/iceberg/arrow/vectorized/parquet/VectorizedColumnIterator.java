@@ -144,6 +144,20 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     }
   }
 
+  public class TimestampInt96BatchReader extends BatchReader {
+    @Override
+    protected int nextBatchOf(
+        final FieldVector vector,
+        final int expectedBatchSize,
+        final int numValsInVector,
+        final int typeWidth,
+        NullabilityHolder holder) {
+      return vectorizedPageIterator
+          .timestampInt96PageReader()
+          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
+    }
+  }
+
   public class FloatBatchReader extends BatchReader {
     @Override
     protected int nextBatchOf(
@@ -168,48 +182,6 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
         NullabilityHolder holder) {
       return vectorizedPageIterator
           .doublePageReader()
-          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
-    }
-  }
-
-  public class IntBackedDecimalBatchReader extends BatchReader {
-    @Override
-    protected int nextBatchOf(
-        final FieldVector vector,
-        final int expectedBatchSize,
-        final int numValsInVector,
-        final int typeWidth,
-        NullabilityHolder holder) {
-      return vectorizedPageIterator
-          .intBackedDecimalPageReader()
-          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
-    }
-  }
-
-  public class LongBackedDecimalBatchReader extends BatchReader {
-    @Override
-    protected int nextBatchOf(
-        final FieldVector vector,
-        final int expectedBatchSize,
-        final int numValsInVector,
-        final int typeWidth,
-        NullabilityHolder holder) {
-      return vectorizedPageIterator
-          .longBackedDecimalPageReader()
-          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
-    }
-  }
-
-  public class FixedLengthDecimalBatchReader extends BatchReader {
-    @Override
-    protected int nextBatchOf(
-        final FieldVector vector,
-        final int expectedBatchSize,
-        final int numValsInVector,
-        final int typeWidth,
-        NullabilityHolder holder) {
-      return vectorizedPageIterator
-          .fixedLengthDecimalPageReader()
           .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
     }
   }
@@ -286,24 +258,16 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     return new TimestampMillisBatchReader();
   }
 
+  public TimestampInt96BatchReader timestampInt96BatchReader() {
+    return new TimestampInt96BatchReader();
+  }
+
   public FloatBatchReader floatBatchReader() {
     return new FloatBatchReader();
   }
 
   public DoubleBatchReader doubleBatchReader() {
     return new DoubleBatchReader();
-  }
-
-  public IntBackedDecimalBatchReader intBackedDecimalBatchReader() {
-    return new IntBackedDecimalBatchReader();
-  }
-
-  public LongBackedDecimalBatchReader longBackedDecimalBatchReader() {
-    return new LongBackedDecimalBatchReader();
-  }
-
-  public FixedLengthDecimalBatchReader fixedLengthDecimalBatchReader() {
-    return new FixedLengthDecimalBatchReader();
   }
 
   public FixedSizeBinaryBatchReader fixedSizeBinaryBatchReader() {

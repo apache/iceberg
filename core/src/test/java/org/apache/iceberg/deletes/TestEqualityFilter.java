@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.deletes;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.List;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.Schema;
@@ -27,8 +29,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestEqualityFilter {
   private static final Schema ROW_SCHEMA =
@@ -63,14 +64,14 @@ public class TestEqualityFilter {
             Row.of(7L, "g", "grizzly"),
             Row.of(8L, "h", null));
 
-    Assert.assertEquals(
-        "Filter should produce expected rows",
-        expected,
+    List<StructLike> actual =
         Lists.newArrayList(
             Deletes.filter(
                 ROWS,
                 row -> Row.of(row.get(0, Long.class)),
-                Deletes.toEqualitySet(deletes, ROW_SCHEMA.select("id").asStruct()))));
+                Deletes.toEqualitySet(deletes, ROW_SCHEMA.select("id").asStruct())));
+
+    assertThat(actual).as("Filter should produce expected rows").isEqualTo(expected);
   }
 
   @Test
@@ -86,14 +87,14 @@ public class TestEqualityFilter {
             Row.of(6L, "f", new Utf8("teddy")),
             Row.of(7L, "g", "grizzly"));
 
-    Assert.assertEquals(
-        "Filter should produce expected rows",
-        expected,
+    List<StructLike> actual =
         Lists.newArrayList(
             Deletes.filter(
                 ROWS,
                 row -> Row.of(row.get(1, CharSequence.class)),
-                Deletes.toEqualitySet(deletes, ROW_SCHEMA.select("name").asStruct()))));
+                Deletes.toEqualitySet(deletes, ROW_SCHEMA.select("name").asStruct())));
+
+    assertThat(actual).as("Filter should produce expected rows").isEqualTo(expected);
   }
 
   @Test
@@ -111,14 +112,14 @@ public class TestEqualityFilter {
             Row.of(6L, "f", new Utf8("teddy")),
             Row.of(7L, "g", "grizzly"));
 
-    Assert.assertEquals(
-        "Filter should produce expected rows",
-        expected,
+    List<StructLike> actual =
         Lists.newArrayList(
             Deletes.filter(
                 ROWS,
                 row -> Row.of(row.get(2, CharSequence.class)),
-                Deletes.toEqualitySet(deletes, ROW_SCHEMA.select("description").asStruct()))));
+                Deletes.toEqualitySet(deletes, ROW_SCHEMA.select("description").asStruct())));
+
+    assertThat(actual).as("Filter should produce expected rows").isEqualTo(expected);
   }
 
   @Test
@@ -136,14 +137,13 @@ public class TestEqualityFilter {
             Row.of(6L, "f", new Utf8("teddy")),
             Row.of(7L, "g", "grizzly"));
 
-    Assert.assertEquals(
-        "Filter should produce expected rows",
-        expected,
+    List<StructLike> actual =
         Lists.newArrayList(
             Deletes.filter(
                 ROWS,
                 row -> Row.of(row.get(0, Long.class), row.get(2, CharSequence.class)),
-                Deletes.toEqualitySet(
-                    deletes, ROW_SCHEMA.select("id", "description").asStruct()))));
+                Deletes.toEqualitySet(deletes, ROW_SCHEMA.select("id", "description").asStruct())));
+
+    assertThat(actual).as("Filter should produce expected rows").isEqualTo(expected);
   }
 }

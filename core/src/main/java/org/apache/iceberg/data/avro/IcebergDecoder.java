@@ -20,22 +20,18 @@ package org.apache.iceberg.data.avro;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Map;
 import org.apache.avro.AvroRuntimeException;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaNormalization;
-import org.apache.avro.io.BinaryDecoder;
-import org.apache.avro.io.DatumReader;
-import org.apache.avro.io.DecoderFactory;
 import org.apache.avro.message.BadHeaderException;
 import org.apache.avro.message.MessageDecoder;
 import org.apache.avro.message.MissingSchemaException;
 import org.apache.avro.message.SchemaStore;
 import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.avro.ProjectionDatumReader;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
 
 public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
@@ -106,7 +102,10 @@ public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
 
   private void addSchema(Schema writeSchema) {
     long fp = SchemaNormalization.parsingFingerprint64(writeSchema);
-    decoders.put(fp, new RawDecoder<>(readSchema, writeSchema));
+    RawDecoder decoder =
+        new RawDecoder<>(
+            readSchema, avroSchema -> DataReader.create(readSchema, avroSchema), writeSchema);
+    decoders.put(fp, decoder);
   }
 
   private RawDecoder<D> getDecoder(long fp) {
@@ -144,44 +143,10 @@ public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
 
     RawDecoder<D> decoder = getDecoder(FP_BUFFER.get().getLong(2));
 
-    return decoder.decode(stream, reuse);
-  }
-
-  private static class RawDecoder<D> extends MessageDecoder.BaseDecoder<D> {
-    private static final ThreadLocal<BinaryDecoder> DECODER = new ThreadLocal<>();
-
-    private final DatumReader<D> reader;
-
-    /**
-     * Creates a new {@link MessageDecoder} that constructs datum instances described by the {@link
-     * Schema readSchema}.
-     *
-     * <p>The {@code readSchema} is used for the expected schema and the {@code writeSchema} is the
-     * schema used to decode buffers. The {@code writeSchema} must be the schema that was used to
-     * encode all buffers decoded by this class.
-     *
-     * @param readSchema the schema used to construct datum instances
-     * @param writeSchema the schema used to decode buffers
-     */
-    private RawDecoder(org.apache.iceberg.Schema readSchema, Schema writeSchema) {
-      this.reader =
-          new ProjectionDatumReader<>(
-              avroSchema -> DataReader.create(readSchema, avroSchema),
-              readSchema,
-              ImmutableMap.of(),
-              null);
-      this.reader.setSchema(writeSchema);
-    }
-
-    @Override
-    public D decode(InputStream stream, D reuse) {
-      BinaryDecoder decoder = DecoderFactory.get().directBinaryDecoder(stream, DECODER.get());
-      DECODER.set(decoder);
-      try {
-        return reader.read(reuse, decoder);
-      } catch (IOException e) {
-        throw new AvroRuntimeException("Decoding datum failed", e);
-      }
+    try {
+      return decoder.decode(stream, reuse);
+    } catch (UncheckedIOException e) {
+      throw new AvroRuntimeException(e);
     }
   }
 

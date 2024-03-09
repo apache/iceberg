@@ -20,8 +20,8 @@ package org.apache.iceberg.flink.source.reader;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayDeque;
 import java.util.Collections;
+import java.util.List;
 import java.util.Queue;
 import org.apache.flink.api.connector.source.SourceReaderContext;
 import org.apache.flink.connector.base.source.reader.RecordsBySplits;
@@ -31,7 +31,10 @@ import org.apache.flink.connector.base.source.reader.splitreader.SplitsAddition;
 import org.apache.flink.connector.base.source.reader.splitreader.SplitsChange;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
+import org.apache.iceberg.flink.source.split.SerializableComparator;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,6 +43,7 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
 
   private final IcebergSourceReaderMetrics metrics;
   private final ReaderFunction<T> openSplitFunction;
+  private final SerializableComparator<IcebergSourceSplit> splitComparator;
   private final int indexOfSubtask;
   private final Queue<IcebergSourceSplit> splits;
 
@@ -50,13 +54,24 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
   IcebergSourceSplitReader(
       IcebergSourceReaderMetrics metrics,
       ReaderFunction<T> openSplitFunction,
+      SerializableComparator<IcebergSourceSplit> splitComparator,
       SourceReaderContext context) {
     this.metrics = metrics;
     this.openSplitFunction = openSplitFunction;
+    this.splitComparator = splitComparator;
     this.indexOfSubtask = context.getIndexOfSubtask();
-    this.splits = new ArrayDeque<>();
+    this.splits = Queues.newArrayDeque();
   }
 
+  /**
+   * The method reads a batch of records from the assigned splits. If all the records from the
+   * current split are returned then it will emit a {@link ArrayBatchRecords#finishedSplit(String)}
+   * batch to signal this event. In the next fetch loop the reader will continue with the next split
+   * (if any).
+   *
+   * @return The fetched records
+   * @throws IOException If there is an error during reading
+   */
   @Override
   public RecordsWithSplitIds<RecordAndPosition<T>> fetch() throws IOException {
     metrics.incrementSplitReaderFetchCalls(1);
@@ -93,8 +108,15 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
           String.format("Unsupported split change: %s", splitsChange.getClass()));
     }
 
-    LOG.info("Add {} splits to reader", splitsChange.splits().size());
-    splits.addAll(splitsChange.splits());
+    if (splitComparator != null) {
+      List<IcebergSourceSplit> newSplits = Lists.newArrayList(splitsChange.splits());
+      newSplits.sort(splitComparator);
+      LOG.info("Add {} splits to reader: {}", newSplits.size(), newSplits);
+      splits.addAll(newSplits);
+    } else {
+      LOG.info("Add {} splits to reader", splitsChange.splits().size());
+      splits.addAll(splitsChange.splits());
+    }
     metrics.incrementAssignedSplits(splitsChange.splits().size());
     metrics.incrementAssignedBytes(calculateBytes(splitsChange));
   }

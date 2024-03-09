@@ -31,6 +31,7 @@ import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
+import static org.apache.iceberg.expressions.Expressions.year;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
@@ -58,8 +59,8 @@ import org.apache.orc.storage.ql.io.sarg.SearchArgument;
 import org.apache.orc.storage.ql.io.sarg.SearchArgument.TruthValue;
 import org.apache.orc.storage.ql.io.sarg.SearchArgumentFactory;
 import org.apache.orc.storage.serde2.io.HiveDecimalWritable;
-import org.junit.Assert;
-import org.junit.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 public class TestExpressionToSearchArgument {
 
@@ -134,7 +135,7 @@ public class TestExpressionToSearchArgument {
 
     SearchArgument actual =
         ExpressionToSearchArgument.convert(boundFilter, ORCSchemaUtil.convert(schema));
-    Assert.assertEquals(expected.toString(), actual.toString());
+    Assertions.assertThat(actual.toString()).isEqualTo(expected.toString());
   }
 
   @Test
@@ -174,7 +175,7 @@ public class TestExpressionToSearchArgument {
 
         SearchArgument actual =
             ExpressionToSearchArgument.convert(boundFilter, ORCSchemaUtil.convert(schema));
-        Assert.assertEquals(expected.toString(), actual.toString());
+        Assertions.assertThat(actual.toString()).isEqualTo(expected.toString());
       }
     } finally {
       TimeZone.setDefault(currentTz);
@@ -212,7 +213,7 @@ public class TestExpressionToSearchArgument {
 
     SearchArgument actual =
         ExpressionToSearchArgument.convert(boundFilter, ORCSchemaUtil.convert(schema));
-    Assert.assertEquals(expected.toString(), actual.toString());
+    Assertions.assertThat(actual.toString()).isEqualTo(expected.toString());
   }
 
   @Test
@@ -261,7 +262,7 @@ public class TestExpressionToSearchArgument {
 
     SearchArgument actual =
         ExpressionToSearchArgument.convert(boundFilter, ORCSchemaUtil.convert(schema));
-    Assert.assertEquals(expected.toString(), actual.toString());
+    Assertions.assertThat(actual.toString()).isEqualTo(expected.toString());
   }
 
   @Test
@@ -291,7 +292,7 @@ public class TestExpressionToSearchArgument {
 
     SearchArgument actual =
         ExpressionToSearchArgument.convert(boundFilter, ORCSchemaUtil.convert(schema));
-    Assert.assertEquals(expected.toString(), actual.toString());
+    Assertions.assertThat(actual.toString()).isEqualTo(expected.toString());
   }
 
   @Test
@@ -315,7 +316,7 @@ public class TestExpressionToSearchArgument {
         SearchArgumentFactory.newBuilder().equals("`int`", Type.LONG, 1L).build();
 
     SearchArgument actual = ExpressionToSearchArgument.convert(boundFilter, readSchema);
-    Assert.assertEquals(expected.toString(), actual.toString());
+    Assertions.assertThat(actual.toString()).isEqualTo(expected.toString());
 
     // for columns not in the file, buildOrcProjection will append field names with _r<ID>
     // this will be passed down to ORC, but ORC will handle such cases and return a TruthValue
@@ -326,7 +327,7 @@ public class TestExpressionToSearchArgument {
         SearchArgumentFactory.newBuilder().equals("`float_added_r3`", Type.FLOAT, 1.0).build();
 
     actual = ExpressionToSearchArgument.convert(boundFilter, readSchema);
-    Assert.assertEquals(expected.toString(), actual.toString());
+    Assertions.assertThat(actual.toString()).isEqualTo(expected.toString());
   }
 
   @Test
@@ -352,7 +353,7 @@ public class TestExpressionToSearchArgument {
             .build();
 
     SearchArgument actual = ExpressionToSearchArgument.convert(boundFilter, readSchema);
-    Assert.assertEquals(expected.toString(), actual.toString());
+    Assertions.assertThat(actual.toString()).isEqualTo(expected.toString());
   }
 
   @Test
@@ -379,7 +380,7 @@ public class TestExpressionToSearchArgument {
         SearchArgumentFactory.newBuilder().equals("`int`", Type.LONG, 1L).build();
 
     SearchArgument actual = ExpressionToSearchArgument.convert(boundFilter, readSchema);
-    Assert.assertEquals(expected.toString(), actual.toString());
+    Assertions.assertThat(actual.toString()).isEqualTo(expected.toString());
 
     // for columns not in the file, buildOrcProjection will append field names with _r<ID>
     // this will be passed down to ORC, but ORC will handle such cases and return a TruthValue
@@ -390,7 +391,7 @@ public class TestExpressionToSearchArgument {
         SearchArgumentFactory.newBuilder().equals("`new_float_field_r3`", Type.FLOAT, 1.0).build();
 
     actual = ExpressionToSearchArgument.convert(boundFilter, readSchema);
-    Assert.assertEquals(expected.toString(), actual.toString());
+    Assertions.assertThat(actual.toString()).isEqualTo(expected.toString());
   }
 
   @Test
@@ -474,6 +475,21 @@ public class TestExpressionToSearchArgument {
             .build();
 
     SearchArgument actual = ExpressionToSearchArgument.convert(boundFilter, readSchema);
-    Assert.assertEquals(expected.toString(), actual.toString());
+    Assertions.assertThat(actual.toString()).isEqualTo(expected.toString());
+  }
+
+  @Test
+  public void testExpressionContainsNonReferenceTerm() {
+    Schema schema = new Schema(required(1, "ts", Types.TimestampType.withoutZone()));
+
+    // all operations for these types should resolve to YES_NO_NULL
+    Expression expr = equal(year("ts"), 10);
+    Expression boundFilter = Binder.bind(schema.asStruct(), expr, true);
+    SearchArgument expected =
+        SearchArgumentFactory.newBuilder().literal(TruthValue.YES_NO_NULL).build();
+
+    SearchArgument actual =
+        ExpressionToSearchArgument.convert(boundFilter, ORCSchemaUtil.convert(schema));
+    Assertions.assertThat(actual.toString()).isEqualTo(expected.toString());
   }
 }

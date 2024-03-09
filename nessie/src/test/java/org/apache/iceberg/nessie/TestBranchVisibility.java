@@ -20,6 +20,7 @@ package org.apache.iceberg.nessie;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import org.apache.avro.generic.GenericRecordBuilder;
@@ -37,6 +38,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
+import org.apache.iceberg.view.BaseView;
+import org.apache.iceberg.view.View;
 import org.assertj.core.api.AbstractStringAssert;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.InstanceOfAssertFactories;
@@ -66,7 +69,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
   public void before() throws NessieNotFoundException, NessieConflictException {
     createTable(tableIdentifier1, 1); // table 1
     createTable(tableIdentifier2, 1); // table 2
-    createBranch("test", catalog.currentHash());
+    createBranch("test");
     testCatalog = initCatalog("test");
   }
 
@@ -446,51 +449,57 @@ public class TestBranchVisibility extends BaseTestIceberg {
   @Test
   public void testWithRefAndHash() throws NessieConflictException, NessieNotFoundException {
     String testBranch = "testBranch";
-    createBranch(testBranch, null);
+    createBranch(testBranch);
     Schema schema =
         new Schema(Types.StructType.of(required(1, "id", Types.LongType.get())).fields());
 
     NessieCatalog nessieCatalog = initCatalog(testBranch);
     String hashBeforeNamespaceCreation = api.getReference().refName(testBranch).get().getHash();
-    Namespace namespace = Namespace.of("a", "b");
-    Assertions.assertThat(nessieCatalog.listNamespaces(namespace)).isEmpty();
+    Namespace namespaceA = Namespace.of("a");
+    Namespace namespaceAB = Namespace.of("a", "b");
+    Assertions.assertThat(nessieCatalog.listNamespaces(namespaceAB)).isEmpty();
 
-    nessieCatalog.createNamespace(namespace);
-    Assertions.assertThat(nessieCatalog.listNamespaces(namespace)).isNotEmpty();
-    Assertions.assertThat(nessieCatalog.listTables(namespace)).isEmpty();
+    createMissingNamespaces(
+        nessieCatalog, Namespace.of(Arrays.copyOf(namespaceAB.levels(), namespaceAB.length() - 1)));
+    nessieCatalog.createNamespace(namespaceAB);
+    Assertions.assertThat(nessieCatalog.listNamespaces(namespaceAB)).isEmpty();
+    Assertions.assertThat(nessieCatalog.listNamespaces(namespaceA)).containsExactly(namespaceAB);
+    Assertions.assertThat(nessieCatalog.listTables(namespaceAB)).isEmpty();
 
     NessieCatalog catalogAtHash1 = initCatalog(testBranch, hashBeforeNamespaceCreation);
-    Assertions.assertThat(catalogAtHash1.listNamespaces(namespace)).isEmpty();
-    Assertions.assertThat(catalogAtHash1.listTables(namespace)).isEmpty();
+    Assertions.assertThat(catalogAtHash1.listNamespaces(namespaceAB)).isEmpty();
+    Assertions.assertThat(catalogAtHash1.listTables(namespaceAB)).isEmpty();
 
-    TableIdentifier identifier = TableIdentifier.of(namespace, "table");
+    TableIdentifier identifier = TableIdentifier.of(namespaceAB, "table");
     String hashBeforeTableCreation = nessieCatalog.currentHash();
     nessieCatalog.createTable(identifier, schema);
-    Assertions.assertThat(nessieCatalog.listTables(namespace)).hasSize(1);
+    Assertions.assertThat(nessieCatalog.listTables(namespaceAB)).hasSize(1);
 
     NessieCatalog catalogAtHash2 = initCatalog(testBranch, hashBeforeTableCreation);
-    Assertions.assertThat(catalogAtHash2.listNamespaces(namespace)).isNotEmpty();
-    Assertions.assertThat(catalogAtHash2.listTables(namespace)).isEmpty();
+    Assertions.assertThat(catalogAtHash2.listNamespaces(namespaceAB)).isEmpty();
+    Assertions.assertThat(catalogAtHash2.listNamespaces(namespaceA)).containsExactly(namespaceAB);
+    Assertions.assertThat(catalogAtHash2.listTables(namespaceAB)).isEmpty();
 
     // updates should not be possible
     Assertions.assertThatThrownBy(() -> catalogAtHash2.createTable(identifier, schema))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("You can only mutate tables when using a branch without a hash or timestamp.");
-    Assertions.assertThat(catalogAtHash2.listTables(namespace)).isEmpty();
+        .hasMessage(
+            "You can only mutate tables/views when using a branch without a hash or timestamp.");
+    Assertions.assertThat(catalogAtHash2.listTables(namespaceAB)).isEmpty();
 
     // updates should be still possible here
     nessieCatalog = initCatalog(testBranch);
-    TableIdentifier identifier2 = TableIdentifier.of(namespace, "table2");
+    TableIdentifier identifier2 = TableIdentifier.of(namespaceAB, "table2");
     nessieCatalog.createTable(identifier2, schema);
-    Assertions.assertThat(nessieCatalog.listTables(namespace)).hasSize(2);
+    Assertions.assertThat(nessieCatalog.listTables(namespaceAB)).hasSize(2);
   }
 
   @Test
   public void testDifferentTableSameName() throws NessieConflictException, NessieNotFoundException {
     String branch1 = "branch1";
     String branch2 = "branch2";
-    createBranch(branch1, null);
-    createBranch(branch2, null);
+    createBranch(branch1);
+    createBranch(branch2);
     Schema schema1 =
         new Schema(Types.StructType.of(required(1, "id", Types.LongType.get())).fields());
     Schema schema2 =
@@ -503,13 +512,88 @@ public class TestBranchVisibility extends BaseTestIceberg {
     TableIdentifier identifier = TableIdentifier.of("db", "table1");
 
     NessieCatalog nessieCatalog = initCatalog(branch1);
+
+    createMissingNamespaces(nessieCatalog, identifier);
     Table table1 = nessieCatalog.createTable(identifier, schema1);
     Assertions.assertThat(table1.schema().asStruct()).isEqualTo(schema1.asStruct());
 
     nessieCatalog = initCatalog(branch2);
+    createMissingNamespaces(nessieCatalog, identifier);
     Table table2 = nessieCatalog.createTable(identifier, schema2);
     Assertions.assertThat(table2.schema().asStruct()).isEqualTo(schema2.asStruct());
 
     Assertions.assertThat(table1.location()).isNotEqualTo(table2.location());
+  }
+
+  @Test
+  public void testViewMetadataLocation() throws Exception {
+    String branch1 = "branch-1";
+    String branch2 = "branch-2";
+
+    TableIdentifier viewIdentifier = TableIdentifier.of("test-ns", "view1");
+    createView(catalog, viewIdentifier);
+
+    createBranch(branch1, catalog.currentHash());
+    // commit on viewIdentifier on branch1
+    NessieCatalog catalog = initCatalog(branch1);
+    String metadataLocationOfCommit1 =
+        ((BaseView) replaceView(catalog, viewIdentifier))
+            .operations()
+            .current()
+            .metadataFileLocation();
+
+    createBranch(branch2, catalog.currentHash(), branch1);
+    // commit on viewIdentifier on branch2
+    catalog = initCatalog(branch2);
+    String metadataLocationOfCommit2 =
+        ((BaseView) replaceView(catalog, viewIdentifier))
+            .operations()
+            .current()
+            .metadataFileLocation();
+
+    Assertions.assertThat(metadataLocationOfCommit2)
+        .isNotNull()
+        .isNotEqualTo(metadataLocationOfCommit1);
+
+    catalog = initCatalog(branch1);
+    // load viewIdentifier on branch1
+    BaseView view = (BaseView) catalog.loadView(viewIdentifier);
+    // branch1's viewIdentifier's metadata location must not have changed
+    Assertions.assertThat(view.operations().current().metadataFileLocation())
+        .isNotNull()
+        .isNotEqualTo(metadataLocationOfCommit2);
+
+    catalog.dropView(viewIdentifier);
+  }
+
+  @Test
+  public void testDifferentViewSameName() throws NessieConflictException, NessieNotFoundException {
+    String branch1 = "branch1";
+    String branch2 = "branch2";
+    createBranch(branch1);
+    createBranch(branch2);
+    Schema schema1 =
+        new Schema(Types.StructType.of(required(1, "id", Types.LongType.get())).fields());
+    Schema schema2 =
+        new Schema(
+            Types.StructType.of(
+                    required(1, "file_count", Types.IntegerType.get()),
+                    required(2, "record_count", Types.LongType.get()))
+                .fields());
+
+    TableIdentifier identifier = TableIdentifier.of("db", "view1");
+
+    NessieCatalog nessieCatalog = initCatalog(branch1);
+
+    createMissingNamespaces(nessieCatalog, identifier);
+    View view1 = createView(nessieCatalog, identifier, schema1);
+    Assertions.assertThat(view1.schema().asStruct()).isEqualTo(schema1.asStruct());
+
+    nessieCatalog = initCatalog(branch2);
+    createMissingNamespaces(nessieCatalog, identifier);
+    View view2 = createView(nessieCatalog, identifier, schema2);
+    Assertions.assertThat(view2.schema().asStruct()).isEqualTo(schema2.asStruct());
+
+    Assertions.assertThat(view1.location()).isNotEqualTo(view2.location());
   }
 }

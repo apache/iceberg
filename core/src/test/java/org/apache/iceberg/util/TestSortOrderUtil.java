@@ -21,21 +21,18 @@ package org.apache.iceberg.util;
 import static org.apache.iceberg.NullOrder.NULLS_LAST;
 import static org.apache.iceberg.SortDirection.ASC;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
-import java.io.IOException;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.TestTables;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.types.Types;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestSortOrderUtil {
 
@@ -47,15 +44,9 @@ public class TestSortOrderUtil {
           required(12, "ts", Types.TimestampType.withZone()),
           required(13, "category", Types.StringType.get()));
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
-  private File tableDir = null;
+  @TempDir private File tableDir;
 
-  @Before
-  public void setupTableDir() throws IOException {
-    this.tableDir = temp.newFolder();
-  }
-
-  @After
+  @AfterEach
   public void cleanupTables() {
     TestTables.clearTables();
   }
@@ -69,12 +60,13 @@ public class TestSortOrderUtil {
     // pass PartitionSpec.unpartitioned() on purpose as it has an empty schema
     SortOrder actualOrder = SortOrderUtil.buildSortOrder(table.schema(), spec, table.sortOrder());
 
-    Assert.assertEquals("Order ID must be fresh", 1, actualOrder.orderId());
-    Assert.assertEquals("Order must have 1 field", 1, actualOrder.fields().size());
-    Assert.assertEquals("Field id must be fresh", 1, actualOrder.fields().get(0).sourceId());
-    Assert.assertEquals("Direction must match", ASC, actualOrder.fields().get(0).direction());
-    Assert.assertEquals(
-        "Null order must match", NULLS_LAST, actualOrder.fields().get(0).nullOrder());
+    assertThat(actualOrder.orderId()).as("Order ID must be fresh").isOne();
+    assertThat(actualOrder.fields()).as("Order must have 1 field").hasSize(1);
+    assertThat(actualOrder.fields().get(0).sourceId()).as("Field id must be fresh").isOne();
+    assertThat(actualOrder.fields().get(0).direction()).as("Direction must match").isEqualTo(ASC);
+    assertThat(actualOrder.fields().get(0).nullOrder())
+        .as("Null order must match")
+        .isEqualTo(NULLS_LAST);
   }
 
   @Test
@@ -86,12 +78,13 @@ public class TestSortOrderUtil {
     // pass PartitionSpec.unpartitioned() on purpose as it has an empty schema
     SortOrder actualOrder = SortOrderUtil.buildSortOrder(table.schema(), spec, table.sortOrder());
 
-    Assert.assertEquals("Order ID must be fresh", 1, actualOrder.orderId());
-    Assert.assertEquals("Order must have 1 field", 1, actualOrder.fields().size());
-    Assert.assertEquals("Field id must be fresh", 1, actualOrder.fields().get(0).sourceId());
-    Assert.assertEquals("Direction must match", ASC, actualOrder.fields().get(0).direction());
-    Assert.assertEquals(
-        "Null order must match", NULLS_LAST, actualOrder.fields().get(0).nullOrder());
+    assertThat(actualOrder.orderId()).as("Order ID must be fresh").isOne();
+    assertThat(actualOrder.fields()).as("Order must have 1 field").hasSize(1);
+    assertThat(actualOrder.fields().get(0).sourceId()).as("Field id must be fresh").isOne();
+    assertThat(actualOrder.fields().get(0).direction()).as("Direction must match").isEqualTo(ASC);
+    assertThat(actualOrder.fields().get(0).nullOrder())
+        .as("Null order must match")
+        .isEqualTo(NULLS_LAST);
   }
 
   @Test
@@ -107,10 +100,9 @@ public class TestSortOrderUtil {
             .desc("id")
             .build();
 
-    Assert.assertEquals(
-        "Should add spec fields as prefix",
-        expected,
-        SortOrderUtil.buildSortOrder(SCHEMA, spec, order));
+    assertThat(SortOrderUtil.buildSortOrder(SCHEMA, spec, order))
+        .as("Should add spec fields as prefix")
+        .isEqualTo(expected);
   }
 
   @Test
@@ -124,10 +116,9 @@ public class TestSortOrderUtil {
             .desc("id")
             .build();
 
-    Assert.assertEquals(
-        "Should leave the order unchanged",
-        order,
-        SortOrderUtil.buildSortOrder(SCHEMA, spec, order));
+    assertThat(SortOrderUtil.buildSortOrder(SCHEMA, spec, order))
+        .as("Should leave the order unchanged")
+        .isEqualTo(order);
   }
 
   @Test
@@ -141,10 +132,9 @@ public class TestSortOrderUtil {
             .desc("id")
             .build();
 
-    Assert.assertEquals(
-        "Should leave the order unchanged",
-        order,
-        SortOrderUtil.buildSortOrder(SCHEMA, spec, order));
+    assertThat(SortOrderUtil.buildSortOrder(SCHEMA, spec, order))
+        .as("Should leave the order unchanged")
+        .isEqualTo(order);
   }
 
   @Test
@@ -161,10 +151,9 @@ public class TestSortOrderUtil {
             .desc("id")
             .build();
 
-    Assert.assertEquals(
-        "Should add spec fields as prefix",
-        expected,
-        SortOrderUtil.buildSortOrder(SCHEMA, spec, order));
+    assertThat(SortOrderUtil.buildSortOrder(SCHEMA, spec, order))
+        .as("Should add spec fields as prefix")
+        .isEqualTo(expected);
   }
 
   @Test
@@ -181,10 +170,9 @@ public class TestSortOrderUtil {
     SortOrder expected =
         SortOrder.builderFor(SCHEMA).withOrderId(1).asc("category").asc("ts").desc("id").build();
 
-    Assert.assertEquals(
-        "Should add spec fields as prefix",
-        expected,
-        SortOrderUtil.buildSortOrder(SCHEMA, spec, order));
+    assertThat(SortOrderUtil.buildSortOrder(SCHEMA, spec, order))
+        .as("Should add spec fields as prefix")
+        .isEqualTo(expected);
   }
 
   @Test
@@ -207,10 +195,9 @@ public class TestSortOrderUtil {
             .desc("id")
             .build();
 
-    Assert.assertEquals(
-        "Should add spec fields as prefix",
-        expected,
-        SortOrderUtil.buildSortOrder(SCHEMA, spec, order));
+    assertThat(SortOrderUtil.buildSortOrder(SCHEMA, spec, order))
+        .as("Should add spec fields as prefix")
+        .isEqualTo(expected);
   }
 
   @Test
@@ -234,10 +221,9 @@ public class TestSortOrderUtil {
             .desc("id")
             .build();
 
-    Assert.assertEquals(
-        "Should add spec fields as prefix",
-        expected,
-        SortOrderUtil.buildSortOrder(SCHEMA, spec, order));
+    assertThat(SortOrderUtil.buildSortOrder(SCHEMA, spec, order))
+        .as("Should add spec fields as prefix")
+        .isEqualTo(expected);
   }
 
   @Test
@@ -267,10 +253,9 @@ public class TestSortOrderUtil {
             .desc("id")
             .build();
 
-    Assert.assertEquals(
-        "Should add spec fields as prefix",
-        expected,
-        SortOrderUtil.buildSortOrder(table.schema(), updatedSpec, order));
+    assertThat(SortOrderUtil.buildSortOrder(table.schema(), updatedSpec, order))
+        .as("Should add spec fields as prefix")
+        .isEqualTo(expected);
   }
 
   @Test
@@ -298,9 +283,8 @@ public class TestSortOrderUtil {
             .desc("id")
             .build();
 
-    Assert.assertEquals(
-        "Should add spec fields as prefix",
-        expected,
-        SortOrderUtil.buildSortOrder(table.schema(), updatedSpec, order));
+    assertThat(SortOrderUtil.buildSortOrder(table.schema(), updatedSpec, order))
+        .as("Should add spec fields as prefix")
+        .isEqualTo(expected);
   }
 }

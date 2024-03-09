@@ -26,7 +26,6 @@ import com.emc.object.s3.bean.ListObjectsResult;
 import com.emc.object.s3.bean.S3Object;
 import com.emc.object.s3.request.ListObjectsRequest;
 import com.emc.object.s3.request.PutObjectRequest;
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -55,6 +54,8 @@ import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.apache.iceberg.util.LocationUtil;
@@ -62,7 +63,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class EcsCatalog extends BaseMetastoreCatalog
-    implements Closeable, SupportsNamespaces, Configurable<Object> {
+    implements SupportsNamespaces, Configurable<Object> {
 
   /** Suffix of table metadata object */
   private static final String TABLE_OBJECT_SUFFIX = ".table";
@@ -84,6 +85,7 @@ public class EcsCatalog extends BaseMetastoreCatalog
 
   private FileIO fileIO;
   private CloseableGroup closeableGroup;
+  private Map<String, String> catalogProperties;
 
   /**
    * No-arg constructor to load the catalog dynamically.
@@ -94,9 +96,10 @@ public class EcsCatalog extends BaseMetastoreCatalog
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
+    this.catalogProperties = ImmutableMap.copyOf(properties);
     String inputWarehouseLocation = properties.get(CatalogProperties.WAREHOUSE_LOCATION);
     Preconditions.checkArgument(
-        inputWarehouseLocation != null && inputWarehouseLocation.length() > 0,
+        !Strings.isNullOrEmpty(inputWarehouseLocation),
         "Cannot initialize EcsCatalog because warehousePath must not be null or empty");
 
     this.catalogName = name;
@@ -107,6 +110,7 @@ public class EcsCatalog extends BaseMetastoreCatalog
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(client::destroy);
     closeableGroup.addCloseable(fileIO);
+    closeableGroup.addCloseable(metricsReporter());
     closeableGroup.setSuppressCloseFailure(true);
   }
 
@@ -494,5 +498,10 @@ public class EcsCatalog extends BaseMetastoreCatalog
   @Override
   public void setConf(Object conf) {
     this.hadoopConf = conf;
+  }
+
+  @Override
+  protected Map<String, String> properties() {
+    return catalogProperties == null ? ImmutableMap.of() : catalogProperties;
   }
 }

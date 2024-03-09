@@ -19,9 +19,6 @@
 package org.apache.iceberg.aws.s3;
 
 import static org.apache.iceberg.metrics.MetricsContext.nullMetrics;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
 import static org.mockito.AdditionalAnswers.delegatesTo;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doThrow;
@@ -30,7 +27,7 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-import com.adobe.testing.s3mock.junit4.S3MockRule;
+import com.adobe.testing.s3mock.junit5.S3MockExtension;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -45,17 +42,15 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.ClassRule;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-import org.mockito.junit.MockitoJUnitRunner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.ResponseBytes;
@@ -63,6 +58,7 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
+import software.amazon.awssdk.services.s3.model.BucketAlreadyExistsException;
 import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -72,26 +68,27 @@ import software.amazon.awssdk.services.s3.model.Tag;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.utils.BinaryUtils;
 
-@RunWith(MockitoJUnitRunner.class)
+@ExtendWith(S3MockExtension.class)
 public class TestS3OutputStream {
   private static final Logger LOG = LoggerFactory.getLogger(TestS3OutputStream.class);
   private static final String BUCKET = "test-bucket";
   private static final int FIVE_MBS = 5 * 1024 * 1024;
 
-  @ClassRule public static final S3MockRule S3_MOCK_RULE = S3MockRule.builder().silent().build();
+  @RegisterExtension
+  public static final S3MockExtension S3_MOCK = S3MockExtension.builder().silent().build();
 
-  private final S3Client s3 = S3_MOCK_RULE.createS3ClientV2();
+  private final S3Client s3 = S3_MOCK.createS3ClientV2();
   private final S3Client s3mock = mock(S3Client.class, delegatesTo(s3));
   private final Random random = new Random(1);
   private final Path tmpDir = Files.createTempDirectory("s3fileio-test-");
   private final String newTmpDirectory = "/tmp/newStagingDirectory";
 
-  private final AwsProperties properties =
-      new AwsProperties(
+  private final S3FileIOProperties properties =
+      new S3FileIOProperties(
           ImmutableMap.of(
-              AwsProperties.S3FILEIO_MULTIPART_SIZE,
+              S3FileIOProperties.MULTIPART_SIZE,
               Integer.toString(5 * 1024 * 1024),
-              AwsProperties.S3FILEIO_STAGING_DIRECTORY,
+              S3FileIOProperties.STAGING_DIRECTORY,
               tmpDir.toString(),
               "s3.write.tags.abc",
               "123",
@@ -102,13 +99,13 @@ public class TestS3OutputStream {
 
   public TestS3OutputStream() throws IOException {}
 
-  @Before
+  @BeforeEach
   public void before() {
-    properties.setS3ChecksumEnabled(false);
-    s3.createBucket(CreateBucketRequest.builder().bucket(BUCKET).build());
+    properties.setChecksumEnabled(false);
+    createBucket(BUCKET);
   }
 
-  @After
+  @AfterEach
   public void after() {
     File newStagingDirectory = new File(newTmpDirectory);
     if (newStagingDirectory.exists()) {
@@ -168,9 +165,9 @@ public class TestS3OutputStream {
 
   @Test
   public void testStagingDirectoryCreation() throws IOException {
-    AwsProperties newStagingDirectoryAwsProperties =
-        new AwsProperties(
-            ImmutableMap.of(AwsProperties.S3FILEIO_STAGING_DIRECTORY, newTmpDirectory));
+    S3FileIOProperties newStagingDirectoryAwsProperties =
+        new S3FileIOProperties(
+            ImmutableMap.of(S3FileIOProperties.STAGING_DIRECTORY, newTmpDirectory));
     S3OutputStream stream =
         new S3OutputStream(s3, randomURI(), newStagingDirectoryAwsProperties, nullMetrics());
     stream.close();
@@ -178,7 +175,7 @@ public class TestS3OutputStream {
 
   @Test
   public void testWriteWithChecksumEnabled() {
-    properties.setS3ChecksumEnabled(true);
+    properties.setChecksumEnabled(true);
     writeTest();
   }
 
@@ -247,7 +244,7 @@ public class TestS3OutputStream {
 
   private void checkUploadPartRequestContent(
       byte[] data, ArgumentCaptor<UploadPartRequest> uploadPartRequestArgumentCaptor) {
-    if (properties.isS3ChecksumEnabled()) {
+    if (properties.isChecksumEnabled()) {
       List<UploadPartRequest> uploadPartRequests =
           uploadPartRequestArgumentCaptor.getAllValues().stream()
               .sorted(Comparator.comparingInt(UploadPartRequest::partNumber))
@@ -255,24 +252,26 @@ public class TestS3OutputStream {
       for (int i = 0; i < uploadPartRequests.size(); ++i) {
         int offset = i * FIVE_MBS;
         int len = (i + 1) * FIVE_MBS - 1 > data.length ? data.length - offset : FIVE_MBS;
-        assertEquals(getDigest(data, offset, len), uploadPartRequests.get(i).contentMD5());
+        Assertions.assertThat(uploadPartRequests.get(i).contentMD5())
+            .isEqualTo(getDigest(data, offset, len));
       }
     }
   }
 
   private void checkPutObjectRequestContent(
       byte[] data, ArgumentCaptor<PutObjectRequest> putObjectRequestArgumentCaptor) {
-    if (properties.isS3ChecksumEnabled()) {
+    if (properties.isChecksumEnabled()) {
       List<PutObjectRequest> putObjectRequests = putObjectRequestArgumentCaptor.getAllValues();
-      assertEquals(getDigest(data, 0, data.length), putObjectRequests.get(0).contentMD5());
+      Assertions.assertThat(putObjectRequests.get(0).contentMD5())
+          .isEqualTo(getDigest(data, 0, data.length));
     }
   }
 
   private void checkTags(ArgumentCaptor<PutObjectRequest> putObjectRequestArgumentCaptor) {
-    if (properties.isS3ChecksumEnabled()) {
+    if (properties.isChecksumEnabled()) {
       List<PutObjectRequest> putObjectRequests = putObjectRequestArgumentCaptor.getAllValues();
       String tagging = putObjectRequests.get(0).tagging();
-      assertEquals(getTags(properties.s3WriteTags()), tagging);
+      Assertions.assertThat(getTags(properties.writeTags())).isEqualTo(tagging);
     }
   }
 
@@ -286,7 +285,7 @@ public class TestS3OutputStream {
       md5.update(data, offset, length);
       return BinaryUtils.toBase64(md5.digest());
     } catch (NoSuchAlgorithmException e) {
-      fail(String.format("Failed to get MD5 MessageDigest. %s", e));
+      Assertions.fail("Failed to get MD5 MessageDigest. %s", e);
     }
     return null;
   }
@@ -295,11 +294,11 @@ public class TestS3OutputStream {
     try (S3OutputStream stream = new S3OutputStream(client, uri, properties, nullMetrics())) {
       if (arrayWrite) {
         stream.write(data);
-        assertEquals(data.length, stream.getPos());
+        Assertions.assertThat(stream.getPos()).isEqualTo(data.length);
       } else {
         for (int i = 0; i < data.length; i++) {
           stream.write(data[i]);
-          assertEquals(i + 1, stream.getPos());
+          Assertions.assertThat(stream.getPos()).isEqualTo(i + 1);
         }
       }
     } catch (IOException e) {
@@ -307,11 +306,11 @@ public class TestS3OutputStream {
     }
 
     byte[] actual = readS3Data(uri);
-    assertArrayEquals(data, actual);
+    Assertions.assertThat(actual).isEqualTo(data);
 
     // Verify all staging files are cleaned up
     try {
-      assertEquals(0, Files.list(tmpDir).count());
+      Assertions.assertThat(Files.list(tmpDir)).isEmpty();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -334,5 +333,13 @@ public class TestS3OutputStream {
 
   private S3URI randomURI() {
     return new S3URI(String.format("s3://%s/data/%s.dat", BUCKET, UUID.randomUUID()));
+  }
+
+  private void createBucket(String bucketName) {
+    try {
+      s3.createBucket(CreateBucketRequest.builder().bucket(bucketName).build());
+    } catch (BucketAlreadyExistsException e) {
+      // do nothing
+    }
   }
 }

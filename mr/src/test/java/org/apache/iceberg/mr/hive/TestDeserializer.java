@@ -19,6 +19,8 @@
 package org.apache.iceberg.mr.hive;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -32,12 +34,10 @@ import org.apache.hadoop.io.Text;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.hive.MetastoreUtil;
+import org.apache.iceberg.hive.HiveVersion;
 import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergObjectInspector;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestDeserializer {
   private static final Schema CUSTOMER_SCHEMA =
@@ -74,7 +74,7 @@ public class TestDeserializer {
 
     Record actual = deserializer.deserialize(new Object[] {new LongWritable(1L), new Text("Bob")});
 
-    Assert.assertEquals(expected, actual);
+    assertThat(actual).isEqualTo(expected);
   }
 
   @Test
@@ -92,7 +92,7 @@ public class TestDeserializer {
 
     Record actual = deserializer.deserialize(new Object[] {new LongWritable(1L), new Text("Bob")});
 
-    Assert.assertEquals(expected, actual);
+    assertThat(actual).isEqualTo(expected);
   }
 
   @Test
@@ -127,7 +127,7 @@ public class TestDeserializer {
     Object[] data = new Object[] {map};
     Record actual = deserializer.deserialize(data);
 
-    Assert.assertEquals(expected, actual);
+    assertThat(actual).isEqualTo(expected);
   }
 
   @Test
@@ -155,13 +155,14 @@ public class TestDeserializer {
     Object[] data = new Object[] {new Object[] {new LongWritable(1L)}};
     Record actual = deserializer.deserialize(data);
 
-    Assert.assertEquals(expected, actual);
+    assertThat(actual).isEqualTo(expected);
   }
 
   @Test
   public void testDeserializeEverySupportedType() {
-    Assume.assumeFalse(
-        "No test yet for Hive3 (Date/Timestamp creation)", MetastoreUtil.hive3PresentOnClasspath());
+    assumeThat(HiveVersion.min(HiveVersion.HIVE_3))
+        .as("No test yet for Hive3 (Date/Timestamp creation)")
+        .isFalse();
 
     Deserializer deserializer =
         new Deserializer.Builder()
@@ -196,9 +197,9 @@ public class TestDeserializer {
 
     Record actual = deserializer.deserialize(nulls);
 
-    Assert.assertEquals(expected, actual);
+    assertThat(actual).isEqualTo(expected);
 
     // Check null record as well
-    Assert.assertNull(deserializer.deserialize(null));
+    assertThat(deserializer.deserialize(null)).isNull();
   }
 }

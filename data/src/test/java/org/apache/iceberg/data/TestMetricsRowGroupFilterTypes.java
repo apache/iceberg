@@ -310,7 +310,7 @@ public class TestMetricsRowGroupFilterTypes {
             .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(SCHEMA, fileSchema))
             .filter(Expressions.equal(column, value))
             .build()) {
-      return Lists.newArrayList(reader).size() > 0;
+      return !Lists.newArrayList(reader).isEmpty();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

@@ -24,7 +24,7 @@ public interface IncrementalScan<ThisT, T extends ScanTask, G extends ScanTaskGr
   /**
    * Instructs this scan to look for changes starting from a particular snapshot (inclusive).
    *
-   * <p>If the start snapshot is not configured, it is defaulted to the oldest ancestor of the end
+   * <p>If the start snapshot is not configured, it defaults to the oldest ancestor of the end
    * snapshot (inclusive).
    *
    * @param fromSnapshotId the start snapshot ID (inclusive)
@@ -34,9 +34,24 @@ public interface IncrementalScan<ThisT, T extends ScanTask, G extends ScanTaskGr
   ThisT fromSnapshotInclusive(long fromSnapshotId);
 
   /**
+   * Instructs this scan to look for changes starting from a particular snapshot (inclusive).
+   *
+   * <p>If the start snapshot is not configured, it defaults to the oldest ancestor of the end
+   * snapshot (inclusive).
+   *
+   * @param ref the start ref name that points to a particular snapshot ID (inclusive)
+   * @return this for method chaining
+   * @throws IllegalArgumentException if the start snapshot is not an ancestor of the end snapshot
+   */
+  default ThisT fromSnapshotInclusive(String ref) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement fromSnapshotInclusive");
+  }
+
+  /**
    * Instructs this scan to look for changes starting from a particular snapshot (exclusive).
    *
-   * <p>If the start snapshot is not configured, it is defaulted to the oldest ancestor of the end
+   * <p>If the start snapshot is not configured, it defaults to the oldest ancestor of the end
    * snapshot (inclusive).
    *
    * @param fromSnapshotId the start snapshot ID (exclusive)
@@ -46,13 +61,53 @@ public interface IncrementalScan<ThisT, T extends ScanTask, G extends ScanTaskGr
   ThisT fromSnapshotExclusive(long fromSnapshotId);
 
   /**
+   * Instructs this scan to look for changes starting from a particular snapshot (exclusive).
+   *
+   * <p>If the start snapshot is not configured, it defaults to the oldest ancestor of the end
+   * snapshot (inclusive).
+   *
+   * @param ref the start ref name that points to a particular snapshot ID (exclusive)
+   * @return this for method chaining
+   * @throws IllegalArgumentException if the start snapshot is not an ancestor of the end snapshot
+   */
+  default ThisT fromSnapshotExclusive(String ref) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement fromSnapshotExclusive");
+  }
+
+  /**
    * Instructs this scan to look for changes up to a particular snapshot (inclusive).
    *
-   * <p>If the end snapshot is not configured, it is defaulted to the current table snapshot
+   * <p>If the end snapshot is not configured, it defaults to the current table snapshot
    * (inclusive).
    *
    * @param toSnapshotId the end snapshot ID (inclusive)
    * @return this for method chaining
    */
   ThisT toSnapshot(long toSnapshotId);
+
+  /**
+   * Instructs this scan to look for changes up to a particular snapshot ref (inclusive).
+   *
+   * <p>If the end snapshot is not configured, it defaults to the current table snapshot
+   * (inclusive).
+   *
+   * @param ref the end snapshot Ref (inclusive)
+   * @return this for method chaining
+   */
+  default ThisT toSnapshot(String ref) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement toSnapshot");
+  }
+
+  /**
+   * Use the specified branch
+   *
+   * @param branch the branch name
+   * @return this for method chaining
+   */
+  default ThisT useBranch(String branch) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement useBranch");
+  }
 }

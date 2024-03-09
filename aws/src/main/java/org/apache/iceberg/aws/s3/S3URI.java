@@ -74,17 +74,14 @@ class S3URI {
     this.scheme = schemeSplit[0];
 
     String[] authoritySplit = schemeSplit[1].split(PATH_DELIM, 2);
-    ValidationException.check(
-        authoritySplit.length == 2, "Invalid S3 URI, cannot determine bucket: %s", location);
-    ValidationException.check(
-        !authoritySplit[1].trim().isEmpty(), "Invalid S3 URI, path is empty: %s", location);
+
     this.bucket =
         bucketToAccessPointMapping == null
             ? authoritySplit[0]
             : bucketToAccessPointMapping.getOrDefault(authoritySplit[0], authoritySplit[0]);
 
     // Strip query and fragment if they exist
-    String path = authoritySplit[1];
+    String path = authoritySplit.length > 1 ? authoritySplit[1] : "";
     path = path.split(QUERY_DELIM, -1)[0];
     path = path.split(FRAGMENT_DELIM, -1)[0];
     this.key = path;

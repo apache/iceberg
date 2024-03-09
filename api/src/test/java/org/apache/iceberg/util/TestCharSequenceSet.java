@@ -19,9 +19,12 @@
 package org.apache.iceberg.util;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.assertj.core.api.Assertions;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestCharSequenceSet {
 
@@ -34,5 +37,79 @@ public class TestCharSequenceSet {
 
     // this would fail with a normal Set<CharSequence>
     Assertions.assertThat(set.contains("def")).isTrue();
+  }
+
+  @Test
+  public void testRetainAll() {
+    CharSequenceSet set = CharSequenceSet.of(ImmutableList.of("123", "456"));
+
+    Assertions.assertThat(set.retainAll(ImmutableList.of("456", "789", 123)))
+        .overridingErrorMessage("Set should be changed")
+        .isTrue();
+
+    Assertions.assertThat(set).hasSize(1).contains("456");
+
+    set = CharSequenceSet.of(ImmutableList.of("123", "456"));
+    Assertions.assertThat(set.retainAll(ImmutableList.of("123", "456")))
+        .overridingErrorMessage("Set should not be changed")
+        .isFalse();
+
+    Assertions.assertThat(set.retainAll(ImmutableList.of(123, 456)))
+        .overridingErrorMessage("Set should be changed")
+        .isTrue();
+
+    Assertions.assertThat(set).isEmpty();
+  }
+
+  @Test
+  public void testRemoveAll() {
+    CharSequenceSet set = CharSequenceSet.of(ImmutableList.of("123", "456"));
+    Assertions.assertThat(set.removeAll(ImmutableList.of("456", "789", 123)))
+        .overridingErrorMessage("Set should be changed")
+        .isTrue();
+
+    Assertions.assertThat(set).hasSize(1).contains("123");
+
+    set = CharSequenceSet.of(ImmutableList.of("123", "456"));
+    Assertions.assertThat(set.removeAll(ImmutableList.of(123, 456)))
+        .overridingErrorMessage("Set should not be changed")
+        .isFalse();
+
+    Assertions.assertThat(set.removeAll(ImmutableList.of("123", "456")))
+        .overridingErrorMessage("Set should be changed")
+        .isTrue();
+
+    Assertions.assertThat(set).isEmpty();
+  }
+
+  @Test
+  public void testEqualsAndHashCode() {
+    CharSequenceSet set1 = CharSequenceSet.empty();
+    CharSequenceSet set2 = CharSequenceSet.empty();
+
+    Assertions.assertThat(set1).isEqualTo(set2);
+    Assertions.assertThat(set1.hashCode()).isEqualTo(set2.hashCode());
+
+    set1.add("v1");
+    set1.add("v2");
+    set1.add("v3");
+
+    set2.add(new StringBuilder("v1"));
+    set2.add(new StringBuffer("v2"));
+    set2.add("v3");
+
+    Set<CharSequence> set3 = Collections.unmodifiableSet(set2);
+
+    Set<CharSequenceWrapper> set4 =
+        ImmutableSet.of(
+            CharSequenceWrapper.wrap("v1"),
+            CharSequenceWrapper.wrap(new StringBuffer("v2")),
+            CharSequenceWrapper.wrap(new StringBuffer("v3")));
+
+    Assertions.assertThat(set1).isEqualTo(set2).isEqualTo(set3).isEqualTo(set4);
+    Assertions.assertThat(set1.hashCode())
+        .isEqualTo(set2.hashCode())
+        .isEqualTo(set3.hashCode())
+        .isEqualTo(set4.hashCode());
   }
 }

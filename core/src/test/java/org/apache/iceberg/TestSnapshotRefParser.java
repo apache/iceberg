@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -106,77 +107,59 @@ public class TestSnapshotRefParser {
   @Test
   public void testFailParsingWhenNullOrEmptyJson() {
     String nullJson = null;
-    AssertHelpers.assertThrows(
-        "SnapshotRefParser should fail to deserialize null JSON string",
-        IllegalArgumentException.class,
-        "Cannot parse snapshot ref from invalid JSON",
-        () -> SnapshotRefParser.fromJson(nullJson));
+    Assertions.assertThatThrownBy(() -> SnapshotRefParser.fromJson(nullJson))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot parse snapshot ref from invalid JSON");
 
     String emptyJson = "";
-    AssertHelpers.assertThrows(
-        "SnapshotRefParser should fail to deserialize empty JSON string",
-        IllegalArgumentException.class,
-        "Cannot parse snapshot ref from invalid JSON",
-        () -> SnapshotRefParser.fromJson(emptyJson));
+    Assertions.assertThatThrownBy(() -> SnapshotRefParser.fromJson(emptyJson))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot parse snapshot ref from invalid JSON");
   }
 
   @Test
   public void testFailParsingWhenMissingRequiredFields() {
     String refMissingType = "{\"snapshot-id\":1}";
-    AssertHelpers.assertThrows(
-        "SnapshotRefParser should fail to deserialize ref with missing type",
-        IllegalArgumentException.class,
-        "Cannot parse missing string",
-        () -> SnapshotRefParser.fromJson(refMissingType));
+    Assertions.assertThatThrownBy(() -> SnapshotRefParser.fromJson(refMissingType))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot parse missing string");
 
     String refMissingSnapshotId = "{\"type\":\"branch\"}";
-    AssertHelpers.assertThrows(
-        "SnapshotRefParser should fail to deserialize ref with missing snapshot id",
-        IllegalArgumentException.class,
-        "Cannot parse missing long",
-        () -> SnapshotRefParser.fromJson(refMissingSnapshotId));
+    Assertions.assertThatThrownBy(() -> SnapshotRefParser.fromJson(refMissingSnapshotId))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot parse missing long");
   }
 
   @Test
   public void testFailWhenFieldsHaveInvalidValues() {
     String invalidSnapshotId =
         "{\"snapshot-id\":\"invalid-snapshot-id\",\"type\":\"not-a-valid-tag-type\"}";
-    AssertHelpers.assertThrows(
-        "SnapshotRefParser should fail to deserialize ref with invalid snapshot id",
-        IllegalArgumentException.class,
-        "Cannot parse to a long value: snapshot-id: \"invalid-snapshot-id\"",
-        () -> SnapshotRefParser.fromJson(invalidSnapshotId));
+    Assertions.assertThatThrownBy(() -> SnapshotRefParser.fromJson(invalidSnapshotId))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse to a long value: snapshot-id: \"invalid-snapshot-id\"");
 
     String invalidTagType = "{\"snapshot-id\":1,\"type\":\"not-a-valid-tag-type\"}";
-    AssertHelpers.assertThrows(
-        "SnapshotRefParser should fail to deserialize ref with invalid tag",
-        IllegalArgumentException.class,
-        "Invalid snapshot ref type: not-a-valid-tag-type",
-        () -> SnapshotRefParser.fromJson(invalidTagType));
+    Assertions.assertThatThrownBy(() -> SnapshotRefParser.fromJson(invalidTagType))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid snapshot ref type: not-a-valid-tag-type");
 
     String invalidRefAge =
         "{\"snapshot-id\":1,\"type\":\"tag\",\"max-ref-age-ms\":\"not-a-valid-value\"}";
-    AssertHelpers.assertThrows(
-        "SnapshotRefParser should fail to deserialize ref with invalid ref age",
-        IllegalArgumentException.class,
-        "Cannot parse to a long value: max-ref-age-ms: \"not-a-valid-value\"",
-        () -> SnapshotRefParser.fromJson(invalidRefAge));
+    Assertions.assertThatThrownBy(() -> SnapshotRefParser.fromJson(invalidRefAge))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse to a long value: max-ref-age-ms: \"not-a-valid-value\"");
 
     String invalidSnapshotsToKeep =
         "{\"snapshot-id\":1,\"type\":\"branch\", "
             + "\"min-snapshots-to-keep\":\"invalid-number\"}";
-    AssertHelpers.assertThrows(
-        "SnapshotRefParser should fail to deserialize ref with missing snapshot id",
-        IllegalArgumentException.class,
-        "Cannot parse to an integer value: min-snapshots-to-keep: \"invalid-number\"",
-        () -> SnapshotRefParser.fromJson(invalidSnapshotsToKeep));
+    Assertions.assertThatThrownBy(() -> SnapshotRefParser.fromJson(invalidSnapshotsToKeep))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse to an integer value: min-snapshots-to-keep: \"invalid-number\"");
 
     String invalidMaxSnapshotAge =
         "{\"snapshot-id\":1,\"type\":\"branch\", " + "\"max-snapshot-age-ms\":\"invalid-age\"}";
-    AssertHelpers.assertThrows(
-        "SnapshotRefParser should fail to deserialize ref with missing snapshot id",
-        IllegalArgumentException.class,
-        "Cannot parse to a long value: max-snapshot-age-ms: \"invalid-age\"",
-        () -> SnapshotRefParser.fromJson(invalidMaxSnapshotAge));
+    Assertions.assertThatThrownBy(() -> SnapshotRefParser.fromJson(invalidMaxSnapshotAge))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse to a long value: max-snapshot-age-ms: \"invalid-age\"");
   }
 }

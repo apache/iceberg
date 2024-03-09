@@ -21,10 +21,14 @@ package org.apache.iceberg.nessie;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
+import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.util.LocationUtil;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -33,33 +37,30 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 import org.projectnessie.client.api.NessieApiV1;
-import org.projectnessie.client.http.HttpClientBuilder;
+import org.projectnessie.client.ext.NessieApiVersions;
+import org.projectnessie.client.ext.NessieClientFactory;
+import org.projectnessie.client.ext.NessieClientUri;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.jaxrs.ext.NessieJaxRsExtension;
-import org.projectnessie.jaxrs.ext.NessieUri;
 import org.projectnessie.model.Branch;
 import org.projectnessie.model.Reference;
 import org.projectnessie.model.Tag;
-import org.projectnessie.server.store.TableCommitMetaStoreWorker;
-import org.projectnessie.versioned.persist.adapter.DatabaseAdapter;
-import org.projectnessie.versioned.persist.inmem.InmemoryDatabaseAdapterFactory;
-import org.projectnessie.versioned.persist.inmem.InmemoryTestConnectionProviderSource;
-import org.projectnessie.versioned.persist.tests.extension.DatabaseAdapterExtension;
-import org.projectnessie.versioned.persist.tests.extension.NessieDbAdapter;
-import org.projectnessie.versioned.persist.tests.extension.NessieDbAdapterName;
-import org.projectnessie.versioned.persist.tests.extension.NessieExternalDatabase;
+import org.projectnessie.versioned.storage.common.persist.Persist;
+import org.projectnessie.versioned.storage.inmemorytests.InmemoryBackendTestFactory;
+import org.projectnessie.versioned.storage.testextension.NessieBackend;
+import org.projectnessie.versioned.storage.testextension.NessiePersist;
+import org.projectnessie.versioned.storage.testextension.PersistExtension;
 
-@ExtendWith(DatabaseAdapterExtension.class)
-@NessieDbAdapterName(InmemoryDatabaseAdapterFactory.NAME)
-@NessieExternalDatabase(InmemoryTestConnectionProviderSource.class)
+@ExtendWith(PersistExtension.class)
+@NessieBackend(InmemoryBackendTestFactory.class)
+@NessieApiVersions // test all versions
 public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
 
-  @NessieDbAdapter(storeWorker = TableCommitMetaStoreWorker.class)
-  static DatabaseAdapter databaseAdapter;
+  @NessiePersist static Persist persist;
 
   @RegisterExtension
-  static NessieJaxRsExtension server = new NessieJaxRsExtension(() -> databaseAdapter);
+  static NessieJaxRsExtension server = NessieJaxRsExtension.jaxRsExtension(() -> persist);
 
   @TempDir public Path temp;
 
@@ -70,12 +71,11 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
   private String uri;
 
   @BeforeEach
-  public void beforeEach(@NessieUri URI nessieUri) throws IOException {
-    this.uri = nessieUri.toString();
-    this.api = HttpClientBuilder.builder().withUri(this.uri).build(NessieApiV1.class);
-
+  public void setUp(NessieClientFactory clientFactory, @NessieClientUri URI nessieUri)
+      throws NessieNotFoundException {
+    api = clientFactory.make();
     initialHashOfDefaultBranch = api.getDefaultBranch().getHash();
-
+    uri = nessieUri.toASCIIString();
     hadoopConfig = new Configuration();
     catalog = initNessieCatalog("main");
   }
@@ -112,25 +112,32 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
   }
 
   private NessieCatalog initNessieCatalog(String ref) {
-    NessieCatalog newCatalog = new NessieCatalog();
-    newCatalog.setConf(hadoopConfig);
-    newCatalog.initialize(
-        "nessie",
+    Map<String, String> options =
         ImmutableMap.of(
+            "type",
+            "nessie",
             "ref",
             ref,
             CatalogProperties.URI,
             uri,
-            "auth-type",
-            "NONE",
             CatalogProperties.WAREHOUSE_LOCATION,
-            temp.toUri().toString()));
-    return newCatalog;
+            temp.toUri().toString());
+    return (NessieCatalog) CatalogUtil.buildIcebergCatalog("nessie", options, hadoopConfig);
   }
 
   @Override
   protected NessieCatalog catalog() {
     return catalog;
+  }
+
+  @Override
+  protected boolean requiresNamespaceCreate() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsNestedNamespaces() {
+    return true;
   }
 
   @Override
@@ -150,5 +157,16 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
       "Nessie does not differentiate between table creates & updates, thus a concurrent transaction does not fail")
   public void testConcurrentCreateTransaction() {
     super.testConcurrentCreateTransaction();
+  }
+
+  @Test
+  public void testWarehouseLocationWithTrailingSlash() {
+    Assertions.assertThat(catalog.defaultWarehouseLocation(TABLE))
+        .startsWith(
+            LocationUtil.stripTrailingSlash(temp.toUri().toString())
+                + "/"
+                + TABLE.namespace()
+                + "/"
+                + TABLE.name());
   }
 }

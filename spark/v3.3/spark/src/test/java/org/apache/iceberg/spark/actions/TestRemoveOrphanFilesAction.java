@@ -67,6 +67,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.spark.actions.DeleteOrphanFilesSparkAction.StringToFileURI;
 import org.apache.iceberg.spark.source.FilePathLastModifiedRecord;
@@ -270,7 +271,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
     waitUntilAfter(System.currentTimeMillis());
 
-    Set<String> deletedFiles = Sets.newHashSet();
+    Set<String> deletedFiles = ConcurrentHashMap.newKeySet();
     Set<String> deleteThreads = ConcurrentHashMap.newKeySet();
     AtomicInteger deleteThreadsIndex = new AtomicInteger(0);
 
@@ -319,7 +320,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     // normal write
     df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
 
-    spark.conf().set("spark.wap.id", "1");
+    spark.conf().set(SparkSQLProperties.WAP_ID, "1");
 
     // wap write
     df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
@@ -737,7 +738,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     Assert.assertTrue(
         "trash file should be removed",
         StreamSupport.stream(result.orphanFileLocations().spliterator(), false)
-            .anyMatch(file -> file.contains("file:" + location + "data/trashfile")));
+            .anyMatch(file -> file.contains("file:" + location + "/data/trashfile")));
   }
 
   @Test

@@ -19,11 +19,13 @@
 package org.apache.iceberg.actions;
 
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.actions.RewriteDataFiles.FileGroupInfo;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -65,7 +67,12 @@ public class RewriteFileGroup {
 
   public RewriteDataFiles.FileGroupRewriteResult asResult() {
     Preconditions.checkState(addedFiles != null, "Cannot get result, Group was never rewritten");
-    return new BaseFileGroupRewriteResult(info, addedFiles.size(), fileScanTasks.size());
+    return ImmutableRewriteDataFiles.FileGroupRewriteResult.builder()
+        .info(info)
+        .addedDataFilesCount(addedFiles.size())
+        .rewrittenDataFilesCount(fileScanTasks.size())
+        .rewrittenBytesCount(sizeInBytes())
+        .build();
   }
 
   @Override
@@ -76,6 +83,7 @@ public class RewriteFileGroup {
         .add(
             "numAddedFiles",
             addedFiles == null ? "Rewrite Incomplete" : Integer.toString(addedFiles.size()))
+        .add("numRewrittenBytes", sizeInBytes())
         .toString();
   }
 
@@ -85,5 +93,20 @@ public class RewriteFileGroup {
 
   public int numFiles() {
     return fileScanTasks.size();
+  }
+
+  public static Comparator<RewriteFileGroup> comparator(RewriteJobOrder rewriteJobOrder) {
+    switch (rewriteJobOrder) {
+      case BYTES_ASC:
+        return Comparator.comparing(RewriteFileGroup::sizeInBytes);
+      case BYTES_DESC:
+        return Comparator.comparing(RewriteFileGroup::sizeInBytes, Comparator.reverseOrder());
+      case FILES_ASC:
+        return Comparator.comparing(RewriteFileGroup::numFiles);
+      case FILES_DESC:
+        return Comparator.comparing(RewriteFileGroup::numFiles, Comparator.reverseOrder());
+      default:
+        return (fileGroupOne, fileGroupTwo) -> 0;
+    }
   }
 }

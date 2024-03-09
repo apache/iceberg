@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.expressions;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -25,8 +27,7 @@ import java.util.List;
 import java.util.UUID;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestMiscLiteralConversions {
   @Test
@@ -55,8 +56,9 @@ public class TestMiscLiteralConversions {
       Literal<?> expected = lit.to(type);
 
       // then check that converting again to the same type results in an identical literal
-      Assert.assertSame(
-          "Converting twice should produce identical values", expected, expected.to(type));
+      assertThat(expected.to(type))
+          .as("Converting twice should produce identical values")
+          .isSameAs(expected);
     }
   }
 
@@ -64,29 +66,27 @@ public class TestMiscLiteralConversions {
   public void testBinaryToFixed() {
     Literal<ByteBuffer> lit = Literal.of(ByteBuffer.wrap(new byte[] {0, 1, 2}));
     Literal<ByteBuffer> fixedLit = lit.to(Types.FixedType.ofLength(3));
-    Assert.assertNotNull("Should allow conversion to correct fixed length", fixedLit);
-    Assert.assertEquals(
-        "Conversion should not change value",
-        lit.value().duplicate(),
-        fixedLit.value().duplicate());
+    assertThat(fixedLit).as("Should allow conversion to correct fixed length").isNotNull();
+    assertThat(fixedLit.value().duplicate())
+        .as("Conversion should not change value")
+        .isEqualTo(lit.value().duplicate());
 
-    Assert.assertNull(
-        "Should not allow conversion to different fixed length",
-        lit.to(Types.FixedType.ofLength(4)));
-    Assert.assertNull(
-        "Should not allow conversion to different fixed length",
-        lit.to(Types.FixedType.ofLength(2)));
+    assertThat(lit.to(Types.FixedType.ofLength(4)))
+        .as("Should not allow conversion to different fixed length")
+        .isNull();
+    assertThat(lit.to(Types.FixedType.ofLength(2)))
+        .as("Should not allow conversion to different fixed length")
+        .isNull();
   }
 
   @Test
   public void testFixedToBinary() {
     Literal<ByteBuffer> lit = Literal.of(new byte[] {0, 1, 2});
     Literal<ByteBuffer> binaryLit = lit.to(Types.BinaryType.get());
-    Assert.assertNotNull("Should allow conversion to binary", binaryLit);
-    Assert.assertEquals(
-        "Conversion should not change value",
-        lit.value().duplicate(),
-        binaryLit.value().duplicate());
+    assertThat(binaryLit).as("Should allow conversion to binary").isNotNull();
+    assertThat(binaryLit.value().duplicate())
+        .as("Conversion should not change value")
+        .isEqualTo(lit.value().duplicate());
   }
 
   @Test
@@ -315,9 +315,9 @@ public class TestMiscLiteralConversions {
 
   private void testInvalidConversions(Literal<?> lit, Type... invalidTypes) {
     for (Type type : invalidTypes) {
-      Assert.assertNull(
-          lit.value().getClass().getName() + " literal to " + type + " is not allowed",
-          lit.to(type));
+      assertThat(lit.to(type))
+          .as(lit.value().getClass().getName() + " literal to " + type + " is not allowed")
+          .isNull();
     }
   }
 

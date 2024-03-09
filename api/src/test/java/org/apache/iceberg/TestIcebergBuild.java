@@ -18,33 +18,39 @@
  */
 package org.apache.iceberg;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.Locale;
 import java.util.regex.Pattern;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestIcebergBuild {
   @Test
   public void testFullVersion() {
-    Assert.assertEquals(
-        "Should build full version from version and commit ID",
-        "Apache Iceberg " + IcebergBuild.version() + " (commit " + IcebergBuild.gitCommitId() + ")",
-        IcebergBuild.fullVersion());
+    assertThat(IcebergBuild.fullVersion())
+        .as("Should build full version from version and commit ID")
+        .isEqualTo(
+            "Apache Iceberg "
+                + IcebergBuild.version()
+                + " (commit "
+                + IcebergBuild.gitCommitId()
+                + ")");
   }
 
   @Test
   public void testVersion() {
-    Assert.assertNotEquals("Should not use unknown version", "unknown", IcebergBuild.version());
+    assertThat(IcebergBuild.version()).as("Should not use unknown version").isNotEqualTo("unknown");
   }
 
   @Test
   public void testGitCommitId() {
-    Assert.assertNotEquals(
-        "Should not use unknown commit ID", "unknown", IcebergBuild.gitCommitId());
-    Assert.assertTrue(
-        "Should be a hexadecimal string of 20 bytes",
-        Pattern.compile("[0-9a-f]{40}")
-            .matcher(IcebergBuild.gitCommitId().toLowerCase(Locale.ROOT))
-            .matches());
+    assertThat(IcebergBuild.gitCommitId())
+        .as("Should not use unknown commit ID")
+        .isNotEqualTo("unknown");
+    assertThat(
+            Pattern.compile("[0-9a-f]{40}")
+                .matcher(IcebergBuild.gitCommitId().toLowerCase(Locale.ROOT)))
+        .as("Should be a hexadecimal string of 20 bytes")
+        .matches();
   }
 }

@@ -19,10 +19,11 @@
 
 
 task aggregateJavadoc(type: Javadoc) {
-  dependsOn subprojects.javadoc
-  source subprojects.javadoc.source
+  def javadocTasks = subprojects.findAll { it.name != 'iceberg-bom' }.javadoc
+  dependsOn javadocTasks
+  source javadocTasks.source
   destinationDir project.rootProject.file("site/docs/javadoc/${getJavadocVersion()}")
-  classpath = project.rootProject.files(subprojects.javadoc.classpath)
+  classpath = project.rootProject.files(javadocTasks.classpath)
 
   final JAVADOC_FIX_SEARCH_STR = '\n\n' +
           'getURLPrefix = function(ui) {\n' +
@@ -43,11 +44,10 @@ task removeJavadoc(type: Exec) {
   commandLine 'rm', '-rf', "site/docs/javadoc/${getJavadocVersion()}"
 }
 
-task refreshJavadoc(type: Exec) {
+task refreshJavadoc() {
   dependsOn aggregateJavadoc
   dependsOn removeJavadoc
   aggregateJavadoc.mustRunAfter removeJavadoc
-  commandLine 'git', 'add', "site/docs/javadoc/${getJavadocVersion()}"
 }
 
 task deploySite(type: Exec) {

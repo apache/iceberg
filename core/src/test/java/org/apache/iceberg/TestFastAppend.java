@@ -25,8 +25,10 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -82,6 +84,13 @@ public class TestFastAppend extends TableTestBase {
 
     validateSnapshot(base.currentSnapshot(), snap, 1, FILE_A, FILE_B);
 
+    ManifestFile committedManifest = Iterables.getOnlyElement(snap.allManifests(FILE_IO));
+    if (formatVersion == 1) {
+      Assertions.assertThat(committedManifest.path()).isNotEqualTo(manifest.path());
+    } else {
+      Assertions.assertThat(committedManifest.path()).isEqualTo(manifest.path());
+    }
+
     // validate that the metadata summary is correct when using appendManifest
     Assert.assertEquals(
         "Summary metadata should include 2 added files",
@@ -124,6 +133,12 @@ public class TestFastAppend extends TableTestBase {
         fileSeqs(1L, 1L),
         ids(commitId, commitId),
         files(FILE_A, FILE_B));
+
+    if (formatVersion == 1) {
+      Assertions.assertThat(snap.allManifests(FILE_IO).get(1).path()).isNotEqualTo(manifest.path());
+    } else {
+      Assertions.assertThat(snap.allManifests(FILE_IO).get(1).path()).isEqualTo(manifest.path());
+    }
 
     V2Assert.assertEquals("Snapshot sequence number should be 1", 1, snap.sequenceNumber());
     V2Assert.assertEquals(
@@ -238,11 +253,9 @@ public class TestFastAppend extends TableTestBase {
     ManifestFile newManifest = pending.allManifests(FILE_IO).get(0);
     Assert.assertTrue("Should create new manifest", new File(newManifest.path()).exists());
 
-    AssertHelpers.assertThrows(
-        "Should retry 4 times and throw last failure",
-        CommitFailedException.class,
-        "Injected failure",
-        append::commit);
+    Assertions.assertThatThrownBy(append::commit)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
 
     Assert.assertFalse("Should clean up new manifest", new File(newManifest.path()).exists());
   }
@@ -258,14 +271,21 @@ public class TestFastAppend extends TableTestBase {
     Snapshot pending = append.apply();
     ManifestFile newManifest = pending.allManifests(FILE_IO).get(0);
     Assert.assertTrue("Should create new manifest", new File(newManifest.path()).exists());
+    if (formatVersion == 1) {
+      Assertions.assertThat(newManifest.path()).isNotEqualTo(manifest.path());
+    } else {
+      Assertions.assertThat(newManifest.path()).isEqualTo(manifest.path());
+    }
 
-    AssertHelpers.assertThrows(
-        "Should retry 4 times and throw last failure",
-        CommitFailedException.class,
-        "Injected failure",
-        append::commit);
+    Assertions.assertThatThrownBy(append::commit)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
 
-    Assert.assertFalse("Should clean up new manifest", new File(newManifest.path()).exists());
+    if (formatVersion == 1) {
+      Assertions.assertThat(new File(newManifest.path())).doesNotExist();
+    } else {
+      Assertions.assertThat(new File(newManifest.path())).exists();
+    }
   }
 
   @Test
@@ -330,7 +350,8 @@ public class TestFastAppend extends TableTestBase {
 
     Snapshot snapshot = table.currentSnapshot();
     List<ManifestFile> manifests = table.currentSnapshot().allManifests(FILE_IO);
-    Assert.assertEquals("Should have 1 committed manifest", 1, manifests.size());
+    ManifestFile committedManifest = Iterables.getOnlyElement(manifests);
+    Assertions.assertThat(committedManifest.path()).isEqualTo(manifest.path());
 
     validateManifestEntries(
         manifests.get(0),
@@ -375,8 +396,9 @@ public class TestFastAppend extends TableTestBase {
     AppendFiles append = table.newAppend();
     append.appendManifest(manifest);
 
-    AssertHelpers.assertThrows(
-        "Should reject commit", CommitFailedException.class, "Injected failure", append::commit);
+    Assertions.assertThatThrownBy(append::commit)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
 
     Assert.assertTrue("Append manifest should not be deleted", new File(manifest.path()).exists());
   }
@@ -390,19 +412,47 @@ public class TestFastAppend extends TableTestBase {
 
     ManifestFile manifestWithExistingFiles =
         writeManifest("manifest-file-1.avro", manifestEntry(Status.EXISTING, null, FILE_A));
-    AssertHelpers.assertThrows(
-        "Should reject commit",
-        IllegalArgumentException.class,
-        "Cannot append manifest with existing files",
-        () -> table.newFastAppend().appendManifest(manifestWithExistingFiles).commit());
+    Assertions.assertThatThrownBy(
+            () -> table.newFastAppend().appendManifest(manifestWithExistingFiles).commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot append manifest with existing files");
 
     ManifestFile manifestWithDeletedFiles =
         writeManifest("manifest-file-2.avro", manifestEntry(Status.DELETED, null, FILE_A));
-    AssertHelpers.assertThrows(
-        "Should reject commit",
-        IllegalArgumentException.class,
-        "Cannot append manifest with deleted files",
-        () -> table.newFastAppend().appendManifest(manifestWithDeletedFiles).commit());
+    Assertions.assertThatThrownBy(
+            () -> table.newFastAppend().appendManifest(manifestWithDeletedFiles).commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot append manifest with deleted files");
+  }
+
+  @Test
+  public void testPartitionSummariesOnUnpartitionedTable() {
+    Table table =
+        TestTables.create(
+            tableDir,
+            "x",
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            formatVersion);
+
+    table.updateProperties().set(TableProperties.WRITE_PARTITION_SUMMARY_LIMIT, "1").commit();
+    table
+        .newFastAppend()
+        .appendFile(
+            DataFiles.builder(PartitionSpec.unpartitioned())
+                .withPath("/path/to/data-a.parquet")
+                .withFileSizeInBytes(10)
+                .withRecordCount(1)
+                .build())
+        .commit();
+
+    Assertions.assertThat(
+            table.currentSnapshot().summary().keySet().stream()
+                .filter(key -> key.startsWith(SnapshotSummary.CHANGED_PARTITION_PREFIX))
+                .collect(Collectors.toSet()))
+        .as("Should not include any partition summaries")
+        .isEmpty();
   }
 
   @Test
@@ -524,19 +574,22 @@ public class TestFastAppend extends TableTestBase {
 
   @Test
   public void testAppendToNullBranchFails() {
-    AssertHelpers.assertThrows(
-        "Invalid branch",
-        IllegalArgumentException.class,
-        () -> table.newFastAppend().appendFile(FILE_A).toBranch(null));
+    Assertions.assertThatThrownBy(() -> table.newFastAppend().appendFile(FILE_A).toBranch(null))
+        .as("Invalid branch")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid branch name: null");
   }
 
   @Test
   public void testAppendToTagFails() {
     table.newFastAppend().appendFile(FILE_A).commit();
     table.manageSnapshots().createTag("some-tag", table.currentSnapshot().snapshotId()).commit();
-    AssertHelpers.assertThrows(
-        "Invalid branch",
-        IllegalArgumentException.class,
-        () -> table.newFastAppend().appendFile(FILE_A).toBranch("some-tag").commit());
+
+    Assertions.assertThatThrownBy(
+            () -> table.newFastAppend().appendFile(FILE_A).toBranch("some-tag").commit())
+        .as("Invalid branch")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "some-tag is a tag, not a branch. Tags cannot be targets for producing snapshots");
   }
 }

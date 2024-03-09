@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -25,6 +27,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -33,8 +36,10 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public abstract class BaseMetastoreCatalog implements Catalog {
+public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(BaseMetastoreCatalog.class);
+
+  private MetricsReporter metricsReporter;
 
   @Override
   public Table loadTable(TableIdentifier identifier) {
@@ -51,7 +56,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         }
 
       } else {
-        result = new BaseTable(ops, fullTableName(name(), identifier));
+        result = new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());
       }
 
     } else if (isValidMetadataIdentifier(identifier)) {
@@ -83,7 +88,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     TableMetadata metadata = TableMetadataParser.read(ops.io(), metadataFile);
     ops.commit(null, metadata);
 
-    return new BaseTable(ops, identifier.toString());
+    return new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());
   }
 
   @Override
@@ -198,7 +203,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         throw new AlreadyExistsException("Table was created concurrently: %s", identifier);
       }
 
-      return new BaseTable(ops, fullTableName(name(), identifier));
+      return new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());
     }
 
     @Override
@@ -300,5 +305,20 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     sb.append(identifier.name());
 
     return sb.toString();
+  }
+
+  protected MetricsReporter metricsReporter() {
+    if (metricsReporter == null) {
+      metricsReporter = CatalogUtil.loadMetricsReporter(properties());
+    }
+
+    return metricsReporter;
+  }
+
+  @Override
+  public void close() throws IOException {
+    if (metricsReporter != null) {
+      metricsReporter.close();
+    }
   }
 }

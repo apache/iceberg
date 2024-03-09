@@ -169,7 +169,7 @@ public class TestManifestCaching {
   public void testWeakFileIOReferenceCleanUp() {
     Cache<FileIO, ContentCache> manifestCache =
         ManifestFiles.newManifestCacheBuilder().executor(Runnable::run).build();
-    int maxIO = SystemProperties.IO_MANIFEST_CACHE_MAX_FILEIO_DEFAULT;
+    int maxIO = SystemConfigs.IO_MANIFEST_CACHE_MAX_FILEIO.defaultValue();
     FileIO firstIO = null;
     ContentCache firstCache = null;
     for (int i = 0; i < maxIO - 1; i++) {

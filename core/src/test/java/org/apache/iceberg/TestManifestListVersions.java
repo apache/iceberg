@@ -23,13 +23,15 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.List;
+import org.apache.avro.AvroRuntimeException;
 import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.io.InMemoryOutputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -37,6 +39,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -99,11 +102,9 @@ public class TestManifestListVersions {
 
   @Test
   public void testV1WriteDeleteManifest() {
-    AssertHelpers.assertThrows(
-        "Should fail to write a DELETE manifest to v1",
-        IllegalArgumentException.class,
-        "Cannot store delete manifests in a v1 table",
-        () -> writeManifestList(TEST_DELETE_MANIFEST, 1));
+    Assertions.assertThatThrownBy(() -> writeManifestList(TEST_DELETE_MANIFEST, 1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot store delete manifests in a v1 table");
   }
 
   @Test
@@ -162,20 +163,19 @@ public class TestManifestListVersions {
     Assert.assertEquals("Length", LENGTH, generic.get("manifest_length"));
     Assert.assertEquals("Spec id", SPEC_ID, generic.get("partition_spec_id"));
     Assert.assertEquals("Snapshot id", SNAPSHOT_ID, (long) generic.get("added_snapshot_id"));
+    Assert.assertEquals("Added files count", ADDED_FILES, (int) generic.get("added_files_count"));
     Assert.assertEquals(
-        "Added files count", ADDED_FILES, (int) generic.get("added_data_files_count"));
+        "Existing files count", EXISTING_FILES, (int) generic.get("existing_files_count"));
     Assert.assertEquals(
-        "Existing files count", EXISTING_FILES, (int) generic.get("existing_data_files_count"));
-    Assert.assertEquals(
-        "Deleted files count", DELETED_FILES, (int) generic.get("deleted_data_files_count"));
+        "Deleted files count", DELETED_FILES, (int) generic.get("deleted_files_count"));
     Assert.assertEquals("Added rows count", ADDED_ROWS, (long) generic.get("added_rows_count"));
     Assert.assertEquals(
         "Existing rows count", EXISTING_ROWS, (long) generic.get("existing_rows_count"));
     Assert.assertEquals(
         "Deleted rows count", DELETED_ROWS, (long) generic.get("deleted_rows_count"));
-    AssertHelpers.assertEmptyAvroField(generic, ManifestFile.MANIFEST_CONTENT.name());
-    AssertHelpers.assertEmptyAvroField(generic, ManifestFile.SEQUENCE_NUMBER.name());
-    AssertHelpers.assertEmptyAvroField(generic, ManifestFile.MIN_SEQUENCE_NUMBER.name());
+    assertEmptyAvroField(generic, ManifestFile.MANIFEST_CONTENT.name());
+    assertEmptyAvroField(generic, ManifestFile.SEQUENCE_NUMBER.name());
+    assertEmptyAvroField(generic, ManifestFile.MIN_SEQUENCE_NUMBER.name());
   }
 
   @Test
@@ -190,20 +190,19 @@ public class TestManifestListVersions {
     Assert.assertEquals("Length", LENGTH, generic.get("manifest_length"));
     Assert.assertEquals("Spec id", SPEC_ID, generic.get("partition_spec_id"));
     Assert.assertEquals("Snapshot id", SNAPSHOT_ID, (long) generic.get("added_snapshot_id"));
+    Assert.assertEquals("Added files count", ADDED_FILES, (int) generic.get("added_files_count"));
     Assert.assertEquals(
-        "Added files count", ADDED_FILES, (int) generic.get("added_data_files_count"));
+        "Existing files count", EXISTING_FILES, (int) generic.get("existing_files_count"));
     Assert.assertEquals(
-        "Existing files count", EXISTING_FILES, (int) generic.get("existing_data_files_count"));
-    Assert.assertEquals(
-        "Deleted files count", DELETED_FILES, (int) generic.get("deleted_data_files_count"));
+        "Deleted files count", DELETED_FILES, (int) generic.get("deleted_files_count"));
     Assert.assertEquals("Added rows count", ADDED_ROWS, (long) generic.get("added_rows_count"));
     Assert.assertEquals(
         "Existing rows count", EXISTING_ROWS, (long) generic.get("existing_rows_count"));
     Assert.assertEquals(
         "Deleted rows count", DELETED_ROWS, (long) generic.get("deleted_rows_count"));
-    AssertHelpers.assertEmptyAvroField(generic, ManifestFile.MANIFEST_CONTENT.name());
-    AssertHelpers.assertEmptyAvroField(generic, ManifestFile.SEQUENCE_NUMBER.name());
-    AssertHelpers.assertEmptyAvroField(generic, ManifestFile.MIN_SEQUENCE_NUMBER.name());
+    assertEmptyAvroField(generic, ManifestFile.MANIFEST_CONTENT.name());
+    assertEmptyAvroField(generic, ManifestFile.SEQUENCE_NUMBER.name());
+    assertEmptyAvroField(generic, ManifestFile.MIN_SEQUENCE_NUMBER.name());
   }
 
   @Test
@@ -217,9 +216,9 @@ public class TestManifestListVersions {
             "manifest_length",
             "partition_spec_id",
             "added_snapshot_id",
-            "added_data_files_count",
-            "existing_data_files_count",
-            "deleted_data_files_count",
+            "added_files_count",
+            "existing_files_count",
+            "deleted_files_count",
             "partitions");
     Schema schemaWithoutRowStats =
         V1Metadata.MANIFEST_LIST_SCHEMA.select(columnNamesWithoutRowStats);
@@ -240,9 +239,9 @@ public class TestManifestListVersions {
               .set("manifest_length", 1024L)
               .set("partition_spec_id", 1)
               .set("added_snapshot_id", 100L)
-              .set("added_data_files_count", 2)
-              .set("existing_data_files_count", 3)
-              .set("deleted_data_files_count", 4)
+              .set("added_files_count", 2)
+              .set("existing_files_count", 3)
+              .set("deleted_files_count", 4)
               .set("partitions", null)
               .build();
       appender.add(withoutRowStats);
@@ -359,5 +358,11 @@ public class TestManifestListVersions {
         ManifestLists.read(writeManifestList(TEST_MANIFEST, formatVersion));
     Assert.assertEquals("Should contain one manifest", 1, manifests.size());
     return manifests.get(0);
+  }
+
+  private void assertEmptyAvroField(GenericRecord record, String field) {
+    Assertions.assertThatThrownBy(() -> record.get(field))
+        .isInstanceOf(AvroRuntimeException.class)
+        .hasMessage("Not a valid schema field: " + field);
   }
 }

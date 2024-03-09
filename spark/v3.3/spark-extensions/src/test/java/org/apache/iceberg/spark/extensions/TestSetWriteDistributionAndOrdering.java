@@ -25,6 +25,9 @@ import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.spark.sql.internal.SQLConf;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -62,6 +65,28 @@ public class TestSetWriteDistributionAndOrdering extends SparkExtensionsTestBase
             .asc("id", NullOrder.NULLS_FIRST)
             .build();
     Assert.assertEquals("Should have expected order", expected, table.sortOrder());
+  }
+
+  @Test
+  public void testSetWriteOrderWithCaseSensitiveColumnNames() {
+    sql(
+        "CREATE TABLE %s (Id bigint NOT NULL, Category string, ts timestamp, data string) USING iceberg",
+        tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertTrue("Table should start unsorted", table.sortOrder().isUnsorted());
+    sql("SET %s=true", SQLConf.CASE_SENSITIVE().key());
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql("ALTER TABLE %s WRITE ORDERED BY category, id", tableName);
+            })
+        .isInstanceOf(ValidationException.class);
+
+    sql("SET %s=false", SQLConf.CASE_SENSITIVE().key());
+    Assertions.assertThatNoException()
+        .isThrownBy(
+            () -> {
+              sql("ALTER TABLE %s WRITE ORDERED BY category, id", tableName);
+            });
   }
 
   @Test

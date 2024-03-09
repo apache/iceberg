@@ -39,17 +39,17 @@ public class SnapshotsTable extends BaseMetadataTable {
               "summary",
               Types.MapType.ofRequired(7, 8, Types.StringType.get(), Types.StringType.get())));
 
-  SnapshotsTable(TableOperations ops, Table table) {
-    this(ops, table, table.name() + ".snapshots");
+  SnapshotsTable(Table table) {
+    this(table, table.name() + ".snapshots");
   }
 
-  SnapshotsTable(TableOperations ops, Table table, String name) {
-    super(ops, table, name);
+  SnapshotsTable(Table table, String name) {
+    super(table, name);
   }
 
   @Override
   public TableScan newScan() {
-    return new SnapshotsTableScan(operations(), table());
+    return new SnapshotsTableScan(table());
   }
 
   @Override
@@ -58,12 +58,11 @@ public class SnapshotsTable extends BaseMetadataTable {
   }
 
   private DataTask task(BaseTableScan scan) {
-    TableOperations ops = operations();
     return StaticDataTask.of(
-        ops.io().newInputFile(ops.current().metadataFileLocation()),
+        table().io().newInputFile(table().operations().current().metadataFileLocation()),
         schema(),
         scan.schema(),
-        ops.current().snapshots(),
+        table().snapshots(),
         SnapshotsTable::snapshotToRow);
   }
 
@@ -73,24 +72,18 @@ public class SnapshotsTable extends BaseMetadataTable {
   }
 
   private class SnapshotsTableScan extends StaticTableScan {
-    SnapshotsTableScan(TableOperations ops, Table table) {
-      super(ops, table, SNAPSHOT_SCHEMA, MetadataTableType.SNAPSHOTS, SnapshotsTable.this::task);
+    SnapshotsTableScan(Table table) {
+      super(table, SNAPSHOT_SCHEMA, MetadataTableType.SNAPSHOTS, SnapshotsTable.this::task);
     }
 
-    SnapshotsTableScan(TableOperations ops, Table table, TableScanContext context) {
+    SnapshotsTableScan(Table table, TableScanContext context) {
       super(
-          ops,
-          table,
-          SNAPSHOT_SCHEMA,
-          MetadataTableType.SNAPSHOTS,
-          SnapshotsTable.this::task,
-          context);
+          table, SNAPSHOT_SCHEMA, MetadataTableType.SNAPSHOTS, SnapshotsTable.this::task, context);
     }
 
     @Override
-    protected TableScan newRefinedScan(
-        TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      return new SnapshotsTableScan(ops, table, context);
+    protected TableScan newRefinedScan(Table table, Schema schema, TableScanContext context) {
+      return new SnapshotsTableScan(table, context);
     }
 
     @Override

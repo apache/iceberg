@@ -28,8 +28,12 @@ import org.apache.avro.io.Encoder;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-class GenericAvroWriter<T> implements MetricsAwareDatumWriter<T> {
+public class GenericAvroWriter<T> implements MetricsAwareDatumWriter<T> {
   private ValueWriter<T> writer = null;
+
+  public static <D> GenericAvroWriter<D> create(Schema schema) {
+    return new GenericAvroWriter<>(schema);
+  }
 
   GenericAvroWriter(Schema schema) {
     setSchema(schema);

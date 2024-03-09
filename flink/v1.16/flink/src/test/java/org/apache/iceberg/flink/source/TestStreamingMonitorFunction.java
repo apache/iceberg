@@ -18,12 +18,13 @@
  */
 package org.apache.iceberg.flink.source;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
 import org.apache.flink.streaming.api.operators.StreamSource;
@@ -31,7 +32,6 @@ import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.util.AbstractStreamOperatorTestHarness;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.types.Row;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -47,6 +47,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.ThreadPools;
+import org.assertj.core.api.Assertions;
+import org.awaitility.Awaitility;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -107,18 +109,14 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       harness.setup();
       harness.open();
 
-      CountDownLatch latch = new CountDownLatch(1);
-      TestSourceContext sourceContext = new TestSourceContext(latch);
+      TestSourceContext sourceContext = new TestSourceContext(new CountDownLatch(1));
       runSourceFunctionInTask(sourceContext, function);
 
-      Assert.assertTrue(
-          "Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
-      Thread.sleep(1000L);
+      awaitExpectedSplits(sourceContext);
 
       // Stop the stream task.
       function.close();
 
-      Assert.assertEquals("Should produce the expected splits", 1, sourceContext.splits.size());
       TestHelpers.assertRecords(
           sourceContext.toRows(), Lists.newArrayList(Iterables.concat(recordsList)), SCHEMA);
     }
@@ -144,18 +142,46 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       harness.setup();
       harness.open();
 
-      CountDownLatch latch = new CountDownLatch(1);
-      TestSourceContext sourceContext = new TestSourceContext(latch);
+      TestSourceContext sourceContext = new TestSourceContext(new CountDownLatch(1));
       runSourceFunctionInTask(sourceContext, function);
 
-      Assert.assertTrue(
-          "Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
-      Thread.sleep(1000L);
+      awaitExpectedSplits(sourceContext);
 
       // Stop the stream task.
       function.close();
 
-      Assert.assertEquals("Should produce the expected splits", 1, sourceContext.splits.size());
+      TestHelpers.assertRecords(
+          sourceContext.toRows(), Lists.newArrayList(Iterables.concat(recordsList)), SCHEMA);
+    }
+  }
+
+  @Test
+  public void testConsumeFromStartTag() throws Exception {
+    // Commit the first five transactions.
+    generateRecordsAndCommitTxn(5);
+    long startSnapshotId = table.currentSnapshot().snapshotId();
+    String tagName = "t1";
+    table.manageSnapshots().createTag(tagName, startSnapshotId).commit();
+
+    // Commit the next five transactions.
+    List<List<Record>> recordsList = generateRecordsAndCommitTxn(5);
+
+    ScanContext scanContext =
+        ScanContext.builder().monitorInterval(Duration.ofMillis(100)).startTag(tagName).build();
+
+    StreamingMonitorFunction function = createFunction(scanContext);
+    try (AbstractStreamOperatorTestHarness<FlinkInputSplit> harness = createHarness(function)) {
+      harness.setup();
+      harness.open();
+
+      TestSourceContext sourceContext = new TestSourceContext(new CountDownLatch(1));
+      runSourceFunctionInTask(sourceContext, function);
+
+      awaitExpectedSplits(sourceContext);
+
+      // Stop the stream task.
+      function.close();
+
       TestHelpers.assertRecords(
           sourceContext.toRows(), Lists.newArrayList(Iterables.concat(recordsList)), SCHEMA);
     }
@@ -172,20 +198,16 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       harness.setup();
       harness.open();
 
-      CountDownLatch latch = new CountDownLatch(1);
-      TestSourceContext sourceContext = new TestSourceContext(latch);
+      TestSourceContext sourceContext = new TestSourceContext(new CountDownLatch(1));
       runSourceFunctionInTask(sourceContext, func);
 
-      Assert.assertTrue(
-          "Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
-      Thread.sleep(1000L);
+      awaitExpectedSplits(sourceContext);
 
       state = harness.snapshot(1, 1);
 
       // Stop the stream task.
       func.close();
 
-      Assert.assertEquals("Should produce the expected splits", 1, sourceContext.splits.size());
       TestHelpers.assertRecords(
           sourceContext.toRows(), Lists.newArrayList(Iterables.concat(recordsList)), SCHEMA);
     }
@@ -198,21 +220,27 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       harness.initializeState(state);
       harness.open();
 
-      CountDownLatch latch = new CountDownLatch(1);
-      TestSourceContext sourceContext = new TestSourceContext(latch);
+      TestSourceContext sourceContext = new TestSourceContext(new CountDownLatch(1));
       runSourceFunctionInTask(sourceContext, newFunc);
 
-      Assert.assertTrue(
-          "Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
-      Thread.sleep(1000L);
+      awaitExpectedSplits(sourceContext);
 
       // Stop the stream task.
       newFunc.close();
 
-      Assert.assertEquals("Should produce the expected splits", 1, sourceContext.splits.size());
       TestHelpers.assertRecords(
           sourceContext.toRows(), Lists.newArrayList(Iterables.concat(newRecordsList)), SCHEMA);
     }
+  }
+
+  private void awaitExpectedSplits(TestSourceContext sourceContext) {
+    Awaitility.await("expected splits should be produced")
+        .atMost(Duration.ofMillis(WAIT_TIME_MILLIS))
+        .untilAsserted(
+            () -> {
+              assertThat(sourceContext.latch.getCount()).isEqualTo(0);
+              assertThat(sourceContext.splits).as("Should produce the expected splits").hasSize(1);
+            });
   }
 
   @Test
@@ -222,15 +250,9 @@ public class TestStreamingMonitorFunction extends TableTestBase {
             .monitorInterval(Duration.ofMillis(100))
             .maxPlanningSnapshotCount(0)
             .build();
-
-    AssertHelpers.assertThrows(
-        "Should throw exception because of invalid config",
-        IllegalArgumentException.class,
-        "must be greater than zero",
-        () -> {
-          createFunction(scanContext1);
-          return null;
-        });
+    Assertions.assertThatThrownBy(() -> createFunction(scanContext1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("The max-planning-snapshot-count must be greater than zero");
 
     ScanContext scanContext2 =
         ScanContext.builder()
@@ -238,14 +260,9 @@ public class TestStreamingMonitorFunction extends TableTestBase {
             .maxPlanningSnapshotCount(-10)
             .build();
 
-    AssertHelpers.assertThrows(
-        "Should throw exception because of invalid config",
-        IllegalArgumentException.class,
-        "must be greater than zero",
-        () -> {
-          createFunction(scanContext2);
-          return null;
-        });
+    Assertions.assertThatThrownBy(() -> createFunction(scanContext2))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("The max-planning-snapshot-count must be greater than zero");
   }
 
   @Test

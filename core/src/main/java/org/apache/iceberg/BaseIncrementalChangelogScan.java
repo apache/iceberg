@@ -38,19 +38,18 @@ class BaseIncrementalChangelogScan
         IncrementalChangelogScan, ChangelogScanTask, ScanTaskGroup<ChangelogScanTask>>
     implements IncrementalChangelogScan {
 
-  BaseIncrementalChangelogScan(TableOperations ops, Table table) {
-    this(ops, table, table.schema(), new TableScanContext());
+  BaseIncrementalChangelogScan(Table table) {
+    this(table, table.schema(), TableScanContext.empty());
   }
 
-  BaseIncrementalChangelogScan(
-      TableOperations ops, Table table, Schema schema, TableScanContext context) {
-    super(ops, table, schema, context);
+  private BaseIncrementalChangelogScan(Table table, Schema schema, TableScanContext context) {
+    super(table, schema, context);
   }
 
   @Override
   protected IncrementalChangelogScan newRefinedScan(
-      TableOperations newOps, Table newTable, Schema newSchema, TableScanContext newContext) {
-    return new BaseIncrementalChangelogScan(newOps, newTable, newSchema, newContext);
+      Table newTable, Schema newSchema, TableScanContext newContext) {
+    return new BaseIncrementalChangelogScan(newTable, newSchema, newContext);
   }
 
   @Override
@@ -79,7 +78,8 @@ class BaseIncrementalChangelogScan
             .select(scanColumns())
             .filterData(filter())
             .filterManifestEntries(entry -> changelogSnapshotIds.contains(entry.snapshotId()))
-            .ignoreExisting();
+            .ignoreExisting()
+            .columnsToKeepStats(columnsToKeepStats());
 
     if (shouldIgnoreResiduals()) {
       manifestGroup = manifestGroup.ignoreResiduals();
@@ -105,7 +105,7 @@ class BaseIncrementalChangelogScan
 
     for (Snapshot snapshot : SnapshotUtil.ancestorsBetween(table(), toIdIncl, fromIdExcl)) {
       if (!snapshot.operation().equals(DataOperations.REPLACE)) {
-        if (snapshot.deleteManifests(table().io()).size() > 0) {
+        if (!snapshot.deleteManifests(table().io()).isEmpty()) {
           throw new UnsupportedOperationException(
               "Delete files are currently not supported in changelog scans");
         }

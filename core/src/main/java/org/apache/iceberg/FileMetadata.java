@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
@@ -26,6 +27,7 @@ import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.util.ByteBuffers;
 
 public class FileMetadata {
@@ -56,11 +58,12 @@ public class FileMetadata {
     private Map<Integer, ByteBuffer> upperBounds = null;
     private ByteBuffer keyMetadata = null;
     private Integer sortOrderId = null;
+    private List<Long> splitOffsets = null;
 
     Builder(PartitionSpec spec) {
       this.spec = spec;
       this.specId = spec.specId();
-      this.isPartitioned = spec.fields().size() > 0;
+      this.isPartitioned = spec.isPartitioned();
       this.partitionData = isPartitioned ? DataFiles.newPartitionData(spec) : null;
     }
 
@@ -154,7 +157,9 @@ public class FileMetadata {
     }
 
     public Builder withPartition(StructLike newPartition) {
-      this.partitionData = DataFiles.copyPartitionData(spec, newPartition, partitionData);
+      if (isPartitioned) {
+        this.partitionData = DataFiles.copyPartitionData(spec, newPartition, partitionData);
+      }
       return this;
     }
 
@@ -187,6 +192,15 @@ public class FileMetadata {
       this.nanValueCounts = metrics.nanValueCounts();
       this.lowerBounds = metrics.lowerBounds();
       this.upperBounds = metrics.upperBounds();
+      return this;
+    }
+
+    public Builder withSplitOffsets(List<Long> offsets) {
+      if (offsets != null) {
+        this.splitOffsets = ImmutableList.copyOf(offsets);
+      } else {
+        this.splitOffsets = null;
+      }
       return this;
     }
 
@@ -247,6 +261,7 @@ public class FileMetadata {
               upperBounds),
           equalityFieldIds,
           sortOrderId,
+          splitOffsets,
           keyMetadata);
     }
   }

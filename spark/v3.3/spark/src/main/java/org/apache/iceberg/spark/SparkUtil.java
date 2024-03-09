@@ -29,9 +29,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.Table;
-import org.apache.iceberg.hadoop.HadoopConfigurable;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -50,7 +47,6 @@ import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
-import org.apache.spark.util.SerializableConfiguration;
 import org.joda.time.DateTime;
 
 public class SparkUtil {
@@ -66,28 +62,16 @@ public class SparkUtil {
           SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE);
 
   private static final String SPARK_CATALOG_CONF_PREFIX = "spark.sql.catalog";
-  // Format string used as the prefix for spark configuration keys to override hadoop configuration
-  // values
-  // for Iceberg tables from a given catalog. These keys can be specified as
-  // `spark.sql.catalog.$catalogName.hadoop.*`,
-  // similar to using `spark.hadoop.*` to override hadoop configurations globally for a given spark
-  // session.
+  // Format string used as the prefix for Spark configuration keys to override Hadoop configuration
+  // values for Iceberg tables from a given catalog. These keys can be specified as
+  // `spark.sql.catalog.$catalogName.hadoop.*`, similar to using `spark.hadoop.*` to override
+  // Hadoop configurations globally for a given Spark session.
   private static final String SPARK_CATALOG_HADOOP_CONF_OVERRIDE_FMT_STR =
       SPARK_CATALOG_CONF_PREFIX + ".%s.hadoop.";
 
   private static final Joiner DOT = Joiner.on(".");
 
   private SparkUtil() {}
-
-  public static FileIO serializableFileIO(Table table) {
-    if (table.io() instanceof HadoopConfigurable) {
-      // we need to use Spark's SerializableConfiguration to avoid issues with Kryo serialization
-      ((HadoopConfigurable) table.io())
-          .serializeConfWith(conf -> new SerializableConfiguration(conf)::value);
-    }
-
-    return table.io();
-  }
 
   /**
    * Check whether the partition transforms in a spec can be used to write data.
@@ -202,9 +186,8 @@ public class SparkUtil {
         .settings()
         .forEach(
             (k, v) -> {
-              // These checks are copied from `spark.sessionState().newHadoopConfWithOptions()`,
-              // which we
-              // avoid using to not have to convert back and forth between scala / java map types.
+              // these checks are copied from `spark.sessionState().newHadoopConfWithOptions()`
+              // to avoid converting back and forth between Scala / Java map types
               if (v != null && k != null && k.startsWith(hadoopConfCatalogPrefix)) {
                 conf.set(k.substring(hadoopConfCatalogPrefix.length()), v);
               }
@@ -294,5 +277,9 @@ public class SparkUtil {
 
   public static String toColumnName(NamedReference ref) {
     return DOT.join(ref.fieldNames());
+  }
+
+  public static boolean caseSensitive(SparkSession spark) {
+    return Boolean.parseBoolean(spark.conf().get("spark.sql.caseSensitive"));
   }
 }

@@ -19,6 +19,8 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -26,6 +28,8 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PartitionUtil;
 import org.junit.Assert;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -76,24 +80,31 @@ public abstract class MetadataTableScanTestBase extends TableTestBase {
     }
   }
 
-  protected void validateIncludesPartitionScan(
-      CloseableIterable<FileScanTask> tasks, int partValue) {
-    validateIncludesPartitionScan(tasks, 0, partValue);
+  protected void validateSingleFieldPartition(
+      CloseableIterable<ManifestEntry<?>> files, int partitionValue) {
+    validatePartition(files, 0, partitionValue);
   }
 
-  protected void validateIncludesPartitionScan(
-      CloseableIterable<FileScanTask> tasks, int position, int partValue) {
+  protected void validatePartition(
+      CloseableIterable<ManifestEntry<? extends ContentFile<?>>> entries,
+      int position,
+      int partitionValue) {
     Assert.assertTrue(
         "File scan tasks do not include correct file",
-        StreamSupport.stream(tasks.spliterator(), false)
+        StreamSupport.stream(entries.spliterator(), false)
             .anyMatch(
-                task -> {
-                  StructLike partition = task.file().partition();
+                entry -> {
+                  StructLike partition = entry.file().partition();
                   if (position >= partition.size()) {
                     return false;
                   }
 
-                  return partition.get(position, Object.class).equals(partValue);
+                  return Objects.equals(partitionValue, partition.get(position, Object.class));
                 }));
+  }
+
+  protected Map<Integer, ?> constantsMap(
+      PositionDeletesScanTask task, Types.StructType partitionType) {
+    return PartitionUtil.constantsMap(task, partitionType, (type, constant) -> constant);
   }
 }

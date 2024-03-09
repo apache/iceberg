@@ -18,10 +18,11 @@
  */
 package org.apache.iceberg.dell.ecs;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestPropertiesSerDesUtil {
 
@@ -31,6 +32,6 @@ public class TestPropertiesSerDesUtil {
     byte[] byteValue = PropertiesSerDesUtil.toBytes(properties);
     Map<String, String> result =
         PropertiesSerDesUtil.read(byteValue, PropertiesSerDesUtil.currentVersion());
-    Assert.assertEquals("Ser/Des will return the same content.", properties, result);
+    assertThat(properties).as("Ser/Des will return the same content.").isEqualTo(result);
   }
 }

@@ -23,7 +23,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -174,11 +173,7 @@ public class SnapshotParser {
   }
 
   public static Snapshot fromJson(String json) {
-    try {
-      return fromJson(JsonUtil.mapper().readValue(json, JsonNode.class));
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to read version from json: %s", json);
-    }
+    return JsonUtil.parse(json, SnapshotParser::fromJson);
   }
 
   /**

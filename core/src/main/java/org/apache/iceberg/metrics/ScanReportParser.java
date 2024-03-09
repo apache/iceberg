@@ -22,7 +22,6 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -83,11 +82,7 @@ public class ScanReportParser {
     ScanMetricsResultParser.toJson(scanReport.scanMetrics(), gen);
 
     if (!scanReport.metadata().isEmpty()) {
-      gen.writeObjectFieldStart(METADATA);
-      for (Map.Entry<String, String> entry : scanReport.metadata().entrySet()) {
-        gen.writeStringField(entry.getKey(), entry.getValue());
-      }
-      gen.writeEndObject();
+      JsonUtil.writeStringMap(METADATA, scanReport.metadata(), gen);
     }
   }
 

@@ -31,10 +31,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.SnapshotUtil;
 
 class IncrementalDataTableScan extends DataTableScan {
-
-  IncrementalDataTableScan(
-      TableOperations ops, Table table, Schema schema, TableScanContext context) {
-    super(ops, table, schema, context.useSnapshotId(null));
+  IncrementalDataTableScan(Table table, Schema schema, TableScanContext context) {
+    super(table, schema, context.useSnapshotId(null));
     validateSnapshotIds(table, context.fromSnapshotId(), context.toSnapshotId());
   }
 
@@ -66,7 +64,6 @@ class IncrementalDataTableScan extends DataTableScan {
   public TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
     validateSnapshotIdsRefinement(fromSnapshotId, toSnapshotId);
     return new IncrementalDataTableScan(
-        tableOps(),
         table(),
         schema(),
         context().fromSnapshotIdExclusive(fromSnapshotId).toSnapshotId(toSnapshotId));
@@ -91,7 +88,7 @@ class IncrementalDataTableScan extends DataTableScan {
     Set<Long> snapshotIds = Sets.newHashSet(Iterables.transform(snapshots, Snapshot::snapshotId));
     Set<ManifestFile> manifests =
         FluentIterable.from(snapshots)
-            .transformAndConcat(snapshot -> snapshot.dataManifests(tableOps().io()))
+            .transformAndConcat(snapshot -> snapshot.dataManifests(table().io()))
             .filter(manifestFile -> snapshotIds.contains(manifestFile.snapshotId()))
             .toSet();
 
@@ -105,7 +102,8 @@ class IncrementalDataTableScan extends DataTableScan {
                     snapshotIds.contains(manifestEntry.snapshotId())
                         && manifestEntry.status() == ManifestEntry.Status.ADDED)
             .specsById(table().specs())
-            .ignoreDeleted();
+            .ignoreDeleted()
+            .columnsToKeepStats(columnsToKeepStats());
 
     if (shouldIgnoreResiduals()) {
       manifestGroup = manifestGroup.ignoreResiduals();
@@ -124,9 +122,8 @@ class IncrementalDataTableScan extends DataTableScan {
 
   @Override
   @SuppressWarnings("checkstyle:HiddenField")
-  protected TableScan newRefinedScan(
-      TableOperations ops, Table table, Schema schema, TableScanContext context) {
-    return new IncrementalDataTableScan(ops, table, schema, context);
+  protected TableScan newRefinedScan(Table table, Schema schema, TableScanContext context) {
+    return new IncrementalDataTableScan(table, schema, context);
   }
 
   private static List<Snapshot> snapshotsWithin(

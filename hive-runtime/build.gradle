@@ -45,11 +45,13 @@ project(':iceberg-hive-runtime') {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
     implementation project(':iceberg-aws')
+    implementation project(':iceberg-azure')
     implementation(project(':iceberg-aliyun')) {
       exclude group: 'edu.umd.cs.findbugs', module: 'findbugs'
       exclude group: 'org.apache.httpcomponents', module: 'httpclient'
       exclude group: 'commons-logging', module: 'commons-logging'
     }
+    implementation project(':iceberg-gcp')
   }
 
   shadowJar {
@@ -66,7 +68,8 @@ project(':iceberg-hive-runtime') {
     // Relocate dependencies to avoid conflicts
     relocate 'org.apache.avro', 'org.apache.iceberg.shaded.org.apache.avro'
     relocate 'org.apache.parquet', 'org.apache.iceberg.shaded.org.apache.parquet'
-    relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
+    relocate 'com.google.errorprone', 'org.apache.iceberg.shaded.com.google.errorprone'
+    relocate 'com.google.flatbuffers', 'org.apache.iceberg.shaded.com.google.flatbuffers'
     relocate 'com.fasterxml', 'org.apache.iceberg.shaded.com.fasterxml'
     relocate 'com.github.benmanes', 'org.apache.iceberg.shaded.com.github.benmanes'
     relocate 'org.checkerframework', 'org.apache.iceberg.shaded.org.checkerframework'
@@ -74,11 +77,12 @@ project(':iceberg-hive-runtime') {
     relocate 'org.apache.orc', 'org.apache.iceberg.shaded.org.apache.orc'
     relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'
     relocate 'org.threeten.extra', 'org.apache.iceberg.shaded.org.threeten.extra'
-    relocate 'org.apache.httpcomponents.client5', 'org.apache.iceberg.shaded.org.apache.httpcomponents.client5'
+    relocate 'org.apache.hc.client5', 'org.apache.iceberg.shaded.org.apache.hc.client5'
+    relocate 'org.apache.hc.core5', 'org.apache.iceberg.shaded.org.apache.hc.core5'
     // relocate OrcSplit in order to avoid the conflict from Hive's OrcSplit
     relocate 'org.apache.hadoop.hive.ql.io.orc.OrcSplit', 'org.apache.iceberg.shaded.org.apache.hadoop.hive.ql.io.orc.OrcSplit'
 
-    classifier null
+    archiveClassifier.set(null)
   }
 
   jar {
