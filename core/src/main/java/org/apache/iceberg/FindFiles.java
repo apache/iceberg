@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
@@ -174,9 +175,13 @@ public class FindFiles {
         Expression partFilter = Expressions.alwaysTrue();
         for (int i = 0; i < spec.fields().size(); i += 1) {
           PartitionField field = spec.fields().get(i);
-          partFilter =
-              Expressions.and(
-                  partFilter, Expressions.equal(field.name(), partitionData.get(i, Object.class)));
+          Object partitionValue = partitionData.get(i, Object.class);
+          if (Objects.isNull(partitionValue)) {
+            partFilter = Expressions.and(partFilter, Expressions.isNull(field.name()));
+          } else {
+            partFilter =
+                Expressions.and(partFilter, Expressions.equal(field.name(), partitionValue));
+          }
         }
         partitionSetFilter = Expressions.or(partitionSetFilter, partFilter);
       }

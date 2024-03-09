@@ -29,6 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
+import org.junit.Assert;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -131,6 +132,26 @@ public class TestFindFiles extends TestBase {
             .collect();
 
     assertThat(pathSet(files)).isEqualTo(pathSet(FILE_B, FILE_C));
+  }
+
+  @TestTemplate
+  public void testInPartitionsAfterRemovePartitionField() {
+    table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
+
+    DataFile fileWithoutPartitionField =
+        DataFiles.builder(table.spec())
+            .withPath("/path/to/data-drop-partition.parquet")
+            .withFileSizeInBytes(10L)
+            .withRecordCount(1L)
+            .build();
+    table.newAppend().appendFile(fileWithoutPartitionField).commit();
+
+    Iterable<DataFile> files =
+        FindFiles.in(table)
+            .inPartitions(table.spec(), StaticDataTask.Row.of(new Object[] {null}))
+            .collect();
+
+    Assert.assertEquals(pathSet(fileWithoutPartitionField), pathSet(files));
   }
 
   @TestTemplate
