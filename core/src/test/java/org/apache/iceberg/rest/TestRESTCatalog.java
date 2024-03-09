@@ -353,6 +353,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any());
   }
 
+  @Test
   public void testCatalogCredentialNoOauth2ServerUri() {
     Map<String, String> emptyHeaders = ImmutableMap.of();
     Map<String, String> catalogHeaders =
