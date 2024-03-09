@@ -4034,7 +4034,7 @@ components:
             $ref: '#/components/schemas/IcebergErrorResponse'
           example: {
             "error": {
-              "message": " Unprocessable entity, clients are required to do preplanning, before initiating a plan.",
+              "message": " Unprocessable entity, please call PreplanTable to distribute table scan planning.",
               "type": "UnprocessableEntityException",
               "code": 422
             }
