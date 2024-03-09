@@ -220,7 +220,7 @@ class MetadataLog(BaseModel):
 
 class PlanTask(BaseModel):
     """
-    A JSON object that contains information provided by the server, to be utilized by clients for distributed planning, should be supplied as is for input in PlanTable operation.
+    An opaque JSON object that contains information provided by the REST server, to be utilized by clients for distributed table scan planning, should be supplied as is for input in `PlanTable` operation.
     """
 
 
@@ -1029,7 +1029,7 @@ class FileScanTask(BaseModel):
     residual_filter: Optional[Expression] = Field(
         None,
         alias='residual-filter',
-        description='An optional residual filter provided by a service, if not present clients shall calculate this residual or use the original filter.',
+        description='filters that are not fully applied by the server and should be pushed down to the file reader when reading the file.',
     )
 
 

@@ -2206,9 +2206,9 @@ components:
 
     PlanTask:
       description:
-        A JSON object that contains information provided by the server,
-        to be utilized by clients for distributed planning, should be supplied
-        as is for input in PlanTable operation.
+        An opaque JSON object that contains information provided by the REST server,
+        to be utilized by clients for distributed table scan planning, should be supplied
+        as is for input in `PlanTable` operation.
       type: object
 
     FileScanTask:
@@ -2236,7 +2236,7 @@ components:
         spec:
           $ref: '#/components/schemas/PartitionSpec'
         residual-filter:
-          description: An optional residual filter provided by a service, if not present clients shall calculate this residual or use the original filter.
+          description: filters that are not fully applied by the server and should be pushed down to the file reader when reading the file.
           $ref: '#/components/schemas/Expression'
 
     SQLViewRepresentation:
@@ -4004,7 +4004,7 @@ components:
             $ref: '#/components/schemas/IcebergErrorResponse'
           example: {
             "error": {
-              "message": " Payload is too large, client should obtain a plan-task by using the preplan endpoint.",
+              "message": " Payload is too large for PlanTable, please call PreplanTable to distribute table scan planning",
               "type": "PayLoadTooLargeException",
               "code": 413
             }
@@ -4027,7 +4027,7 @@ components:
 
     UnprocessableEntityResponse:
       description:
-        Clients are required to do preplanning and provide a plan-task, before initiating a plan.
+        Service can not process entity.
       content:
         application/json:
           schema:
