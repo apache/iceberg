@@ -394,7 +394,7 @@ public class TestAlterTablePartitionFields extends ExtensionsTestBase {
           TestHelpers.newExpectedSpecBuilder()
               .withSchema(table.schema())
               .withSpecId(2)
-              .addField("hour", 3, 1001, "ts_hour")
+              .addField("hour", 3, 10001, "ts_hour")
               .build();
     }
     assertThat(table.spec())
@@ -428,7 +428,7 @@ public class TestAlterTablePartitionFields extends ExtensionsTestBase {
           TestHelpers.newExpectedSpecBuilder()
               .withSchema(table.schema())
               .withSpecId(2)
-              .addField("hour", 3, 1001, "hour_col")
+              .addField("hour", 3, 10001, "hour_col")
               .build();
     }
     assertThat(table.spec())
@@ -462,7 +462,7 @@ public class TestAlterTablePartitionFields extends ExtensionsTestBase {
           TestHelpers.newExpectedSpecBuilder()
               .withSchema(table.schema())
               .withSpecId(2)
-              .addField("hour", 3, 1001, "ts_hour")
+              .addField("hour", 3, 10001, "ts_hour")
               .build();
     }
     assertThat(table.spec())
@@ -496,7 +496,7 @@ public class TestAlterTablePartitionFields extends ExtensionsTestBase {
           TestHelpers.newExpectedSpecBuilder()
               .withSchema(table.schema())
               .withSpecId(2)
-              .addField("hour", 3, 1001, "hour_col")
+              .addField("hour", 3, 10001, "hour_col")
               .build();
     }
     assertThat(table.spec())
