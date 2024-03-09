@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
 import org.junit.jupiter.api.Test;
@@ -175,5 +176,26 @@ public class TestBuildOrcProjection {
             () -> ORCSchemaUtil.buildOrcProjection(evolvedSchema, baseOrcSchema, false))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Field 4 of type long is required and was not found.");
+  }
+
+  @Test
+  public void testTimestampType() {
+    Configuration config = new Configuration();
+    config.setBoolean(ConfigProperties.ORC_CONVERT_TIMESTAMPTZ, true);
+
+    Schema originalSchema = new Schema(optional(1, "a", Types.TimestampType.withoutZone()));
+    // Orc schema would be `timestamp` if table is converted from a hive table
+    TypeDescription orcSchema = ORCSchemaUtil.convert(originalSchema);
+
+    // Evolve schema
+    Schema evolveSchema = new Schema(optional(1, "a", Types.TimestampType.withZone()));
+
+    // iceberg schema is timestamptz
+    TypeDescription newOrcSchema =
+        ORCSchemaUtil.buildOrcProjection(evolveSchema, orcSchema, config);
+    Assertions.assertThat(newOrcSchema.getChildren()).hasSize(1);
+    Assertions.assertThat(newOrcSchema.findSubtype("a").getId()).isEqualTo(1);
+    Assertions.assertThat(newOrcSchema.findSubtype("a").getCategory())
+        .isEqualTo(TypeDescription.Category.TIMESTAMP_INSTANT);
   }
 }
