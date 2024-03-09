@@ -21,6 +21,7 @@ package org.apache.iceberg.orc;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
@@ -49,6 +50,7 @@ public class TestBuildOrcProjection {
 
   @Test
   public void testProjectionPrimitive() {
+    Configuration config = new Configuration();
     Schema originalSchema =
         new Schema(
             optional(1, "a", Types.IntegerType.get()), optional(2, "b", Types.StringType.get()));
@@ -63,7 +65,8 @@ public class TestBuildOrcProjection {
             optional(3, "c", Types.DateType.get()) // will produce ORC column c_r3 (new)
             );
 
-    TypeDescription newOrcSchema = ORCSchemaUtil.buildOrcProjection(evolveSchema, orcSchema);
+    TypeDescription newOrcSchema =
+        ORCSchemaUtil.buildOrcProjection(evolveSchema, orcSchema, config);
     Assertions.assertThat(newOrcSchema.getChildren()).hasSize(2);
     Assertions.assertThat(newOrcSchema.findSubtype("b").getId()).isEqualTo(1);
     Assertions.assertThat(newOrcSchema.findSubtype("b").getCategory())
@@ -75,6 +78,7 @@ public class TestBuildOrcProjection {
 
   @Test
   public void testProjectionNestedNoOp() {
+    Configuration config = new Configuration();
     Types.StructType nestedStructType =
         Types.StructType.of(
             optional(2, "b", Types.StringType.get()), optional(3, "c", Types.DateType.get()));
@@ -83,7 +87,8 @@ public class TestBuildOrcProjection {
     // Original mapping (stored in ORC)
     TypeDescription orcSchema = ORCSchemaUtil.convert(originalSchema);
 
-    TypeDescription newOrcSchema = ORCSchemaUtil.buildOrcProjection(originalSchema, orcSchema);
+    TypeDescription newOrcSchema =
+        ORCSchemaUtil.buildOrcProjection(originalSchema, orcSchema, config);
     Assertions.assertThat(newOrcSchema.getChildren()).hasSize(1);
     Assertions.assertThat(newOrcSchema.findSubtype("a").getCategory())
         .isEqualTo(TypeDescription.Category.STRUCT);
@@ -98,6 +103,7 @@ public class TestBuildOrcProjection {
 
   @Test
   public void testProjectionNested() {
+    Configuration config = new Configuration();
     Types.StructType nestedStructType =
         Types.StructType.of(
             optional(2, "b", Types.StringType.get()), optional(3, "c", Types.DateType.get()));
@@ -112,7 +118,8 @@ public class TestBuildOrcProjection {
             optional(3, "cc", Types.DateType.get()), optional(2, "bb", Types.StringType.get()));
     Schema evolveSchema = new Schema(optional(1, "aa", newNestedStructType));
 
-    TypeDescription newOrcSchema = ORCSchemaUtil.buildOrcProjection(evolveSchema, orcSchema);
+    TypeDescription newOrcSchema =
+        ORCSchemaUtil.buildOrcProjection(evolveSchema, orcSchema, config);
     Assertions.assertThat(newOrcSchema.getChildren()).hasSize(1);
     Assertions.assertThat(newOrcSchema.findSubtype("a").getCategory())
         .isEqualTo(TypeDescription.Category.STRUCT);
@@ -127,6 +134,7 @@ public class TestBuildOrcProjection {
 
   @Test
   public void testEvolutionAddContainerField() {
+    Configuration config = new Configuration();
     Schema baseSchema = new Schema(required(1, "a", Types.IntegerType.get()));
     TypeDescription baseOrcSchema = ORCSchemaUtil.convert(baseSchema);
 
@@ -135,7 +143,8 @@ public class TestBuildOrcProjection {
             required(1, "a", Types.IntegerType.get()),
             optional(2, "b", Types.StructType.of(required(3, "c", Types.LongType.get()))));
 
-    TypeDescription newOrcSchema = ORCSchemaUtil.buildOrcProjection(evolvedSchema, baseOrcSchema);
+    TypeDescription newOrcSchema =
+        ORCSchemaUtil.buildOrcProjection(evolvedSchema, baseOrcSchema, config);
     Assertions.assertThat(newOrcSchema.getChildren()).hasSize(2);
     Assertions.assertThat(newOrcSchema.findSubtype("a").getCategory())
         .isEqualTo(TypeDescription.Category.INT);
@@ -150,6 +159,7 @@ public class TestBuildOrcProjection {
 
   @Test
   public void testRequiredNestedFieldMissingInFile() {
+    Configuration config = new Configuration();
     Schema baseSchema =
         new Schema(
             required(1, "a", Types.IntegerType.get()),
@@ -167,7 +177,7 @@ public class TestBuildOrcProjection {
                     required(4, "d", Types.LongType.get()))));
 
     Assertions.assertThatThrownBy(
-            () -> ORCSchemaUtil.buildOrcProjection(evolvedSchema, baseOrcSchema))
+            () -> ORCSchemaUtil.buildOrcProjection(evolvedSchema, baseOrcSchema, config))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Field 4 of type long is required and was not found.");
   }

@@ -23,7 +23,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMultimap;
@@ -260,13 +262,17 @@ public final class ORCSchemaUtil {
    * @return the resulting ORC schema
    */
   public static TypeDescription buildOrcProjection(
-      Schema schema, TypeDescription originalOrcSchema) {
+      Schema schema, TypeDescription originalOrcSchema, Configuration config) {
     final Map<Integer, OrcField> icebergToOrc = icebergToOrcMapping("root", originalOrcSchema);
-    return buildOrcProjection(Integer.MIN_VALUE, schema.asStruct(), true, icebergToOrc);
+    return buildOrcProjection(Integer.MIN_VALUE, schema.asStruct(), true, icebergToOrc, config);
   }
 
   private static TypeDescription buildOrcProjection(
-      Integer fieldId, Type type, boolean isRequired, Map<Integer, OrcField> mapping) {
+      Integer fieldId,
+      Type type,
+      boolean isRequired,
+      Map<Integer, OrcField> mapping,
+      Configuration config) {
     final TypeDescription orcType;
 
     switch (type.typeId()) {
@@ -285,7 +291,8 @@ public final class ORCSchemaUtil {
                   nestedField.fieldId(),
                   nestedField.type(),
                   isRequired && nestedField.isRequired(),
-                  mapping);
+                  mapping,
+                  config);
           orcType.addField(name, childType);
         }
         break;
@@ -296,16 +303,21 @@ public final class ORCSchemaUtil {
                 list.elementId(),
                 list.elementType(),
                 isRequired && list.isElementRequired(),
-                mapping);
+                mapping,
+                config);
         orcType = TypeDescription.createList(elementType);
         break;
       case MAP:
         Types.MapType map = (Types.MapType) type;
         TypeDescription keyType =
-            buildOrcProjection(map.keyId(), map.keyType(), isRequired, mapping);
+            buildOrcProjection(map.keyId(), map.keyType(), isRequired, mapping, config);
         TypeDescription valueType =
             buildOrcProjection(
-                map.valueId(), map.valueType(), isRequired && map.isValueRequired(), mapping);
+                map.valueId(),
+                map.valueType(),
+                isRequired && map.isValueRequired(),
+                mapping,
+                config);
         orcType = TypeDescription.createMap(keyType, valueType);
         break;
       default:
@@ -313,7 +325,14 @@ public final class ORCSchemaUtil {
           TypeDescription originalType = mapping.get(fieldId).type();
           Optional<TypeDescription> promotedType = getPromotedType(type, originalType);
 
-          if (promotedType.isPresent()) {
+          boolean convertTimestampTZ =
+              config.getBoolean(ConfigProperties.ORC_CONVERT_TIMESTAMPTZ, false);
+
+          if (convertTimestampTZ
+              && type.typeId() == Type.TypeID.TIMESTAMP
+              && ((Types.TimestampType) type).shouldAdjustToUTC()) {
+            orcType = TypeDescription.createTimestampInstant();
+          } else if (promotedType.isPresent()) {
             orcType = promotedType.get();
           } else {
             Preconditions.checkArgument(
