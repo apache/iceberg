@@ -48,6 +48,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.TimeZone;
 import java.util.UUID;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
@@ -297,6 +298,7 @@ public class TestExpressionToSearchArgument {
 
   @Test
   public void testEvolvedSchema() {
+    Configuration config = new Configuration();
     Schema fileSchema =
         new Schema(
             required(1, "int", Types.IntegerType.get()),
@@ -308,7 +310,7 @@ public class TestExpressionToSearchArgument {
             optional(3, "float_added", Types.FloatType.get()));
 
     TypeDescription readSchema =
-        ORCSchemaUtil.buildOrcProjection(evolvedSchema, ORCSchemaUtil.convert(fileSchema));
+        ORCSchemaUtil.buildOrcProjection(evolvedSchema, ORCSchemaUtil.convert(fileSchema), config);
 
     Expression expr = equal("int_renamed", 1);
     Expression boundFilter = Binder.bind(evolvedSchema.asStruct(), expr, true);
@@ -332,6 +334,7 @@ public class TestExpressionToSearchArgument {
 
   @Test
   public void testOriginalSchemaNameMapping() {
+    Configuration config = new Configuration();
     Schema originalSchema =
         new Schema(
             required(1, "int", Types.IntegerType.get()), optional(2, "long", Types.LongType.get()));
@@ -342,7 +345,9 @@ public class TestExpressionToSearchArgument {
 
     TypeDescription readSchema =
         ORCSchemaUtil.buildOrcProjection(
-            originalSchema, ORCSchemaUtil.applyNameMapping(orcSchemaWithoutIds, nameMapping));
+            originalSchema,
+            ORCSchemaUtil.applyNameMapping(orcSchemaWithoutIds, nameMapping),
+            config);
 
     Expression expr = and(equal("int", 1), equal("long", 1));
     Expression boundFilter = Binder.bind(originalSchema.asStruct(), expr, true);
@@ -358,6 +363,7 @@ public class TestExpressionToSearchArgument {
 
   @Test
   public void testModifiedSimpleSchemaNameMapping() {
+    Configuration config = new Configuration();
     Schema originalSchema =
         new Schema(
             required(1, "int", Types.IntegerType.get()),
@@ -372,7 +378,9 @@ public class TestExpressionToSearchArgument {
 
     TypeDescription readSchema =
         ORCSchemaUtil.buildOrcProjection(
-            mappingSchema, ORCSchemaUtil.applyNameMapping(orcSchemaWithoutIds, nameMapping));
+            mappingSchema,
+            ORCSchemaUtil.applyNameMapping(orcSchemaWithoutIds, nameMapping),
+            config);
 
     Expression expr = equal("int", 1);
     Expression boundFilter = Binder.bind(mappingSchema.asStruct(), expr, true);
@@ -396,6 +404,7 @@ public class TestExpressionToSearchArgument {
 
   @Test
   public void testModifiedComplexSchemaNameMapping() {
+    Configuration config = new Configuration();
     Schema originalSchema =
         new Schema(
             optional(1, "struct", Types.StructType.of(required(2, "long", Types.LongType.get()))),
@@ -444,7 +453,9 @@ public class TestExpressionToSearchArgument {
 
     TypeDescription readSchema =
         ORCSchemaUtil.buildOrcProjection(
-            mappingSchema, ORCSchemaUtil.applyNameMapping(orcSchemaWithoutIds, nameMapping));
+            mappingSchema,
+            ORCSchemaUtil.applyNameMapping(orcSchemaWithoutIds, nameMapping),
+            config);
 
     Expression expr =
         and(

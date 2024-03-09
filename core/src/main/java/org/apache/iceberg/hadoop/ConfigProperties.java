@@ -25,4 +25,6 @@ public class ConfigProperties {
   public static final String ENGINE_HIVE_ENABLED = "iceberg.engine.hive.enabled";
   public static final String LOCK_HIVE_ENABLED = "iceberg.engine.hive.lock-enabled";
   public static final String KEEP_HIVE_STATS = "iceberg.hive.keep.stats";
+
+  public static final String ORC_CONVERT_TIMESTAMPTZ = "iceberg.orc.convert.timestamptz";
 }
