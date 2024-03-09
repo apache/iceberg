@@ -202,7 +202,7 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
             .build();
 
     Assert.assertEquals("should match evolved spec", evolvedSpec, table.spec());
-    Assert.assertEquals(1001, table.spec().lastAssignedFieldId());
+    Assert.assertEquals(10001, table.spec().lastAssignedFieldId());
 
     table.updateSpec().removeField("year_field_year").addField(year("year_field")).commit();
 
@@ -220,11 +220,11 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
         PartitionSpec.builderFor(table.schema())
             .withSpecId(1)
             .bucket("data", 16)
-            .add(3, 1001, "year_field_year", Transforms.year())
+            .add(3, 10001, "year_field_year", Transforms.year())
             .build(),
         table.spec());
 
-    Assert.assertEquals(1001, table.spec().lastAssignedFieldId());
+    Assert.assertEquals(10001, table.spec().lastAssignedFieldId());
   }
 
   @Test
