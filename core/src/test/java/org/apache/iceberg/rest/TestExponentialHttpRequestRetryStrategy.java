@@ -196,4 +196,16 @@ public class TestExponentialHttpRequestRetryStrategy {
     assertThat(retryStrategy.getRetryInterval(response, 3, null).toMilliseconds())
         .isBetween(4000L, 5000L);
   }
+
+  @Test
+  public void testRetryBadGateway() {
+    BasicHttpResponse response502 = new BasicHttpResponse(502, "Bad gateway failure");
+    assertThat(retryStrategy.retryRequest(response502, 3, null)).isTrue();
+  }
+
+  @Test
+  public void testRetryGatewayTimeout() {
+    BasicHttpResponse response504 = new BasicHttpResponse(504, "Gateway timeout");
+    assertThat(retryStrategy.retryRequest(response504, 3, null)).isTrue();
+  }
 }
