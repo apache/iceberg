@@ -54,6 +54,11 @@ class SparkSortDataRewriter extends SparkShufflingDataRewriter {
   }
 
   @Override
+  protected SortOrder sortOrder() {
+    return sortOrder;
+  }
+
+  @Override
   protected Dataset<Row> sortedDF(Dataset<Row> df, List<FileScanTask> group) {
     return sort(df, outputSortOrder(group, sortOrder));
   }

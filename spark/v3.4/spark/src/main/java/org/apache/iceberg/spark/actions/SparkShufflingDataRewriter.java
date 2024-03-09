@@ -23,6 +23,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -86,6 +88,16 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
 
   protected abstract org.apache.iceberg.SortOrder sortOrder();
 
+  /**
+   * Retrieves and returns the schema for the rewrite using the current table schema.
+   *
+   * <p>The schema with all columns required for correctly sorting the table. This may include
+   * additional computed columns which are not written to the table but are used for sorting.
+   */
+  protected Schema sortSchema() {
+    return table().schema();
+  }
+
   protected abstract Dataset<Row> sortedDF(
       Dataset<Row> df, Function<Dataset<Row>, Dataset<Row>> sortFunc);
 
@@ -122,6 +134,7 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
         .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, groupId)
         .option(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, writeMaxFileSize())
         .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING, "false")
+        .option(SparkWriteOptions.OUTPUT_SPEC_ID, outputSpecId())
         .mode("append")
         .save(groupId);
   }
@@ -152,11 +165,12 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
   }
 
   private org.apache.iceberg.SortOrder outputSortOrder(List<FileScanTask> group) {
-    boolean includePartitionColumns = !group.get(0).spec().equals(table().spec());
-    if (includePartitionColumns) {
+    PartitionSpec spec = outputSpec();
+    boolean requiresRepartitioning = !group.get(0).spec().equals(spec);
+    if (requiresRepartitioning) {
       // build in the requirement for partition sorting into our sort order
       // as the original spec for this group does not match the output spec
-      return SortOrderUtil.buildSortOrder(table(), sortOrder());
+      return SortOrderUtil.buildSortOrder(sortSchema(), spec, sortOrder());
     } else {
       return sortOrder();
     }

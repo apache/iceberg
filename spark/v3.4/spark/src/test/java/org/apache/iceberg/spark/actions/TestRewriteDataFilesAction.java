@@ -53,6 +53,7 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.RowDelta;
@@ -1424,6 +1425,130 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     Assert.assertEquals("Number of files order should be descending", actual, expected);
     Collections.reverse(expected);
     Assert.assertNotEquals("Number of files order should not be ascending", actual, expected);
+  }
+
+  @Test
+  public void testBinPackRewriterWithSpecificUnparitionedOutputSpec() {
+    Table table = createTable(10);
+    shouldHaveFiles(table, 10);
+    int outputSpecId = table.spec().specId();
+    table.updateSpec().addField(Expressions.truncate("c2", 2)).commit();
+
+    long dataSizeBefore = testDataSize(table);
+    long count = currentData().size();
+
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .option(RewriteDataFiles.OUTPUT_SPEC_ID, String.valueOf(outputSpecId))
+            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .binPack()
+            .execute();
+
+    assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
+    assertThat(currentData().size()).isEqualTo(count);
+    shouldRewriteDataFilesWithPartitionSpec(table, outputSpecId);
+  }
+
+  @Test
+  public void testBinPackRewriterWithSpecificOutputSpec() {
+    Table table = createTable(10);
+    shouldHaveFiles(table, 10);
+    table.updateSpec().addField(Expressions.truncate("c2", 2)).commit();
+    int outputSpecId = table.spec().specId();
+    table.updateSpec().addField(Expressions.bucket("c3", 2)).commit();
+
+    long dataSizeBefore = testDataSize(table);
+    long count = currentData().size();
+
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .option(RewriteDataFiles.OUTPUT_SPEC_ID, String.valueOf(outputSpecId))
+            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .binPack()
+            .execute();
+
+    assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
+    assertThat(currentData().size()).isEqualTo(count);
+    shouldRewriteDataFilesWithPartitionSpec(table, outputSpecId);
+  }
+
+  @Test
+  public void testBinpackRewriteWithInvalidOutputSpecId() {
+    Table table = createTable(10);
+    shouldHaveFiles(table, 10);
+    Assertions.assertThatThrownBy(
+            () ->
+                actions()
+                    .rewriteDataFiles(table)
+                    .option(RewriteDataFiles.OUTPUT_SPEC_ID, String.valueOf(1234))
+                    .binPack()
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot use output spec id 1234 because the table does not contain a reference to this spec-id.");
+  }
+
+  @Test
+  public void testSortRewriterWithSpecificOutputSpecId() {
+    Table table = createTable(10);
+    shouldHaveFiles(table, 10);
+    table.updateSpec().addField(Expressions.truncate("c2", 2)).commit();
+    int outputSpecId = table.spec().specId();
+    table.updateSpec().addField(Expressions.bucket("c3", 2)).commit();
+
+    long dataSizeBefore = testDataSize(table);
+    long count = currentData().size();
+
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .option(RewriteDataFiles.OUTPUT_SPEC_ID, String.valueOf(outputSpecId))
+            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .sort(SortOrder.builderFor(table.schema()).asc("c2").asc("c3").build())
+            .execute();
+
+    assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
+    assertThat(currentData().size()).isEqualTo(count);
+    shouldRewriteDataFilesWithPartitionSpec(table, outputSpecId);
+  }
+
+  @Test
+  public void testZOrderRewriteWithSpecificOutputSpecId() {
+    Table table = createTable(10);
+    shouldHaveFiles(table, 10);
+    table.updateSpec().addField(Expressions.truncate("c2", 2)).commit();
+    int outputSpecId = table.spec().specId();
+    table.updateSpec().addField(Expressions.bucket("c3", 2)).commit();
+
+    long dataSizeBefore = testDataSize(table);
+    long count = currentData().size();
+
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .option(RewriteDataFiles.OUTPUT_SPEC_ID, String.valueOf(outputSpecId))
+            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .zOrder("c2", "c3")
+            .execute();
+
+    assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
+    assertThat(currentData().size()).isEqualTo(count);
+    shouldRewriteDataFilesWithPartitionSpec(table, outputSpecId);
+  }
+
+  protected void shouldRewriteDataFilesWithPartitionSpec(Table table, int outputSpecId) {
+    List<DataFile> rewrittenFiles = currentDataFiles(table);
+    assertThat(rewrittenFiles).allMatch(file -> file.specId() == outputSpecId);
+    assertThat(rewrittenFiles)
+        .allMatch(
+            file ->
+                ((PartitionData) file.partition())
+                    .getPartitionType()
+                    .equals(table.specs().get(outputSpecId).partitionType()));
+  }
+
+  protected List<DataFile> currentDataFiles(Table table) {
+    return Streams.stream(table.newScan().planFiles())
+        .map(FileScanTask::file)
+        .collect(Collectors.toList());
   }
 
   private Stream<RewriteFileGroup> toGroupStream(Table table, RewriteDataFilesSparkAction rewrite) {
