@@ -1617,7 +1617,7 @@ components:
         Servers that support pagination should identify the `pageToken` parameter and return a
         `next-page-token` in the response if there are more results available.  After the initial
         request, the value of `next-page-token` from each response must be used as the `pageToken`
-        parameter value for the next request. The server must return `null` value for the
+        parameter value for the next request. The server must omit or return `null` value for the
         `next-page-token` in the last response.
         
         Servers that support pagination must return all results in a single response with the value
