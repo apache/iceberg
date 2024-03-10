@@ -153,6 +153,12 @@ class RecordConverter {
     throw new IllegalArgumentException("Cannot convert to struct: " + value.getClass().getName());
   }
 
+  /**
+   * This method will be called for records when there is no record schema. Also, when there is no
+   * schema, we infer that map values are struct types. This method might also be called if the
+   * field value is a map but the Iceberg type is a struct. This can happen if the Iceberg table
+   * schema is not managed by the sink, i.e. created manually.
+   */
   private GenericRecord convertToStruct(
       Map<?, ?> map,
       StructType schema,
@@ -187,6 +193,7 @@ class RecordConverter {
     return result;
   }
 
+  /** This method will be called for records and struct values when there is a record schema. */
   private GenericRecord convertToStruct(
       Struct struct,
       StructType schema,
