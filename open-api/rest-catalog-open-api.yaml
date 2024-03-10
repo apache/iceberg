@@ -2214,27 +2214,14 @@ components:
     FileScanTask:
       type: object
       required:
-        - schema
-        - spec
-        - start
-        - length
         - data-file
       properties:
         data-file:
           $ref: '#/components/schemas/ContentFile'
-        start:
-          type: number
-        length:
-          type: number
         delete-files:
           type: array
           items:
             $ref: '#/components/schemas/ContentFile'
-        schema:
-          description: Table Schema
-          $ref: '#/components/schemas/Schema'
-        spec:
-          $ref: '#/components/schemas/PartitionSpec'
         residual-filter:
           description: filters that are not fully applied by the server and should be pushed down to the file reader when reading the file.
           $ref: '#/components/schemas/Expression'

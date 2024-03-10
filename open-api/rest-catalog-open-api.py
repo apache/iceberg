@@ -1021,11 +1021,7 @@ class TableMetadata(BaseModel):
 
 class FileScanTask(BaseModel):
     data_file: ContentFile = Field(..., alias='data-file')
-    start: float
-    length: float
     delete_files: Optional[List[ContentFile]] = Field(None, alias='delete-files')
-    schema_: Schema = Field(..., alias='schema', description='Table Schema')
-    spec: PartitionSpec
     residual_filter: Optional[Expression] = Field(
         None,
         alias='residual-filter',
@@ -1274,7 +1270,6 @@ ListType.update_forward_refs()
 MapType.update_forward_refs()
 Expression.update_forward_refs()
 TableMetadata.update_forward_refs()
-FileScanTask.update_forward_refs()
 ViewMetadata.update_forward_refs()
 AddSchemaUpdate.update_forward_refs()
 CreateTableRequest.update_forward_refs()
