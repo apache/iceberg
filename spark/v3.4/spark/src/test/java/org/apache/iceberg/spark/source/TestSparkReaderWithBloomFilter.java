@@ -119,7 +119,7 @@ public class TestSparkReaderWithBloomFilter {
   @BeforeEach
   public void writeData() throws NoSuchTableException, TableAlreadyExistsException {
     this.tableName = "test";
-    createTable(tableName, schema);
+    createTable(tableName);
     this.rowList = Lists.newArrayList();
 
     for (int i = 0; i < INT_VALUE_COUNT; i += 1) {
@@ -175,7 +175,7 @@ public class TestSparkReaderWithBloomFilter {
     spark = null;
   }
 
-  protected void createTable(String name, StructType schema) throws TableAlreadyExistsException {
+  protected void createTable(String name) throws TableAlreadyExistsException {
     Dataset<Row> emptyDf = spark.createDataFrame(Lists.newArrayList(), schema);
     CreateTableWriter<Row> createTableWriter = emptyDf.writeTo("default." + name);
 
@@ -254,7 +254,7 @@ public class TestSparkReaderWithBloomFilter {
   @TestTemplate
   public void testBloomCreation() throws IOException {
     org.apache.hadoop.fs.Path path = new org.apache.hadoop.fs.Path(temp + "/default/test/data");
-    FileSystem fs = FileSystem.get(path.toUri(), spark.sparkContext().hadoopConfiguration());
+    FileSystem fs = FileSystem.get(path.toUri(), spark.sessionState().newHadoopConf());
     Optional<FileStatus> parquetFile = Arrays.stream(fs.listStatus(path)).findAny();
     assertThat(parquetFile).isPresent();
     ParquetMetadata parquetMetadata =
