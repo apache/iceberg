@@ -1178,7 +1178,12 @@ class PreplanTableRequest(BaseModel):
     snapshot_range: Optional[List[int]] = Field(
         None,
         alias='snapshot-range',
-        description='a JSON list containing exactly 2 int64 snapshot IDs (if snapshot-id is not present) representing the start (exclusive) and end (inclusive) snapshots',
+        description='a JSON list containing exactly 2 int64 snapshot IDs (if snapshot-id is not present) representing the start (defaults to exclusive, see `start-exclusive`) and end (only inclusive) snapshots',
+    )
+    start_exclusive: Optional[bool] = Field(
+        True,
+        alias='start-exclusive',
+        description='Indicates whether the user wants the start of `snapshot-range` to be inclusive or exclusive',
     )
 
 

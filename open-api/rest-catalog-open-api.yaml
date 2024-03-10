@@ -3013,11 +3013,15 @@ components:
           type: integer
           format: int64
         snapshot-range:
-          description: a JSON list containing exactly 2 int64 snapshot IDs (if snapshot-id is not present) representing the start (exclusive) and end (inclusive) snapshots
+          description: a JSON list containing exactly 2 int64 snapshot IDs (if snapshot-id is not present) representing the start (defaults to exclusive, see `start-exclusive`) and end (only inclusive) snapshots
           type: array
           items:
             type: integer
             format: int64
+        start-exclusive:
+          description: Indicates whether the user wants the start of `snapshot-range` to be inclusive or exclusive
+          type: boolean
+          default: true
 
     PlanTableRequest:
       type: object
