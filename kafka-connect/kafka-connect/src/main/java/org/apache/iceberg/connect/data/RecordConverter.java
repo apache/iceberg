@@ -507,7 +507,9 @@ class RecordConverter {
     if (result.charAt(10) == ' ') {
       result = result.substring(0, 10) + 'T' + result.substring(11);
     }
-    if (result.length() > 22 && result.charAt(19) == '+' && result.charAt(22) == ':') {
+    if (result.length() > 22
+        && (result.charAt(19) == '+' || result.charAt(19) == '-')
+        && result.charAt(22) == ':') {
       result = result.substring(0, 19) + result.substring(19).replace(":", "");
     }
     return result;

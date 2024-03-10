@@ -23,6 +23,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.Lists;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -531,23 +532,42 @@ public class RecordConverterTest {
   public void testTimestampWithZoneConversion() {
     OffsetDateTime expected = OffsetDateTime.parse("2023-05-18T11:22:33Z");
     long expectedMillis = expected.toInstant().toEpochMilli();
-    convertToTimestamps(expected, expectedMillis, TimestampType.withZone());
+    assertTimestampConvert(expected, expectedMillis, TimestampType.withZone());
+
+    // zone should be respected
+    expected = OffsetDateTime.parse("2023-05-18T03:22:33-08:00");
+    List<Object> additionalInput =
+        ImmutableList.of(
+            "2023-05-18T03:22:33-08",
+            "2023-05-18 03:22:33-08",
+            "2023-05-18T03:22:33-08:00",
+            "2023-05-18 03:22:33-08:00",
+            "2023-05-18T03:22:33-0800",
+            "2023-05-18 03:22:33-0800");
+    assertTimestampConvert(expected, additionalInput, TimestampType.withZone());
   }
 
   @Test
   public void testTimestampWithoutZoneConversion() {
     LocalDateTime expected = LocalDateTime.parse("2023-05-18T11:22:33");
     long expectedMillis = expected.atZone(ZoneOffset.UTC).toInstant().toEpochMilli();
-    convertToTimestamps(expected, expectedMillis, TimestampType.withoutZone());
+    assertTimestampConvert(expected, expectedMillis, TimestampType.withoutZone());
+
+    // zone should be ignored
+    List<Object> additionalInput =
+        ImmutableList.of(
+            "2023-05-18T11:22:33-08",
+            "2023-05-18 11:22:33-08",
+            "2023-05-18T11:22:33-08:00",
+            "2023-05-18 11:22:33-08:00",
+            "2023-05-18T11:22:33-0800",
+            "2023-05-18 11:22:33-0800");
+    assertTimestampConvert(expected, additionalInput, TimestampType.withoutZone());
   }
 
-  private void convertToTimestamps(Temporal expected, long expectedMillis, TimestampType type) {
-    Table table = mock(Table.class);
-    when(table.schema()).thenReturn(SIMPLE_SCHEMA);
-    RecordConverter converter = new RecordConverter(table, config);
-
+  private void assertTimestampConvert(Temporal expected, long expectedMillis, TimestampType type) {
     List<Object> inputList =
-        ImmutableList.of(
+        Lists.newArrayList(
             "2023-05-18T11:22:33Z",
             "2023-05-18 11:22:33Z",
             "2023-05-18T11:22:33+00",
@@ -562,6 +582,15 @@ public class RecordConverterTest {
             new Date(expectedMillis),
             OffsetDateTime.ofInstant(Instant.ofEpochMilli(expectedMillis), ZoneOffset.UTC),
             LocalDateTime.ofInstant(Instant.ofEpochMilli(expectedMillis), ZoneOffset.UTC));
+
+    assertTimestampConvert(expected, inputList, type);
+  }
+
+  private void assertTimestampConvert(
+      Temporal expected, List<Object> inputList, TimestampType type) {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SIMPLE_SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
 
     inputList.forEach(
         input -> {
