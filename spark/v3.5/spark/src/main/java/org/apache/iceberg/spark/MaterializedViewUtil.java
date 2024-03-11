@@ -26,6 +26,7 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.UnresolvedRelation;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
+import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import scala.collection.JavaConverters;
@@ -36,9 +37,11 @@ public class MaterializedViewUtil {
   private MaterializedViewUtil() {}
 
   public static final String MATERIALIZED_VIEW_PROPERTY_KEY = "iceberg.materialized.view";
-  public static final String MATERIALIZED_VIEW_STORAGE_LOCATION_PROPERTY_KEY =
-      "iceberg.materialized.view.storage.location";
-  public static final String MATERIALIZED_VIEW_BASE_SNAPSHOT_PROPERTY_KEY_PREFIX = "base.snapshot.";
+  public static final String MATERIALIZED_VIEW_STORAGE_TABLE_PROPERTY_KEY =
+      "iceberg.materialized.view.storage.table";
+  public static final String MATERIALIZED_VIEW_BASE_SNAPSHOT_PROPERTY_KEY_PREFIX =
+      "iceberg.base.snapshot.";
+  private static final String MATERIALIZED_VIEW_STORAGE_TABLE_IDENTIFIER_SUFFIX = ".storage.table";
 
   public static List<Table> extractBaseTables(String query) {
     return extractBaseTableIdentifiers(query).stream()
@@ -87,5 +90,12 @@ public class MaterializedViewUtil {
       }
     }
     return Optional.empty();
+  }
+
+  public static Identifier getDefaultMaterializedViewStorageTableIdentifier(
+      Identifier viewIdentifier) {
+    return Identifier.of(
+        viewIdentifier.namespace(),
+        viewIdentifier.name() + MATERIALIZED_VIEW_STORAGE_TABLE_IDENTIFIER_SUFFIX);
   }
 }

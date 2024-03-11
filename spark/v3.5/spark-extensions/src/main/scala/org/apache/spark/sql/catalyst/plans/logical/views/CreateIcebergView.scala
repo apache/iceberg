@@ -19,6 +19,7 @@
 package org.apache.spark.sql.catalyst.plans.logical.views
 
 import org.apache.spark.sql.catalyst.analysis.AnalysisContext
+import org.apache.spark.sql.catalyst.analysis.MaterializedViewOptions
 import org.apache.spark.sql.catalyst.plans.logical.AnalysisOnlyCommand
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 
@@ -36,7 +37,7 @@ case class CreateIcebergView(
     allowExisting: Boolean,
     replace: Boolean,
     rewritten: Boolean = false,
-    materialized: Boolean = false,
+    materializedViewOptions: Option[MaterializedViewOptions] = None,
     isAnalyzed: Boolean = false)
     extends AnalysisOnlyCommand {
 
