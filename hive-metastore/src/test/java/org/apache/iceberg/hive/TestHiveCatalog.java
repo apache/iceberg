@@ -1179,4 +1179,25 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
 
     assertThat(database.getLocationUri()).isEqualTo("s3://bucket/database.db");
   }
+
+  @Test
+  public void testListNamespacesWithEmptyNamespace() {
+    Namespace namespaceWithOneLevel = Namespace.of("parent");
+    assertThat(catalog.listNamespaces(namespaceWithOneLevel))
+        .as("Namespace with one level will return zero namespace.")
+        .hasSize(0);
+
+    Namespace namespaceWithTwoLevel = Namespace.of("parent", "child1");
+    assertThatThrownBy(() -> catalog.listNamespaces(namespaceWithTwoLevel))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessageContaining("Namespace does not exist");
+
+    assertThat(catalog.listNamespaces(Namespace.empty()))
+        .as("Empty namespace should return two namespaces.")
+        .hasSize(2);
+
+    assertThat(catalog.listNamespaces(Namespace.of("")))
+        .as("Namespace with empty string should return zero namespace.")
+        .hasSize(0);
+  }
 }
