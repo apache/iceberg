@@ -313,74 +313,9 @@ Create a PR in the `iceberg` repo to make revapi run on the new release. For an 
 ### Documentation Release
 
 Documentation needs to be updated as a part of an Iceberg release after a release candidate is passed.
-The commands described below assume you are in a directory containing a local clone of the `iceberg-docs`
-repository and `iceberg` repository. Adjust the commands accordingly if it is not the case. Note that all
-changes in `iceberg` need to happen against the `master` branch and changes in `iceberg-docs` need to happen
-against the `main` branch. 
+Please follow the steps from [README](../README.md) to update the site docs and javadocs.
 
-#### Common documentation update
-
-1. To start the release process, run the following steps in the `iceberg-docs` repository to copy docs over:
-```shell
-cp -r ../iceberg/format/* ../iceberg-docs/landing-page/content/common/
-```
-2. Change into the `iceberg-docs` repository and create a branch.
-```shell
-cd ../iceberg-docs
-git checkout -b <BRANCH NAME>
-```
-3. Commit, push, and open a PR against the `iceberg-docs` repo (`<BRANCH NAME>` -> `main`)
-
-#### Versioned documentation update
-
-Once the common docs changes have been merged into `main`, the next step is to update the versioned docs.
-
-1. In the `iceberg-docs` repository, cut a new branch using the version number as the branch name
-```shell
-cd ../iceberg-docs
-git checkout -b <VERSION>
-git push --set-upstream apache <VERSION>
-```
-2. Copy the versioned docs from the `iceberg` repo into the `iceberg-docs` repo
-```shell
-rm -rf ../iceberg-docs/docs/content
-cp -r ../iceberg/docs ../iceberg-docs/docs/content
-```
-3. Commit the changes and open a PR against the `<VERSION>` branch in the `iceberg-docs` repo
-
-#### Javadoc update
-
-In the `iceberg` repository, generate the javadoc for your release and copy it to the `javadoc` folder in `iceberg-docs` repo:
-```shell
-cd ../iceberg
-./gradlew refreshJavadoc
-rm -rf ../iceberg-docs/javadoc
-cp -r site/docs/javadoc/<VERSION NUMBER> ../iceberg-docs/javadoc
-```
-
-This resulted changes in `iceberg-docs` should be approved in a separate PR.
-
-#### Update the latest branch
-
-Since `main` is currently the same as the version branch, one needs to rebase `latest` branch against `main`:
-
-```shell
-git checkout latest
-git rebase main
-git push apache latest
-```
-
-#### Set latest version in iceberg-docs repo
-
-The last step is to update the `main` branch in `iceberg-docs` to set the latest version.
-A PR needs to be published in the `iceberg-docs` repository with the following changes:
-1. Update variable `latestVersions.iceberg` to the new release version in `landing-page/config.toml`
-2. Update variable `latestVersions.iceberg` to the new release version and 
-`versions.nessie` to the version of `org.projectnessie.nessie:*` from [versions.props](https://github.com/apache/iceberg/blob/master/versions.props) in `docs/config.toml`
-3. Update list `versions` with the new release in `landing-page/config.toml`
-4. Update list `versions` with the new release in `docs/config.toml`
-5. Mark the current latest release notes to past releases under `landing-page/content/common/release-notes.md`
-6. Add release notes for the new release version in `landing-page/content/common/release-notes.md`
+Update the `icebergVersion` and `nessieVersion` in the site config files. For an example see [this PR](https://github.com/apache/iceberg/pull/9931).
 
 # How to Verify a Release
 
