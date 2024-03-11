@@ -228,6 +228,27 @@ public class OAuth2Util {
         ImmutableMap.of());
   }
 
+  public static OAuthTokenResponse exchangeToken(
+      RESTClient client,
+      Map<String, String> headers,
+      String subjectToken,
+      String subjectTokenType,
+      String actorToken,
+      String actorTokenType,
+      String scope,
+      String oauth2ServerUri) {
+    return exchangeToken(
+        client,
+        headers,
+        subjectToken,
+        subjectTokenType,
+        actorToken,
+        actorTokenType,
+        scope,
+        oauth2ServerUri,
+        ImmutableMap.of());
+  }
+
   public static OAuthTokenResponse fetchToken(
       RESTClient client,
       Map<String, String> headers,
@@ -258,6 +279,16 @@ public class OAuth2Util {
 
     return fetchToken(
         client, headers, credential, scope, ResourcePaths.tokens(), ImmutableMap.of());
+  }
+
+  public static OAuthTokenResponse fetchToken(
+      RESTClient client,
+      Map<String, String> headers,
+      String credential,
+      String scope,
+      String oauth2ServerUri) {
+
+    return fetchToken(client, headers, credential, scope, oauth2ServerUri, ImmutableMap.of());
   }
 
   private static Map<String, String> tokenExchangeRequest(
@@ -435,7 +466,7 @@ public class OAuth2Util {
     private volatile boolean keepRefreshed = true;
     private final String oauth2ServerUri;
 
-    private volatile Map<String, String> optionalOAuthParams = ImmutableMap.of();
+    private Map<String, String> optionalOAuthParams = ImmutableMap.of();
 
     public AuthSession(
         Map<String, String> baseHeaders,
@@ -470,6 +501,25 @@ public class OAuth2Util {
       this.credential = credential;
       this.scope = scope;
       this.oauth2ServerUri = ResourcePaths.tokens();
+    }
+
+    /** @deprecated since 1.6.0, will be removed in 1.7.0 */
+    @Deprecated
+    public AuthSession(
+        Map<String, String> baseHeaders,
+        String token,
+        String tokenType,
+        String credential,
+        String scope,
+        String oauth2ServerUri) {
+      this.headers = RESTUtil.merge(baseHeaders, authHeaders(token));
+      this.token = token;
+      this.tokenType = tokenType;
+      this.expiresAtMillis = OAuth2Util.expiresAtMillis(token);
+      this.credential = credential;
+      this.scope = scope;
+      this.oauth2ServerUri = oauth2ServerUri;
+      this.optionalOAuthParams = ImmutableMap.of();
     }
 
     public Map<String, String> headers() {
