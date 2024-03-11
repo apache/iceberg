@@ -78,7 +78,7 @@ markdown_extensions:
       permalink: 🔗
 
 extra:
-  icebergVersion: '1.4.3'
+  icebergVersion: '1.5.0'
   social:
     - icon: fontawesome/regular/comments
       link: 'https://iceberg.apache.org/community/'
