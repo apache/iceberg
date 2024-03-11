@@ -1730,7 +1730,7 @@ public class TestTableMetadata {
 
   private String createManifestListWithManifestFile(
       long snapshotId, Long parentSnapshotId, String manifestFile) throws IOException {
-    File manifestList = File.createTempFile("junit", null, temp.toFile());
+    File manifestList = File.createTempFile("manifests", null, temp.toFile());
     manifestList.deleteOnExit();
 
     try (ManifestListWriter writer =

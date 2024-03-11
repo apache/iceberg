@@ -161,7 +161,7 @@ public class TestSnapshotJson {
 
   private String createManifestListWithManifestFiles(long snapshotId, Long parentSnapshotId)
       throws IOException {
-    File manifestList = File.createTempFile("junit", null, temp.toFile());
+    File manifestList = File.createTempFile("manifests", null, temp.toFile());
     manifestList.deleteOnExit();
 
     List<ManifestFile> manifests =
