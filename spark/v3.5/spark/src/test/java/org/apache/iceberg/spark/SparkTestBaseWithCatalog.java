@@ -31,6 +31,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -75,8 +76,13 @@ public abstract class SparkTestBaseWithCatalog extends SparkTestBase {
 
   public SparkTestBaseWithCatalog(
       String catalogName, String implementation, Map<String, String> config) {
+    if (catalogName.equals("spark_with_materialized_views")) {
+      this.catalogConfig = Maps.newHashMap(config);
+      this.catalogConfig.put(CatalogProperties.WAREHOUSE_LOCATION, "file:" + warehouse);
+    } else {
+      this.catalogConfig = config;
+    }
     this.catalogName = catalogName;
-    this.catalogConfig = config;
     this.validationCatalog =
         catalogName.equals("testhadoop")
             ? new HadoopCatalog(spark.sessionState().newHadoopConf(), "file:" + warehouse)

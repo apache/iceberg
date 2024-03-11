@@ -53,7 +53,11 @@ public enum SparkCatalogConfig {
           "default-namespace",
           "default",
           "cache-enabled",
-          "false"));
+          "false")),
+  SPARK_WITH_MATERIALIZED_VIEWS(
+      "spark_with_materialized_views",
+      SparkCatalog.class.getName(),
+      ImmutableMap.of("default-namespace", "default", "cache-enabled", "false"));
 
   private final String catalogName;
   private final String implementation;

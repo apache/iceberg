@@ -28,29 +28,23 @@ import org.antlr.v4.runtime.tree.TerminalNodeImpl
 import org.apache.iceberg.common.DynConstructors
 import org.apache.iceberg.spark.ExtendedParser
 import org.apache.iceberg.spark.ExtendedParser.RawOrderField
-import org.apache.iceberg.spark.Spark3Util
-import org.apache.iceberg.spark.source.SparkTable
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.FunctionIdentifier
 import org.apache.spark.sql.catalyst.TableIdentifier
-import org.apache.spark.sql.catalyst.analysis.EliminateSubqueryAliases
+import org.apache.spark.sql.catalyst.analysis.MaterializedViewOptions
 import org.apache.spark.sql.catalyst.analysis.RewriteViewCommands
-import org.apache.spark.sql.catalyst.analysis.UnresolvedRelation
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.parser.ParserInterface
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.NonReservedContext
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.QuotedIdentifierContext
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.trees.Origin
-import org.apache.spark.sql.connector.catalog.Table
-import org.apache.spark.sql.connector.catalog.TableCatalog
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.internal.VariableSubstitution
 import org.apache.spark.sql.types.DataType
 import org.apache.spark.sql.types.StructType
 import scala.jdk.CollectionConverters._
-import scala.util.Try
 
 class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserInterface with ExtendedParser {
 
@@ -58,6 +52,9 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
 
   private lazy val substitutor = substitutorCtor.newInstance(SQLConf.get)
   private lazy val astBuilder = new IcebergSqlExtensionsAstBuilder(delegate)
+  private lazy final val CREATE_MATERIALIZED_VIEW_PATTERN = "(?i)(CREATE)\\s+MATERIALIZED\\s+(VIEW)".r
+  private lazy final val MATERIALIZED_VIEW_STORED_AS_PATTERN = "(?i)STORED AS\\s*'(\\w+)'\\s*".r
+
 
   /**
    * Parse a string to a DataType.
@@ -123,11 +120,12 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
     if (isIcebergCommand(sqlTextAfterSubstitution)) {
       parse(sqlTextAfterSubstitution) { parser => astBuilder.visit(parser.singleStatement()) }.asInstanceOf[LogicalPlan]
     } else if (isCreateMaterializedView(sqlText)) {
-      RewriteViewCommands(SparkSession.active, true).apply(
-        delegate.parsePlan(replaceCreateMaterializedViewWithCreateView(sqlText))
+      val createMaterializedViewStatement = getCreateMaterializedViewStatement(sqlText)
+      RewriteViewCommands(SparkSession.active, Option(getMaterializedViewOptions(sqlText))).apply(
+        delegate.parsePlan(getCreateMaterializedViewStatement(sqlText))
       )
     } else {
-      RewriteViewCommands(SparkSession.active, false).apply(delegate.parsePlan(sqlText))
+      RewriteViewCommands(SparkSession.active, None).apply(delegate.parsePlan(sqlText))
     }
   }
 
@@ -159,13 +157,17 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
     sqlText.toLowerCase.contains("create materialized view")
   }
 
-  def replaceCreateMaterializedViewWithCreateView(input: String): String = {
-    // Regex pattern to match "create materialized view" in a case-insensitive manner
-    val pattern = "(?i)create materialized view".r
-
-    // Replace all occurrences of the pattern with "create view"
-    pattern.replaceAllIn(input, "create view")
+  private def getCreateMaterializedViewStatement(sqlText: String): String = {
+    val replace1 = CREATE_MATERIALIZED_VIEW_PATTERN.replaceAllIn(sqlText, m => m.group(1) + " " + m.group(2))
+    MATERIALIZED_VIEW_STORED_AS_PATTERN.replaceAllIn(replace1, "")
   }
+
+  private def getMaterializedViewOptions(sqlText: String): MaterializedViewOptions = {
+    val storedAsPattern = "(?i)STORED AS\\s*'(\\w+)'\\s*".r
+    val storageTableIdentifier = storedAsPattern.findFirstMatchIn(sqlText).map(_.group(1))
+    MaterializedViewOptions(storageTableIdentifier)
+  }
+
 
   private def isSnapshotRefDdl(normalized: String): Boolean = {
     normalized.contains("create branch") ||

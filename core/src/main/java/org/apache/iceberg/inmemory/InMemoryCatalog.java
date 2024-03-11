@@ -94,6 +94,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
     closeableGroup.setSuppressCloseFailure(true);
   }
 
+  // protected for testing
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
     return new InMemoryTableOperations(io, tableIdentifier);
@@ -326,6 +327,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
         .collect(Collectors.toList());
   }
 
+  // protected for testing
   @Override
   protected InMemoryViewOperations newViewOps(TableIdentifier identifier) {
     return new InMemoryViewOperations(io, identifier);
@@ -368,12 +370,12 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
     }
   }
 
-  private class InMemoryTableOperations extends BaseMetastoreTableOperations {
+  public class InMemoryTableOperations extends BaseMetastoreTableOperations {
     private final FileIO fileIO;
     private final TableIdentifier tableIdentifier;
     private final String fullTableName;
 
-    InMemoryTableOperations(FileIO fileIO, TableIdentifier tableIdentifier) {
+    public InMemoryTableOperations(FileIO fileIO, TableIdentifier tableIdentifier) {
       this.fileIO = fileIO;
       this.tableIdentifier = tableIdentifier;
       this.fullTableName = fullTableName(catalogName, tableIdentifier);
@@ -439,12 +441,12 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
     }
   }
 
-  private class InMemoryViewOperations extends BaseViewOperations {
+  public class InMemoryViewOperations extends BaseViewOperations {
     private final FileIO io;
     private final TableIdentifier identifier;
     private final String fullViewName;
 
-    InMemoryViewOperations(FileIO io, TableIdentifier identifier) {
+    public InMemoryViewOperations(FileIO io, TableIdentifier identifier) {
       this.io = io;
       this.identifier = identifier;
       this.fullViewName = ViewUtil.fullViewName(catalogName, identifier);

@@ -39,7 +39,7 @@ import org.apache.spark.sql.connector.catalog.ViewCatalog
  * ResolveSessionCatalog exits early for some v2 View commands,
  * thus they are pre-substituted here and then handled in ResolveViews
  */
-case class RewriteViewCommands(spark: SparkSession, materialized: Boolean)
+case class RewriteViewCommands(spark: SparkSession, materializedViewOptions: Option[MaterializedViewOptions])
   extends Rule[LogicalPlan] with LookupCatalog {
 
   protected lazy val catalogManager: CatalogManager = spark.sessionState.catalogManager
@@ -61,7 +61,7 @@ case class RewriteViewCommands(spark: SparkSession, materialized: Boolean)
         properties = properties,
         allowExisting = allowExisting,
         replace = replace,
-        materialized = materialized)
+        materializedViewOptions = materializedViewOptions)
   }
 
   private def isTempView(nameParts: Seq[String]): Boolean = {
@@ -126,3 +126,4 @@ case class RewriteViewCommands(spark: SparkSession, materialized: Boolean)
     collectTempViews(child)
   }
 }
+case class MaterializedViewOptions(storageTableIdentifier: Option[String])

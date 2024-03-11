@@ -19,14 +19,14 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
-import org.apache.hadoop.conf.Configuration
 import org.apache.iceberg.catalog.Namespace
 import org.apache.iceberg.catalog.TableIdentifier
 import org.apache.iceberg.exceptions
-import org.apache.iceberg.hadoop.HadoopTables
 import org.apache.iceberg.spark.MaterializedViewUtil
+import org.apache.iceberg.spark.Spark3Util
 import org.apache.iceberg.spark.SparkCatalog
 import org.apache.iceberg.view.View
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.analysis.NoSuchViewException
 import org.apache.spark.sql.catalyst.expressions.Attribute
@@ -63,10 +63,12 @@ case class DropV2ViewExec(
             )).getOrElse("false").equals("true")) {
           // get the storage table location then drop the storage table
           val storageTableLocation = viewProperties.get(
-            MaterializedViewUtil.MATERIALIZED_VIEW_STORAGE_LOCATION_PROPERTY_KEY
+            MaterializedViewUtil.MATERIALIZED_VIEW_STORAGE_TABLE_PROPERTY_KEY
           )
-          val tables: HadoopTables = new HadoopTables(new Configuration())
-          tables.dropTable(storageTableLocation)
+          val storageTableIdentifier = Spark3Util.catalogAndIdentifier(
+            SparkSession.active, storageTableLocation).identifier()
+          // get active spark session
+          catalog.asInstanceOf[SparkCatalog].dropTable(storageTableIdentifier)
         }
       }
       case _ =>

@@ -19,6 +19,7 @@
 
 package org.apache.spark.sql.catalyst.plans.logical.views
 
+import org.apache.spark.sql.catalyst.analysis.MaterializedViewOptions
 import org.apache.spark.sql.catalyst.plans.logical.BinaryCommand
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 
@@ -34,7 +35,7 @@ case class CreateIcebergView(
   allowExisting: Boolean,
   replace: Boolean,
   rewritten: Boolean = false,
-  materialized: Boolean = false) extends BinaryCommand {
+  materializedViewOptions: Option[MaterializedViewOptions]) extends BinaryCommand {
   override def left: LogicalPlan = child
 
   override def right: LogicalPlan = query
