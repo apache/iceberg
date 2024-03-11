@@ -22,6 +22,7 @@ import static org.apache.iceberg.PartitionSpec.unpartitioned;
 import static org.apache.iceberg.TableMetadata.newTableMetadata;
 import static org.apache.iceberg.TableMetadataParser.getFileExtension;
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -29,6 +30,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipException;
@@ -37,30 +40,24 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types.BooleanType;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TableMetadataParserTest {
 
   private static final Schema SCHEMA = new Schema(optional(1, "b", BooleanType.get()));
 
-  @Parameterized.Parameters(name = "codecName = {0}")
-  public static Object[] parameters() {
-    return new Object[] {"none", "gzip"};
+  @Parameters(name = "codecName = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList("none", "gzip");
   }
 
-  private final String codecName;
+  @Parameter private String codecName;
 
-  public TableMetadataParserTest(String codecName) {
-    this.codecName = codecName;
-  }
-
-  @Test
-  public void testCompressionProperty() throws IOException {
+  @TestTemplate
+  public void testGzipCompressionProperty() throws IOException {
     Codec codec = Codec.fromName(codecName);
     String fileExtension = getFileExtension(codec);
     String fileName = "v3" + fileExtension;
@@ -70,13 +67,13 @@ public class TableMetadataParserTest {
     String location = "file://tmp/db/table";
     TableMetadata metadata = newTableMetadata(SCHEMA, unpartitioned(), location, properties);
     TableMetadataParser.write(metadata, outputFile);
-    Assert.assertEquals(codec == Codec.GZIP, isCompressed(fileName));
+    assertThat(isCompressed(fileName)).isEqualTo(codec == Codec.GZIP);
     TableMetadata actualMetadata =
         TableMetadataParser.read((FileIO) null, Files.localInput(new File(fileName)));
     verifyMetadata(metadata, actualMetadata);
   }
 
-  @After
+  @AfterEach
   public void cleanup() throws IOException {
     Codec codec = Codec.fromName(codecName);
     Path metadataFilePath = Paths.get("v3" + getFileExtension(codec));
@@ -84,10 +81,10 @@ public class TableMetadataParserTest {
   }
 
   private void verifyMetadata(TableMetadata expected, TableMetadata actual) {
-    Assert.assertEquals(expected.schema().asStruct(), actual.schema().asStruct());
-    Assert.assertEquals(expected.location(), actual.location());
-    Assert.assertEquals(expected.lastColumnId(), actual.lastColumnId());
-    Assert.assertEquals(expected.properties(), actual.properties());
+    assertThat(actual.schema().asStruct()).isEqualTo(expected.schema().asStruct());
+    assertThat(actual.location()).isEqualTo(expected.location());
+    assertThat(actual.lastColumnId()).isEqualTo(expected.lastColumnId());
+    assertThat(actual.properties()).isEqualTo(expected.properties());
   }
 
   private boolean isCompressed(String path) throws IOException {
