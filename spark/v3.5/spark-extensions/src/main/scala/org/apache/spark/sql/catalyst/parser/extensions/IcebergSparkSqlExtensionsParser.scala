@@ -32,6 +32,7 @@ import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.FunctionIdentifier
 import org.apache.spark.sql.catalyst.TableIdentifier
+import org.apache.spark.sql.catalyst.analysis.MaterializedViewOptions
 import org.apache.spark.sql.catalyst.analysis.RewriteViewCommands
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.parser.ParserInterface
@@ -53,6 +54,8 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface)
 
   private lazy val substitutor = substitutorCtor.newInstance(SQLConf.get)
   private lazy val astBuilder = new IcebergSqlExtensionsAstBuilder(delegate)
+  private lazy final val CREATE_MATERIALIZED_VIEW_PATTERN = "(?i)(CREATE)\\s+MATERIALIZED\\s+(VIEW)".r
+  private lazy final val MATERIALIZED_VIEW_STORED_AS_PATTERN = "(?i)STORED AS\\s*'(\\w+)'\\s*".r
 
   /**
    * Parse a string to a DataType.
@@ -119,11 +122,11 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface)
       parse(sqlTextAfterSubstitution) { parser => astBuilder.visit(parser.singleStatement()) }
         .asInstanceOf[LogicalPlan]
     } else if (isCreateMaterializedView(sqlText)) {
-      RewriteViewCommands(SparkSession.active, true).apply(
-        delegate.parsePlan(replaceCreateMaterializedViewWithCreateView(sqlText))
+      RewriteViewCommands(SparkSession.active, Option(getMaterializedViewOptions(sqlText))).apply(
+        delegate.parsePlan(getCreateMaterializedViewStatement(sqlText))
       )
     } else {
-      RewriteViewCommands(SparkSession.active, false).apply(delegate.parsePlan(sqlText))
+      RewriteViewCommands(SparkSession.active, None).apply(delegate.parsePlan(sqlText))
     }
   }
 
@@ -165,12 +168,15 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface)
     sqlText.toLowerCase.contains("create materialized view")
   }
 
-  def replaceCreateMaterializedViewWithCreateView(input: String): String = {
-    // Regex pattern to match "create materialized view" in a case-insensitive manner
-    val pattern = "(?i)create materialized view".r
+  private def getCreateMaterializedViewStatement(sqlText: String): String = {
+    val replace1 = CREATE_MATERIALIZED_VIEW_PATTERN.replaceAllIn(sqlText, m => m.group(1) + " " + m.group(2))
+    MATERIALIZED_VIEW_STORED_AS_PATTERN.replaceAllIn(replace1, "")
+  }
 
-    // Replace all occurrences of the pattern with "create view"
-    pattern.replaceAllIn(input, "create view")
+  private def getMaterializedViewOptions(sqlText: String): MaterializedViewOptions = {
+    val storedAsPattern = "(?i)STORED AS\\s*'(\\w+)'\\s*".r
+    val storageTableIdentifier = storedAsPattern.findFirstMatchIn(sqlText).map(_.group(1))
+    MaterializedViewOptions(storageTableIdentifier)
   }
 
   private def isSnapshotRefDdl(normalized: String): Boolean = {

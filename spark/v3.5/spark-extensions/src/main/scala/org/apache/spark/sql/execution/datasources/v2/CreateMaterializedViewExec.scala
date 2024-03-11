@@ -19,24 +19,22 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
+
 import java.util.UUID
-import org.apache.hadoop.conf.Configuration
-import org.apache.iceberg
-import org.apache.iceberg.FileFormat
-import org.apache.iceberg.PartitionSpec
-import org.apache.iceberg.hadoop.HadoopTables
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap
 import org.apache.iceberg.spark.MaterializedViewUtil
-import org.apache.iceberg.spark.SparkSchemaUtil
-import org.apache.iceberg.spark.SparkWriteOptions
+import org.apache.iceberg.spark.Spark3Util
+import org.apache.iceberg.spark.SparkCatalog
 import org.apache.iceberg.spark.source.SparkTable
-import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.analysis.ViewAlreadyExistsException
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.Table
+import org.apache.spark.sql.connector.catalog.TableChange
 import org.apache.spark.sql.connector.catalog.ViewCatalog
+import org.apache.spark.sql.connector.expressions.Transform
 import org.apache.spark.sql.types.StructType
 import scala.collection.JavaConverters._
 
@@ -51,25 +49,36 @@ case class CreateMaterializedViewExec(
                                        comment: Option[String],
                                        properties: Map[String, String],
                                        allowExisting: Boolean,
-                                       replace: Boolean) extends LeafV2CommandExec {
+                                       replace: Boolean,
+                                       storageTableIdentifier: Option[String]) extends LeafV2CommandExec {
 
   override def output: Seq[Attribute] = Nil
 
   override protected def run(): Seq[InternalRow] = {
 
-    val viewLocation = properties.get("location")
-    Preconditions.checkArgument(viewLocation.isDefined)
+    // Check if storageTableIdentifier is provided, if not, generate a default identifier
+    val sparkStorageTableIdentifier = storageTableIdentifier match {
+      case Some(identifier) => {
+        val catalogAndIdentifier = Spark3Util.catalogAndIdentifier(session, identifier)
+        val storageTableCatalogName = catalogAndIdentifier.catalog().name()
+        Preconditions.checkState(
+          storageTableCatalogName.equals(catalog.name()),
+          "Storage table identifier must be in the same catalog as the view." +
+            " Found storage table in catalog: %s, expected: %s",
+          Array[Object](storageTableCatalogName, catalog.name())
+        )
+        catalogAndIdentifier.identifier()
+      }
+      case None => MaterializedViewUtil.getDefaultMaterializedViewStorageTableIdentifier(ident)
+    }
 
-    val storageTableLocation = viewLocation + "/storage/v1"
-
-    // Create the storage table in the Hadoop catalog so it is explicitly registered in the Spark catalog
-    val tables: HadoopTables = new HadoopTables(new Configuration())
-    val icebergSchema = SparkSchemaUtil.convert(viewSchema)
     // TODO: Add support for partitioning the storage table
-    val spec: PartitionSpec = PartitionSpec.builderFor(icebergSchema).build
+    catalog.asInstanceOf[SparkCatalog].createTable(
+      sparkStorageTableIdentifier,
+      viewSchema, new Array[Transform](0), ImmutableMap.of[String, String]()
+    )
 
-    val table: iceberg.Table = tables.create(icebergSchema, spec, storageTableLocation)
-
+    // Capture base table state before inserting into the storage table
     val baseTables = MaterializedViewUtil.extractBaseTables(queryText).asScala.toList
     val baseTableSnapshots = getBaseTableSnapshots(baseTables)
     val baseTableSnapshotsProperties = baseTableSnapshots.map{
@@ -78,19 +87,16 @@ case class CreateMaterializedViewExec(
         ) -> value.toString
     }
 
-    session.sql(queryText).write.format("iceberg").option(
-        SparkWriteOptions.WRITE_FORMAT, FileFormat.PARQUET.toString
-    ).mode(SaveMode.Append).save(storageTableLocation)
+    // Insert into the storage table
+    session.sql("INSERT INTO " + sparkStorageTableIdentifier + " " + queryText)
 
-    val updateProperties = table.updateProperties()
-    baseTableSnapshotsProperties.foreach {
-      case (key, value) => updateProperties.set(key, value)
-    }
-    updateProperties.commit()
+    // Update the base table snapshots properties
+    val baseTablePropertyChanges = baseTableSnapshotsProperties.map{
+      case (key, value) => TableChange.setProperty(key, value)
+    }.toArray
 
-    table.refresh()
-
-    createMaterializedView(storageTableLocation)
+    catalog.asInstanceOf[SparkCatalog].alterTable(sparkStorageTableIdentifier, baseTablePropertyChanges:_*)
+    createMaterializedView(sparkStorageTableIdentifier.toString)
     Nil
   }
 
@@ -98,7 +104,7 @@ case class CreateMaterializedViewExec(
     s"CreateMaterializedViewExec: ${ident}"
   }
 
-  private def createMaterializedView(storageTableLocation: String): Unit = {
+  private def createMaterializedView(storageTableIdentifier: String): Unit = {
     val currentCatalogName = session.sessionState.catalogManager.currentCatalog.name
     val currentCatalog = if (!catalog.name().equals(currentCatalogName)) currentCatalogName else null
     val currentNamespace = session.sessionState.catalogManager.currentNamespace
@@ -109,7 +115,7 @@ case class CreateMaterializedViewExec(
       (ViewCatalog.PROP_CREATE_ENGINE_VERSION -> engineVersion,
         ViewCatalog.PROP_ENGINE_VERSION -> engineVersion) +
       (MaterializedViewUtil.MATERIALIZED_VIEW_PROPERTY_KEY -> "true") +
-      (MaterializedViewUtil.MATERIALIZED_VIEW_STORAGE_LOCATION_PROPERTY_KEY -> storageTableLocation)
+      (MaterializedViewUtil.MATERIALIZED_VIEW_STORAGE_TABLE_PROPERTY_KEY -> storageTableIdentifier)
 
     if (replace) {
       // CREATE OR REPLACE VIEW
