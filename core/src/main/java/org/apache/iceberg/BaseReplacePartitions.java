@@ -87,38 +87,36 @@ public class BaseReplacePartitions extends MergingSnapshotProducer<ReplacePartit
 
   @Override
   public void validate(TableMetadata currentMetadata, Snapshot parent) {
-    dataSpecs()
-        .forEach(
-            dataSpec -> {
-              if (validateConflictingData) {
-                if (dataSpec.isUnpartitioned()) {
-                  validateAddedDataFiles(
-                      currentMetadata, startingSnapshotId, Expressions.alwaysTrue(), parent);
-                } else {
-                  validateAddedDataFiles(
-                      currentMetadata, startingSnapshotId, replacedPartitions, parent);
-                }
-              }
+    if (validateConflictingData) {
+      // TODO: Still using `dataSpec` method (rather than `dataSpecs`)
+      //  which will throw if files with multiple specs are added
+      //  Not sure what the logic should be now if we allow files with multiple specs to be added
+      if (dataSpec().isUnpartitioned()) {
+        validateAddedDataFiles(
+            currentMetadata, startingSnapshotId, Expressions.alwaysTrue(), parent);
+      } else {
+        validateAddedDataFiles(currentMetadata, startingSnapshotId, replacedPartitions, parent);
+      }
+    }
 
-              if (validateConflictingDeletes) {
-                if (dataSpec.isUnpartitioned()) {
-                  validateDeletedDataFiles(
-                      currentMetadata, startingSnapshotId, Expressions.alwaysTrue(), parent);
-                  validateNoNewDeleteFiles(
-                      currentMetadata, startingSnapshotId, Expressions.alwaysTrue(), parent);
-                } else {
-                  validateDeletedDataFiles(
-                      currentMetadata, startingSnapshotId, replacedPartitions, parent);
-                  validateNoNewDeleteFiles(
-                      currentMetadata, startingSnapshotId, replacedPartitions, parent);
-                }
-              }
-            });
+    if (validateConflictingDeletes) {
+      // TODO: same here
+      if (dataSpec().isUnpartitioned()) {
+        validateDeletedDataFiles(
+            currentMetadata, startingSnapshotId, Expressions.alwaysTrue(), parent);
+        validateNoNewDeleteFiles(
+            currentMetadata, startingSnapshotId, Expressions.alwaysTrue(), parent);
+      } else {
+        validateDeletedDataFiles(currentMetadata, startingSnapshotId, replacedPartitions, parent);
+        validateNoNewDeleteFiles(currentMetadata, startingSnapshotId, replacedPartitions, parent);
+      }
+    }
   }
 
   @Override
   public List<ManifestFile> apply(TableMetadata base, Snapshot snapshot) {
-    if (dataSpecs().stream().anyMatch(spec -> spec.fields().size() <= 0)) {
+    // TODO: same here
+    if (dataSpec().fields().size() <= 0) {
       // replace all data in an unpartitioned table
       deleteByRowFilter(Expressions.alwaysTrue());
     }
