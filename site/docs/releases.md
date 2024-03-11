@@ -88,7 +88,7 @@ The 1.5.0 release adds a variety of new features and bug fixes.
   - Enable column statistics filtering after planning ([\#8803](https://github.com/apache/iceberg/pull/8803))
 * Spark
   - Remove support for Spark 3.2 ([\#9295](https://github.com/apache/iceberg/pull/9295))
-  - Support views via SQL for Spark 3.4 and 3.5 ([\#9423](https://github.com/apache/iceberg/pull/9423), [\#9421](https://github.com/apache/iceberg/pull/9421), [\#9343](https://github.com/apache/iceberg/pull/9343))
+  - Support views via SQL for Spark 3.4 and 3.5 ([\#9423](https://github.com/apache/iceberg/pull/9423), [\#9421](https://github.com/apache/iceberg/pull/9421), [\#9343](https://github.com/apache/iceberg/pull/9343)), ([\#9513](https://github.com/apache/iceberg/pull/9513), ([\#9582](https://github.com/apache/iceberg/pull/9582)
   - Support executor cache locality ([\#9563](https://github.com/apache/iceberg/pull/9563))
   - Added support for delete manifest rewrites ([\#9020](https://github.com/apache/iceberg/pull/9020))
   - Support encrypted output files ([\#9435](https://github.com/apache/iceberg/pull/9435))
