@@ -25,7 +25,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.util.BucketUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.functions.BoundFunction;
-import org.apache.spark.sql.connector.catalog.functions.ScalarFunction;
 import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
 import org.apache.spark.sql.types.BinaryType;
 import org.apache.spark.sql.types.ByteType;
@@ -115,7 +114,7 @@ public class BucketFunction implements UnboundFunction {
     return "bucket";
   }
 
-  public abstract static class BucketBase implements ScalarFunction<Integer> {
+  public abstract static class BucketBase extends BaseScalarFunction<Integer> {
     public static int apply(int numBuckets, int hashedValue) {
       return (hashedValue & Integer.MAX_VALUE) % numBuckets;
     }
