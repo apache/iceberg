@@ -34,7 +34,7 @@ This page describes the procedures that the release manager and voting PMC membe
 
 To create a release candidate, you will need:
 
-* Apache LDAP credentals for Nexus and SVN
+* Apache LDAP credentials for Nexus and SVN
 * A [GPG key for signing](https://www.apache.org/dev/release-signing#generate), published in [KEYS](https://dist.apache.org/repos/dist/dev/iceberg/KEYS)
 
 If you have not published your GPG key yet, you must publish it before sending the vote email by doing:
@@ -256,14 +256,7 @@ are prepared when going through the below steps.
 First, copy the source release directory to releases:
 
 ```bash
-mkdir iceberg
-cd iceberg
-svn co https://dist.apache.org/repos/dist/dev/iceberg candidates
-svn co https://dist.apache.org/repos/dist/release/iceberg releases
-cp -r candidates/apache-iceberg-<VERSION>-rcN/ releases/apache-iceberg-<VERSION>
-cd releases
-svn add apache-iceberg-<VERSION>
-svn ci -m 'Iceberg: Add release <VERSION>'
+svn mv https://dist.apache.org/repos/dist/dev/iceberg/apache-iceberg-<VERSION>-rcN https://dist.apache.org/repos/dist/release/iceberg/apache-iceberg-<VERSION> -m "Iceberg: Add release <VERSION>"
 ```
 
 !!! Note
