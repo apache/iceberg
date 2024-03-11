@@ -30,12 +30,7 @@ import org.apache.iceberg.util.StructLikeSet;
 
 public class TestGenericAppenderFactory extends TestAppenderFactory<Record> {
 
-  private final GenericRecord gRecord;
-
-  public TestGenericAppenderFactory(String fileFormat, boolean partitioned) {
-    super(fileFormat, partitioned);
-    this.gRecord = GenericRecord.create(SCHEMA);
-  }
+  private final GenericRecord gRecord = GenericRecord.create(SCHEMA);
 
   @Override
   protected FileAppenderFactory<Record> createAppenderFactory(

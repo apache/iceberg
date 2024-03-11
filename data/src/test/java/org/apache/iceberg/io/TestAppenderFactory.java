@@ -18,16 +18,23 @@
  */
 package org.apache.iceberg.io;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.TableTestBase;
+import org.apache.iceberg.TestBase;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
@@ -46,45 +53,39 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeSet;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public abstract class TestAppenderFactory<T> extends TableTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public abstract class TestAppenderFactory<T> extends TestBase {
   private static final int FORMAT_V2 = 2;
-
-  private final FileFormat format;
-  private final boolean partitioned;
 
   private PartitionKey partition = null;
   private OutputFileFactory fileFactory = null;
 
-  @Parameterized.Parameters(name = "FileFormat={0}, Partitioned={1}")
-  public static Object[] parameters() {
-    return new Object[][] {
-      new Object[] {"avro", false},
-      new Object[] {"avro", true},
-      new Object[] {"orc", false},
-      new Object[] {"orc", true},
-      new Object[] {"parquet", false},
-      new Object[] {"parquet", true}
-    };
-  }
+  @Parameter(index = 1)
+  protected FileFormat format;
 
-  public TestAppenderFactory(String fileFormat, boolean partitioned) {
-    super(FORMAT_V2);
-    this.format = FileFormat.fromString(fileFormat);
-    this.partitioned = partitioned;
+  @Parameter(index = 2)
+  private boolean partitioned;
+
+  @Parameters(name = "formatVersion = {0}, FileFormat={1}, partitioned={2}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(
+        new Object[] {FORMAT_V2, FileFormat.AVRO, false},
+        new Object[] {FORMAT_V2, FileFormat.AVRO, true},
+        new Object[] {FORMAT_V2, FileFormat.ORC, false},
+        new Object[] {FORMAT_V2, FileFormat.ORC, true},
+        new Object[] {FORMAT_V2, FileFormat.PARQUET, false},
+        new Object[] {FORMAT_V2, FileFormat.PARQUET, true});
   }
 
   @Override
-  @Before
+  @BeforeEach
   public void setupTable() throws Exception {
-    this.tableDir = temp.newFolder();
-    Assert.assertTrue(tableDir.delete()); // created by table create
+    this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
+    assertThat(tableDir.delete()).isTrue(); // created by table create
 
     this.metadataDir = new File(tableDir, "metadata");
 
@@ -157,7 +158,7 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
     return writer.toDataFile();
   }
 
-  @Test
+  @TestTemplate
   public void testDataWriter() throws IOException {
     FileAppenderFactory<T> appenderFactory = createAppenderFactory(null, null, null);
 
@@ -166,11 +167,12 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
 
     table.newRowDelta().addRows(dataFile).commit();
 
-    Assert.assertEquals(
-        "Should have the expected records.", expectedRowSet(rowSet), actualRowSet("*"));
+    assertThat(actualRowSet("*"))
+        .as("Should have the expected records.")
+        .isEqualTo(expectedRowSet(rowSet));
   }
 
-  @Test
+  @TestTemplate
   public void testEqDeleteWriter() throws IOException {
     List<Integer> equalityFieldIds = Lists.newArrayList(table.schema().findField("id").fieldId());
     Schema eqDeleteRowSchema = table.schema().select("id");
@@ -198,18 +200,20 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
     GenericRecord gRecord = GenericRecord.create(eqDeleteRowSchema);
     Set<Record> expectedDeletes =
         Sets.newHashSet(gRecord.copy("id", 1), gRecord.copy("id", 3), gRecord.copy("id", 5));
-    Assert.assertEquals(
-        expectedDeletes,
-        Sets.newHashSet(createReader(eqDeleteRowSchema, out.encryptingOutputFile().toInputFile())));
+    assertThat(
+            Sets.newHashSet(
+                createReader(eqDeleteRowSchema, out.encryptingOutputFile().toInputFile())))
+        .isEqualTo(expectedDeletes);
 
     table.newRowDelta().addDeletes(eqDeleteWriter.toDeleteFile()).commit();
 
     List<T> expected = Lists.newArrayList(createRow(2, "bbb"), createRow(4, "ddd"));
-    Assert.assertEquals(
-        "Should have the expected records", expectedRowSet(expected), actualRowSet("*"));
+    assertThat(actualRowSet("*"))
+        .as("Should have the expected records")
+        .isEqualTo(expectedRowSet(expected));
   }
 
-  @Test
+  @TestTemplate
   public void testPosDeleteWriter() throws IOException {
     // Initialize FileAppenderFactory without pos-delete row schema.
     FileAppenderFactory<T> appenderFactory = createAppenderFactory(null, null, null);
@@ -241,9 +245,9 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
             gRecord.copy("file_path", dataFile.path(), "pos", 0L),
             gRecord.copy("file_path", dataFile.path(), "pos", 2L),
             gRecord.copy("file_path", dataFile.path(), "pos", 4L));
-    Assert.assertEquals(
-        expectedDeletes,
-        Sets.newHashSet(createReader(pathPosSchema, out.encryptingOutputFile().toInputFile())));
+    assertThat(
+            Sets.newHashSet(createReader(pathPosSchema, out.encryptingOutputFile().toInputFile())))
+        .isEqualTo(expectedDeletes);
 
     table
         .newRowDelta()
@@ -254,11 +258,12 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
         .commit();
 
     List<T> expected = Lists.newArrayList(createRow(2, "bbb"), createRow(4, "ddd"));
-    Assert.assertEquals(
-        "Should have the expected records", expectedRowSet(expected), actualRowSet("*"));
+    assertThat(actualRowSet("*"))
+        .as("Should have the expected records")
+        .isEqualTo(expectedRowSet(expected));
   }
 
-  @Test
+  @TestTemplate
   public void testPosDeleteWriterWithRowSchema() throws IOException {
     FileAppenderFactory<T> appenderFactory = createAppenderFactory(null, null, table.schema());
 
@@ -308,9 +313,10 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
                 4L,
                 "row",
                 rowRecord.copy("id", 5, "data", "eee")));
-    Assert.assertEquals(
-        expectedDeletes,
-        Sets.newHashSet(createReader(pathPosRowSchema, out.encryptingOutputFile().toInputFile())));
+    assertThat(
+            Sets.newHashSet(
+                createReader(pathPosRowSchema, out.encryptingOutputFile().toInputFile())))
+        .isEqualTo(expectedDeletes);
 
     table
         .newRowDelta()
@@ -321,8 +327,9 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
         .commit();
 
     List<T> expected = Lists.newArrayList(createRow(2, "bbb"), createRow(4, "ddd"));
-    Assert.assertEquals(
-        "Should have the expected records", expectedRowSet(expected), actualRowSet("*"));
+    assertThat(actualRowSet("*"))
+        .as("Should have the expected records")
+        .isEqualTo(expectedRowSet(expected));
   }
 
   private CloseableIterable<Record> createReader(Schema schema, InputFile inputFile) {
