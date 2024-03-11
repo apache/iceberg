@@ -29,13 +29,13 @@ To create the table in Flink SQL by using SQL syntax `CREATE TABLE test (..) WIT
 * `connector`: Use the constant `iceberg`.
 * `catalog-name`: User-specified catalog name. It's required because the connector don't have any default value.
 * `catalog-type`: `hive` or `hadoop` for built-in catalogs (defaults to `hive`), or left unset for custom catalog implementations using `catalog-impl`.
-* `catalog-impl`: The fully-qualified class name of a custom catalog implementation. Must be set if `catalog-type` is unset. See also [custom catalog](flink.md#adding-catalogs) for more details.
+* `catalog-impl`: The fully-qualified class name of a custom catalog implementation. Must be set if `catalog-type` is unset. See also [custom catalog](../flink.md#adding-catalogs) for more details.
 * `catalog-database`: The iceberg database name in the backend catalog, use the current flink database name by default.
 * `catalog-table`: The iceberg table name in the backend catalog. Default to use the table name in the flink `CREATE TABLE` sentence.
 
 ## Table managed in Hive catalog.
 
-Before executing the following SQL, please make sure you've configured the Flink SQL client correctly according to the [quick start documentation](flink.md).
+Before executing the following SQL, please make sure you've configured the Flink SQL client correctly according to the [quick start documentation](../flink.md).
 
 The following SQL will create a Flink table in the current Flink catalog, which maps to the iceberg table `default_database.flink_table` managed in iceberg catalog.
 
@@ -138,4 +138,4 @@ SELECT * FROM flink_table;
 3 rows in set
 ```
 
-For more details, please refer to the Iceberg [Flink documentation](flink.md).
+For more details, please refer to the Iceberg [Flink documentation](../flink.md).

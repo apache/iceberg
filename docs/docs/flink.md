@@ -271,7 +271,7 @@ env.execute("Test Iceberg DataStream");
 
 ### Branch Writes
 Writing to branches in Iceberg tables is also supported via the `toBranch` API in `FlinkSink`
-For more information on branches please refer to [branches](branching.md).
+For more information on branches please refer to [branches](../branching.md).
 ```java
 FlinkSink.forRowData(input)
     .tableLoader(tableLoader)

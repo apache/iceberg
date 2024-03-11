@@ -75,7 +75,7 @@ SET table.exec.iceberg.use-flip27-source = true;
 
 ### Reading branches and tags with SQL
 Branch and tags can be read via SQL by specifying options. For more details
-refer to [Flink Configuration](flink-configuration.md#read-options)
+refer to [Flink Configuration](../flink-configuration.md#read-options)
 
 ```sql
 --- Read from branch b1

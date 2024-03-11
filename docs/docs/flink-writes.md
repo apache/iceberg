@@ -59,20 +59,20 @@ Iceberg supports `UPSERT` based on the primary key when writing data into v2 tab
 
 1. Enable the `UPSERT` mode as table-level property `write.upsert.enabled`. Here is an example SQL statement to set the table property when creating a table. It would be applied for all write paths to this table (batch or streaming) unless overwritten by write options as described later.
 
-```sql
-CREATE TABLE `hive_catalog`.`default`.`sample` (
-    `id` INT COMMENT 'unique id',
-    `data` STRING NOT NULL,
-    PRIMARY KEY(`id`) NOT ENFORCED
-) with ('format-version'='2', 'write.upsert.enabled'='true');
-```
+    ```sql
+    CREATE TABLE `hive_catalog`.`default`.`sample` (
+        `id` INT COMMENT 'unique id',
+        `data` STRING NOT NULL,
+        PRIMARY KEY(`id`) NOT ENFORCED
+    ) with ('format-version'='2', 'write.upsert.enabled'='true');
+    ```
 
-2. Enabling `UPSERT` mode using `upsert-enabled` in the [write options](#write-options) provides more flexibility than a table level config. Note that you still need to use v2 table format and specify the primary key when creating the table.
+2. Enabling `UPSERT` mode using `upsert-enabled` in the [write options](#write-options) provides more flexibility than a table level config. Note that you still need to use v2 table format and specify the [primary key](../flink-ddl.md/#primary-key) or [identifier fields](../../spec.md#identifier-field-ids) when creating the table.
 
-```sql
-INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
-...
-```
+    ```sql
+    INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
+    ...
+    ```
 
 !!! info
     OVERWRITE and UPSERT can't be set together. In UPSERT mode, if the table is partitioned, the partition fields should be included in equality fields.
@@ -85,7 +85,7 @@ INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
 Iceberg support writing to iceberg table from different DataStream input.
 
 
-### Appending data.
+### Appending data
 
 Flink supports writing `DataStream<RowData>` and `DataStream<Row>` to the sink iceberg table natively.
 
@@ -185,7 +185,7 @@ FlinkSink.builderFor(
 
 ### Branch Writes
 Writing to branches in Iceberg tables is also supported via the `toBranch` API in `FlinkSink`
-For more information on branches please refer to [branches](branching.md).
+For more information on branches please refer to [branches](../branching.md).
 ```java
 FlinkSink.forRowData(input)
     .tableLoader(tableLoader)
@@ -262,7 +262,7 @@ INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
 ...
 ```
 
-Check out all the options here: [write-options](flink-configuration.md#write-options) 
+Check out all the options here: [write-options](../flink-configuration.md#write-options) 
 
 ## Notes
 
