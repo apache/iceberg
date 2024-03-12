@@ -38,8 +38,8 @@ delta-spark = "3.1.0"
 esotericsoftware-kryo = "4.0.2"
 errorprone-annotations = "2.24.1"
 findbugs-jsr305 = "3.0.2"
-flink116 = { strictly = "1.16.2"}
-flink117 = { strictly = "1.17.1"}
+flink116 = { strictly = "1.16.3"}
+flink117 = { strictly = "1.17.2"}
 flink118 =  { strictly = "1.18.1"}
 google-libraries-bom = "26.28.0"
 guava = "33.0.0-jre"
