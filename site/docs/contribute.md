@@ -46,6 +46,34 @@ The Iceberg community prefers to receive contributions as [Github pull requests]
 * If a PR is posted for visibility and isn't necessarily ready for review or merging, be sure to convert the PR to a draft
 
 
+## Iceberg Improvement Proposals
+
+### What is an improvement proposal?
+
+An improvement proposal is a major change to Apache Iceberg that may require changes to an existing specification, creation
+of a new specification, or significant changes to any of the existing Iceberg implementations.  Changes that are large in
+scope need to be considered carefully and incorporate feedback from many community stakeholders.
+
+### What should a proposal include?
+
+1. A GitHub issue created using the `Iceberg Improvement Proposal` template
+2. A document including the following:
+    * Motivation for the change 
+    * Implementation proposal 
+    * Breaking changes/incompatibilities 
+    * Alternatives considered
+3. A discussion thread initiated in the dev list with the Subject: '[DISCUSS] \<proposal title\>'
+
+### Who can submit a proposal?
+
+Anyone can submit a proposal, but be considerate and submit only if you plan on contributing to the implementation.
+
+### Where can I find current proposals?
+
+Current proposals are tracked in GitHub issues with the label [Proposal][iceberg-proposals]
+
+[iceberg-proposals]: https://github.com/apache/iceberg/issues?q=is%3Aissue+is%3Aopen+label%3Aproposal+
+
 ## Building the Project Locally
 
 Iceberg is built using Gradle with Java 8 or Java 11.
