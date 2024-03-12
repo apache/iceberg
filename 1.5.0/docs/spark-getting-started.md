@@ -180,7 +180,7 @@ This type conversion table describes how Iceberg types are converted to the Spar
 | date                       | date                    |               |
 | time                       |                         | Not supported |
 | timestamp with timezone    | timestamp               |               |
-| timestamp without timezone | timestamp_ntz            |               |
+| timestamp without timezone | timestamp_ntz           |               |
 | string                     | string                  |               |
 | uuid                       | string                  |               |
 | fixed                      | binary                  |               |
