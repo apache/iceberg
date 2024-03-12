@@ -68,7 +68,7 @@ Iceberg supports `append` and `complete` output modes:
 * `append`: appends the rows of every micro-batch to the table
 * `complete`: replaces the table contents every micro-batch
 
-Prior to starting the streaming query, ensure you created the table. Refer to the [SQL create table](spark-ddl.md#create-table) documentation to learn how to create the Iceberg table.
+Prior to starting the streaming query, ensure you created the table. Refer to the [SQL create table](../spark-ddl.md#create-table) documentation to learn how to create the Iceberg table.
 
 Iceberg doesn't support experimental [continuous processing](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html#continuous-processing), as it doesn't provide the interface to "commit" the output.
 
@@ -76,7 +76,7 @@ Iceberg doesn't support experimental [continuous processing](https://spark.apach
 
 Iceberg requires sorting data by partition per task prior to writing the data. In Spark tasks are split by Spark partition.
 against partitioned table. For batch queries you're encouraged to do explicit sort to fulfill the requirement
-(see [here](spark-writes.md#writing-distribution-modes)), but the approach would bring additional latency as
+(see [here](../spark-writes.md#writing-distribution-modes)), but the approach would bring additional latency as
 repartition and sort are considered as heavy operations for streaming workload. To avoid additional latency, you can
 enable fanout writer to eliminate the requirement.
 
@@ -107,13 +107,13 @@ documents how to configure the interval.
 
 ### Expire old snapshots
 
-Each batch written to a table produces a new snapshot. Iceberg tracks snapshots in table metadata until they are expired. Snapshots accumulate quickly with frequent commits, so it is highly recommended that tables written by streaming queries are [regularly maintained](maintenance.md#expire-snapshots). [Snapshot expiration](spark-procedures.md#expire_snapshots) is the procedure of removing the metadata and any data files that are no longer needed. By default, the procedure will expire the snapshots older than five days. 
+Each batch written to a table produces a new snapshot. Iceberg tracks snapshots in table metadata until they are expired. Snapshots accumulate quickly with frequent commits, so it is highly recommended that tables written by streaming queries are [regularly maintained](../maintenance.md#expire-snapshots). [Snapshot expiration](../spark-procedures.md#expire_snapshots) is the procedure of removing the metadata and any data files that are no longer needed. By default, the procedure will expire the snapshots older than five days. 
 
 ### Compacting data files
 
-The amount of data written from a streaming process is typically small, which can cause the table metadata to track lots of small files. [Compacting small files into larger files](maintenance.md#compact-data-files) reduces the metadata needed by the table, and increases query efficiency. Iceberg and Spark [comes with the `rewrite_data_files` procedure](spark-procedures.md#rewrite_data_files).
+The amount of data written from a streaming process is typically small, which can cause the table metadata to track lots of small files. [Compacting small files into larger files](../maintenance.md#compact-data-files) reduces the metadata needed by the table, and increases query efficiency. Iceberg and Spark [comes with the `rewrite_data_files` procedure](../spark-procedures.md#rewrite_data_files).
 
 ### Rewrite manifests
 
 To optimize write latency on a streaming workload, Iceberg can write the new snapshot with a "fast" append that does not automatically compact manifests.
-This could lead lots of small manifest files. Iceberg can [rewrite the number of manifest files to improve query performance](maintenance.md#rewrite-manifests). Iceberg and Spark [come with the `rewrite_manifests` procedure](spark-procedures.md#rewrite_manifests).
+This could lead lots of small manifest files. Iceberg can [rewrite the number of manifest files to improve query performance](../maintenance.md#rewrite-manifests). Iceberg and Spark [come with the `rewrite_manifests` procedure](../spark-procedures.md#rewrite_manifests).
