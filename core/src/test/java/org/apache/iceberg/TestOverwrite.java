@@ -299,9 +299,9 @@ public class TestOverwrite extends TableTestBase {
     long overwriteId = latestSnapshot(table, branch).snapshotId();
 
     assertThat(overwriteId).as("Should create a new snapshot").isNotEqualTo(baseId);
-    assertThat(latestSnapshot(table, branch).allManifests(table.io()).size())
+    assertThat(latestSnapshot(table, branch).allManifests(table.io()))
         .as("Table should have one manifest")
-        .isEqualTo(1);
+        .hasSize(1);
 
     validateManifestEntries(
         latestSnapshot(table, branch).allManifests(table.io()).get(0),
@@ -372,9 +372,9 @@ public class TestOverwrite extends TableTestBase {
     long overwriteId = latestSnapshot(table, branch).snapshotId();
 
     assertThat(overwriteId).as("Should create a new snapshot").isNotEqualTo(baseId);
-    assertThat(latestSnapshot(table, branch).allManifests(table.io()).size())
+    assertThat(latestSnapshot(table, branch).allManifests(table.io()))
         .as("Table should have one manifest")
-        .isEqualTo(1);
+        .hasSize(1);
 
     validateManifestEntries(
         latestSnapshot(table, branch).allManifests(table.io()).get(0),
@@ -407,13 +407,10 @@ public class TestOverwrite extends TableTestBase {
             ImmutableList.of(overwriteDate, notOverwriteDate))
         .forEach(
             datePartitions -> {
-              String datePartition1 = datePartitions.get(0);
-              String datePartition2 = datePartitions.get(1);
-
               DataFile fileOldSpec =
                   DataFiles.builder(PARTITION_BY_DATE)
                       .withPath("/path/to/data-1.parquet")
-                      .withPartitionPath(String.format("date=%s", datePartition1))
+                      .withPartitionPath(String.format("date=%s", datePartitions.get(0)))
                       .withFileSizeInBytes(0)
                       .withRecordCount(100)
                       .build();
@@ -421,7 +418,7 @@ public class TestOverwrite extends TableTestBase {
               DataFile fileNewSpec =
                   DataFiles.builder(partitionByDateAndId)
                       .withPath("/path/to/data-2.parquet")
-                      .withPartitionPath(String.format("date=%s/id=10", datePartition2))
+                      .withPartitionPath(String.format("date=%s/id=10", datePartitions.get(1)))
                       .withFileSizeInBytes(0)
                       .withRecordCount(100)
                       .build();
@@ -493,9 +490,7 @@ public class TestOverwrite extends TableTestBase {
     assertThat(overwriteId).as("Should create a new snapshot").isNotEqualTo(baseId);
 
     List<ManifestFile> allManifests = latestSnapshot(table, branch).allManifests(table.io());
-    assertThat(allManifests.size())
-        .as("Table should have two manifests, one for each spec")
-        .isEqualTo(2);
+    assertThat(allManifests).as("Table should have two manifests, one for each spec").hasSize(2);
 
     validateManifestEntries(
         allManifests.get(0), ids(overwriteId), files(fileNewSpec), statuses(Status.ADDED));

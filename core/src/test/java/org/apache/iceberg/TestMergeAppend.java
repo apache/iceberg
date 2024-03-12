@@ -107,7 +107,7 @@ public class TestMergeAppend extends TableTestBase {
     table.updateSpec().addField("id").commit();
     PartitionSpec newSpec = table.spec();
 
-    assertThat(table.specs().size()).as("Table should have 2 specs").isEqualTo(2);
+    assertThat(table.specs()).as("Table should have 2 specs").hasSize(2);
 
     DataFile fileNewSpec =
         DataFiles.builder(newSpec)
@@ -126,9 +126,9 @@ public class TestMergeAppend extends TableTestBase {
     V2Assert.assertEquals(
         "Last sequence number should be 1", 1, table.ops().current().lastSequenceNumber());
 
-    assertThat(committedSnapshot.allManifests(table.io()).size())
+    assertThat(committedSnapshot.allManifests(table.io()))
         .as("Should create 2 manifests for initial write, 1 manifest per spec")
-        .isEqualTo(2);
+        .hasSize(2);
 
     long snapshotId = committedSnapshot.snapshotId();
 
@@ -164,7 +164,7 @@ public class TestMergeAppend extends TableTestBase {
     table.updateSpec().addField("id").commit();
     PartitionSpec newSpec = table.spec();
 
-    assertThat(table.specs().size()).as("Table should have 2 specs").isEqualTo(2);
+    assertThat(table.specs()).as("Table should have 2 specs").hasSize(2);
 
     DataFile fileNewSpec =
         DataFiles.builder(newSpec)
