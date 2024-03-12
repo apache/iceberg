@@ -49,9 +49,7 @@ httpcomponents-httpclient5 = "5.3.1"
 hive2 = { strictly = "2.3.9"} # see rich version usage explanation above
 hive3 = "3.1.3"
 immutables-value = "2.10.1"
-jackson-annotations = "2.16.0"
 jackson-bom = "2.14.2"
-jackson-dataformat-xml = "2.16.1"
 jackson211 = { strictly = "2.11.4"} # see rich version usage explanation above
 jackson212 = { strictly = "2.12.3"}
 jackson213 = { strictly = "2.13.4"}
@@ -193,8 +191,6 @@ flink118-runtime = { module = "org.apache.flink:flink-runtime", version.ref = "f
 flink118-test-utils = { module = "org.apache.flink:flink-test-utils", version.ref = "flink118" }
 flink118-test-utilsjunit = { module = "org.apache.flink:flink-test-utils-junit", version.ref = "flink118" }
 guava-testlib = { module = "com.google.guava:guava-testlib", version.ref = "guava" }
-jackson-annotations = { module = "com.fasterxml.jackson.core:jackson-annotations", version.ref = "jackson-annotations" }
-jackson-dataformat-xml = { module = "com.fasterxml.jackson.dataformat:jackson-dataformat-xml", version.ref = "jackson-dataformat-xml" }
 jakarta-el-api = { module = "jakarta.el:jakarta.el-api", version.ref = "jakarta-el-api" }
 jetty-server = { module = "org.eclipse.jetty:jetty-server", version.ref = "jetty" }
 jetty-servlet = { module = "org.eclipse.jetty:jetty-servlet", version.ref = "jetty" }

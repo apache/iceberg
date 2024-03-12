@@ -440,7 +440,8 @@ project(':iceberg-aliyun') {
       exclude group: 'com.google.code.gson', module: 'gson'
     }
 
-    testImplementation libs.jackson.dataformat.xml
+    testImplementation platform(libs.jackson.bom)
+    testImplementation "com.fasterxml.jackson.dataformat:jackson-dataformat-xml"
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation libs.spring.web
     testImplementation(libs.spring.boot.starter.jetty) {
