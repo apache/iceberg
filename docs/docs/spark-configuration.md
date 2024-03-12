@@ -78,7 +78,7 @@ Both catalogs are configured using properties nested under the catalog name. Com
 | spark.sql.catalog._catalog-name_.table-default._propertyKey_  |                               | Default Iceberg table property value for property key _propertyKey_, which will be set on tables created by this catalog if not overridden                                                                                               |
 | spark.sql.catalog._catalog-name_.table-override._propertyKey_ |                               | Enforced Iceberg table property value for property key _propertyKey_, which cannot be overridden by user                                                                                                                                 |
 
-Additional properties can be found in common [catalog configuration](../configuration.md#catalog-properties).
+Additional properties can be found in common [catalog configuration](configuration.md#catalog-properties).
 
 
 ### Using catalogs

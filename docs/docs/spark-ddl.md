@@ -40,7 +40,7 @@ Table create commands, including CTAS and RTAS, support the full range of Spark 
 * `PARTITIONED BY (partition-expressions)` to configure partitioning
 * `LOCATION '(fully-qualified-uri)'` to set the table location
 * `COMMENT 'table documentation'` to set a table description
-* `TBLPROPERTIES ('key'='value', ...)` to set [table configuration](../configuration.md)
+* `TBLPROPERTIES ('key'='value', ...)` to set [table configuration](configuration.md)
 
 Create commands may also set the default format with the `USING` clause. This is only supported for `SparkCatalog` because Spark handles the `USING` clause differently for the built-in catalog.
 
@@ -184,7 +184,7 @@ ALTER TABLE prod.db.sample SET TBLPROPERTIES (
 );
 ```
 
-Iceberg uses table properties to control table behavior. For a list of available properties, see [Table configuration](../configuration.md).
+Iceberg uses table properties to control table behavior. For a list of available properties, see [Table configuration](configuration.md).
 
 `UNSET` is used to remove properties:
 

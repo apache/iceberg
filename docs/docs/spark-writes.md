@@ -385,7 +385,7 @@ sort-order. Further division and coalescing of tasks may take place because of
 
 When writing data to Iceberg with Spark, it's important to note that Spark cannot write a file larger than a Spark 
 task and a file cannot span an Iceberg partition boundary. This means although Iceberg will always roll over a file 
-when it grows to [`write.target-file-size-bytes`](../configuration.md#write-properties), but unless the Spark task is 
+when it grows to [`write.target-file-size-bytes`](configuration.md#write-properties), but unless the Spark task is 
 large enough that will not happen. The size of the file created on disk will also be much smaller than the Spark task 
 since the on disk data will be both compressed and in columnar format as opposed to Spark's uncompressed row 
 representation. This means a 100 megabyte Spark task will create a file much smaller than 100 megabytes even if that
