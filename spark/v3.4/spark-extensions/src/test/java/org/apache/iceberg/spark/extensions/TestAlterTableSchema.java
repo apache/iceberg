@@ -18,9 +18,15 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.ChangelogOperation;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
@@ -154,5 +160,51 @@ public class TestAlterTableSchema extends SparkExtensionsTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Cannot complete drop identifier fields operation: location.lon is not an identifier field");
+  }
+
+  @Test
+  public void testMakeColumnRequiredAndRead() {
+    sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
+    sql("INSERT INTO %s VALUES(1, null), (2, '-')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot s1 = table.currentSnapshot();
+
+    sql("DELETE FROM %s", tableName);
+
+    table.refresh();
+    table.updateSchema().requireColumn("id").commit();
+    Assertions.assertThat(table.schema().findField("id").isRequired()).isTrue();
+
+    Throwable thrown =
+        Assertions.catchThrowable(() -> table.updateSchema().requireColumn("data").commit());
+    Assertions.assertThat(thrown)
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(
+            "Cannot set a column to required: data, as it cannot be determined from "
+                + "existing metadata metrics that it must not contain null values");
+
+    Snapshot s2 = table.currentSnapshot();
+
+    List<Object[]> returns =
+        sql(
+            "CALL %s.system.create_changelog_view("
+                + "table => '%s',"
+                + "options => map('%s','%s','%s','%s'))",
+            catalogName,
+            tableName,
+            SparkReadOptions.START_SNAPSHOT_ID,
+            s1.snapshotId(),
+            SparkReadOptions.END_SNAPSHOT_ID,
+            s2.snapshotId());
+
+    String viewName = (String) returns.get(0)[0];
+
+    assertEquals(
+        "Rows should match",
+        ImmutableList.of(
+            row(1L, null, ChangelogOperation.DELETE.name(), 0, s2.snapshotId()),
+            row(2L, "-", ChangelogOperation.DELETE.name(), 0, s2.snapshotId())),
+        sql("SELECT * FROM %s order by _change_ordinal, id", viewName));
   }
 }

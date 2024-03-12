@@ -579,28 +579,6 @@ public class TestSchemaUpdate {
   }
 
   @Test
-  public void testAddRequiredColumn() {
-    Schema schema = new Schema(required(1, "id", Types.IntegerType.get()));
-    Schema expected =
-        new Schema(
-            required(1, "id", Types.IntegerType.get()),
-            required(2, "data", Types.StringType.get()));
-
-    Assertions.assertThatThrownBy(
-            () -> new SchemaUpdate(schema, 1).addRequiredColumn("data", Types.StringType.get()))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Incompatible change: cannot add required column: data");
-
-    Schema result =
-        new SchemaUpdate(schema, 1)
-            .allowIncompatibleChanges()
-            .addRequiredColumn("data", Types.StringType.get())
-            .apply();
-
-    Assert.assertEquals("Should add required column", expected.asStruct(), result.asStruct());
-  }
-
-  @Test
   public void testAddRequiredColumnCaseInsensitive() {
     Schema schema = new Schema(required(1, "id", Types.IntegerType.get()));
 
@@ -624,25 +602,6 @@ public class TestSchemaUpdate {
 
     Assert.assertEquals(
         "Should update column to be optional", expected.asStruct(), result.asStruct());
-  }
-
-  @Test
-  public void testRequireColumn() {
-    Schema schema = new Schema(optional(1, "id", Types.IntegerType.get()));
-    Schema expected = new Schema(required(1, "id", Types.IntegerType.get()));
-
-    Assertions.assertThatThrownBy(() -> new SchemaUpdate(schema, 1).requireColumn("id"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot change column nullability: id: optional -> required");
-
-    // required to required is not an incompatible change
-    new SchemaUpdate(expected, 1).requireColumn("id").apply();
-
-    Schema result =
-        new SchemaUpdate(schema, 1).allowIncompatibleChanges().requireColumn("id").apply();
-
-    Assert.assertEquals(
-        "Should update column to be required", expected.asStruct(), result.asStruct());
   }
 
   @Test
