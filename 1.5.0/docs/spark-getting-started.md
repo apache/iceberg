@@ -150,7 +150,7 @@ This type conversion table describes how Spark types are converted to the Iceber
 | double          | double                     |       |
 | date            | date                       |       |
 | timestamp       | timestamp with timezone    |       |
-| timestamp_ntz    | timestamp without timezone |       |
+| timestamp_ntz   | timestamp without timezone |       |
 | char            | string                     |       |
 | varchar         | string                     |       |
 | string          | string                     |       |
