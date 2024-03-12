@@ -22,11 +22,11 @@ search:
 
 # Spark Queries
 
-To use Iceberg in Spark, first configure [Spark catalogs](spark-configuration.md). Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations.
+To use Iceberg in Spark, first configure [Spark catalogs](../spark-configuration.md). Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations.
 
 ## Querying with SQL
 
-In Spark 3, tables use identifiers that include a [catalog name](spark-configuration.md#using-catalogs).
+In Spark 3, tables use identifiers that include a [catalog name](../spark-configuration.md#using-catalogs).
 
 ```sql
 SELECT * FROM prod.db.table; -- catalog: prod, namespace: db, table: table
