@@ -21,7 +21,6 @@ package org.apache.iceberg.data;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.Schema;
@@ -32,8 +31,7 @@ import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.StructType;
 import org.junit.Rule;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 public abstract class DataTest {
@@ -60,8 +58,7 @@ public abstract class DataTest {
           required(116, "dec_38_10", Types.DecimalType.of(38, 10)), // maximum precision
           required(117, "time", Types.TimeType.get()));
 
-  @TempDir
-  public static File temp;
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   @Test
   public void testSimpleStruct() throws IOException {

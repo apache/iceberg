@@ -51,7 +51,6 @@ import org.apache.parquet.hadoop.ParquetWriter;
 import org.junit.Assert;
 import org.junit.jupiter.api.Test;
 
-
 public class TestParquetEncryptionWithWriteSupport extends DataTest {
   private static final ByteBuffer fileDek = ByteBuffer.allocate(16);
   private static final ByteBuffer aadPrefix = ByteBuffer.allocate(16);

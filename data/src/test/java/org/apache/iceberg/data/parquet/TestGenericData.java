@@ -47,13 +47,12 @@ import org.apache.parquet.hadoop.ParquetWriter;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-
 public class TestGenericData extends DataTest {
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     List<Record> expected = RandomGenericData.generate(schema, 100, 0L);
 
-    Assertions.assertTrue(temp.delete(),"Delete should succeed");
+    Assertions.assertTrue(temp.delete(), "Delete should succeed");
 
     try (FileAppender<Record> appender =
         Parquet.write(Files.localOutput(temp))
@@ -132,12 +131,12 @@ public class TestGenericData extends DataTest {
             .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
             .build()) {
       CloseableIterator it = reader.iterator();
-      Assertions.assertTrue( it.hasNext(), "Should have at least one row");
+      Assertions.assertTrue(it.hasNext(), "Should have at least one row");
       while (it.hasNext()) {
         GenericRecord actualRecord = (GenericRecord) it.next();
         Assertions.assertEquals(actualRecord.get(0, ArrayList.class).get(0), expectedBinary);
         Assertions.assertEquals(actualRecord.get(1, ByteBuffer.class), expectedBinary);
-        Assertions.assertFalse(it.hasNext(),"Should not have more than one row");
+        Assertions.assertFalse(it.hasNext(), "Should not have more than one row");
       }
     }
   }

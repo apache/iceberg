@@ -18,9 +18,8 @@
  */
 package org.apache.iceberg;
 
-import java.util.List;
-
 import com.google.common.collect.ImmutableMap;
+import java.util.List;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;

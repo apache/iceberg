@@ -42,7 +42,9 @@ public class DataTestHelpers {
   public static void assertEquals(Types.ListType list, List<?> expected, List<?> actual) {
     Type elementType = list.elementType();
 
-    org.junit.jupiter.api.Assertions.assertEquals(expected.size(), actual.size(), "List size should match");
+    Assertions.assertThat(expected.size())
+        .isEqualTo(actual.size())
+        .describedAs("List size should match");
 
     for (int i = 0; i < expected.size(); i += 1) {
       Object expectedValue = expected.get(i);
@@ -55,7 +57,8 @@ public class DataTestHelpers {
   public static void assertEquals(Types.MapType map, Map<?, ?> expected, Map<?, ?> actual) {
     Type valueType = map.valueType();
 
-    org.junit.jupiter.api.Assertions.assertEquals( expected.size(), actual.size(),"Map size should match");
+    org.junit.jupiter.api.Assertions.assertEquals(
+        expected.size(), actual.size(), "Map size should match");
 
     for (Object expectedKey : expected.keySet()) {
       Object expectedValue = expected.get(expectedKey);
@@ -83,8 +86,8 @@ public class DataTestHelpers {
       case UUID:
       case BINARY:
       case DECIMAL:
-       org.junit.jupiter.api.Assertions.assertEquals(
-            expected, actual,  "Primitive value should be equal to expected for type " + type);
+        org.junit.jupiter.api.Assertions.assertEquals(
+            expected, actual, "Primitive value should be equal to expected for type " + type);
         break;
       case FIXED:
         Assertions.assertThat(expected)
@@ -92,7 +95,7 @@ public class DataTestHelpers {
             .isInstanceOf(byte[].class);
         Assertions.assertThat(expected).as("Actual should be a byte[]").isInstanceOf(byte[].class);
         org.junit.jupiter.api.Assertions.assertArrayEquals(
-            (byte[]) expected, (byte[]) actual,  "Array contents should be equal");
+            (byte[]) expected, (byte[]) actual, "Array contents should be equal");
         break;
       case STRUCT:
         Assertions.assertThat(expected)

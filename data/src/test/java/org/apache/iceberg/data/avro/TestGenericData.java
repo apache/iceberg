@@ -18,11 +18,10 @@
  */
 package org.apache.iceberg.data.avro;
 
+import com.google.common.collect.Lists;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
-
-import com.google.common.collect.Lists;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;

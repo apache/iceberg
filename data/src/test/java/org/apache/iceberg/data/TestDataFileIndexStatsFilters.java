@@ -44,13 +44,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.Pair;
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.junit.rules.TemporaryFolder;
 
 public class TestDataFileIndexStatsFilters {
   private static final Schema SCHEMA =
@@ -59,8 +57,7 @@ public class TestDataFileIndexStatsFilters {
           Types.NestedField.optional(2, "data", Types.StringType.get()),
           Types.NestedField.required(3, "category", Types.StringType.get()));
 
-  @TempDir
-  public File temp;
+  @TempDir public File temp;
 
   private Table table;
   private List<Record> records = null;
@@ -86,7 +83,6 @@ public class TestDataFileIndexStatsFilters {
     records.add(record.copy("id", 6, "data", "f", "category", "even"));
     records.add(record.copy("id", 7, "data", "g", "category", "odd"));
     records.add(record.copy("id", 8, "data", null, "category", "even"));
-
 
     this.dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.getPath()), records);
 
@@ -174,8 +170,7 @@ public class TestDataFileIndexStatsFilters {
     deletes.add(delete.copy("data", "d"));
 
     DeleteFile posDeletes =
-        FileHelpers.writeDeleteFile(
-            table, Files.localOutput(temp), deletes, deleteRowSchema);
+        FileHelpers.writeDeleteFile(table, Files.localOutput(temp), deletes, deleteRowSchema);
 
     table.newRowDelta().addDeletes(posDeletes).commit();
 
@@ -202,8 +197,7 @@ public class TestDataFileIndexStatsFilters {
     deletes.add(delete.copy("data", "z"));
 
     DeleteFile posDeletes =
-        FileHelpers.writeDeleteFile(
-            table, Files.localOutput(temp), deletes, deleteRowSchema);
+        FileHelpers.writeDeleteFile(table, Files.localOutput(temp), deletes, deleteRowSchema);
 
     table.newRowDelta().addDeletes(posDeletes).commit();
 
@@ -228,8 +222,7 @@ public class TestDataFileIndexStatsFilters {
     deletes.add(delete.copy("data", null));
 
     DeleteFile posDeletes =
-        FileHelpers.writeDeleteFile(
-            table, Files.localOutput(temp), deletes, deleteRowSchema);
+        FileHelpers.writeDeleteFile(table, Files.localOutput(temp), deletes, deleteRowSchema);
 
     table.newRowDelta().addDeletes(posDeletes).commit();
 
@@ -257,8 +250,7 @@ public class TestDataFileIndexStatsFilters {
     deletes.add(delete.copy("data", null));
 
     DeleteFile posDeletes =
-        FileHelpers.writeDeleteFile(
-            table, Files.localOutput(temp), deletes, deleteRowSchema);
+        FileHelpers.writeDeleteFile(table, Files.localOutput(temp), deletes, deleteRowSchema);
 
     table.newRowDelta().addDeletes(posDeletes).commit();
 
@@ -286,8 +278,7 @@ public class TestDataFileIndexStatsFilters {
     deletes.add(delete.copy("data", "d"));
 
     DeleteFile posDeletes =
-        FileHelpers.writeDeleteFile(
-            table, Files.localOutput(temp), deletes, deleteRowSchema);
+        FileHelpers.writeDeleteFile(table, Files.localOutput(temp), deletes, deleteRowSchema);
 
     table.newRowDelta().addDeletes(posDeletes).commit();
 
@@ -318,8 +309,7 @@ public class TestDataFileIndexStatsFilters {
     deletes.add(delete.copy("data", "x"));
 
     DeleteFile posDeletes =
-        FileHelpers.writeDeleteFile(
-            table, Files.localOutput(temp), deletes, deleteRowSchema);
+        FileHelpers.writeDeleteFile(table, Files.localOutput(temp), deletes, deleteRowSchema);
 
     table.newRowDelta().addDeletes(posDeletes).commit();
 
@@ -452,7 +442,7 @@ public class TestDataFileIndexStatsFilters {
   }
 
   private DataFile writeData(StructLike partition, List<Record> data) throws IOException {
-    return FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), partition, data);
+    return FileHelpers.writeDataFile(table, Files.localOutput(temp), partition, data);
   }
 
   private DeleteFile writeEqDeletes(String col, Object... values) throws IOException {
@@ -469,13 +459,13 @@ public class TestDataFileIndexStatsFilters {
       deletes.add(delete.copy(col, value));
     }
 
-    OutputFile out = Files.localOutput(temp.newFile());
+    OutputFile out = Files.localOutput(temp);
     return FileHelpers.writeDeleteFile(table, out, partition, deletes, deleteSchema);
   }
 
   private Pair<DeleteFile, CharSequenceSet> writePosDeletes(
       StructLike partition, List<Pair<CharSequence, Long>> deletes) throws IOException {
-    OutputFile out = Files.localOutput(temp.newFile());
+    OutputFile out = Files.localOutput(temp);
     return FileHelpers.writeDeleteFile(table, out, partition, deletes);
   }
 }

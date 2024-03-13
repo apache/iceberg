@@ -52,7 +52,6 @@ import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-
 public class TestGenericData extends DataTest {
 
   @Override
@@ -148,7 +147,7 @@ public class TestGenericData extends DataTest {
   @Test
   public void writeAndValidateExternalData() throws IOException {
     File testFile = temp;
-    Assertions.assertTrue( testFile.delete(), "Delete should succeed");
+    Assertions.assertTrue(testFile.delete(), "Delete should succeed");
 
     Configuration conf = new Configuration();
     TypeDescription writerSchema =

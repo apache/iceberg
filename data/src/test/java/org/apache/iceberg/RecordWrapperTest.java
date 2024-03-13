@@ -23,8 +23,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeWrapper;
-import org.junit.jupiter.api.Assertions;
-
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public abstract class RecordWrapperTest {
@@ -104,11 +103,11 @@ public abstract class RecordWrapperTest {
   }
 
   private void generateAndValidate(Schema schema) {
-    generateAndValidate(schema, Assertions::assertEquals);
+    generateAndValidate(schema, Assertions::assertThat);
   }
 
   public interface AssertMethod {
-    void assertEquals(StructLikeWrapper expected, StructLikeWrapper actual, String message);
+    void assertThat(StructLikeWrapper actual);
   }
 
   protected abstract void generateAndValidate(Schema schema, AssertMethod assertMethod);

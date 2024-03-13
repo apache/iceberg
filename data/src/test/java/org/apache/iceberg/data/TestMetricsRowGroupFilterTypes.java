@@ -36,7 +36,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.FileFormat;
@@ -163,12 +162,12 @@ public class TestMetricsRowGroupFilterTypes {
       records.add(record);
     }
     Arrays.stream(FileFormat.values())
-            .filter(
-                    f-> {
-                      return f.name().equalsIgnoreCase("orc") || f.name().equalsIgnoreCase("parquet");
-                    }
-            )
-            .forEach(format-> {
+        .filter(
+            f -> {
+              return f.name().equalsIgnoreCase("orc") || f.name().equalsIgnoreCase("parquet");
+            })
+        .forEach(
+            format -> {
               switch (format) {
                 case ORC:
                   try {
@@ -186,7 +185,7 @@ public class TestMetricsRowGroupFilterTypes {
                   break;
                 default:
                   throw new UnsupportedOperationException(
-                          "Row group filter types tests not supported for " + format);
+                      "Row group filter types tests not supported for " + format);
               }
             });
   }
@@ -209,7 +208,7 @@ public class TestMetricsRowGroupFilterTypes {
     try (Reader reader =
         OrcFile.createReader(
             new Path(inFile.location()), OrcFile.readerOptions(new Configuration()))) {
-      Assertions.assertEquals( 1, reader.getStripes().size(), "Should create only one stripe");
+      Assertions.assertEquals(1, reader.getStripes().size(), "Should create only one stripe");
     }
 
     ORC_FILE.deleteOnExit();
@@ -239,66 +238,70 @@ public class TestMetricsRowGroupFilterTypes {
     PARQUET_FILE.deleteOnExit();
   }
 
-  private static Stream<Object[]> data()
-  {
+  private static Stream<Object[]> data() {
     return Arrays.stream(
-    new Object[][] {
-            {"parquet", "boolean", false, true},
-            {"parquet", "int", 5, 55},
-            {"parquet", "long", 5_000_000_049L, 5_000L},
-            {"parquet", "float", 1.97f, 2.11f},
-            {"parquet", "double", 2.11d, 1.97d},
-            {"parquet", "date", "2018-06-29", "2018-05-03"},
-            {"parquet", "time", "10:02:34.000000", "10:02:34.000001"},
-            {"parquet", "timestamp", "2018-06-29T10:02:34.000000", "2018-06-29T15:02:34.000000"},
-            {
-                    "parquet",
-                    "timestamptz",
-                    "2018-06-29T10:02:34.000000+00:00",
-                    "2018-06-29T10:02:34.000000-07:00"
-            },
-            {"parquet", "string", "tapir", "monthly"},
-            // { "parquet", "uuid", uuid, UUID.randomUUID() }, // not supported yet
-            //{"parquet", "fixed", "abcd".getBytes(StandardCharsets.UTF_8), new byte[] {0, 1, 2, 3}},
-           // {"parquet", "binary", "xyz".getBytes(StandardCharsets.UTF_8), new byte[] {0, 1, 2, 3, 4, 5}},
-            {"parquet", "int_decimal", "77.77", "12.34"},
-            {"parquet", "long_decimal", "88.88", "12.34"},
-            {"parquet", "fixed_decimal", "99.99", "12.34"},
-            {"orc", "boolean", false, true},
-            {"orc", "int", 5, 55},
-            {"orc", "long", 5_000_000_049L, 5_000L},
-            {"orc", "float", 1.97f, 2.11f},
-            {"orc", "double", 2.11d, 1.97d},
-            {"orc", "date", "2018-06-29", "2018-05-03"},
-            {"orc", "time", "10:02:34.000000", "10:02:34.000001"},
-            {"orc", "timestamp", "2018-06-29T10:02:34.000000", "2018-06-29T15:02:34.000000"},
-            {
-                    "orc", "timestamptz", "2018-06-29T10:02:34.000000+00:00", "2018-06-29T10:02:34.000000-07:00"
-            },
-            {"orc", "string", "tapir", "monthly"},
-            // uuid, fixed and binary types not supported yet
-            // { "orc", "uuid", uuid, UUID.randomUUID() },
-            // { "orc", "fixed", "abcd".getBytes(StandardCharsets.UTF_8), new byte[] { 0, 1, 2, 3 } },
-            // { "orc", "binary", "xyz".getBytes(StandardCharsets.UTF_8), new byte[] { 0, 1, 2, 3, 4, 5 }
-            // },
-            {"orc", "int_decimal", "77.77", "12.34"},
-            {"orc", "long_decimal", "88.88", "12.34"},
-            {"orc", "fixed_decimal", "99.99", "12.34"},
-    });
+        new Object[][] {
+          {"parquet", "boolean", false, true},
+          {"parquet", "int", 5, 55},
+          {"parquet", "long", 5_000_000_049L, 5_000L},
+          {"parquet", "float", 1.97f, 2.11f},
+          {"parquet", "double", 2.11d, 1.97d},
+          {"parquet", "date", "2018-06-29", "2018-05-03"},
+          {"parquet", "time", "10:02:34.000000", "10:02:34.000001"},
+          {"parquet", "timestamp", "2018-06-29T10:02:34.000000", "2018-06-29T15:02:34.000000"},
+          {
+            "parquet",
+            "timestamptz",
+            "2018-06-29T10:02:34.000000+00:00",
+            "2018-06-29T10:02:34.000000-07:00"
+          },
+          {"parquet", "string", "tapir", "monthly"},
+          // { "parquet", "uuid", uuid, UUID.randomUUID() }, // not supported yet
+          // {"parquet", "fixed", "abcd".getBytes(StandardCharsets.UTF_8), new byte[] {0, 1, 2, 3}},
+          // {"parquet", "binary", "xyz".getBytes(StandardCharsets.UTF_8), new byte[] {0, 1, 2, 3,
+          // 4, 5}},
+          {"parquet", "int_decimal", "77.77", "12.34"},
+          {"parquet", "long_decimal", "88.88", "12.34"},
+          {"parquet", "fixed_decimal", "99.99", "12.34"},
+          {"orc", "boolean", false, true},
+          {"orc", "int", 5, 55},
+          {"orc", "long", 5_000_000_049L, 5_000L},
+          {"orc", "float", 1.97f, 2.11f},
+          {"orc", "double", 2.11d, 1.97d},
+          {"orc", "date", "2018-06-29", "2018-05-03"},
+          {"orc", "time", "10:02:34.000000", "10:02:34.000001"},
+          {"orc", "timestamp", "2018-06-29T10:02:34.000000", "2018-06-29T15:02:34.000000"},
+          {
+            "orc",
+            "timestamptz",
+            "2018-06-29T10:02:34.000000+00:00",
+            "2018-06-29T10:02:34.000000-07:00"
+          },
+          {"orc", "string", "tapir", "monthly"},
+          // uuid, fixed and binary types not supported yet
+          // { "orc", "uuid", uuid, UUID.randomUUID() },
+          // { "orc", "fixed", "abcd".getBytes(StandardCharsets.UTF_8), new byte[] { 0, 1, 2, 3 } },
+          // { "orc", "binary", "xyz".getBytes(StandardCharsets.UTF_8), new byte[] { 0, 1, 2, 3, 4,
+          // 5 }
+          // },
+          {"orc", "int_decimal", "77.77", "12.34"},
+          {"orc", "long_decimal", "88.88", "12.34"},
+          {"orc", "fixed_decimal", "99.99", "12.34"},
+        });
   }
 
   @ParameterizedTest(name = "format = {0} column = {1} readValue = {2} skipValue = {3}")
   @MethodSource("data")
   public void testEq(String format, String column, Object readValue, Object skipValue) {
     boolean shouldRead = shouldRead(readValue, column);
-    Assertions.assertTrue( shouldRead, "Should read: value is in the row group: " + readValue);
+    Assertions.assertTrue(shouldRead, "Should read: value is in the row group: " + readValue);
 
     shouldRead = shouldRead(skipValue, column);
-    Assertions.assertFalse(shouldRead,"Should skip: value is not in the row group: " + skipValue);
+    Assertions.assertFalse(shouldRead, "Should skip: value is not in the row group: " + skipValue);
   }
 
   private boolean shouldRead(Object value, String column) {
-    for(FileFormat fileFormat : FileFormat.values()) {
+    for (FileFormat fileFormat : FileFormat.values()) {
       switch (fileFormat) {
         case ORC:
           return shouldReadOrc(value, column);
@@ -306,7 +309,7 @@ public class TestMetricsRowGroupFilterTypes {
           return shouldReadParquet(value, column);
         default:
           throw new UnsupportedOperationException(
-                  "Row group filter types tests not supported for " + fileFormat);
+              "Row group filter types tests not supported for " + fileFormat);
       }
     }
     return false;

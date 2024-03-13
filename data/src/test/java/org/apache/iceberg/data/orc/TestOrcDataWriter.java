@@ -38,12 +38,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.junit.Rule;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.junit.rules.TemporaryFolder;
 
 public class TestOrcDataWriter {
   private static final Schema SCHEMA =
@@ -53,8 +51,7 @@ public class TestOrcDataWriter {
 
   private List<Record> records;
 
-  @TempDir
-  File temp;
+  @TempDir File temp;
 
   @BeforeEach
   public void createRecords() {
@@ -96,11 +93,12 @@ public class TestOrcDataWriter {
     DataFile dataFile = dataWriter.toDataFile();
 
     Assertions.assertEquals(FileFormat.ORC, dataFile.format(), "Format should be ORC");
-    Assertions.assertEquals( FileContent.DATA, dataFile.content(), "Should be data file");
+    Assertions.assertEquals(FileContent.DATA, dataFile.content(), "Should be data file");
     Assertions.assertEquals(records.size(), dataFile.recordCount(), "Record count should match");
-    Assertions.assertEquals( 0, dataFile.partition().size(),"Partition should be empty");
-    Assertions.assertEquals(sortOrder.orderId(), (int) dataFile.sortOrderId(), "Sort order should match");
-    Assertions.assertNull( dataFile.keyMetadata(), "Key metadata should be null");
+    Assertions.assertEquals(0, dataFile.partition().size(), "Partition should be empty");
+    Assertions.assertEquals(
+        sortOrder.orderId(), (int) dataFile.sortOrderId(), "Sort order should match");
+    Assertions.assertNull(dataFile.keyMetadata(), "Key metadata should be null");
 
     List<Record> writtenRecords;
     try (CloseableIterable<Record> reader =

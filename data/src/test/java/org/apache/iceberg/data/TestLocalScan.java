@@ -32,13 +32,11 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AppendFiles;
@@ -64,7 +62,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.assertj.core.api.Assertions;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -79,13 +76,11 @@ public class TestLocalScan {
   private static final Configuration CONF = new Configuration();
   private static final Tables TABLES = new HadoopTables(CONF);
 
-  private static Stream<Object[]> data()
-  {
-    return Arrays.stream(new Object[][]{{"parquet"}, {"orc"}, {"avro"}});
+  private static Stream<Object[]> data() {
+    return Arrays.stream(new Object[][] {{"parquet"}, {"orc"}, {"avro"}});
   }
 
-  @TempDir
-  public File temp;
+  @TempDir public File temp;
 
   private String sharedTableLocation = null;
   private Table sharedTable = null;
@@ -143,11 +138,14 @@ public class TestLocalScan {
   private void overwriteExistingData(Object fileExt) throws IOException {
     FileFormat fileFormat = FileFormat.fromString(fileExt.toString());
     DataFile file12 =
-        writeFile(sharedTableLocation, fileFormat.addExtension("file-12"), file1SecondSnapshotRecords);
+        writeFile(
+            sharedTableLocation, fileFormat.addExtension("file-12"), file1SecondSnapshotRecords);
     DataFile file22 =
-        writeFile(sharedTableLocation, fileFormat.addExtension("file-22"), file2SecondSnapshotRecords);
+        writeFile(
+            sharedTableLocation, fileFormat.addExtension("file-22"), file2SecondSnapshotRecords);
     DataFile file32 =
-        writeFile(sharedTableLocation, fileFormat.addExtension("file-32"), file3SecondSnapshotRecords);
+        writeFile(
+            sharedTableLocation, fileFormat.addExtension("file-32"), file3SecondSnapshotRecords);
 
     sharedTable
         .newOverwrite()
@@ -158,11 +156,14 @@ public class TestLocalScan {
         .commit();
 
     DataFile file13 =
-        writeFile(sharedTableLocation, fileFormat.addExtension("file-13"), file1ThirdSnapshotRecords);
+        writeFile(
+            sharedTableLocation, fileFormat.addExtension("file-13"), file1ThirdSnapshotRecords);
     DataFile file23 =
-        writeFile(sharedTableLocation, fileFormat.addExtension("file-23"), file2ThirdSnapshotRecords);
+        writeFile(
+            sharedTableLocation, fileFormat.addExtension("file-23"), file2ThirdSnapshotRecords);
     DataFile file33 =
-        writeFile(sharedTableLocation, fileFormat.addExtension("file-33"), file3ThirdSnapshotRecords);
+        writeFile(
+            sharedTableLocation, fileFormat.addExtension("file-33"), file3ThirdSnapshotRecords);
 
     sharedTable
         .newOverwrite()
@@ -176,20 +177,26 @@ public class TestLocalScan {
   private void appendData(Object fileExt) throws IOException {
     FileFormat fileFormat = FileFormat.fromString(fileExt.toString());
     DataFile file12 =
-        writeFile(sharedTableLocation, fileFormat.addExtension("file-12"), file1SecondSnapshotRecords);
+        writeFile(
+            sharedTableLocation, fileFormat.addExtension("file-12"), file1SecondSnapshotRecords);
     DataFile file22 =
-        writeFile(sharedTableLocation, fileFormat.addExtension("file-22"), file2SecondSnapshotRecords);
+        writeFile(
+            sharedTableLocation, fileFormat.addExtension("file-22"), file2SecondSnapshotRecords);
     DataFile file32 =
-        writeFile(sharedTableLocation, fileFormat.addExtension("file-32"), file3SecondSnapshotRecords);
+        writeFile(
+            sharedTableLocation, fileFormat.addExtension("file-32"), file3SecondSnapshotRecords);
 
     sharedTable.newFastAppend().appendFile(file12).appendFile(file22).appendFile(file32).commit();
 
     DataFile file13 =
-        writeFile(sharedTableLocation, fileFormat.addExtension("file-13"), file1ThirdSnapshotRecords);
+        writeFile(
+            sharedTableLocation, fileFormat.addExtension("file-13"), file1ThirdSnapshotRecords);
     DataFile file23 =
-        writeFile(sharedTableLocation, fileFormat.addExtension("file-23"), file2ThirdSnapshotRecords);
+        writeFile(
+            sharedTableLocation, fileFormat.addExtension("file-23"), file2ThirdSnapshotRecords);
     DataFile file33 =
-        writeFile(sharedTableLocation, fileFormat.addExtension("file-33"), file3ThirdSnapshotRecords);
+        writeFile(
+            sharedTableLocation, fileFormat.addExtension("file-33"), file3ThirdSnapshotRecords);
 
     sharedTable.newFastAppend().appendFile(file13).appendFile(file23).appendFile(file33).commit();
   }
@@ -208,39 +215,54 @@ public class TestLocalScan {
 
     Record record = GenericRecord.create(SCHEMA);
 
-    String [] format = {"parquet", "orc", "avro"};
-    Arrays.stream(format).forEach(str -> {
+    String[] format = {"parquet", "orc", "avro"};
+    Arrays.stream(format)
+        .forEach(
+            str -> {
+              FileFormat fileFormat = FileFormat.fromString(str);
+              DataFile file1 = null;
+              try {
+                file1 =
+                    writeFile(
+                        sharedTableLocation,
+                        fileFormat.addExtension("file-1"),
+                        file1FirstSnapshotRecords);
+              } catch (IOException e) {
+                throw new RuntimeException(e);
+              }
+              Record nullData = record.copy();
+              nullData.setField("id", 11L);
+              nullData.setField("data", null);
 
-      FileFormat fileFormat = FileFormat.fromString(str);
-      DataFile file1 =
-              null;
-      try {
-        file1 = writeFile(sharedTableLocation, fileFormat.addExtension("file-1"), file1FirstSnapshotRecords);
-      } catch (IOException e) {
-        throw new RuntimeException(e);
-      }
-      Record nullData = record.copy();
-      nullData.setField("id", 11L);
-      nullData.setField("data", null);
+              DataFile file2 = null;
+              try {
+                file2 =
+                    writeFile(
+                        sharedTableLocation,
+                        fileFormat.addExtension("file-2"),
+                        file2FirstSnapshotRecords);
+              } catch (IOException e) {
+                throw new RuntimeException(e);
+              }
+              DataFile file3 = null;
+              try {
+                file3 =
+                    writeFile(
+                        sharedTableLocation,
+                        fileFormat.addExtension("file-3"),
+                        file3FirstSnapshotRecords);
+              } catch (IOException e) {
+                throw new RuntimeException(e);
+              }
 
-      DataFile file2 =
-              null;
-      try {
-        file2 = writeFile(sharedTableLocation, fileFormat.addExtension("file-2"), file2FirstSnapshotRecords);
-      } catch (IOException e) {
-        throw new RuntimeException(e);
-      }
-      DataFile file3 =
-              null;
-      try {
-        file3 = writeFile(sharedTableLocation,  fileFormat.addExtension("file-3"), file3FirstSnapshotRecords);
-      } catch (IOException e) {
-        throw new RuntimeException(e);
-      }
-
-      // commit the test data
-      sharedTable.newAppend().appendFile(file1).appendFile(file2).appendFile(file3).commit();
-    });
+              // commit the test data
+              sharedTable
+                  .newAppend()
+                  .appendFile(file1)
+                  .appendFile(file2)
+                  .appendFile(file3)
+                  .commit();
+            });
   }
 
   @ParameterizedTest(name = "format = {0}")
@@ -250,7 +272,7 @@ public class TestLocalScan {
 
     FileFormat fileFormat = FileFormat.fromString(fileExt.toString());
     File location = new File(temp, String.valueOf(FileFormat.fromString(fileExt.toString())));
-//    org.junit.jupiter.api.Assertions.assertTrue(location.delete());
+    //    org.junit.jupiter.api.Assertions.assertTrue(location.delete());
     Table table =
         TABLES.create(
             SCHEMA,
@@ -287,10 +309,10 @@ public class TestLocalScan {
 
     Set<Record> records = Sets.newHashSet(IcebergGenerics.read(table).build());
     org.junit.jupiter.api.Assertions.assertEquals(
-         expected.size(), records.size(), "Should produce correct number of records");
-    org.junit.jupiter.api.Assertions.assertEquals( Sets.newHashSet(expected), records, "Random record set should match");
+        expected.size(), records.size(), "Should produce correct number of records");
+    org.junit.jupiter.api.Assertions.assertEquals(
+        Sets.newHashSet(expected), records, "Random record set should match");
   }
-
 
   @Test
   public void testFullScan() {
@@ -303,8 +325,9 @@ public class TestLocalScan {
 
     Set<Record> records = Sets.newHashSet(results);
     org.junit.jupiter.api.Assertions.assertEquals(
-         expected.size(), records.size(), "Should produce correct number of records");
-    org.junit.jupiter.api.Assertions.assertEquals(Sets.newHashSet(expected), records, "Random record set should match");
+        expected.size(), records.size(), "Should produce correct number of records");
+    org.junit.jupiter.api.Assertions.assertEquals(
+        Sets.newHashSet(expected), records, "Random record set should match");
   }
 
   @Test
@@ -312,21 +335,23 @@ public class TestLocalScan {
     Iterable<Record> result = IcebergGenerics.read(sharedTable).where(lessThan("id", 3)).build();
 
     org.junit.jupiter.api.Assertions.assertEquals(
-            Sets.newHashSet(file1FirstSnapshotRecords),
-        Sets.newHashSet(result), "Records should match file 1");
+        Sets.newHashSet(file1FirstSnapshotRecords),
+        Sets.newHashSet(result),
+        "Records should match file 1");
 
     result = IcebergGenerics.read(sharedTable).where(lessThan("iD", 3)).caseInsensitive().build();
 
     org.junit.jupiter.api.Assertions.assertEquals(
         Sets.newHashSet(file1FirstSnapshotRecords),
         Sets.newHashSet(result),
-            "Records should match file 1");
+        "Records should match file 1");
 
     result = IcebergGenerics.read(sharedTable).where(lessThanOrEqual("id", 1)).build();
 
     org.junit.jupiter.api.Assertions.assertEquals(
         Sets.newHashSet(filter(file1FirstSnapshotRecords, r -> (Long) r.getField("id") <= 1)),
-        Sets.newHashSet(result), "Records should match file 1 without id 2");
+        Sets.newHashSet(result),
+        "Records should match file 1 without id 2");
   }
 
   @Test
@@ -345,12 +370,14 @@ public class TestLocalScan {
         Lists.transform(file3FirstSnapshotRecords, record -> (Long) record.getField("id")));
 
     results.forEach(
-        record -> org.junit.jupiter.api.Assertions.assertEquals( 1, record.size(), "Record should have one projected field"));
+        record ->
+            org.junit.jupiter.api.Assertions.assertEquals(
+                1, record.size(), "Record should have one projected field"));
 
     org.junit.jupiter.api.Assertions.assertEquals(
         expected,
         Sets.newHashSet(transform(results, record -> (Long) record.getField("id"))),
-            "Should project only id columns");
+        "Should project only id columns");
   }
 
   @Test
@@ -420,12 +447,14 @@ public class TestLocalScan {
     }
 
     results.forEach(
-        record -> org.junit.jupiter.api.Assertions.assertEquals( 2, record.size(), "Record should have two projected fields"));
+        record ->
+            org.junit.jupiter.api.Assertions.assertEquals(
+                2, record.size(), "Record should have two projected fields"));
 
     org.junit.jupiter.api.Assertions.assertEquals(
         expected,
         Sets.newHashSet(transform(results, record -> record.getField("data").toString())),
-            "Should project correct rows");
+        "Should project correct rows");
   }
 
   @ParameterizedTest(name = "format = {0}")
@@ -444,8 +473,9 @@ public class TestLocalScan {
 
     Set<Record> records = Sets.newHashSet(results);
     org.junit.jupiter.api.Assertions.assertEquals(
-         expected.size(), records.size(),"Should produce correct number of records");
-    org.junit.jupiter.api.Assertions.assertEquals(Sets.newHashSet(expected), records,"Record set should match");
+        expected.size(), records.size(), "Should produce correct number of records");
+    org.junit.jupiter.api.Assertions.assertEquals(
+        Sets.newHashSet(expected), records, "Record set should match");
     org.junit.jupiter.api.Assertions.assertNotNull(Iterables.get(records, 0).getField("id"));
     org.junit.jupiter.api.Assertions.assertNotNull(Iterables.get(records, 0).getField("data"));
   }
@@ -466,8 +496,9 @@ public class TestLocalScan {
 
     Set<Record> records = Sets.newHashSet(results);
     org.junit.jupiter.api.Assertions.assertEquals(
-        expected.size(), records.size(),  "Should produce correct number of records");
-    org.junit.jupiter.api.Assertions.assertEquals(Sets.newHashSet(expected), records, "Record set should match");
+        expected.size(), records.size(), "Should produce correct number of records");
+    org.junit.jupiter.api.Assertions.assertEquals(
+        Sets.newHashSet(expected), records, "Record set should match");
     org.junit.jupiter.api.Assertions.assertNotNull(Iterables.get(records, 0).getField("id"));
     org.junit.jupiter.api.Assertions.assertNotNull(Iterables.get(records, 0).getField("data"));
   }
@@ -491,7 +522,8 @@ public class TestLocalScan {
     Set<Record> records = Sets.newHashSet(results);
     org.junit.jupiter.api.Assertions.assertEquals(
         expected.size(), records.size(), "Should produce correct number of records");
-    org.junit.jupiter.api.Assertions.assertEquals( Sets.newHashSet(expected), records, "Record set should match");
+    org.junit.jupiter.api.Assertions.assertEquals(
+        Sets.newHashSet(expected), records, "Record set should match");
     org.junit.jupiter.api.Assertions.assertNotNull(Iterables.get(records, 0).getField("id"));
     org.junit.jupiter.api.Assertions.assertNotNull(Iterables.get(records, 0).getField("data"));
   }
@@ -514,8 +546,10 @@ public class TestLocalScan {
     expected.addAll(file3ThirdSnapshotRecords);
 
     Set<Record> records = Sets.newHashSet(results);
-    org.junit.jupiter.api.Assertions.assertEquals(expected.size(), records.size(), "Should produce correct number of records");
-    org.junit.jupiter.api.Assertions.assertEquals(Sets.newHashSet(expected), records,"Should produce correct number of records");
+    org.junit.jupiter.api.Assertions.assertEquals(
+        expected.size(), records.size(), "Should produce correct number of records");
+    org.junit.jupiter.api.Assertions.assertEquals(
+        Sets.newHashSet(expected), records, "Should produce correct number of records");
     org.junit.jupiter.api.Assertions.assertNotNull(Iterables.get(records, 0).getField("id"));
     org.junit.jupiter.api.Assertions.assertNotNull(Iterables.get(records, 0).getField("data"));
   }
@@ -583,7 +617,7 @@ public class TestLocalScan {
             required(4, "time", Types.TimeType.get()));
 
     File tableLocation = new File(temp, "complex_filter_table");
-   // org.junit.jupiter.api.Assertions.assertTrue(tableLocation.delete());
+    // org.junit.jupiter.api.Assertions.assertTrue(tableLocation.delete());
 
     Table table =
         TABLES.create(
@@ -594,7 +628,8 @@ public class TestLocalScan {
 
     List<Record> expected = RandomGenericData.generate(schema, 100, 435691832918L);
     DataFile file =
-        writeFile(tableLocation.toString(), fileFormat.addExtension("record-file"), schema, expected);
+        writeFile(
+            tableLocation.toString(), fileFormat.addExtension("record-file"), schema, expected);
     table.newFastAppend().appendFile(file).commit();
 
     for (Record r : expected) {

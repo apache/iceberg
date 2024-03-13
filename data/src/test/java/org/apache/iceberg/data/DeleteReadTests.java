@@ -73,11 +73,9 @@ public abstract class DeleteReadTests {
   public static final PartitionSpec DATE_SPEC =
       PartitionSpec.builderFor(DATE_SCHEMA).day("dt").build();
 
-
   @TempDir
   public static File temp;
-
-
+  
   protected String tableName = null;
   protected String dateTableName = null;
   protected Table table = null;

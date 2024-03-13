@@ -26,7 +26,6 @@ import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-
 public class TestGenericRecord {
 
   @Test

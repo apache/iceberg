@@ -42,7 +42,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-
 public class TestOrcRowIterator {
 
   private static final Schema DATA_SCHEMA = new Schema(required(100, "id", Types.LongType.get()));
@@ -59,8 +58,7 @@ public class TestOrcRowIterator {
     }
   }
 
-  @TempDir
-  public File temp;
+  @TempDir public File temp;
 
   @BeforeEach
   public void writeFile() throws IOException {

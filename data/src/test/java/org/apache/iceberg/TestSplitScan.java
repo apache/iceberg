@@ -20,11 +20,10 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 
+import com.google.common.collect.Lists;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
-
-import com.google.common.collect.Lists;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.IcebergGenerics;

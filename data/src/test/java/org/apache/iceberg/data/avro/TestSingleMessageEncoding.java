@@ -43,7 +43,6 @@ import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-
 public class TestSingleMessageEncoding {
   private static final Schema SCHEMA_V1 =
       new Schema(
@@ -87,8 +86,10 @@ public class TestSingleMessageEncoding {
 
     Record copy = decoder.decode(encoder.encode(V2_RECORDS.get(0)));
 
-    org.junit.jupiter.api.Assertions.assertTrue( copy != V2_RECORDS.get(0), "Copy should not be the same object");
-    org.junit.jupiter.api.Assertions.assertEquals( V2_RECORDS.get(0), copy, "Record should be identical after round-trip");
+    org.junit.jupiter.api.Assertions.assertTrue(
+        copy != V2_RECORDS.get(0), "Copy should not be the same object");
+    org.junit.jupiter.api.Assertions.assertEquals(
+        V2_RECORDS.get(0), copy, "Record should be identical after round-trip");
   }
 
   @Test
@@ -179,7 +180,7 @@ public class TestSingleMessageEncoding {
 
     MessageDecoder<Record> decoder = new IcebergDecoder<>(SCHEMA_V1);
     org.junit.jupiter.api.Assertions.assertEquals(
-         V1_RECORDS.get(1), decoder.decode(b0), "Buffer was reused, decode(b0) should be record 1");
+        V1_RECORDS.get(1), decoder.decode(b0), "Buffer was reused, decode(b0) should be record 1");
   }
 
   @Test
