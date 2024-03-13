@@ -200,4 +200,19 @@ public class HadoopFileIOTest {
             });
     return paths;
   }
+
+  @Test
+  public void testMoveFileToTrash() throws IOException {
+    Configuration conf = new Configuration();
+    conf.set("fs.trash.interval", "100");
+    fs = FileSystem.getLocal(conf);
+    hadoopFileIO = new HadoopFileIO(conf);
+    Path parent = new Path(tempDir.toURI());
+    List<Path> filesCreated = createRandomFiles(parent, 10);
+    hadoopFileIO.deleteFiles(
+            filesCreated.stream().map(Path::toString).collect(Collectors.toList()));
+    filesCreated.forEach(
+            file ->
+                    Assertions.assertThat(hadoopFileIO.newInputFile(file.toString()).exists()).isFalse());
+  }
 }
