@@ -79,6 +79,7 @@ markdown_extensions:
 
 extra:
   icebergVersion: '1.5.0'
+  nessieVersion: '0.77.1'
   social:
     - icon: fontawesome/regular/comments
       link: 'https://iceberg.apache.org/community/'
