@@ -119,7 +119,7 @@ if (file("${rootDir}/iceberg-build.properties").exists()) {
   }
 }
 
-def projectVersion = "1.4.3.fk.1.0-SNAPSHOT"
+def projectVersion = getProjectVersion()
 final REVAPI_PROJECTS = ["iceberg-api", "iceberg-core", "iceberg-parquet", "iceberg-orc", "iceberg-common", "iceberg-data"]
 
 allprojects {
@@ -993,6 +993,7 @@ String getVersionFromFile() {
 
 String getProjectVersion() {
   if (versionFileExists()) {
+    println('Version found'+getVersionFromFile())
     return getVersionFromFile()
   }
 
