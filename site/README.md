@@ -65,7 +65,7 @@ The Iceberg versioned docs are committed in two [orphan](https://git-scm.com/doc
  1. [`docs`](https://github.com/apache/iceberg/tree/docs) - contains the state of the documenation source files (`/docs`) during release. These versions are mounted at the `/site/docs/docs/<version>` directory at build time. 
  1. [`javadoc`](https://github.com/apache/iceberg/tree/javadoc) - contains prior statically generated versions of the javadocs mounted at `/site/docs/javadoc/<version>` directory at  build time.
 
-The `latest` version, is a soft link to the most recent [semver version](https://semver.org/) in the `docs` branch. The `nightly` version, is a soft link to the current local state of the `/docs` markdown files.. 
+The `latest` version, is a soft link to the most recent [semver version](https://semver.org/) in the `docs` branch. The `nightly` version, is a soft link to the current local state of the `/docs` markdown files.
 
 The docs are built, run, and released using [make](https://www.gnu.org/software/make/manual/make.html). The [Makefile](Makefile) and the [common shell script](dev/common.sh) support the following command:
 
