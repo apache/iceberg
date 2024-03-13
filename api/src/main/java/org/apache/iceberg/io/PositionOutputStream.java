@@ -29,4 +29,15 @@ public abstract class PositionOutputStream extends OutputStream {
    * @throws IOException If the underlying stream throws IOException
    */
   public abstract long getPos() throws IOException;
+
+  /**
+   * Return the current stored length of the output. Can differ from the current position for
+   * encrypting streams, and for other non-length-preserving streams.
+   *
+   * @return current stored length in bytes
+   * @throws IOException If the underlying stream throws IOException
+   */
+  public long storedLength() throws IOException {
+    return getPos();
+  }
 }

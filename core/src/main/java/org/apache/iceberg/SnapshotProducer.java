@@ -43,6 +43,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.exceptions.CleanableFailure;
@@ -255,7 +257,6 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
           .run(index -> manifestFiles[index] = manifestsWithMetadata.get(manifests.get(index)));
 
       writer.addAll(Arrays.asList(manifestFiles));
-
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to write manifest list file");
     }
@@ -499,6 +500,11 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                         "snap-%d-%d-%s", snapshotId(), attempt.incrementAndGet(), commitUUID))));
   }
 
+  /**
+   * @deprecated will be removed in 1.7.0; Use {@link SnapshotProducer#newManifestOutputFile}
+   *     instead
+   */
+  @Deprecated
   protected OutputFile newManifestOutput() {
     return ops.io()
         .newOutputFile(
@@ -506,14 +512,22 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                 FileFormat.AVRO.addExtension(commitUUID + "-m" + manifestCount.getAndIncrement())));
   }
 
+  protected EncryptedOutputFile newManifestOutputFile() {
+    String manifestFileLocation =
+        ops.metadataFileLocation(
+            FileFormat.AVRO.addExtension(commitUUID + "-m" + manifestCount.getAndIncrement()));
+    return EncryptingFileIO.combine(ops.io(), ops.encryption())
+        .newEncryptingOutputFile(manifestFileLocation);
+  }
+
   protected ManifestWriter<DataFile> newManifestWriter(PartitionSpec spec) {
     return ManifestFiles.write(
-        ops.current().formatVersion(), spec, newManifestOutput(), snapshotId());
+        ops.current().formatVersion(), spec, newManifestOutputFile(), snapshotId());
   }
 
   protected ManifestWriter<DeleteFile> newDeleteManifestWriter(PartitionSpec spec) {
     return ManifestFiles.writeDeleteManifest(
-        ops.current().formatVersion(), spec, newManifestOutput(), snapshotId());
+        ops.current().formatVersion(), spec, newManifestOutputFile(), snapshotId());
   }
 
   protected RollingManifestWriter<DataFile> newRollingManifestWriter(PartitionSpec spec) {
