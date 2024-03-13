@@ -27,12 +27,14 @@ import org.apache.iceberg.spark.MaterializedViewUtil
 import org.apache.iceberg.spark.Spark3Util
 import org.apache.iceberg.spark.SparkCatalog
 import org.apache.iceberg.spark.source.SparkTable
+import org.apache.iceberg.spark.source.SparkView
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.analysis.ViewAlreadyExistsException
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.Table
 import org.apache.spark.sql.connector.catalog.TableChange
+import org.apache.spark.sql.connector.catalog.View
 import org.apache.spark.sql.connector.catalog.ViewCatalog
 import org.apache.spark.sql.connector.expressions.Transform
 import org.apache.spark.sql.types.StructType
@@ -72,31 +74,42 @@ case class CreateMaterializedViewExec(
       case None => MaterializedViewUtil.getDefaultMaterializedViewStorageTableIdentifier(ident)
     }
 
-    // TODO: Add support for partitioning the storage table
-    catalog.asInstanceOf[SparkCatalog].createTable(
-      sparkStorageTableIdentifier,
-      viewSchema, new Array[Transform](0), ImmutableMap.of[String, String]()
-    )
+    val view = createView(sparkStorageTableIdentifier.toString)
 
-    // Capture base table state before inserting into the storage table
-    val baseTables = MaterializedViewUtil.extractBaseTables(queryText).asScala.toList
-    val baseTableSnapshots = getBaseTableSnapshots(baseTables)
-    val baseTableSnapshotsProperties = baseTableSnapshots.map{
-      case (key, value) => (
-        MaterializedViewUtil.MATERIALIZED_VIEW_BASE_SNAPSHOT_PROPERTY_KEY_PREFIX + key.toString
-        ) -> value.toString
+    view match {
+      case Some(v) => {
+        // TODO: Add support for partitioning the storage table
+        catalog.asInstanceOf[SparkCatalog].createTable(
+          sparkStorageTableIdentifier,
+          viewSchema, new Array[Transform](0), ImmutableMap.of[String, String]()
+        )
+
+        // Capture base table state before inserting into the storage table
+        val baseTables = MaterializedViewUtil.extractBaseTables(queryText).asScala.toList
+        val baseTableSnapshots = getBaseTableSnapshots(baseTables)
+        val baseTableSnapshotsProperties = baseTableSnapshots.map {
+          case (key, value) => (
+            MaterializedViewUtil.MATERIALIZED_VIEW_BASE_SNAPSHOT_PROPERTY_KEY_PREFIX + key.toString
+            ) -> value.toString
+        }
+
+
+        val storageTableProperties = baseTableSnapshotsProperties +
+          (MaterializedViewUtil.MATERIALIZED_VIEW_VERSION_PROPERTY_KEY -> getViewVersion(v).toString)
+
+        // Insert into the storage table
+        session.sql("INSERT INTO " + sparkStorageTableIdentifier + " " + queryText)
+
+
+        // Update the storage table properties
+        val storageTablePropertyChanges = storageTableProperties.map {
+          case (key, value) => TableChange.setProperty(key, value)
+        }.toArray
+
+        catalog.asInstanceOf[SparkCatalog].alterTable(sparkStorageTableIdentifier, storageTablePropertyChanges: _*)
+      }
+      case None =>
     }
-
-    // Insert into the storage table
-    session.sql("INSERT INTO " + sparkStorageTableIdentifier + " " + queryText)
-
-    // Update the base table snapshots properties
-    val baseTablePropertyChanges = baseTableSnapshotsProperties.map{
-      case (key, value) => TableChange.setProperty(key, value)
-    }.toArray
-
-    catalog.asInstanceOf[SparkCatalog].alterTable(sparkStorageTableIdentifier, baseTablePropertyChanges:_*)
-    createMaterializedView(sparkStorageTableIdentifier.toString)
     Nil
   }
 
@@ -104,7 +117,7 @@ case class CreateMaterializedViewExec(
     s"CreateMaterializedViewExec: ${ident}"
   }
 
-  private def createMaterializedView(storageTableIdentifier: String): Unit = {
+  private def createView(storageTableIdentifier: String): Option[View] = {
     val currentCatalogName = session.sessionState.catalogManager.currentCatalog.name
     val currentCatalog = if (!catalog.name().equals(currentCatalogName)) currentCatalogName else null
     val currentNamespace = session.sessionState.catalogManager.currentNamespace
@@ -123,7 +136,7 @@ case class CreateMaterializedViewExec(
         catalog.dropView(ident)
       }
       // FIXME: replaceView API doesn't exist in Spark 3.5
-      catalog.createView(
+      val view = catalog.createView(
         ident,
         queryText,
         currentCatalog,
@@ -133,10 +146,11 @@ case class CreateMaterializedViewExec(
         columnAliases.toArray,
         columnComments.map(c => c.orNull).toArray,
         newProperties.asJava)
+      Some(view)
     } else {
       try {
         // CREATE VIEW [IF NOT EXISTS]
-        catalog.createView(
+        val view = catalog.createView(
           ident,
           queryText,
           currentCatalog,
@@ -146,9 +160,10 @@ case class CreateMaterializedViewExec(
           columnAliases.toArray,
           columnComments.map(c => c.orNull).toArray,
           newProperties.asJava)
+        Some(view)
       } catch {
         // TODO: Make sure the existing view is also a materialized view
-        case _: ViewAlreadyExistsException if allowExisting => // Ignore
+        case _: ViewAlreadyExistsException if allowExisting => None
       }
     }
   }
@@ -162,5 +177,14 @@ case class CreateMaterializedViewExec(
       case _ =>
         throw new UnsupportedOperationException("Only Spark tables are supported")
     }.toMap
+  }
+
+  private def getViewVersion(view: View): Long = {
+    view match {
+      case sparkView: SparkView =>
+        sparkView.view().currentVersion().versionId()
+      case _ =>
+        throw new UnsupportedOperationException("Only Spark views are supported")
+    }
   }
 }

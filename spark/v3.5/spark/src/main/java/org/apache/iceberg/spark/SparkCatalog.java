@@ -601,8 +601,27 @@ public class SparkCatalog extends BaseCatalog
   // Second option is to move to SparkMaterializedView
   private boolean isFresh(org.apache.iceberg.view.View view) {
     Table storageTable = loadStorageTable(view);
+    Map<String, String> storageTableProperties = storageTable.properties();
+
+    // Get the parent view version id from the storage table properties
+    String storageTableViewVersionIdPropertyValue =
+        storageTableProperties.get(
+            MaterializedViewUtil.MATERIALIZED_VIEW_VERSION_PROPERTY_KEY);
+    if (storageTableViewVersionIdPropertyValue == null) {
+      throw new IllegalStateException(
+          "Storage table properties do not contain the virtual view version id property.");
+    }
+    int storageTableViewVersionId = Integer.parseInt(storageTableViewVersionIdPropertyValue);
+
+    // If the storage table view version id is different from the current version id, the
+    // materialized view is not fresh
+    if (storageTableViewVersionId != view.currentVersion().versionId()) {
+      return false;
+    }
+
+    // Get the base table snapshot ids from the storage table properties
     Map<String, String> baseTableSnapshotsProperties =
-        storageTable.properties().entrySet().stream()
+        storageTableProperties.entrySet().stream()
             .filter(
                 entry ->
                     entry
@@ -665,12 +684,7 @@ public class SparkCatalog extends BaseCatalog
                 .withLocation(properties.get("location"))
                 .withProperties(props)
                 .create();
-        if (isMaterializedView(view)) {
-          Table storageTable = loadStorageTable(view);
-          return new SparkMaterializedView(catalogName, view, storageTable);
-        } else {
-          return new SparkView(catalogName, view);
-        }
+        return new SparkView(catalogName, view);
       } catch (org.apache.iceberg.exceptions.NoSuchNamespaceException e) {
         throw new NoSuchNamespaceException(currentNamespace);
       } catch (AlreadyExistsException e) {
