@@ -28,7 +28,6 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
 import java.util.List;
-import java.util.Optional;
 import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
@@ -57,14 +56,6 @@ class ViewVersionReplace implements ReplaceViewVersion {
   }
 
   ViewMetadata internalApply() {
-    // Replacing a materialized view is not supported because the old storage location will wrongly
-    // transfer to the new version
-    // if not handled properly.
-    Preconditions.checkState(
-        Optional.ofNullable(base.properties().get("iceberg.materialized.view"))
-            .orElse("false")
-            .equals("false"),
-        "Cannot replace a materialized view with a new version");
     Preconditions.checkState(
         !representations.isEmpty(), "Cannot replace view without specifying a query");
     Preconditions.checkState(null != schema, "Cannot replace view without specifying schema");

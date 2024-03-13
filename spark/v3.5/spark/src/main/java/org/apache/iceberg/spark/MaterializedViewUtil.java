@@ -41,6 +41,8 @@ public class MaterializedViewUtil {
       "iceberg.materialized.view.storage.table";
   public static final String MATERIALIZED_VIEW_BASE_SNAPSHOT_PROPERTY_KEY_PREFIX =
       "iceberg.base.snapshot.";
+  public static final String MATERIALIZED_VIEW_VERSION_PROPERTY_KEY =
+      "iceberg.materialized.view.version";
   private static final String MATERIALIZED_VIEW_STORAGE_TABLE_IDENTIFIER_SUFFIX = ".storage.table";
 
   public static List<Table> extractBaseTables(String query) {
