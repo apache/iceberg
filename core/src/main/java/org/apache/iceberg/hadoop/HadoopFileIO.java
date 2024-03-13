@@ -105,11 +105,11 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
     FileSystem fs = Util.getFs(toDelete, hadoopConf.get());
 
     try {
-      if(trash.isEnabled()) {
-        if(fs.exists(toDelete)){
+      if (trash.isEnabled()) {
+        if (fs.exists(toDelete)) {
           trash.moveToTrash(toDelete);
         }
-      }else{
+      } else {
         fs.delete(toDelete, false /* not recursive */);
       }
     } catch (IOException e) {
@@ -167,11 +167,11 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
     FileSystem fs = Util.getFs(prefixToDelete, hadoopConf.get());
 
     try {
-      if(trash.isEnabled()) {
-        if(fs.exists(prefixToDelete)){
+      if (trash.isEnabled()) {
+        if (fs.exists(prefixToDelete)) {
           trash.moveToTrash(prefixToDelete);
         }
-      }else{
+      } else {
         fs.delete(prefixToDelete, true /* recursive */);
       }
     } catch (IOException e) {

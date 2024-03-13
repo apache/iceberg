@@ -210,9 +210,9 @@ public class HadoopFileIOTest {
     Path parent = new Path(tempDir.toURI());
     List<Path> filesCreated = createRandomFiles(parent, 10);
     hadoopFileIO.deleteFiles(
-            filesCreated.stream().map(Path::toString).collect(Collectors.toList()));
+        filesCreated.stream().map(Path::toString).collect(Collectors.toList()));
     filesCreated.forEach(
-            file ->
-                    Assertions.assertThat(hadoopFileIO.newInputFile(file.toString()).exists()).isFalse());
+        file ->
+            Assertions.assertThat(hadoopFileIO.newInputFile(file.toString()).exists()).isFalse());
   }
 }
