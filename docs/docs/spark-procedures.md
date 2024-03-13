@@ -756,8 +756,8 @@ Creates a view that contains the changes from a given table.
 | `table`              | ✔️         | string              | Name of the source table for the changelog                                                                                                                                                           |
 | `changelog_view`     |           | string              | Name of the view to create                                                                                                                                                                           |
 | `options`            |           | map<string, string> | A map of Spark read options to use                                                                                                                                                                   |
-| `net_changes`        |           | boolean             | Whether to output net changes (see below for more information). Defaults to false.                                                                                                                   |
-| `compute_updates`    |           | boolean             | Whether to compute pre/post update images (see below for more information). Defaults to false.                                                                                                       | 
+| `net_changes`        |           | boolean             | Whether to output net changes (see below for more information). Defaults to false. It must be false when `compute_updates` is true.                                                                                                                  |
+| `compute_updates`    |           | boolean             | Whether to compute pre/post update images (see below for more information). Defaults to true if `identifer_columns` are provided; otherwise, defaults to false.                                                                                                       | 
 | `identifier_columns` |           | array<string>       | The list of identifier columns to compute updates. If the argument `compute_updates` is set to true and `identifier_columns` are not provided, the table’s current identifier fields will be used.   |
 
 Here is a list of commonly used Spark read options:
@@ -823,7 +823,10 @@ second snapshot deleted 1 record.
 |2	| Bob	   |INSERT	|0	|5390529835796506035|
 |1	| Alice  |DELETE	|1	|8764748981452218370|
 
-Create a changelog view that computes net changes. It removes intermediate changes and only outputs the net changes. 
+#### Net Changes
+
+The procedure can remove intermediate changes across multiple snapshots, and only outputs the net changes. Here is an example to create a changelog view that computes net changes. 
+
 ```sql
 CALL spark_catalog.system.create_changelog_view(
   table => 'db.tbl',
