@@ -24,13 +24,18 @@ import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.apache.iceberg.util.SnapshotUtil.latestSnapshot;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
@@ -89,7 +94,7 @@ public class TestOverwrite extends TableTestBase {
 
   private static final DataFile FILE_10_TO_14 =
       DataFiles.builder(PARTITION_BY_DATE)
-          .withPath("/path/to/data-2.parquet")
+          .withPath("/path/to/data-3.parquet")
           .withFileSizeInBytes(0)
           .withPartitionPath("date=2018-06-09")
           .withMetrics(
@@ -123,6 +128,10 @@ public class TestOverwrite extends TableTestBase {
 
   private static ByteBuffer longToBuffer(long value) {
     return ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putLong(0, value);
+  }
+
+  private static ByteBuffer stringToBuffer(String str) {
+    return ByteBuffer.wrap(str.getBytes(StandardCharsets.UTF_8));
   }
 
   private Table table = null;
@@ -272,6 +281,36 @@ public class TestOverwrite extends TableTestBase {
   }
 
   @Test
+  public void testValidatedOverwriteWithAppendSuccess() {
+    // ensure the overwrite results in a merge
+    table.updateProperties().set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1").commit();
+
+    TableMetadata base = TestTables.readMetadata(TABLE_NAME);
+    long baseId = latestSnapshot(base, branch).snapshotId();
+
+    OverwriteFiles overwrite =
+        table
+            .newOverwrite()
+            .overwriteByRowFilter(equal("date", "2018-06-09"))
+            .addFile(FILE_10_TO_14) // in 2018-06-09
+            .validateAddedFilesMatchOverwriteFilter();
+    commit(table, overwrite, branch);
+
+    long overwriteId = latestSnapshot(table, branch).snapshotId();
+
+    assertThat(overwriteId).as("Should create a new snapshot").isNotEqualTo(baseId);
+    assertThat(latestSnapshot(table, branch).allManifests(table.io()))
+        .as("Table should have one manifest")
+        .hasSize(1);
+
+    validateManifestEntries(
+        latestSnapshot(table, branch).allManifests(table.io()).get(0),
+        ids(overwriteId, baseId, overwriteId),
+        files(FILE_10_TO_14, FILE_0_TO_4, FILE_5_TO_9),
+        statuses(Status.ADDED, Status.EXISTING, Status.DELETED));
+  }
+
+  @Test
   public void testValidatedOverwriteWithAppendOutsideOfDeleteMetrics() {
     TableMetadata base = TestTables.readMetadata(TABLE_NAME);
     long baseId =
@@ -293,23 +332,173 @@ public class TestOverwrite extends TableTestBase {
   }
 
   @Test
-  public void testValidatedOverwriteWithAppendSuccess() {
+  public void testValidatedOverwriteWithAppendInsideOfDeleteMetrics() {
+    // ensure the overwrite results in a merge
+    table.updateProperties().set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1").commit();
+
     TableMetadata base = TestTables.readMetadata(TABLE_NAME);
     long baseId =
         latestSnapshot(base, branch) == null ? -1 : latestSnapshot(base, branch).snapshotId();
 
+    DataFile file10To14WithMetrics =
+        DataFiles.builder(PARTITION_BY_DATE)
+            .withPath("/path/to/data-3.parquet")
+            .withFileSizeInBytes(0)
+            .withPartitionPath("date=2018-06-09")
+            .withMetrics(
+                new Metrics(
+                    5L,
+                    null, // no column sizes
+                    ImmutableMap.of(1, 5L, 2, 3L), // value count
+                    ImmutableMap.of(1, 0L, 2, 2L), // null count
+                    null,
+                    ImmutableMap.of(
+                        1, longToBuffer(5L), 3, stringToBuffer("2018-06-09")), // lower bounds
+                    ImmutableMap.of(
+                        1, longToBuffer(9L), 3, stringToBuffer("2018-06-09")) // upper bounds
+                    ))
+            .build();
+
     OverwriteFiles overwrite =
         table
             .newOverwrite()
-            .overwriteByRowFilter(and(equal("date", "2018-06-09"), lessThan("id", 20)))
-            .addFile(FILE_10_TO_14) // in 2018-06-09 matches and IDs are inside range
+            .overwriteByRowFilter(and(equal("date", "2018-06-09"), lessThan("id", 10)))
+            .addFile(
+                file10To14WithMetrics) // in 2018-06-09 and IDs are inside range based on metrics
             .validateAddedFilesMatchOverwriteFilter();
 
-    Assertions.assertThatThrownBy(() -> commit(table, overwrite, branch))
-        .isInstanceOf(ValidationException.class)
-        .hasMessageStartingWith("Cannot append file with rows that do not match filter");
+    commit(table, overwrite, branch);
 
-    Assert.assertEquals(
-        "Should not create a new snapshot", baseId, latestSnapshot(base, branch).snapshotId());
+    long overwriteId = latestSnapshot(table, branch).snapshotId();
+
+    assertThat(overwriteId).as("Should create a new snapshot").isNotEqualTo(baseId);
+    assertThat(latestSnapshot(table, branch).allManifests(table.io()))
+        .as("Table should have one manifest")
+        .hasSize(1);
+
+    validateManifestEntries(
+        latestSnapshot(table, branch).allManifests(table.io()).get(0),
+        ids(overwriteId, baseId, overwriteId),
+        files(FILE_10_TO_14, FILE_0_TO_4, FILE_5_TO_9),
+        statuses(Status.ADDED, Status.EXISTING, Status.DELETED));
+  }
+
+  @Test
+  public void testShouldFailValidationIfAnyFileIsInAPartitionNotMatchingOverwriteByRowFilter() {
+    // ensure the overwrite results in a merge
+    table.updateProperties().set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1").commit();
+
+    table.updateSpec().addField("id").commit();
+    PartitionSpec partitionByDateAndId =
+        PartitionSpec.builderFor(DATE_SCHEMA).withSpecId(1).identity("date").identity("id").build();
+    assertThat(table.spec())
+        .as("New spec should be partitioned by date and id.")
+        .isEqualTo(partitionByDateAndId);
+
+    TableMetadata base = TestTables.readMetadata(TABLE_NAME);
+    long baseId =
+        latestSnapshot(base, branch) == null ? -1 : latestSnapshot(base, branch).snapshotId();
+
+    String overwriteDate = "2018-06-09";
+    String notOverwriteDate = "2018-06-10";
+
+    ImmutableList.of(
+            ImmutableList.of(notOverwriteDate, overwriteDate),
+            ImmutableList.of(overwriteDate, notOverwriteDate))
+        .forEach(
+            datePartitions -> {
+              DataFile fileOldSpec =
+                  DataFiles.builder(PARTITION_BY_DATE)
+                      .withPath("/path/to/data-1.parquet")
+                      .withPartitionPath(String.format("date=%s", datePartitions.get(0)))
+                      .withFileSizeInBytes(0)
+                      .withRecordCount(100)
+                      .build();
+
+              DataFile fileNewSpec =
+                  DataFiles.builder(partitionByDateAndId)
+                      .withPath("/path/to/data-2.parquet")
+                      .withPartitionPath(String.format("date=%s/id=10", datePartitions.get(1)))
+                      .withFileSizeInBytes(0)
+                      .withRecordCount(100)
+                      .build();
+
+              assertThatThrownBy(
+                      () ->
+                          commit(
+                              table,
+                              table
+                                  .newOverwrite()
+                                  .overwriteByRowFilter(equal("date", overwriteDate))
+                                  .addFile(fileOldSpec)
+                                  .addFile(fileNewSpec)
+                                  .validateAddedFilesMatchOverwriteFilter(),
+                              branch))
+                  .isInstanceOf(ValidationException.class)
+                  .hasMessageStartingWith("Cannot append file with rows that do not match filter");
+
+              assertThat(latestSnapshot(table, branch).snapshotId())
+                  .as("Should not create a new snapshot")
+                  .isEqualTo(baseId);
+            });
+  }
+
+  @Test
+  public void testShouldPassValidationIfAllFilesAreInPartitionMatchingOverwriteByRowFilter() {
+    // ensure the overwrite results in a merge
+    table.updateProperties().set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1").commit();
+
+    table.updateSpec().addField("id").commit();
+    PartitionSpec partitionByDateAndId =
+        PartitionSpec.builderFor(DATE_SCHEMA).withSpecId(1).identity("date").identity("id").build();
+    assertThat(table.spec())
+        .as("New spec should be partitioned by date and id.")
+        .isEqualTo(partitionByDateAndId);
+
+    TableMetadata base = TestTables.readMetadata(TABLE_NAME);
+    long baseId =
+        latestSnapshot(base, branch) == null ? -1 : latestSnapshot(base, branch).snapshotId();
+
+    DataFile fileOldSpec =
+        DataFiles.builder(PARTITION_BY_DATE)
+            .withPath("/path/to/data-1.parquet")
+            .withPartitionPath("date=2018-06-09")
+            .withFileSizeInBytes(0)
+            .withRecordCount(100)
+            .build();
+
+    DataFile fileNewSpec =
+        DataFiles.builder(partitionByDateAndId)
+            .withPath("/path/to/data-2.parquet")
+            .withPartitionPath("date=2018-06-09/id=10")
+            .withFileSizeInBytes(0)
+            .withRecordCount(100)
+            .build();
+
+    commit(
+        table,
+        table
+            .newOverwrite()
+            .overwriteByRowFilter(equal("date", "2018-06-09"))
+            .addFile(fileOldSpec) // in 2018-06-09
+            .addFile(fileNewSpec) // in 2018-06-09
+            .validateAddedFilesMatchOverwriteFilter(),
+        branch);
+
+    long overwriteId = latestSnapshot(table, branch).snapshotId();
+
+    assertThat(overwriteId).as("Should create a new snapshot").isNotEqualTo(baseId);
+
+    List<ManifestFile> allManifests = latestSnapshot(table, branch).allManifests(table.io());
+    assertThat(allManifests).as("Table should have two manifests, one for each spec").hasSize(2);
+
+    validateManifestEntries(
+        allManifests.get(0), ids(overwriteId), files(fileNewSpec), statuses(Status.ADDED));
+
+    validateManifestEntries(
+        allManifests.get(1),
+        ids(overwriteId, baseId, overwriteId),
+        files(fileOldSpec, FILE_0_TO_4, FILE_5_TO_9),
+        statuses(Status.ADDED, Status.EXISTING, Status.DELETED));
   }
 }

@@ -113,29 +113,32 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
   @Override
   protected void validate(TableMetadata base, Snapshot parent) {
     if (validateAddedFilesMatchOverwriteFilter) {
-      PartitionSpec spec = dataSpec();
-      Expression rowFilter = rowFilter();
+      addedDataFilesBySpec()
+          .forEach(
+              (spec, addedDataFiles) -> {
+                Expression rowFilter = rowFilter();
 
-      Expression inclusiveExpr = Projections.inclusive(spec).project(rowFilter);
-      Evaluator inclusive = new Evaluator(spec.partitionType(), inclusiveExpr);
+                Expression inclusiveExpr = Projections.inclusive(spec).project(rowFilter);
+                Evaluator inclusive = new Evaluator(spec.partitionType(), inclusiveExpr);
 
-      Expression strictExpr = Projections.strict(spec).project(rowFilter);
-      Evaluator strict = new Evaluator(spec.partitionType(), strictExpr);
+                Expression strictExpr = Projections.strict(spec).project(rowFilter);
+                Evaluator strict = new Evaluator(spec.partitionType(), strictExpr);
 
-      StrictMetricsEvaluator metrics =
-          new StrictMetricsEvaluator(base.schema(), rowFilter, isCaseSensitive());
+                StrictMetricsEvaluator metrics =
+                    new StrictMetricsEvaluator(base.schema(), rowFilter, isCaseSensitive());
 
-      for (DataFile file : addedDataFiles()) {
-        // the real test is that the strict or metrics test matches the file, indicating that all
-        // records in the file match the filter. inclusive is used to avoid testing the metrics,
-        // which is more complicated
-        ValidationException.check(
-            inclusive.eval(file.partition())
-                && (strict.eval(file.partition()) || metrics.eval(file)),
-            "Cannot append file with rows that do not match filter: %s: %s",
-            rowFilter,
-            file.path());
-      }
+                for (DataFile file : addedDataFiles) {
+                  // the real test is that the strict or metrics test matches the file, indicating
+                  // that all records in the file match the filter. inclusive is used to avoid
+                  // testing the metrics, which is more complicated
+                  ValidationException.check(
+                      inclusive.eval(file.partition())
+                          && (strict.eval(file.partition()) || metrics.eval(file)),
+                      "Cannot append file with rows that do not match filter: %s: %s",
+                      rowFilter,
+                      file.path());
+                }
+              });
     }
 
     if (validateNewDataFiles) {
