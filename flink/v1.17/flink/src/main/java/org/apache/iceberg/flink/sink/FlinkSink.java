@@ -565,7 +565,6 @@ public class FlinkSink {
             "Equality field columns shouldn't be empty when configuring to use UPSERT data stream.");
         if (!table.spec().isUnpartitioned()) {
           for (PartitionField partitionField : table.spec().fields()) {
-            // TODO: Should we move this logic inside multi table stream writer?
             Preconditions.checkState(
                 equalityFieldIds.contains(partitionField.sourceId()),
                 "In UPSERT mode, partition field '%s' should be included in equality fields: '%s'",

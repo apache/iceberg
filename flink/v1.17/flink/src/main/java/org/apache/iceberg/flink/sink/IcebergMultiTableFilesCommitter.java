@@ -69,6 +69,10 @@ import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Supports committing files to one or more table. Input to this class is TableAwareWriteResult that
+ * binds write information with table identifier.
+ */
 class IcebergMultiTableFilesCommitter extends AbstractStreamOperator<Void>
     implements OneInputStreamOperator<TableAwareWriteResult, Void>, BoundedOneInput {
 
@@ -87,15 +91,22 @@ class IcebergMultiTableFilesCommitter extends AbstractStreamOperator<Void>
   private static final String MAX_COMMITTED_CHECKPOINT_ID = "flink.max-committed-checkpoint-id";
   static final String MAX_CONTINUOUS_EMPTY_COMMITS = "flink.max-continuous-empty-commits";
 
-  // TableLoader to load iceberg table lazily.
+  // Since tables are not known in advance and will be discovered while processing each
+  // TableAwareWriteResult,
+  // Catalog loader is needed to load tables on demand.
   private final CatalogLoader catalogLoader;
+  // Table loader map to reload each table after every checkpoint
   private Map<TableIdentifier, TableLoader> tableLoaders;
+  // Table map to re-use table instance. This helps in avoiding the need to load table again and
+  // again in between
+  // checkpoints.
   private Map<TableIdentifier, Table> localTables;
   private final boolean replacePartitions;
   private final Map<String, String> snapshotProperties;
 
   // A sorted map to maintain the completed data files for each pending checkpointId (which have not
-  // been committed to iceberg table). We need a sorted map here because there's possible that few
+  // been committed to iceberg table) for each table. We need a sorted map here because there's
+  // possible that few
   // checkpoints snapshot failed, for example: the 1st checkpoint have 2 data files <1, <file0,
   // file1>>, the 2st checkpoint have 1 data files <2, <file3>>. Snapshot for checkpoint#1
   // interrupted because of network/disk failure etc, while we don't expect any data loss in iceberg
@@ -103,14 +114,17 @@ class IcebergMultiTableFilesCommitter extends AbstractStreamOperator<Void>
   // table when the next checkpoint happen.
   private Map<TableIdentifier, NavigableMap<Long, byte[]>> dataFilesPerCheckpoint;
 
-  // The completed files cache for current checkpoint. Once the snapshot barrier received, it will
+  // The completed files cache for current checkpoint for each table. Once the snapshot barrier
+  // received, it will
   // be flushed to the 'dataFilesPerCheckpoint'.
   private Map<TableIdentifier, List<WriteResult>> writeResultsOfCurrentCkpt;
+  // This is expected to remain same for each table during the course of a job.
   private final String branch;
 
   // It will have an unique identifier for one job.
   private transient String flinkJobId;
   private transient String operatorUniqueId;
+  // Capture committer metrics for each table invoked to be written to.
   private transient Map<TableIdentifier, IcebergFilesCommitterMetrics> committerMetrics;
   private transient Map<TableIdentifier, ManifestOutputFileFactory> manifestOutputFileFactories =
       Maps.newHashMap();
