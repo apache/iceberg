@@ -548,7 +548,10 @@ paths:
       summary: Prepare a list of plan tasks that can be used later for table scan planning
       description:
         Prepare a list of plan tasks that can be used later for table scan planning.
-        Each plan task in the response of this API can be used as the `plan-task` in the `PlanTable` API request to perform scan planning against a subset of the table files.
+        
+        Each plan task in the response of this API can be used as the `plan-task` in the `PlanTable` 
+        API request to perform scan planning against a subset of the table files.
+        
         This can be used to parallelize and distribute table scan planning.
       operationId: PreplanTable
       requestBody:
@@ -598,7 +601,13 @@ paths:
       operationId: PlanTable
       description:
         Perform scan planning against a table based on the user's scan requirements including selected columns and filters.
-        Users can provide an optional `plan-task` from the response of `PreplanTable` API to limit scan planning to only a subset of table files.
+        
+        Users can provide an optional `plan-task` from the response of `PreplanTable` API to 
+        limit the request to a subset of the full task set to only a subset of table files.
+        If a valid `plan-task` is provided, the service must attempt to send all result tasks to the client.
+      
+        If a user receives a 413 `PayloadTooLargeWithPlanResponse` or 422 `UnprocessableEntityResponse`, 
+        the user should use /preplan before using /plan.
       requestBody:
         content:
           application/json:
@@ -625,7 +634,7 @@ paths:
                   $ref: '#/components/examples/NoSuchTableError'
 
         413:
-          $ref: '#/components/responses/PayloadTooLargeResponse'
+          $ref: '#/components/responses/PayloadTooLargeWithPlanResponse'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         422:
@@ -2217,13 +2226,17 @@ components:
         - data-file
       properties:
         data-file:
-          $ref: '#/components/schemas/ContentFile'
+          $ref: '#/components/schemas/DataFile'
         delete-files:
-          type: array
-          items:
-            $ref: '#/components/schemas/ContentFile'
+          oneOf:
+            - type: array
+              items:
+                $ref: '#/components/schemas/PositionDeleteFile'
+            - type: array
+              items:
+                $ref: '#/components/schemas/EqualityDeleteFile'
         residual-filter:
-          description: filters that are not fully applied by the server and should be pushed down to the file reader when reading the file.
+          description: filters that are not fully applied by the server and should be pushed down to the file reader when reading the file. When not present, the residual should be calculated on the client or the original filter should be used.
           $ref: '#/components/schemas/Expression'
 
     SQLViewRepresentation:
@@ -2983,7 +2996,6 @@ components:
       required:
         - select
         - filter
-        - case-sensitive
       properties:
         select:
           description: A list of the selected column names
@@ -2995,27 +3007,22 @@ components:
         case-sensitive:
           description: Indicates whether column selection and filtering should be case sensitive
           type: boolean
+          default: true
         snapshot-id:
           description: an int64 snapshot ID (if snapshot-range is not present); optional and defaults to the table's current snapshot
           type: integer
           format: int64
         snapshot-range:
-          description: a JSON list containing exactly 2 int64 snapshot IDs (if snapshot-id is not present) representing the start (defaults to exclusive, see `start-exclusive`) and end (only inclusive) snapshots
+          description: A JSON list containing exactly 2 snapshot IDs representing the start (exclusive) and end (inclusive) snapshots. This option is not allowed when `snapshot-id` is present in the request.
           type: array
           items:
             type: integer
             format: int64
-        start-exclusive:
-          description: Indicates whether the user wants the start of `snapshot-range` to be inclusive or exclusive
-          type: boolean
-          default: true
 
     PlanTableRequest:
       type: object
       required:
         - select
-        - filter
-        - case-sensitive
       properties:
         select:
           description: A list of the selected column names
@@ -3027,8 +3034,9 @@ components:
         case-sensitive:
           description: Indicates whether column selection and filtering should be case sensitive
           type: boolean
+          default: true
         stats-fields:
-          description: a list of string field names for which stats should be included
+          description: A list of string field names for which stats should be included
           type: array
           items:
             type: string
@@ -3986,17 +3994,17 @@ components:
             EmptyResponse:
               $ref: '#/components/examples/ListNamespacesEmptyExample'
 
-    PayloadTooLargeResponse:
+    PayloadTooLargeWithPlanResponse:
       description:
-        Payload is too large.
+        Payload is too large. Informs user to leverage /preplan before doing /plan
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/IcebergErrorResponse'
           example: {
             "error": {
-              "message": " Payload is too large for PlanTable, please call PreplanTable to distribute table scan planning",
-              "type": "PayLoadTooLargeException",
+              "message": " Cannot plan scan: too many task results; use /preplan to split planning across multiple requests",
+              "type": "PayloadTooLargeWithPlanException",
               "code": 413
             }
           }
@@ -4025,7 +4033,7 @@ components:
             $ref: '#/components/schemas/IcebergErrorResponse'
           example: {
             "error": {
-              "message": " Unprocessable entity, please call PreplanTable to distribute table scan planning.",
+              "message": " Cannot plan scan: plan-task is required; use /preplan to split planning into plan tasks",
               "type": "UnprocessableEntityException",
               "code": 422
             }

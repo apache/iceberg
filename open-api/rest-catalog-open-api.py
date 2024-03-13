@@ -1020,12 +1020,14 @@ class TableMetadata(BaseModel):
 
 
 class FileScanTask(BaseModel):
-    data_file: ContentFile = Field(..., alias='data-file')
-    delete_files: Optional[List[ContentFile]] = Field(None, alias='delete-files')
+    data_file: DataFile = Field(..., alias='data-file')
+    delete_files: Optional[
+        Union[List[PositionDeleteFile], List[EqualityDeleteFile]]
+    ] = Field(None, alias='delete-files')
     residual_filter: Optional[Expression] = Field(
         None,
         alias='residual-filter',
-        description='filters that are not fully applied by the server and should be pushed down to the file reader when reading the file.',
+        description='filters that are not fully applied by the server and should be pushed down to the file reader when reading the file. When not present, the residual should be calculated on the client or the original filter should be used.',
     )
 
 
@@ -1161,8 +1163,8 @@ class CreateTableRequest(BaseModel):
 class PreplanTableRequest(BaseModel):
     select: List[str] = Field(..., description='A list of the selected column names')
     filter: Expression
-    case_sensitive: bool = Field(
-        ...,
+    case_sensitive: Optional[bool] = Field(
+        True,
         alias='case-sensitive',
         description='Indicates whether column selection and filtering should be case sensitive',
     )
@@ -1174,27 +1176,22 @@ class PreplanTableRequest(BaseModel):
     snapshot_range: Optional[List[int]] = Field(
         None,
         alias='snapshot-range',
-        description='a JSON list containing exactly 2 int64 snapshot IDs (if snapshot-id is not present) representing the start (defaults to exclusive, see `start-exclusive`) and end (only inclusive) snapshots',
-    )
-    start_exclusive: Optional[bool] = Field(
-        True,
-        alias='start-exclusive',
-        description='Indicates whether the user wants the start of `snapshot-range` to be inclusive or exclusive',
+        description='A JSON list containing exactly 2 snapshot IDs representing the start (exclusive) and end (inclusive) snapshots. This option is not allowed when `snapshot-id` is present in the request.',
     )
 
 
 class PlanTableRequest(BaseModel):
     select: List[str] = Field(..., description='A list of the selected column names')
-    filter: Expression
-    case_sensitive: bool = Field(
-        ...,
+    filter: Optional[Expression] = None
+    case_sensitive: Optional[bool] = Field(
+        True,
         alias='case-sensitive',
         description='Indicates whether column selection and filtering should be case sensitive',
     )
     stats_fields: Optional[List[str]] = Field(
         None,
         alias='stats-fields',
-        description='a list of string field names for which stats should be included',
+        description='A list of string field names for which stats should be included',
     )
     plan_task: Optional[PlanTask] = Field(None, alias='plan-task')
 
