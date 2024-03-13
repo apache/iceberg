@@ -33,6 +33,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.shims.Utils;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.JobContext;
 import org.apache.hadoop.mapred.OutputCommitter;
@@ -40,6 +41,7 @@ import org.apache.hadoop.mapred.TaskAttemptContext;
 import org.apache.hadoop.mapred.TaskAttemptID;
 import org.apache.hadoop.mapreduce.JobID;
 import org.apache.hadoop.mapreduce.TaskType;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Table;
@@ -62,12 +64,18 @@ import org.slf4j.LoggerFactory;
  */
 public class HiveIcebergOutputCommitter extends OutputCommitter {
   private static final String FOR_COMMIT_EXTENSION = ".forCommit";
+  private static final String ICEBERG_HIVE_METASTORE_TOKEN = "iceberg.hive.metastore.token";
 
   private static final Logger LOG = LoggerFactory.getLogger(HiveIcebergOutputCommitter.class);
 
   @Override
-  public void setupJob(JobContext jobContext) {
-    // do nothing.
+  public void setupJob(JobContext jobContext) throws IOException {
+    String token = jobContext.getJobConf().get(ICEBERG_HIVE_METASTORE_TOKEN, "");
+    String tokenSignature =
+        jobContext.getJobConf().get(HiveConf.ConfVars.METASTORE_TOKEN_SIGNATURE.varname, "");
+    if (!token.isEmpty()) {
+      Utils.setTokenStr(UserGroupInformation.getCurrentUser(), token, tokenSignature);
+    }
   }
 
   @Override
