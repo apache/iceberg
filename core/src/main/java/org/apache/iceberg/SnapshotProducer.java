@@ -501,7 +501,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   /**
-   * @deprecated since 1.6.0 . Will be removed in 1.7.0. Use {@link
+   * @deprecated will be removed in 1.7.0; Use {@link
    *     SnapshotProducer#newManifestOutputFile} instead
    */
   @Deprecated
