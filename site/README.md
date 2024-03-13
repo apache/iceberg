@@ -69,7 +69,6 @@ The docs are built, run, and released using [make](https://www.gnu.org/software/
 > [clean](dev/clean.sh): Clean the local site.
 > [deploy](dev/deploy.sh): Clean, build, and deploy the Iceberg docs site.
 > help: Show help for each of the Makefile recipes.
-> [release](dev/release.sh): Release the current `/docs` as `ICEBERG_VERSION` (`make release ICEBERG_VERSION=<MAJOR.MINOR.PATCH>`).
 > [serve](dev/serve.sh): Clean, build, and run the site locally.
 
 To scaffold the versioned docs and build the project, run the `build` recipe. 
@@ -96,6 +95,7 @@ This step will generate the staged source code which blends into the original so
     └─.asf.yaml
 ```
 
+<!-- markdown-link-check-disable-next-line -->
 To run this, run the `serve` recipe, which runs the `build` recipe and calls `mkdocs serve`. This will run locally at <http://localhost:8000>.
 ```
 make serve

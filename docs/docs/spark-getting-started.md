@@ -35,6 +35,7 @@ spark-shell --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ iceb
 ```
 
 !!! info
+    <!-- markdown-link-check-disable-next-line -->
     If you want to include Iceberg in your Spark installation, add the [`iceberg-spark-runtime-3.5_2.12` Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.5_2.12/{{ icebergVersion }}/iceberg-spark-runtime-3.5_2.12-{{ icebergVersion }}.jar) to Spark's `jars` folder.
 
 

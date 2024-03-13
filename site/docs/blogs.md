@@ -87,6 +87,7 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 
 **Author**: [Dipankar Mazumdar](https://www.linkedin.com/in/dipankar-mazumdar/)
 
+<!-- markdown-link-check-disable-next-line -->
 ### [Iceberg Tables: Catalog Support Now Available](https://www.snowflake.com/blog/iceberg-tables-catalog-support-available-now/)
 **Date**: March 29th, 2023, **Company**: Snowflake
 
@@ -302,6 +303,7 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 
 **Author**: [Sam Redai](https://www.linkedin.com/in/sredai/), [Kyle Bendickson](https://www.linkedin.com/in/kylebendickson/)
 
+<!-- markdown-link-check-disable-next-line -->
 ### [Expanding the Data Cloud with Apache Iceberg](https://www.snowflake.com/blog/expanding-the-data-cloud-with-apache-iceberg/)
 **Date**: January 21st, 2022, **Company**: Snowflake
 
@@ -316,11 +318,6 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 **Date**: December 10th, 2021, **Company**: Tabular
 
 **Author**: [Sam Redai](https://www.linkedin.com/in/sredai/)
-
-### [Using Flink CDC to synchronize data from MySQL sharding tables and build real-time data lake](https://ververica.github.io/flink-cdc-connectors/master/content/quickstart/build-real-time-data-lake-tutorial.html)
-**Date**: November 11th, 2021, **Company**: Ververica, Alibaba Cloud
-
-**Author**: [Yuxia Luo](https://github.com/luoyuxia), [Jark Wu](https://github.com/wuchong), [Zheng Hu](https://www.linkedin.com/in/zheng-hu-37017683/)
 
 ### [Metadata Indexing in Iceberg](https://tabular.io/blog/iceberg-metadata-indexing/)
 **Date**: October 10th, 2021, **Company**: Tabular
@@ -390,7 +387,7 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 ### [High Throughput Ingestion with Iceberg](https://medium.com/adobetech/high-throughput-ingestion-with-iceberg-ccf7877a413f)
 **Date**: Dec 22nd, 2020, **Company**: Adobe
 
-**Author**: [Andrei Ionescu](http://linkedin.com/in/andreiionescu), [Shone Sadler](https://www.linkedin.com/in/shonesadler/), [Anil Malkani](https://www.linkedin.com/in/anil-malkani-52861a/)
+**Author**: [Andrei Ionescu](https://www.linkedin.com/in/andreiionescu), [Shone Sadler](https://www.linkedin.com/in/shonesadler/), [Anil Malkani](https://www.linkedin.com/in/anil-malkani-52861a/)
 
 ### [Optimizing data warehouse storage](https://netflixtechblog.com/optimizing-data-warehouse-storage-7b94a48fdcbe)
 **Date**: Dec 21st, 2020, **Company**: Netflix

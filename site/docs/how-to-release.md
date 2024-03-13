@@ -374,7 +374,7 @@ The last step is to update the `main` branch in `iceberg-docs` to set the latest
 A PR needs to be published in the `iceberg-docs` repository with the following changes:
 1. Update variable `latestVersions.iceberg` to the new release version in `landing-page/config.toml`
 2. Update variable `latestVersions.iceberg` to the new release version and 
-`versions.nessie` to the version of `org.projectnessie.nessie:*` from [versions.props](https://github.com/apache/iceberg/blob/master/versions.props) in `docs/config.toml`
+`versions.nessie` to the version of `org.projectnessie.nessie:*` from [mkdocs.yml](https://github.com/apache/iceberg/blob/main/site/mkdocs.yml) in `docs/config.toml`
 3. Update list `versions` with the new release in `landing-page/config.toml`
 4. Update list `versions` with the new release in `docs/config.toml`
 5. Mark the current latest release notes to past releases under `landing-page/content/common/release-notes.md`
