@@ -17,8 +17,6 @@
 
 INHERIT: ./nav.yml
 
-copyright: |
-  Apache Iceberg, Iceberg, Apache, the Apache feather logo, and the Apache Iceberg project logo are</br>either registered trademarks or trademarks of The Apache Software Foundation. Copyright &copy; 2023</br>The Apache Software Foundation, Licensed under the <a href="https://www.apache.org/licenses/">Apache License, Version 2.0</a>.</br></br>
 site_name: Apache Iceberg
 
 theme:
@@ -51,6 +49,7 @@ plugins:
   - search
   - macros
   - monorepo
+  - privacy
   - offline:
       enabled: !ENV [OFFLINE, false]
 

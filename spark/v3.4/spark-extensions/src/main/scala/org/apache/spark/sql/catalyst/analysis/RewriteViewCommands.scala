@@ -33,17 +33,18 @@ import org.apache.spark.sql.catalyst.plans.logical.views.DropIcebergView
 import org.apache.spark.sql.catalyst.plans.logical.views.ResolvedV2View
 import org.apache.spark.sql.catalyst.plans.logical.views.ShowIcebergViews
 import org.apache.spark.sql.catalyst.rules.Rule
+import org.apache.spark.sql.catalyst.trees.TreePattern.UNRESOLVED_FUNCTION
 import org.apache.spark.sql.connector.catalog.CatalogManager
-import org.apache.spark.sql.connector.catalog.CatalogPlugin
-import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.LookupCatalog
-import org.apache.spark.sql.connector.catalog.ViewCatalog
+import scala.collection.mutable
 
 /**
  * ResolveSessionCatalog exits early for some v2 View commands,
  * thus they are pre-substituted here and then handled in ResolveViews
  */
 case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] with LookupCatalog {
+
+  import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
   protected lazy val catalogManager: CatalogManager = spark.sessionState.catalogManager
 
@@ -54,7 +55,7 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
     case CreateView(ResolvedIdent(resolved), userSpecifiedColumns, comment, properties,
     Some(queryText), query, allowExisting, replace) =>
       val q = CTESubstitution.apply(query)
-      verifyTemporaryObjectsDontExist(resolved.identifier, q)
+      verifyTemporaryObjectsDontExist(resolved, q)
       CreateIcebergView(child = resolved,
         queryText = queryText,
         query = q,
@@ -67,7 +68,8 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
 
     case ShowViews(UnresolvedNamespace(Seq()), pattern, output)
       if ViewUtil.isViewCatalog(catalogManager.currentCatalog) =>
-      ShowIcebergViews(ResolvedNamespace(catalogManager.currentCatalog, Seq.empty), pattern, output)
+      ShowIcebergViews(ResolvedNamespace(catalogManager.currentCatalog, catalogManager.currentNamespace),
+        pattern, output)
 
     case ShowViews(UnresolvedNamespace(CatalogAndNamespace(catalog, ns)), pattern, output)
       if ViewUtil.isViewCatalog(catalog) =>
@@ -83,6 +85,13 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
 
   private def isTempView(nameParts: Seq[String]): Boolean = {
     catalogManager.v1SessionCatalog.isTempView(nameParts)
+  }
+
+  private def isTempFunction(nameParts: Seq[String]): Boolean = {
+    if (nameParts.size > 1) {
+      return false
+    }
+    catalogManager.v1SessionCatalog.isTemporaryFunction(nameParts.asFunctionIdentifier)
   }
 
   object ResolvedIdent {
@@ -102,20 +111,22 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
    * Permanent views are not allowed to reference temp objects
    */
   private def verifyTemporaryObjectsDontExist(
-    name: Identifier,
+    identifier: ResolvedIdentifier,
     child: LogicalPlan): Unit = {
-    import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
-
     val tempViews = collectTemporaryViews(child)
-    tempViews.foreach { nameParts =>
-      throw new AnalysisException(String.format("Cannot create the persistent object %s" +
-        " of the type VIEW because it references to the temporary object %s of" +
-        " the type VIEW. Please make the temporary object %s" +
-        " persistent, or make the persistent object %s temporary",
-        name.name(), nameParts.quoted, nameParts.quoted, name.name()))
-    };
+    if (tempViews.nonEmpty) {
+      throw invalidRefToTempObject(identifier, tempViews.map(v => v.quoted).mkString("[", ", ", "]"), "view")
+    }
 
-    // TODO: check for temp function names
+    val tempFunctions = collectTemporaryFunctions(child)
+    if (tempFunctions.nonEmpty) {
+      throw invalidRefToTempObject(identifier, tempFunctions.mkString("[", ", ", "]"), "function")
+    }
+  }
+
+  private def invalidRefToTempObject(ident: ResolvedIdentifier, tempObjectNames: String, tempObjectType: String) = {
+    new AnalysisException(String.format("Cannot create view %s.%s that references temporary %s: %s",
+      ident.catalog.name(), ident.identifier, tempObjectType, tempObjectNames))
   }
 
   /**
@@ -148,5 +159,21 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
       case _ =>
         None
     }
+  }
+
+  /**
+   * Collect the names of all temporary functions.
+   */
+  private def collectTemporaryFunctions(child: LogicalPlan): Seq[String] = {
+    val tempFunctions = new mutable.HashSet[String]()
+    child.resolveExpressionsWithPruning(_.containsAnyPattern(UNRESOLVED_FUNCTION)) {
+      case f @ UnresolvedFunction(nameParts, _, _, _, _) if isTempFunction(nameParts) =>
+        tempFunctions += nameParts.head
+        f
+      case e: SubqueryExpression =>
+        tempFunctions ++= collectTemporaryFunctions(e.plan)
+        e
+    }
+    tempFunctions.toSeq
   }
 }

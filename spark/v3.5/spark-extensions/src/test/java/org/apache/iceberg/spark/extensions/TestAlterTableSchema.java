@@ -24,7 +24,6 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -74,8 +73,9 @@ public class TestAlterTableSchema extends ExtensionsTestBase {
   public void testSetInvalidIdentifierFields() {
     sql("CREATE TABLE %s (id bigint NOT NULL, id2 bigint) USING iceberg", tableName);
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertTrue(
-        "Table should start without identifier", table.schema().identifierFieldIds().isEmpty());
+    assertThat(table.schema().identifierFieldIds())
+        .as("Table should start without identifier")
+        .isEmpty();
     Assertions.assertThatThrownBy(
             () -> sql("ALTER TABLE %s SET IDENTIFIER FIELDS unknown", tableName))
         .isInstanceOf(IllegalArgumentException.class)
