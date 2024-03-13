@@ -294,6 +294,8 @@ evolution.
 
 This release can be downloaded from: https://www.apache.org/dyn/closer.cgi/iceberg/<TARBALL NAME WITHOUT .tar.gz>/<TARBALL NAME>
 
+Release notes: https://iceberg.apache.org/releases/#XYZ-release
+
 Java artifacts are available from Maven Central.
 
 Thanks to everyone for contributing!
