@@ -153,6 +153,21 @@ public class ManifestFiles {
    *
    * @param formatVersion a target format version
    * @param spec a {@link PartitionSpec}
+   * @param outputFile an {@link OutputFile} where the manifest will be written
+   * @param snapshotId a snapshot ID for the manifest entries, or null for an inherited ID
+   * @return a manifest writer
+   */
+  public static ManifestWriter<DataFile> write(
+      int formatVersion, PartitionSpec spec, OutputFile outputFile, Long snapshotId) {
+    return write(
+        formatVersion, spec, EncryptedFiles.plainAsEncryptedOutput(outputFile), snapshotId);
+  }
+
+  /**
+   * Create a new {@link ManifestWriter} for the given format version.
+   *
+   * @param formatVersion a target format version
+   * @param spec a {@link PartitionSpec}
    * @param encryptedOutputFile an {@link EncryptedOutputFile} where the manifest will be written
    * @param snapshotId a snapshot ID for the manifest entries, or null for an inherited ID
    * @return a manifest writer
@@ -170,12 +185,6 @@ public class ManifestFiles {
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest for table version: " + formatVersion);
-  }
-
-  public static ManifestWriter<DataFile> write(
-      int formatVersion, PartitionSpec spec, OutputFile outputFile, Long snapshotId) {
-    return write(
-        formatVersion, spec, EncryptedFiles.plainAsEncryptedOutput(outputFile), snapshotId);
   }
 
   /**
@@ -203,6 +212,21 @@ public class ManifestFiles {
    *
    * @param formatVersion a target format version
    * @param spec a {@link PartitionSpec}
+   * @param outputFile an {@link OutputFile} where the manifest will be written
+   * @param snapshotId a snapshot ID for the manifest entries, or null for an inherited ID
+   * @return a manifest writer
+   */
+  public static ManifestWriter<DeleteFile> writeDeleteManifest(
+      int formatVersion, PartitionSpec spec, OutputFile outputFile, Long snapshotId) {
+    return writeDeleteManifest(
+        formatVersion, spec, EncryptedFiles.plainAsEncryptedOutput(outputFile), snapshotId);
+  }
+
+  /**
+   * Create a new {@link ManifestWriter} for the given format version.
+   *
+   * @param formatVersion a target format version
+   * @param spec a {@link PartitionSpec}
    * @param outputFile an {@link EncryptedOutputFile} where the manifest will be written
    * @param snapshotId a snapshot ID for the manifest entries, or null for an inherited ID
    * @return a manifest writer
@@ -217,12 +241,6 @@ public class ManifestFiles {
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest for table version: " + formatVersion);
-  }
-
-  public static ManifestWriter<DeleteFile> writeDeleteManifest(
-      int formatVersion, PartitionSpec spec, OutputFile outputFile, Long snapshotId) {
-    return writeDeleteManifest(
-        formatVersion, spec, EncryptedFiles.plainAsEncryptedOutput(outputFile), snapshotId);
   }
 
   /**

@@ -99,7 +99,7 @@ public class TestManifestEncryption {
 
   private static final DeleteFile DELETE_FILE =
       new GenericDeleteFile(
-          0,
+          SPEC.specId(),
           FileContent.EQUALITY_DELETES,
           PATH,
           FORMAT,
@@ -115,6 +115,16 @@ public class TestManifestEncryption {
       EncryptionTestHelpers.createEncryptionManager();
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
+
+  @Test
+  public void testV1Write() throws IOException {
+    ManifestFile manifest = writeManifest(1);
+    checkEntry(
+        readManifest(manifest),
+        ManifestWriter.UNASSIGNED_SEQ,
+        ManifestWriter.UNASSIGNED_SEQ,
+        FileContent.DATA);
+  }
 
   @Test
   public void testV2Write() throws IOException {
@@ -190,7 +200,6 @@ public class TestManifestEncryption {
   }
 
   private ManifestEntry<DataFile> readManifest(ManifestFile manifest) throws IOException {
-
     // First try to read without decryption
     Assertions.assertThatThrownBy(
             () ->
@@ -231,7 +240,7 @@ public class TestManifestEncryption {
                 manifest, EncryptingFileIO.combine(FILE_IO, ENCRYPTION_MANAGER), null)
             .entries()) {
       List<ManifestEntry<DeleteFile>> entries = Lists.newArrayList(reader);
-      Assert.assertEquals("Should contain only one data file", 1, entries.size());
+      Assert.assertEquals("Should contain only one delete file", 1, entries.size());
       return entries.get(0);
     }
   }

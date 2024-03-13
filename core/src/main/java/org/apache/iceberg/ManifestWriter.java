@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
-import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
@@ -59,11 +58,11 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   private ManifestWriter(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
     this.file = file.encryptingOutputFile();
     this.specId = spec.specId();
-    this.writer = newAppender(spec, file.encryptingOutputFile());
+    this.writer = newAppender(spec, this.file);
     this.snapshotId = snapshotId;
     this.reused = new GenericManifestEntry<>(spec.partitionType());
     this.stats = new PartitionSummary(spec);
-    this.keyMetadataBuffer = file.keyMetadata().buffer();
+    this.keyMetadataBuffer = (file.keyMetadata() == null) ? null : file.keyMetadata().buffer();
   }
 
   protected abstract ManifestEntry<F> prepare(ManifestEntry<F> entry);
@@ -296,9 +295,6 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
     V1Writer(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
       super(spec, file, snapshotId);
-      Preconditions.checkState(
-          file.keyMetadata() == null || file.keyMetadata() == EncryptionKeyMetadata.EMPTY,
-          "V1 tables don't support encryption");
       this.entryWrapper = new V1Metadata.IndexedManifestEntry(spec.partitionType());
     }
 
