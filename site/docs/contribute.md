@@ -46,7 +46,7 @@ The Iceberg community prefers to receive contributions as [Github pull requests]
 * If a PR is posted for visibility and isn't necessarily ready for review or merging, be sure to convert the PR to a draft
 
 
-## Iceberg Improvement Proposals
+## Apache Iceberg Improvement Proposals
 
 ### What is an improvement proposal?
 
