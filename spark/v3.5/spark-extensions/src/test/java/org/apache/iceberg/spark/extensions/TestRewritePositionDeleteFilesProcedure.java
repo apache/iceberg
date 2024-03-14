@@ -28,10 +28,12 @@ import java.util.Map;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.Encoders;
+import org.apache.spark.sql.internal.SQLConf;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -119,11 +121,22 @@ public class TestRewritePositionDeleteFilesProcedure extends ExtensionsTestBase 
   public void testExpireDeleteFilesNoOption() throws Exception {
     createTable();
 
-    sql("DELETE FROM %s WHERE id=1", tableName);
-    sql("DELETE FROM %s WHERE id=2", tableName);
-    sql("DELETE FROM %s WHERE id=3", tableName);
-    sql("DELETE FROM %s WHERE id=4", tableName);
-    sql("DELETE FROM %s WHERE id=5", tableName);
+    // those should be unset on procedure call
+    // if not then procedure will create not 1 but many files
+    Map<String, String> sqlConf =
+        ImmutableMap.of(
+            SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "true",
+            SQLConf.SHUFFLE_PARTITIONS().key(), "8");
+
+    withSQLConf(
+        sqlConf,
+        () -> {
+          sql("DELETE FROM %s WHERE id=1", tableName);
+          sql("DELETE FROM %s WHERE id=2", tableName);
+          sql("DELETE FROM %s WHERE id=3", tableName);
+          sql("DELETE FROM %s WHERE id=4", tableName);
+          sql("DELETE FROM %s WHERE id=5", tableName);
+        });
 
     Table table = validationCatalog.loadTable(tableIdent);
     assertThat(TestHelpers.deleteFiles(table)).hasSize(5);

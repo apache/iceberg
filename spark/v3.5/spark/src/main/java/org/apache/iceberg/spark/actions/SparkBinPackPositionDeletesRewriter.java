@@ -64,7 +64,8 @@ class SparkBinPackPositionDeletesRewriter extends SizeBasedPositionDeletesRewrit
     // Disable Adaptive Query Execution as this may change the output partitioning of our write
     this.spark = spark.cloneSession();
     this.spark.conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), false);
-    // Because we're turning off AQE we need to turn off shuffle partitions b/c deletes rewriter makes a join later
+    // Because we're turning off AQE we need to turn off shuffle partitions b/c deletes rewriter
+    // makes a join later
     this.spark.conf().set(SQLConf.SHUFFLE_PARTITIONS().key(), "1");
   }
 
