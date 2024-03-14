@@ -56,7 +56,7 @@ scope need to be considered carefully and incorporate feedback from many communi
 
 ### What should a proposal include?
 
-1. A GitHub issue created using the `Iceberg Improvement Proposal` template
+1. A GitHub issue created using the `Apache Iceberg Improvement Proposal` template
 2. A document including the following:
     * Motivation for the change 
     * Implementation proposal 
