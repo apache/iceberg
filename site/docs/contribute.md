@@ -51,7 +51,7 @@ The Iceberg community prefers to receive contributions as [Github pull requests]
 ### What is an improvement proposal?
 
 An improvement proposal is a major change to Apache Iceberg that may require changes to an existing specification, creation
-of a new specification, or significant changes to any of the existing Iceberg implementations.  Changes that are large in
+of a new specification, or significant additions/changes to any of the existing Iceberg implementations.  Changes that are large in
 scope need to be considered carefully and incorporate feedback from many community stakeholders.
 
 ### What should a proposal include?
