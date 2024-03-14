@@ -1631,6 +1631,7 @@ components:
         the end of the listing results.
 
       type: string
+      nullable: true
 
     TableIdentifier:
       type: object
