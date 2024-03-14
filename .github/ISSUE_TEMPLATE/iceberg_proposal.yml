@@ -35,7 +35,7 @@ body:
     attributes:
       label: Proposal document
       description: |
-        Link to the proposal document.  Google Docs is preferred format to allow for public 
+        Link to the proposal document. Google Docs is preferred format to allow for public 
         comment and sharing
   - type: checkboxes
     attributes:
