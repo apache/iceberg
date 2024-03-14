@@ -24,7 +24,7 @@ labels: ["proposal"]
 body:
   - type: markdown
     attributes:
-      value: "Please see documentation site for information on [contributing proposals](https://iceberg.apache.org/contribute/#iceberg-improvement-proposals)"
+      value: "Please see documentation site for information on [contributing proposals](https://iceberg.apache.org/contribute/#apache-iceberg-improvement-proposals)"
   - type: textarea
     attributes:
       label: Proposed Change
