@@ -18,10 +18,18 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SerializableFunction;
+import org.apache.iceberg.util.StructProjection;
 
 /**
  * A transform expression.
@@ -30,42 +38,97 @@ import org.apache.iceberg.util.SerializableFunction;
  * @param <T> the Java type of values returned by the function.
  */
 public class BoundTransform<S, T> implements BoundTerm<T> {
-  private final BoundReference<S> ref;
-  private final Transform<S, T> transform;
+  private final BoundReference<?>[] refs;
+  private final StructProjection projection;
+  private Type inputType;
+  private final Transform<?, T> transform;
   private final SerializableFunction<S, T> func;
 
-  BoundTransform(BoundReference<S> ref, Transform<S, T> transform) {
-    this.ref = ref;
+  BoundTransform(BoundReference<?> ref, Transform<S, T> transform) {
+    this.refs = Collections.singletonList(ref).toArray(new BoundReference<?>[0]);
     this.transform = transform;
+    this.projection = null;
     this.func = transform.bind(ref.type());
   }
 
-  @Override
-  public T eval(StructLike struct) {
-    return func.apply(ref.eval(struct));
+  BoundTransform(
+      List<BoundReference<?>> refs, StructProjection projection, Transform<S, T> transform) {
+    Preconditions.checkArgument(
+        refs != null && !refs.isEmpty(), "At least one reference should be provided");
+    if (refs.size() == 1) {
+      Preconditions.checkArgument(
+          projection == null, "For singe arg transform, projection should be null");
+    }
+    this.refs = refs.toArray(new BoundReference<?>[0]);
+    this.transform = transform;
+    this.projection = projection;
+    this.func = transform.bind(lazyInputType());
+  }
+
+  private Type lazyInputType() {
+    if (inputType == null) {
+      if (refs.length == 1) {
+        this.inputType = refs[0].type();
+      } else {
+        List<Types.NestedField> fields =
+            Arrays.stream(refs).map(BoundReference::field).collect(Collectors.toList());
+        this.inputType = Types.StructType.of(fields);
+      }
+    }
+    return inputType;
   }
 
   @Override
+  @SuppressWarnings("unchecked")
+  public T eval(StructLike struct) {
+    if (projection == null) {
+      return func.apply(ref().eval(struct));
+    } else {
+      return func.apply((S) projection.wrap(struct));
+    }
+  }
+
+  @Override
+  @SuppressWarnings("unchecked")
   public BoundReference<S> ref() {
-    return ref;
+    return (BoundReference<S>) refs[0];
+  }
+
+  @Override
+  public List<BoundReference<?>> refs() {
+    return Arrays.asList(this.refs);
   }
 
   public Transform<S, T> transform() {
-    return transform;
+    return (Transform<S, T>) transform;
   }
 
   @Override
   public Type type() {
-    return transform.getResultType(ref.type());
+    return transform.getResultType(lazyInputType());
+  }
+
+  private boolean areRefsEquivalent(List<BoundReference<?>> left, List<BoundReference<?>> right) {
+    if (left.size() != right.size()) {
+      return false;
+    }
+    Iterator<BoundReference<?>> leftIter = left.iterator();
+    Iterator<BoundReference<?>> rightIter = right.iterator();
+    while (leftIter.hasNext() && rightIter.hasNext()) {
+      if (!leftIter.next().isEquivalentTo(rightIter.next())) {
+        return false;
+      }
+    }
+    return !leftIter.hasNext() && !rightIter.hasNext();
   }
 
   @Override
   public boolean isEquivalentTo(BoundTerm<?> other) {
     if (other instanceof BoundTransform) {
       BoundTransform<?, ?> bound = (BoundTransform<?, ?>) other;
-      return ref.isEquivalentTo(bound.ref()) && transform.equals(bound.transform());
+      return areRefsEquivalent(this.refs(), other.refs()) && transform.equals(bound.transform());
     } else if (transform.isIdentity() && other instanceof BoundReference) {
-      return ref.isEquivalentTo(other);
+      return refs.length == 1 && ref().isEquivalentTo(other);
     }
 
     return false;
@@ -73,6 +136,10 @@ public class BoundTransform<S, T> implements BoundTerm<T> {
 
   @Override
   public String toString() {
-    return transform + "(" + ref + ")";
+    if (refs.length == 1) {
+      return transform + "(" + ref() + ")";
+    } else {
+      return transform + "(" + Arrays.toString(refs) + ")";
+    }
   }
 }

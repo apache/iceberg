@@ -204,6 +204,7 @@ public class Projections {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Expression predicate(BoundPredicate<T> pred) {
+      // todo: work with refs
       Collection<PartitionField> parts = spec().getFieldsBySourceId(pred.ref().fieldId());
       if (parts == null) {
         // the predicate has no partition column
@@ -238,6 +239,7 @@ public class Projections {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Expression predicate(BoundPredicate<T> pred) {
+      // todo: work with refs
       Collection<PartitionField> parts = spec().getFieldsBySourceId(pred.ref().fieldId());
       if (parts == null) {
         // the predicate has no partition column

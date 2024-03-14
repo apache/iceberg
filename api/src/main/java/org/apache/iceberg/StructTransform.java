@@ -23,8 +23,10 @@ import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.transforms.Transform;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SerializableFunction;
 
 /**
@@ -51,11 +53,16 @@ class StructTransform implements StructLike, Serializable {
     this.transforms = new SerializableFunction[size];
 
     for (int i = 0; i < size; ++i) {
-      int sourceFieldId = fieldTransforms.get(i).sourceFieldId();
+      int[] sourceFieldIds = fieldTransforms.get(i).sourceFieldIds();
       Transform<?, ?> transform = fieldTransforms.get(i).transform();
-      Accessor<StructLike> accessor = schema.accessorForField(sourceFieldId);
+      Accessor<StructLike> accessor = schema.accessorForFields(sourceFieldIds);
+      String sourceFieldsDesc =
+          Arrays.stream(sourceFieldIds)
+              .mapToObj(schema::findField)
+              .map(Types.NestedField::name)
+              .collect(Collectors.joining(",", "[", "]"));
       Preconditions.checkArgument(
-          accessor != null, "Cannot build accessor for field: %s", schema.findField(sourceFieldId));
+          accessor != null, "Cannot build accessor for field(s): %s", sourceFieldsDesc);
       this.accessors[i] = accessor;
       this.transforms[i] = transform.bind(accessor.type());
     }
@@ -130,16 +137,16 @@ class StructTransform implements StructLike, Serializable {
    * in API module, as it has an Avro dep and is in the core module.
    */
   static class FieldTransform {
-    private final int sourceFieldId;
+    private final int[] sourceFieldIds;
     private final Transform<?, ?> transform;
 
-    FieldTransform(int sourceFieldId, Transform<?, ?> transform) {
-      this.sourceFieldId = sourceFieldId;
+    FieldTransform(int[] sourceFieldIds, Transform<?, ?> transform) {
+      this.sourceFieldIds = sourceFieldIds;
       this.transform = transform;
     }
 
-    int sourceFieldId() {
-      return sourceFieldId;
+    int[] sourceFieldIds() {
+      return sourceFieldIds;
     }
 
     Transform<?, ?> transform() {

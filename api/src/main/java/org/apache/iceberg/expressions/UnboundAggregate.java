@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.util.List;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
@@ -32,6 +33,11 @@ public class UnboundAggregate<T> extends Aggregate<UnboundTerm<T>>
   @Override
   public NamedReference<?> ref() {
     return term().ref();
+  }
+
+  @Override
+  public List<NamedReference<?>> refs() {
+    return term().refs();
   }
 
   /**

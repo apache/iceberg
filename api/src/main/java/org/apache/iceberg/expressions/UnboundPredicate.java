@@ -66,6 +66,11 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
   }
 
   @Override
+  public List<NamedReference<?>> refs() {
+    return term().refs();
+  }
+
+  @Override
   public Expression negate() {
     return new UnboundPredicate<>(op().negate(), term(), literals);
   }

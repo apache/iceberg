@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.util.Collections;
+import java.util.List;
 import org.apache.iceberg.StructLike;
 
 /**
@@ -28,6 +30,11 @@ import org.apache.iceberg.StructLike;
 public interface Bound<T> {
   /** Returns the underlying reference. */
   BoundReference<?> ref();
+
+  /** Returns all the underlying references */
+  default List<BoundReference<?>> refs() {
+    return Collections.singletonList(ref());
+  }
 
   /**
    * Produce a value from the struct for this expression.

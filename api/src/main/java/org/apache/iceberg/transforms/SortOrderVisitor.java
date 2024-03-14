@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.transforms;
 
+import java.util.Arrays;
 import java.util.List;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.Schema;
@@ -43,6 +44,15 @@ public interface SortOrderVisitor<T> {
   T day(String sourceName, int sourceId, SortDirection direction, NullOrder nullOrder);
 
   T hour(String sourceName, int sourceId, SortDirection direction, NullOrder nullOrder);
+
+  default T zOrder(
+      String[] sourceNames,
+      int[] sourceIds,
+      int varTypeSize,
+      SortDirection direction,
+      NullOrder nullOrder) {
+    throw new UnsupportedOperationException("Z-order transform is not supported");
+  }
 
   default T unknown(
       String sourceName,
@@ -102,6 +112,14 @@ public interface SortOrderVisitor<T> {
       } else if (transform == Timestamps.HOUR || transform instanceof Hours) {
         results.add(
             visitor.hour(sourceName, field.sourceId(), field.direction(), field.nullOrder()));
+      } else if (transform instanceof ZOrder) {
+        int varTypeSize = ((ZOrder<?>) transform).varTypeSize();
+        int[] sourceIds = field.sourceIds();
+        String[] sourceNames =
+            Arrays.stream(sourceIds).mapToObj(schema::findColumnName).toArray(String[]::new);
+        results.add(
+            visitor.zOrder(
+                sourceNames, sourceIds, varTypeSize, field.direction(), field.nullOrder()));
       } else if (transform instanceof UnknownTransform) {
         results.add(
             visitor.unknown(

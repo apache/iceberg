@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.util.List;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -99,6 +101,11 @@ public class Expressions {
 
   public static <T> UnboundTerm<T> truncate(String name, int width) {
     return new UnboundTransform<>(ref(name), Transforms.truncate(width));
+  }
+
+  public static <T> UnboundTerm<T> zOrder(int varTypeSize, String... names) {
+    Transform<?, T> zOrder = (Transform<?, T>) Transforms.zOrder(varTypeSize);
+    return new UnboundTransform<>(refs(names), zOrder);
   }
 
   public static <T> UnboundPredicate<T> isNull(String name) {
@@ -297,6 +304,12 @@ public class Expressions {
     return new NamedReference<>(name);
   }
 
+  public static List<NamedReference<?>> refs(String... names) {
+    Preconditions.checkArgument(
+        names != null && names.length > 0, "At least one name should be provided");
+    return Stream.of(names).map(Expressions::ref).collect(Collectors.toList());
+  }
+
   /**
    * Constructs a transform expression for a given column.
    *
@@ -307,6 +320,12 @@ public class Expressions {
    */
   public static <T> UnboundTerm<T> transform(String name, Transform<?, T> transform) {
     return new UnboundTransform<>(ref(name), transform);
+  }
+
+  public static <T> UnboundTerm<T> transform(List<String> names, Transform<?, T> transform) {
+    List<NamedReference<?>> refs =
+        names.stream().map(Expressions::ref).collect(Collectors.toList());
+    return new UnboundTransform<>(refs, transform);
   }
 
   public static <T> UnboundAggregate<T> count(String name) {

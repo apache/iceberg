@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.StructLike;
@@ -54,6 +55,11 @@ public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bou
   @Override
   public BoundReference<?> ref() {
     return term().ref();
+  }
+
+  @Override
+  public List<BoundReference<?>> refs() {
+    return term().refs();
   }
 
   public Type type() {
