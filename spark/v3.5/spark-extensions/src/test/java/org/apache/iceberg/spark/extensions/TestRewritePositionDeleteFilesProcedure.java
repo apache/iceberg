@@ -121,22 +121,11 @@ public class TestRewritePositionDeleteFilesProcedure extends ExtensionsTestBase 
   public void testExpireDeleteFilesNoOption() throws Exception {
     createTable();
 
-    // those should be unset on procedure call
-    // if not then procedure will create not 1 but many files
-    Map<String, String> sqlConf =
-        ImmutableMap.of(
-            SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "true",
-            SQLConf.SHUFFLE_PARTITIONS().key(), "8");
-
-    withSQLConf(
-        sqlConf,
-        () -> {
-          sql("DELETE FROM %s WHERE id=1", tableName);
-          sql("DELETE FROM %s WHERE id=2", tableName);
-          sql("DELETE FROM %s WHERE id=3", tableName);
-          sql("DELETE FROM %s WHERE id=4", tableName);
-          sql("DELETE FROM %s WHERE id=5", tableName);
-        });
+    sql("DELETE FROM %s WHERE id=1", tableName);
+    sql("DELETE FROM %s WHERE id=2", tableName);
+    sql("DELETE FROM %s WHERE id=3", tableName);
+    sql("DELETE FROM %s WHERE id=4", tableName);
+    sql("DELETE FROM %s WHERE id=5", tableName);
 
     Table table = validationCatalog.loadTable(tableIdent);
     assertThat(TestHelpers.deleteFiles(table)).hasSize(5);
@@ -233,6 +222,41 @@ public class TestRewritePositionDeleteFilesProcedure extends ExtensionsTestBase 
                     catalogName, tableIdent))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot convert Spark filter");
+  }
+
+  @TestTemplate
+  public void testExpireDeletesIgnoresAqeAndPartitioning() throws Exception {
+    createTable();
+
+    withSQLConf(
+        // those should be unset on procedure call
+        // if not then procedure will create not 1 but 5 files
+        ImmutableMap.of(SQLConf.SHUFFLE_PARTITIONS().key(), "5"),
+        () -> {
+          sql("DELETE FROM %s WHERE id=1", tableName);
+          sql("DELETE FROM %s WHERE id=2", tableName);
+          sql("DELETE FROM %s WHERE id=3", tableName);
+          sql("DELETE FROM %s WHERE id=4", tableName);
+          sql("DELETE FROM %s WHERE id=5", tableName);
+        });
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(TestHelpers.deleteFiles(table)).hasSize(5);
+
+    List<Object[]> output =
+        sql("CALL %s.system.rewrite_position_delete_files(table => '%s')", catalogName, tableIdent);
+    table.refresh();
+
+    Map<String, String> snapshotSummary = snapshotSummary();
+    assertEquals(
+        "Should replace 5 delete files with 1",
+        ImmutableList.of(
+            row(
+                5,
+                1,
+                Long.valueOf(snapshotSummary.get(REMOVED_FILE_SIZE_PROP)),
+                Long.valueOf(snapshotSummary.get(ADDED_FILE_SIZE_PROP)))),
+        output);
   }
 
   private Map<String, String> snapshotSummary() {
