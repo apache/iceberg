@@ -62,7 +62,7 @@ scope need to be considered carefully and incorporate feedback from many communi
     * Implementation proposal 
     * Breaking changes/incompatibilities 
     * Alternatives considered
-3. A discussion thread initiated in the dev list with the Subject: '[DISCUSS] \<proposal title\>'
+3. A discussion thread initiated in the dev list with the Subject: '[DISCUSS] <proposal title\>'
 
 ### Who can submit a proposal?
 
@@ -72,7 +72,15 @@ Anyone can submit a proposal, but be considerate and submit only if you plan on 
 
 Current proposals are tracked in GitHub issues with the label [Proposal][iceberg-proposals]
 
+### How are proposals adopted?
+
+Once general consensus has been reached, a vote should be raised on the dev list.  The vote follows the ASF 
+[code modification][apache-vote] model with three positive PMC votes required and no lazy consensus modifier.
+The voting process should be held in good faith to reinforce and affirm the agreed upon proposal, not to 
+settle disagreements or to force a decision.
+
 [iceberg-proposals]: https://github.com/apache/iceberg/issues?q=is%3Aissue+is%3Aopen+label%3Aproposal+
+[apache-vote]: https://www.apache.org/foundation/voting.html#apache-voting-process
 
 ## Building the Project Locally
 
