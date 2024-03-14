@@ -603,8 +603,8 @@ paths:
         Perform scan planning against a table based on the user's scan requirements including selected columns and filters.
         
         Users can provide an optional `plan-task` from the response of `PreplanTable` API to 
-        limit the request to a subset of the full task set to only a subset of table files.
-        If a valid `plan-task` is provided, the service must attempt to send all result tasks to the client.
+        limit the request of the full task set to a subset of table files.
+        If a valid `plan-task` is provided, the service must attempt to send all results for that planning task.
       
         If a user receives a 413 `PayloadTooLargeWithPlanResponse` or 422 `UnprocessableEntityResponse`, 
         the user should use /preplan before using /plan.
@@ -3018,6 +3018,9 @@ components:
           items:
             type: integer
             format: int64
+      oneOf:
+        - required: [snapshot-id]
+        - required: [snapshot-range]
 
     PlanTableRequest:
       type: object
@@ -3042,6 +3045,21 @@ components:
             type: string
         plan-task:
           $ref: '#/components/schemas/PlanTask'
+        snapshot-id:
+          description: an int64 snapshot ID (if snapshot-range is not present); optional and defaults to the table's current snapshot. This option is not allowed when 'plan-task` is present in the request.
+          type: integer
+          format: int64
+
+        snapshot-range:
+          description: A JSON list containing exactly 2 snapshot IDs representing the start (exclusive) and end (inclusive) snapshots. This option is not allowed when `snapshot-id` or `plan-task` is present in the request.
+          type: array
+          items:
+            type: integer
+            format: int64
+      oneOf:
+        - required: [plan-task]
+        - required: [snapshot-id]
+        - required: [snapshot-range]
 
     RegisterTableRequest:
       type: object

@@ -1160,7 +1160,27 @@ class CreateTableRequest(BaseModel):
     properties: Optional[Dict[str, str]] = None
 
 
-class PreplanTableRequest(BaseModel):
+class PreplanTableRequest1(BaseModel):
+    select: List[str] = Field(..., description='A list of the selected column names')
+    filter: Expression
+    case_sensitive: Optional[bool] = Field(
+        True,
+        alias='case-sensitive',
+        description='Indicates whether column selection and filtering should be case sensitive',
+    )
+    snapshot_id: int = Field(
+        ...,
+        alias='snapshot-id',
+        description="an int64 snapshot ID (if snapshot-range is not present); optional and defaults to the table's current snapshot",
+    )
+    snapshot_range: Optional[List[int]] = Field(
+        None,
+        alias='snapshot-range',
+        description='A JSON list containing exactly 2 snapshot IDs representing the start (exclusive) and end (inclusive) snapshots. This option is not allowed when `snapshot-id` is present in the request.',
+    )
+
+
+class PreplanTableRequest2(BaseModel):
     select: List[str] = Field(..., description='A list of the selected column names')
     filter: Expression
     case_sensitive: Optional[bool] = Field(
@@ -1173,14 +1193,44 @@ class PreplanTableRequest(BaseModel):
         alias='snapshot-id',
         description="an int64 snapshot ID (if snapshot-range is not present); optional and defaults to the table's current snapshot",
     )
-    snapshot_range: Optional[List[int]] = Field(
-        None,
+    snapshot_range: List[int] = Field(
+        ...,
         alias='snapshot-range',
         description='A JSON list containing exactly 2 snapshot IDs representing the start (exclusive) and end (inclusive) snapshots. This option is not allowed when `snapshot-id` is present in the request.',
     )
 
 
-class PlanTableRequest(BaseModel):
+class PreplanTableRequest(BaseModel):
+    __root__: Union[PreplanTableRequest1, PreplanTableRequest2]
+
+
+class PlanTableRequest1(BaseModel):
+    select: List[str] = Field(..., description='A list of the selected column names')
+    filter: Optional[Expression] = None
+    case_sensitive: Optional[bool] = Field(
+        True,
+        alias='case-sensitive',
+        description='Indicates whether column selection and filtering should be case sensitive',
+    )
+    stats_fields: Optional[List[str]] = Field(
+        None,
+        alias='stats-fields',
+        description='A list of string field names for which stats should be included',
+    )
+    plan_task: PlanTask = Field(..., alias='plan-task')
+    snapshot_id: Optional[int] = Field(
+        None,
+        alias='snapshot-id',
+        description="an int64 snapshot ID (if snapshot-range is not present); optional and defaults to the table's current snapshot. This option is not allowed when 'plan-task` is present in the request.",
+    )
+    snapshot_range: Optional[List[int]] = Field(
+        None,
+        alias='snapshot-range',
+        description='A JSON list containing exactly 2 snapshot IDs representing the start (exclusive) and end (inclusive) snapshots. This option is not allowed when `snapshot-id` or `plan-task` is present in the request.',
+    )
+
+
+class PlanTableRequest2(BaseModel):
     select: List[str] = Field(..., description='A list of the selected column names')
     filter: Optional[Expression] = None
     case_sensitive: Optional[bool] = Field(
@@ -1194,6 +1244,46 @@ class PlanTableRequest(BaseModel):
         description='A list of string field names for which stats should be included',
     )
     plan_task: Optional[PlanTask] = Field(None, alias='plan-task')
+    snapshot_id: int = Field(
+        ...,
+        alias='snapshot-id',
+        description="an int64 snapshot ID (if snapshot-range is not present); optional and defaults to the table's current snapshot. This option is not allowed when 'plan-task` is present in the request.",
+    )
+    snapshot_range: Optional[List[int]] = Field(
+        None,
+        alias='snapshot-range',
+        description='A JSON list containing exactly 2 snapshot IDs representing the start (exclusive) and end (inclusive) snapshots. This option is not allowed when `snapshot-id` or `plan-task` is present in the request.',
+    )
+
+
+class PlanTableRequest3(BaseModel):
+    select: List[str] = Field(..., description='A list of the selected column names')
+    filter: Optional[Expression] = None
+    case_sensitive: Optional[bool] = Field(
+        True,
+        alias='case-sensitive',
+        description='Indicates whether column selection and filtering should be case sensitive',
+    )
+    stats_fields: Optional[List[str]] = Field(
+        None,
+        alias='stats-fields',
+        description='A list of string field names for which stats should be included',
+    )
+    plan_task: Optional[PlanTask] = Field(None, alias='plan-task')
+    snapshot_id: Optional[int] = Field(
+        None,
+        alias='snapshot-id',
+        description="an int64 snapshot ID (if snapshot-range is not present); optional and defaults to the table's current snapshot. This option is not allowed when 'plan-task` is present in the request.",
+    )
+    snapshot_range: List[int] = Field(
+        ...,
+        alias='snapshot-range',
+        description='A JSON list containing exactly 2 snapshot IDs representing the start (exclusive) and end (inclusive) snapshots. This option is not allowed when `snapshot-id` or `plan-task` is present in the request.',
+    )
+
+
+class PlanTableRequest(BaseModel):
+    __root__: Union[PlanTableRequest1, PlanTableRequest2, PlanTableRequest3]
 
 
 class CreateViewRequest(BaseModel):
