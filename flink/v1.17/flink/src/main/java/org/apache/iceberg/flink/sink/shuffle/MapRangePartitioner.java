@@ -249,11 +249,11 @@ class MapRangePartitioner implements Partitioner<RowData> {
 
       // If the remaining key weight is smaller than the close file cost, simply skip the residual
       // as it doesn't make sense to assign a weight smaller than close file cost to a new subtask.
-      // this might lead to some inaccuracy in weight calculation. E.g., assuming the key weight is 2
-      // and close file cost is 2. key weight with close cost is 4. Let's assume the previous task
-      // has a weight of 3 available. So weight of 3 for this key is assigned to the task and the
-      // residual weight of 1 is dropped. Then the routing weight for this key is 1 (minus the close
-      // file cost), which is inaccurate as the true key weight should be 2.
+      // this might lead to some inaccuracy in weight calculation. E.g., assuming the key weight is
+      // 2 and close file cost is 2. key weight with close cost is 4. Let's assume the previous
+      // task has a weight of 3 available. So weight of 3 for this key is assigned to the task and
+      // the residual weight of 1 is dropped. Then the routing weight for this key is 1 (minus the
+      // close file cost), which is inaccurate as the true key weight should be 2.
       // Again, this greedy algorithm is not intended to be perfect. Some small inaccuracy is
       // expected and acceptable. Traffic distribution should still be balanced.
       if (keyRemainingWeight > 0 && keyRemainingWeight <= closeFileCostInWeight) {
