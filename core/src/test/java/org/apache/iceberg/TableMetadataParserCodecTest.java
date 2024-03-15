@@ -18,36 +18,37 @@
  */
 package org.apache.iceberg;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import org.apache.iceberg.TableMetadataParser.Codec;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TableMetadataParserCodecTest {
 
   @Test
   public void testCompressionCodec() {
-    Assert.assertEquals(Codec.GZIP, Codec.fromName("gzip"));
-    Assert.assertEquals(Codec.GZIP, Codec.fromName("gZiP"));
-    Assert.assertEquals(Codec.GZIP, Codec.fromFileName("v3.gz.metadata.json"));
-    Assert.assertEquals(Codec.GZIP, Codec.fromFileName("v3-f326-4b66-a541-7b1c.gz.metadata.json"));
-    Assert.assertEquals(Codec.GZIP, Codec.fromFileName("v3-f326-4b66-a541-7b1c.metadata.json.gz"));
-    Assert.assertEquals(Codec.NONE, Codec.fromName("none"));
-    Assert.assertEquals(Codec.NONE, Codec.fromName("nOnE"));
-    Assert.assertEquals(Codec.NONE, Codec.fromFileName("v3.metadata.json"));
-    Assert.assertEquals(Codec.NONE, Codec.fromFileName("v3-f326-4b66-a541-7b1c.metadata.json"));
+    assertThat(Codec.fromName("gzip")).isEqualTo(Codec.GZIP);
+    assertThat(Codec.fromName("gZiP")).isEqualTo(Codec.GZIP);
+    assertThat(Codec.fromFileName("v3.gz.metadata.json")).isEqualTo(Codec.GZIP);
+    assertThat(Codec.fromFileName("v3-f326-4b66-a541-7b1c.gz.metadata.json")).isEqualTo(Codec.GZIP);
+    assertThat(Codec.fromFileName("v3-f326-4b66-a541-7b1c.metadata.json.gz")).isEqualTo(Codec.GZIP);
+    assertThat(Codec.fromName("none")).isEqualTo(Codec.NONE);
+    assertThat(Codec.fromName("nOnE")).isEqualTo(Codec.NONE);
+    assertThat(Codec.fromFileName("v3.metadata.json")).isEqualTo(Codec.NONE);
+    assertThat(Codec.fromFileName("v3-f326-4b66-a541-7b1c.metadata.json")).isEqualTo(Codec.NONE);
   }
 
   @Test
   public void testInvalidCodecName() {
-    Assertions.assertThatThrownBy(() -> Codec.fromName("invalid"))
+    assertThatThrownBy(() -> Codec.fromName("invalid"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid codec name: invalid");
   }
 
   @Test
   public void testInvalidFileName() {
-    Assertions.assertThatThrownBy(() -> Codec.fromFileName("path/to/file.parquet"))
+    assertThatThrownBy(() -> Codec.fromFileName("path/to/file.parquet"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("path/to/file.parquet is not a valid metadata file");
   }
