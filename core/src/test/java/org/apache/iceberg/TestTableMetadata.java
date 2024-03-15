@@ -31,6 +31,7 @@ import static org.apache.iceberg.TableMetadataParser.SNAPSHOTS;
 import static org.apache.iceberg.TestHelpers.assertSameSchemaList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.entry;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import java.io.File;
@@ -283,7 +284,7 @@ public class TestTableMetadata {
         .as("Current schema ID should be default to TableMetadata.INITIAL_SCHEMA_ID")
         .isEqualTo(TableMetadata.INITIAL_SCHEMA_ID);
     assertThat(metadata.schemas()).hasSize(1);
-    assertThat(schema.asStruct()).isEqualTo(metadata.schemas().get(0).asStruct());
+    assertThat(metadata.schemas().get(0).asStruct()).isEqualTo(schema.asStruct());
     assertThat(metadata.spec().toString()).isEqualTo(expected.spec().toString());
     assertThat(metadata.defaultSpecId()).isEqualTo(TableMetadata.INITIAL_SPEC_ID);
     assertThat(metadata.specs()).hasSize(1);
@@ -1511,16 +1512,15 @@ public class TestTableMetadata {
         .isEqualTo(2);
     assertThat(meta.properties())
         .as("should not contain format-version but should contain new properties")
-        .containsEntry("key2", "val2");
+        .containsExactly(entry("key2", "val2"));
   }
 
   @Test
   public void testParseStatisticsFiles() throws Exception {
     String data = readTableMetadataInputFile("TableMetadataStatisticsFiles.json");
     TableMetadata parsed = TableMetadataParser.fromJson(data);
-    assertThat(parsed.statisticsFiles()).as("parsed statistics files").hasSize(1);
+    assertThat(parsed.statisticsFiles()).hasSize(1);
     assertThat(parsed.statisticsFiles())
-        .as("parsed statistics file")
         .hasSize(1)
         .first()
         .isEqualTo(
@@ -1539,7 +1539,6 @@ public class TestTableMetadata {
     String data = readTableMetadataInputFile("TableMetadataPartitionStatisticsFiles.json");
     TableMetadata parsed = TableMetadataParser.fromJson(data);
     assertThat(parsed.partitionStatisticsFiles())
-        .as("parsed partition statistics files")
         .hasSize(1)
         .first()
         .isEqualTo(

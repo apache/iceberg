@@ -50,7 +50,7 @@ public class TableMetadataParserTest {
   private static final Schema SCHEMA = new Schema(optional(1, "b", BooleanType.get()));
 
   @Parameters(name = "codecName = {0}")
-  protected static List<Object> parameters() {
+  private static List<Object> parameters() {
     return Arrays.asList("none", "gzip");
   }
 

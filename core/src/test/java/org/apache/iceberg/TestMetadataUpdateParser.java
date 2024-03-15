@@ -1047,7 +1047,7 @@ public class TestMetadataUpdateParser {
 
   private static void assertEqualsAddSchema(
       MetadataUpdate.AddSchema expected, MetadataUpdate.AddSchema actual) {
-    assertThat(actual.schema().sameSchema(expected.schema())).isTrue();
+    assertThat(actual.schema().asStruct()).isEqualTo(expected.schema().asStruct());
     assertThat(actual.lastColumnId()).isEqualTo(expected.lastColumnId());
   }
 
@@ -1195,11 +1195,9 @@ public class TestMetadataUpdateParser {
   private static void assertEqualsSetSnapshotRef(
       MetadataUpdate.SetSnapshotRef expected, MetadataUpdate.SetSnapshotRef actual) {
     // Non-null fields
-    assertThat(actual.name()).isNotNull();
-    assertThat(actual.name()).isEqualTo(expected.name());
+    assertThat(actual.name()).isNotNull().isEqualTo(expected.name());
     assertThat(actual.snapshotId()).isEqualTo(expected.snapshotId());
-    assertThat(actual.type()).isNotNull();
-    assertThat(actual.type()).isEqualTo(expected.type());
+    assertThat(actual.type()).isNotNull().isEqualTo(expected.type());
 
     // Nullable fields
     assertThat(actual.minSnapshotsToKeep())
