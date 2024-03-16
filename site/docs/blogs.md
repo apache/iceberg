@@ -22,6 +22,36 @@ title: "Blogs"
 
 Here is a list of company blogs that talk about Iceberg. The blogs are ordered from most recent to oldest.
 
+### [The Apache Iceberg Lakehouse: The Great Data Equalizer](https://amdatalakehouse.substack.com/p/the-apache-iceberg-lakehouse-the)
+**Date**: March 6th, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+### [Data Lakehouse Versioning Comparison: (Nessie, Apache Iceberg, LakeFS)](https://www.dremio.com/blog/data-lakehouse-versioning-comparison-nessie-apache-iceberg-lakefs/)
+**Date**: March 5th, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+### [What is Lakehouse Management?: Git-for-Data, Automated Apache Iceberg Table Maintenance and more](https://www.dremio.com/blog/what-is-lakehouse-management-git-for-data-automated-apache-iceberg-table-maintenance-and-more/)
+**Date**: February 23rd, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+### [What is DataOps? Automating Data Management on the Apache Iceberg Lakehouse](https://www.dremio.com/blog/what-is-dataops-automating-data-management-on-the-apache-iceberg-lakehouse/)
+**Date**: February 23rd, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+### [What is the Data Lakehouse and the Role of Apache Iceberg, Nessie and Dremio?](https://amdatalakehouse.substack.com/p/the-apache-iceberg-lakehouse-the)
+**Date**: February 21st, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+### [Ingesting Data Into Apache Iceberg Tables with Dremio: A Unified Path to Iceberg](https://www.dremio.com/blog/ingesting-data-into-apache-iceberg-tables-with-dremio-a-unified-path-to-iceberg/)
+**Date**: February 1st, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
 ### [Open Source and the Data Lakehouse: Apache Arrow, Apache Iceberg, Nessie and Dremio](https://www.dremio.com/blog/open-source-and-the-data-lakehouse-apache-arrow-apache-iceberg-nessie-and-dremio/)
 **Date**: February 1st, 2024, **Company**: Dremio
 
