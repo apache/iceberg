@@ -196,7 +196,7 @@ public class TestManifestListVersions {
 
   @Test
   public void testManifestsWithoutRowStats() throws IOException {
-    File manifestListFile = File.createTempFile("manifest-list.avro", null, temp.toFile());
+    File manifestListFile = File.createTempFile("manifest-list", ".avro", temp.toFile());
     assertThat(manifestListFile.delete()).isTrue();
 
     Collection<String> columnNamesWithoutRowStats =

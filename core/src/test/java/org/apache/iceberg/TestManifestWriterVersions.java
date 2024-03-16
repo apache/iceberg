@@ -19,8 +19,12 @@
 package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
@@ -33,11 +37,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestManifestWriterVersions {
   private static final FileIO FILE_IO = new TestTables.LocalFileIO();
@@ -97,7 +98,7 @@ public class TestManifestWriterVersions {
           null,
           null);
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
   @Test
   public void testV1Write() throws IOException {
@@ -112,7 +113,7 @@ public class TestManifestWriterVersions {
 
   @Test
   public void testV1WriteDelete() {
-    Assertions.assertThatThrownBy(() -> writeDeleteManifest(1))
+    assertThatThrownBy(() -> writeDeleteManifest(1))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot write delete files in a v1 table");
   }
@@ -130,7 +131,7 @@ public class TestManifestWriterVersions {
   public void testV2Write() throws IOException {
     ManifestFile manifest = writeManifest(2);
     checkManifest(manifest, ManifestWriter.UNASSIGNED_SEQ);
-    Assert.assertEquals("Content", ManifestContent.DATA, manifest.content());
+    assertThat(manifest.content()).isEqualTo(ManifestContent.DATA);
     checkEntry(
         readManifest(manifest),
         ManifestWriter.UNASSIGNED_SEQ,
@@ -142,7 +143,7 @@ public class TestManifestWriterVersions {
   public void testV2WriteWithInheritance() throws IOException {
     ManifestFile manifest = writeAndReadManifestList(writeManifest(2), 2);
     checkManifest(manifest, SEQUENCE_NUMBER);
-    Assert.assertEquals("Content", ManifestContent.DATA, manifest.content());
+    assertThat(manifest.content()).isEqualTo(ManifestContent.DATA);
 
     // v2 should use the correct sequence number by inheriting it
     checkEntry(readManifest(manifest), SEQUENCE_NUMBER, SEQUENCE_NUMBER, FileContent.DATA);
@@ -152,7 +153,7 @@ public class TestManifestWriterVersions {
   public void testV2WriteDelete() throws IOException {
     ManifestFile manifest = writeDeleteManifest(2);
     checkManifest(manifest, ManifestWriter.UNASSIGNED_SEQ);
-    Assert.assertEquals("Content", ManifestContent.DELETES, manifest.content());
+    assertThat(manifest.content()).isEqualTo(ManifestContent.DELETES);
     checkEntry(
         readDeleteManifest(manifest),
         ManifestWriter.UNASSIGNED_SEQ,
@@ -164,7 +165,7 @@ public class TestManifestWriterVersions {
   public void testV2WriteDeleteWithInheritance() throws IOException {
     ManifestFile manifest = writeAndReadManifestList(writeDeleteManifest(2), 2);
     checkManifest(manifest, SEQUENCE_NUMBER);
-    Assert.assertEquals("Content", ManifestContent.DELETES, manifest.content());
+    assertThat(manifest.content()).isEqualTo(ManifestContent.DELETES);
 
     // v2 should use the correct sequence number by inheriting it
     checkEntry(
@@ -214,69 +215,65 @@ public class TestManifestWriterVersions {
       Long expectedDataSequenceNumber,
       Long expectedFileSequenceNumber,
       FileContent content) {
-    Assert.assertEquals("Status", ManifestEntry.Status.ADDED, entry.status());
-    Assert.assertEquals("Snapshot ID", (Long) SNAPSHOT_ID, entry.snapshotId());
-    Assert.assertEquals(
-        "Data sequence number", expectedDataSequenceNumber, entry.dataSequenceNumber());
-    Assert.assertEquals(
-        "File sequence number", expectedFileSequenceNumber, entry.fileSequenceNumber());
+    assertThat(entry.status()).isEqualTo(ManifestEntry.Status.ADDED);
+    assertThat(entry.snapshotId()).isEqualTo(SNAPSHOT_ID);
+    assertThat(entry.dataSequenceNumber()).isEqualTo(expectedDataSequenceNumber);
+    assertThat(entry.fileSequenceNumber()).isEqualTo(expectedFileSequenceNumber);
     checkDataFile(entry.file(), content);
   }
 
   void checkRewrittenEntry(
       ManifestEntry<DataFile> entry, Long expectedSequenceNumber, FileContent content) {
-    Assert.assertEquals("Status", ManifestEntry.Status.EXISTING, entry.status());
-    Assert.assertEquals("Snapshot ID", (Long) SNAPSHOT_ID, entry.snapshotId());
-    Assert.assertEquals("Data sequence number", expectedSequenceNumber, entry.dataSequenceNumber());
+    assertThat(entry.status()).isEqualTo(ManifestEntry.Status.EXISTING);
+    assertThat(entry.snapshotId()).isEqualTo(SNAPSHOT_ID);
+    assertThat(entry.dataSequenceNumber()).isEqualTo(expectedSequenceNumber);
     checkDataFile(entry.file(), content);
   }
 
   void checkDataFile(ContentFile<?> dataFile, FileContent content) {
     // DataFile is the superclass of DeleteFile, so this method can check both
-    Assert.assertEquals("Content", content, dataFile.content());
-    Assert.assertEquals("Path", PATH, dataFile.path());
-    Assert.assertEquals("Format", FORMAT, dataFile.format());
-    Assert.assertEquals("Partition", PARTITION, dataFile.partition());
-    Assert.assertEquals("Record count", METRICS.recordCount(), (Long) dataFile.recordCount());
-    Assert.assertEquals("Column sizes", METRICS.columnSizes(), dataFile.columnSizes());
-    Assert.assertEquals("Value counts", METRICS.valueCounts(), dataFile.valueCounts());
-    Assert.assertEquals("Null value counts", METRICS.nullValueCounts(), dataFile.nullValueCounts());
-    Assert.assertEquals("NaN value counts", METRICS.nanValueCounts(), dataFile.nanValueCounts());
-    Assert.assertEquals("Lower bounds", METRICS.lowerBounds(), dataFile.lowerBounds());
-    Assert.assertEquals("Upper bounds", METRICS.upperBounds(), dataFile.upperBounds());
-    Assert.assertEquals("Sort order id", SORT_ORDER_ID, dataFile.sortOrderId());
+    assertThat(dataFile.content()).isEqualTo(content);
+    assertThat(dataFile.path()).isEqualTo(PATH);
+    assertThat(dataFile.format()).isEqualTo(FORMAT);
+    assertThat(dataFile.partition()).isEqualTo(PARTITION);
+    assertThat(dataFile.recordCount()).isEqualTo(METRICS.recordCount());
+    assertThat(dataFile.columnSizes()).isEqualTo(METRICS.columnSizes());
+    assertThat(dataFile.valueCounts()).isEqualTo(METRICS.valueCounts());
+    assertThat(dataFile.nullValueCounts()).isEqualTo(METRICS.nullValueCounts());
+    assertThat(dataFile.nanValueCounts()).isEqualTo(METRICS.nanValueCounts());
+    assertThat(dataFile.lowerBounds()).isEqualTo(METRICS.lowerBounds());
+    assertThat(dataFile.upperBounds()).isEqualTo(METRICS.upperBounds());
+    assertThat(dataFile.sortOrderId()).isEqualTo(SORT_ORDER_ID);
     if (dataFile.content() == FileContent.EQUALITY_DELETES) {
-      Assert.assertEquals(EQUALITY_IDS, dataFile.equalityFieldIds());
+      assertThat(dataFile.equalityFieldIds()).isEqualTo(EQUALITY_IDS);
     } else {
-      Assert.assertNull(dataFile.equalityFieldIds());
+      assertThat(dataFile.equalityFieldIds()).isNull();
     }
   }
 
   void checkManifest(ManifestFile manifest, long expectedSequenceNumber) {
-    Assert.assertEquals("Snapshot ID", (Long) SNAPSHOT_ID, manifest.snapshotId());
-    Assert.assertEquals("Sequence number", expectedSequenceNumber, manifest.sequenceNumber());
-    Assert.assertEquals(
-        "Min sequence number", expectedSequenceNumber, manifest.minSequenceNumber());
-    Assert.assertEquals("Added files count", (Integer) 1, manifest.addedFilesCount());
-    Assert.assertEquals("Existing files count", (Integer) 0, manifest.existingFilesCount());
-    Assert.assertEquals("Deleted files count", (Integer) 0, manifest.deletedFilesCount());
-    Assert.assertEquals("Added rows count", METRICS.recordCount(), manifest.addedRowsCount());
-    Assert.assertEquals("Existing rows count", (Long) 0L, manifest.existingRowsCount());
-    Assert.assertEquals("Deleted rows count", (Long) 0L, manifest.deletedRowsCount());
+    assertThat(manifest.snapshotId()).isEqualTo(SNAPSHOT_ID);
+    assertThat(manifest.sequenceNumber()).isEqualTo(expectedSequenceNumber);
+    assertThat(manifest.minSequenceNumber()).isEqualTo(expectedSequenceNumber);
+    assertThat(manifest.addedFilesCount()).isEqualTo(1);
+    assertThat(manifest.existingFilesCount()).isEqualTo(0);
+    assertThat(manifest.deletedFilesCount()).isEqualTo(0);
+    assertThat(manifest.addedRowsCount()).isEqualTo(METRICS.recordCount());
+    assertThat(manifest.existingRowsCount()).isEqualTo(0);
+    assertThat(manifest.deletedRowsCount()).isEqualTo(0);
   }
 
   void checkRewrittenManifest(
       ManifestFile manifest, long expectedSequenceNumber, long expectedMinSequenceNumber) {
-    Assert.assertEquals("Snapshot ID", (Long) SNAPSHOT_ID, manifest.snapshotId());
-    Assert.assertEquals("Sequence number", expectedSequenceNumber, manifest.sequenceNumber());
-    Assert.assertEquals(
-        "Min sequence number", expectedMinSequenceNumber, manifest.minSequenceNumber());
-    Assert.assertEquals("Added files count", (Integer) 0, manifest.addedFilesCount());
-    Assert.assertEquals("Existing files count", (Integer) 1, manifest.existingFilesCount());
-    Assert.assertEquals("Deleted files count", (Integer) 0, manifest.deletedFilesCount());
-    Assert.assertEquals("Added rows count", (Long) 0L, manifest.addedRowsCount());
-    Assert.assertEquals("Existing rows count", METRICS.recordCount(), manifest.existingRowsCount());
-    Assert.assertEquals("Deleted rows count", (Long) 0L, manifest.deletedRowsCount());
+    assertThat(manifest.snapshotId()).isEqualTo(SNAPSHOT_ID);
+    assertThat(manifest.sequenceNumber()).isEqualTo(expectedSequenceNumber);
+    assertThat(manifest.minSequenceNumber()).isEqualTo(expectedMinSequenceNumber);
+    assertThat(manifest.addedFilesCount()).isEqualTo(0);
+    assertThat(manifest.existingFilesCount()).isEqualTo(1);
+    assertThat(manifest.deletedFilesCount()).isEqualTo(0);
+    assertThat(manifest.addedRowsCount()).isEqualTo(0);
+    assertThat(manifest.existingRowsCount()).isEqualTo(METRICS.recordCount());
+    assertThat(manifest.deletedRowsCount()).isEqualTo(0);
   }
 
   private InputFile writeManifestList(ManifestFile manifest, int formatVersion) throws IOException {
@@ -296,14 +293,16 @@ public class TestManifestWriterVersions {
   private ManifestFile writeAndReadManifestList(ManifestFile manifest, int formatVersion)
       throws IOException {
     List<ManifestFile> manifests = ManifestLists.read(writeManifestList(manifest, formatVersion));
-    Assert.assertEquals("Should contain one manifest", 1, manifests.size());
+    assertThat(manifests).hasSize(1);
     return manifests.get(0);
   }
 
   private ManifestFile rewriteManifest(ManifestFile manifest, int formatVersion)
       throws IOException {
     OutputFile manifestFile =
-        Files.localOutput(FileFormat.AVRO.addExtension(temp.newFile().toString()));
+        Files.localOutput(
+            FileFormat.AVRO.addExtension(
+                File.createTempFile("manifest", null, temp.toFile()).toString()));
     ManifestWriter<DataFile> writer =
         ManifestFiles.write(formatVersion, SPEC, manifestFile, SNAPSHOT_ID);
     try {
@@ -320,7 +319,9 @@ public class TestManifestWriterVersions {
 
   private ManifestFile writeManifest(DataFile file, int formatVersion) throws IOException {
     OutputFile manifestFile =
-        Files.localOutput(FileFormat.AVRO.addExtension(temp.newFile().toString()));
+        Files.localOutput(
+            FileFormat.AVRO.addExtension(
+                File.createTempFile("manifest", null, temp.toFile()).toString()));
     ManifestWriter<DataFile> writer =
         ManifestFiles.write(formatVersion, SPEC, manifestFile, SNAPSHOT_ID);
     try {
@@ -335,14 +336,16 @@ public class TestManifestWriterVersions {
     try (CloseableIterable<ManifestEntry<DataFile>> reader =
         ManifestFiles.read(manifest, FILE_IO).entries()) {
       List<ManifestEntry<DataFile>> files = Lists.newArrayList(reader);
-      Assert.assertEquals("Should contain only one data file", 1, files.size());
+      assertThat(files).hasSize(1);
       return files.get(0);
     }
   }
 
   private ManifestFile writeDeleteManifest(int formatVersion) throws IOException {
     OutputFile manifestFile =
-        Files.localOutput(FileFormat.AVRO.addExtension(temp.newFile().toString()));
+        Files.localOutput(
+            FileFormat.AVRO.addExtension(
+                File.createTempFile("manifest", null, temp.toFile()).toString()));
     ManifestWriter<DeleteFile> writer =
         ManifestFiles.writeDeleteManifest(formatVersion, SPEC, manifestFile, SNAPSHOT_ID);
     try {
@@ -357,7 +360,7 @@ public class TestManifestWriterVersions {
     try (CloseableIterable<ManifestEntry<DeleteFile>> reader =
         ManifestFiles.readDeleteManifest(manifest, FILE_IO, null).entries()) {
       List<ManifestEntry<DeleteFile>> entries = Lists.newArrayList(reader);
-      Assert.assertEquals("Should contain only one data file", 1, entries.size());
+      assertThat(entries).hasSize(1);
       return entries.get(0);
     }
   }
