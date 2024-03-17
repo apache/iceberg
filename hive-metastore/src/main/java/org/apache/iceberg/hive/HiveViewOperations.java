@@ -27,7 +27,6 @@ import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.ClientPool;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.exceptions.NoSuchIcebergViewException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.view.BaseViewOperations;
@@ -79,7 +78,7 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
       metadataLocation =
           table.getParameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
 
-    } catch (NoSuchObjectException | NoSuchIcebergViewException e) {
+    } catch (NoSuchObjectException e) {
       if (currentMetadataLocation() != null) {
         throw new NoSuchViewException("View does not exist: %s.%s", database, viewName);
       }

@@ -38,6 +38,7 @@ import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.ClientPool;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
@@ -60,6 +61,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.view.BaseMetastoreViewCatalog;
+import org.apache.iceberg.view.ViewBuilder;
 import org.apache.iceberg.view.ViewMetadata;
 import org.apache.iceberg.view.ViewOperations;
 import org.apache.thrift.TException;
@@ -118,6 +120,24 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
             : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
 
     this.clients = new CachedClientPool(conf, properties);
+  }
+
+  @Override
+  public TableBuilder buildTable(TableIdentifier identifier, Schema schema) {
+    if (viewExists(identifier)) {
+      throw new org.apache.iceberg.exceptions.AlreadyExistsException(
+          "View with same name already exists: %s", identifier);
+    }
+    return super.buildTable(identifier, schema);
+  }
+
+  @Override
+  public ViewBuilder buildView(TableIdentifier identifier) {
+    if (tableExists(identifier)) {
+      throw new org.apache.iceberg.exceptions.AlreadyExistsException(
+          "Table with same name already exists: %s", identifier);
+    }
+    return super.buildView(identifier);
   }
 
   @Override
