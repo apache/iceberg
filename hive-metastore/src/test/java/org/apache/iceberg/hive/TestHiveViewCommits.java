@@ -54,7 +54,7 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 /** Test Hive locks and Hive errors and retry during commits. */
 public class TestHiveViewCommits {
 
-  private static final String VIEW_NAME = "view_name";
+  private static final String VIEW_NAME = "test_iceberg_view";
   private static final String DB_NAME = "hivedb";
   private static final Namespace ns = Namespace.of(DB_NAME);
   private static final Schema SCHEMA =
@@ -159,6 +159,7 @@ public class TestHiveViewCommits {
     failCommitAndThrowException(spyOps);
 
     ops.refresh();
+
     assertThat(ops.current()).as("Current metadata should not have changed").isEqualTo(metadataV2);
     assertThat(metadataFileExists(metadataV2)).as("Current metadata should still exist").isTrue();
     assertThat(metadataFileCount(ops.current()))
@@ -191,6 +192,7 @@ public class TestHiveViewCommits {
     spyOps.commit(metadataV2, metadataV1);
 
     ops.refresh();
+
     assertThat(ops.current()).as("Current metadata should have changed").isNotEqualTo(metadataV2);
     assertThat(metadataFileExists(ops.current()))
         .as("Current metadata file should still exist")
@@ -316,6 +318,7 @@ public class TestHiveViewCommits {
     spyOps.commit(metadataV2, metadataV1);
 
     ops.refresh();
+
     assertThat(ops.current()).as("Current metadata should have changed").isNotEqualTo(metadataV2);
     assertThat(metadataFileExists(ops.current()))
         .as("Current metadata file should still exist")
@@ -327,7 +330,7 @@ public class TestHiveViewCommits {
 
   @Test
   public void testInvalidObjectException() {
-    TableIdentifier badTi = TableIdentifier.of(DB_NAME, "`view_name`");
+    TableIdentifier badTi = TableIdentifier.of(DB_NAME, "`test_iceberg_view`");
     assertThatThrownBy(
             () ->
                 catalog
@@ -337,7 +340,7 @@ public class TestHiveViewCommits {
                     .withQuery("hive", "select * from ns.tbl")
                     .create())
         .isInstanceOf(ValidationException.class)
-        .hasMessage(String.format("Invalid Hive object for %s.%s", DB_NAME, "`view_name`"));
+        .hasMessage(String.format("Invalid Hive object for %s.%s", DB_NAME, "`test_iceberg_view`"));
   }
 
   /** Uses NoLock and pretends we throw an error because of a concurrent commit */
@@ -364,6 +367,7 @@ public class TestHiveViewCommits {
         .persistTable(any(), anyBoolean(), any());
 
     ops.refresh();
+
     assertThat(ops.current()).as("Current metadata should not have changed").isEqualTo(metadataV2);
     assertThat(metadataFileExists(metadataV2)).as("Current metadata should still exist").isTrue();
     assertThat(metadataFileCount(ops.current()))

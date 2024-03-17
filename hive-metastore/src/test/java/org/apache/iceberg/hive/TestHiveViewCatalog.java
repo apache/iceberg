@@ -19,6 +19,7 @@
 package org.apache.iceberg.hive;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Map;
@@ -32,6 +33,7 @@ import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.NoSuchIcebergViewException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -84,10 +86,45 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
   }
 
   @Test
+  public void testHiveViewAndIcebergViewWithSameName() throws TException {
+    String dbName = "hivedb";
+    Namespace ns = Namespace.of(dbName);
+    String viewName = "test_hive_view";
+    TableIdentifier identifier = TableIdentifier.of(ns, viewName);
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(identifier.namespace());
+    }
+
+    assertThat(catalog.listViews(ns)).isEmpty();
+    // create a hive table
+    org.apache.hadoop.hive.metastore.api.Table hiveTable =
+        createHiveView(viewName, dbName, tempDir.toUri().toString());
+    HIVE_METASTORE_EXTENSION.metastoreClient().createTable(hiveTable);
+
+    catalog.setListAllTables(true);
+    List<TableIdentifier> tableIdents1 = catalog.listTables(ns);
+    assertThat(tableIdents1).as("should have one table with type VIRTUAL_VIEW.").hasSize(1);
+
+    assertThat(catalog.viewExists(identifier)).isFalse();
+
+    assertThatThrownBy(
+            () ->
+                catalog
+                    .buildView(identifier)
+                    .withSchema(SCHEMA)
+                    .withDefaultNamespace(ns)
+                    .withQuery("hive", "select * from hivedb.tbl")
+                    .create())
+        .isInstanceOf(NoSuchIcebergViewException.class)
+        .hasMessageStartingWith("Not an iceberg view: hive.hivedb.test_hive_view");
+  }
+
+  @Test
   public void testListView() throws TException {
     String dbName = "hivedb";
     Namespace ns = Namespace.of(dbName);
-    TableIdentifier identifier = TableIdentifier.of(ns, "tbl");
+    TableIdentifier identifier = TableIdentifier.of(ns, "test_iceberg_view");
 
     if (requiresNamespaceCreate()) {
       catalog.createNamespace(identifier.namespace());
@@ -96,10 +133,10 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
     assertThat(catalog.viewExists(identifier)).isFalse();
     assertThat(catalog.listViews(ns)).isEmpty();
 
-    String hiveTableName = "test_hive_view";
+    String hiveViewName = "test_hive_view";
     // create a hive table
     org.apache.hadoop.hive.metastore.api.Table hiveTable =
-        createHiveView(hiveTableName, dbName, tempDir.toUri().toString());
+        createHiveView(hiveViewName, dbName, tempDir.toUri().toString());
     HIVE_METASTORE_EXTENSION.metastoreClient().createTable(hiveTable);
 
     catalog.setListAllTables(true);
@@ -113,7 +150,7 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
         .buildView(identifier)
         .withSchema(SCHEMA)
         .withDefaultNamespace(ns)
-        .withQuery("hive", "select * from ns.tbl")
+        .withQuery("hive", "select * from hivedb.tbl")
         .create();
     assertThat(catalog.viewExists(identifier)).isTrue();
 
