@@ -41,7 +41,7 @@ buildscript {
     classpath 'com.palantir.gradle.revapi:gradle-revapi:1.7.0'
     classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.4.1'
     classpath 'com.palantir.gradle.gitversion:gradle-git-version:3.0.0'
-    classpath 'org.openapitools:openapi-generator-gradle-plugin:6.6.0'
+    classpath 'org.openapitools:openapi-generator-gradle-plugin:7.4.0'
   }
 }
 
