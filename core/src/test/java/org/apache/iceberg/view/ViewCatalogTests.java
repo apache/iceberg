@@ -59,7 +59,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
   protected abstract Catalog tableCatalog();
 
-  @TempDir private Path tempDir;
+  @TempDir protected Path tempDir;
 
   protected boolean requiresNamespaceCreate() {
     return false;
