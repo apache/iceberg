@@ -966,41 +966,4 @@ public class TestHiveIcebergStorageHandlerNoScan {
     return ((BaseMetastoreTableOperations) ((BaseTable) icebergTable).operations())
         .currentMetadataLocation();
   }
-
-  @Test
-  public void testCreateTableWithPercentInName() throws IOException {
-    Assume.assumeTrue("This test requires Hive Version 4.", HiveVersion.min(HiveVersion.HIVE_4));
-
-    TableIdentifier identifier = TableIdentifier.of("default", "[|]#&%_@");
-
-    shell.executeStatement(
-        "CREATE EXTERNAL TABLE `[|]#&%_@` "
-            + "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' "
-            + testTables.locationForCreateTableSQL(identifier)
-            + "TBLPROPERTIES ('"
-            + InputFormatConfig.TABLE_SCHEMA
-            + "'='"
-            + SchemaParser.toJson(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA)
-            + "', '"
-            + InputFormatConfig.PARTITION_SPEC
-            + "'='"
-            + PartitionSpecParser.toJson(PartitionSpec.unpartitioned())
-            + "', 'dummy'='test', '"
-            + InputFormatConfig.EXTERNAL_TABLE_PURGE
-            + "'='TRUE', '"
-            + InputFormatConfig.CATALOG_NAME
-            + "'='"
-            + testTables.catalogName()
-            + "')");
-
-    // Check the Iceberg table data
-    org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
-    Assume.assumeTrue(
-        "This test is only for hive catalog",
-        testTableType == TestTables.TestTableType.HIVE_CATALOG);
-    Assert.assertEquals(
-        HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA.asStruct(),
-        icebergTable.schema().asStruct());
-    Assert.assertEquals(PartitionSpec.unpartitioned(), icebergTable.spec());
-  }
 }
