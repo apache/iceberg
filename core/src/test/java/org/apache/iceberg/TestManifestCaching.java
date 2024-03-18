@@ -19,10 +19,13 @@
 package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.google.common.testing.GcFinalization;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -35,13 +38,10 @@ import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.ContentCache;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestManifestCaching {
 
@@ -54,7 +54,7 @@ public class TestManifestCaching {
   // Partition spec used to create tables
   static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA).bucket("data", 16).build();
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
   @Test
   public void testPlanWithCache() throws Exception {
@@ -66,7 +66,7 @@ public class TestManifestCaching {
             "true");
     Table table = createTable(properties);
     ContentCache cache = ManifestFiles.contentCache(table.io());
-    Assert.assertEquals(0, cache.estimatedCacheSize());
+    assertThat(cache.estimatedCacheSize()).isEqualTo(0);
 
     int numFiles = 4;
     List<DataFile> files16Mb = newFiles(numFiles, 16 * 1024 * 1024);
@@ -75,20 +75,22 @@ public class TestManifestCaching {
     // planTask with SPLIT_SIZE half of the file size
     TableScan scan1 =
         table.newScan().option(TableProperties.SPLIT_SIZE, String.valueOf(8 * 1024 * 1024));
-    Assert.assertEquals(
-        "Should get 2 tasks per file", numFiles * 2, Iterables.size(scan1.planTasks()));
-    Assert.assertEquals(
-        "All manifest files should be cached", numFiles, cache.estimatedCacheSize());
-    Assert.assertEquals(
-        "All manifest files should be recently loaded", numFiles, cache.stats().loadCount());
+    assertThat(scan1.planTasks()).hasSize(numFiles * 2);
+    assertThat(cache.estimatedCacheSize())
+        .as("All manifest files should be cached")
+        .isEqualTo(numFiles);
+    assertThat(cache.stats().loadCount())
+        .as("All manifest files should be recently loaded")
+        .isEqualTo(numFiles);
     long missCount = cache.stats().missCount();
 
     // planFiles and verify that cache size still the same
     TableScan scan2 = table.newScan();
-    Assert.assertEquals("Should get 1 tasks per file", numFiles, Iterables.size(scan2.planFiles()));
-    Assert.assertEquals("Cache size should remain the same", numFiles, cache.estimatedCacheSize());
-    Assert.assertEquals(
-        "All manifest file reads should hit cache", missCount, cache.stats().missCount());
+    assertThat(scan2.planFiles()).hasSize(numFiles);
+    assertThat(cache.estimatedCacheSize()).isEqualTo(numFiles);
+    assertThat(cache.stats().missCount())
+        .as("All manifest file reads should hit cache")
+        .isEqualTo(missCount);
 
     ManifestFiles.dropCache(table.io());
   }
@@ -110,12 +112,14 @@ public class TestManifestCaching {
     // We should never hit cache.
     TableScan scan = table.newScan();
     ContentCache cache = ManifestFiles.contentCache(scan.table().io());
-    Assert.assertEquals(1, cache.maxContentLength());
-    Assert.assertEquals(1, cache.maxTotalBytes());
-    Assert.assertEquals("Should get 1 tasks per file", numFiles, Iterables.size(scan.planFiles()));
-    Assert.assertEquals("Cache should be empty", 0, cache.estimatedCacheSize());
-    Assert.assertEquals("File should not be loaded through cache", 0, cache.stats().loadCount());
-    Assert.assertEquals("Cache should not serve file", 0, cache.stats().requestCount());
+    assertThat(cache.maxContentLength()).isEqualTo(1);
+    assertThat(cache.maxTotalBytes()).isEqualTo(1);
+    assertThat(scan.planFiles()).hasSize(numFiles);
+    assertThat(cache.estimatedCacheSize()).isEqualTo(0);
+    assertThat(cache.stats().loadCount())
+        .as("File should not be loaded through cache")
+        .isEqualTo(0);
+    assertThat(cache.stats().requestCount()).as("Cache should not serve file").isEqualTo(0);
     ManifestFiles.dropCache(scan.table().io());
   }
 
@@ -140,8 +144,8 @@ public class TestManifestCaching {
     ContentCache cache1 = ManifestFiles.contentCache(table1.io());
     ContentCache cache2 = ManifestFiles.contentCache(table2.io());
     ContentCache cache3 = ManifestFiles.contentCache(table2.io());
-    Assert.assertNotSame(cache1, cache2);
-    Assert.assertSame(cache2, cache3);
+    assertThat(cache2).isNotSameAs(cache1);
+    assertThat(cache3).isSameAs(cache2);
 
     ManifestFiles.dropCache(table1.io());
     ManifestFiles.dropCache(table2.io());
@@ -161,7 +165,7 @@ public class TestManifestCaching {
     ManifestFiles.dropCache(table.io());
 
     ContentCache cache2 = ManifestFiles.contentCache(table.io());
-    Assert.assertNotSame(cache1, cache2);
+    assertThat(cache2).isNotSameAs(cache1);
     ManifestFiles.dropCache(table.io());
   }
 
@@ -193,10 +197,10 @@ public class TestManifestCaching {
     // Verify that manifestCache evicts all FileIO except the firstIO and lastIO.
     ContentCache cache1 = contentCache(manifestCache, firstIO);
     ContentCache cacheN = contentCache(manifestCache, lastIO);
-    Assert.assertSame(firstCache, cache1);
-    Assert.assertSame(lastCache, cacheN);
-    Assert.assertEquals(maxIO, manifestCache.stats().loadCount());
-    Assert.assertEquals(maxIO - 2, manifestCache.stats().evictionCount());
+    assertThat(cache1).isSameAs(firstCache);
+    assertThat(cacheN).isSameAs(lastCache);
+    assertThat(manifestCache.stats().loadCount()).isEqualTo(maxIO);
+    assertThat(manifestCache.stats().evictionCount()).isEqualTo(maxIO - 2);
   }
 
   /**
@@ -241,7 +245,9 @@ public class TestManifestCaching {
         "hadoop",
         ImmutableMap.<String, String>builder()
             .putAll(catalogProperties)
-            .put(CatalogProperties.WAREHOUSE_LOCATION, temp.newFolder().getAbsolutePath())
+            .put(
+                CatalogProperties.WAREHOUSE_LOCATION,
+                Files.createTempDirectory(temp, "junit").toFile().getAbsolutePath())
             .buildOrThrow());
     return hadoopCatalog;
   }
