@@ -41,7 +41,7 @@ spark-shell --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ iceb
 
 ### Adding catalogs
 
-Iceberg comes with [catalogs](spark-configuration.md#catalogs) that enable SQL commands to manage tables and load them by name. Catalogs are configured using properties under `spark.sql.catalog.(catalog_name)`.
+Iceberg comes with [catalogs](../spark-configuration.md#catalogs) that enable SQL commands to manage tables and load them by name. Catalogs are configured using properties under `spark.sql.catalog.(catalog_name)`.
 
 This command creates a path-based catalog named `local` for tables under `$PWD/warehouse` and adds support for Iceberg tables to Spark's built-in catalog:
 
@@ -57,7 +57,7 @@ spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ iceber
 
 ### Creating a table
 
-To create your first Iceberg table in Spark, use the `spark-sql` shell or `spark.sql(...)` to run a [`CREATE TABLE`](spark-ddl.md#create-table) command:
+To create your first Iceberg table in Spark, use the `spark-sql` shell or `spark.sql(...)` to run a [`CREATE TABLE`](../spark-ddl.md#create-table) command:
 
 ```sql
 -- local is the path-based catalog defined above
@@ -66,21 +66,21 @@ CREATE TABLE local.db.table (id bigint, data string) USING iceberg;
 
 Iceberg catalogs support the full range of SQL DDL commands, including:
 
-* [`CREATE TABLE ... PARTITIONED BY`](spark-ddl.md#create-table)
-* [`CREATE TABLE ... AS SELECT`](spark-ddl.md#create-table-as-select)
-* [`ALTER TABLE`](spark-ddl.md#alter-table)
-* [`DROP TABLE`](spark-ddl.md#drop-table)
+* [`CREATE TABLE ... PARTITIONED BY`](../spark-ddl.md#create-table)
+* [`CREATE TABLE ... AS SELECT`](../spark-ddl.md#create-table-as-select)
+* [`ALTER TABLE`](../spark-ddl.md#alter-table)
+* [`DROP TABLE`](../spark-ddl.md#drop-table)
 
 ### Writing
 
-Once your table is created, insert data using [`INSERT INTO`](spark-writes.md#insert-into):
+Once your table is created, insert data using [`INSERT INTO`](../spark-writes.md#insert-into):
 
 ```sql
 INSERT INTO local.db.table VALUES (1, 'a'), (2, 'b'), (3, 'c');
 INSERT INTO local.db.table SELECT id, data FROM source WHERE length(data) = 1;
 ```
 
-Iceberg also adds row-level SQL updates to Spark, [`MERGE INTO`](spark-writes.md#merge-into) and [`DELETE FROM`](spark-writes.md#delete-from):
+Iceberg also adds row-level SQL updates to Spark, [`MERGE INTO`](../spark-writes.md#merge-into) and [`DELETE FROM`](../spark-writes.md#delete-from):
 
 ```sql
 MERGE INTO local.db.target t USING (SELECT * FROM updates) u ON t.id = u.id
@@ -88,7 +88,7 @@ WHEN MATCHED THEN UPDATE SET t.count = t.count + u.count
 WHEN NOT MATCHED THEN INSERT *;
 ```
 
-Iceberg supports writing DataFrames using the new [v2 DataFrame write API](spark-writes.md#writing-with-dataframes):
+Iceberg supports writing DataFrames using the new [v2 DataFrame write API](../spark-writes.md#writing-with-dataframes):
 
 ```scala
 spark.table("source").select("id", "data")
@@ -107,7 +107,7 @@ FROM local.db.table
 GROUP BY data;
 ```
 
-SQL is also the recommended way to [inspect tables](spark-queries.md#inspecting-tables). To view all snapshots in a table, use the `snapshots` metadata table:
+SQL is also the recommended way to [inspect tables](../spark-queries.md#inspecting-tables). To view all snapshots in a table, use the `snapshots` metadata table:
 ```sql
 SELECT * FROM local.db.table.snapshots;
 ```
@@ -122,18 +122,78 @@ SELECT * FROM local.db.table.snapshots;
 +-------------------------+----------------+-----------+-----------+----------------------------------------------------+-----+
 ```
 
-[DataFrame reads](spark-queries.md#querying-with-dataframes) are supported and can now reference tables by name using `spark.table`:
+[DataFrame reads](../spark-queries.md#querying-with-dataframes) are supported and can now reference tables by name using `spark.table`:
 
 ```scala
 val df = spark.table("local.db.table")
 df.count()
 ```
 
+### Type compatibility
+
+Spark and Iceberg support different set of types. Iceberg does the type conversion automatically, but not for all combinations,
+so you may want to understand the type conversion in Iceberg in prior to design the types of columns in your tables.
+
+#### Spark type to Iceberg type
+
+This type conversion table describes how Spark types are converted to the Iceberg types. The conversion applies on both creating Iceberg table and writing to Iceberg table via Spark.
+
+| Spark           | Iceberg                    | Notes |
+|-----------------|----------------------------|-------|
+| boolean         | boolean                    |       |
+| short           | integer                    |       |
+| byte            | integer                    |       |
+| integer         | integer                    |       |
+| long            | long                       |       |
+| float           | float                      |       |
+| double          | double                     |       |
+| date            | date                       |       |
+| timestamp       | timestamp with timezone    |       |
+| timestamp_ntz    | timestamp without timezone |       |
+| char            | string                     |       |
+| varchar         | string                     |       |
+| string          | string                     |       |
+| binary          | binary                     |       |
+| decimal         | decimal                    |       |
+| struct          | struct                     |       |
+| array           | list                       |       |
+| map             | map                        |       |
+
+!!! info
+    The table is based on representing conversion during creating table. In fact, broader supports are applied on write. Here're some points on write:
+
+    * Iceberg numeric types (`integer`, `long`, `float`, `double`, `decimal`) support promotion during writes. e.g. You can write Spark types `short`, `byte`, `integer`, `long` to Iceberg type `long`.
+    * You can write to Iceberg `fixed` type using Spark `binary` type. Note that assertion on the length will be performed.
+
+#### Iceberg type to Spark type
+
+This type conversion table describes how Iceberg types are converted to the Spark types. The conversion applies on reading from Iceberg table via Spark.
+
+| Iceberg                    | Spark                   | Note          |
+|----------------------------|-------------------------|---------------|
+| boolean                    | boolean                 |               |
+| integer                    | integer                 |               |
+| long                       | long                    |               |
+| float                      | float                   |               |
+| double                     | double                  |               |
+| date                       | date                    |               |
+| time                       |                         | Not supported |
+| timestamp with timezone    | timestamp               |               |
+| timestamp without timezone | timestamp_ntz            |               |
+| string                     | string                  |               |
+| uuid                       | string                  |               |
+| fixed                      | binary                  |               |
+| binary                     | binary                  |               |
+| decimal                    | decimal                 |               |
+| struct                     | struct                  |               |
+| list                       | array                   |               |
+| map                        | map                     |               |
+
 ### Next steps
 
 Next, you can learn more about Iceberg tables in Spark:
 
-* [DDL commands](spark-ddl.md): `CREATE`, `ALTER`, and `DROP`
-* [Querying data](spark-queries.md): `SELECT` queries and metadata tables
-* [Writing data](spark-writes.md): `INSERT INTO` and `MERGE INTO`
-* [Maintaining tables](spark-procedures.md) with stored procedures
+* [DDL commands](../spark-ddl.md): `CREATE`, `ALTER`, and `DROP`
+* [Querying data](../spark-queries.md): `SELECT` queries and metadata tables
+* [Writing data](../spark-writes.md): `INSERT INTO` and `MERGE INTO`
+* [Maintaining tables](../spark-procedures.md) with stored procedures

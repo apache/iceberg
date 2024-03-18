@@ -20,9 +20,9 @@ title: "Writes"
 
 # Spark Writes
 
-To use Iceberg in Spark, first configure [Spark catalogs](spark-configuration.md).
+To use Iceberg in Spark, first configure [Spark catalogs](../spark-configuration.md).
 
-Some plans are only available when using [Iceberg SQL extensions](spark-configuration.md#sql-extensions) in Spark 3.
+Some plans are only available when using [Iceberg SQL extensions](../spark-configuration.md#sql-extensions) in Spark 3.
 
 Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations. Spark DSv2 is an evolving API with different levels of support in Spark versions:
 
@@ -200,7 +200,7 @@ Branch writes can also be performed as part of a write-audit-publish (WAP) workf
 Note WAP branch and branch identifier cannot both be specified.
 Also, the branch must exist before performing the write. 
 The operation does **not** create the branch if it does not exist. 
-For more information on branches please refer to [branches](branching.md).
+For more information on branches please refer to [branches](../branching.md).
  
 ```sql
 -- INSERT (1,' a') (2, 'b') into the audit branch.
@@ -385,7 +385,7 @@ sort-order. Further division and coalescing of tasks may take place because of
 
 When writing data to Iceberg with Spark, it's important to note that Spark cannot write a file larger than a Spark 
 task and a file cannot span an Iceberg partition boundary. This means although Iceberg will always roll over a file 
-when it grows to [`write.target-file-size-bytes`](configuration.md#write-properties), but unless the Spark task is 
+when it grows to [`write.target-file-size-bytes`](../configuration.md#write-properties), but unless the Spark task is 
 large enough that will not happen. The size of the file created on disk will also be much smaller than the Spark task 
 since the on disk data will be both compressed and in columnar format as opposed to Spark's uncompressed row 
 representation. This means a 100 megabyte Spark task will create a file much smaller than 100 megabytes even if that
@@ -403,64 +403,4 @@ It is important again to note that this is the in-memory Spark row size and not 
 columnar-compressed size, so a larger value than the target file size will need to be specified. The ratio of 
 in-memory size to on disk size is data dependent. Future work in Spark should allow Iceberg to automatically adjust this
 parameter at write time to match the `write.target-file-size-bytes`.
-
-## Type compatibility
-
-Spark and Iceberg support different set of types. Iceberg does the type conversion automatically, but not for all combinations,
-so you may want to understand the type conversion in Iceberg in prior to design the types of columns in your tables.
-
-### Spark type to Iceberg type
-
-This type conversion table describes how Spark types are converted to the Iceberg types. The conversion applies on both creating Iceberg table and writing to Iceberg table via Spark.
-
-| Spark           | Iceberg                    | Notes |
-|-----------------|----------------------------|-------|
-| boolean         | boolean                    |       |
-| short           | integer                    |       |
-| byte            | integer                    |       |
-| integer         | integer                    |       |
-| long            | long                       |       |
-| float           | float                      |       |
-| double          | double                     |       |
-| date            | date                       |       |
-| timestamp       | timestamp with timezone    |       |
-| timestamp_ntz    | timestamp without timezone |       |
-| char            | string                     |       |
-| varchar         | string                     |       |
-| string          | string                     |       |
-| binary          | binary                     |       |
-| decimal         | decimal                    |       |
-| struct          | struct                     |       |
-| array           | list                       |       |
-| map             | map                        |       |
-
-!!! info
-    The table is based on representing conversion during creating table. In fact, broader supports are applied on write. Here're some points on write:
-    
-    * Iceberg numeric types (`integer`, `long`, `float`, `double`, `decimal`) support promotion during writes. e.g. You can write Spark types `short`, `byte`, `integer`, `long` to Iceberg type `long`.
-    * You can write to Iceberg `fixed` type using Spark `binary` type. Note that assertion on the length will be performed.
-
-### Iceberg type to Spark type
-
-This type conversion table describes how Iceberg types are converted to the Spark types. The conversion applies on reading from Iceberg table via Spark.
-
-| Iceberg                    | Spark                   | Note          |
-|----------------------------|-------------------------|---------------|
-| boolean                    | boolean                 |               |
-| integer                    | integer                 |               |
-| long                       | long                    |               |
-| float                      | float                   |               |
-| double                     | double                  |               |
-| date                       | date                    |               |
-| time                       |                         | Not supported |
-| timestamp with timezone    | timestamp               |               |
-| timestamp without timezone | timestamp_ntz            |               |
-| string                     | string                  |               |
-| uuid                       | string                  |               |
-| fixed                      | binary                  |               |
-| binary                     | binary                  |               |
-| decimal                    | decimal                 |               |
-| struct                     | struct                  |               |
-| list                       | array                   |               |
-| map                        | map                     |               |
 

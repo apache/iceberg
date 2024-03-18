@@ -16,28 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.io;
+package org.apache.iceberg.spark.functions;
 
-import java.io.IOException;
-import java.io.OutputStream;
+import org.apache.spark.sql.connector.catalog.functions.ScalarFunction;
 
-public abstract class PositionOutputStream extends OutputStream {
-  /**
-   * Return the current position in the OutputStream.
-   *
-   * @return current position in bytes from the start of the stream
-   * @throws IOException If the underlying stream throws IOException
-   */
-  public abstract long getPos() throws IOException;
+abstract class BaseScalarFunction<R> implements ScalarFunction<R> {
+  @Override
+  public int hashCode() {
+    return canonicalName().hashCode();
+  }
 
-  /**
-   * Return the current stored length of the output. Can differ from the current position for
-   * encrypting streams, and for other non-length-preserving streams.
-   *
-   * @return current stored length in bytes
-   * @throws IOException If the underlying stream throws IOException
-   */
-  public long storedLength() throws IOException {
-    return getPos();
+  @Override
+  public boolean equals(Object other) {
+    if (this == other) {
+      return true;
+    } else if (!(other instanceof ScalarFunction)) {
+      return false;
+    }
+
+    ScalarFunction<?> that = (ScalarFunction<?>) other;
+    return canonicalName().equals(that.canonicalName());
   }
 }

@@ -31,6 +31,8 @@ nav:
     - performance.md
     - reliability.md
     - schemas.md
+  - Views:
+    - view-configuration.md
   - Spark:
     - spark-getting-started.md
     - spark-configuration.md
