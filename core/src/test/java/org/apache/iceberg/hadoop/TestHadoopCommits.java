@@ -284,7 +284,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     TableMetadata metadataV2 = metadataV1.replaceSortOrder(dataSort);
     spyOps.commit(metadataV1, metadataV2);
     int versionAfter = spyOps.findVersion();
-    assert versionAfter - versionBefore == 1;
+    Assertions.assertThat(versionAfter).isEqualTo(versionBefore + 1);
   }
 
   private void assertCommitNotChangeVersion(
@@ -300,7 +300,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
         .isInstanceOf(exceptionClass)
         .hasMessageContaining(msg);
     int versionAfter = spyOps.findVersion();
-    assert versionBefore == versionAfter;
+    Assertions.assertThat(versionBefore).isEqualTo(versionAfter);
   }
 
   @Test
@@ -324,7 +324,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
     // The commit should actually success
     int versionAfterSecond = spyOps.findVersion();
-    assert versionAfterSecond - versionBefore == 1;
+    Assertions.assertThat(versionAfterSecond).isEqualTo(versionBefore + 1);
 
     // second commit
     SortOrder idSort = SortOrder.builderFor(baseTable.schema()).desc("id").build();
@@ -334,7 +334,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
     // The commit should actually success
     int versionAfterThird = spyOps.findVersion();
-    assert versionAfterThird - versionBefore == 2;
+    Assertions.assertThat(versionAfterThird).isEqualTo(versionBefore + 2);
   }
 
   @Test
