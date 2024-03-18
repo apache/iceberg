@@ -19,9 +19,13 @@
 package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
 import java.util.List;
 import org.apache.avro.InvalidAvroMagicException;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
@@ -38,11 +42,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestManifestEncryption {
   private static final FileIO FILE_IO = new TestTables.LocalFileIO();
@@ -114,7 +115,7 @@ public class TestManifestEncryption {
   private static final EncryptionManager ENCRYPTION_MANAGER =
       EncryptionTestHelpers.createEncryptionManager();
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
   @Test
   public void testV1Write() throws IOException {
@@ -151,33 +152,31 @@ public class TestManifestEncryption {
       Long expectedDataSequenceNumber,
       Long expectedFileSequenceNumber,
       FileContent content) {
-    Assert.assertEquals("Status", ManifestEntry.Status.ADDED, entry.status());
-    Assert.assertEquals("Snapshot ID", (Long) SNAPSHOT_ID, entry.snapshotId());
-    Assert.assertEquals(
-        "Data sequence number", expectedDataSequenceNumber, entry.dataSequenceNumber());
-    Assert.assertEquals(
-        "File sequence number", expectedFileSequenceNumber, entry.fileSequenceNumber());
+    assertThat(entry.status()).isEqualTo(ManifestEntry.Status.ADDED);
+    assertThat(entry.snapshotId()).isEqualTo(SNAPSHOT_ID);
+    assertThat(entry.dataSequenceNumber()).isEqualTo(expectedDataSequenceNumber);
+    assertThat(entry.fileSequenceNumber()).isEqualTo(expectedFileSequenceNumber);
     checkDataFile(entry.file(), content);
   }
 
   void checkDataFile(ContentFile<?> dataFile, FileContent content) {
     // DataFile is the superclass of DeleteFile, so this method can check both
-    Assert.assertEquals("Content", content, dataFile.content());
-    Assert.assertEquals("Path", PATH, dataFile.path());
-    Assert.assertEquals("Format", FORMAT, dataFile.format());
-    Assert.assertEquals("Partition", PARTITION, dataFile.partition());
-    Assert.assertEquals("Record count", METRICS.recordCount(), (Long) dataFile.recordCount());
-    Assert.assertEquals("Column sizes", METRICS.columnSizes(), dataFile.columnSizes());
-    Assert.assertEquals("Value counts", METRICS.valueCounts(), dataFile.valueCounts());
-    Assert.assertEquals("Null value counts", METRICS.nullValueCounts(), dataFile.nullValueCounts());
-    Assert.assertEquals("NaN value counts", METRICS.nanValueCounts(), dataFile.nanValueCounts());
-    Assert.assertEquals("Lower bounds", METRICS.lowerBounds(), dataFile.lowerBounds());
-    Assert.assertEquals("Upper bounds", METRICS.upperBounds(), dataFile.upperBounds());
-    Assert.assertEquals("Sort order id", SORT_ORDER_ID, dataFile.sortOrderId());
+    assertThat(dataFile.content()).isEqualTo(content);
+    assertThat(dataFile.path()).isEqualTo(PATH);
+    assertThat(dataFile.format()).isEqualTo(FORMAT);
+    assertThat(dataFile.partition()).isEqualTo(PARTITION);
+    assertThat(dataFile.recordCount()).isEqualTo(METRICS.recordCount());
+    assertThat(dataFile.columnSizes()).isEqualTo(METRICS.columnSizes());
+    assertThat(dataFile.valueCounts()).isEqualTo(METRICS.valueCounts());
+    assertThat(dataFile.nullValueCounts()).isEqualTo(METRICS.nullValueCounts());
+    assertThat(dataFile.nanValueCounts()).isEqualTo(METRICS.nanValueCounts());
+    assertThat(dataFile.lowerBounds()).isEqualTo(METRICS.lowerBounds());
+    assertThat(dataFile.upperBounds()).isEqualTo(METRICS.upperBounds());
+    assertThat(dataFile.sortOrderId()).isEqualTo(SORT_ORDER_ID);
     if (dataFile.content() == FileContent.EQUALITY_DELETES) {
-      Assert.assertEquals(EQUALITY_IDS, dataFile.equalityFieldIds());
+      assertThat(dataFile.equalityFieldIds()).isEqualTo(EQUALITY_IDS);
     } else {
-      Assert.assertNull(dataFile.equalityFieldIds());
+      assertThat(dataFile.equalityFieldIds()).isNull();
     }
   }
 
@@ -187,7 +186,9 @@ public class TestManifestEncryption {
 
   private ManifestFile writeManifest(DataFile file, int formatVersion) throws IOException {
     OutputFile manifestFile =
-        Files.localOutput(FileFormat.AVRO.addExtension(temp.newFile().toString()));
+        Files.localOutput(
+            FileFormat.AVRO.addExtension(
+                File.createTempFile("manifest", null, temp.toFile()).toString()));
     EncryptedOutputFile encryptedManifest = ENCRYPTION_MANAGER.encrypt(manifestFile);
     ManifestWriter<DataFile> writer =
         ManifestFiles.write(formatVersion, SPEC, encryptedManifest, SNAPSHOT_ID);
@@ -201,7 +202,7 @@ public class TestManifestEncryption {
 
   private ManifestEntry<DataFile> readManifest(ManifestFile manifest) throws IOException {
     // First try to read without decryption
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 ManifestFiles.read(
                     manifest,
@@ -215,14 +216,16 @@ public class TestManifestEncryption {
         ManifestFiles.read(manifest, EncryptingFileIO.combine(FILE_IO, ENCRYPTION_MANAGER), null)
             .entries()) {
       List<ManifestEntry<DataFile>> files = Lists.newArrayList(reader);
-      Assert.assertEquals("Should contain only one data file", 1, files.size());
+      assertThat(files).hasSize(1);
       return files.get(0);
     }
   }
 
   private ManifestFile writeDeleteManifest(int formatVersion) throws IOException {
     OutputFile manifestFile =
-        Files.localOutput(FileFormat.AVRO.addExtension(temp.newFile().toString()));
+        Files.localOutput(
+            FileFormat.AVRO.addExtension(
+                File.createTempFile("manifest", null, temp.toFile()).toString()));
     EncryptedOutputFile encryptedManifest = ENCRYPTION_MANAGER.encrypt(manifestFile);
     ManifestWriter<DeleteFile> writer =
         ManifestFiles.writeDeleteManifest(formatVersion, SPEC, encryptedManifest, SNAPSHOT_ID);
@@ -240,7 +243,7 @@ public class TestManifestEncryption {
                 manifest, EncryptingFileIO.combine(FILE_IO, ENCRYPTION_MANAGER), null)
             .entries()) {
       List<ManifestEntry<DeleteFile>> entries = Lists.newArrayList(reader);
-      Assert.assertEquals("Should contain only one delete file", 1, entries.size());
+      assertThat(entries).hasSize(1);
       return entries.get(0);
     }
   }
