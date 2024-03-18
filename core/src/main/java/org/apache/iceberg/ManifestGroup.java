@@ -286,9 +286,7 @@ class ManifestGroup {
       // existing files count is missing, the manifest must be scanned.
       matchingManifests =
           CloseableIterable.filter(
-              scanMetrics.skippedDataManifests(),
-              matchingManifests,
-              manifest -> manifest.hasAddedFiles() || manifest.hasExistingFiles());
+              scanMetrics.skippedDataManifests(), matchingManifests, ManifestFile::hasLiveFiles);
     }
 
     if (ignoreExisting) {

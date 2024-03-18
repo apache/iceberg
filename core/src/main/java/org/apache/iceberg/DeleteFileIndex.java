@@ -509,7 +509,7 @@ class DeleteFileIndex {
                   closeableDeleteManifests,
                   manifest ->
                       manifest.content() == ManifestContent.DELETES
-                          && (manifest.hasAddedFiles() || manifest.hasExistingFiles())
+                          && manifest.hasLiveFiles()
                           && evalCache.get(manifest.partitionSpecId()).eval(manifest));
 
       matchingManifests =

@@ -219,7 +219,7 @@ abstract class BaseDistributedDataScan
     Map<Integer, ManifestEvaluator> evalCache = specCache(this::newManifestEvaluator);
 
     return manifests.stream()
-        .filter(manifest -> manifest.hasAddedFiles() || manifest.hasExistingFiles())
+        .filter(ManifestFile::hasLiveFiles)
         .filter(manifest -> evalCache.get(manifest.partitionSpecId()).eval(manifest))
         .collect(Collectors.toList());
   }
