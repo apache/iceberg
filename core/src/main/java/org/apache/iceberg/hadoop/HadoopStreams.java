@@ -185,8 +185,20 @@ public class HadoopStreams {
 
     @Override
     public void close() throws IOException {
-      stream.close();
-      this.closed = true;
+      try {
+        stream.close();
+        // {@link org.apache.hadoop.fs.s3a.S3ABlockOutputStream#close()} calls {@link
+        // org.apache.hadoop.fs.s3a.S3ABlockOutputStream#putObject()}
+        // which doesn't throw an exception when interrupted. Need to handle interrupts here to make
+        // sure file is uploaded on close.
+        if (Thread.interrupted()
+            && "S3ABlockOutputStream"
+                .equals(stream.getWrappedStream().getClass().getSimpleName())) {
+          throw new IOException("s3a putObject interrupted");
+        }
+      } finally {
+        this.closed = true;
+      }
     }
 
     @SuppressWarnings("checkstyle:NoFinalizer")
