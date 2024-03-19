@@ -271,8 +271,8 @@ public class TestTransaction extends TestBase {
 
     assertThat(version()).isEqualTo(2);
 
-    assertThat(table.currentSnapshot().allManifests(table.io()))
-        .containsExactlyElementsOf(appendManifests);
+    assertThat(Sets.newHashSet(table.currentSnapshot().allManifests(table.io())))
+        .isEqualTo(appendManifests);
   }
 
   @TestTemplate
@@ -313,8 +313,8 @@ public class TestTransaction extends TestBase {
     expectedManifests.addAll(appendManifests);
     expectedManifests.addAll(conflictAppendManifests);
 
-    assertThat(table.currentSnapshot().allManifests(table.io()))
-        .containsExactlyElementsOf(expectedManifests);
+    assertThat(Sets.newHashSet(table.currentSnapshot().allManifests(table.io())))
+        .isEqualTo(expectedManifests);
   }
 
   @TestTemplate
