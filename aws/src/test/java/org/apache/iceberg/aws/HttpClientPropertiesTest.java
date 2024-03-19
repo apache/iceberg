@@ -45,9 +45,9 @@ public class HttpClientPropertiesTest {
     Mockito.verify(mockS3ClientBuilder).httpClientBuilder(httpClientBuilderCaptor.capture());
     SdkHttpClient.Builder capturedHttpClientBuilder = httpClientBuilderCaptor.getValue();
 
-    Assertions.assertThat(capturedHttpClientBuilder instanceof UrlConnectionHttpClient.Builder)
-        .withFailMessage("Should use url connection http client")
-        .isTrue();
+    Assertions.assertThat(capturedHttpClientBuilder)
+        .as("Should use url connection http client")
+        .isInstanceOf(UrlConnectionHttpClient.Builder.class);
   }
 
   @Test
@@ -62,9 +62,9 @@ public class HttpClientPropertiesTest {
     httpClientProperties.applyHttpClientConfigurations(mockS3ClientBuilder);
     Mockito.verify(mockS3ClientBuilder).httpClientBuilder(httpClientBuilderCaptor.capture());
     SdkHttpClient.Builder capturedHttpClientBuilder = httpClientBuilderCaptor.getValue();
-    Assertions.assertThat(capturedHttpClientBuilder instanceof ApacheHttpClient.Builder)
-        .withFailMessage("Should use apache http client")
-        .isTrue();
+    Assertions.assertThat(capturedHttpClientBuilder)
+        .as("Should use apache http client")
+        .isInstanceOf(ApacheHttpClient.Builder.class);
   }
 
   @Test

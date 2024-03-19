@@ -447,13 +447,13 @@ public class TestS3FileIOProperties {
 
     S3Configuration s3Configuration = s3ConfigurationCaptor.getValue();
     Assertions.assertThat(s3Configuration.pathStyleAccessEnabled())
-        .withFailMessage("s3 path style access enabled parameter should be set to true")
+        .as("s3 path style access enabled parameter should be set to true")
         .isTrue();
     Assertions.assertThat(s3Configuration.useArnRegionEnabled())
-        .withFailMessage("s3 use arn region enabled parameter should be set to true")
+        .as("s3 use arn region enabled parameter should be set to true")
         .isTrue();
     Assertions.assertThat(s3Configuration.accelerateModeEnabled())
-        .withFailMessage("s3 acceleration mode enabled parameter should be set to true")
+        .as("s3 acceleration mode enabled parameter should be set to true")
         .isFalse();
   }
 
