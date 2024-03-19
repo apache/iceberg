@@ -189,11 +189,12 @@ public class HadoopStreams {
         stream.close();
         // {@link org.apache.hadoop.fs.s3a.S3ABlockOutputStream#close()} calls {@link
         // org.apache.hadoop.fs.s3a.S3ABlockOutputStream#putObject()}
-        // which doesn't throw an exception when interrupted. Need to handle interrupts here to make
-        // sure file is uploaded on close.
+        // which doesn't throw an exception when interrupted. Need to check the interrupted flag to
+        // detect failed object upload
+        // and propagate the error up.
         if (Thread.interrupted()
-            && "S3ABlockOutputStream"
-                .equals(stream.getWrappedStream().getClass().getSimpleName())) {
+            && "org.apache.hadoop.fs.s3a.S3ABlockOutputStream"
+                .equals(stream.getWrappedStream().getClass().getName())) {
           throw new IOException("object upload failed as it was interrupted during close");
         }
       } finally {
