@@ -1194,7 +1194,7 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
 
     assertThat(catalog.listNamespaces(Namespace.empty()))
         .as("Empty namespace should return two namespaces.")
-        .hasSize(2);
+        .containsExactly(Namespace.of("default"), Namespace.of(DB_NAME));
 
     assertThat(catalog.listNamespaces(Namespace.of("")))
         .as("Namespace with empty string should return zero namespace.")
