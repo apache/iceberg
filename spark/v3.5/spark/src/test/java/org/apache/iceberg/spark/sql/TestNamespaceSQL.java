@@ -36,6 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkCatalogConfig;
+import org.apache.spark.sql.AnalysisException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 
@@ -71,6 +72,13 @@ public class TestNamespaceSQL extends CatalogTestBase {
         SparkCatalogConfig.SPARK.catalogName(),
         SparkCatalogConfig.SPARK.implementation(),
         SparkCatalogConfig.SPARK.properties(),
+        NS.toString(),
+        false
+      },
+      {
+        SparkCatalogConfig.SPARK_SESSION_WITH_VIEWS.catalogName(),
+        SparkCatalogConfig.SPARK_SESSION_WITH_VIEWS.implementation(),
+        SparkCatalogConfig.SPARK_SESSION_WITH_VIEWS.properties(),
         NS.toString(),
         false
       }
@@ -128,8 +136,6 @@ public class TestNamespaceSQL extends CatalogTestBase {
 
   @TestTemplate
   public void testDropNonEmptyNamespace() {
-    assumeThat(catalogName).as("Session catalog has flaky behavior").isNotEqualTo("spark_catalog");
-
     assertThat(validationNamespaceCatalog.namespaceExists(NS))
         .as("Namespace should not already exist")
         .isFalse();
@@ -145,8 +151,14 @@ public class TestNamespaceSQL extends CatalogTestBase {
         .isTrue();
 
     assertThatThrownBy(() -> sql("DROP NAMESPACE %s", fullNamespace))
-        .isInstanceOf(NamespaceNotEmptyException.class)
-        .hasMessageStartingWith("Namespace db is not empty.");
+        .isInstanceOfAny(NamespaceNotEmptyException.class, AnalysisException.class)
+        .message()
+        .satisfiesAnyOf(
+            msg -> assertThat(msg).startsWith("Namespace db is not empty."),
+            msg ->
+                assertThat(msg)
+                    .startsWith(
+                        "[SCHEMA_NOT_EMPTY] Cannot drop a schema `db` because it contains objects."));
 
     sql("DROP TABLE %s.table", fullNamespace);
   }

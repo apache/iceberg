@@ -137,28 +137,26 @@ public class SparkSessionCatalog<
         asNamespaceCatalog.createNamespace(namespace, metadata);
       }
     }
-
-    getSessionCatalog().createNamespace(namespace, metadata);
   }
 
   @Override
   public void alterNamespace(String[] namespace, NamespaceChange... changes)
       throws NoSuchNamespaceException {
+    getSessionCatalog().alterNamespace(namespace, changes);
     if (null != asNamespaceCatalog && asNamespaceCatalog.namespaceExists(namespace)) {
       asNamespaceCatalog.alterNamespace(namespace, changes);
     }
-
-    getSessionCatalog().alterNamespace(namespace, changes);
   }
 
   @Override
   public boolean dropNamespace(String[] namespace, boolean cascade)
       throws NoSuchNamespaceException, NonEmptyNamespaceException {
+    boolean dropped = getSessionCatalog().dropNamespace(namespace, cascade);
     if (null != asNamespaceCatalog && asNamespaceCatalog.namespaceExists(namespace)) {
-      asNamespaceCatalog.dropNamespace(namespace, cascade);
+      return asNamespaceCatalog.dropNamespace(namespace, cascade) && dropped;
     }
 
-    return getSessionCatalog().dropNamespace(namespace, cascade);
+    return dropped;
   }
 
   @Override
