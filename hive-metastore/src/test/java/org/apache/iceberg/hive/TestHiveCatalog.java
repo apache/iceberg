@@ -1182,18 +1182,22 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
 
   @Test
   public void testListNamespacesWithEmptyNamespace() {
+
+    assertThat(catalog.listNamespaces(Namespace.empty()))
+        .as("Empty namespace should return two namespaces default, hivedb")
+        .containsExactly(Namespace.of("default"), Namespace.of(DB_NAME));
+
     Namespace namespaceWithOneLevel = Namespace.of("parent");
+    catalog.createNamespace(namespaceWithOneLevel);
+
+    assertThat(catalog.listNamespaces(Namespace.empty()))
+        .as("Empty namespace should return three namespaces default, hivedb, parent")
+        .containsExactly(Namespace.of("default"), Namespace.of(DB_NAME), namespaceWithOneLevel);
+
     assertThat(catalog.listNamespaces(namespaceWithOneLevel))
         .as("Namespace with one level will return zero namespace.")
         .hasSize(0);
-
-    Namespace namespaceWithTwoLevel = Namespace.of("parent", "child1");
-    assertThatThrownBy(() -> catalog.listNamespaces(namespaceWithTwoLevel))
-        .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessageContaining("Namespace does not exist");
-
-    assertThat(catalog.listNamespaces(Namespace.empty()))
-        .containsExactly(Namespace.of("default"), Namespace.of(DB_NAME));
+    catalog.dropNamespace(namespaceWithOneLevel);
 
     assertThat(catalog.listNamespaces(Namespace.of("")))
         .as("Namespace with empty string should return zero namespace.")
