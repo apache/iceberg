@@ -749,6 +749,93 @@ public class TestMergeAppend extends TableTestBase {
   }
 
   @Test
+  public void testMergeCountLimit() {
+    table.updateProperties().set("commit.manifest.min-count-to-merge", "1").commit();
+    Assert.assertEquals("Last sequence number should be 0", 0, readMetadata().lastSequenceNumber());
+    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+
+    Snapshot firstCommit =
+        commit(table, table.newAppend().appendFile(FILE_A).appendFile(FILE_B), branch);
+
+    Assert.assertNotNull("Should create a snapshot", firstCommit);
+    V1Assert.assertEquals(
+        "Last sequence number should be 0", 0, table.ops().current().lastSequenceNumber());
+    V2Assert.assertEquals(
+        "Last sequence number should be 1", 1, table.ops().current().lastSequenceNumber());
+
+    long baseId = firstCommit.snapshotId();
+    validateSnapshot(null, firstCommit, 1, FILE_A, FILE_B);
+
+    Assert.assertEquals(
+        "Should create 1 manifest for initial write",
+        1,
+        firstCommit.allManifests(table.io()).size());
+    ManifestFile initialManifest = firstCommit.allManifests(table.io()).get(0);
+    validateManifest(
+        initialManifest,
+        dataSeqs(1L, 1L),
+        fileSeqs(1L, 1L),
+        ids(baseId, baseId),
+        files(FILE_A, FILE_B),
+        statuses(Status.ADDED, Status.ADDED));
+
+    table
+        .updateProperties()
+        .set(TableProperties.MANIFEST_MERGE_COUNT_LIMIT, String.valueOf(1))
+        .commit();
+    Snapshot secondCommit = commit(table, table.newAppend().appendFile(FILE_C), branch);
+    V1Assert.assertEquals(
+        "Last sequence number should be 0", 0, table.ops().current().lastSequenceNumber());
+    V2Assert.assertEquals(
+        "Last sequence number should be 2", 2, table.ops().current().lastSequenceNumber());
+
+    Assert.assertEquals(
+        "Should contain 2 manifest for second write",
+        2,
+        secondCommit.allManifests(table.io()).size());
+    ManifestFile newManifest = secondCommit.allManifests(table.io()).get(0);
+    Assert.assertTrue(
+        "Should contain manifest from initial write",
+        secondCommit.allManifests(table.io()).contains(initialManifest));
+
+    long secondCommitSnapshotId = secondCommit.snapshotId();
+
+    validateManifest(
+        newManifest,
+        dataSeqs(2L),
+        fileSeqs(2L),
+        ids(secondCommitSnapshotId),
+        files(FILE_C),
+        statuses(Status.ADDED));
+
+    table
+        .updateProperties()
+        .set(TableProperties.MANIFEST_MERGE_COUNT_LIMIT, String.valueOf(3))
+        .commit();
+    Snapshot thirdCommit = commit(table, table.newAppend().appendFile(FILE_D), branch);
+    V1Assert.assertEquals(
+        "Last sequence number should be 0", 0, table.ops().current().lastSequenceNumber());
+    V2Assert.assertEquals(
+        "Last sequence number should be 3", 3, table.ops().current().lastSequenceNumber());
+
+    Assert.assertEquals(
+        "Should contain 1 merged manifest for third write",
+        1,
+        thirdCommit.allManifests(table.io()).size());
+    ManifestFile newManifest2 = thirdCommit.allManifests(table.io()).get(0);
+
+    long thirdCommitSnapshotId = thirdCommit.snapshotId();
+
+    validateManifest(
+        newManifest2,
+        dataSeqs(3L, 2L, 1L, 1L),
+        fileSeqs(3L, 2L, 1L, 1L),
+        ids(thirdCommitSnapshotId, secondCommitSnapshotId, baseId, baseId),
+        files(FILE_D, FILE_C, FILE_A, FILE_B),
+        statuses(Status.ADDED, Status.EXISTING, Status.EXISTING, Status.EXISTING));
+  }
+
+  @Test
   public void testMergeSizeTargetWithExistingManifest() {
     // use a small limit on manifest size to prevent merging
     table.updateProperties().set(TableProperties.MANIFEST_TARGET_SIZE_BYTES, "10").commit();
