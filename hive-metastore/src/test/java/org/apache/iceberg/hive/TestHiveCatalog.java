@@ -1193,11 +1193,28 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
         .hasMessageContaining("Namespace does not exist");
 
     assertThat(catalog.listNamespaces(Namespace.empty()))
-        .as("Empty namespace should return two namespaces.")
         .containsExactly(Namespace.of("default"), Namespace.of(DB_NAME));
 
     assertThat(catalog.listNamespaces(Namespace.of("")))
         .as("Namespace with empty string should return zero namespace.")
         .hasSize(0);
+  }
+
+  @Test
+  public void createAndDropEmptyNamespace() {
+    assertThat(catalog.namespaceExists(Namespace.empty())).isFalse();
+
+    assertThatThrownBy(() -> catalog.createNamespace(Namespace.empty()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot support empty or multi part namespace in Hive Metastore");
+
+    assertThat(catalog.dropNamespace(Namespace.empty())).isFalse();
+  }
+
+  @Test
+  public void loadNamespaceMetadataWithEmptyNamespace() {
+    assertThatThrownBy(() -> catalog.loadNamespaceMetadata(Namespace.empty()))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessageContaining("Namespace does not exist");
   }
 }
