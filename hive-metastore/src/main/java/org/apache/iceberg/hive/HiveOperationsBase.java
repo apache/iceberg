@@ -260,8 +260,8 @@ interface HiveOperationsBase {
             null,
             Collections.emptyList(),
             Maps.newHashMap(),
-            properties.getOrDefault(HiveCatalog.VIEW_ORIGINAL_TEXT, null),
-            properties.getOrDefault(HiveCatalog.VIEW_EXPANDED_TEXT, null),
+            null,
+            null,
             tableType().name());
 
     if (tableType().equals(TableType.EXTERNAL_TABLE)) {
