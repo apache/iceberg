@@ -42,6 +42,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
@@ -66,6 +67,9 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
   // same as org.apache.hadoop.hive.metastore.TableType.EXTERNAL_TABLE
   // more details: https://docs.aws.amazon.com/glue/latest/webapi/API_TableInput.html
   private static final String GLUE_EXTERNAL_TABLE_TYPE = "EXTERNAL_TABLE";
+  private static final String GLUE_ICEBERG_METADATA_REFRESH_MAX_RETRIES =
+          "iceberg.glue.metadata-refresh-max-retries";
+  private static final int GLUE_ICEBERG_METADATA_REFRESH_MAX_RETRIES_DEFAULT = 20;
 
   private final GlueClient glue;
   private final AwsProperties awsProperties;
@@ -76,6 +80,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
   private final Map<String, String> tableCatalogProperties;
   private final Object hadoopConf;
   private final LockManager lockManager;
+  private final int metadataRefreshMaxRetries;
   private FileIO fileIO;
 
   // Attempt to set versionId if available on the path
@@ -107,6 +112,10 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
     this.tableCatalogProperties = tableCatalogProperties;
     this.hadoopConf = hadoopConf;
     this.lockManager = lockManager;
+    this.metadataRefreshMaxRetries = PropertyUtil.propertyAsInt(
+            tableCatalogProperties,
+            GLUE_ICEBERG_METADATA_REFRESH_MAX_RETRIES,
+            GLUE_ICEBERG_METADATA_REFRESH_MAX_RETRIES_DEFAULT);
   }
 
   @Override
@@ -138,7 +147,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
       }
     }
 
-    refreshFromMetadataLocation(metadataLocation);
+    refreshFromMetadataLocation(metadataLocation, metadataRefreshMaxRetries);
   }
 
   @Override
