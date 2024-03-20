@@ -51,6 +51,7 @@ nav:
     - flink-configuration.md
   - hive.md
   - Trino: https://trino.io/docs/current/connector/iceberg.html
+  - Daft: daft.md
   - Clickhouse: https://clickhouse.com/docs/en/engines/table-engines/integrations/iceberg
   - Presto: https://prestodb.io/docs/current/connector/iceberg.html
   - Dremio: https://docs.dremio.com/data-formats/apache-iceberg/
