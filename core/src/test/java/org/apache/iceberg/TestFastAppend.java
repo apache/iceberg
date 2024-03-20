@@ -341,10 +341,11 @@ public class TestFastAppend extends TestBase {
         statuses(Status.ADDED, Status.ADDED));
 
     // validate that the metadata summary is correct when using appendManifest
-    assertThat(snapshot.summary()).containsEntry("added-data-files", "2");
-    assertThat(snapshot.summary()).containsEntry("added-records", "2");
-    assertThat(snapshot.summary()).containsEntry("total-data-files", "2");
-    assertThat(snapshot.summary()).containsEntry("total-records", "2");
+    assertThat(snapshot.summary())
+        .containsEntry("added-data-files", "2")
+        .containsEntry("added-records", "2")
+        .containsEntry("total-data-files", "2")
+        .containsEntry("total-records", "2");
   }
 
   @TestTemplate
