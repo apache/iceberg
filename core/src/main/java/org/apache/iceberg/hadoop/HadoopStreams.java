@@ -189,8 +189,8 @@ public class HadoopStreams {
         stream.close();
         // {@link org.apache.hadoop.fs.s3a.S3ABlockOutputStream#close()} calls {@link
         // org.apache.hadoop.fs.s3a.S3ABlockOutputStream#putObject()}
-        // which doesn't throw an exception when interrupted. Need to check the interrupted flag to
-        // detect failed object upload
+        // which doesn't throw an exception when interrupted.
+        // Need to check the interrupted flag to detect failed object upload
         // and propagate the error up.
         if (Thread.interrupted()
             && "org.apache.hadoop.fs.s3a.S3ABlockOutputStream"
