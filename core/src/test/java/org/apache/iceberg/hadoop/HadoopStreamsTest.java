@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.hadoop;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 import java.io.IOException;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.s3a.S3ABlockOutputStream;
