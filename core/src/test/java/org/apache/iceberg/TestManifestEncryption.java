@@ -24,13 +24,18 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.List;
-import org.apache.iceberg.inmemory.InMemoryOutputFile;
+import org.apache.avro.InvalidAvroMagicException;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.EncryptingFileIO;
+import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.EncryptionTestHelpers;
+import org.apache.iceberg.encryption.PlaintextEncryptionManager;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -40,7 +45,7 @@ import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-public class TestManifestWriterVersions {
+public class TestManifestEncryption {
   private static final FileIO FILE_IO = new TestTables.LocalFileIO();
 
   private static final Schema SCHEMA =
@@ -58,7 +63,6 @@ public class TestManifestWriterVersions {
           .bucket("id", 16)
           .build();
 
-  private static final long SEQUENCE_NUMBER = 34L;
   private static final long SNAPSHOT_ID = 987134631982734L;
   private static final String PATH =
       "s3://bucket/table/category=cheesy/timestamp_hour=10/id_bucket=3/file.avro";
@@ -77,16 +81,26 @@ public class TestManifestWriterVersions {
   private static final List<Long> OFFSETS = ImmutableList.of(4L);
   private static final Integer SORT_ORDER_ID = 2;
 
+  private static final ByteBuffer CONTENT_KEY_METADATA = ByteBuffer.allocate(100);
+
   private static final DataFile DATA_FILE =
       new GenericDataFile(
-          0, PATH, FORMAT, PARTITION, 150972L, METRICS, null, OFFSETS, SORT_ORDER_ID);
+          0,
+          PATH,
+          FORMAT,
+          PARTITION,
+          150972L,
+          METRICS,
+          CONTENT_KEY_METADATA,
+          OFFSETS,
+          SORT_ORDER_ID);
 
   private static final List<Integer> EQUALITY_IDS = ImmutableList.of(1);
   private static final int[] EQUALITY_ID_ARR = new int[] {1};
 
   private static final DeleteFile DELETE_FILE =
       new GenericDeleteFile(
-          0,
+          SPEC.specId(),
           FileContent.EQUALITY_DELETES,
           PATH,
           FORMAT,
@@ -96,42 +110,26 @@ public class TestManifestWriterVersions {
           EQUALITY_ID_ARR,
           SORT_ORDER_ID,
           null,
-          null);
+          CONTENT_KEY_METADATA);
+
+  private static final EncryptionManager ENCRYPTION_MANAGER =
+      EncryptionTestHelpers.createEncryptionManager();
 
   @TempDir private Path temp;
 
   @Test
   public void testV1Write() throws IOException {
     ManifestFile manifest = writeManifest(1);
-    checkManifest(manifest, ManifestWriter.UNASSIGNED_SEQ);
     checkEntry(
         readManifest(manifest),
         ManifestWriter.UNASSIGNED_SEQ,
         ManifestWriter.UNASSIGNED_SEQ,
         FileContent.DATA);
-  }
-
-  @Test
-  public void testV1WriteDelete() {
-    assertThatThrownBy(() -> writeDeleteManifest(1))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot write delete files in a v1 table");
-  }
-
-  @Test
-  public void testV1WriteWithInheritance() throws IOException {
-    ManifestFile manifest = writeAndReadManifestList(writeManifest(1), 1);
-    checkManifest(manifest, 0L);
-
-    // v1 should be read using sequence number 0 because it was missing from the manifest list file
-    checkEntry(readManifest(manifest), 0L, 0L, FileContent.DATA);
   }
 
   @Test
   public void testV2Write() throws IOException {
     ManifestFile manifest = writeManifest(2);
-    checkManifest(manifest, ManifestWriter.UNASSIGNED_SEQ);
-    assertThat(manifest.content()).isEqualTo(ManifestContent.DATA);
     checkEntry(
         readManifest(manifest),
         ManifestWriter.UNASSIGNED_SEQ,
@@ -140,74 +138,13 @@ public class TestManifestWriterVersions {
   }
 
   @Test
-  public void testV2WriteWithInheritance() throws IOException {
-    ManifestFile manifest = writeAndReadManifestList(writeManifest(2), 2);
-    checkManifest(manifest, SEQUENCE_NUMBER);
-    assertThat(manifest.content()).isEqualTo(ManifestContent.DATA);
-
-    // v2 should use the correct sequence number by inheriting it
-    checkEntry(readManifest(manifest), SEQUENCE_NUMBER, SEQUENCE_NUMBER, FileContent.DATA);
-  }
-
-  @Test
   public void testV2WriteDelete() throws IOException {
     ManifestFile manifest = writeDeleteManifest(2);
-    checkManifest(manifest, ManifestWriter.UNASSIGNED_SEQ);
-    assertThat(manifest.content()).isEqualTo(ManifestContent.DELETES);
     checkEntry(
         readDeleteManifest(manifest),
         ManifestWriter.UNASSIGNED_SEQ,
         ManifestWriter.UNASSIGNED_SEQ,
         FileContent.EQUALITY_DELETES);
-  }
-
-  @Test
-  public void testV2WriteDeleteWithInheritance() throws IOException {
-    ManifestFile manifest = writeAndReadManifestList(writeDeleteManifest(2), 2);
-    checkManifest(manifest, SEQUENCE_NUMBER);
-    assertThat(manifest.content()).isEqualTo(ManifestContent.DELETES);
-
-    // v2 should use the correct sequence number by inheriting it
-    checkEntry(
-        readDeleteManifest(manifest),
-        SEQUENCE_NUMBER,
-        SEQUENCE_NUMBER,
-        FileContent.EQUALITY_DELETES);
-  }
-
-  @Test
-  public void testV2ManifestListRewriteWithInheritance() throws IOException {
-    // write with v1
-    ManifestFile manifest = writeAndReadManifestList(writeManifest(1), 1);
-    checkManifest(manifest, 0L);
-
-    // rewrite existing metadata with v2 manifest list
-    ManifestFile manifest2 = writeAndReadManifestList(manifest, 2);
-    // the ManifestFile did not change and should still have its original sequence number, 0
-    checkManifest(manifest2, 0L);
-
-    // should not inherit the v2 sequence number because it was a rewrite
-    checkEntry(readManifest(manifest2), 0L, 0L, FileContent.DATA);
-  }
-
-  @Test
-  public void testV2ManifestRewriteWithInheritance() throws IOException {
-    // write with v1
-    ManifestFile manifest = writeAndReadManifestList(writeManifest(1), 1);
-    checkManifest(manifest, 0L);
-
-    // rewrite the manifest file using a v2 manifest
-    ManifestFile rewritten = rewriteManifest(manifest, 2);
-    checkRewrittenManifest(rewritten, ManifestWriter.UNASSIGNED_SEQ, 0L);
-
-    // add the v2 manifest to a v2 manifest list, with a sequence number
-    ManifestFile manifest2 = writeAndReadManifestList(rewritten, 2);
-    // the ManifestFile is new so it has a sequence number, but the min sequence number 0 is from
-    // the entry
-    checkRewrittenManifest(manifest2, SEQUENCE_NUMBER, 0L);
-
-    // should not inherit the v2 sequence number because it was written into the v2 manifest
-    checkRewrittenEntry(readManifest(manifest2), 0L, FileContent.DATA);
   }
 
   void checkEntry(
@@ -219,14 +156,6 @@ public class TestManifestWriterVersions {
     assertThat(entry.snapshotId()).isEqualTo(SNAPSHOT_ID);
     assertThat(entry.dataSequenceNumber()).isEqualTo(expectedDataSequenceNumber);
     assertThat(entry.fileSequenceNumber()).isEqualTo(expectedFileSequenceNumber);
-    checkDataFile(entry.file(), content);
-  }
-
-  void checkRewrittenEntry(
-      ManifestEntry<DataFile> entry, Long expectedSequenceNumber, FileContent content) {
-    assertThat(entry.status()).isEqualTo(ManifestEntry.Status.EXISTING);
-    assertThat(entry.snapshotId()).isEqualTo(SNAPSHOT_ID);
-    assertThat(entry.dataSequenceNumber()).isEqualTo(expectedSequenceNumber);
     checkDataFile(entry.file(), content);
   }
 
@@ -251,68 +180,6 @@ public class TestManifestWriterVersions {
     }
   }
 
-  void checkManifest(ManifestFile manifest, long expectedSequenceNumber) {
-    assertThat(manifest.snapshotId()).isEqualTo(SNAPSHOT_ID);
-    assertThat(manifest.sequenceNumber()).isEqualTo(expectedSequenceNumber);
-    assertThat(manifest.minSequenceNumber()).isEqualTo(expectedSequenceNumber);
-    assertThat(manifest.addedFilesCount()).isEqualTo(1);
-    assertThat(manifest.existingFilesCount()).isEqualTo(0);
-    assertThat(manifest.deletedFilesCount()).isEqualTo(0);
-    assertThat(manifest.addedRowsCount()).isEqualTo(METRICS.recordCount());
-    assertThat(manifest.existingRowsCount()).isEqualTo(0);
-    assertThat(manifest.deletedRowsCount()).isEqualTo(0);
-  }
-
-  void checkRewrittenManifest(
-      ManifestFile manifest, long expectedSequenceNumber, long expectedMinSequenceNumber) {
-    assertThat(manifest.snapshotId()).isEqualTo(SNAPSHOT_ID);
-    assertThat(manifest.sequenceNumber()).isEqualTo(expectedSequenceNumber);
-    assertThat(manifest.minSequenceNumber()).isEqualTo(expectedMinSequenceNumber);
-    assertThat(manifest.addedFilesCount()).isEqualTo(0);
-    assertThat(manifest.existingFilesCount()).isEqualTo(1);
-    assertThat(manifest.deletedFilesCount()).isEqualTo(0);
-    assertThat(manifest.addedRowsCount()).isEqualTo(0);
-    assertThat(manifest.existingRowsCount()).isEqualTo(METRICS.recordCount());
-    assertThat(manifest.deletedRowsCount()).isEqualTo(0);
-  }
-
-  private InputFile writeManifestList(ManifestFile manifest, int formatVersion) throws IOException {
-    OutputFile manifestList = new InMemoryOutputFile();
-    try (FileAppender<ManifestFile> writer =
-        ManifestLists.write(
-            formatVersion,
-            manifestList,
-            SNAPSHOT_ID,
-            SNAPSHOT_ID - 1,
-            formatVersion > 1 ? SEQUENCE_NUMBER : 0)) {
-      writer.add(manifest);
-    }
-    return manifestList.toInputFile();
-  }
-
-  private ManifestFile writeAndReadManifestList(ManifestFile manifest, int formatVersion)
-      throws IOException {
-    List<ManifestFile> manifests = ManifestLists.read(writeManifestList(manifest, formatVersion));
-    assertThat(manifests).hasSize(1);
-    return manifests.get(0);
-  }
-
-  private ManifestFile rewriteManifest(ManifestFile manifest, int formatVersion)
-      throws IOException {
-    OutputFile manifestFile =
-        Files.localOutput(
-            FileFormat.AVRO.addExtension(
-                File.createTempFile("manifest", null, temp.toFile()).toString()));
-    ManifestWriter<DataFile> writer =
-        ManifestFiles.write(formatVersion, SPEC, manifestFile, SNAPSHOT_ID);
-    try {
-      writer.existing(readManifest(manifest));
-    } finally {
-      writer.close();
-    }
-    return writer.toManifestFile();
-  }
-
   private ManifestFile writeManifest(int formatVersion) throws IOException {
     return writeManifest(DATA_FILE, formatVersion);
   }
@@ -322,8 +189,9 @@ public class TestManifestWriterVersions {
         Files.localOutput(
             FileFormat.AVRO.addExtension(
                 File.createTempFile("manifest", null, temp.toFile()).toString()));
+    EncryptedOutputFile encryptedManifest = ENCRYPTION_MANAGER.encrypt(manifestFile);
     ManifestWriter<DataFile> writer =
-        ManifestFiles.write(formatVersion, SPEC, manifestFile, SNAPSHOT_ID);
+        ManifestFiles.write(formatVersion, SPEC, encryptedManifest, SNAPSHOT_ID);
     try {
       writer.add(file);
     } finally {
@@ -333,8 +201,20 @@ public class TestManifestWriterVersions {
   }
 
   private ManifestEntry<DataFile> readManifest(ManifestFile manifest) throws IOException {
+    // First try to read without decryption
+    assertThatThrownBy(
+            () ->
+                ManifestFiles.read(
+                    manifest,
+                    EncryptingFileIO.combine(FILE_IO, PlaintextEncryptionManager.instance()),
+                    null))
+        .isInstanceOf(RuntimeIOException.class)
+        .hasMessageContaining("Failed to open file")
+        .hasCauseInstanceOf(InvalidAvroMagicException.class);
+
     try (CloseableIterable<ManifestEntry<DataFile>> reader =
-        ManifestFiles.read(manifest, FILE_IO).entries()) {
+        ManifestFiles.read(manifest, EncryptingFileIO.combine(FILE_IO, ENCRYPTION_MANAGER), null)
+            .entries()) {
       List<ManifestEntry<DataFile>> files = Lists.newArrayList(reader);
       assertThat(files).hasSize(1);
       return files.get(0);
@@ -346,8 +226,9 @@ public class TestManifestWriterVersions {
         Files.localOutput(
             FileFormat.AVRO.addExtension(
                 File.createTempFile("manifest", null, temp.toFile()).toString()));
+    EncryptedOutputFile encryptedManifest = ENCRYPTION_MANAGER.encrypt(manifestFile);
     ManifestWriter<DeleteFile> writer =
-        ManifestFiles.writeDeleteManifest(formatVersion, SPEC, manifestFile, SNAPSHOT_ID);
+        ManifestFiles.writeDeleteManifest(formatVersion, SPEC, encryptedManifest, SNAPSHOT_ID);
     try {
       writer.add(DELETE_FILE);
     } finally {
@@ -358,7 +239,9 @@ public class TestManifestWriterVersions {
 
   private ManifestEntry<DeleteFile> readDeleteManifest(ManifestFile manifest) throws IOException {
     try (CloseableIterable<ManifestEntry<DeleteFile>> reader =
-        ManifestFiles.readDeleteManifest(manifest, FILE_IO, null).entries()) {
+        ManifestFiles.readDeleteManifest(
+                manifest, EncryptingFileIO.combine(FILE_IO, ENCRYPTION_MANAGER), null)
+            .entries()) {
       List<ManifestEntry<DeleteFile>> entries = Lists.newArrayList(reader);
       assertThat(entries).hasSize(1);
       return entries.get(0);

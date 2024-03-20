@@ -20,9 +20,12 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.relocated.com.google.common.collect.Iterators.concat;
 import static org.apache.iceberg.util.SnapshotUtil.latestSnapshot;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executors;
@@ -31,55 +34,43 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public class TestMergeAppend extends TableTestBase {
-  private final String branch;
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestMergeAppend extends TestBase {
+  @Parameter(index = 1)
+  private String branch;
 
-  @Parameterized.Parameters(name = "formatVersion = {0}, branch = {1}")
-  public static Object[] parameters() {
-    return new Object[][] {
-      new Object[] {1, "main"},
-      new Object[] {1, "testBranch"},
-      new Object[] {2, "main"},
-      new Object[] {2, "testBranch"}
-    };
+  @Parameters(name = "formatVersion = {0}, branch = {1}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(
+        new Object[] {1, "main"},
+        new Object[] {1, "testBranch"},
+        new Object[] {2, "main"},
+        new Object[] {2, "testBranch"});
   }
 
-  public TestMergeAppend(int formatVersion, String branch) {
-    super(formatVersion);
-    this.branch = branch;
-  }
-
-  @Test
+  @TestTemplate
   public void testEmptyTableAppend() {
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    assertThat(listManifestFiles()).isEmpty();
 
     TableMetadata base = readMetadata();
-    Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
-    Assert.assertEquals("Last sequence number should be 0", 0, base.lastSequenceNumber());
+    assertThat(base.currentSnapshot()).isNull();
+    assertThat(base.lastSequenceNumber()).isEqualTo(0);
 
     Snapshot committedSnapshot =
         commit(table, table.newAppend().appendFile(FILE_A).appendFile(FILE_B), branch);
 
-    Assert.assertNotNull("Should create a snapshot", committedSnapshot);
+    assertThat(committedSnapshot).isNotNull();
     V1Assert.assertEquals(
         "Last sequence number should be 0", 0, table.ops().current().lastSequenceNumber());
     V2Assert.assertEquals(
         "Last sequence number should be 1", 1, table.ops().current().lastSequenceNumber());
 
-    Assert.assertEquals(
-        "Should create 1 manifest for initial write",
-        1,
-        committedSnapshot.allManifests(table.io()).size());
+    assertThat(committedSnapshot.allManifests(table.io())).hasSize(1);
 
     long snapshotId = committedSnapshot.snapshotId();
 
@@ -92,18 +83,18 @@ public class TestMergeAppend extends TableTestBase {
         statuses(Status.ADDED, Status.ADDED));
   }
 
-  @Test
+  @TestTemplate
   public void testEmptyTableAppendManifest() throws IOException {
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    assertThat(listManifestFiles()).isEmpty();
 
     TableMetadata base = readMetadata();
-    Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
-    Assert.assertEquals("Last sequence number should be 0", 0, base.lastSequenceNumber());
+    assertThat(base.currentSnapshot()).isNull();
+    assertThat(base.lastSequenceNumber()).isEqualTo(0);
 
     ManifestFile manifest = writeManifest(FILE_A, FILE_B);
     Snapshot committedSnapshot = commit(table, table.newAppend().appendManifest(manifest), branch);
 
-    Assert.assertNotNull("Should create a snapshot", committedSnapshot);
+    assertThat(committedSnapshot).isNotNull();
     V1Assert.assertEquals(
         "Last sequence number should be 0", 0, table.ops().current().lastSequenceNumber());
     V2Assert.assertEquals(
@@ -111,9 +102,9 @@ public class TestMergeAppend extends TableTestBase {
     List<ManifestFile> manifests = committedSnapshot.allManifests(table.io());
     ManifestFile committedManifest = Iterables.getOnlyElement(manifests);
     if (formatVersion == 1) {
-      Assertions.assertThat(committedManifest.path()).isNotEqualTo(manifest.path());
+      assertThat(committedManifest.path()).isNotEqualTo(manifest.path());
     } else {
-      Assertions.assertThat(committedManifest.path()).isEqualTo(manifest.path());
+      assertThat(committedManifest.path()).isEqualTo(manifest.path());
     }
 
     long snapshotId = committedSnapshot.snapshotId();
@@ -126,19 +117,16 @@ public class TestMergeAppend extends TableTestBase {
         statuses(Status.ADDED, Status.ADDED));
 
     // validate that the metadata summary is correct when using appendManifest
-    Assert.assertEquals(
-        "Summary metadata should include 2 added files",
-        "2",
-        committedSnapshot.summary().get("added-data-files"));
+    assertThat(committedSnapshot.summary()).containsEntry("added-data-files", "2");
   }
 
-  @Test
+  @TestTemplate
   public void testEmptyTableAppendFilesAndManifest() throws IOException {
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    assertThat(listManifestFiles()).isEmpty();
 
     TableMetadata base = readMetadata();
-    Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
-    Assert.assertEquals("Last sequence number should be 0", 0, base.lastSequenceNumber());
+    assertThat(base.currentSnapshot()).isNull();
+    assertThat(base.lastSequenceNumber()).isEqualTo(0);
 
     ManifestFile manifest = writeManifest(FILE_A, FILE_B);
     Snapshot committedSnapshot =
@@ -147,15 +135,12 @@ public class TestMergeAppend extends TableTestBase {
             table.newAppend().appendFile(FILE_C).appendFile(FILE_D).appendManifest(manifest),
             branch);
 
-    Assert.assertNotNull("Should create a snapshot", committedSnapshot);
+    assertThat(committedSnapshot).isNotNull();
     V1Assert.assertEquals(
         "Last sequence number should be 0", 0, table.ops().current().lastSequenceNumber());
     V2Assert.assertEquals(
         "Last sequence number should be 1", 1, table.ops().current().lastSequenceNumber());
-    Assert.assertEquals(
-        "Should create 2 manifests for initial write",
-        2,
-        committedSnapshot.allManifests(table.io()).size());
+    assertThat(committedSnapshot.allManifests(table.io())).hasSize(2);
 
     long snapshotId = committedSnapshot.snapshotId();
 
@@ -163,9 +148,9 @@ public class TestMergeAppend extends TableTestBase {
     ManifestFile committedManifest2 = committedSnapshot.allManifests(table.io()).get(1);
 
     if (formatVersion == 1) {
-      Assertions.assertThat(committedManifest2.path()).isNotEqualTo(manifest.path());
+      assertThat(committedManifest2.path()).isNotEqualTo(manifest.path());
     } else {
-      Assertions.assertThat(committedManifest2.path()).isEqualTo(manifest.path());
+      assertThat(committedManifest2.path()).isEqualTo(manifest.path());
     }
 
     validateManifest(
@@ -185,13 +170,13 @@ public class TestMergeAppend extends TableTestBase {
         statuses(Status.ADDED, Status.ADDED));
   }
 
-  @Test
+  @TestTemplate
   public void testAppendWithManifestScanExecutor() {
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    assertThat(listManifestFiles()).isEmpty();
 
     TableMetadata base = readMetadata();
-    Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
-    Assert.assertEquals("Last sequence number should be 0", 0, base.lastSequenceNumber());
+    assertThat(base.currentSnapshot()).isNull();
+    assertThat(base.lastSequenceNumber()).isEqualTo(0);
     AtomicInteger scanThreadsIndex = new AtomicInteger(0);
     Snapshot snapshot =
         commit(
@@ -212,20 +197,22 @@ public class TestMergeAppend extends TableTestBase {
                           return thread;
                         })),
             branch);
-    Assert.assertTrue("Thread should be created in provided pool", scanThreadsIndex.get() > 0);
-    Assert.assertNotNull("Should create a snapshot", snapshot);
+    assertThat(scanThreadsIndex.get())
+        .as("Thread should be created in provided pool")
+        .isGreaterThan(0);
+    assertThat(snapshot).isNotNull();
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithAppendFilesAndManifest() throws IOException {
     // merge all manifests for this test
     table.updateProperties().set("commit.manifest.min-count-to-merge", "1").commit();
 
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    assertThat(listManifestFiles()).isEmpty();
 
     TableMetadata base = readMetadata();
-    Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
-    Assert.assertEquals("Last sequence number should be 0", 0, base.lastSequenceNumber());
+    assertThat(base.currentSnapshot()).isNull();
+    assertThat(base.lastSequenceNumber()).isEqualTo(0);
 
     ManifestFile manifest = writeManifest(FILE_A, FILE_B);
     Snapshot committedSnapshot =
@@ -234,7 +221,7 @@ public class TestMergeAppend extends TableTestBase {
             table.newAppend().appendFile(FILE_C).appendFile(FILE_D).appendManifest(manifest),
             branch);
 
-    Assert.assertNotNull("Should create a snapshot", committedSnapshot);
+    assertThat(committedSnapshot).isNotNull();
     V1Assert.assertEquals(
         "Last sequence number should be 0", 0, table.ops().current().lastSequenceNumber());
     V2Assert.assertEquals(
@@ -245,7 +232,7 @@ public class TestMergeAppend extends TableTestBase {
     List<ManifestFile> manifests = committedSnapshot.allManifests(table.io());
     ManifestFile committedManifest = Iterables.getOnlyElement(manifests);
 
-    Assertions.assertThat(committedManifest.path()).isNotEqualTo(manifest.path());
+    assertThat(committedManifest.path()).isNotEqualTo(manifest.path());
 
     validateManifest(
         committedManifest,
@@ -256,17 +243,17 @@ public class TestMergeAppend extends TableTestBase {
         statuses(Status.ADDED, Status.ADDED, Status.ADDED, Status.ADDED));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithExistingManifest() {
     // merge all manifests for this test
     table.updateProperties().set("commit.manifest.min-count-to-merge", "1").commit();
-    Assert.assertEquals("Last sequence number should be 0", 0, readMetadata().lastSequenceNumber());
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    assertThat(listManifestFiles()).isEmpty();
+    assertThat(readMetadata().lastSequenceNumber()).isEqualTo(0);
 
     Snapshot commitBefore =
         commit(table, table.newAppend().appendFile(FILE_A).appendFile(FILE_B), branch);
 
-    Assert.assertNotNull("Should create a snapshot", commitBefore);
+    assertThat(commitBefore).isNotNull();
     V1Assert.assertEquals(
         "Last sequence number should be 0", 0, table.ops().current().lastSequenceNumber());
     V2Assert.assertEquals(
@@ -276,10 +263,7 @@ public class TestMergeAppend extends TableTestBase {
     long baseId = commitBefore.snapshotId();
     validateSnapshot(null, commitBefore, 1, FILE_A, FILE_B);
 
-    Assert.assertEquals(
-        "Should create 1 manifest for initial write",
-        1,
-        commitBefore.allManifests(table.io()).size());
+    assertThat(commitBefore.allManifests(table.io())).hasSize(1);
     ManifestFile initialManifest = commitBefore.allManifests(table.io()).get(0);
     validateManifest(
         initialManifest,
@@ -296,13 +280,9 @@ public class TestMergeAppend extends TableTestBase {
     V2Assert.assertEquals(
         "Last sequence number should be 2", 2, table.ops().current().lastSequenceNumber());
 
-    Assert.assertEquals(
-        "Should contain 1 merged manifest for second write",
-        1,
-        committedAfter.allManifests(table.io()).size());
+    assertThat(committedAfter.allManifests(table.io())).hasSize(1);
     ManifestFile newManifest = committedAfter.allManifests(table.io()).get(0);
-    Assert.assertNotEquals(
-        "Should not contain manifest from initial write", initialManifest, newManifest);
+    assertThat(newManifest).isNotEqualTo(initialManifest);
 
     long snapshotId = committedAfter.snapshotId();
 
@@ -315,9 +295,9 @@ public class TestMergeAppend extends TableTestBase {
         statuses(Status.ADDED, Status.ADDED, Status.EXISTING, Status.EXISTING));
   }
 
-  @Test
+  @TestTemplate
   public void testManifestMergeMinCount() throws IOException {
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    assertThat(listManifestFiles()).isEmpty();
     table
         .updateProperties()
         .set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "2")
@@ -328,8 +308,8 @@ public class TestMergeAppend extends TableTestBase {
         .commit();
 
     TableMetadata base = readMetadata();
-    Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
-    Assert.assertEquals("Last sequence number should be 0", 0, base.lastSequenceNumber());
+    assertThat(base.currentSnapshot()).isNull();
+    assertThat(base.lastSequenceNumber()).isEqualTo(0);
 
     ManifestFile manifest = writeManifestWithName("FILE_A", FILE_A);
     ManifestFile manifest2 = writeManifestWithName("FILE_C", FILE_C);
@@ -351,10 +331,7 @@ public class TestMergeAppend extends TableTestBase {
     V1Assert.assertEquals(
         "Table should end with last-sequence-number 0", 0, base.lastSequenceNumber());
 
-    Assert.assertEquals(
-        "Should contain 2 merged manifest for first write",
-        2,
-        snap1.allManifests(table.io()).size());
+    assertThat(snap1.allManifests(table.io())).hasSize(2);
     validateManifest(
         snap1.allManifests(table.io()).get(0),
         dataSeqs(1L),
@@ -391,10 +368,7 @@ public class TestMergeAppend extends TableTestBase {
     V1Assert.assertEquals(
         "Table should end with last-sequence-number 0", 0, base.lastSequenceNumber());
 
-    Assert.assertEquals(
-        "Should contain 3 merged manifest for second write",
-        3,
-        snap2.allManifests(table.io()).size());
+    assertThat(snap2.allManifests(table.io())).hasSize(3);
     validateManifest(
         snap2.allManifests(table.io()).get(0),
         dataSeqs(2L),
@@ -418,15 +392,12 @@ public class TestMergeAppend extends TableTestBase {
         statuses(Status.EXISTING, Status.EXISTING, Status.EXISTING));
 
     // validate that the metadata summary is correct when using appendManifest
-    Assert.assertEquals(
-        "Summary metadata should include 3 added files",
-        "3",
-        snap2.summary().get("added-data-files"));
+    assertThat(snap2.summary()).containsEntry("added-data-files", "3");
   }
 
-  @Test
+  @TestTemplate
   public void testManifestsMergeIntoOne() throws IOException {
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    assertThat(listManifestFiles()).isEmpty();
     Snapshot snap1 = commit(table, table.newAppend().appendFile(FILE_A), branch);
     TableMetadata base = readMetadata();
     V2Assert.assertEquals("Snapshot sequence number should be 1", 1, snap1.sequenceNumber());
@@ -435,7 +406,7 @@ public class TestMergeAppend extends TableTestBase {
         "Table should end with last-sequence-number 0", 0, base.lastSequenceNumber());
     long commitId1 = snap1.snapshotId();
 
-    Assert.assertEquals("Should contain 1 manifest", 1, snap1.allManifests(table.io()).size());
+    assertThat(snap1.allManifests(table.io())).hasSize(1);
     validateManifest(
         snap1.allManifests(table.io()).get(0),
         dataSeqs(1L),
@@ -452,7 +423,7 @@ public class TestMergeAppend extends TableTestBase {
     V1Assert.assertEquals(
         "Table should end with last-sequence-number 0", 0, base.lastSequenceNumber());
 
-    Assert.assertEquals("Should contain 2 manifests", 2, snap2.allManifests(table.io()).size());
+    assertThat(snap2.allManifests(table.io())).hasSize(2);
     validateManifest(
         snap2.allManifests(table.io()).get(0),
         dataSeqs(2L),
@@ -484,7 +455,7 @@ public class TestMergeAppend extends TableTestBase {
     V1Assert.assertEquals(
         "Table should end with last-sequence-number 0", 0, base.lastSequenceNumber());
 
-    Assert.assertEquals("Should contain 3 manifests", 3, snap3.allManifests(table.io()).size());
+    assertThat(snap3.allManifests(table.io())).hasSize(3);
     long commitId3 = snap3.snapshotId();
     validateManifest(
         snap3.allManifests(table.io()).get(0),
@@ -527,8 +498,7 @@ public class TestMergeAppend extends TableTestBase {
         "Table should end with last-sequence-number 0", 0, base.lastSequenceNumber());
 
     long commitId4 = snap4.snapshotId();
-    Assert.assertEquals(
-        "Should only contains 1 merged manifest", 1, snap4.allManifests(table.io()).size());
+    assertThat(snap4.allManifests(table.io())).hasSize(1);
     validateManifest(
         snap4.allManifests(table.io()).get(0),
         dataSeqs(4L, 3L, 2L, 1L),
@@ -538,14 +508,14 @@ public class TestMergeAppend extends TableTestBase {
         statuses(Status.ADDED, Status.EXISTING, Status.EXISTING, Status.EXISTING));
   }
 
-  @Test
+  @TestTemplate
   public void testManifestDoNotMergeMinCount() throws IOException {
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    assertThat(listManifestFiles()).isEmpty();
     table.updateProperties().set("commit.manifest.min-count-to-merge", "4").commit();
 
     TableMetadata base = readMetadata();
-    Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
-    Assert.assertEquals("Last sequence number should be 0", 0, base.lastSequenceNumber());
+    assertThat(base.currentSnapshot()).isNull();
+    assertThat(base.lastSequenceNumber()).isEqualTo(0);
 
     ManifestFile manifest = writeManifest(FILE_A, FILE_B);
     ManifestFile manifest2 = writeManifestWithName("FILE_C", FILE_C);
@@ -560,14 +530,14 @@ public class TestMergeAppend extends TableTestBase {
                 .appendManifest(manifest3),
             branch);
 
-    Assert.assertNotNull("Should create a snapshot", committed);
+    assertThat(committed).isNotNull();
     V1Assert.assertEquals(
         "Last sequence number should be 0", 0, table.ops().current().lastSequenceNumber());
     V2Assert.assertEquals(
         "Last sequence number should be 1", 1, table.ops().current().lastSequenceNumber());
 
     List<ManifestFile> manifests = committed.allManifests(table.io());
-    Assertions.assertThat(manifests).hasSize(3);
+    assertThat(manifests).hasSize(3);
 
     ManifestFile committedManifest = manifests.get(0);
     ManifestFile committedManifest2 = manifests.get(1);
@@ -576,13 +546,13 @@ public class TestMergeAppend extends TableTestBase {
     long snapshotId = committed.snapshotId();
 
     if (formatVersion == 1) {
-      Assertions.assertThat(committedManifest.path()).isNotEqualTo(manifest.path());
-      Assertions.assertThat(committedManifest2.path()).isNotEqualTo(manifest2.path());
-      Assertions.assertThat(committedManifest3.path()).isNotEqualTo(manifest3.path());
+      assertThat(committedManifest.path()).isNotEqualTo(manifest.path());
+      assertThat(committedManifest2.path()).isNotEqualTo(manifest2.path());
+      assertThat(committedManifest3.path()).isNotEqualTo(manifest3.path());
     } else {
-      Assertions.assertThat(committedManifest.path()).isEqualTo(manifest.path());
-      Assertions.assertThat(committedManifest2.path()).isEqualTo(manifest2.path());
-      Assertions.assertThat(committedManifest3.path()).isEqualTo(manifest3.path());
+      assertThat(committedManifest.path()).isEqualTo(manifest.path());
+      assertThat(committedManifest2.path()).isEqualTo(manifest2.path());
+      assertThat(committedManifest3.path()).isEqualTo(manifest3.path());
     }
 
     validateManifest(
@@ -608,19 +578,16 @@ public class TestMergeAppend extends TableTestBase {
         statuses(Status.ADDED));
 
     // validate that the metadata summary is correct when using appendManifest
-    Assert.assertEquals(
-        "Summary metadata should include 4 added files",
-        "4",
-        committed.summary().get("added-data-files"));
+    assertThat(committed.summary()).containsEntry("added-data-files", "4");
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithExistingManifestAfterDelete() {
     // merge all manifests for this test
     table.updateProperties().set("commit.manifest.min-count-to-merge", "1").commit();
 
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
-    Assert.assertEquals("Last sequence number should be 0", 0, readMetadata().lastSequenceNumber());
+    assertThat(listManifestFiles()).isEmpty();
+    assertThat(readMetadata().lastSequenceNumber()).isEqualTo(0);
 
     Snapshot snap = commit(table, table.newAppend().appendFile(FILE_A).appendFile(FILE_B), branch);
 
@@ -628,8 +595,7 @@ public class TestMergeAppend extends TableTestBase {
 
     TableMetadata base = readMetadata();
     long baseId = snap.snapshotId();
-    Assert.assertEquals(
-        "Should create 1 manifest for initial write", 1, snap.allManifests(table.io()).size());
+    assertThat(snap.allManifests(table.io())).hasSize(1);
     ManifestFile initialManifest = snap.allManifests(table.io()).get(0);
     validateManifest(
         initialManifest,
@@ -650,10 +616,7 @@ public class TestMergeAppend extends TableTestBase {
 
     TableMetadata delete = readMetadata();
     long deleteId = latestSnapshot(table, branch).snapshotId();
-    Assert.assertEquals(
-        "Should create 1 filtered manifest for delete",
-        1,
-        latestSnapshot(table, branch).allManifests(table.io()).size());
+    assertThat(latestSnapshot(table, branch).allManifests(table.io())).hasSize(1);
     ManifestFile deleteManifest = deleteSnapshot.allManifests(table.io()).get(0);
 
     validateManifest(
@@ -674,13 +637,9 @@ public class TestMergeAppend extends TableTestBase {
     V1Assert.assertEquals(
         "Table should end with last-sequence-number 0", 0, readMetadata().lastSequenceNumber());
 
-    Assert.assertEquals(
-        "Should contain 1 merged manifest for second write",
-        1,
-        committedSnapshot.allManifests(table.io()).size());
+    assertThat(committedSnapshot.allManifests(table.io())).hasSize(1);
     ManifestFile newManifest = committedSnapshot.allManifests(table.io()).get(0);
-    Assert.assertNotEquals(
-        "Should not contain manifest from initial write", initialManifest, newManifest);
+    assertThat(newManifest).isNotEqualTo(initialManifest);
 
     long snapshotId = committedSnapshot.snapshotId();
 
@@ -692,13 +651,13 @@ public class TestMergeAppend extends TableTestBase {
         statuses(Status.ADDED, Status.ADDED, Status.EXISTING));
   }
 
-  @Test
+  @TestTemplate
   public void testMinMergeCount() {
     // only merge when there are at least 4 manifests
     table.updateProperties().set("commit.manifest.min-count-to-merge", "4").commit();
 
-    Assert.assertEquals("Last sequence number should be 0", 0, readMetadata().lastSequenceNumber());
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    assertThat(listManifestFiles()).isEmpty();
+    assertThat(readMetadata().lastSequenceNumber()).isEqualTo(0);
 
     Snapshot snap1 = commit(table, table.newFastAppend().appendFile(FILE_A), branch);
     long idFileA = snap1.snapshotId();
@@ -708,18 +667,14 @@ public class TestMergeAppend extends TableTestBase {
     long idFileB = snap2.snapshotId();
     validateSnapshot(snap1, snap2, 2, FILE_B);
 
-    Assert.assertEquals(
-        "Should have 2 manifests from setup writes", 2, snap2.allManifests(table.io()).size());
+    assertThat(snap2.allManifests(table.io())).hasSize(2);
 
     Snapshot snap3 = commit(table, table.newAppend().appendFile(FILE_C), branch);
     long idFileC = snap3.snapshotId();
     validateSnapshot(snap2, snap3, 3, FILE_C);
 
     TableMetadata base = readMetadata();
-    Assert.assertEquals(
-        "Should have 3 unmerged manifests",
-        3,
-        latestSnapshot(table, branch).allManifests(table.io()).size());
+    assertThat(latestSnapshot(table, branch).allManifests(table.io())).hasSize(3);
     Set<ManifestFile> unmerged =
         Sets.newHashSet(latestSnapshot(table, branch).allManifests(table.io()));
 
@@ -730,12 +685,10 @@ public class TestMergeAppend extends TableTestBase {
     V1Assert.assertEquals(
         "Table should end with last-sequence-number 0", 0, readMetadata().lastSequenceNumber());
 
-    Assert.assertEquals(
-        "Should contain 1 merged manifest after the 4th write",
-        1,
-        committed.allManifests(table.io()).size());
+    assertThat(committed.allManifests(table.io())).hasSize(1);
+
     ManifestFile newManifest = committed.allManifests(table.io()).get(0);
-    Assert.assertFalse("Should not contain previous manifests", unmerged.contains(newManifest));
+    assertThat(unmerged).doesNotContain(newManifest);
 
     long lastSnapshotId = committed.snapshotId();
 
@@ -748,13 +701,13 @@ public class TestMergeAppend extends TableTestBase {
         statuses(Status.ADDED, Status.EXISTING, Status.EXISTING, Status.EXISTING));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeSizeTargetWithExistingManifest() {
     // use a small limit on manifest size to prevent merging
     table.updateProperties().set(TableProperties.MANIFEST_TARGET_SIZE_BYTES, "10").commit();
 
-    Assert.assertEquals("Last sequence number should be 0", 0, readMetadata().lastSequenceNumber());
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    assertThat(listManifestFiles()).isEmpty();
+    assertThat(readMetadata().lastSequenceNumber()).isEqualTo(0);
 
     Snapshot snap = commit(table, table.newAppend().appendFile(FILE_A).appendFile(FILE_B), branch);
 
@@ -762,8 +715,7 @@ public class TestMergeAppend extends TableTestBase {
 
     TableMetadata base = readMetadata();
     long baseId = snap.snapshotId();
-    Assert.assertEquals(
-        "Should create 1 manifest for initial write", 1, snap.allManifests(table.io()).size());
+    assertThat(snap.allManifests(table.io())).hasSize(1);
     ManifestFile initialManifest = snap.allManifests(table.io()).get(0);
     validateManifest(
         initialManifest,
@@ -782,13 +734,9 @@ public class TestMergeAppend extends TableTestBase {
     V1Assert.assertEquals(
         "Table should end with last-sequence-number 0", 0, readMetadata().lastSequenceNumber());
 
-    Assert.assertEquals(
-        "Should contain 2 unmerged manifests after second write",
-        2,
-        committed.allManifests(table.io()).size());
+    assertThat(committed.allManifests(table.io())).hasSize(2);
     ManifestFile newManifest = committed.allManifests(table.io()).get(0);
-    Assert.assertNotEquals(
-        "Should not contain manifest from initial write", initialManifest, newManifest);
+    assertThat(newManifest).isNotEqualTo(initialManifest);
 
     long pendingId = committed.snapshotId();
     validateManifest(
@@ -808,7 +756,7 @@ public class TestMergeAppend extends TableTestBase {
         statuses(Status.ADDED, Status.ADDED));
   }
 
-  @Test
+  @TestTemplate
   public void testChangedPartitionSpec() {
     Snapshot snap = commit(table, table.newAppend().appendFile(FILE_A).appendFile(FILE_B), branch);
 
@@ -816,8 +764,7 @@ public class TestMergeAppend extends TableTestBase {
     validateSnapshot(null, snap, 1, FILE_A, FILE_B);
 
     TableMetadata base = readMetadata();
-    Assert.assertEquals(
-        "Should create 1 manifest for initial write", 1, snap.allManifests(table.io()).size());
+    assertThat(snap.allManifests(table.io())).hasSize(1);
     ManifestFile initialManifest = snap.allManifests(table.io()).get(0);
     validateManifest(
         initialManifest,
@@ -856,8 +803,7 @@ public class TestMergeAppend extends TableTestBase {
     V1Assert.assertEquals(
         "Table should end with last-sequence-number 0", 0, readMetadata().lastSequenceNumber());
 
-    Assert.assertEquals(
-        "Should use 2 manifest files", 2, lastSnapshot.allManifests(table.io()).size());
+    assertThat(lastSnapshot.allManifests(table.io())).hasSize(2);
 
     // new manifest comes first
     validateManifest(
@@ -868,13 +814,13 @@ public class TestMergeAppend extends TableTestBase {
         files(newFileY),
         statuses(Status.ADDED));
 
-    Assert.assertEquals(
-        "Second manifest should be the initial manifest with the old spec",
-        initialManifest,
-        lastSnapshot.allManifests(table.io()).get(1));
+    assertThat(lastSnapshot.allManifests(table.io()))
+        .as("Second manifest should be the initial manifest with the old spec")
+        .element(1)
+        .isEqualTo(initialManifest);
   }
 
-  @Test
+  @TestTemplate
   public void testChangedPartitionSpecMergeExisting() {
     Snapshot snap1 = commit(table, table.newAppend().appendFile(FILE_A), branch);
 
@@ -888,7 +834,7 @@ public class TestMergeAppend extends TableTestBase {
     validateSnapshot(snap1, snap2, 2, FILE_B);
 
     TableMetadata base = readMetadata();
-    Assert.assertEquals("Should contain 2 manifests", 2, snap2.allManifests(table.io()).size());
+    assertThat(snap2.allManifests(table.io())).hasSize(2);
     ManifestFile manifest = snap2.allManifests(table.io()).get(0);
 
     // build the new spec using the table's schema, which uses fresh IDs
@@ -919,11 +865,8 @@ public class TestMergeAppend extends TableTestBase {
     V1Assert.assertEquals(
         "Table should end with last-sequence-number 0", 0, readMetadata().lastSequenceNumber());
 
-    Assert.assertEquals(
-        "Should use 2 manifest files", 2, lastSnapshot.allManifests(table.io()).size());
-    Assert.assertFalse(
-        "First manifest should not be in the new snapshot",
-        lastSnapshot.allManifests(table.io()).contains(manifest));
+    assertThat(lastSnapshot.allManifests(table.io())).hasSize(2);
+    assertThat(lastSnapshot.allManifests(table.io())).doesNotContain(manifest);
 
     validateManifest(
         lastSnapshot.allManifests(table.io()).get(0),
@@ -941,11 +884,11 @@ public class TestMergeAppend extends TableTestBase {
         statuses(Status.EXISTING, Status.EXISTING));
   }
 
-  @Test
+  @TestTemplate
   public void testFailure() {
     // merge all manifests for this test
     table.updateProperties().set("commit.manifest.min-count-to-merge", "1").commit();
-    Assert.assertEquals("Last sequence number should be 0", 0, readMetadata().lastSequenceNumber());
+    assertThat(readMetadata().lastSequenceNumber()).isEqualTo(0);
 
     Snapshot snap = commit(table, table.newAppend().appendFile(FILE_A), branch);
 
@@ -969,16 +912,16 @@ public class TestMergeAppend extends TableTestBase {
     AppendFiles append = table.newAppend().appendFile(FILE_B);
     Snapshot pending = apply(append, branch);
 
-    Assert.assertEquals("Should merge to 1 manifest", 1, pending.allManifests(table.io()).size());
+    assertThat(pending.allManifests(table.io())).hasSize(1);
     ManifestFile newManifest = pending.allManifests(table.io()).get(0);
 
-    Assert.assertTrue("Should create new manifest", new File(newManifest.path()).exists());
+    assertThat(new File(newManifest.path())).exists();
     validateManifest(
         newManifest,
         ids(pending.snapshotId(), baseId),
         concat(files(FILE_B), files(initialManifest)));
 
-    Assertions.assertThatThrownBy(() -> commit(table, append, branch))
+    assertThatThrownBy(() -> commit(table, append, branch))
         .isInstanceOf(CommitFailedException.class)
         .hasMessage("Injected failure");
 
@@ -986,10 +929,7 @@ public class TestMergeAppend extends TableTestBase {
         "Last sequence number should be 1", 1, readMetadata().lastSequenceNumber());
     V1Assert.assertEquals(
         "Table should end with last-sequence-number 0", 0, readMetadata().lastSequenceNumber());
-    Assert.assertEquals(
-        "Should only contain 1 manifest file",
-        1,
-        latestSnapshot(table, branch).allManifests(table.io()).size());
+    assertThat(latestSnapshot(table, branch).allManifests(table.io())).hasSize(1);
 
     validateManifest(
         latestSnapshot(table, branch).allManifests(table.io()).get(0),
@@ -999,10 +939,10 @@ public class TestMergeAppend extends TableTestBase {
         files(initialManifest),
         statuses(Status.ADDED));
 
-    Assert.assertFalse("Should clean up new manifest", new File(newManifest.path()).exists());
+    assertThat(new File(newManifest.path())).doesNotExist();
   }
 
-  @Test
+  @TestTemplate
   public void testAppendManifestCleanup() throws IOException {
     // inject 5 failures
     TestTables.TestTableOperations ops = table.ops();
@@ -1012,14 +952,14 @@ public class TestMergeAppend extends TableTestBase {
     AppendFiles append = table.newAppend().appendManifest(manifest);
     Snapshot pending = apply(append, branch);
     ManifestFile newManifest = pending.allManifests(table.io()).get(0);
-    Assert.assertTrue("Should create new manifest", new File(newManifest.path()).exists());
+    assertThat(new File(newManifest.path())).exists();
     if (formatVersion == 1) {
-      Assertions.assertThat(newManifest.path()).isNotEqualTo(manifest.path());
+      assertThat(newManifest.path()).isNotEqualTo(manifest.path());
     } else {
-      Assertions.assertThat(newManifest.path()).isEqualTo(manifest.path());
+      assertThat(newManifest.path()).isEqualTo(manifest.path());
     }
 
-    Assertions.assertThatThrownBy(() -> commit(table, append, branch))
+    assertThatThrownBy(() -> commit(table, append, branch))
         .isInstanceOf(CommitFailedException.class)
         .hasMessage("Injected failure");
     V2Assert.assertEquals(
@@ -1028,18 +968,18 @@ public class TestMergeAppend extends TableTestBase {
         "Table should end with last-sequence-number 0", 0, readMetadata().lastSequenceNumber());
 
     if (formatVersion == 1) {
-      Assertions.assertThat(new File(newManifest.path())).doesNotExist();
+      assertThat(new File(newManifest.path())).doesNotExist();
     } else {
-      Assertions.assertThat(new File(newManifest.path())).exists();
+      assertThat(new File(newManifest.path())).exists();
     }
   }
 
-  @Test
+  @TestTemplate
   public void testRecovery() {
     // merge all manifests for this test
     table.updateProperties().set("commit.manifest.min-count-to-merge", "1").commit();
 
-    Assert.assertEquals("Last sequence number should be 0", 0, readMetadata().lastSequenceNumber());
+    assertThat(readMetadata().lastSequenceNumber()).isEqualTo(0);
 
     Snapshot current = commit(table, table.newAppend().appendFile(FILE_A), branch);
 
@@ -1063,10 +1003,10 @@ public class TestMergeAppend extends TableTestBase {
     AppendFiles append = table.newAppend().appendFile(FILE_B);
     Snapshot pending = apply(append, branch);
 
-    Assert.assertEquals("Should merge to 1 manifest", 1, pending.allManifests(table.io()).size());
+    assertThat(pending.allManifests(table.io())).hasSize(1);
     ManifestFile newManifest = pending.allManifests(table.io()).get(0);
 
-    Assert.assertTrue("Should create new manifest", new File(newManifest.path()).exists());
+    assertThat(new File(newManifest.path())).exists();
     validateManifest(
         newManifest,
         ids(pending.snapshotId(), baseId),
@@ -1088,14 +1028,10 @@ public class TestMergeAppend extends TableTestBase {
         "Table should end with last-sequence-number 0", 0, readMetadata().lastSequenceNumber());
 
     TableMetadata metadata = readMetadata();
-    Assert.assertTrue("Should reuse the new manifest", new File(newManifest.path()).exists());
-    Assert.assertEquals(
-        "Should commit the same new manifest during retry",
-        Lists.newArrayList(newManifest),
-        snapshot.allManifests(table.io()));
+    assertThat(new File(newManifest.path())).exists();
+    assertThat(snapshot.allManifests(table.io())).containsExactly(newManifest);
 
-    Assert.assertEquals(
-        "Should only contain 1 merged manifest file", 1, snapshot.allManifests(table.io()).size());
+    assertThat(snapshot.allManifests(table.io())).hasSize(1);
     ManifestFile manifestFile = snapshot.allManifests(table.io()).get(0);
     validateManifest(
         manifestFile,
@@ -1106,15 +1042,15 @@ public class TestMergeAppend extends TableTestBase {
         statuses(Status.ADDED, Status.EXISTING));
   }
 
-  @Test
+  @TestTemplate
   public void testAppendManifestWithSnapshotIdInheritance() throws IOException {
     table.updateProperties().set(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, "true").commit();
 
-    Assert.assertEquals("Last sequence number should be 0", 0, readMetadata().lastSequenceNumber());
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    assertThat(listManifestFiles()).isEmpty();
+    assertThat(readMetadata().lastSequenceNumber()).isEqualTo(0);
 
     TableMetadata base = readMetadata();
-    Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
+    assertThat(base.currentSnapshot()).isNull();
 
     ManifestFile manifest = writeManifest(FILE_A, FILE_B);
     Snapshot snapshot = commit(table, table.newAppend().appendManifest(manifest), branch);
@@ -1123,9 +1059,9 @@ public class TestMergeAppend extends TableTestBase {
     validateSnapshot(null, snapshot, 1, FILE_A, FILE_B);
 
     List<ManifestFile> manifests = snapshot.allManifests(table.io());
-    Assert.assertEquals("Should have 1 committed manifest", 1, manifests.size());
+    assertThat(manifests).hasSize(1);
     ManifestFile manifestFile = snapshot.allManifests(table.io()).get(0);
-    Assertions.assertThat(manifestFile.path()).isEqualTo(manifest.path());
+    assertThat(manifestFile.path()).isEqualTo(manifest.path());
     validateManifest(
         manifestFile,
         dataSeqs(1L, 1L),
@@ -1135,33 +1071,22 @@ public class TestMergeAppend extends TableTestBase {
         statuses(Status.ADDED, Status.ADDED));
 
     // validate that the metadata summary is correct when using appendManifest
-    Assert.assertEquals(
-        "Summary metadata should include 2 added files",
-        "2",
-        snapshot.summary().get("added-data-files"));
-    Assert.assertEquals(
-        "Summary metadata should include 2 added records",
-        "2",
-        snapshot.summary().get("added-records"));
-    Assert.assertEquals(
-        "Summary metadata should include 2 files in total",
-        "2",
-        snapshot.summary().get("total-data-files"));
-    Assert.assertEquals(
-        "Summary metadata should include 2 records in total",
-        "2",
-        snapshot.summary().get("total-records"));
+    assertThat(snapshot.summary())
+        .containsEntry("added-data-files", "2")
+        .containsEntry("added-records", "2")
+        .containsEntry("total-data-files", "2")
+        .containsEntry("total-records", "2");
   }
 
-  @Test
+  @TestTemplate
   public void testMergedAppendManifestCleanupWithSnapshotIdInheritance() throws IOException {
     table.updateProperties().set(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, "true").commit();
 
-    Assert.assertEquals("Last sequence number should be 0", 0, readMetadata().lastSequenceNumber());
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    assertThat(listManifestFiles()).isEmpty();
+    assertThat(readMetadata().lastSequenceNumber()).isEqualTo(0);
 
     TableMetadata base = readMetadata();
-    Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
+    assertThat(base.currentSnapshot()).isNull();
 
     table.updateProperties().set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1").commit();
 
@@ -1171,7 +1096,7 @@ public class TestMergeAppend extends TableTestBase {
     long commitId1 = snap1.snapshotId();
     validateSnapshot(null, snap1, 1, FILE_A, FILE_B);
 
-    Assert.assertEquals("Should have only 1 manifest", 1, snap1.allManifests(table.io()).size());
+    assertThat(snap1.allManifests(table.io())).hasSize(1);
     validateManifest(
         snap1.allManifests(table.io()).get(0),
         dataSeqs(1L, 1L),
@@ -1179,8 +1104,7 @@ public class TestMergeAppend extends TableTestBase {
         ids(commitId1, commitId1),
         files(FILE_A, FILE_B),
         statuses(Status.ADDED, Status.ADDED));
-    Assert.assertTrue(
-        "Unmerged append manifest should not be deleted", new File(manifest1.path()).exists());
+    assertThat(new File(manifest1.path())).exists();
 
     ManifestFile manifest2 = writeManifestWithName("manifest-file-2.avro", FILE_C, FILE_D);
     Snapshot snap2 = commit(table, table.newAppend().appendManifest(manifest2), branch);
@@ -1192,8 +1116,7 @@ public class TestMergeAppend extends TableTestBase {
     V1Assert.assertEquals(
         "Table should end with last-sequence-number 0", 0, readMetadata().lastSequenceNumber());
 
-    Assert.assertEquals(
-        "Manifests should be merged into 1", 1, snap2.allManifests(table.io()).size());
+    assertThat(snap2.allManifests(table.io())).hasSize(1);
     validateManifest(
         latestSnapshot(table, branch).allManifests(table.io()).get(0),
         dataSeqs(2L, 2L, 1L, 1L),
@@ -1202,19 +1125,18 @@ public class TestMergeAppend extends TableTestBase {
         files(FILE_C, FILE_D, FILE_A, FILE_B),
         statuses(Status.ADDED, Status.ADDED, Status.EXISTING, Status.EXISTING));
 
-    Assert.assertFalse(
-        "Merged append manifest should be deleted", new File(manifest2.path()).exists());
+    assertThat(new File(manifest2.path())).doesNotExist();
   }
 
-  @Test
+  @TestTemplate
   public void testAppendManifestFailureWithSnapshotIdInheritance() throws IOException {
     table.updateProperties().set(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, "true").commit();
 
-    Assert.assertEquals("Last sequence number should be 0", 0, readMetadata().lastSequenceNumber());
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    assertThat(listManifestFiles()).isEmpty();
+    assertThat(readMetadata().lastSequenceNumber()).isEqualTo(0);
 
     TableMetadata base = readMetadata();
-    Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
+    assertThat(base.currentSnapshot()).isNull();
 
     table.updateProperties().set(TableProperties.COMMIT_NUM_RETRIES, "1").commit();
 
@@ -1225,40 +1147,40 @@ public class TestMergeAppend extends TableTestBase {
     AppendFiles append = table.newAppend();
     append.appendManifest(manifest);
 
-    Assertions.assertThatThrownBy(() -> commit(table, append, branch))
+    assertThatThrownBy(() -> commit(table, append, branch))
         .isInstanceOf(CommitFailedException.class)
         .hasMessage("Injected failure");
 
-    Assert.assertEquals("Last sequence number should be 0", 0, readMetadata().lastSequenceNumber());
-    Assert.assertTrue("Append manifest should not be deleted", new File(manifest.path()).exists());
+    assertThat(readMetadata().lastSequenceNumber()).isEqualTo(0);
+    assertThat(new File(manifest.path())).exists();
   }
 
-  @Test
+  @TestTemplate
   public void testInvalidAppendManifest() throws IOException {
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    assertThat(listManifestFiles()).isEmpty();
 
     TableMetadata base = readMetadata();
-    Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
+    assertThat(base.currentSnapshot()).isNull();
 
     ManifestFile manifestWithExistingFiles =
         writeManifest("manifest-file-1.avro", manifestEntry(Status.EXISTING, null, FILE_A));
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 commit(table, table.newAppend().appendManifest(manifestWithExistingFiles), branch))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot append manifest with existing files");
-    Assert.assertEquals("Last sequence number should be 0", 0, readMetadata().lastSequenceNumber());
+    assertThat(readMetadata().lastSequenceNumber()).isEqualTo(0);
 
     ManifestFile manifestWithDeletedFiles =
         writeManifest("manifest-file-2.avro", manifestEntry(Status.DELETED, null, FILE_A));
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> commit(table, table.newAppend().appendManifest(manifestWithDeletedFiles), branch))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot append manifest with deleted files");
-    Assert.assertEquals("Last sequence number should be 0", 0, readMetadata().lastSequenceNumber());
+    assertThat(readMetadata().lastSequenceNumber()).isEqualTo(0);
   }
 
-  @Test
+  @TestTemplate
   public void testUpdatePartitionSpecFieldIdsForV1Table() {
     TableMetadata base = readMetadata();
 
@@ -1273,35 +1195,35 @@ public class TestMergeAppend extends TableTestBase {
 
     // commit the new partition spec to the table manually
     table.ops().commit(base, base.updatePartitionSpec(newSpec));
-    Assert.assertEquals("Last sequence number should be 0", 0, base.lastSequenceNumber());
+    assertThat(base.lastSequenceNumber()).isEqualTo(0);
 
     List<PartitionSpec> partitionSpecs = table.ops().current().specs();
     PartitionSpec partitionSpec = partitionSpecs.get(0);
-    Assert.assertEquals(1000, partitionSpec.lastAssignedFieldId());
+    assertThat(partitionSpec.lastAssignedFieldId()).isEqualTo(1000);
 
     Types.StructType structType = partitionSpec.partitionType();
     List<Types.NestedField> fields = structType.fields();
-    Assert.assertEquals(1, fields.size());
-    Assert.assertEquals("data_bucket", fields.get(0).name());
-    Assert.assertEquals(1000, fields.get(0).fieldId());
+    assertThat(fields).hasSize(1);
+    assertThat(fields.get(0).name()).isEqualTo("data_bucket");
+    assertThat(fields.get(0).fieldId()).isEqualTo(1000);
 
     partitionSpec = partitionSpecs.get(1);
-    Assert.assertEquals(1003, partitionSpec.lastAssignedFieldId());
+    assertThat(partitionSpec.lastAssignedFieldId()).isEqualTo(1003);
 
     structType = partitionSpec.partitionType();
     fields = structType.fields();
-    Assert.assertEquals(4, fields.size());
-    Assert.assertEquals("id_bucket", fields.get(0).name());
-    Assert.assertEquals(1000, fields.get(0).fieldId());
-    Assert.assertEquals("data", fields.get(1).name());
-    Assert.assertEquals(1001, fields.get(1).fieldId());
-    Assert.assertEquals("data_bucket", fields.get(2).name());
-    Assert.assertEquals(1002, fields.get(2).fieldId());
-    Assert.assertEquals("data_partition", fields.get(3).name());
-    Assert.assertEquals(1003, fields.get(3).fieldId());
+    assertThat(fields).hasSize(4);
+    assertThat(fields.get(0).name()).isEqualTo("id_bucket");
+    assertThat(fields.get(0).fieldId()).isEqualTo(1000);
+    assertThat(fields.get(1).name()).isEqualTo("data");
+    assertThat(fields.get(1).fieldId()).isEqualTo(1001);
+    assertThat(fields.get(2).name()).isEqualTo("data_bucket");
+    assertThat(fields.get(2).fieldId()).isEqualTo(1002);
+    assertThat(fields.get(3).name()).isEqualTo("data_partition");
+    assertThat(fields.get(3).fieldId()).isEqualTo(1003);
   }
 
-  @Test
+  @TestTemplate
   public void testManifestEntryFieldIdsForChangedPartitionSpecForV1Table() {
     Snapshot snap = commit(table, table.newAppend().appendFile(FILE_A), branch);
 
@@ -1309,8 +1231,7 @@ public class TestMergeAppend extends TableTestBase {
     validateSnapshot(null, snap, 1, FILE_A);
     TableMetadata base = readMetadata();
 
-    Assert.assertEquals(
-        "Should create 1 manifest for initial write", 1, snap.allManifests(table.io()).size());
+    assertThat(snap.allManifests(table.io())).hasSize(1);
     ManifestFile initialManifest = snap.allManifests(table.io()).get(0);
     validateManifest(
         initialManifest,
@@ -1349,8 +1270,7 @@ public class TestMergeAppend extends TableTestBase {
     V1Assert.assertEquals(
         "Table should end with last-sequence-number 0", 0, readMetadata().lastSequenceNumber());
 
-    Assert.assertEquals(
-        "Should use 2 manifest files", 2, committedSnapshot.allManifests(table.io()).size());
+    assertThat(committedSnapshot.allManifests(table.io())).hasSize(2);
 
     // new manifest comes first
     validateManifest(
@@ -1361,10 +1281,10 @@ public class TestMergeAppend extends TableTestBase {
         files(newFile),
         statuses(Status.ADDED));
 
-    Assert.assertEquals(
-        "Second manifest should be the initial manifest with the old spec",
-        initialManifest,
-        committedSnapshot.allManifests(table.io()).get(1));
+    assertThat(committedSnapshot.allManifests(table.io()))
+        .as("Second manifest should be the initial manifest with the old spec")
+        .element(1)
+        .isEqualTo(initialManifest);
 
     // field ids of manifest entries in two manifests with different specs of the same source field
     // should be different
@@ -1375,11 +1295,11 @@ public class TestMergeAppend extends TableTestBase {
             .next();
     Types.NestedField field =
         ((PartitionData) entry.file().partition()).getPartitionType().fields().get(0);
-    Assert.assertEquals(1000, field.fieldId());
-    Assert.assertEquals("id_bucket", field.name());
+    assertThat(field.fieldId()).isEqualTo(1000);
+    assertThat(field.name()).isEqualTo("id_bucket");
     field = ((PartitionData) entry.file().partition()).getPartitionType().fields().get(1);
-    Assert.assertEquals(1001, field.fieldId());
-    Assert.assertEquals("data_bucket", field.name());
+    assertThat(field.fieldId()).isEqualTo(1001);
+    assertThat(field.name()).isEqualTo("data_bucket");
 
     entry =
         ManifestFiles.read(committedSnapshot.allManifests(table.io()).get(1), FILE_IO)
@@ -1387,11 +1307,11 @@ public class TestMergeAppend extends TableTestBase {
             .iterator()
             .next();
     field = ((PartitionData) entry.file().partition()).getPartitionType().fields().get(0);
-    Assert.assertEquals(1000, field.fieldId());
-    Assert.assertEquals("data_bucket", field.name());
+    assertThat(field.fieldId()).isEqualTo(1000);
+    assertThat(field.name()).isEqualTo("data_bucket");
   }
 
-  @Test
+  @TestTemplate
   public void testDefaultPartitionSummaries() {
     table.newFastAppend().appendFile(FILE_A).commit();
 
@@ -1399,23 +1319,14 @@ public class TestMergeAppend extends TableTestBase {
         table.currentSnapshot().summary().keySet().stream()
             .filter(key -> key.startsWith(SnapshotSummary.CHANGED_PARTITION_PREFIX))
             .collect(Collectors.toSet());
-    Assert.assertEquals(
-        "Should include no partition summaries by default", 0, partitionSummaryKeys.size());
+    assertThat(partitionSummaryKeys).isEmpty();
 
-    String summariesIncluded =
-        table
-            .currentSnapshot()
-            .summary()
-            .getOrDefault(SnapshotSummary.PARTITION_SUMMARY_PROP, "false");
-    Assert.assertEquals(
-        "Should not set partition-summaries-included to true", "false", summariesIncluded);
-
-    String changedPartitions =
-        table.currentSnapshot().summary().get(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP);
-    Assert.assertEquals("Should set changed partition count", "1", changedPartitions);
+    assertThat(table.currentSnapshot().summary())
+        .doesNotContainKey(SnapshotSummary.PARTITION_SUMMARY_PROP)
+        .containsEntry(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP, "1");
   }
 
-  @Test
+  @TestTemplate
   public void testIncludedPartitionSummaries() {
     table.updateProperties().set(TableProperties.WRITE_PARTITION_SUMMARY_LIMIT, "1").commit();
 
@@ -1425,32 +1336,17 @@ public class TestMergeAppend extends TableTestBase {
         table.currentSnapshot().summary().keySet().stream()
             .filter(key -> key.startsWith(SnapshotSummary.CHANGED_PARTITION_PREFIX))
             .collect(Collectors.toSet());
-    Assert.assertEquals("Should include a partition summary", 1, partitionSummaryKeys.size());
+    assertThat(partitionSummaryKeys).hasSize(1);
 
-    String summariesIncluded =
-        table
-            .currentSnapshot()
-            .summary()
-            .getOrDefault(SnapshotSummary.PARTITION_SUMMARY_PROP, "false");
-    Assert.assertEquals(
-        "Should set partition-summaries-included to true", "true", summariesIncluded);
-
-    String changedPartitions =
-        table.currentSnapshot().summary().get(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP);
-    Assert.assertEquals("Should set changed partition count", "1", changedPartitions);
-
-    String partitionSummary =
-        table
-            .currentSnapshot()
-            .summary()
-            .get(SnapshotSummary.CHANGED_PARTITION_PREFIX + "data_bucket=0");
-    Assert.assertEquals(
-        "Summary should include 1 file with 1 record that is 10 bytes",
-        "added-data-files=1,added-records=1,added-files-size=10",
-        partitionSummary);
+    assertThat(table.currentSnapshot().summary())
+        .containsEntry(SnapshotSummary.PARTITION_SUMMARY_PROP, "true")
+        .containsEntry(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP, "1")
+        .containsEntry(
+            SnapshotSummary.CHANGED_PARTITION_PREFIX + "data_bucket=0",
+            "added-data-files=1,added-records=1,added-files-size=10");
   }
 
-  @Test
+  @TestTemplate
   public void testIncludedPartitionSummaryLimit() {
     table.updateProperties().set(TableProperties.WRITE_PARTITION_SUMMARY_LIMIT, "1").commit();
 
@@ -1460,19 +1356,10 @@ public class TestMergeAppend extends TableTestBase {
         table.currentSnapshot().summary().keySet().stream()
             .filter(key -> key.startsWith(SnapshotSummary.CHANGED_PARTITION_PREFIX))
             .collect(Collectors.toSet());
-    Assert.assertEquals(
-        "Should include no partition summaries, over limit", 0, partitionSummaryKeys.size());
+    assertThat(partitionSummaryKeys).isEmpty();
 
-    String summariesIncluded =
-        table
-            .currentSnapshot()
-            .summary()
-            .getOrDefault(SnapshotSummary.PARTITION_SUMMARY_PROP, "false");
-    Assert.assertEquals(
-        "Should not set partition-summaries-included to true", "false", summariesIncluded);
-
-    String changedPartitions =
-        table.currentSnapshot().summary().get(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP);
-    Assert.assertEquals("Should set changed partition count", "2", changedPartitions);
+    assertThat(table.currentSnapshot().summary())
+        .doesNotContainKey(SnapshotSummary.PARTITION_SUMMARY_PROP)
+        .containsEntry(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP, "2");
   }
 }
