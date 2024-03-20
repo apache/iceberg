@@ -236,7 +236,9 @@ public class TestRewriteFiles extends TestBase {
 
   @TestTemplate
   public void testRewriteDataAndDeleteFiles() {
-    assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion)
+        .as("Rewriting delete files is only supported in iceberg format v2 or later")
+        .isGreaterThan(1);
     assertThat(listManifestFiles()).isEmpty();
 
     commit(
@@ -309,7 +311,9 @@ public class TestRewriteFiles extends TestBase {
 
   @TestTemplate
   public void testRewriteDataAndAssignOldSequenceNumber() {
-    assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion)
+        .as("Sequence number is only supported in iceberg format v2 or later")
+        .isGreaterThan(1);
     assertThat(listManifestFiles()).isEmpty();
 
     commit(
@@ -359,10 +363,7 @@ public class TestRewriteFiles extends TestBase {
     ManifestFile newManifest = pending.allManifests(table.io()).get(0);
     validateManifestEntries(newManifest, ids(pendingId), files(FILE_D), statuses(ADDED));
     assertThat(ManifestFiles.read(newManifest, FILE_IO).entries())
-        .allSatisfy(
-            entry -> {
-              assertThat(entry.dataSequenceNumber()).isEqualTo(oldSequenceNumber);
-            });
+        .allSatisfy(entry -> assertThat(entry.dataSequenceNumber()).isEqualTo(oldSequenceNumber));
     assertThat(newManifest.sequenceNumber()).isEqualTo(oldSequenceNumber + 1);
 
     validateManifestEntries(
@@ -413,7 +414,9 @@ public class TestRewriteFiles extends TestBase {
 
   @TestTemplate
   public void testFailureWhenRewriteBothDataAndDeleteFiles() {
-    assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion)
+        .as("Rewriting delete files is only supported in iceberg format v2 or later")
+        .isGreaterThan(1);
 
     commit(
         table,
@@ -508,7 +511,9 @@ public class TestRewriteFiles extends TestBase {
 
   @TestTemplate
   public void testRecoverWhenRewriteBothDataAndDeleteFiles() {
-    assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion)
+        .as("Rewriting delete files is only supported in iceberg format v2 or later")
+        .isGreaterThan(1);
 
     commit(
         table,
@@ -573,7 +578,9 @@ public class TestRewriteFiles extends TestBase {
 
   @TestTemplate
   public void testReplaceEqualityDeletesWithPositionDeletes() {
-    assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion)
+        .as("Rewriting delete files is only supported in iceberg format v2 or later")
+        .isGreaterThan(1);
 
     commit(table, table.newRowDelta().addRows(FILE_A2).addDeletes(FILE_A2_DELETES), branch);
 
@@ -629,7 +636,9 @@ public class TestRewriteFiles extends TestBase {
 
   @TestTemplate
   public void testRemoveAllDeletes() {
-    assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion)
+        .as("Rewriting delete files is only supported in iceberg format v2 or later")
+        .isGreaterThan(1);
 
     commit(table, table.newRowDelta().addRows(FILE_A).addDeletes(FILE_A_DELETES), branch);
 
@@ -734,7 +743,9 @@ public class TestRewriteFiles extends TestBase {
 
   @TestTemplate
   public void testNewDeleteFile() {
-    assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion)
+        .as("Rewriting delete files is only supported in iceberg format v2 or later")
+        .isGreaterThan(1);
 
     commit(table, table.newAppend().appendFile(FILE_A), branch);
 

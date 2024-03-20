@@ -32,7 +32,6 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.junit.Assert;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -82,13 +81,13 @@ public class TestFastAppend extends TestBase {
 
     ManifestFile committedManifest = Iterables.getOnlyElement(snap.allManifests(FILE_IO));
     if (formatVersion == 1) {
-      assertThat(manifest.path()).isNotEqualTo(committedManifest.path());
+      assertThat(committedManifest.path()).isNotEqualTo(manifest.path());
     } else {
-      assertThat(manifest.path()).isEqualTo(committedManifest.path());
+      assertThat(committedManifest.path()).isEqualTo(manifest.path());
     }
 
     // validate that the metadata summary is correct when using appendManifest
-    assertThat(snap.summary().get("added-data-files")).isEqualTo("2");
+    assertThat(snap.summary()).containsEntry("added-data-files", "2");
 
     V2Assert.assertEquals("Snapshot sequence number should be 1", 1, snap.sequenceNumber());
     V2Assert.assertEquals(
@@ -100,7 +99,7 @@ public class TestFastAppend extends TestBase {
 
   @TestTemplate
   public void testEmptyTableAppendFilesAndManifest() throws IOException {
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    assertThat(listManifestFiles()).isEmpty();
 
     TableMetadata base = readMetadata();
     assertThat(base.currentSnapshot()).isNull();
@@ -342,10 +341,10 @@ public class TestFastAppend extends TestBase {
         statuses(Status.ADDED, Status.ADDED));
 
     // validate that the metadata summary is correct when using appendManifest
-    assertThat(snapshot.summary().get("added-data-files")).isEqualTo("2");
-    assertThat(snapshot.summary().get("added-records")).isEqualTo("2");
-    assertThat(snapshot.summary().get("total-data-files")).isEqualTo("2");
-    assertThat(snapshot.summary().get("total-records")).isEqualTo("2");
+    assertThat(snapshot.summary()).containsEntry("added-data-files", "2");
+    assertThat(snapshot.summary()).containsEntry("added-records", "2");
+    assertThat(snapshot.summary()).containsEntry("total-data-files", "2");
+    assertThat(snapshot.summary()).containsEntry("total-records", "2");
   }
 
   @TestTemplate
@@ -435,16 +434,9 @@ public class TestFastAppend extends TestBase {
             .collect(Collectors.toSet());
     assertThat(partitionSummaryKeys).isEmpty();
 
-    String summariesIncluded =
-        table
-            .currentSnapshot()
-            .summary()
-            .getOrDefault(SnapshotSummary.PARTITION_SUMMARY_PROP, "false");
-    assertThat(summariesIncluded).isEqualTo("false");
-
-    String changedPartitions =
-        table.currentSnapshot().summary().get(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP);
-    assertThat(changedPartitions).isEqualTo("1");
+    assertThat(table.currentSnapshot().summary())
+        .doesNotContainKey(SnapshotSummary.PARTITION_SUMMARY_PROP)
+        .containsEntry(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP, "1");
   }
 
   @TestTemplate
@@ -459,24 +451,12 @@ public class TestFastAppend extends TestBase {
             .collect(Collectors.toSet());
     assertThat(partitionSummaryKeys).hasSize(1);
 
-    String summariesIncluded =
-        table
-            .currentSnapshot()
-            .summary()
-            .getOrDefault(SnapshotSummary.PARTITION_SUMMARY_PROP, "false");
-    assertThat(summariesIncluded).isEqualTo("true");
-
-    String changedPartitions =
-        table.currentSnapshot().summary().get(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP);
-    assertThat(changedPartitions).isEqualTo("1");
-
-    String partitionSummary =
-        table
-            .currentSnapshot()
-            .summary()
-            .get(SnapshotSummary.CHANGED_PARTITION_PREFIX + "data_bucket=0");
-    assertThat(partitionSummary)
-        .isEqualTo("added-data-files=1,added-records=1,added-files-size=10");
+    assertThat(table.currentSnapshot().summary())
+        .containsEntry(SnapshotSummary.PARTITION_SUMMARY_PROP, "true")
+        .containsEntry(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP, "1")
+        .containsEntry(
+            SnapshotSummary.CHANGED_PARTITION_PREFIX + "data_bucket=0",
+            "added-data-files=1,added-records=1,added-files-size=10");
   }
 
   @TestTemplate
@@ -491,16 +471,9 @@ public class TestFastAppend extends TestBase {
             .collect(Collectors.toSet());
     assertThat(partitionSummaryKeys).isEmpty();
 
-    String summariesIncluded =
-        table
-            .currentSnapshot()
-            .summary()
-            .getOrDefault(SnapshotSummary.PARTITION_SUMMARY_PROP, "false");
-    assertThat(summariesIncluded).isEqualTo("false");
-
-    String changedPartitions =
-        table.currentSnapshot().summary().get(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP);
-    assertThat(changedPartitions).isEqualTo("2");
+    assertThat(table.currentSnapshot().summary())
+        .doesNotContainKey(SnapshotSummary.PARTITION_SUMMARY_PROP)
+        .containsEntry(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP, "2");
   }
 
   @TestTemplate

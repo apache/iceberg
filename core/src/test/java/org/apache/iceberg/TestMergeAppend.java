@@ -117,7 +117,7 @@ public class TestMergeAppend extends TestBase {
         statuses(Status.ADDED, Status.ADDED));
 
     // validate that the metadata summary is correct when using appendManifest
-    assertThat(committedSnapshot.summary().get("added-data-files")).isEqualTo("2");
+    assertThat(committedSnapshot.summary()).containsEntry("added-data-files", "2");
   }
 
   @TestTemplate
@@ -392,7 +392,7 @@ public class TestMergeAppend extends TestBase {
         statuses(Status.EXISTING, Status.EXISTING, Status.EXISTING));
 
     // validate that the metadata summary is correct when using appendManifest
-    assertThat(snap2.summary().get("added-data-files")).isEqualTo("3");
+    assertThat(snap2.summary()).containsEntry("added-data-files", "3");
   }
 
   @TestTemplate
@@ -578,7 +578,7 @@ public class TestMergeAppend extends TestBase {
         statuses(Status.ADDED));
 
     // validate that the metadata summary is correct when using appendManifest
-    assertThat(committed.summary().get("added-data-files")).isEqualTo("4");
+    assertThat(committed.summary()).containsEntry("added-data-files", "4");
   }
 
   @TestTemplate
@@ -1071,10 +1071,11 @@ public class TestMergeAppend extends TestBase {
         statuses(Status.ADDED, Status.ADDED));
 
     // validate that the metadata summary is correct when using appendManifest
-    assertThat(snapshot.summary().get("added-data-files")).isEqualTo("2");
-    assertThat(snapshot.summary().get("added-records")).isEqualTo("2");
-    assertThat(snapshot.summary().get("total-data-files")).isEqualTo("2");
-    assertThat(snapshot.summary().get("total-records")).isEqualTo("2");
+    assertThat(snapshot.summary())
+        .containsEntry("added-data-files", "2")
+        .containsEntry("added-records", "2")
+        .containsEntry("total-data-files", "2")
+        .containsEntry("total-records", "2");
   }
 
   @TestTemplate
@@ -1320,16 +1321,9 @@ public class TestMergeAppend extends TestBase {
             .collect(Collectors.toSet());
     assertThat(partitionSummaryKeys).isEmpty();
 
-    String summariesIncluded =
-        table
-            .currentSnapshot()
-            .summary()
-            .getOrDefault(SnapshotSummary.PARTITION_SUMMARY_PROP, "false");
-    assertThat(summariesIncluded).isEqualTo("false");
-
-    String changedPartitions =
-        table.currentSnapshot().summary().get(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP);
-    assertThat(changedPartitions).isEqualTo("1");
+    assertThat(table.currentSnapshot().summary())
+        .doesNotContainKey(SnapshotSummary.PARTITION_SUMMARY_PROP)
+        .containsEntry(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP, "1");
   }
 
   @TestTemplate
@@ -1344,24 +1338,12 @@ public class TestMergeAppend extends TestBase {
             .collect(Collectors.toSet());
     assertThat(partitionSummaryKeys).hasSize(1);
 
-    String summariesIncluded =
-        table
-            .currentSnapshot()
-            .summary()
-            .getOrDefault(SnapshotSummary.PARTITION_SUMMARY_PROP, "false");
-    assertThat(summariesIncluded).isEqualTo("true");
-
-    String changedPartitions =
-        table.currentSnapshot().summary().get(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP);
-    assertThat(changedPartitions).isEqualTo("1");
-
-    String partitionSummary =
-        table
-            .currentSnapshot()
-            .summary()
-            .get(SnapshotSummary.CHANGED_PARTITION_PREFIX + "data_bucket=0");
-    assertThat(partitionSummary)
-        .isEqualTo("added-data-files=1,added-records=1,added-files-size=10");
+    assertThat(table.currentSnapshot().summary())
+        .containsEntry(SnapshotSummary.PARTITION_SUMMARY_PROP, "true")
+        .containsEntry(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP, "1")
+        .containsEntry(
+            SnapshotSummary.CHANGED_PARTITION_PREFIX + "data_bucket=0",
+            "added-data-files=1,added-records=1,added-files-size=10");
   }
 
   @TestTemplate
@@ -1376,15 +1358,8 @@ public class TestMergeAppend extends TestBase {
             .collect(Collectors.toSet());
     assertThat(partitionSummaryKeys).isEmpty();
 
-    String summariesIncluded =
-        table
-            .currentSnapshot()
-            .summary()
-            .getOrDefault(SnapshotSummary.PARTITION_SUMMARY_PROP, "false");
-    assertThat(summariesIncluded).isEqualTo("false");
-
-    String changedPartitions =
-        table.currentSnapshot().summary().get(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP);
-    assertThat(changedPartitions).isEqualTo("2");
+    assertThat(table.currentSnapshot().summary())
+        .doesNotContainKey(SnapshotSummary.PARTITION_SUMMARY_PROP)
+        .containsEntry(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP, "2");
   }
 }
