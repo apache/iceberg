@@ -59,8 +59,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.apache.iceberg.util.LocationUtil;
+import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static org.apache.iceberg.CatalogProperties.METADATA_REFRESH_MAX_RETRIES;
+import static org.apache.iceberg.CatalogProperties.METADATA_REFRESH_MAX_RETRIES_DEFAULT;
 
 public class EcsCatalog extends BaseMetastoreCatalog
     implements SupportsNamespaces, Configurable<Object> {
@@ -127,11 +131,14 @@ public class EcsCatalog extends BaseMetastoreCatalog
 
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
+    int metadataRefreshMaxRetries = PropertyUtil.propertyAsInt(
+            catalogProperties, METADATA_REFRESH_MAX_RETRIES, METADATA_REFRESH_MAX_RETRIES_DEFAULT);
     return new EcsTableOperations(
         String.format("%s.%s", catalogName, tableIdentifier),
         tableURI(tableIdentifier),
         fileIO,
-        this);
+        this,
+        metadataRefreshMaxRetries);
   }
 
   @Override

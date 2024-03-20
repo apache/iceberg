@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.CatalogProperties.METADATA_REFRESH_MAX_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_STATUS_CHECKS;
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_STATUS_CHECKS_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_STATUS_CHECKS_MAX_WAIT_MS;
@@ -56,13 +57,13 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   public static final String ICEBERG_TABLE_TYPE_VALUE = "iceberg";
   public static final String METADATA_LOCATION_PROP = "metadata_location";
   public static final String PREVIOUS_METADATA_LOCATION_PROP = "previous_metadata_location";
-
   private static final String METADATA_FOLDER_NAME = "metadata";
 
   private TableMetadata currentMetadata = null;
   private String currentMetadataLocation = null;
   private boolean shouldRefresh = true;
   private int version = -1;
+  protected int metadataRefreshMaxRetries = METADATA_REFRESH_MAX_RETRIES_DEFAULT;
 
   protected BaseMetastoreTableOperations() {}
 
@@ -173,7 +174,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   }
 
   protected void refreshFromMetadataLocation(String newLocation) {
-    refreshFromMetadataLocation(newLocation, null, 20);
+    refreshFromMetadataLocation(newLocation, null, metadataRefreshMaxRetries);
   }
 
   protected void refreshFromMetadataLocation(String newLocation, int numRetries) {
@@ -241,6 +242,10 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   @Override
   public LocationProvider locationProvider() {
     return LocationProviders.locationsFor(current().location(), current().properties());
+  }
+
+  protected void setMetadataRefreshMaxRetries(int metadataRefreshMaxRetries) {
+    this.metadataRefreshMaxRetries = metadataRefreshMaxRetries;
   }
 
   @Override

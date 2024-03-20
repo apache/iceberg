@@ -60,6 +60,9 @@ import software.amazon.awssdk.services.glue.model.TableInput;
 import software.amazon.awssdk.services.glue.model.UpdateTableRequest;
 import software.amazon.awssdk.utils.ImmutableMap;
 
+import static org.apache.iceberg.CatalogProperties.METADATA_REFRESH_MAX_RETRIES;
+import static org.apache.iceberg.CatalogProperties.METADATA_REFRESH_MAX_RETRIES_DEFAULT;
+
 class GlueTableOperations extends BaseMetastoreTableOperations {
 
   private static final Logger LOG = LoggerFactory.getLogger(GlueTableOperations.class);
@@ -67,9 +70,6 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
   // same as org.apache.hadoop.hive.metastore.TableType.EXTERNAL_TABLE
   // more details: https://docs.aws.amazon.com/glue/latest/webapi/API_TableInput.html
   private static final String GLUE_EXTERNAL_TABLE_TYPE = "EXTERNAL_TABLE";
-  private static final String GLUE_ICEBERG_METADATA_REFRESH_MAX_RETRIES =
-          "iceberg.glue.metadata-refresh-max-retries";
-  private static final int GLUE_ICEBERG_METADATA_REFRESH_MAX_RETRIES_DEFAULT = 20;
 
   private final GlueClient glue;
   private final AwsProperties awsProperties;
@@ -80,7 +80,6 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
   private final Map<String, String> tableCatalogProperties;
   private final Object hadoopConf;
   private final LockManager lockManager;
-  private final int metadataRefreshMaxRetries;
   private FileIO fileIO;
 
   // Attempt to set versionId if available on the path
@@ -98,7 +97,9 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
       AwsProperties awsProperties,
       Map<String, String> tableCatalogProperties,
       Object hadoopConf,
-      TableIdentifier tableIdentifier) {
+      TableIdentifier tableIdentifier,
+      int metadataRefreshMaxRetries) {
+    setMetadataRefreshMaxRetries(metadataRefreshMaxRetries);
     this.glue = glue;
     this.awsProperties = awsProperties;
     this.databaseName =
@@ -112,10 +113,6 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
     this.tableCatalogProperties = tableCatalogProperties;
     this.hadoopConf = hadoopConf;
     this.lockManager = lockManager;
-    this.metadataRefreshMaxRetries = PropertyUtil.propertyAsInt(
-            tableCatalogProperties,
-            GLUE_ICEBERG_METADATA_REFRESH_MAX_RETRIES,
-            GLUE_ICEBERG_METADATA_REFRESH_MAX_RETRIES_DEFAULT);
   }
 
   @Override
@@ -147,7 +144,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
       }
     }
 
-    refreshFromMetadataLocation(metadataLocation, metadataRefreshMaxRetries);
+    refreshFromMetadataLocation(metadataLocation);
   }
 
   @Override
