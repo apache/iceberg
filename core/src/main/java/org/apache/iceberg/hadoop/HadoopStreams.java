@@ -195,7 +195,7 @@ public class HadoopStreams {
         if (Thread.interrupted()
             && "org.apache.hadoop.fs.s3a.S3ABlockOutputStream"
                 .equals(stream.getWrappedStream().getClass().getName())) {
-          throw new IOException("object upload failed as it was interrupted during close");
+          throw new IOException("Failed to close stream as object failed to upload.");
         }
       } finally {
         this.closed = true;
