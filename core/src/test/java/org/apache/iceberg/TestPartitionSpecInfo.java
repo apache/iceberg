@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.entry;
 
 import java.io.File;
 import java.io.IOException;
@@ -77,8 +78,9 @@ public class TestPartitionSpecInfo {
     assertThat(spec.isUnpartitioned()).isTrue();
     assertThat(table.spec()).isEqualTo(spec);
     assertThat(table.spec().lastAssignedFieldId()).isEqualTo(spec.lastAssignedFieldId());
-    assertThat(table.specs()).containsEntry(spec.specId(), spec);
-    assertThat(table.specs().get(Integer.MAX_VALUE)).isNull();
+    assertThat(table.specs())
+        .containsExactly(entry(spec.specId(), spec))
+        .doesNotContainKey(Integer.MAX_VALUE);
   }
 
   @Test
@@ -88,8 +90,9 @@ public class TestPartitionSpecInfo {
 
     assertThat(table.spec()).isEqualTo(spec);
     assertThat(table.spec().lastAssignedFieldId()).isEqualTo(spec.lastAssignedFieldId());
-    assertThat(table.specs()).containsEntry(spec.specId(), spec);
-    assertThat(table.specs().get(Integer.MAX_VALUE)).isNull();
+    assertThat(table.specs())
+        .containsExactly(entry(spec.specId(), spec))
+        .doesNotContainKey(Integer.MAX_VALUE);
   }
 
   @Test
@@ -111,9 +114,8 @@ public class TestPartitionSpecInfo {
 
     assertThat(table.spec()).isEqualTo(newSpec);
     assertThat(table.specs())
-        .containsEntry(spec.specId(), spec)
-        .containsEntry(newSpec.specId(), newSpec);
-    assertThat(table.specs().get(Integer.MAX_VALUE)).isNull();
+        .containsExactly(entry(spec.specId(), spec), entry(newSpec.specId(), newSpec))
+        .doesNotContainKey(Integer.MAX_VALUE);
     assertThat(table.schema().asStruct()).isEqualTo(expectedSchema.asStruct());
   }
 
@@ -131,8 +133,7 @@ public class TestPartitionSpecInfo {
 
     assertThat(table.spec()).isEqualTo(newSpec);
     assertThat(table.specs())
-        .containsEntry(newSpec.specId(), newSpec)
-        .containsEntry(spec.specId(), spec);
-    assertThat(table.specs().get(Integer.MAX_VALUE)).isNull();
+        .containsExactly(entry(spec.specId(), spec), entry(newSpec.specId(), newSpec))
+        .doesNotContainKey(Integer.MAX_VALUE);
   }
 }
