@@ -64,7 +64,7 @@ public class TestHiveCommits extends HiveTableBaseTest {
 
     AtomicReference<HiveLock> lockRef = new AtomicReference<>();
 
-    when(spyOps.lockObject(metadataV1.properties(), catalog.getConf(), catalog.name()))
+    when(spyOps.lockObject(metadataV1))
         .thenAnswer(
             i -> {
               HiveLock lock = (HiveLock) i.callRealMethod();
@@ -273,11 +273,11 @@ public class TestHiveCommits extends HiveTableBaseTest {
     AtomicReference<HiveLock> lock = new AtomicReference<>();
     doAnswer(
             l -> {
-              lock.set(ops.lockObject(metadataV1.properties(), catalog.getConf(), catalog.name()));
+              lock.set(ops.lockObject(metadataV1));
               return lock.get();
             })
         .when(spyOps)
-        .lockObject(metadataV1.properties(), catalog.getConf(), catalog.name());
+        .lockObject(metadataV1);
 
     concurrentCommitAndThrowException(ops, spyOps, table, lock);
 
@@ -332,7 +332,7 @@ public class TestHiveCommits extends HiveTableBaseTest {
     HiveTableOperations spyOps = spy(ops);
 
     // Sets NoLock
-    doReturn(new NoLock()).when(spyOps).lockObject(any(), any(), any());
+    doReturn(new NoLock()).when(spyOps).lockObject(any());
 
     // Simulate a concurrent table modification error
     doThrow(

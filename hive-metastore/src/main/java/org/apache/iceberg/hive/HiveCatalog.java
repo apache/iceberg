@@ -211,7 +211,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
 
   @Override
   public void renameTable(TableIdentifier from, TableIdentifier originalTo) {
-    renameContent(from, originalTo, HiveOperationsBase.ContentType.TABLE);
+    renameTableOrView(from, originalTo, HiveOperationsBase.ContentType.TABLE);
   }
 
   private List<TableIdentifier> listIcebergTables(
@@ -229,11 +229,13 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
         .collect(Collectors.toList());
   }
 
-  private void renameContent(
+  private void renameTableOrView(
       TableIdentifier from,
       TableIdentifier originalTo,
       HiveOperationsBase.ContentType contentType) {
-    Preconditions.checkArgument(isValidIdentifier(from), "Invalid identifier: %s", from);
+    if (!isValidIdentifier(from)) {
+      throw new NoSuchTableException("Invalid identifier: %s", from);
+    }
 
     TableIdentifier to = removeCatalogName(originalTo);
     Preconditions.checkArgument(isValidIdentifier(to), "Invalid identifier: %s", to);
@@ -248,7 +250,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
 
     try {
       Table table = clients.run(client -> client.getTable(fromDatabase, fromName));
-      validateTable(contentType, name, table, from);
+      validateTableIsIcebergTableOrView(contentType, name, table, from);
 
       table.setDbName(toDatabase);
       table.setTableName(to.name());
@@ -259,7 +261,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
             return null;
           });
 
-      LOG.info("Renamed {} from {}, to {}", contentType.name(), from, to);
+      LOG.info("Renamed {} from {}, to {}", contentType.value(), from, to);
 
     } catch (NoSuchObjectException e) {
       throw new NoSuchTableException("Table does not exist: %s", from);
@@ -282,7 +284,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     }
   }
 
-  private void validateTable(
+  private void validateTableIsIcebergTableOrView(
       HiveOperationsBase.ContentType contentType,
       String catalogName,
       Table table,

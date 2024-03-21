@@ -51,18 +51,18 @@ public class BaseMetastoreOperations {
    * the previous locations must also be searched on the chance that a second committer was able to
    * successfully commit on top of our commit.
    *
-   * @param contentName full name of the content
+   * @param tableOrViewName full name of the Table/View
    * @param newMetadataLocation the path of the new commit file
    * @param properties properties for retry
-   * @param newMetadataCheckSupplier check if the latest metadata presents or not using metadata
-   *     location for table, version id for view.
+   * @param commitStatusSupplier check if the latest metadata presents or not using metadata
+   *     location for table.
    * @return Commit Status of Success, Failure or Unknown
    */
   protected CommitStatus checkCommitStatus(
-      String contentName,
+      String tableOrViewName,
       String newMetadataLocation,
       Map<String, String> properties,
-      Supplier<Boolean> newMetadataCheckSupplier) {
+      Supplier<Boolean> commitStatusSupplier) {
     int maxAttempts =
         PropertyUtil.propertyAsInt(
             properties, COMMIT_NUM_STATUS_CHECKS, COMMIT_NUM_STATUS_CHECKS_DEFAULT);
@@ -86,22 +86,22 @@ public class BaseMetastoreOperations {
         .exponentialBackoff(minWaitMs, maxWaitMs, totalRetryMs, 2.0)
         .onFailure(
             (location, checkException) ->
-                LOG.error("Cannot check if commit to {} exists.", contentName, checkException))
+                LOG.error("Cannot check if commit to {} exists.", tableOrViewName, checkException))
         .run(
             location -> {
-              boolean commitSuccess = newMetadataCheckSupplier.get();
+              boolean commitSuccess = commitStatusSupplier.get();
 
               if (commitSuccess) {
                 LOG.info(
                     "Commit status check: Commit to {} of {} succeeded",
-                    contentName,
+                    tableOrViewName,
                     newMetadataLocation);
                 status.set(CommitStatus.SUCCESS);
               } else {
                 LOG.warn(
                     "Commit status check: Commit to {} of {} unknown, new metadata location is not current "
                         + "or in history",
-                    contentName,
+                    tableOrViewName,
                     newMetadataLocation);
               }
             });
@@ -110,7 +110,7 @@ public class BaseMetastoreOperations {
       LOG.error(
           "Cannot determine commit state to {}. Failed during checking {} times. "
               + "Treating commit state as unknown.",
-          contentName,
+          tableOrViewName,
           maxAttempts);
     }
     return status.get();

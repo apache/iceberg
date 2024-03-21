@@ -23,7 +23,6 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -34,7 +33,6 @@ import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.Tasks;
@@ -284,7 +282,10 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
     };
   }
 
-  /** @deprecated Use {@link BaseMetastoreOperations.CommitStatus} */
+  /**
+   * @deprecated since 1.6.0, will be removed in 1.7.0; Use {@link
+   *     BaseMetastoreOperations.CommitStatus} instead
+   */
   @Deprecated
   protected enum CommitStatus {
     FAILURE,
@@ -314,29 +315,19 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
   }
 
   /**
-   * Checks the new metadata location presents or not after refreshing the table.
+   * Validate if the new metadata location is the current metadata location or present within
+   * previous metadata files.
    *
    * @param newMetadataLocation newly written metadata location
-   * @return true if the new metadata location presents with current or previous metadata files.
+   * @return true if the new metadata location is the current metadata location or present within
+   *     previous metadata files.
    */
   protected boolean checkCurrentMetadataLocation(String newMetadataLocation) {
     TableMetadata metadata = refresh();
-    Preconditions.checkNotNull(metadata, "Unexpected null table metadata");
-    ImmutableList.Builder<String> builder = ImmutableList.builder();
-    String latestMetadataLocation = metadata.metadataFileLocation();
-    if (latestMetadataLocation != null) {
-      builder.add(latestMetadataLocation);
-    }
-
-    ImmutableList<String> allMetadataLocations =
-        builder
-            .addAll(
-                metadata.previousFiles().stream()
-                    .map(TableMetadata.MetadataLogEntry::file)
-                    .collect(Collectors.toList()))
-            .build();
-
-    return allMetadataLocations.contains(newMetadataLocation);
+    String currentMetadataFileLocation = metadata.metadataFileLocation();
+    return currentMetadataFileLocation.equals(newMetadataLocation)
+        || metadata.previousFiles().stream()
+            .anyMatch(log -> log.file().equals(newMetadataLocation));
   }
 
   private String newTableMetadataFilePath(TableMetadata meta, int newVersion) {
