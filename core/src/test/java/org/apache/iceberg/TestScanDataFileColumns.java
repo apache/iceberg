@@ -20,21 +20,22 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestScanDataFileColumns {
   private static final Schema SCHEMA =
@@ -44,15 +45,15 @@ public class TestScanDataFileColumns {
   private static final Configuration CONF = new Configuration();
   private static final Tables TABLES = new HadoopTables(CONF);
 
-  @Rule public final TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
   private String tableLocation = null;
   private Table table = null;
 
-  @Before
+  @BeforeEach
   public void createTables() throws IOException {
-    File location = temp.newFolder("shared");
-    Assert.assertTrue(location.delete());
+    File location = Files.createTempDirectory(temp, "junit").toFile();
+    assertThat(location.delete()).isTrue();
     this.tableLocation = location.toString();
     this.table =
         TABLES.create(
@@ -115,10 +116,10 @@ public class TestScanDataFileColumns {
   public void testColumnStatsIgnored() {
     // stats columns should be suppressed by default
     for (FileScanTask fileTask : table.newScan().planFiles()) {
-      Assert.assertNull(fileTask.file().valueCounts());
-      Assert.assertNull(fileTask.file().nullValueCounts());
-      Assert.assertNull(fileTask.file().lowerBounds());
-      Assert.assertNull(fileTask.file().upperBounds());
+      assertThat(fileTask.file().valueCounts()).isNull();
+      assertThat(fileTask.file().nullValueCounts()).isNull();
+      assertThat(fileTask.file().lowerBounds()).isNull();
+      assertThat(fileTask.file().upperBounds()).isNull();
     }
   }
 
@@ -126,11 +127,11 @@ public class TestScanDataFileColumns {
   public void testColumnStatsLoading() {
     // stats columns should be suppressed by default
     for (FileScanTask fileTask : table.newScan().includeColumnStats().planFiles()) {
-      Assert.assertEquals(2, fileTask.file().valueCounts().size());
-      Assert.assertEquals(2, fileTask.file().nullValueCounts().size());
-      Assert.assertEquals(2, fileTask.file().lowerBounds().size());
-      Assert.assertEquals(2, fileTask.file().upperBounds().size());
-      Assert.assertEquals(2, fileTask.file().columnSizes().size());
+      assertThat(fileTask.file().valueCounts()).hasSize(2);
+      assertThat(fileTask.file().nullValueCounts()).hasSize(2);
+      assertThat(fileTask.file().lowerBounds()).hasSize(2);
+      assertThat(fileTask.file().upperBounds()).hasSize(2);
+      assertThat(fileTask.file().columnSizes()).hasSize(2);
     }
   }
 
@@ -139,11 +140,11 @@ public class TestScanDataFileColumns {
     // stats columns should be suppressed by default
     for (FileScanTask fileTask :
         table.newScan().includeColumnStats(ImmutableSet.of("id")).planFiles()) {
-      Assert.assertEquals(1, fileTask.file().valueCounts().size());
-      Assert.assertEquals(1, fileTask.file().nullValueCounts().size());
-      Assert.assertEquals(1, fileTask.file().lowerBounds().size());
-      Assert.assertEquals(1, fileTask.file().upperBounds().size());
-      Assert.assertEquals(1, fileTask.file().columnSizes().size());
+      assertThat(fileTask.file().valueCounts()).hasSize(1);
+      assertThat(fileTask.file().nullValueCounts()).hasSize(1);
+      assertThat(fileTask.file().lowerBounds()).hasSize(1);
+      assertThat(fileTask.file().upperBounds()).hasSize(1);
+      assertThat(fileTask.file().columnSizes()).hasSize(1);
     }
   }
 
