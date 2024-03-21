@@ -26,14 +26,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.PartitionField;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.Table;
-import org.apache.iceberg.TableScan;
+
+import org.apache.iceberg.*;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Evaluator;
@@ -63,7 +57,7 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkBatchQueryScan.class);
 
-  private final TableScan scan;
+  private final Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>> scan;
   private final Long snapshotId;
   private final Long startSnapshotId;
   private final Long endSnapshotId;
@@ -71,13 +65,13 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
   private final List<Expression> runtimeFilterExpressions;
 
   private Set<Integer> specIds = null; // lazy cache of scanned spec IDs
-  private List<FileScanTask> files = null; // lazy cache of files
-  private List<CombinedScanTask> tasks = null; // lazy cache of tasks
+  private List<PartitionScanTask> tasks = null; // lazy cache of uncombined tasks
+  private List<ScanTaskGroup<PartitionScanTask>> taskGroups = null; // lazy cache of task groups
 
   SparkBatchQueryScan(
       SparkSession spark,
       Table table,
-      TableScan scan,
+      Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>> scan,
       SparkReadConf readConf,
       Schema expectedSchema,
       List<Expression> filters) {
@@ -93,8 +87,8 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
 
     if (scan == null) {
       this.specIds = Collections.emptySet();
-      this.files = Collections.emptyList();
       this.tasks = Collections.emptyList();
+      this.taskGroups = Collections.emptyList();
     }
   }
 
@@ -105,8 +99,8 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
   private Set<Integer> specIds() {
     if (specIds == null) {
       Set<Integer> specIdSet = Sets.newHashSet();
-      for (FileScanTask file : files()) {
-        specIdSet.add(file.spec().specId());
+      for (PartitionScanTask task : tasks()) {
+        specIdSet.add(task.spec().specId());
       }
       this.specIds = specIdSet;
     }
@@ -114,31 +108,40 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
     return specIds;
   }
 
-  private List<FileScanTask> files() {
-    if (files == null) {
-      try (CloseableIterable<FileScanTask> filesIterable = scan.planFiles()) {
-        this.files = Lists.newArrayList(filesIterable);
+  private List<PartitionScanTask> tasks() {
+    if (tasks == null) {
+      try (CloseableIterable<? extends ScanTask> taskIterable = scan.planFiles()) {
+        List<PartitionScanTask> partitionScanTasks = Lists.newArrayList();
+        for (ScanTask task : taskIterable) {
+          ValidationException.check(
+                  task instanceof PartitionScanTask,
+                  "Unsupported task type, expected a subtype of PartitionScanTask: %",
+                  task.getClass().getName());
+
+          partitionScanTasks.add((PartitionScanTask) task);
+        }
+        this.tasks = partitionScanTasks;
       } catch (IOException e) {
-        throw new UncheckedIOException("Failed to close table scan: " + scan, e);
+        throw new UncheckedIOException("Failed to close scan: " + scan, e);
       }
     }
 
-    return files;
+    return tasks;
   }
 
   @Override
-  protected List<CombinedScanTask> tasks() {
-    if (tasks == null) {
-      CloseableIterable<FileScanTask> splitFiles =
-          TableScanUtil.splitFiles(
-              CloseableIterable.withNoopClose(files()), scan.targetSplitSize());
-      CloseableIterable<CombinedScanTask> scanTasks =
-          TableScanUtil.planTasks(
-              splitFiles, scan.targetSplitSize(), scan.splitLookback(), scan.splitOpenFileCost());
-      tasks = Lists.newArrayList(scanTasks);
+  protected List<ScanTaskGroup<PartitionScanTask>> taskGroups() {
+    if (taskGroups == null) {
+      CloseableIterable<ScanTaskGroup<PartitionScanTask>> plannedTaskGroups =
+              TableScanUtil.planTaskGroups(
+                      CloseableIterable.withNoopClose(tasks()),
+                      scan.targetSplitSize(),
+                      scan.splitLookback(),
+                      scan.splitOpenFileCost());
+      taskGroups = Lists.newArrayList(plannedTaskGroups);
     }
 
-    return tasks;
+    return taskGroups;
   }
 
   @Override
@@ -180,30 +183,30 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
       }
 
       LOG.info(
-          "Trying to filter {} files using runtime filter {}",
-          files().size(),
-          ExpressionUtil.toSanitizedString(runtimeFilterExpr));
+              "Trying to filter {} tasks using runtime filter {}",
+              tasks().size(),
+              ExpressionUtil.toSanitizedString(runtimeFilterExpr));
 
-      List<FileScanTask> filteredFiles =
-          files().stream()
-              .filter(
-                  file -> {
-                    Evaluator evaluator = evaluatorsBySpecId.get(file.spec().specId());
-                    return evaluator.eval(file.file().partition());
+      List<PartitionScanTask> filteredTasks =
+              tasks().stream()
+                      .filter(
+                              task -> {
+                                Evaluator evaluator = evaluatorsBySpecId.get(task.spec().specId());
+                                return evaluator.eval(task.partition());
                   })
               .collect(Collectors.toList());
 
       LOG.info(
-          "{}/{} files matched runtime filter {}",
-          filteredFiles.size(),
-          files().size(),
+          "{}/{} tasks matched runtime filter {}",
+          filteredTasks.size(),
+          tasks().size(),
           ExpressionUtil.toSanitizedString(runtimeFilterExpr));
 
       // don't invalidate tasks if the runtime filter had no effect to avoid planning splits again
-      if (filteredFiles.size() < files().size()) {
+      if (filteredTasks.size() < tasks().size()) {
         this.specIds = null;
-        this.files = filteredFiles;
-        this.tasks = null;
+        this.tasks = filteredTasks;
+        this.taskGroups = null;
       }
 
       // save the evaluated filter for equals/hashCode
