@@ -252,6 +252,17 @@ public class TypeUtil {
   }
 
   /**
+   * Assigns ids from the provided field to id map for all fields in a type.
+   *
+   * @param schema a schema
+   * @param fieldIdMap map of qualified field names to their ids
+   * @return a structurally identical type with new ids assigned by the provided map
+   */
+  public static Type assignIds(Schema schema, Map<String, Integer> fieldIdMap) {
+    return TypeUtil.visit(schema.asStruct(), new AssignIds(schema, fieldIdMap));
+  }
+
+  /**
    * Get the identifier fields in the fresh schema based on the identifier fields in the base
    * schema.
    *

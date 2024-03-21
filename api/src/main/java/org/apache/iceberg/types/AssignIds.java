@@ -18,39 +18,20 @@
  */
 package org.apache.iceberg.types;
 
+import java.util.Map;
 import org.apache.iceberg.Schema;
 
-class AssignFreshIds extends BaseAssignIds {
-  private final Schema baseSchema;
-  private final TypeUtil.NextID nextId;
+class AssignIds extends BaseAssignIds {
 
-  AssignFreshIds(TypeUtil.NextID nextId) {
-    this.baseSchema = null;
-    this.nextId = nextId;
-  }
+  private Map<String, Integer> fieldIdMap;
 
-  /**
-   * Replaces the ids in a schema with ids from a base schema, or uses nextId to assign a fresh ids.
-   *
-   * @param visitingSchema current schema that will have ids replaced (for id to name lookup)
-   * @param baseSchema base schema to assign existing ids from
-   * @param nextId new id assigner
-   */
-  AssignFreshIds(Schema visitingSchema, Schema baseSchema, TypeUtil.NextID nextId) {
+  AssignIds(Schema visitingSchema, Map<String, Integer> fieldIdMap) {
     super(visitingSchema);
-    this.baseSchema = baseSchema;
-    this.nextId = nextId;
+    this.fieldIdMap = fieldIdMap;
   }
 
   @Override
   protected int idFor(String fullName) {
-    if (baseSchema != null && fullName != null) {
-      Types.NestedField field = baseSchema.findField(fullName);
-      if (field != null) {
-        return field.fieldId();
-      }
-    }
-
-    return nextId.get();
+    return fieldIdMap.get(fullName);
   }
 }

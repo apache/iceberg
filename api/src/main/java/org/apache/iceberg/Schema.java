@@ -243,6 +243,15 @@ public class Schema implements Serializable {
   }
 
   /**
+   * Returns a map for this schema between qualified field names and field id
+   *
+   * @return a map of qualified field names to field id
+   */
+  public Map<String, Integer> nameToId() {
+    return lazyNameToId();
+  }
+
+  /**
    * Returns the underlying {@link StructType struct type} for this schema.
    *
    * @return the StructType version of this schema.

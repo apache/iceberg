@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Expression;
@@ -34,6 +36,7 @@ import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ParallelIterable;
@@ -114,7 +117,7 @@ public class PositionDeletesTable extends BaseMetadataTable {
             Types.NestedField.optional(
                 MetadataColumns.DELETE_FILE_ROW_FIELD_ID,
                 MetadataColumns.DELETE_FILE_ROW_FIELD_NAME,
-                table().schema().asStruct(),
+                dedupSchemaFieldIds(partitionType),
                 MetadataColumns.DELETE_FILE_ROW_DOC),
             Types.NestedField.required(
                 MetadataColumns.PARTITION_COLUMN_ID,
@@ -139,6 +142,31 @@ public class PositionDeletesTable extends BaseMetadataTable {
       // instead, drop the partition field
       return TypeUtil.selectNot(result, Sets.newHashSet(MetadataColumns.PARTITION_COLUMN_ID));
     }
+  }
+
+  // Handle collisions between table field and partition field ids
+  private Type dedupSchemaFieldIds(Types.StructType partitionType) {
+    Map<String, Integer> originalIds = table().schema().nameToId();
+    Set<Integer> partitionFieldIds = new Schema(partitionType.fields()).idToName().keySet();
+    AtomicInteger nextId = new AtomicInteger(table().schema().highestFieldId());
+
+    Map<String, Integer> fieldToIds =
+        originalIds.entrySet().stream()
+            .collect(
+                Collectors.toMap(
+                    Map.Entry::getKey,
+                    e -> {
+                      if (partitionFieldIds.contains(e.getValue())) {
+                        int candidate = nextId.incrementAndGet();
+                        while (partitionFieldIds.contains(candidate)) {
+                          candidate = nextId.incrementAndGet();
+                        }
+                        return candidate;
+                      } else {
+                        return e.getValue();
+                      }
+                    }));
+    return TypeUtil.assignIds(table().schema(), fieldToIds);
   }
 
   public static class PositionDeletesBatchScan
