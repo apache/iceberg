@@ -18,12 +18,6 @@
  */
 package org.apache.iceberg.connect.data;
 
-import static java.util.stream.Collectors.toSet;
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
-import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
-import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
-
 import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Files;
@@ -33,9 +27,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynConstructors;
@@ -175,12 +171,16 @@ public class Utilities {
     Map<String, String> tableProps = Maps.newHashMap(table.properties());
     tableProps.putAll(config.writeProps());
 
-    String formatStr = tableProps.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
+    String formatStr =
+        tableProps.getOrDefault(
+            TableProperties.DEFAULT_FILE_FORMAT, TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
     FileFormat format = FileFormat.fromString(formatStr);
 
     long targetFileSize =
         PropertyUtil.propertyAsLong(
-            tableProps, WRITE_TARGET_FILE_SIZE_BYTES, WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
+            tableProps,
+            TableProperties.WRITE_TARGET_FILE_SIZE_BYTES,
+            TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
 
     Set<Integer> identifierFieldIds = table.schema().identifierFieldIds();
 
@@ -197,7 +197,7 @@ public class Utilities {
                     }
                     return field.fieldId();
                   })
-              .collect(toSet());
+              .collect(Collectors.toSet());
     }
 
     FileAppenderFactory<Record> appenderFactory;
@@ -223,8 +223,6 @@ public class Utilities {
             .operationId(UUID.randomUUID().toString())
             .format(format)
             .build();
-
-    // FIXME: add delta writers
 
     TaskWriter<Record> writer;
     if (table.spec().isUnpartitioned()) {
