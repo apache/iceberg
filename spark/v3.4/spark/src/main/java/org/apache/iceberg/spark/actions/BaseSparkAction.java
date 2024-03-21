@@ -31,7 +31,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 import org.apache.iceberg.AllManifestsTable;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ContentFile;
@@ -42,9 +44,13 @@ import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReachableFileUtil;
+import org.apache.iceberg.SerializableTable;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StaticTableOperations;
+import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.BulkDeletionFailureException;
@@ -60,20 +66,24 @@ import org.apache.iceberg.relocated.com.google.common.collect.ListMultimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.JobGroupUtils;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.source.SerializableTableWithSize;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.FlatMapFunction;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import scala.Tuple2;
 
 abstract class BaseSparkAction<ThisT> {
 
@@ -126,6 +136,68 @@ abstract class BaseSparkAction<ThisT> {
     return options;
   }
 
+  /**
+   * Returns all the path locations of all Manifest Lists for a given list of snapshots
+   *
+   * @param snapshots snapshots
+   * @return the paths of the Manifest Lists
+   */
+  private List<String> getManifestListPaths(Iterable<Snapshot> snapshots) {
+    List<String> manifestLists = Lists.newArrayList();
+    for (Snapshot snapshot : snapshots) {
+      String manifestListLocation = snapshot.manifestListLocation();
+      if (manifestListLocation != null) {
+        manifestLists.add(manifestListLocation);
+      }
+    }
+    return manifestLists;
+  }
+
+  /**
+   * Returns all Metadata file paths which may not be in the current metadata. Specifically this
+   * includes "version-hint" files as well as entries in metadata.previousFiles.
+   *
+   * @param ops TableOperations for the table we will be getting paths from
+   * @return a list of paths to metadata files
+   */
+  private List<String> getOtherMetadataFilePaths(TableOperations ops) {
+    List<String> otherMetadataFiles = Lists.newArrayList();
+    otherMetadataFiles.add(ops.metadataFileLocation("version-hint.text"));
+
+    TableMetadata metadata = ops.current();
+    otherMetadataFiles.add(metadata.metadataFileLocation());
+    for (TableMetadata.MetadataLogEntry previousMetadataFile : metadata.previousFiles()) {
+      otherMetadataFiles.add(previousMetadataFile.file());
+    }
+    return otherMetadataFiles;
+  }
+
+  protected Dataset<Row> buildOtherMetadataFileDF(Table table) {
+    return buildOtherMetadataFileDF(
+        table, false /* include all reachable previous metadata locations */);
+  }
+
+  protected Dataset<Row> buildAllReachableOtherMetadataFileDF(Table table) {
+    return buildOtherMetadataFileDF(
+        table, true /* include all reachable previous metadata locations */);
+  }
+
+  private Dataset<Row> buildOtherMetadataFileDF(
+      Table table, boolean includePreviousMetadataLocations) {
+    List<String> otherMetadataFiles = Lists.newArrayList();
+    otherMetadataFiles.addAll(
+        ReachableFileUtil.metadataFileLocations(table, includePreviousMetadataLocations));
+    otherMetadataFiles.add(ReachableFileUtil.versionHintLocation(table));
+    return spark.createDataset(otherMetadataFiles, Encoders.STRING()).toDF(FILE_PATH);
+  }
+
+  protected Dataset<Row> buildValidMetadataFileDF(Table table) {
+    Dataset<Row> manifestDF = buildManifestFileDF(table);
+    Dataset<Row> manifestListDF = buildManifestListDF(table);
+    Dataset<Row> otherMetadataFileDF = buildOtherMetadataFileDF(table);
+    return manifestDF.union(otherMetadataFileDF).union(manifestListDF);
+  }
+
   protected <T> T withJobGroupInfo(JobGroupInfo info, Supplier<T> supplier) {
     return JobGroupUtils.withJobGroupInfo(sparkContext, info, supplier);
   }
@@ -135,7 +207,10 @@ abstract class BaseSparkAction<ThisT> {
   }
 
   protected Table newStaticTable(TableMetadata metadata, FileIO io) {
-    String metadataFileLocation = metadata.metadataFileLocation();
+    return newStaticTable(metadata.metadataFileLocation(), io);
+  }
+
+  protected Table newStaticTable(String metadataFileLocation, FileIO io) {
     StaticTableOperations ops = new StaticTableOperations(metadataFileLocation, io);
     return new BaseTable(ops, metadataFileLocation);
   }
@@ -155,7 +230,6 @@ abstract class BaseSparkAction<ThisT> {
                 "content",
                 "path",
                 "length",
-                "0 as sequenceNumber",
                 "partition_spec_id as partitionSpecId",
                 "added_snapshot_id as addedSnapshotId")
             .dropDuplicates("path")
@@ -173,6 +247,68 @@ abstract class BaseSparkAction<ThisT> {
     return manifestDF(table, snapshotIds)
         .select(col("path"), lit(MANIFEST).as("type"))
         .as(FileInfo.ENCODER);
+  }
+
+  protected Dataset<Row> buildValidDataFileDF(Table table) {
+    JavaSparkContext context = JavaSparkContext.fromSparkContext(spark.sparkContext());
+    Broadcast<Table> tableBroadcast = context.broadcast(SerializableTable.copyOf(table));
+
+    Dataset<ManifestFileBean> allManifests =
+        loadMetadataTable(table, ALL_MANIFESTS)
+            .selectExpr(
+                "content",
+                "path",
+                "length",
+                "partition_spec_id as partitionSpecId",
+                "added_snapshot_id as addedSnapshotId")
+            .dropDuplicates("path")
+            .repartition(
+                spark
+                    .sessionState()
+                    .conf()
+                    .numShufflePartitions()) // avoid adaptive execution combining tasks
+            .as(Encoders.bean(ManifestFileBean.class));
+
+    return allManifests
+        .flatMap(new ReadManifest(tableBroadcast), FileInfo.ENCODER)
+        .toDF("file_path", "file_type")
+        .drop("file_type");
+  }
+
+  protected Dataset<Row> buildValidDataFileDFWithSnapshotId(Table table) {
+    JavaSparkContext context = JavaSparkContext.fromSparkContext(spark.sparkContext());
+    Broadcast<FileIO> ioBroadcast = context.broadcast(SerializableTable.copyOf(table).io());
+
+    Dataset<ManifestFileBean> allManifests =
+        loadMetadataTable(table, ALL_MANIFESTS)
+            .selectExpr(
+                "content",
+                "path",
+                "length",
+                "partition_spec_id as partitionSpecId",
+                "added_snapshot_id as addedSnapshotId")
+            .dropDuplicates("path")
+            .repartition(
+                spark
+                    .sessionState()
+                    .conf()
+                    .numShufflePartitions()) // avoid adaptive execution combining tasks
+            .as(Encoders.bean(ManifestFileBean.class));
+
+    return allManifests
+        .flatMap(
+            new ReadManifestWithSnapshotId(ioBroadcast),
+            Encoders.tuple(Encoders.STRING(), Encoders.LONG()))
+        .toDF("file_path", "snapshot_id");
+  }
+
+  protected Dataset<Row> buildManifestFileDF(Table table) {
+    return loadMetadataTable(table, ALL_MANIFESTS).select(col("path").as(FILE_PATH));
+  }
+
+  protected Dataset<Row> buildManifestListDF(Table table) {
+    List<String> manifestLists = getManifestListPaths(table.snapshots());
+    return spark.createDataset(manifestLists, Encoders.STRING()).toDF("file_path");
   }
 
   private Dataset<Row> manifestDF(Table table, Set<Long> snapshotIds) {
@@ -195,8 +331,14 @@ abstract class BaseSparkAction<ThisT> {
   }
 
   protected Dataset<FileInfo> statisticsFileDS(Table table, Set<Long> snapshotIds) {
-    List<String> statisticsFiles =
-        ReachableFileUtil.statisticsFilesLocationsForSnapshots(table, snapshotIds);
+    Predicate<StatisticsFile> predicate;
+    if (snapshotIds == null) {
+      predicate = statisticsFile -> true;
+    } else {
+      predicate = statisticsFile -> snapshotIds.contains(statisticsFile.snapshotId());
+    }
+
+    List<String> statisticsFiles = ReachableFileUtil.statisticsFilesLocations(table, predicate);
     return toFileInfoDS(statisticsFiles, STATISTICS_FILES);
   }
 
@@ -434,6 +576,24 @@ abstract class BaseSparkAction<ThisT> {
 
     static FileInfo toFileInfo(ContentFile<?> file) {
       return new FileInfo(file.path().toString(), file.content().toString());
+    }
+  }
+
+  private static class ReadManifestWithSnapshotId
+      implements FlatMapFunction<ManifestFileBean, Tuple2<String, Long>> {
+    private final Broadcast<FileIO> io;
+
+    ReadManifestWithSnapshotId(Broadcast<FileIO> io) {
+      this.io = io;
+    }
+
+    @Override
+    public Iterator<Tuple2<String, Long>> call(ManifestFileBean manifest) {
+      Iterator<Pair<String, Long>> iterator =
+          new ClosingIterator<>(
+              ManifestFiles.readPathsWithSnapshotId(manifest, io.getValue()).iterator());
+      Stream<Pair<String, Long>> stream = Streams.stream(iterator);
+      return stream.map(pair -> Tuple2.apply(pair.first(), pair.second())).iterator();
     }
   }
 }
