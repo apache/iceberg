@@ -19,9 +19,13 @@
 package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import org.apache.avro.generic.GenericData;
@@ -33,15 +37,12 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestScansAndSchemaEvolution {
   private static final Schema SCHEMA =
       new Schema(
@@ -52,18 +53,14 @@ public class TestScansAndSchemaEvolution {
   private static final PartitionSpec SPEC =
       PartitionSpec.builderFor(SCHEMA).identity("part").build();
 
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1, 2);
   }
 
-  public final int formatVersion;
+  @Parameter private int formatVersion;
 
-  public TestScansAndSchemaEvolution(int formatVersion) {
-    this.formatVersion = formatVersion;
-  }
-
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
   private DataFile createDataFile(String partValue) throws IOException {
     List<GenericData.Record> expected = RandomAvroData.generate(SCHEMA, 100, 0L);
@@ -87,15 +84,15 @@ public class TestScansAndSchemaEvolution {
         .build();
   }
 
-  @After
+  @AfterEach
   public void cleanupTables() {
     TestTables.clearTables();
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionSourceRename() throws IOException {
-    File location = temp.newFolder();
-    Assert.assertTrue(location.delete()); // should be created by table create
+    File location = Files.createTempDirectory(temp, "junit").toFile();
+    assertThat(location.delete()).isTrue(); // should be created by table create
 
     Table table = TestTables.create(location, "test", SCHEMA, SPEC, formatVersion);
 
@@ -107,13 +104,13 @@ public class TestScansAndSchemaEvolution {
     List<FileScanTask> tasks =
         Lists.newArrayList(table.newScan().filter(Expressions.equal("part", "one")).planFiles());
 
-    Assert.assertEquals("Should produce 1 matching file task", 1, tasks.size());
+    assertThat(tasks).hasSize(1);
 
     table.updateSchema().renameColumn("part", "p").commit();
 
     // plan the scan using the new name in a filter
     tasks = Lists.newArrayList(table.newScan().filter(Expressions.equal("p", "one")).planFiles());
 
-    Assert.assertEquals("Should produce 1 matching file task", 1, tasks.size());
+    assertThat(tasks).hasSize(1);
   }
 }

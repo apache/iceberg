@@ -21,38 +21,33 @@ package org.apache.iceberg;
 import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.expressions.Expressions.truncate;
 import static org.apache.iceberg.expressions.Expressions.year;
+import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Arrays;
+import java.util.List;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public class TestTableUpdatePartitionSpec extends TableTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestTableUpdatePartitionSpec extends TestBase {
 
-  @Parameterized.Parameters
-  public static Object[][] parameters() {
-    return new Object[][] {
-      new Object[] {1}, new Object[] {2},
-    };
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1, 2);
   }
 
-  public TestTableUpdatePartitionSpec(int formatVersion) {
-    super(formatVersion);
-  }
-
-  @Before
+  @BeforeEach
   public void verifyInitialSpec() {
     PartitionSpec initialSpec = PartitionSpec.builderFor(table.schema()).bucket("data", 16).build();
-    Assert.assertEquals("Should use the expected initial spec", initialSpec, table.spec());
-    Assert.assertEquals(1000, table.spec().lastAssignedFieldId());
-    Assert.assertEquals(0, table.spec().specId());
+    assertThat(table.spec()).isEqualTo(initialSpec);
+    assertThat(table.spec().lastAssignedFieldId()).isEqualTo(1000);
+    assertThat(table.spec().specId()).isEqualTo(0);
   }
 
-  @Test
+  @TestTemplate
   public void testCommitUpdatedSpec() {
     table.updateSpec().addField(bucket("id", 8)).commit();
 
@@ -62,8 +57,10 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
             .bucket("data", 16)
             .bucket("id", 8, "id_bucket_8")
             .build();
-    Assert.assertEquals("Should append a partition field to the spec", evolvedSpec, table.spec());
-    Assert.assertEquals(1001, table.spec().lastAssignedFieldId());
+    assertThat(table.spec())
+        .as("Should append a partition field to the spec")
+        .isEqualTo(evolvedSpec);
+    assertThat(table.spec().lastAssignedFieldId()).isEqualTo(1001);
 
     table
         .updateSpec()
@@ -90,10 +87,10 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
             .build(),
         table.spec());
 
-    Assert.assertEquals(1002, table.spec().lastAssignedFieldId());
+    assertThat(table.spec().lastAssignedFieldId()).isEqualTo(1002);
   }
 
-  @Test
+  @TestTemplate
   public void testNoopCommit() {
     TableMetadata current = table.ops().current();
     int currentVersion = TestTables.metadataVersion("test");
@@ -102,20 +99,20 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
     table.updateSpec().commit();
     TableMetadata updated = table.ops().current();
     Integer updatedVersion = TestTables.metadataVersion("test");
-    Assert.assertEquals(current, updated);
+    assertThat(updated).isEqualTo(current);
     currentVersion += 1;
-    Assert.assertEquals(currentVersion, updatedVersion.intValue());
+    assertThat(updatedVersion).isEqualTo(currentVersion);
 
     // no-op commit due to no-op rename
     table.updateSpec().renameField("data_bucket", "data_bucket").commit();
     updated = table.ops().current();
     updatedVersion = TestTables.metadataVersion("test");
-    Assert.assertEquals(current, updated);
+    assertThat(updated).isEqualTo(current);
     currentVersion += 1;
-    Assert.assertEquals(currentVersion, updatedVersion.intValue());
+    assertThat(updatedVersion).isEqualTo(currentVersion);
   }
 
-  @Test
+  @TestTemplate
   public void testRenameField() {
     table
         .updateSpec()
@@ -130,8 +127,8 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
             .bucket("id", 8, "id_bucket_8")
             .build();
 
-    Assert.assertEquals("should match evolved spec", evolvedSpec, table.spec());
-    Assert.assertEquals(1001, table.spec().lastAssignedFieldId());
+    assertThat(table.spec()).isEqualTo(evolvedSpec);
+    assertThat(table.spec().lastAssignedFieldId()).isEqualTo(1001);
 
     table
         .updateSpec()
@@ -147,11 +144,11 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
             .truncate("id", 4, "id_trunc_4")
             .build();
 
-    Assert.assertEquals("should match evolved spec", evolvedSpec, table.spec());
-    Assert.assertEquals(1002, table.spec().lastAssignedFieldId());
+    assertThat(table.spec()).isEqualTo(evolvedSpec);
+    assertThat(table.spec().lastAssignedFieldId()).isEqualTo(1002);
   }
 
-  @Test
+  @TestTemplate
   public void testRenameOnlyEvolution() {
     table.updateSpec().renameField("data_bucket", "data_partition").commit();
 
@@ -161,11 +158,11 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
             .bucket("data", 16, "data_partition")
             .build();
 
-    Assert.assertEquals("should match evolved spec", evolvedSpec, table.spec());
-    Assert.assertEquals(1000, table.spec().lastAssignedFieldId());
+    assertThat(table.spec()).isEqualTo(evolvedSpec);
+    assertThat(table.spec().lastAssignedFieldId()).isEqualTo(1000);
   }
 
-  @Test
+  @TestTemplate
   public void testRemoveAndAddField() {
     table.updateSpec().removeField("data_bucket").addField(bucket("id", 8)).commit();
 
@@ -186,10 +183,10 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
             .build(),
         table.spec());
 
-    Assert.assertEquals(1001, table.spec().lastAssignedFieldId());
+    assertThat(table.spec().lastAssignedFieldId()).isEqualTo(1001);
   }
 
-  @Test
+  @TestTemplate
   public void testRemoveAndAddYearField() {
     table.updateSchema().addColumn("year_field", Types.DateType.get()).commit();
     table.updateSpec().addField(year("year_field")).commit();
@@ -201,8 +198,8 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
             .year("year_field")
             .build();
 
-    Assert.assertEquals("should match evolved spec", evolvedSpec, table.spec());
-    Assert.assertEquals(1001, table.spec().lastAssignedFieldId());
+    assertThat(table.spec()).isEqualTo(evolvedSpec);
+    assertThat(table.spec().lastAssignedFieldId()).isEqualTo(1001);
 
     table.updateSpec().removeField("year_field_year").addField(year("year_field")).commit();
 
@@ -224,10 +221,10 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
             .build(),
         table.spec());
 
-    Assert.assertEquals(1001, table.spec().lastAssignedFieldId());
+    assertThat(table.spec().lastAssignedFieldId()).isEqualTo(1001);
   }
 
-  @Test
+  @TestTemplate
   public void testAddAndRemoveField() {
     table.updateSpec().addField(bucket("data", 6)).removeField("data_bucket").commit();
 
@@ -246,10 +243,10 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
             .add(2, 1001, "data_bucket_6", Transforms.bucket(6))
             .build(),
         table.spec());
-    Assert.assertEquals(1001, table.spec().lastAssignedFieldId());
+    assertThat(table.spec().lastAssignedFieldId()).isEqualTo(1001);
   }
 
-  @Test
+  @TestTemplate
   public void testAddAfterLastFieldRemoved() {
     table.updateSpec().removeField("data_bucket").commit();
 
@@ -268,7 +265,7 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
         table.spec());
     V2Assert.assertEquals(
         "Should match the last assigned field id", 999, table.spec().lastAssignedFieldId());
-    Assert.assertEquals(1000, table.ops().current().lastAssignedPartitionId());
+    assertThat(table.ops().current().lastAssignedPartitionId()).isEqualTo(1000);
 
     table.updateSpec().addField(bucket("id", 8)).commit();
 
@@ -287,7 +284,7 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
             .add(1, 1001, "id_bucket_8", Transforms.bucket(8))
             .build(),
         table.spec());
-    Assert.assertEquals(1001, table.spec().lastAssignedFieldId());
-    Assert.assertEquals(1001, table.ops().current().lastAssignedPartitionId());
+    assertThat(table.spec().lastAssignedFieldId()).isEqualTo(1001);
+    assertThat(table.ops().current().lastAssignedPartitionId()).isEqualTo(1001);
   }
 }
