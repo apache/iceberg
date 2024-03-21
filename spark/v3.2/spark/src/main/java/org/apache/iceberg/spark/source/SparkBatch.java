@@ -20,11 +20,15 @@ package org.apache.iceberg.spark.source;
 
 import java.util.List;
 import java.util.Objects;
-
-import org.apache.iceberg.*;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.ScanTask;
+import org.apache.iceberg.ScanTaskGroup;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.source.SparkScan.ReaderFactory;
-import org.apache.iceberg.util.TableScanUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -108,9 +112,9 @@ class SparkBatch implements Batch {
   // - all tasks are of FileScanTask type and read only Parquet files
   private boolean useParquetBatchReads() {
     return readConf.parquetVectorizationEnabled()
-            && expectedSchema.columns().size() > 0
-            && expectedSchema.columns().stream().allMatch(c -> c.type().isPrimitiveType())
-            && taskGroups.stream().allMatch(this::supportsParquetBatchReads);
+        && expectedSchema.columns().size() > 0
+        && expectedSchema.columns().stream().allMatch(c -> c.type().isPrimitiveType())
+        && taskGroups.stream().allMatch(this::supportsParquetBatchReads);
   }
 
   private boolean supportsParquetBatchReads(ScanTask task) {
@@ -132,7 +136,7 @@ class SparkBatch implements Batch {
   // - all tasks are of type FileScanTask and read only ORC files with no delete files
   private boolean useOrcBatchReads() {
     return readConf.orcVectorizationEnabled()
-            && taskGroups.stream().allMatch(this::supportsOrcBatchReads);
+        && taskGroups.stream().allMatch(this::supportsOrcBatchReads);
   }
 
   private boolean supportsOrcBatchReads(ScanTask task) {

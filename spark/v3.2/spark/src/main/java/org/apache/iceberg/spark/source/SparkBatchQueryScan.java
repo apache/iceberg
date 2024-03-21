@@ -26,8 +26,15 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import org.apache.iceberg.*;
+import org.apache.iceberg.PartitionField;
+import org.apache.iceberg.PartitionScanTask;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Scan;
+import org.apache.iceberg.ScanTask;
+import org.apache.iceberg.ScanTaskGroup;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Evaluator;
@@ -114,9 +121,9 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
         List<PartitionScanTask> partitionScanTasks = Lists.newArrayList();
         for (ScanTask task : taskIterable) {
           ValidationException.check(
-                  task instanceof PartitionScanTask,
-                  "Unsupported task type, expected a subtype of PartitionScanTask: %",
-                  task.getClass().getName());
+              task instanceof PartitionScanTask,
+              "Unsupported task type, expected a subtype of PartitionScanTask: %",
+              task.getClass().getName());
 
           partitionScanTasks.add((PartitionScanTask) task);
         }
@@ -133,11 +140,11 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
   protected List<ScanTaskGroup<PartitionScanTask>> taskGroups() {
     if (taskGroups == null) {
       CloseableIterable<ScanTaskGroup<PartitionScanTask>> plannedTaskGroups =
-              TableScanUtil.planTaskGroups(
-                      CloseableIterable.withNoopClose(tasks()),
-                      scan.targetSplitSize(),
-                      scan.splitLookback(),
-                      scan.splitOpenFileCost());
+          TableScanUtil.planTaskGroups(
+              CloseableIterable.withNoopClose(tasks()),
+              scan.targetSplitSize(),
+              scan.splitLookback(),
+              scan.splitOpenFileCost());
       taskGroups = Lists.newArrayList(plannedTaskGroups);
     }
 
@@ -183,16 +190,16 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
       }
 
       LOG.info(
-              "Trying to filter {} tasks using runtime filter {}",
-              tasks().size(),
-              ExpressionUtil.toSanitizedString(runtimeFilterExpr));
+          "Trying to filter {} tasks using runtime filter {}",
+          tasks().size(),
+          ExpressionUtil.toSanitizedString(runtimeFilterExpr));
 
       List<PartitionScanTask> filteredTasks =
-              tasks().stream()
-                      .filter(
-                              task -> {
-                                Evaluator evaluator = evaluatorsBySpecId.get(task.spec().specId());
-                                return evaluator.eval(task.partition());
+          tasks().stream()
+              .filter(
+                  task -> {
+                    Evaluator evaluator = evaluatorsBySpecId.get(task.spec().specId());
+                    return evaluator.eval(task.partition());
                   })
               .collect(Collectors.toList());
 
