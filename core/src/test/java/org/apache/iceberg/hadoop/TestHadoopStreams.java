@@ -22,6 +22,7 @@ import java.io.IOException;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.s3a.S3ABlockOutputStream;
 import org.apache.iceberg.io.PositionOutputStream;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 class TestHadoopStreams {
@@ -36,7 +37,7 @@ class TestHadoopStreams {
     // mock interrupt in S3ABlockOutputStream#putObject
     Thread.currentThread().interrupt();
 
-    org.assertj.core.api.Assertions.assertThatThrownBy(wrap::close)
+    Assertions.assertThatThrownBy(wrap::close)
         .isInstanceOf(IOException.class)
         .hasMessage("Failed to close stream as object failed to upload.");
   }
