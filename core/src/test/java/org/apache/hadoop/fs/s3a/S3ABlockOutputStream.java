@@ -26,7 +26,7 @@ public class S3ABlockOutputStream extends OutputStream {
 
   @Override
   public void write(int b) throws IOException {
-    throw new IOException("mocked clas, do not use");
+    throw new IOException("mocked class, do not use");
   }
 
   @Override

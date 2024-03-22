@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Test;
 class TestHadoopStreams {
 
   @Test
-  void closeShouldThrowIOExceptionOnInterrupted() throws IOException {
+  void closeShouldThrowIOExceptionWhenInterrupted() throws IOException {
 
     FSDataOutputStream fsDataOutputStream =
         new FSDataOutputStream(new S3ABlockOutputStream(), null);
@@ -39,6 +39,6 @@ class TestHadoopStreams {
 
     Assertions.assertThatThrownBy(wrap::close)
         .isInstanceOf(IOException.class)
-        .hasMessage("Failed to close stream as object failed to upload.");
+        .hasMessage("S3ABlockOutputStream failed to upload object after stream was closed");
   }
 }
