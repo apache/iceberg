@@ -60,7 +60,12 @@ The static Iceberg site pages are Markdown files that live at `/site/docs/*.md`.
 ```
 ### Building the versioned docs
 
-The Iceberg versioned docs are committed in the [orphan `docs` branch](https://github.com/apache/iceberg/tree/docs) and mounted using [git worktree](https://git-scm.com/docs/git-worktree) at build time. The `docs` branch contains the versioned documenation source files at the root. These versions are mounted at the `/site/docs/docs/<version>` directory at build time. The `latest` version, is a soft link to the most recent [semver version](https://semver.org/) in the `docs` branch. There is also an [orphan `javadoc` branch](https://github.com/apache/iceberg/tree/javadoc) that contains prior staticly generated versions of the javadocs mounted at `/site/docs/javadoc/<version>` during build time.
+The Iceberg versioned docs are committed in two [orphan](https://git-scm.com/docs/gitglossary#Documentation/gitglossary.txt-aiddeforphanaorphan) branches and mounted using [git worktree](https://git-scm.com/docs/git-worktree) at build time: 
+
+ 1. [`docs`](https://github.com/apache/iceberg/tree/docs) - contains the state of the documenation source files (`/docs`) during release. These versions are mounted at the `/site/docs/docs/<version>` directory at build time. 
+ 1. [`javadoc`](https://github.com/apache/iceberg/tree/javadoc) - contains prior statically generated versions of the javadocs mounted at `/site/docs/javadoc/<version>` directory at  build time.
+
+The `latest` version, is a soft link to the most recent [semver version](https://semver.org/) in the `docs` branch. The `nightly` version, is a soft link to the current local state of the `/docs` markdown files.
 
 The docs are built, run, and released using [make](https://www.gnu.org/software/make/manual/make.html). The [Makefile](Makefile) and the [common shell script](dev/common.sh) support the following command:
 
@@ -84,11 +89,13 @@ This step will generate the staged source code which blends into the original so
 ./site/
 └── docs
     ├── docs
+    │   ├── nightly (symlink to /docs/)
     │   ├── latest (symlink to /site/docs/1.4.0/)
     │   ├── 1.4.0 
     │   ├── 1.3.1
     │   └── ...
     ├── javadoc
+    │   ├── nightly (currently points to latest)
     │   ├── latest
     │   ├── 1.4.0
     │   ├── 1.3.1
@@ -143,6 +150,9 @@ As mentioned in the MkDocs section, when you build MkDocs `mkdocs build`, MkDocs
 ./site/
 ├── docs
 │   ├── docs
+│   │   ├── nightly
+│   │   │   ├── docs
+│   │   │   └── mkdocs.yml
 │   │   ├── latest
 │   │   │   ├── docs
 │   │   │   └── mkdocs.yml
@@ -150,6 +160,7 @@ As mentioned in the MkDocs section, when you build MkDocs `mkdocs build`, MkDocs
 │   │       ├── docs
 │   │       └── mkdocs.yml
 │   └─ javadoc
+│      ├── nightly 
 │      ├── latest
 │      └── 1.4.0
 └── mkdocs.yml
