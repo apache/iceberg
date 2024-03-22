@@ -20,70 +20,61 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.PartitionSpec.unpartitioned;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.util.Arrays;
+import java.util.List;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public class TestCreateTransaction extends TableTestBase {
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestCreateTransaction extends TestBase {
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1, 2);
   }
 
-  public TestCreateTransaction(int formatVersion) {
-    super(formatVersion);
-  }
-
-  @Test
+  @TestTemplate
   public void testCreateTransaction() throws IOException {
-    File tableDir = temp.newFolder();
-    Assert.assertTrue(tableDir.delete());
+    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
+    assertThat(tableDir.delete()).isTrue();
 
     Transaction txn = TestTables.beginCreate(tableDir, "test_create", SCHEMA, unpartitioned());
 
-    Assert.assertNull(
-        "Starting a create transaction should not commit metadata",
-        TestTables.readMetadata("test_create"));
-    Assert.assertNull("Should have no metadata version", TestTables.metadataVersion("test_create"));
+    assertThat(TestTables.readMetadata("test_create")).isNull();
+    assertThat(TestTables.metadataVersion("test_create")).isNull();
 
     txn.commitTransaction();
 
     TableMetadata meta = TestTables.readMetadata("test_create");
-    Assert.assertNotNull("Table metadata should be created after transaction commits", meta);
-    Assert.assertEquals(
-        "Should have metadata version 0", 0, (int) TestTables.metadataVersion("test_create"));
-    Assert.assertEquals("Should have 0 manifest files", 0, listManifestFiles(tableDir).size());
+    assertThat(meta).isNotNull();
+    assertThat(TestTables.metadataVersion("test_create")).isEqualTo(0);
+    assertThat(listManifestFiles(tableDir)).isEmpty();
 
-    Assert.assertEquals(
-        "Table schema should match with reassigned IDs",
-        TypeUtil.assignIncreasingFreshIds(SCHEMA).asStruct(),
-        meta.schema().asStruct());
-    Assert.assertEquals("Table spec should match", unpartitioned(), meta.spec());
-    Assert.assertEquals("Table should not have any snapshots", 0, meta.snapshots().size());
+    assertThat(meta.schema().asStruct())
+        .isEqualTo(TypeUtil.assignIncreasingFreshIds(SCHEMA).asStruct());
+    assertThat(meta.spec()).isEqualTo(unpartitioned());
+    assertThat(meta.snapshots()).isEmpty();
   }
 
-  @Test
+  @TestTemplate
   public void testCreateTransactionAndUpdateSchema() throws IOException {
-    File tableDir = temp.newFolder();
-    Assert.assertTrue(tableDir.delete());
+    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
+    assertThat(tableDir.delete()).isTrue();
 
     Transaction txn = TestTables.beginCreate(tableDir, "test_create", SCHEMA, unpartitioned());
 
-    Assert.assertNull(
-        "Starting a create transaction should not commit metadata",
-        TestTables.readMetadata("test_create"));
-    Assert.assertNull("Should have no metadata version", TestTables.metadataVersion("test_create"));
+    assertThat(TestTables.readMetadata("test_create")).isNull();
+    assertThat(TestTables.metadataVersion("test_create")).isNull();
 
     txn.updateSchema()
         .allowIncompatibleChanges()
@@ -94,10 +85,9 @@ public class TestCreateTransaction extends TableTestBase {
     txn.commitTransaction();
 
     TableMetadata meta = TestTables.readMetadata("test_create");
-    Assert.assertNotNull("Table metadata should be created after transaction commits", meta);
-    Assert.assertEquals(
-        "Should have metadata version 0", 0, (int) TestTables.metadataVersion("test_create"));
-    Assert.assertEquals("Should have 0 manifest files", 0, listManifestFiles(tableDir).size());
+    assertThat(meta).isNotNull();
+    assertThat(TestTables.metadataVersion("test_create")).isEqualTo(0);
+    assertThat(listManifestFiles(tableDir)).isEmpty();
 
     Schema resultSchema =
         new Schema(
@@ -107,263 +97,195 @@ public class TestCreateTransaction extends TableTestBase {
                 required(3, "col", Types.StringType.get())),
             Sets.newHashSet(1, 3));
 
-    Assert.assertEquals(
-        "Table schema should match with reassigned IDs",
-        resultSchema.asStruct(),
-        meta.schema().asStruct());
-    Assert.assertEquals(
-        "Table schema identifier should match",
-        resultSchema.identifierFieldIds(),
-        meta.schema().identifierFieldIds());
-    Assert.assertEquals("Table spec should match", unpartitioned(), meta.spec());
-    Assert.assertEquals("Table should not have any snapshots", 0, meta.snapshots().size());
+    assertThat(meta.schema().asStruct()).isEqualTo(resultSchema.asStruct());
+    assertThat(meta.schema().identifierFieldIds()).isEqualTo(resultSchema.identifierFieldIds());
+    assertThat(meta.spec()).isEqualTo(unpartitioned());
+    assertThat(meta.snapshots()).isEmpty();
   }
 
-  @Test
+  @TestTemplate
   public void testCreateAndAppendWithTransaction() throws IOException {
-    File tableDir = temp.newFolder();
-    Assert.assertTrue(tableDir.delete());
+    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
+    assertThat(tableDir.delete()).isTrue();
 
     Transaction txn = TestTables.beginCreate(tableDir, "test_append", SCHEMA, unpartitioned());
 
-    Assert.assertNull(
-        "Starting a create transaction should not commit metadata",
-        TestTables.readMetadata("test_append"));
-    Assert.assertNull("Should have no metadata version", TestTables.metadataVersion("test_append"));
+    assertThat(TestTables.readMetadata("test_append")).isNull();
 
     txn.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
-    Assert.assertNull(
-        "Appending in a transaction should not commit metadata",
-        TestTables.readMetadata("test_append"));
-    Assert.assertNull("Should have no metadata version", TestTables.metadataVersion("test_append"));
+    assertThat(TestTables.readMetadata("test_append")).isNull();
+    assertThat(TestTables.metadataVersion("test_append")).isNull();
 
     txn.commitTransaction();
 
     TableMetadata meta = TestTables.readMetadata("test_append");
-    Assert.assertNotNull("Table metadata should be created after transaction commits", meta);
-    Assert.assertEquals(
-        "Should have metadata version 0", 0, (int) TestTables.metadataVersion("test_append"));
-    Assert.assertEquals("Should have 1 manifest file", 1, listManifestFiles(tableDir).size());
+    assertThat(meta).isNotNull();
+    assertThat(TestTables.metadataVersion("test_append")).isEqualTo(0);
+    assertThat(listManifestFiles(tableDir)).hasSize(1);
 
-    Assert.assertEquals(
-        "Table schema should match with reassigned IDs",
-        TypeUtil.assignIncreasingFreshIds(SCHEMA).asStruct(),
-        meta.schema().asStruct());
-    Assert.assertEquals("Table spec should match", unpartitioned(), meta.spec());
-    Assert.assertEquals("Table should have one snapshot", 1, meta.snapshots().size());
+    assertThat(meta.schema().asStruct())
+        .isEqualTo(TypeUtil.assignIncreasingFreshIds(SCHEMA).asStruct());
+    assertThat(meta.spec()).isEqualTo(unpartitioned());
+    assertThat(meta.snapshots()).hasSize(1);
 
     validateSnapshot(null, meta.currentSnapshot(), FILE_A, FILE_B);
   }
 
-  @Test
+  @TestTemplate
   public void testCreateAndAppendWithTable() throws IOException {
-    File tableDir = temp.newFolder();
-    Assert.assertTrue(tableDir.delete());
+    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
+    assertThat(tableDir.delete()).isTrue();
 
     Transaction txn = TestTables.beginCreate(tableDir, "test_append", SCHEMA, unpartitioned());
 
-    Assert.assertNull(
-        "Starting a create transaction should not commit metadata",
-        TestTables.readMetadata("test_append"));
-    Assert.assertNull("Should have no metadata version", TestTables.metadataVersion("test_append"));
+    assertThat(TestTables.readMetadata("test_append"))
+        .isEqualTo(TestTables.readMetadata("test_append"));
+    assertThat(TestTables.metadataVersion("test_append")).isNull();
 
-    Assert.assertTrue(
-        "Should return a transaction table",
-        txn.table() instanceof BaseTransaction.TransactionTable);
+    assertThat(txn.table()).isInstanceOf(BaseTransaction.TransactionTable.class);
 
     txn.table().newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
-    Assert.assertNull(
-        "Appending in a transaction should not commit metadata",
-        TestTables.readMetadata("test_append"));
-    Assert.assertNull("Should have no metadata version", TestTables.metadataVersion("test_append"));
+    assertThat(TestTables.readMetadata("test_append")).isNull();
+    assertThat(TestTables.metadataVersion("test_append")).isNull();
 
     txn.commitTransaction();
 
     TableMetadata meta = TestTables.readMetadata("test_append");
-    Assert.assertNotNull("Table metadata should be created after transaction commits", meta);
-    Assert.assertEquals(
-        "Should have metadata version 0", 0, (int) TestTables.metadataVersion("test_append"));
-    Assert.assertEquals("Should have 1 manifest file", 1, listManifestFiles(tableDir).size());
+    assertThat(meta).isNotNull();
+    assertThat(TestTables.metadataVersion("test_append")).isEqualTo(0);
+    assertThat(listManifestFiles(tableDir)).hasSize(1);
 
-    Assert.assertEquals(
-        "Table schema should match with reassigned IDs",
-        TypeUtil.assignIncreasingFreshIds(SCHEMA).asStruct(),
-        meta.schema().asStruct());
-    Assert.assertEquals("Table spec should match", unpartitioned(), meta.spec());
-    Assert.assertEquals("Table should have one snapshot", 1, meta.snapshots().size());
+    assertThat(meta.schema().asStruct())
+        .isEqualTo(TypeUtil.assignIncreasingFreshIds(SCHEMA).asStruct());
+    assertThat(meta.spec()).isEqualTo(unpartitioned());
+    assertThat(meta.snapshots()).hasSize(1);
 
     validateSnapshot(null, meta.currentSnapshot(), FILE_A, FILE_B);
   }
 
-  @Test
+  @TestTemplate
   public void testCreateAndUpdatePropertiesWithTransaction() throws IOException {
-    File tableDir = temp.newFolder();
-    Assert.assertTrue(tableDir.delete());
+    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
+    assertThat(tableDir.delete()).isTrue();
 
     Transaction txn = TestTables.beginCreate(tableDir, "test_properties", SCHEMA, unpartitioned());
 
-    Assert.assertNull(
-        "Starting a create transaction should not commit metadata",
-        TestTables.readMetadata("test_properties"));
-    Assert.assertNull(
-        "Should have no metadata version", TestTables.metadataVersion("test_properties"));
+    assertThat(TestTables.readMetadata("test_properties")).isNull();
+    assertThat(TestTables.metadataVersion("test_properties")).isNull();
 
     txn.updateProperties().set("test-property", "test-value").commit();
 
-    Assert.assertNull(
-        "Adding properties in a transaction should not commit metadata",
-        TestTables.readMetadata("test_properties"));
-    Assert.assertNull(
-        "Should have no metadata version", TestTables.metadataVersion("test_properties"));
+    assertThat(TestTables.readMetadata("test_properties")).isNull();
+    assertThat(TestTables.metadataVersion("test_properties")).isNull();
 
     txn.commitTransaction();
 
     TableMetadata meta = TestTables.readMetadata("test_properties");
-    Assert.assertNotNull("Table metadata should be created after transaction commits", meta);
-    Assert.assertEquals(
-        "Should have metadata version 0", 0, (int) TestTables.metadataVersion("test_properties"));
-    Assert.assertEquals("Should have 0 manifest files", 0, listManifestFiles(tableDir).size());
+    assertThat(meta).isNotNull();
+    assertThat(TestTables.metadataVersion("test_properties")).isEqualTo(0);
+    assertThat(listManifestFiles(tableDir)).isEmpty();
 
-    Assert.assertEquals(
-        "Table schema should match with reassigned IDs",
-        TypeUtil.assignIncreasingFreshIds(SCHEMA).asStruct(),
-        meta.schema().asStruct());
-    Assert.assertEquals("Table spec should match", unpartitioned(), meta.spec());
-    Assert.assertEquals("Table should not have any snapshots", 0, meta.snapshots().size());
-    Assert.assertEquals("Should have one table property", 1, meta.properties().size());
-    Assert.assertEquals(
-        "Should have correct table property value",
-        "test-value",
-        meta.properties().get("test-property"));
+    assertThat(meta.schema().asStruct())
+        .isEqualTo(TypeUtil.assignIncreasingFreshIds(SCHEMA).asStruct());
+    assertThat(meta.spec()).isEqualTo(unpartitioned());
+    assertThat(meta.snapshots()).isEmpty();
+    assertThat(meta.properties()).hasSize(1).containsEntry("test-property", "test-value");
   }
 
-  @Test
+  @TestTemplate
   public void testCreateAndUpdatePropertiesWithTable() throws IOException {
-    File tableDir = temp.newFolder();
-    Assert.assertTrue(tableDir.delete());
+    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
+    assertThat(tableDir.delete()).isTrue();
 
     Transaction txn = TestTables.beginCreate(tableDir, "test_properties", SCHEMA, unpartitioned());
 
-    Assert.assertNull(
-        "Starting a create transaction should not commit metadata",
-        TestTables.readMetadata("test_properties"));
-    Assert.assertNull(
-        "Should have no metadata version", TestTables.metadataVersion("test_properties"));
+    assertThat(TestTables.readMetadata("test_properties")).isNull();
+    assertThat(TestTables.metadataVersion("test_properties")).isNull();
 
-    Assert.assertTrue(
-        "Should return a transaction table",
-        txn.table() instanceof BaseTransaction.TransactionTable);
+    assertThat(txn.table()).isInstanceOf(BaseTransaction.TransactionTable.class);
 
     txn.table().updateProperties().set("test-property", "test-value").commit();
 
-    Assert.assertNull(
-        "Adding properties in a transaction should not commit metadata",
-        TestTables.readMetadata("test_properties"));
-    Assert.assertNull(
-        "Should have no metadata version", TestTables.metadataVersion("test_properties"));
+    assertThat(TestTables.readMetadata("test_properties")).isNull();
+    assertThat(TestTables.metadataVersion("test_properties")).isNull();
 
     txn.commitTransaction();
 
     TableMetadata meta = TestTables.readMetadata("test_properties");
-    Assert.assertNotNull("Table metadata should be created after transaction commits", meta);
-    Assert.assertEquals(
-        "Should have metadata version 0", 0, (int) TestTables.metadataVersion("test_properties"));
-    Assert.assertEquals("Should have 0 manifest files", 0, listManifestFiles(tableDir).size());
+    assertThat(meta).isNotNull();
+    assertThat(TestTables.metadataVersion("test_properties")).isEqualTo(0);
+    assertThat(listManifestFiles(tableDir)).hasSize(0);
 
-    Assert.assertEquals(
-        "Table schema should match with reassigned IDs",
-        TypeUtil.assignIncreasingFreshIds(SCHEMA).asStruct(),
-        meta.schema().asStruct());
-    Assert.assertEquals("Table spec should match", unpartitioned(), meta.spec());
-    Assert.assertEquals("Table should not have any snapshots", 0, meta.snapshots().size());
-    Assert.assertEquals("Should have one table property", 1, meta.properties().size());
-    Assert.assertEquals(
-        "Should have correct table property value",
-        "test-value",
-        meta.properties().get("test-property"));
+    assertThat(meta.schema().asStruct())
+        .isEqualTo(TypeUtil.assignIncreasingFreshIds(SCHEMA).asStruct());
+    assertThat(meta.spec()).isEqualTo(unpartitioned());
+    assertThat(meta.snapshots()).isEmpty();
+    assertThat(meta.properties()).hasSize(1).containsEntry("test-property", "test-value");
   }
 
-  @Test
+  @TestTemplate
   public void testCreateDetectsUncommittedChange() throws IOException {
-    File tableDir = temp.newFolder();
-    Assert.assertTrue(tableDir.delete());
+    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
+    assertThat(tableDir.delete()).isTrue();
 
     Transaction txn =
         TestTables.beginCreate(tableDir, "uncommitted_change", SCHEMA, unpartitioned());
 
-    Assert.assertNull(
-        "Starting a create transaction should not commit metadata",
-        TestTables.readMetadata("uncommitted_change"));
-    Assert.assertNull(
-        "Should have no metadata version", TestTables.metadataVersion("uncommitted_change"));
+    assertThat(TestTables.readMetadata("uncommitted_change")).isNull();
+    assertThat(TestTables.metadataVersion("uncommitted_change")).isNull();
 
     txn.updateProperties().set("test-property", "test-value"); // not committed
 
-    Assertions.assertThatThrownBy(txn::newDelete)
+    assertThatThrownBy(txn::newDelete)
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Cannot create new DeleteFiles: last operation has not committed");
   }
 
-  @Test
+  @TestTemplate
   public void testCreateDetectsUncommittedChangeOnCommit() throws IOException {
-    File tableDir = temp.newFolder();
-    Assert.assertTrue(tableDir.delete());
+    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
+    assertThat(tableDir.delete()).isTrue();
 
     Transaction txn =
         TestTables.beginCreate(tableDir, "uncommitted_change", SCHEMA, unpartitioned());
 
-    Assert.assertNull(
-        "Starting a create transaction should not commit metadata",
-        TestTables.readMetadata("uncommitted_change"));
-    Assert.assertNull(
-        "Should have no metadata version", TestTables.metadataVersion("uncommitted_change"));
+    assertThat(TestTables.readMetadata("uncommitted_change")).isNull();
+    assertThat(TestTables.metadataVersion("uncommitted_change")).isNull();
 
     txn.updateProperties().set("test-property", "test-value"); // not committed
 
-    Assertions.assertThatThrownBy(txn::commitTransaction)
+    assertThatThrownBy(txn::commitTransaction)
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Cannot commit transaction: last operation has not committed");
   }
 
-  @Test
+  @TestTemplate
   public void testCreateTransactionConflict() throws IOException {
-    File tableDir = temp.newFolder();
-    Assert.assertTrue(tableDir.delete());
+    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
+    assertThat(tableDir.delete()).isTrue();
 
     Transaction txn = TestTables.beginCreate(tableDir, "test_conflict", SCHEMA, SPEC);
 
     // append in the transaction to ensure a manifest file is created
     txn.newAppend().appendFile(FILE_A).commit();
 
-    Assert.assertNull(
-        "Starting a create transaction should not commit metadata",
-        TestTables.readMetadata("test_conflict"));
-    Assert.assertNull(
-        "Should have no metadata version", TestTables.metadataVersion("test_conflict"));
+    assertThat(TestTables.readMetadata("test_conflict")).isNull();
+    assertThat(TestTables.metadataVersion("test_conflict")).isNull();
 
     Table conflict =
         TestTables.create(tableDir, "test_conflict", SCHEMA, unpartitioned(), formatVersion);
 
-    Assert.assertEquals(
-        "Table schema should match with reassigned IDs",
-        TypeUtil.assignIncreasingFreshIds(SCHEMA).asStruct(),
-        conflict.schema().asStruct());
-    Assert.assertEquals(
-        "Table spec should match conflict table, not transaction table",
-        unpartitioned(),
-        conflict.spec());
-    Assert.assertFalse(
-        "Table should not have any snapshots", conflict.snapshots().iterator().hasNext());
+    assertThat(conflict.schema().asStruct())
+        .isEqualTo(TypeUtil.assignIncreasingFreshIds(SCHEMA).asStruct());
+    assertThat(conflict.spec()).isEqualTo(unpartitioned());
+    assertThat(conflict.snapshots()).isEmpty();
 
-    Assertions.assertThatThrownBy(txn::commitTransaction)
+    assertThatThrownBy(txn::commitTransaction)
         .isInstanceOf(CommitFailedException.class)
         .hasMessageStartingWith("Commit failed: table was updated");
 
-    Assert.assertEquals(
-        "Should clean up metadata",
-        Sets.newHashSet(),
-        Sets.newHashSet(listManifestFiles(tableDir)));
+    assertThat(listManifestFiles(tableDir)).isEmpty();
   }
 }

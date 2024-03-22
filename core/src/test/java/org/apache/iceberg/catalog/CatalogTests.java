@@ -380,17 +380,17 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     catalog.createNamespace(ns1);
     Assertions.assertThat(catalog.listNamespaces())
-        .withFailMessage("Should include newdb_1")
+        .as("Should include newdb_1")
         .hasSameElementsAs(concat(starting, ns1));
 
     catalog.createNamespace(ns2);
     Assertions.assertThat(catalog.listNamespaces())
-        .withFailMessage("Should include newdb_1 and newdb_2")
+        .as("Should include newdb_1 and newdb_2")
         .hasSameElementsAs(concat(starting, ns1, ns2));
 
     catalog.dropNamespace(ns1);
     Assertions.assertThat(catalog.listNamespaces())
-        .withFailMessage("Should include newdb_2, not newdb_1")
+        .as("Should include newdb_2, not newdb_1")
         .hasSameElementsAs(concat(starting, ns2));
 
     catalog.dropNamespace(ns2);
@@ -415,36 +415,34 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     catalog.createNamespace(parent);
     Assertions.assertThat(catalog.listNamespaces())
-        .withFailMessage("Should include parent")
+        .as("Should include parent")
         .hasSameElementsAs(concat(starting, parent));
 
     Assertions.assertThat(catalog.listNamespaces(parent))
-        .withFailMessage("Should have no children in newly created parent namespace")
+        .as("Should have no children in newly created parent namespace")
         .isEmpty();
 
     catalog.createNamespace(child1);
     Assertions.assertThat(catalog.listNamespaces(parent))
-        .withFailMessage("Should include child1")
+        .as("Should include child1")
         .hasSameElementsAs(ImmutableList.of(child1));
 
     catalog.createNamespace(child2);
     Assertions.assertThat(catalog.listNamespaces(parent))
-        .withFailMessage("Should include child1 and child2")
+        .as("Should include child1 and child2")
         .hasSameElementsAs(ImmutableList.of(child1, child2));
 
     Assertions.assertThat(catalog.listNamespaces())
-        .withFailMessage("Should not change listing the root")
+        .as("Should not change listing the root")
         .hasSameElementsAs(concat(starting, parent));
 
     catalog.dropNamespace(child1);
     Assertions.assertThat(catalog.listNamespaces(parent))
-        .withFailMessage("Should include only child2")
+        .as("Should include only child2")
         .hasSameElementsAs(ImmutableList.of(child2));
 
     catalog.dropNamespace(child2);
-    Assertions.assertThat(catalog.listNamespaces(parent))
-        .withFailMessage("Should be empty")
-        .isEmpty();
+    Assertions.assertThat(catalog.listNamespaces(parent)).as("Should be empty").isEmpty();
   }
 
   @Test

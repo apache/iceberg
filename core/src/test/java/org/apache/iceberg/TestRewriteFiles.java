@@ -22,50 +22,45 @@ import static org.apache.iceberg.ManifestEntry.Status.ADDED;
 import static org.apache.iceberg.ManifestEntry.Status.DELETED;
 import static org.apache.iceberg.ManifestEntry.Status.EXISTING;
 import static org.apache.iceberg.util.SnapshotUtil.latestSnapshot;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.internal.util.collections.Sets;
 
-@RunWith(Parameterized.class)
-public class TestRewriteFiles extends TableTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestRewriteFiles extends TestBase {
 
-  private final String branch;
+  @Parameter(index = 1)
+  private String branch;
 
-  @Parameterized.Parameters(name = "formatVersion = {0}, branch = {1}")
-  public static Object[] parameters() {
-    return new Object[][] {
-      new Object[] {1, "main"},
-      new Object[] {1, "testBranch"},
-      new Object[] {2, "main"},
-      new Object[] {2, "testBranch"}
-    };
+  @Parameters(name = "formatVersion = {0}, branch = {1}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(
+        new Object[] {1, "main"},
+        new Object[] {1, "testBranch"},
+        new Object[] {2, "main"},
+        new Object[] {2, "testBranch"});
   }
 
-  public TestRewriteFiles(int formatVersion, String branch) {
-    super(formatVersion);
-    this.branch = branch;
-  }
-
-  @Test
+  @TestTemplate
   public void testEmptyTable() {
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    assertThat(listManifestFiles()).isEmpty();
 
     TableMetadata base = readMetadata();
-    Assert.assertNull("Should not have a current snapshot", base.ref(branch));
+    assertThat(base.ref(branch)).isNull();
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 commit(
                     table,
@@ -74,7 +69,7 @@ public class TestRewriteFiles extends TableTestBase {
         .isInstanceOf(ValidationException.class)
         .hasMessage("Missing required files to delete: /path/to/data-a.parquet");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 commit(
                     table,
@@ -90,11 +85,11 @@ public class TestRewriteFiles extends TableTestBase {
         .hasMessage("Missing required files to delete: /path/to/data-a-deletes.parquet");
   }
 
-  @Test
+  @TestTemplate
   public void testAddOnly() {
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    assertThat(listManifestFiles()).isEmpty();
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 apply(
                     table.newRewrite().rewriteFiles(Sets.newSet(FILE_A), Collections.emptySet()),
@@ -102,7 +97,7 @@ public class TestRewriteFiles extends TableTestBase {
         .isInstanceOf(ValidationException.class)
         .hasMessage("Missing required files to delete: /path/to/data-a.parquet");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 apply(
                     table
@@ -117,7 +112,7 @@ public class TestRewriteFiles extends TableTestBase {
         .hasMessage(
             "Delete files to add must be empty because there's no delete file to be rewritten");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 apply(
                     table
@@ -133,11 +128,11 @@ public class TestRewriteFiles extends TableTestBase {
             "Delete files to add must be empty because there's no delete file to be rewritten");
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteOnly() {
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    assertThat(listManifestFiles()).isEmpty();
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 apply(
                     table.newRewrite().rewriteFiles(Collections.emptySet(), Sets.newSet(FILE_A)),
@@ -145,7 +140,7 @@ public class TestRewriteFiles extends TableTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Files to delete cannot be empty");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 apply(
                     table
@@ -159,7 +154,7 @@ public class TestRewriteFiles extends TableTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Files to delete cannot be empty");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 apply(
                     table
@@ -174,28 +169,23 @@ public class TestRewriteFiles extends TableTestBase {
         .hasMessage("Files to delete cannot be empty");
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteWithDuplicateEntriesInManifest() {
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    assertThat(listManifestFiles()).isEmpty();
 
     commit(
         table, table.newAppend().appendFile(FILE_A).appendFile(FILE_A).appendFile(FILE_B), branch);
 
     TableMetadata base = readMetadata();
     long baseSnapshotId = latestSnapshot(base, branch).snapshotId();
-    Assert.assertEquals(
-        "Should create 1 manifest for initial write",
-        1,
-        latestSnapshot(base, branch).allManifests(table.io()).size());
+    assertThat(latestSnapshot(base, branch).allManifests(table.io())).hasSize(1);
     ManifestFile initialManifest = latestSnapshot(base, branch).allManifests(table.io()).get(0);
 
     Snapshot pending =
         apply(table.newRewrite().rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_C)), branch);
 
-    Assert.assertEquals("Should contain 2 manifest", 2, pending.allManifests(table.io()).size());
-    Assert.assertFalse(
-        "Should not contain manifest from initial write",
-        pending.allManifests(table.io()).contains(initialManifest));
+    assertThat(pending.allManifests(table.io())).hasSize(2);
+    assertThat(pending.allManifests(table.io())).doesNotContain(initialManifest);
 
     long pendingId = pending.snapshotId();
 
@@ -209,30 +199,25 @@ public class TestRewriteFiles extends TableTestBase {
         statuses(DELETED, DELETED, EXISTING));
 
     // We should only get the 3 manifests that this test is expected to add.
-    Assert.assertEquals("Only 3 manifests should exist", 3, listManifestFiles().size());
+    assertThat(listManifestFiles()).hasSize(3);
   }
 
-  @Test
+  @TestTemplate
   public void testAddAndDelete() {
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    assertThat(listManifestFiles()).isEmpty();
 
     commit(table, table.newAppend().appendFile(FILE_A).appendFile(FILE_B), branch);
 
     TableMetadata base = readMetadata();
     long baseSnapshotId = latestSnapshot(base, branch).snapshotId();
-    Assert.assertEquals(
-        "Should create 1 manifest for initial write",
-        1,
-        latestSnapshot(table, branch).allManifests(table.io()).size());
+    assertThat(latestSnapshot(table, branch).allManifests(table.io())).hasSize(1);
     ManifestFile initialManifest = latestSnapshot(table, branch).allManifests(table.io()).get(0);
 
     Snapshot pending =
         apply(table.newRewrite().rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_C)), branch);
 
-    Assert.assertEquals("Should contain 2 manifest", 2, pending.allManifests(table.io()).size());
-    Assert.assertFalse(
-        "Should not contain manifest from initial write",
-        pending.allManifests(table.io()).contains(initialManifest));
+    assertThat(pending.allManifests(table.io())).hasSize(2);
+    assertThat(pending.allManifests(table.io())).doesNotContain(initialManifest);
 
     long pendingId = pending.snapshotId();
 
@@ -246,14 +231,15 @@ public class TestRewriteFiles extends TableTestBase {
         statuses(DELETED, EXISTING));
 
     // We should only get the 3 manifests that this test is expected to add.
-    Assert.assertEquals("Only 3 manifests should exist", 3, listManifestFiles().size());
+    assertThat(listManifestFiles()).hasSize(3);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteDataAndDeleteFiles() {
-    Assume.assumeTrue(
-        "Rewriting delete files is only supported in iceberg format v2. ", formatVersion > 1);
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    assumeThat(formatVersion)
+        .as("Rewriting delete files is only supported in iceberg format v2 or later")
+        .isGreaterThan(1);
+    assertThat(listManifestFiles()).isEmpty();
 
     commit(
         table,
@@ -269,8 +255,7 @@ public class TestRewriteFiles extends TableTestBase {
     TableMetadata base = readMetadata();
     Snapshot baseSnap = latestSnapshot(base, branch);
     long baseSnapshotId = baseSnap.snapshotId();
-    Assert.assertEquals(
-        "Should create 2 manifests for initial write", 2, baseSnap.allManifests(table.io()).size());
+    assertThat(baseSnap.allManifests(table.io())).hasSize(2);
     List<ManifestFile> initialManifests = baseSnap.allManifests(table.io());
 
     validateManifestEntries(
@@ -299,10 +284,8 @@ public class TestRewriteFiles extends TableTestBase {
                     ImmutableSet.of()),
             branch);
 
-    Assert.assertEquals("Should contain 3 manifest", 3, pending.allManifests(table.io()).size());
-    Assert.assertFalse(
-        "Should not contain manifest from initial write",
-        pending.allManifests(table.io()).stream().anyMatch(initialManifests::contains));
+    assertThat(pending.allManifests(table.io())).hasSize(3);
+    assertThat(pending.allManifests(table.io())).doesNotContainAnyElementsOf(initialManifests);
 
     long pendingId = pending.snapshotId();
     validateManifestEntries(
@@ -323,14 +306,15 @@ public class TestRewriteFiles extends TableTestBase {
         statuses(DELETED, EXISTING));
 
     // We should only get the 5 manifests that this test is expected to add.
-    Assert.assertEquals("Only 5 manifests should exist", 5, listManifestFiles().size());
+    assertThat(listManifestFiles()).hasSize(5);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteDataAndAssignOldSequenceNumber() {
-    Assume.assumeTrue(
-        "Sequence number is only supported in iceberg format v2. ", formatVersion > 1);
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    assumeThat(formatVersion)
+        .as("Sequence number is only supported in iceberg format v2 or later")
+        .isGreaterThan(1);
+    assertThat(listManifestFiles()).isEmpty();
 
     commit(
         table,
@@ -346,8 +330,7 @@ public class TestRewriteFiles extends TableTestBase {
     TableMetadata base = readMetadata();
     Snapshot baseSnap = latestSnapshot(base, branch);
     long baseSnapshotId = baseSnap.snapshotId();
-    Assert.assertEquals(
-        "Should create 2 manifests for initial write", 2, baseSnap.allManifests(table.io()).size());
+    assertThat(baseSnap.allManifests(table.io())).hasSize(2);
     List<ManifestFile> initialManifests = baseSnap.allManifests(table.io());
 
     validateManifestEntries(
@@ -373,24 +356,15 @@ public class TestRewriteFiles extends TableTestBase {
                 .rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_D), oldSequenceNumber),
             branch);
 
-    Assert.assertEquals("Should contain 3 manifest", 3, pending.allManifests(table.io()).size());
-    Assert.assertFalse(
-        "Should not contain data manifest from initial write",
-        pending.dataManifests(table.io()).stream().anyMatch(initialManifests::contains));
+    assertThat(pending.allManifests(table.io())).hasSize(3);
+    assertThat(pending.dataManifests(table.io())).doesNotContainAnyElementsOf(initialManifests);
 
     long pendingId = pending.snapshotId();
     ManifestFile newManifest = pending.allManifests(table.io()).get(0);
     validateManifestEntries(newManifest, ids(pendingId), files(FILE_D), statuses(ADDED));
-    for (ManifestEntry<DataFile> entry : ManifestFiles.read(newManifest, FILE_IO).entries()) {
-      Assert.assertEquals(
-          "Should have old sequence number for manifest entries",
-          oldSequenceNumber,
-          (long) entry.dataSequenceNumber());
-    }
-    Assert.assertEquals(
-        "Should use new sequence number for the manifest file",
-        oldSequenceNumber + 1,
-        newManifest.sequenceNumber());
+    assertThat(ManifestFiles.read(newManifest, FILE_IO).entries())
+        .allSatisfy(entry -> assertThat(entry.dataSequenceNumber()).isEqualTo(oldSequenceNumber));
+    assertThat(newManifest.sequenceNumber()).isEqualTo(oldSequenceNumber + 1);
 
     validateManifestEntries(
         pending.allManifests(table.io()).get(1),
@@ -407,10 +381,10 @@ public class TestRewriteFiles extends TableTestBase {
         statuses(ADDED, ADDED));
 
     // We should only get the 4 manifests that this test is expected to add.
-    Assert.assertEquals("Only 4 manifests should exist", 4, listManifestFiles().size());
+    assertThat(listManifestFiles()).hasSize(4);
   }
 
-  @Test
+  @TestTemplate
   public void testFailure() {
     commit(table, table.newAppend().appendFile(FILE_A), branch);
 
@@ -420,28 +394,29 @@ public class TestRewriteFiles extends TableTestBase {
         table.newRewrite().rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_B));
     Snapshot pending = apply(rewrite, branch);
 
-    Assert.assertEquals("Should produce 2 manifests", 2, pending.allManifests(table.io()).size());
+    assertThat(pending.allManifests(table.io())).hasSize(2);
     ManifestFile manifest1 = pending.allManifests(table.io()).get(0);
     ManifestFile manifest2 = pending.allManifests(table.io()).get(1);
 
     validateManifestEntries(manifest1, ids(pending.snapshotId()), files(FILE_B), statuses(ADDED));
     validateManifestEntries(manifest2, ids(pending.snapshotId()), files(FILE_A), statuses(DELETED));
 
-    Assertions.assertThatThrownBy(() -> commit(table, rewrite, branch))
+    assertThatThrownBy(() -> commit(table, rewrite, branch))
         .isInstanceOf(CommitFailedException.class)
         .hasMessage("Injected failure");
 
-    Assert.assertFalse("Should clean up new manifest", new File(manifest1.path()).exists());
-    Assert.assertFalse("Should clean up new manifest", new File(manifest2.path()).exists());
+    assertThat(new File(manifest1.path())).doesNotExist();
+    assertThat(new File(manifest2.path())).doesNotExist();
 
     // As commit failed all the manifests added with rewrite should be cleaned up
-    Assert.assertEquals("Only 1 manifest should exist", 1, listManifestFiles().size());
+    assertThat(listManifestFiles()).hasSize(1);
   }
 
-  @Test
+  @TestTemplate
   public void testFailureWhenRewriteBothDataAndDeleteFiles() {
-    Assume.assumeTrue(
-        "Rewriting delete files is only supported in iceberg format v2. ", formatVersion > 1);
+    assumeThat(formatVersion)
+        .as("Rewriting delete files is only supported in iceberg format v2 or later")
+        .isGreaterThan(1);
 
     commit(
         table,
@@ -468,7 +443,7 @@ public class TestRewriteFiles extends TableTestBase {
                 ImmutableSet.of());
     Snapshot pending = apply(rewrite, branch);
 
-    Assert.assertEquals("Should produce 3 manifests", 3, pending.allManifests(table.io()).size());
+    assertThat(pending.allManifests(table.io())).hasSize(3);
     ManifestFile manifest1 = pending.allManifests(table.io()).get(0);
     ManifestFile manifest2 = pending.allManifests(table.io()).get(1);
     ManifestFile manifest3 = pending.allManifests(table.io()).get(2);
@@ -493,19 +468,19 @@ public class TestRewriteFiles extends TableTestBase {
         files(FILE_A_DELETES, FILE_B_DELETES),
         statuses(DELETED, DELETED));
 
-    Assertions.assertThatThrownBy(rewrite::commit)
+    assertThatThrownBy(rewrite::commit)
         .isInstanceOf(CommitFailedException.class)
         .hasMessage("Injected failure");
 
-    Assert.assertFalse("Should clean up new manifest", new File(manifest1.path()).exists());
-    Assert.assertFalse("Should clean up new manifest", new File(manifest2.path()).exists());
-    Assert.assertFalse("Should clean up new manifest", new File(manifest3.path()).exists());
+    assertThat(new File(manifest1.path())).doesNotExist();
+    assertThat(new File(manifest2.path())).doesNotExist();
+    assertThat(new File(manifest3.path())).doesNotExist();
 
     // As commit failed all the manifests added with rewrite should be cleaned up
-    Assert.assertEquals("Only 2 manifest should exist", 2, listManifestFiles().size());
+    assertThat(listManifestFiles()).hasSize(2);
   }
 
-  @Test
+  @TestTemplate
   public void testRecovery() {
     commit(table, table.newAppend().appendFile(FILE_A), branch);
 
@@ -515,7 +490,7 @@ public class TestRewriteFiles extends TableTestBase {
         table.newRewrite().rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_B));
     Snapshot pending = apply(rewrite, branch);
 
-    Assert.assertEquals("Should produce 2 manifests", 2, pending.allManifests(table.io()).size());
+    assertThat(pending.allManifests(table.io())).hasSize(2);
     ManifestFile manifest1 = pending.allManifests(table.io()).get(0);
     ManifestFile manifest2 = pending.allManifests(table.io()).get(1);
 
@@ -524,23 +499,21 @@ public class TestRewriteFiles extends TableTestBase {
 
     commit(table, rewrite, branch);
 
-    Assert.assertTrue("Should reuse the manifest for appends", new File(manifest1.path()).exists());
-    Assert.assertTrue(
-        "Should reuse the manifest with deletes", new File(manifest2.path()).exists());
+    assertThat(new File(manifest1.path())).exists();
+    assertThat(new File(manifest2.path())).exists();
 
     TableMetadata metadata = readMetadata();
-    Assert.assertTrue(
-        "Should commit the manifest for append",
-        latestSnapshot(metadata, branch).allManifests(table.io()).contains(manifest2));
+    assertThat(latestSnapshot(metadata, branch).allManifests(table.io())).contains(manifest2);
 
     // 2 manifests added by rewrite and 1 original manifest should be found.
-    Assert.assertEquals("Only 3 manifests should exist", 3, listManifestFiles().size());
+    assertThat(listManifestFiles()).hasSize(3);
   }
 
-  @Test
+  @TestTemplate
   public void testRecoverWhenRewriteBothDataAndDeleteFiles() {
-    Assume.assumeTrue(
-        "Rewriting delete files is only supported in iceberg format v2. ", formatVersion > 1);
+    assumeThat(formatVersion)
+        .as("Rewriting delete files is only supported in iceberg format v2 or later")
+        .isGreaterThan(1);
 
     commit(
         table,
@@ -567,7 +540,7 @@ public class TestRewriteFiles extends TableTestBase {
                 ImmutableSet.of());
     Snapshot pending = apply(rewrite, branch);
 
-    Assert.assertEquals("Should produce 3 manifests", 3, pending.allManifests(table.io()).size());
+    assertThat(pending.allManifests(table.io())).hasSize(3);
     ManifestFile manifest1 = pending.allManifests(table.io()).get(0);
     ManifestFile manifest2 = pending.allManifests(table.io()).get(1);
     ManifestFile manifest3 = pending.allManifests(table.io()).get(2);
@@ -590,25 +563,24 @@ public class TestRewriteFiles extends TableTestBase {
 
     commit(table, rewrite, branch);
 
-    Assert.assertTrue("Should reuse new manifest", new File(manifest1.path()).exists());
-    Assert.assertTrue("Should reuse new manifest", new File(manifest2.path()).exists());
-    Assert.assertTrue("Should reuse new manifest", new File(manifest3.path()).exists());
+    assertThat(new File(manifest1.path())).exists();
+    assertThat(new File(manifest2.path())).exists();
+    assertThat(new File(manifest3.path())).exists();
 
     TableMetadata metadata = readMetadata();
     List<ManifestFile> committedManifests = Lists.newArrayList(manifest1, manifest2, manifest3);
-    Assert.assertEquals(
-        "Should committed the manifests",
-        latestSnapshot(metadata, branch).allManifests(table.io()),
-        committedManifests);
+    assertThat(latestSnapshot(metadata, branch).allManifests(table.io()))
+        .isEqualTo(committedManifests);
 
     // As commit success all the manifests added with rewrite should be available.
-    Assert.assertEquals("Only 5 manifest should exist", 5, listManifestFiles().size());
+    assertThat(listManifestFiles()).hasSize(5);
   }
 
-  @Test
+  @TestTemplate
   public void testReplaceEqualityDeletesWithPositionDeletes() {
-    Assume.assumeTrue(
-        "Rewriting delete files is only supported in iceberg format v2. ", formatVersion > 1);
+    assumeThat(formatVersion)
+        .as("Rewriting delete files is only supported in iceberg format v2 or later")
+        .isGreaterThan(1);
 
     commit(table, table.newRowDelta().addRows(FILE_A2).addDeletes(FILE_A2_DELETES), branch);
 
@@ -624,7 +596,7 @@ public class TestRewriteFiles extends TableTestBase {
                 ImmutableSet.of(), ImmutableSet.of(FILE_B_DELETES));
     Snapshot pending = apply(rewrite, branch);
 
-    Assert.assertEquals("Should produce 3 manifests", 3, pending.allManifests(table.io()).size());
+    assertThat(pending.allManifests(table.io())).hasSize(3);
     ManifestFile manifest1 = pending.allManifests(table.io()).get(0);
     ManifestFile manifest2 = pending.allManifests(table.io()).get(1);
     ManifestFile manifest3 = pending.allManifests(table.io()).get(2);
@@ -649,25 +621,24 @@ public class TestRewriteFiles extends TableTestBase {
 
     commit(table, rewrite, branch);
 
-    Assert.assertTrue("Should reuse new manifest", new File(manifest1.path()).exists());
-    Assert.assertTrue("Should reuse new manifest", new File(manifest2.path()).exists());
-    Assert.assertTrue("Should reuse new manifest", new File(manifest3.path()).exists());
+    assertThat(new File(manifest1.path())).exists();
+    assertThat(new File(manifest2.path())).exists();
+    assertThat(new File(manifest3.path())).exists();
 
     metadata = readMetadata();
     List<ManifestFile> committedManifests = Lists.newArrayList(manifest1, manifest2, manifest3);
-    Assert.assertEquals(
-        "Should committed the manifests",
-        latestSnapshot(metadata, branch).allManifests(table.io()),
-        committedManifests);
+    assertThat(latestSnapshot(metadata, branch).allManifests(table.io()))
+        .isEqualTo(committedManifests);
 
     // As commit success all the manifests added with rewrite should be available.
-    Assert.assertEquals("4 manifests should exist", 4, listManifestFiles().size());
+    assertThat(listManifestFiles()).hasSize(4);
   }
 
-  @Test
+  @TestTemplate
   public void testRemoveAllDeletes() {
-    Assume.assumeTrue(
-        "Rewriting delete files is only supported in iceberg format v2. ", formatVersion > 1);
+    assumeThat(formatVersion)
+        .as("Rewriting delete files is only supported in iceberg format v2 or later")
+        .isGreaterThan(1);
 
     commit(table, table.newRowDelta().addRows(FILE_A).addDeletes(FILE_A_DELETES), branch);
 
@@ -681,7 +652,7 @@ public class TestRewriteFiles extends TableTestBase {
                 ImmutableSet.of(), ImmutableSet.of());
     Snapshot pending = apply(rewrite, branch);
 
-    Assert.assertEquals("Should produce 2 manifests", 2, pending.allManifests(table.io()).size());
+    assertThat(pending.allManifests(table.io())).hasSize(2);
     ManifestFile manifest1 = pending.allManifests(table.io()).get(0);
     ManifestFile manifest2 = pending.allManifests(table.io()).get(1);
 
@@ -697,32 +668,28 @@ public class TestRewriteFiles extends TableTestBase {
 
     commit(table, rewrite, branch);
 
-    Assert.assertTrue("Should reuse the new manifest", new File(manifest1.path()).exists());
-    Assert.assertTrue("Should reuse the new manifest", new File(manifest2.path()).exists());
+    assertThat(new File(manifest1.path())).exists();
+    assertThat(new File(manifest2.path())).exists();
 
     TableMetadata metadata = readMetadata();
     List<ManifestFile> committedManifests = Lists.newArrayList(manifest1, manifest2);
-    Assert.assertTrue(
-        "Should committed the manifests",
-        latestSnapshot(metadata, branch).allManifests(table.io()).containsAll(committedManifests));
+    assertThat(latestSnapshot(metadata, branch).allManifests(table.io()))
+        .containsAll(committedManifests);
 
     // As commit success all the manifests added with rewrite should be available.
-    Assert.assertEquals("4 manifests should exist", 4, listManifestFiles().size());
+    assertThat(listManifestFiles()).hasSize(4);
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteNonExistentFile() {
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    assertThat(listManifestFiles()).isEmpty();
 
     commit(table, table.newAppend().appendFile(FILE_A).appendFile(FILE_B), branch);
 
     TableMetadata base = readMetadata();
-    Assert.assertEquals(
-        "Should create 1 manifest for initial write",
-        1,
-        latestSnapshot(base, branch).allManifests(table.io()).size());
+    assertThat(latestSnapshot(base, branch).allManifests(table.io())).hasSize(1);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 commit(
                     table,
@@ -731,26 +698,23 @@ public class TestRewriteFiles extends TableTestBase {
         .isInstanceOf(ValidationException.class)
         .hasMessage("Missing required files to delete: /path/to/data-c.parquet");
 
-    Assert.assertEquals("Only 1 manifests should exist", 1, listManifestFiles().size());
+    assertThat(listManifestFiles()).hasSize(1);
   }
 
-  @Test
+  @TestTemplate
   public void testAlreadyDeletedFile() {
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    assertThat(listManifestFiles()).isEmpty();
 
     commit(table, table.newAppend().appendFile(FILE_A), branch);
 
     TableMetadata base = readMetadata();
-    Assert.assertEquals(
-        "Should create 1 manifest for initial write",
-        1,
-        latestSnapshot(base, branch).allManifests(table.io()).size());
+    assertThat(latestSnapshot(base, branch).allManifests(table.io())).hasSize(1);
 
     RewriteFiles rewrite = table.newRewrite();
     Snapshot pending =
         apply(rewrite.rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_B)), branch);
 
-    Assert.assertEquals("Should contain 2 manifest", 2, pending.allManifests(table.io()).size());
+    assertThat(pending.allManifests(table.io())).hasSize(2);
 
     long pendingId = pending.snapshotId();
 
@@ -765,7 +729,7 @@ public class TestRewriteFiles extends TableTestBase {
 
     commit(table, rewrite, branch);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 commit(
                     table,
@@ -774,12 +738,14 @@ public class TestRewriteFiles extends TableTestBase {
         .isInstanceOf(ValidationException.class)
         .hasMessage("Missing required files to delete: /path/to/data-a.parquet");
 
-    Assert.assertEquals("Only 3 manifests should exist", 3, listManifestFiles().size());
+    assertThat(listManifestFiles()).hasSize(3);
   }
 
-  @Test
+  @TestTemplate
   public void testNewDeleteFile() {
-    Assume.assumeTrue("Delete files are only supported in v2", formatVersion > 1);
+    assumeThat(formatVersion)
+        .as("Rewriting delete files is only supported in iceberg format v2 or later")
+        .isGreaterThan(1);
 
     commit(table, table.newAppend().appendFile(FILE_A), branch);
 
@@ -789,7 +755,7 @@ public class TestRewriteFiles extends TableTestBase {
 
     long snapshotAfterDeletes = latestSnapshot(table, branch).snapshotId();
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 apply(
                     table

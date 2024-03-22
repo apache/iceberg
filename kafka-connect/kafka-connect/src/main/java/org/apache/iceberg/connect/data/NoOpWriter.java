@@ -21,7 +21,7 @@ package org.apache.iceberg.connect.data;
 import java.util.List;
 import org.apache.kafka.connect.sink.SinkRecord;
 
-public class NoOpWriter implements RecordWriter {
+class NoOpWriter implements RecordWriter {
   @Override
   public void write(SinkRecord record) {
     // NO-OP
