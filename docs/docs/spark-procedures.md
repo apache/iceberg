@@ -20,7 +20,7 @@ title: "Procedures"
 
 # Spark Procedures
 
-To use Iceberg in Spark, first configure [Spark catalogs](../spark-configuration.md). Stored procedures are only available when using [Iceberg SQL extensions](../spark-configuration.md#sql-extensions) in Spark 3.
+To use Iceberg in Spark, first configure [Spark catalogs](spark-configuration.md). Stored procedures are only available when using [Iceberg SQL extensions](spark-configuration.md#sql-extensions) in Spark 3.
 
 ## Usage
 
@@ -272,7 +272,7 @@ the `expire_snapshots` procedure will never remove files which are still require
 | `stream_results` |    | boolean       | When true, deletion files will be sent to Spark driver by RDD partition (by default, all the files will be sent to Spark driver). This option is recommended to set to `true` to prevent Spark driver OOM from large file size |
 | `snapshot_ids` |   | array of long       | Array of snapshot IDs to expire. |
 
-If `older_than` and `retain_last` are omitted, the table's [expiration properties](../configuration.md#table-behavior-properties) will be used.
+If `older_than` and `retain_last` are omitted, the table's [expiration properties](configuration.md#table-behavior-properties) will be used.
 Snapshots that are still referenced by branches or tags won't be removed. By default, branches and tags never expire, but their retention policy can be changed with the table property `history.expire.max-ref-age-ms`. The `main` branch never expires.
 
 #### Output
@@ -357,7 +357,7 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 | `partial-progress.max-commits` | 10 | Maximum amount of commits that this rewrite is allowed to produce if partial progress is enabled |
 | `use-starting-sequence-number` | true | Use the sequence number of the snapshot at compaction start time instead of that of the newly produced snapshot |
 | `rewrite-job-order` | none | Force the rewrite job order based on the value. <ul><li>If rewrite-job-order=bytes-asc, then rewrite the smallest job groups first.</li><li>If rewrite-job-order=bytes-desc, then rewrite the largest job groups first.</li><li>If rewrite-job-order=files-asc, then rewrite the job groups with the least files first.</li><li>If rewrite-job-order=files-desc, then rewrite the job groups with the most files first.</li><li>If rewrite-job-order=none, then rewrite job groups in the order they were planned (no specific ordering).</li></ul> |
-| `target-file-size-bytes` | 536870912 (512 MB, default value of `write.target-file-size-bytes` from [table properties](../configuration.md#write-properties)) | Target output file size |
+| `target-file-size-bytes` | 536870912 (512 MB, default value of `write.target-file-size-bytes` from [table properties](configuration.md#write-properties)) | Target output file size |
 | `min-file-size-bytes` | 75% of target file size | Files under this threshold will be considered for rewriting regardless of any other criteria |
 | `max-file-size-bytes` | 180% of target file size | Files with sizes above this threshold will be considered for rewriting regardless of any other criteria |
 | `min-input-files` | 5 | Any file group exceeding this number of files will be rewritten regardless of other criteria |
@@ -480,7 +480,7 @@ Dangling deletes are always filtered out during rewriting.
 | `partial-progress.enabled` | false | Enable committing groups of files prior to the entire rewrite completing |
 | `partial-progress.max-commits` | 10 | Maximum amount of commits that this rewrite is allowed to produce if partial progress is enabled |
 | `rewrite-job-order` | none | Force the rewrite job order based on the value. <ul><li>If rewrite-job-order=bytes-asc, then rewrite the smallest job groups first.</li><li>If rewrite-job-order=bytes-desc, then rewrite the largest job groups first.</li><li>If rewrite-job-order=files-asc, then rewrite the job groups with the least files first.</li><li>If rewrite-job-order=files-desc, then rewrite the job groups with the most files first.</li><li>If rewrite-job-order=none, then rewrite job groups in the order they were planned (no specific ordering).</li></ul> |
-| `target-file-size-bytes` | 67108864 (64MB, default value of `write.delete.target-file-size-bytes` from [table properties](../configuration.md#write-properties)) | Target output file size |
+| `target-file-size-bytes` | 67108864 (64MB, default value of `write.delete.target-file-size-bytes` from [table properties](configuration.md#write-properties)) | Target output file size |
 | `min-file-size-bytes` | 75% of target file size | Files under this threshold will be considered for rewriting regardless of any other criteria |
 | `max-file-size-bytes` | 180% of target file size | Files with sizes above this threshold will be considered for rewriting regardless of any other criteria |
 | `min-input-files` | 5 | Any file group exceeding this number of files will be rewritten regardless of other criteria |
