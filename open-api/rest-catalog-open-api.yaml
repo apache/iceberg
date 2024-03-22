@@ -1610,14 +1610,28 @@ components:
 
     PageToken:
       description:
-        An opaque token which allows clients to make use of pagination for a list API (e.g. ListTables). 
-        Clients will initiate the first paginated request by sending an empty `pageToken` e.g. `GET /tables?pageToken` or `GET /tables?pageToken=`
-        signaling to the service that the response should be paginated.
+        An opaque token that allows clients to make use of pagination for list APIs
+        (e.g. ListTables). Clients may initiate the first paginated request by sending an empty
+        query parameter `pageToken` to the server.
+        
+        Servers that support pagination should identify the `pageToken` parameter and return a
+        `next-page-token` in the response if there are more results available.  After the initial
+        request, the value of `next-page-token` from each response must be used as the `pageToken`
+        parameter value for the next request. The server must return `null` value for the
+        `next-page-token` in the last response.
+        
+        Servers that support pagination must return all results in a single response with the value
+        of `next-page-token` set to `null` if the query parameter `pageToken` is not set in the
+        request.
+        
+        Servers that do not support pagination should ignore the `pageToken` parameter and return
+        all results in a single response. The `next-page-token` must be omitted from the response.
+    
+        Clients must interpret either `null` or missing response value of `next-page-token` as
+        the end of the listing results.
 
-        Servers that support pagination will recognize `pageToken` and return a `next-page-token` in response if there are more results available.
-        After the initial request, it is expected that the value of `next-page-token` from the last response is used in the subsequent request.
-        Servers that do not support pagination will ignore `next-page-token` and return all results.
       type: string
+      nullable: true
 
     TableIdentifier:
       type: object
