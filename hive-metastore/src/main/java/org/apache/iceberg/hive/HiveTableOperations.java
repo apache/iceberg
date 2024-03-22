@@ -226,7 +226,12 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
                 .collect(Collectors.toSet());
       }
 
-      setHmsParameters(metadata, tbl, newMetadataLocation, removedProps);
+      Map<String, String> summary =
+          Optional.ofNullable(metadata.currentSnapshot())
+              .map(Snapshot::summary)
+              .orElseGet(ImmutableMap::of);
+      setHmsTableParameters(
+          newMetadataLocation, tbl, metadata, removedProps, hiveEngineEnabled, summary);
 
       if (!keepHiveStats) {
         tbl.getParameters().remove(StatsSetupConst.COLUMN_STATS_ACCURATE);
@@ -312,9 +317,13 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
         "Committed to table {} with the new metadata location {}", fullName, newMetadataLocation);
   }
 
-  public void setHmsParameters(
-      TableMetadata metadata, Table tbl, String newMetadataLocation, Set<String> obsoleteProps) {
-
+  private void setHmsTableParameters(
+      String newMetadataLocation,
+      Table tbl,
+      TableMetadata metadata,
+      Set<String> obsoleteProps,
+      boolean hiveEngineEnabled,
+      Map<String, String> summary) {
     Map<String, String> parameters =
         Optional.ofNullable(tbl.getParameters()).orElseGet(Maps::newHashMap);
 
@@ -328,23 +337,22 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
               String hmsKey = ICEBERG_TO_HMS_TRANSLATION.getOrDefault(key, key);
               parameters.put(hmsKey, entry.getValue());
             });
+    if (metadata.uuid() != null) {
+      parameters.put(TableProperties.UUID, metadata.uuid());
+    }
 
     // remove any props from HMS that are no longer present in Iceberg table props
     obsoleteProps.forEach(parameters::remove);
 
-    setCommonHmsParameters(
-        tbl,
-        BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ENGLISH),
-        newMetadataLocation,
-        metadata.schema(),
-        metadata.uuid(),
-        obsoleteProps,
-        this::currentMetadataLocation);
-
     parameters.put(TABLE_TYPE_PROP, ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ENGLISH));
+    parameters.put(METADATA_LOCATION_PROP, newMetadataLocation);
+
+    if (currentMetadataLocation() != null && !currentMetadataLocation().isEmpty()) {
+      parameters.put(PREVIOUS_METADATA_LOCATION_PROP, currentMetadataLocation());
+    }
 
     // If needed set the 'storage_handler' property to enable query from Hive
-    if (hiveEngineEnabled(metadata, conf)) {
+    if (hiveEngineEnabled) {
       parameters.put(
           hive_metastoreConstants.META_TABLE_STORAGE,
           "org.apache.iceberg.mr.hive.HiveIcebergStorageHandler");
@@ -353,10 +361,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     }
 
     // Set the basic statistics
-    Map<String, String> summary =
-        Optional.ofNullable(metadata.currentSnapshot())
-            .map(Snapshot::summary)
-            .orElseGet(ImmutableMap::of);
     if (summary.get(SnapshotSummary.TOTAL_DATA_FILES_PROP) != null) {
       parameters.put(StatsSetupConst.NUM_FILES, summary.get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
     }
@@ -368,6 +372,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     }
 
     setSnapshotStats(metadata, parameters);
+    setSchema(metadata.schema(), parameters);
     setPartitionSpec(metadata, parameters);
     setSortOrder(metadata, parameters);
 
@@ -446,16 +451,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
   @Override
   public String table() {
     return tableName;
-  }
-
-  @Override
-  public String catalogName() {
-    return catalogName;
-  }
-
-  @Override
-  public ContentType contentType() {
-    return ContentType.TABLE;
   }
 
   @Override

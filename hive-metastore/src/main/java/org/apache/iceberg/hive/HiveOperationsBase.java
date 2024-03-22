@@ -20,9 +20,6 @@ package org.apache.iceberg.hive;
 
 import java.util.Collections;
 import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.function.Supplier;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
@@ -34,6 +31,7 @@ import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.ClientPool;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
 import org.apache.iceberg.io.FileIO;
@@ -82,46 +80,13 @@ interface HiveOperationsBase {
 
   String table();
 
-  String catalogName();
-
-  ContentType contentType();
-
   default Table loadHmsTable() throws TException, InterruptedException {
     try {
       return metaClients().run(client -> client.getTable(database(), table()));
     } catch (NoSuchObjectException nte) {
-      LOG.trace(
-          "{} not found {}", contentType(), catalogName() + "." + database() + "." + table(), nte);
+      LOG.trace("Table not found {}", database() + "." + table(), nte);
       return null;
     }
-  }
-
-  default void setCommonHmsParameters(
-      Table tbl,
-      String tableTypeProp,
-      String newMetadataLocation,
-      Schema schema,
-      String uuid,
-      Set<String> obsoleteProps,
-      Supplier<String> previousLocationSupplier) {
-    Map<String, String> parameters =
-        Optional.ofNullable(tbl.getParameters()).orElseGet(Maps::newHashMap);
-
-    if (!obsoleteProps.contains(TableProperties.UUID) && uuid != null) {
-      parameters.put(TableProperties.UUID, uuid);
-    }
-
-    parameters.put(BaseMetastoreTableOperations.METADATA_LOCATION_PROP, newMetadataLocation);
-    parameters.put(BaseMetastoreTableOperations.TABLE_TYPE_PROP, tableTypeProp);
-
-    if (previousLocationSupplier.get() != null && !previousLocationSupplier.get().isEmpty()) {
-      parameters.put(
-          BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP,
-          previousLocationSupplier.get());
-    }
-
-    setSchema(schema, parameters);
-    tbl.setParameters(parameters);
   }
 
   default Map<String, String> hmsEnvContext(String metadataLocation) {
@@ -136,6 +101,14 @@ interface HiveOperationsBase {
 
   default boolean exposeInHmsProperties() {
     return maxHiveTablePropertySize() > 0;
+  }
+
+  /**
+   * @deprecated since 1.6.0, will be removed in 1.7.0; Use {@link #setSchema(Schema, Map)} instead
+   */
+  @Deprecated
+  default void setSchema(TableMetadata metadata, Map<String, String> parameters) {
+    setSchema(metadata.schema(), parameters);
   }
 
   default void setSchema(Schema schema, Map<String, String> parameters) {
@@ -183,6 +156,15 @@ interface HiveOperationsBase {
                 return null;
               });
     }
+  }
+
+  /**
+   * @deprecated since 1.6.0, will be removed in 1.7.0; Use {@link #storageDescriptor(Schema,
+   *     String, boolean)} instead
+   */
+  @Deprecated
+  static StorageDescriptor storageDescriptor(TableMetadata metadata, boolean hiveEngineEnabled) {
+    return storageDescriptor(metadata.schema(), metadata.location(), hiveEngineEnabled);
   }
 
   static StorageDescriptor storageDescriptor(

@@ -250,7 +250,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
 
     try {
       Table table = clients.run(client -> client.getTable(fromDatabase, fromName));
-      validateTableIsIcebergTableOrView(contentType, name, table, from);
+      validateTableIsIcebergTableOrView(contentType, table, CatalogUtil.fullTableName(name, from));
 
       table.setDbName(toDatabase);
       table.setTableName(to.name());
@@ -285,14 +285,10 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   }
 
   private void validateTableIsIcebergTableOrView(
-      HiveOperationsBase.ContentType contentType,
-      String catalogName,
-      Table table,
-      TableIdentifier identifier) {
+      HiveOperationsBase.ContentType contentType, Table table, String fullName) {
     switch (contentType) {
       case TABLE:
-        HiveOperationsBase.validateTableIsIceberg(
-            table, CatalogUtil.fullTableName(catalogName, identifier));
+        HiveOperationsBase.validateTableIsIceberg(table, fullName);
         break;
       case VIEW:
         throw new UnsupportedOperationException("View is not supported.");

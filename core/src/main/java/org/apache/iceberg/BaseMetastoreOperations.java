@@ -35,7 +35,7 @@ import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class BaseMetastoreOperations {
+public abstract class BaseMetastoreOperations {
   private static final Logger LOG = LoggerFactory.getLogger(BaseMetastoreOperations.class);
 
   public enum CommitStatus {

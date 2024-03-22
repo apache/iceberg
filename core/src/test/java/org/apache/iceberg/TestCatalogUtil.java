@@ -226,27 +226,27 @@ public class TestCatalogUtil {
   @Test
   public void fullTableNameWithDifferentValues() {
     String uriTypeCatalogName = "thrift://host:port/db.table";
-    String nameSpaceWithOneLevel = "ns";
-    String nameSpaceWithTwoLevel = "ns.l2";
+    String namespace = "ns";
+    String nameSpaceWithTwoLevels = "ns.l2";
     String tableName = "tbl";
-    TableIdentifier tableIdentifier = TableIdentifier.of(nameSpaceWithOneLevel, tableName);
+    TableIdentifier tableIdentifier = TableIdentifier.of(namespace, tableName);
     Assertions.assertThat(CatalogUtil.fullTableName(uriTypeCatalogName, tableIdentifier))
-        .isEqualTo(uriTypeCatalogName + "/" + nameSpaceWithOneLevel + "." + tableName);
+        .isEqualTo(uriTypeCatalogName + "/" + namespace + "." + tableName);
 
-    tableIdentifier = TableIdentifier.of(nameSpaceWithTwoLevel, tableName);
+    tableIdentifier = TableIdentifier.of(nameSpaceWithTwoLevels, tableName);
     Assertions.assertThat(CatalogUtil.fullTableName(uriTypeCatalogName, tableIdentifier))
-        .isEqualTo(uriTypeCatalogName + "/" + nameSpaceWithTwoLevel + "." + tableName);
+        .isEqualTo(uriTypeCatalogName + "/" + nameSpaceWithTwoLevels + "." + tableName);
 
     Assertions.assertThat(CatalogUtil.fullTableName(uriTypeCatalogName + "/", tableIdentifier))
-        .isEqualTo(uriTypeCatalogName + "/" + nameSpaceWithTwoLevel + "." + tableName);
+        .isEqualTo(uriTypeCatalogName + "/" + nameSpaceWithTwoLevels + "." + tableName);
 
     String nonUriCatalogName = "test.db.catalog";
     Assertions.assertThat(CatalogUtil.fullTableName(nonUriCatalogName, tableIdentifier))
-        .isEqualTo(nonUriCatalogName + "." + nameSpaceWithTwoLevel + "." + tableName);
+        .isEqualTo(nonUriCatalogName + "." + nameSpaceWithTwoLevels + "." + tableName);
 
     String pathStyleCatalogName = "/test/db";
     Assertions.assertThat(CatalogUtil.fullTableName(pathStyleCatalogName, tableIdentifier))
-        .isEqualTo(pathStyleCatalogName + "/" + nameSpaceWithTwoLevel + "." + tableName);
+        .isEqualTo(pathStyleCatalogName + "/" + nameSpaceWithTwoLevels + "." + tableName);
   }
 
   public static class TestCatalog extends BaseMetastoreCatalog {
