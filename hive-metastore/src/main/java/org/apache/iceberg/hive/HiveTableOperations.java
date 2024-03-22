@@ -242,7 +242,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
 
       try {
         persistTable(
-            tbl, updateHiveTable, hiveLockEnabled(metadata, conf) ? null : baseMetadataLocation);
+            tbl, updateHiveTable, hiveLockEnabled(base, conf) ? null : baseMetadataLocation);
         lock.ensureActive();
 
         commitStatus = BaseMetastoreOperations.CommitStatus.SUCCESS;
@@ -510,7 +510,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
    * @return if the hive engine related values should be enabled or not
    */
   private static boolean hiveLockEnabled(TableMetadata metadata, Configuration conf) {
-    if (metadata.properties().get(TableProperties.HIVE_LOCK_ENABLED) != null) {
+    if (metadata != null && metadata.properties().get(TableProperties.HIVE_LOCK_ENABLED) != null) {
       // We know that the property is set, so default value will not be used,
       return metadata.propertyAsBoolean(TableProperties.HIVE_LOCK_ENABLED, false);
     }
@@ -521,7 +521,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
 
   @VisibleForTesting
   HiveLock lockObject(TableMetadata metadata) {
-    if (metadata == null || hiveLockEnabled(metadata, conf)) {
+    if (hiveLockEnabled(metadata, conf)) {
       return new MetastoreLock(conf, metaClients, catalogName, database, tableName);
     } else {
       return new NoLock();
