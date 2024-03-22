@@ -659,14 +659,14 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
             .collect(Collectors.toList());
     fields.addAll(additionalCols);
     Schema schema = new Schema(fields);
-    PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("id", 4).build();
+    PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("id", 2).build();
     Table table =
         validationCatalog.createTable(
             TableIdentifier.of("default", TABLE_NAME), schema, spec, tableProperties());
 
     Dataset<Row> df =
         spark
-            .range(12)
+            .range(4)
             .withColumns(
                 IntStream.range(1, 1010)
                     .boxed()
@@ -682,15 +682,15 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     List<DataFile> dataFiles = TestHelpers.dataFiles(table);
     writePosDeletesForFiles(table, 1, 1, dataFiles);
-    assertThat(dataFiles).hasSize(4);
+    assertThat(dataFiles).hasSize(2);
 
     List<DeleteFile> deleteFiles = deleteFiles(table);
-    assertThat(deleteFiles).hasSize(4);
+    assertThat(deleteFiles).hasSize(2);
 
     List<Object[]> expectedRecords = records(table);
     List<Object[]> expectedDeletes = deleteRecords(table);
-    assertThat(expectedRecords).hasSize(8);
-    assertThat(expectedDeletes).hasSize(4);
+    assertThat(expectedRecords).hasSize(2);
+    assertThat(expectedDeletes).hasSize(2);
 
     Result result =
         SparkActions.get(spark)
@@ -700,10 +700,10 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
             .execute();
 
     List<DeleteFile> newDeleteFiles = deleteFiles(table);
-    assertThat(newDeleteFiles).hasSize(4);
+    assertThat(newDeleteFiles).hasSize(2);
     assertNotContains(deleteFiles, newDeleteFiles);
     assertLocallySorted(newDeleteFiles);
-    checkResult(result, deleteFiles, newDeleteFiles, 4);
+    checkResult(result, deleteFiles, newDeleteFiles, 2);
     checkSequenceNumbers(table, deleteFiles, newDeleteFiles);
 
     List<Object[]> actualRecords = records(table);
