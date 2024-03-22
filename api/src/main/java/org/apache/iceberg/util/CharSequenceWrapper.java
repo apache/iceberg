@@ -29,6 +29,8 @@ public class CharSequenceWrapper implements CharSequence, Serializable {
   }
 
   private CharSequence wrapped;
+  // lazily computed & cached hashCode
+  private transient int hashCode = 0;
 
   private CharSequenceWrapper(CharSequence wrapped) {
     this.wrapped = wrapped;
@@ -36,6 +38,7 @@ public class CharSequenceWrapper implements CharSequence, Serializable {
 
   public CharSequenceWrapper set(CharSequence newWrapped) {
     this.wrapped = newWrapped;
+    this.hashCode = 0;
     return this;
   }
 
@@ -54,8 +57,16 @@ public class CharSequenceWrapper implements CharSequence, Serializable {
 
     CharSequenceWrapper that = (CharSequenceWrapper) other;
 
+    if (hashCode != 0 && that.hashCode != 0 && hashCode != that.hashCode) {
+      return false;
+    }
+
     if (wrapped instanceof String && that.wrapped instanceof String) {
       return wrapped.equals(that.wrapped);
+    }
+
+    if (null == wrapped && null == that.wrapped) {
+      return true;
     }
 
     if (length() != that.length()) {
@@ -67,7 +78,13 @@ public class CharSequenceWrapper implements CharSequence, Serializable {
 
   @Override
   public int hashCode() {
-    return JavaHashes.hashCode(wrapped);
+    int hash = hashCode;
+    if (hash == 0) {
+      hash = JavaHashes.hashCode(wrapped);
+      this.hashCode = hash;
+    }
+
+    return hash;
   }
 
   @Override
