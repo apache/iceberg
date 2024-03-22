@@ -23,6 +23,7 @@ on:
   push:
     paths:
       - docs/**
+      - site/**
     branches:
       - 'main'
   pull_request:

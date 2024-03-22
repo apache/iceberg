@@ -57,8 +57,7 @@ In addition to row-level deletes, version 2 makes some requirements stricter for
 
 ## Overview
 
-<!-- markdown-link-check-disable-next-line -->
-![Iceberg snapshot structure](assets/images/iceberg-metadata.png)
+![Iceberg snapshot structure](https://iceberg.apache.org/assets/images/iceberg-metadata.png)
 
 This table format tracks individual data files in a table instead of directories. This allows writers to create data files in-place and only adds files to the table in an explicit commit.
 
