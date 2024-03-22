@@ -42,7 +42,7 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 
 **Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
 
-### [What is the Data Lakehouse and the Role of Apache Iceberg, Nessie and Dremio?](https://amdatalakehouse.substack.com/p/the-apache-iceberg-lakehouse-the)
+### [What is the Data Lakehouse and the Role of Apache Iceberg, Nessie and Dremio?](https://amdatalakehouse.substack.com/p/what-is-the-data-lakehouse-and-the)
 **Date**: February 21st, 2024, **Company**: Dremio
 
 **Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
