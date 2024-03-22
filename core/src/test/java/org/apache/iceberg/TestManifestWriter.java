@@ -18,38 +18,33 @@
  */
 package org.apache.iceberg;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
-import org.assertj.core.api.Assumptions;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public class TestManifestWriter extends TableTestBase {
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
-  }
-
-  public TestManifestWriter(int formatVersion) {
-    super(formatVersion);
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestManifestWriter extends TestBase {
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1, 2);
   }
 
   private static final int FILE_SIZE_CHECK_ROWS_DIVISOR = 250;
   private static final long SMALL_FILE_SIZE = 10L;
 
-  @Test
+  @TestTemplate
   public void testManifestStats() throws IOException {
     ManifestFile manifest =
         writeManifest(
@@ -64,22 +59,18 @@ public class TestManifestWriter extends TableTestBase {
             manifestEntry(Status.DELETED, null, newFile(5)),
             manifestEntry(Status.DELETED, null, newFile(2)));
 
-    Assert.assertTrue("Added files should be present", manifest.hasAddedFiles());
-    Assert.assertEquals("Added files count should match", 4, (int) manifest.addedFilesCount());
-    Assert.assertEquals("Added rows count should match", 40L, (long) manifest.addedRowsCount());
-
-    Assert.assertTrue("Existing files should be present", manifest.hasExistingFiles());
-    Assert.assertEquals(
-        "Existing files count should match", 3, (int) manifest.existingFilesCount());
-    Assert.assertEquals(
-        "Existing rows count should match", 26L, (long) manifest.existingRowsCount());
-
-    Assert.assertTrue("Deleted files should be present", manifest.hasDeletedFiles());
-    Assert.assertEquals("Deleted files count should match", 2, (int) manifest.deletedFilesCount());
-    Assert.assertEquals("Deleted rows count should match", 7L, (long) manifest.deletedRowsCount());
+    assertThat(manifest.hasAddedFiles()).isTrue();
+    assertThat(manifest.addedFilesCount()).isEqualTo(4);
+    assertThat(manifest.addedRowsCount()).isEqualTo(40);
+    assertThat(manifest.hasExistingFiles()).isTrue();
+    assertThat(manifest.existingFilesCount()).isEqualTo(3);
+    assertThat(manifest.existingRowsCount()).isEqualTo(26);
+    assertThat(manifest.hasDeletedFiles()).isTrue();
+    assertThat(manifest.deletedFilesCount()).isEqualTo(2);
+    assertThat(manifest.deletedRowsCount()).isEqualTo(7);
   }
 
-  @Test
+  @TestTemplate
   public void testManifestPartitionStats() throws IOException {
     ManifestFile manifest =
         writeManifest(
@@ -89,48 +80,44 @@ public class TestManifestWriter extends TableTestBase {
             manifestEntry(Status.DELETED, null, newFile(2, TestHelpers.Row.of(3))));
 
     List<ManifestFile.PartitionFieldSummary> partitions = manifest.partitions();
-    Assert.assertEquals("Partition field summaries count should match", 1, partitions.size());
+    assertThat(partitions).hasSize(1);
     ManifestFile.PartitionFieldSummary partitionFieldSummary = partitions.get(0);
-    Assert.assertFalse("contains_null should be false", partitionFieldSummary.containsNull());
-    Assert.assertFalse("contains_nan should be false", partitionFieldSummary.containsNaN());
-    Assert.assertEquals(
-        "Lower bound should match",
-        Integer.valueOf(1),
-        Conversions.fromByteBuffer(Types.IntegerType.get(), partitionFieldSummary.lowerBound()));
-    Assert.assertEquals(
-        "Upper bound should match",
-        Integer.valueOf(3),
-        Conversions.fromByteBuffer(Types.IntegerType.get(), partitionFieldSummary.upperBound()));
+    assertThat(partitionFieldSummary.containsNull()).isFalse();
+    assertThat(partitionFieldSummary.containsNaN()).isFalse();
+    assertThat(
+            (Integer)
+                Conversions.fromByteBuffer(
+                    Types.IntegerType.get(), partitionFieldSummary.lowerBound()))
+        .isEqualTo(1);
+    assertThat(
+            (Integer)
+                Conversions.fromByteBuffer(
+                    Types.IntegerType.get(), partitionFieldSummary.upperBound()))
+        .isEqualTo(3);
   }
 
-  @Test
+  @TestTemplate
   public void testWriteManifestWithSequenceNumber() throws IOException {
-    Assume.assumeTrue("sequence number is only valid for format version > 1", formatVersion > 1);
-    File manifestFile = temp.newFile("manifest.avro");
-    Assert.assertTrue(manifestFile.delete());
+    assumeThat(formatVersion).isGreaterThan(1);
+    File manifestFile = File.createTempFile("manifest", ".avro", temp.toFile());
+    assertThat(manifestFile.delete()).isTrue();
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
     ManifestWriter<DataFile> writer =
         ManifestFiles.write(formatVersion, table.spec(), outputFile, 1L);
     writer.add(newFile(10, TestHelpers.Row.of(1)), 1000L);
     writer.close();
     ManifestFile manifest = writer.toManifestFile();
-    Assert.assertEquals("Manifest should have no sequence number", -1L, manifest.sequenceNumber());
+    assertThat(manifest.sequenceNumber()).isEqualTo(-1);
     ManifestReader<DataFile> manifestReader = ManifestFiles.read(manifest, table.io());
     for (ManifestEntry<DataFile> entry : manifestReader.entries()) {
-      Assert.assertEquals(
-          "Custom data sequence number should be used for all manifest entries",
-          1000L,
-          (long) entry.dataSequenceNumber());
-      Assert.assertEquals(
-          "File sequence number must be unassigned",
-          ManifestWriter.UNASSIGNED_SEQ,
-          entry.fileSequenceNumber().longValue());
+      assertThat(entry.dataSequenceNumber()).isEqualTo(1000);
+      assertThat(entry.fileSequenceNumber()).isEqualTo(ManifestWriter.UNASSIGNED_SEQ);
     }
   }
 
-  @Test
+  @TestTemplate
   public void testCommitManifestWithExplicitDataSequenceNumber() throws IOException {
-    Assume.assumeTrue("Sequence numbers are valid for format version > 1", formatVersion > 1);
+    assumeThat(formatVersion).isGreaterThan(1);
 
     DataFile file1 = newFile(50);
     DataFile file2 = newFile(50);
@@ -143,10 +130,7 @@ public class TestManifestWriter extends TableTestBase {
             manifestEntry(Status.ADDED, null, dataSequenceNumber, null, file1),
             manifestEntry(Status.ADDED, null, dataSequenceNumber, null, file2));
 
-    Assert.assertEquals(
-        "Manifest should have no sequence number before commit",
-        ManifestWriter.UNASSIGNED_SEQ,
-        manifest.sequenceNumber());
+    assertThat(manifest.sequenceNumber()).isEqualTo(ManifestWriter.UNASSIGNED_SEQ);
 
     table.newFastAppend().appendManifest(manifest).commit();
 
@@ -154,15 +138,9 @@ public class TestManifestWriter extends TableTestBase {
 
     ManifestFile committedManifest = table.currentSnapshot().dataManifests(table.io()).get(0);
 
-    Assert.assertEquals(
-        "Committed manifest sequence number must be correct",
-        1L,
-        committedManifest.sequenceNumber());
+    assertThat(committedManifest.sequenceNumber()).isEqualTo(1);
 
-    Assert.assertEquals(
-        "Committed manifest min sequence number must be correct",
-        dataSequenceNumber,
-        committedManifest.minSequenceNumber());
+    assertThat(committedManifest.minSequenceNumber()).isEqualTo(dataSequenceNumber);
 
     validateManifest(
         committedManifest,
@@ -173,9 +151,9 @@ public class TestManifestWriter extends TableTestBase {
         statuses(Status.ADDED, Status.ADDED));
   }
 
-  @Test
+  @TestTemplate
   public void testCommitManifestWithExistingEntriesWithoutFileSequenceNumber() throws IOException {
-    Assume.assumeTrue("Sequence numbers are valid for format version > 1", formatVersion > 1);
+    assumeThat(formatVersion).isGreaterThan(1);
 
     DataFile file1 = newFile(50);
     DataFile file2 = newFile(50);
@@ -194,10 +172,7 @@ public class TestManifestWriter extends TableTestBase {
             manifestEntry(Status.EXISTING, appendSnapshotId, appendSequenceNumber, null, file1),
             manifestEntry(Status.EXISTING, appendSnapshotId, appendSequenceNumber, null, file2));
 
-    Assert.assertEquals(
-        "Manifest should have no sequence number before commit",
-        ManifestWriter.UNASSIGNED_SEQ,
-        newManifest.sequenceNumber());
+    assertThat(newManifest.sequenceNumber()).isEqualTo(ManifestWriter.UNASSIGNED_SEQ);
 
     table.rewriteManifests().deleteManifest(originalManifest).addManifest(newManifest).commit();
 
@@ -205,15 +180,9 @@ public class TestManifestWriter extends TableTestBase {
 
     ManifestFile committedManifest = table.currentSnapshot().dataManifests(table.io()).get(0);
 
-    Assert.assertEquals(
-        "Committed manifest sequence number must be correct",
-        rewriteSnapshot.sequenceNumber(),
-        committedManifest.sequenceNumber());
+    assertThat(committedManifest.sequenceNumber()).isEqualTo(rewriteSnapshot.sequenceNumber());
 
-    Assert.assertEquals(
-        "Committed manifest min sequence number must be correct",
-        appendSequenceNumber,
-        committedManifest.minSequenceNumber());
+    assertThat(committedManifest.minSequenceNumber()).isEqualTo(appendSequenceNumber);
 
     validateManifest(
         committedManifest,
@@ -224,30 +193,30 @@ public class TestManifestWriter extends TableTestBase {
         statuses(Status.EXISTING, Status.EXISTING));
   }
 
-  @Test
+  @TestTemplate
   public void testRollingManifestWriterNoRecords() throws IOException {
     RollingManifestWriter<DataFile> writer = newRollingWriteManifest(SMALL_FILE_SIZE);
 
     writer.close();
-    Assertions.assertThat(writer.toManifestFiles()).isEmpty();
+    assertThat(writer.toManifestFiles()).isEmpty();
 
     writer.close();
-    Assertions.assertThat(writer.toManifestFiles()).isEmpty();
+    assertThat(writer.toManifestFiles()).isEmpty();
   }
 
-  @Test
+  @TestTemplate
   public void testRollingDeleteManifestWriterNoRecords() throws IOException {
-    Assumptions.assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion).isGreaterThan(1);
     RollingManifestWriter<DeleteFile> writer = newRollingWriteDeleteManifest(SMALL_FILE_SIZE);
 
     writer.close();
-    Assertions.assertThat(writer.toManifestFiles()).isEmpty();
+    assertThat(writer.toManifestFiles()).isEmpty();
 
     writer.close();
-    Assertions.assertThat(writer.toManifestFiles()).isEmpty();
+    assertThat(writer.toManifestFiles()).isEmpty();
   }
 
-  @Test
+  @TestTemplate
   public void testRollingManifestWriterSplitFiles() throws IOException {
     RollingManifestWriter<DataFile> writer = newRollingWriteManifest(SMALL_FILE_SIZE);
 
@@ -278,7 +247,7 @@ public class TestManifestWriter extends TableTestBase {
 
     writer.close();
     List<ManifestFile> manifestFiles = writer.toManifestFiles();
-    Assertions.assertThat(manifestFiles.size()).isEqualTo(3);
+    assertThat(manifestFiles).hasSize(3);
 
     checkManifests(
         manifestFiles,
@@ -291,7 +260,7 @@ public class TestManifestWriter extends TableTestBase {
 
     writer.close();
     manifestFiles = writer.toManifestFiles();
-    Assertions.assertThat(manifestFiles.size()).isEqualTo(3);
+    assertThat(manifestFiles).hasSize(3);
 
     checkManifests(
         manifestFiles,
@@ -303,9 +272,9 @@ public class TestManifestWriter extends TableTestBase {
         deletedRowCounts);
   }
 
-  @Test
+  @TestTemplate
   public void testRollingDeleteManifestWriterSplitFiles() throws IOException {
-    Assumptions.assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion).isGreaterThan(1);
     RollingManifestWriter<DeleteFile> writer = newRollingWriteDeleteManifest(SMALL_FILE_SIZE);
 
     int[] addedFileCounts = new int[3];
@@ -334,7 +303,7 @@ public class TestManifestWriter extends TableTestBase {
 
     writer.close();
     List<ManifestFile> manifestFiles = writer.toManifestFiles();
-    Assertions.assertThat(manifestFiles.size()).isEqualTo(3);
+    assertThat(manifestFiles).hasSize(3);
 
     checkManifests(
         manifestFiles,
@@ -347,7 +316,7 @@ public class TestManifestWriter extends TableTestBase {
 
     writer.close();
     manifestFiles = writer.toManifestFiles();
-    Assertions.assertThat(manifestFiles.size()).isEqualTo(3);
+    assertThat(manifestFiles).hasSize(3);
 
     checkManifests(
         manifestFiles,
@@ -370,17 +339,17 @@ public class TestManifestWriter extends TableTestBase {
     for (int i = 0; i < manifests.size(); i++) {
       ManifestFile manifest = manifests.get(i);
 
-      Assertions.assertThat(manifest.hasAddedFiles()).isTrue();
-      Assertions.assertThat(manifest.addedFilesCount()).isEqualTo(addedFileCounts[i]);
-      Assertions.assertThat(manifest.addedRowsCount()).isEqualTo(addedRowCounts[i]);
+      assertThat(manifest.hasAddedFiles()).isTrue();
+      assertThat(manifest.addedFilesCount()).isEqualTo(addedFileCounts[i]);
+      assertThat(manifest.addedRowsCount()).isEqualTo(addedRowCounts[i]);
 
-      Assertions.assertThat(manifest.hasExistingFiles()).isTrue();
-      Assertions.assertThat(manifest.existingFilesCount()).isEqualTo(existingFileCounts[i]);
-      Assertions.assertThat(manifest.existingRowsCount()).isEqualTo(existingRowCounts[i]);
+      assertThat(manifest.hasExistingFiles()).isTrue();
+      assertThat(manifest.existingFilesCount()).isEqualTo(existingFileCounts[i]);
+      assertThat(manifest.existingRowsCount()).isEqualTo(existingRowCounts[i]);
 
-      Assertions.assertThat(manifest.hasDeletedFiles()).isTrue();
-      Assertions.assertThat(manifest.deletedFilesCount()).isEqualTo(deletedFileCounts[i]);
-      Assertions.assertThat(manifest.deletedRowsCount()).isEqualTo(deletedRowCounts[i]);
+      assertThat(manifest.hasDeletedFiles()).isTrue();
+      assertThat(manifest.deletedFilesCount()).isEqualTo(deletedFileCounts[i]);
+      assertThat(manifest.deletedRowsCount()).isEqualTo(deletedRowCounts[i]);
     }
   }
 
@@ -430,7 +399,9 @@ public class TestManifestWriter extends TableTestBase {
 
   private OutputFile newManifestFile() {
     try {
-      return Files.localOutput(FileFormat.AVRO.addExtension(temp.newFile().toString()));
+      return Files.localOutput(
+          FileFormat.AVRO.addExtension(
+              File.createTempFile("manifest", null, temp.toFile()).toString()));
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
