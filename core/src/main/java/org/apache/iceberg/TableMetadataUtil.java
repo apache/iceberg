@@ -20,23 +20,27 @@ package org.apache.iceberg;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-public class TableMetadataUtil {
-  private TableMetadataUtil() {}
+public final class TableMetadataUtil {
+
+  private TableMetadataUtil() {
+    // Utility class
+  }
 
   public static TableMetadata replacePaths(
       TableMetadata metadata, String sourcePrefix, String targetPrefix) {
-    String newLocation = newPath(metadata.location(), sourcePrefix, targetPrefix);
-    List<Snapshot> newSnapshots = updatePathInSnapshots(metadata, sourcePrefix, targetPrefix);
-    List<MetadataLogEntry> metadataLogEntries =
-        updatePathInMetadataLogs(metadata, sourcePrefix, targetPrefix);
+    String newLocation = replacePathPrefix(metadata.location(), sourcePrefix, targetPrefix);
+    List<Snapshot> newSnapshots =
+        updateSnapshotsPath(metadata.snapshots(), sourcePrefix, targetPrefix);
+    List<MetadataLogEntry> updatedMetadataLogEntries =
+        updateMetadataLogsPath(metadata.previousFiles(), sourcePrefix, targetPrefix);
     long snapshotId =
         metadata.currentSnapshot() == null ? -1 : metadata.currentSnapshot().snapshotId();
-    Map<String, String> properties =
-        updateProperties(metadata.properties(), sourcePrefix, targetPrefix);
+    Map<String, String> updatedProperties =
+        updatePropertiesPath(metadata.properties(), sourcePrefix, targetPrefix);
 
     return new TableMetadata(
         null,
@@ -53,79 +57,78 @@ public class TableMetadataUtil {
         metadata.lastAssignedPartitionId(),
         metadata.defaultSortOrderId(),
         metadata.sortOrders(),
-        properties,
+        updatedProperties,
         snapshotId,
         newSnapshots,
         () -> newSnapshots,
         metadata.snapshotLog(),
-        metadataLogEntries,
+        updatedMetadataLogEntries,
         metadata.refs(),
         metadata.statisticsFiles(),
         metadata.partitionStatisticsFiles(),
         metadata.changes());
   }
 
-  private static Map<String, String> updateProperties(
-      Map<String, String> tableProperties, String sourcePrefix, String targetPrefix) {
-    Map properties = Maps.newHashMap(tableProperties);
-    updatePathInProperty(properties, sourcePrefix, targetPrefix, TableProperties.OBJECT_STORE_PATH);
-    updatePathInProperty(
-        properties, sourcePrefix, targetPrefix, TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
-    updatePathInProperty(
-        properties, sourcePrefix, targetPrefix, TableProperties.WRITE_DATA_LOCATION);
-    updatePathInProperty(
-        properties, sourcePrefix, targetPrefix, TableProperties.WRITE_METADATA_LOCATION);
-
-    return properties;
+  private static Map<String, String> updatePropertiesPath(
+      Map<String, String> properties, String sourcePrefix, String targetPrefix) {
+    Map<String, String> updatedProperties = Maps.newHashMapWithExpectedSize(properties.size());
+    properties.forEach(
+        (key, value) ->
+            updatedProperties.put(key, replacePathPrefix(value, sourcePrefix, targetPrefix)));
+    updateSpecificProperties(updatedProperties, sourcePrefix, targetPrefix);
+    return updatedProperties;
   }
 
-  private static void updatePathInProperty(
+  private static void updateSpecificProperties(
+      Map<String, String> properties, String sourcePrefix, String targetPrefix) {
+    // Update specific property paths
+    updatePropertyPath(properties, sourcePrefix, targetPrefix, TableProperties.OBJECT_STORE_PATH);
+    updatePropertyPath(
+        properties, sourcePrefix, targetPrefix, TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
+    updatePropertyPath(properties, sourcePrefix, targetPrefix, TableProperties.WRITE_DATA_LOCATION);
+    updatePropertyPath(
+        properties, sourcePrefix, targetPrefix, TableProperties.WRITE_METADATA_LOCATION);
+  }
+
+  private static void updatePropertyPath(
       Map<String, String> properties,
       String sourcePrefix,
       String targetPrefix,
       String propertyName) {
-    if (properties.containsKey(propertyName)) {
-      properties.put(
-          propertyName, newPath(properties.get(propertyName), sourcePrefix, targetPrefix));
-    }
+    properties.computeIfPresent(
+        propertyName, (key, value) -> replacePathPrefix(value, sourcePrefix, targetPrefix));
   }
 
-  private static List<MetadataLogEntry> updatePathInMetadataLogs(
-      TableMetadata metadata, String sourcePrefix, String targetPrefix) {
-    List<MetadataLogEntry> metadataLogEntries =
-        Lists.newArrayListWithCapacity(metadata.previousFiles().size());
-    for (MetadataLogEntry metadataLog : metadata.previousFiles()) {
-      MetadataLogEntry newMetadataLog =
-          new MetadataLogEntry(
-              metadataLog.timestampMillis(),
-              newPath(metadataLog.file(), sourcePrefix, targetPrefix));
-      metadataLogEntries.add(newMetadataLog);
-    }
-    return metadataLogEntries;
+  private static List<MetadataLogEntry> updateMetadataLogsPath(
+      List<MetadataLogEntry> metadataLogs, String sourcePrefix, String targetPrefix) {
+    return metadataLogs.stream()
+        .map(
+            entry ->
+                new MetadataLogEntry(
+                    entry.timestampMillis(),
+                    replacePathPrefix(entry.file(), sourcePrefix, targetPrefix)))
+        .collect(Collectors.toList());
   }
 
-  private static List<Snapshot> updatePathInSnapshots(
-      TableMetadata metadata, String sourcePrefix, String targetPrefix) {
-    List<Snapshot> newSnapshots = Lists.newArrayListWithCapacity(metadata.snapshots().size());
-    for (Snapshot snapshot : metadata.snapshots()) {
-      String newManifestListLocation =
-          newPath(snapshot.manifestListLocation(), sourcePrefix, targetPrefix);
-      Snapshot newSnapshot =
-          new BaseSnapshot(
-              snapshot.sequenceNumber(),
-              snapshot.snapshotId(),
-              snapshot.parentId(),
-              snapshot.timestampMillis(),
-              snapshot.operation(),
-              snapshot.summary(),
-              snapshot.schemaId(),
-              newManifestListLocation);
-      newSnapshots.add(newSnapshot);
-    }
-    return newSnapshots;
+  private static List<Snapshot> updateSnapshotsPath(
+      List<Snapshot> snapshots, String sourcePrefix, String targetPrefix) {
+    return snapshots.stream()
+        .map(
+            snapshot ->
+                new BaseSnapshot(
+                    snapshot.sequenceNumber(),
+                    snapshot.snapshotId(),
+                    snapshot.parentId(),
+                    snapshot.timestampMillis(),
+                    snapshot.operation(),
+                    snapshot.summary(),
+                    snapshot.schemaId(),
+                    replacePathPrefix(snapshot.manifestListLocation(), sourcePrefix, targetPrefix)))
+        .collect(Collectors.toList());
   }
 
-  private static String newPath(String path, String sourcePrefix, String targetPrefix) {
-    return path.replaceFirst(sourcePrefix, targetPrefix);
+  private static String replacePathPrefix(
+      String originalPath, String sourcePrefix, String targetPrefix) {
+    return originalPath.replaceFirst(sourcePrefix, targetPrefix);
   }
 }

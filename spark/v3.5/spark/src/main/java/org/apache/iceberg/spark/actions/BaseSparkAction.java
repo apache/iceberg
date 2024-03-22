@@ -31,7 +31,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.apache.iceberg.AllManifestsTable;
@@ -47,7 +46,6 @@ import org.apache.iceberg.ReachableFileUtil;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StaticTableOperations;
-import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
@@ -286,6 +284,7 @@ abstract class BaseSparkAction<ThisT> {
                 "content",
                 "path",
                 "length",
+                "0 as sequenceNumber",
                 "partition_spec_id as partitionSpecId",
                 "added_snapshot_id as addedSnapshotId")
             .dropDuplicates("path")
@@ -332,7 +331,8 @@ abstract class BaseSparkAction<ThisT> {
   }
 
   protected Dataset<FileInfo> statisticsFileDS(Table table, Set<Long> snapshotIds) {
-    List<String> statisticsFiles = ReachableFileUtil.statisticsFilesLocationsForSnapshots(table, snapshotIds);
+    List<String> statisticsFiles =
+        ReachableFileUtil.statisticsFilesLocationsForSnapshots(table, snapshotIds);
     return toFileInfoDS(statisticsFiles, STATISTICS_FILES);
   }
 
