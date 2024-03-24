@@ -46,7 +46,7 @@ public class AwsClientPropertiesTest {
     Mockito.verify(mockS3ClientBuilder).region(regionArgumentCaptor.capture());
     Region region = regionArgumentCaptor.getValue();
     Assertions.assertThat(region.id())
-        .withFailMessage("region parameter should match what is set in CLIENT_REGION")
+        .as("region parameter should match what is set in CLIENT_REGION")
         .isEqualTo("us-east-1");
   }
 
@@ -56,9 +56,22 @@ public class AwsClientPropertiesTest {
     AwsCredentialsProvider credentialsProvider =
         awsClientProperties.credentialsProvider(null, null, null);
 
-    Assertions.assertThat(credentialsProvider instanceof DefaultCredentialsProvider)
-        .withFailMessage("Should use default credentials if nothing is set")
-        .isTrue();
+    Assertions.assertThat(credentialsProvider)
+        .as("Should use default credentials if nothing is set")
+        .isInstanceOf(DefaultCredentialsProvider.class);
+  }
+
+  @Test
+  public void testCreatesNewInstanceOfDefaultCredentialsConfiguration() {
+    AwsClientProperties awsClientProperties = new AwsClientProperties();
+    AwsCredentialsProvider credentialsProvider =
+        awsClientProperties.credentialsProvider(null, null, null);
+    AwsCredentialsProvider credentialsProvider2 =
+        awsClientProperties.credentialsProvider(null, null, null);
+
+    Assertions.assertThat(credentialsProvider)
+        .as("Should create a new instance in each call")
+        .isNotSameAs(credentialsProvider2);
   }
 
   @Test
@@ -68,17 +81,15 @@ public class AwsClientPropertiesTest {
     AwsCredentialsProvider credentialsProvider =
         awsClientProperties.credentialsProvider("key", "secret", null);
 
-    Assertions.assertThat(credentialsProvider.resolveCredentials() instanceof AwsBasicCredentials)
-        .withFailMessage(
-            "Should use basic credentials if access key ID and secret access key are set")
-        .isTrue();
+    Assertions.assertThat(credentialsProvider.resolveCredentials())
+        .as("Should use basic credentials if access key ID and secret access key are set")
+        .isInstanceOf(AwsBasicCredentials.class);
     Assertions.assertThat(credentialsProvider.resolveCredentials().accessKeyId())
-        .withFailMessage("The access key id should be the same as the one set by tag ACCESS_KEY_ID")
+        .as("The access key id should be the same as the one set by tag ACCESS_KEY_ID")
         .isEqualTo("key");
 
     Assertions.assertThat(credentialsProvider.resolveCredentials().secretAccessKey())
-        .withFailMessage(
-            "The secret access key should be the same as the one set by tag SECRET_ACCESS_KEY")
+        .as("The secret access key should be the same as the one set by tag SECRET_ACCESS_KEY")
         .isEqualTo("secret");
   }
 
@@ -89,15 +100,14 @@ public class AwsClientPropertiesTest {
     AwsCredentialsProvider credentialsProvider =
         awsClientProperties.credentialsProvider("key", "secret", "token");
 
-    Assertions.assertThat(credentialsProvider.resolveCredentials() instanceof AwsSessionCredentials)
-        .withFailMessage("Should use session credentials if session token is set")
-        .isTrue();
+    Assertions.assertThat(credentialsProvider.resolveCredentials())
+        .as("Should use session credentials if session token is set")
+        .isInstanceOf(AwsSessionCredentials.class);
     Assertions.assertThat(credentialsProvider.resolveCredentials().accessKeyId())
-        .withFailMessage("The access key id should be the same as the one set by tag ACCESS_KEY_ID")
+        .as("The access key id should be the same as the one set by tag ACCESS_KEY_ID")
         .isEqualTo("key");
     Assertions.assertThat(credentialsProvider.resolveCredentials().secretAccessKey())
-        .withFailMessage(
-            "The secret access key should be the same as the one set by tag SECRET_ACCESS_KEY")
+        .as("The secret access key should be the same as the one set by tag SECRET_ACCESS_KEY")
         .isEqualTo("secret");
   }
 }

@@ -22,6 +22,8 @@ import java.util.List;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.deletes.DeleteGranularity;
+import org.apache.iceberg.deletes.FileScopedPositionDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.CharSequenceSet;
@@ -38,6 +40,7 @@ public class ClusteredPositionDeleteWriter<T>
   private final OutputFileFactory fileFactory;
   private final FileIO io;
   private final long targetFileSizeInBytes;
+  private final DeleteGranularity granularity;
   private final List<DeleteFile> deleteFiles;
   private final CharSequenceSet referencedDataFiles;
 
@@ -46,16 +49,38 @@ public class ClusteredPositionDeleteWriter<T>
       OutputFileFactory fileFactory,
       FileIO io,
       long targetFileSizeInBytes) {
+    this(writerFactory, fileFactory, io, targetFileSizeInBytes, DeleteGranularity.PARTITION);
+  }
+
+  public ClusteredPositionDeleteWriter(
+      FileWriterFactory<T> writerFactory,
+      OutputFileFactory fileFactory,
+      FileIO io,
+      long targetFileSizeInBytes,
+      DeleteGranularity granularity) {
     this.writerFactory = writerFactory;
     this.fileFactory = fileFactory;
     this.io = io;
     this.targetFileSizeInBytes = targetFileSizeInBytes;
+    this.granularity = granularity;
     this.deleteFiles = Lists.newArrayList();
     this.referencedDataFiles = CharSequenceSet.empty();
   }
 
   @Override
   protected FileWriter<PositionDelete<T>, DeleteWriteResult> newWriter(
+      PartitionSpec spec, StructLike partition) {
+    switch (granularity) {
+      case FILE:
+        return new FileScopedPositionDeleteWriter<>(() -> newRollingWriter(spec, partition));
+      case PARTITION:
+        return newRollingWriter(spec, partition);
+      default:
+        throw new UnsupportedOperationException("Unsupported delete granularity: " + granularity);
+    }
+  }
+
+  private RollingPositionDeleteWriter<T> newRollingWriter(
       PartitionSpec spec, StructLike partition) {
     return new RollingPositionDeleteWriter<>(
         writerFactory, fileFactory, io, targetFileSizeInBytes, spec, partition);

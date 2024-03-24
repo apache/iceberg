@@ -24,6 +24,11 @@ allprojects {
 }
 
 subprojects {
+  if (it.name == 'iceberg-bom') {
+    // the BOM does not build anything, the below plugins are not necessary (and can fail)
+    return
+  }
+
   // Currently, if any subproject applies the blanket Baseline plugin, it forces the Baseline plugin
   // to be applied to ALL projects. And we are not prepared to address all of the build errors that
   // occur as a result at this time. Furthermore, baseline-format will not work out of the box for
@@ -100,6 +105,7 @@ subprojects {
           '-Xep:IntLongMath:ERROR',
           '-Xep:MissingSummary:ERROR',
           '-Xep:AnnotateFormatMethod:ERROR',
+          '-Xep:CollectionUndefinedEquality:ERROR',
       )
     }
   }

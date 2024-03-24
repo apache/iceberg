@@ -29,6 +29,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -40,6 +42,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
@@ -76,6 +79,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.sqlite.SQLiteDataSource;
 
 public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
@@ -138,12 +142,10 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     properties.put(JdbcCatalog.PROPERTY_PREFIX + "password", "password");
     warehouseLocation = this.tableDir.toAbsolutePath().toString();
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation);
+    properties.put("type", "jdbc");
     properties.putAll(props);
 
-    JdbcCatalog jdbcCatalog = new JdbcCatalog();
-    jdbcCatalog.setConf(conf);
-    jdbcCatalog.initialize(catalogName, properties);
-    return jdbcCatalog;
+    return (JdbcCatalog) CatalogUtil.buildIcebergCatalog(catalogName, properties, conf);
   }
 
   @Test
@@ -157,6 +159,127 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     // second initialization should not fail even if tables are already created
     jdbcCatalog.initialize("test_jdbc_catalog", properties);
     jdbcCatalog.initialize("test_jdbc_catalog", properties);
+  }
+
+  @Test
+  public void testInitSchemaV0() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.toAbsolutePath().toString());
+    properties.put(CatalogProperties.URI, "jdbc:sqlite:file::memory:?icebergDBV0");
+    properties.put(JdbcUtil.SCHEMA_VERSION_PROPERTY, JdbcUtil.SchemaVersion.V0.name());
+    JdbcCatalog jdbcCatalog = new JdbcCatalog();
+    jdbcCatalog.setConf(conf);
+    jdbcCatalog.initialize("v0catalog", properties);
+
+    TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("ns1"), "tbl");
+    Table table =
+        jdbcCatalog
+            .buildTable(tableIdent, SCHEMA)
+            .withPartitionSpec(PARTITION_SPEC)
+            .withProperty("key1", "value1")
+            .withProperty("key2", "value2")
+            .create();
+
+    assertThat(table.schema().asStruct()).isEqualTo(SCHEMA.asStruct());
+    assertThat(table.spec().fields()).hasSize(1);
+    assertThat(table.properties()).containsEntry("key1", "value1").containsEntry("key2", "value2");
+
+    assertThat(jdbcCatalog.listTables(Namespace.of("ns1"))).hasSize(1).contains(tableIdent);
+
+    assertThatThrownBy(() -> jdbcCatalog.listViews(Namespace.of("namespace1")))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(JdbcCatalog.VIEW_WARNING_LOG_MESSAGE);
+
+    assertThatThrownBy(
+            () -> jdbcCatalog.buildView(TableIdentifier.of("namespace1", "view")).create())
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(JdbcCatalog.VIEW_WARNING_LOG_MESSAGE);
+  }
+
+  @Test
+  public void testSchemaIsMigratedToAddViewSupport() throws Exception {
+    // as this test uses different connections, we can't use memory database (as it's per
+    // connection), but a file database instead
+    java.nio.file.Path dbFile = Files.createTempFile("icebergSchemaUpdate", "db");
+    String jdbcUrl = "jdbc:sqlite:" + dbFile.toAbsolutePath();
+
+    initLegacySchema(jdbcUrl);
+
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.toAbsolutePath().toString());
+    properties.put(CatalogProperties.URI, jdbcUrl);
+    properties.put(JdbcUtil.SCHEMA_VERSION_PROPERTY, JdbcUtil.SchemaVersion.V1.name());
+    JdbcCatalog jdbcCatalog = new JdbcCatalog();
+    jdbcCatalog.setConf(conf);
+    jdbcCatalog.initialize("TEST", properties);
+
+    TableIdentifier tableOne = TableIdentifier.of("namespace1", "table1");
+    TableIdentifier tableTwo = TableIdentifier.of("namespace2", "table2");
+    assertThat(jdbcCatalog.listTables(Namespace.of("namespace1")))
+        .hasSize(1)
+        .containsExactly(tableOne);
+
+    assertThat(jdbcCatalog.listTables(Namespace.of("namespace2")))
+        .hasSize(1)
+        .containsExactly(tableTwo);
+
+    assertThat(jdbcCatalog.listViews(Namespace.of("namespace1"))).isEmpty();
+
+    TableIdentifier view = TableIdentifier.of("namespace1", "view");
+    jdbcCatalog
+        .buildView(view)
+        .withQuery("spark", "select * from tbl")
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(Namespace.of("namespace1"))
+        .create();
+
+    assertThat(jdbcCatalog.listViews(Namespace.of("namespace1"))).hasSize(1).containsExactly(view);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testExistingV0SchemaSupport(boolean initializeCatalogTables) throws Exception {
+    // as this test uses different connection, we can't use memory database (as it's per
+    // connection), but a
+    // file database instead
+    java.nio.file.Path dbFile = Files.createTempFile("icebergOldSchema", "db");
+    String jdbcUrl = "jdbc:sqlite:" + dbFile.toAbsolutePath();
+
+    initLegacySchema(jdbcUrl);
+
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.toAbsolutePath().toString());
+    properties.put(CatalogProperties.URI, jdbcUrl);
+    JdbcCatalog jdbcCatalog = new JdbcCatalog(null, null, initializeCatalogTables);
+    jdbcCatalog.setConf(conf);
+    jdbcCatalog.initialize("TEST", properties);
+
+    TableIdentifier tableOne = TableIdentifier.of("namespace1", "table1");
+    TableIdentifier tableTwo = TableIdentifier.of("namespace2", "table2");
+
+    assertThat(jdbcCatalog.listTables(Namespace.of("namespace1")))
+        .hasSize(1)
+        .containsExactly(tableOne);
+
+    assertThat(jdbcCatalog.listTables(Namespace.of("namespace2")))
+        .hasSize(1)
+        .containsExactly(tableTwo);
+
+    TableIdentifier newTable = TableIdentifier.of("namespace1", "table2");
+    jdbcCatalog.buildTable(newTable, SCHEMA).create();
+
+    assertThat(jdbcCatalog.listTables(Namespace.of("namespace1")))
+        .hasSize(2)
+        .containsExactly(tableOne, newTable);
+
+    assertThatThrownBy(() -> jdbcCatalog.listViews(Namespace.of("namespace1")))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(JdbcCatalog.VIEW_WARNING_LOG_MESSAGE);
+
+    assertThatThrownBy(
+            () -> jdbcCatalog.buildView(TableIdentifier.of("namespace1", "view")).create())
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(JdbcCatalog.VIEW_WARNING_LOG_MESSAGE);
   }
 
   @Test
@@ -610,15 +733,74 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
   public void testCreateNamespace() {
     Namespace testNamespace = Namespace.of("testDb", "ns1", "ns2");
     assertThat(catalog.namespaceExists(testNamespace)).isFalse();
-    // Test with no metadata
+    assertThat(catalog.namespaceExists(Namespace.of("testDb", "ns1"))).isFalse();
     catalog.createNamespace(testNamespace);
     assertThat(catalog.namespaceExists(testNamespace)).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb"))).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb", "ns1"))).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb", "ns1", "ns2"))).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("ns1", "ns2"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb", "ns%"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb", "ns_"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb", "ns1", "ns2", "ns3"))).isFalse();
+  }
+
+  @Test
+  public void testCreateNamespaceWithBackslashCharacter() {
+    Namespace testNamespace = Namespace.of("test\\Db", "ns\\1", "ns3");
+    assertThat(catalog.namespaceExists(testNamespace)).isFalse();
+    catalog.createNamespace(testNamespace);
+    assertThat(catalog.namespaceExists(testNamespace)).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("test\\Db", "ns\\1"))).isTrue();
+    // test that SQL special characters `%`,`.`,`_` are escaped and returns false
+    assertThat(catalog.namespaceExists(Namespace.of("test\\%Db", "ns\\.1"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("test%Db", "ns\\.1"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("test%Db"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("test%"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("test\\%"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("test_Db", "ns\\.1"))).isFalse();
+    // test that backslash with `%` is escaped and treated correctly
+    testNamespace = Namespace.of("test\\%Db2", "ns1");
+    assertThat(catalog.namespaceExists(testNamespace)).isFalse();
+    catalog.createNamespace(testNamespace);
+    assertThat(catalog.namespaceExists(testNamespace)).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("test\\%Db2"))).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("test%Db2"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("test\\_Db2"))).isFalse();
+  }
+
+  @Test
+  public void testCreateNamespaceWithPercentCharacter() {
+    Namespace testNamespace = Namespace.of("testDb%", "ns%1");
+    assertThat(catalog.namespaceExists(testNamespace)).isFalse();
+    catalog.createNamespace(testNamespace);
+    assertThat(catalog.namespaceExists(testNamespace)).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb%"))).isTrue();
+    // test that searching with SQL special characters `\`,`%` are escaped and returns false
+    assertThat(catalog.namespaceExists(Namespace.of("testDb\\%"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("tes%Db%"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("testDb%", "ns%"))).isFalse();
+  }
+
+  @Test
+  public void testCreateNamespaceWithUnderscoreCharacter() {
+    Namespace testNamespace = Namespace.of("test_Db", "ns_1", "ns_");
+    catalog.createNamespace(testNamespace);
+    assertThat(catalog.namespaceExists(testNamespace)).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("test_Db", "ns_1"))).isTrue();
+    // test that searching with SQL special characters `_`,`%` are escaped and returns false
+    assertThat(catalog.namespaceExists(Namespace.of("test_Db"))).isTrue();
+    assertThat(catalog.namespaceExists(Namespace.of("test_D_"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("test_D%"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("test_Db", "ns_"))).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.of("test_Db", "ns_%"))).isFalse();
   }
 
   @Test
   public void testCreateTableInNonExistingNamespace() {
     try (JdbcCatalog jdbcCatalog = initCatalog("non_strict_jdbc_catalog", ImmutableMap.of())) {
-      Namespace namespace = Namespace.of("testDb", "ns1", "ns2");
+      Namespace namespace = Namespace.of("test\\D_b%", "ns1", "ns2");
       TableIdentifier identifier = TableIdentifier.of(namespace, "someTable");
       Assertions.assertThat(jdbcCatalog.namespaceExists(namespace)).isFalse();
       Assertions.assertThat(jdbcCatalog.tableExists(identifier)).isFalse();
@@ -794,6 +976,48 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     @Override
     public void report(MetricsReport report) {
       COUNTER.incrementAndGet();
+    }
+  }
+
+  private void initLegacySchema(String jdbcUrl) throws SQLException {
+    SQLiteDataSource dataSource = new SQLiteDataSource();
+    dataSource.setUrl(jdbcUrl);
+
+    try (Connection connection = dataSource.getConnection()) {
+      // create "old style" SQL schema
+      connection.prepareStatement(JdbcUtil.V0_CREATE_CATALOG_SQL).executeUpdate();
+      connection
+          .prepareStatement(
+              "INSERT INTO "
+                  + JdbcUtil.CATALOG_TABLE_VIEW_NAME
+                  + "("
+                  + JdbcUtil.CATALOG_NAME
+                  + ","
+                  + JdbcUtil.TABLE_NAMESPACE
+                  + ","
+                  + JdbcUtil.TABLE_NAME
+                  + ","
+                  + JdbcTableOperations.METADATA_LOCATION_PROP
+                  + ","
+                  + JdbcTableOperations.PREVIOUS_METADATA_LOCATION_PROP
+                  + ") VALUES('TEST','namespace1','table1',null,null)")
+          .execute();
+      connection
+          .prepareStatement(
+              "INSERT INTO "
+                  + JdbcUtil.CATALOG_TABLE_VIEW_NAME
+                  + "("
+                  + JdbcUtil.CATALOG_NAME
+                  + ","
+                  + JdbcUtil.TABLE_NAMESPACE
+                  + ","
+                  + JdbcUtil.TABLE_NAME
+                  + ","
+                  + JdbcTableOperations.METADATA_LOCATION_PROP
+                  + ","
+                  + JdbcTableOperations.PREVIOUS_METADATA_LOCATION_PROP
+                  + ") VALUES('TEST','namespace2','table2',null,null)")
+          .execute();
     }
   }
 }

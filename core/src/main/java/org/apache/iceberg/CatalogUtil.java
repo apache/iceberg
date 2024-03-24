@@ -67,10 +67,16 @@ public class CatalogUtil {
   public static final String ICEBERG_CATALOG_TYPE_HADOOP = "hadoop";
   public static final String ICEBERG_CATALOG_TYPE_HIVE = "hive";
   public static final String ICEBERG_CATALOG_TYPE_REST = "rest";
+  public static final String ICEBERG_CATALOG_TYPE_GLUE = "glue";
+  public static final String ICEBERG_CATALOG_TYPE_NESSIE = "nessie";
+  public static final String ICEBERG_CATALOG_TYPE_JDBC = "jdbc";
 
   public static final String ICEBERG_CATALOG_HADOOP = "org.apache.iceberg.hadoop.HadoopCatalog";
   public static final String ICEBERG_CATALOG_HIVE = "org.apache.iceberg.hive.HiveCatalog";
   public static final String ICEBERG_CATALOG_REST = "org.apache.iceberg.rest.RESTCatalog";
+  public static final String ICEBERG_CATALOG_GLUE = "org.apache.iceberg.aws.glue.GlueCatalog";
+  public static final String ICEBERG_CATALOG_NESSIE = "org.apache.iceberg.nessie.NessieCatalog";
+  public static final String ICEBERG_CATALOG_JDBC = "org.apache.iceberg.jdbc.JdbcCatalog";
 
   private CatalogUtil() {}
 
@@ -116,6 +122,16 @@ public class CatalogUtil {
         io,
         Iterables.transform(metadata.previousFiles(), TableMetadata.MetadataLogEntry::file),
         "previous metadata",
+        true);
+    deleteFiles(
+        io,
+        Iterables.transform(metadata.statisticsFiles(), StatisticsFile::path),
+        "statistics",
+        true);
+    deleteFiles(
+        io,
+        Iterables.transform(metadata.partitionStatisticsFiles(), PartitionStatisticsFile::path),
+        "partition statistics",
         true);
     deleteFile(io, metadata.metadataFileLocation(), "metadata");
   }
@@ -268,6 +284,15 @@ public class CatalogUtil {
         case ICEBERG_CATALOG_TYPE_REST:
           catalogImpl = ICEBERG_CATALOG_REST;
           break;
+        case ICEBERG_CATALOG_TYPE_GLUE:
+          catalogImpl = ICEBERG_CATALOG_GLUE;
+          break;
+        case ICEBERG_CATALOG_TYPE_NESSIE:
+          catalogImpl = ICEBERG_CATALOG_NESSIE;
+          break;
+        case ICEBERG_CATALOG_TYPE_JDBC:
+          catalogImpl = ICEBERG_CATALOG_JDBC;
+          break;
         default:
           throw new UnsupportedOperationException("Unknown catalog type: " + catalogType);
       }
@@ -309,7 +334,7 @@ public class CatalogUtil {
               .buildChecked();
     } catch (NoSuchMethodException e) {
       throw new IllegalArgumentException(
-          String.format("Cannot initialize FileIO, missing no-arg constructor: %s", impl), e);
+          String.format("Cannot initialize FileIO implementation %s: %s", impl, e.getMessage()), e);
     }
 
     FileIO fileIO;

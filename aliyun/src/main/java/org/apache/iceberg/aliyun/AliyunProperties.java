@@ -53,6 +53,17 @@ public class AliyunProperties implements Serializable {
   public static final String CLIENT_ACCESS_KEY_SECRET = "client.access-key-secret";
 
   /**
+   * Aliyun supports Security Token Service (STS) to generate temporary access credentials to
+   * authorize a user to access the Object Storage Service (OSS) resources within a specific period
+   * of time. In this way, user does not have to share the AccessKey pair and ensures higher level
+   * of data security.
+   *
+   * <p>For more information about how to obtain a security token, see:
+   * https://www.alibabacloud.com/help/en/vod/user-guide/sts-tokens
+   */
+  public static final String CLIENT_SECURITY_TOKEN = "client.security-token";
+
+  /**
    * The implementation class of {@link AliyunClientFactory} to customize Aliyun client
    * configurations. If set, all Aliyun clients will be initialized by the specified factory. If not
    * set, {@link AliyunClientFactories#defaultFactory()} is used as default factory.
@@ -68,6 +79,7 @@ public class AliyunProperties implements Serializable {
   private final String ossEndpoint;
   private final String accessKeyId;
   private final String accessKeySecret;
+  private final String securityToken;
   private final String ossStagingDirectory;
 
   public AliyunProperties() {
@@ -79,6 +91,7 @@ public class AliyunProperties implements Serializable {
     this.ossEndpoint = properties.get(OSS_ENDPOINT);
     this.accessKeyId = properties.get(CLIENT_ACCESS_KEY_ID);
     this.accessKeySecret = properties.get(CLIENT_ACCESS_KEY_SECRET);
+    this.securityToken = properties.get(CLIENT_SECURITY_TOKEN);
 
     this.ossStagingDirectory =
         PropertyUtil.propertyAsString(
@@ -95,6 +108,10 @@ public class AliyunProperties implements Serializable {
 
   public String accessKeySecret() {
     return accessKeySecret;
+  }
+
+  public String securityToken() {
+    return securityToken;
   }
 
   public String ossStagingDirectory() {

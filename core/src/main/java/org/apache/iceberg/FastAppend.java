@@ -18,18 +18,15 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED;
-import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT;
-
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -44,7 +41,6 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   private final String tableName;
   private final TableOperations ops;
   private final PartitionSpec spec;
-  private final boolean snapshotIdInheritanceEnabled;
   private final SnapshotSummary.Builder summaryBuilder = SnapshotSummary.builder();
   private final List<DataFile> newFiles = Lists.newArrayList();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
@@ -57,10 +53,6 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     this.tableName = tableName;
     this.ops = ops;
     this.spec = ops.current().spec();
-    this.snapshotIdInheritanceEnabled =
-        ops.current()
-            .propertyAsBoolean(
-                SNAPSHOT_ID_INHERITANCE_ENABLED, SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT);
   }
 
   @Override
@@ -115,7 +107,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     Preconditions.checkArgument(
         manifest.sequenceNumber() == -1, "Sequence number must be assigned during commit");
 
-    if (snapshotIdInheritanceEnabled && manifest.snapshotId() == null) {
+    if (canInheritSnapshotId() && manifest.snapshotId() == null) {
       summaryBuilder.addedManifest(manifest);
       appendManifests.add(manifest);
     } else {
@@ -129,14 +121,14 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
 
   private ManifestFile copyManifest(ManifestFile manifest) {
     TableMetadata current = ops.current();
-    InputFile toCopy = ops.io().newInputFile(manifest.path());
-    OutputFile newManifestPath = newManifestOutput();
+    InputFile toCopy = ops.io().newInputFile(manifest);
+    EncryptedOutputFile newManifestFile = newManifestOutputFile();
     return ManifestFiles.copyAppendManifest(
         current.formatVersion(),
         manifest.partitionSpecId(),
         toCopy,
         current.specsById(),
-        newManifestPath,
+        newManifestFile,
         snapshotId(),
         summaryBuilder);
   }
@@ -179,16 +171,16 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   @Override
   protected void cleanUncommitted(Set<ManifestFile> committed) {
     if (newManifests != null) {
-      List<ManifestFile> committedNewManifests = Lists.newArrayList();
+      boolean hasDeletes = false;
       for (ManifestFile manifest : newManifests) {
-        if (committed.contains(manifest)) {
-          committedNewManifests.add(manifest);
-        } else {
+        if (!committed.contains(manifest)) {
           deleteFile(manifest.path());
+          hasDeletes = true;
         }
       }
-
-      this.newManifests = committedNewManifests;
+      if (hasDeletes) {
+        this.newManifests = null;
+      }
     }
 
     // clean up only rewrittenAppendManifests as they are always owned by the table
@@ -206,7 +198,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
       newManifests = null;
     }
 
-    if (newManifests == null && newFiles.size() > 0) {
+    if (newManifests == null && !newFiles.isEmpty()) {
       RollingManifestWriter<DataFile> writer = newRollingManifestWriter(spec);
       try {
         newFiles.forEach(writer::add);

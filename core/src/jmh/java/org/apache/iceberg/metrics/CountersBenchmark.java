@@ -56,7 +56,7 @@ public class CountersBenchmark {
       Tasks.range(WORKER_POOL_SIZE)
           .executeWith(workerPool)
           .run(
-              (id) -> {
+              id -> {
                 for (int operation = 0; operation < NUM_OPERATIONS; operation++) {
                   counter.increment(INCREMENT_AMOUNT);
                 }

@@ -20,8 +20,10 @@ package org.apache.iceberg.flink.source;
 
 import java.io.Serializable;
 import java.time.Duration;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.util.Preconditions;
@@ -62,9 +64,12 @@ public class ScanContext implements Serializable {
   private final List<Expression> filters;
   private final long limit;
   private final boolean includeColumnStats;
+  private final Collection<String> includeStatsForColumns;
   private final Integer planParallelism;
   private final int maxPlanningSnapshotCount;
   private final int maxAllowedPlanningFailures;
+  private final String watermarkColumn;
+  private final TimeUnit watermarkColumnTimeUnit;
 
   private ScanContext(
       boolean caseSensitive,
@@ -84,10 +89,13 @@ public class ScanContext implements Serializable {
       List<Expression> filters,
       long limit,
       boolean includeColumnStats,
+      Collection<String> includeStatsForColumns,
       boolean exposeLocality,
       Integer planParallelism,
       int maxPlanningSnapshotCount,
       int maxAllowedPlanningFailures,
+      String watermarkColumn,
+      TimeUnit watermarkColumnTimeUnit,
       String branch,
       String tag,
       String startTag,
@@ -114,10 +122,13 @@ public class ScanContext implements Serializable {
     this.filters = filters;
     this.limit = limit;
     this.includeColumnStats = includeColumnStats;
+    this.includeStatsForColumns = includeStatsForColumns;
     this.exposeLocality = exposeLocality;
     this.planParallelism = planParallelism;
     this.maxPlanningSnapshotCount = maxPlanningSnapshotCount;
     this.maxAllowedPlanningFailures = maxAllowedPlanningFailures;
+    this.watermarkColumn = watermarkColumn;
+    this.watermarkColumnTimeUnit = watermarkColumnTimeUnit;
 
     validate();
   }
@@ -140,11 +151,6 @@ public class ScanContext implements Serializable {
             startSnapshotId == null,
             "Invalid starting snapshot id for SPECIFIC_START_SNAPSHOT_ID strategy: not null");
       }
-
-      Preconditions.checkArgument(
-          branch == null,
-          String.format(
-              "Cannot scan table using ref %s configured for streaming reader yet", branch));
 
       Preconditions.checkArgument(
           tag == null,
@@ -248,6 +254,10 @@ public class ScanContext implements Serializable {
     return includeColumnStats;
   }
 
+  public Collection<String> includeStatsForColumns() {
+    return includeStatsForColumns;
+  }
+
   public boolean exposeLocality() {
     return exposeLocality;
   }
@@ -262,6 +272,14 @@ public class ScanContext implements Serializable {
 
   public int maxAllowedPlanningFailures() {
     return maxAllowedPlanningFailures;
+  }
+
+  public String watermarkColumn() {
+    return watermarkColumn;
+  }
+
+  public TimeUnit watermarkColumnTimeUnit() {
+    return watermarkColumnTimeUnit;
   }
 
   public ScanContext copyWithAppendsBetween(Long newStartSnapshotId, long newEndSnapshotId) {
@@ -285,10 +303,13 @@ public class ScanContext implements Serializable {
         .filters(filters)
         .limit(limit)
         .includeColumnStats(includeColumnStats)
+        .includeColumnStats(includeStatsForColumns)
         .exposeLocality(exposeLocality)
         .planParallelism(planParallelism)
         .maxPlanningSnapshotCount(maxPlanningSnapshotCount)
         .maxAllowedPlanningFailures(maxAllowedPlanningFailures)
+        .watermarkColumn(watermarkColumn)
+        .watermarkColumnTimeUnit(watermarkColumnTimeUnit)
         .build();
   }
 
@@ -313,10 +334,13 @@ public class ScanContext implements Serializable {
         .filters(filters)
         .limit(limit)
         .includeColumnStats(includeColumnStats)
+        .includeColumnStats(includeStatsForColumns)
         .exposeLocality(exposeLocality)
         .planParallelism(planParallelism)
         .maxPlanningSnapshotCount(maxPlanningSnapshotCount)
         .maxAllowedPlanningFailures(maxAllowedPlanningFailures)
+        .watermarkColumn(watermarkColumn)
+        .watermarkColumnTimeUnit(watermarkColumnTimeUnit)
         .build();
   }
 
@@ -349,6 +373,7 @@ public class ScanContext implements Serializable {
     private long limit = FlinkReadOptions.LIMIT_OPTION.defaultValue();
     private boolean includeColumnStats =
         FlinkReadOptions.INCLUDE_COLUMN_STATS_OPTION.defaultValue();
+    private Collection<String> includeStatsForColumns = null;
     private boolean exposeLocality;
     private Integer planParallelism =
         FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE.defaultValue();
@@ -356,6 +381,9 @@ public class ScanContext implements Serializable {
         FlinkReadOptions.MAX_PLANNING_SNAPSHOT_COUNT_OPTION.defaultValue();
     private int maxAllowedPlanningFailures =
         FlinkReadOptions.MAX_ALLOWED_PLANNING_FAILURES_OPTION.defaultValue();
+    private String watermarkColumn = FlinkReadOptions.WATERMARK_COLUMN_OPTION.defaultValue();
+    private TimeUnit watermarkColumnTimeUnit =
+        FlinkReadOptions.WATERMARK_COLUMN_TIME_UNIT_OPTION.defaultValue();
 
     private Builder() {}
 
@@ -464,6 +492,11 @@ public class ScanContext implements Serializable {
       return this;
     }
 
+    public Builder includeColumnStats(Collection<String> newIncludeStatsForColumns) {
+      this.includeStatsForColumns = newIncludeStatsForColumns;
+      return this;
+    }
+
     public Builder exposeLocality(boolean newExposeLocality) {
       this.exposeLocality = newExposeLocality;
       return this;
@@ -481,6 +514,16 @@ public class ScanContext implements Serializable {
 
     public Builder maxAllowedPlanningFailures(int newMaxAllowedPlanningFailures) {
       this.maxAllowedPlanningFailures = newMaxAllowedPlanningFailures;
+      return this;
+    }
+
+    public Builder watermarkColumn(String newWatermarkColumn) {
+      this.watermarkColumn = newWatermarkColumn;
+      return this;
+    }
+
+    public Builder watermarkColumnTimeUnit(TimeUnit newWatermarkTimeUnit) {
+      this.watermarkColumnTimeUnit = newWatermarkTimeUnit;
       return this;
     }
 
@@ -509,7 +552,9 @@ public class ScanContext implements Serializable {
           .planParallelism(flinkReadConf.workerPoolSize())
           .includeColumnStats(flinkReadConf.includeColumnStats())
           .maxPlanningSnapshotCount(flinkReadConf.maxPlanningSnapshotCount())
-          .maxAllowedPlanningFailures(maxAllowedPlanningFailures);
+          .maxAllowedPlanningFailures(maxAllowedPlanningFailures)
+          .watermarkColumn(flinkReadConf.watermarkColumn())
+          .watermarkColumnTimeUnit(flinkReadConf.watermarkColumnTimeUnit());
     }
 
     public ScanContext build() {
@@ -531,10 +576,13 @@ public class ScanContext implements Serializable {
           filters,
           limit,
           includeColumnStats,
+          includeStatsForColumns,
           exposeLocality,
           planParallelism,
           maxPlanningSnapshotCount,
           maxAllowedPlanningFailures,
+          watermarkColumn,
+          watermarkColumnTimeUnit,
           branch,
           tag,
           startTag,

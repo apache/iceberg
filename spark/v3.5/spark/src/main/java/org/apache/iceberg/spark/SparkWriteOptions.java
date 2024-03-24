@@ -83,4 +83,7 @@ public class SparkWriteOptions {
 
   // Overrides the advisory partition size
   public static final String ADVISORY_PARTITION_SIZE = "advisory-partition-size";
+
+  // Overrides the delete granularity
+  public static final String DELETE_GRANULARITY = "delete-granularity";
 }

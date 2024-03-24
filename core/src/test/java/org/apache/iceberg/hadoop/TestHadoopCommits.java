@@ -28,19 +28,24 @@ import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.LockManager;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -54,6 +59,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Tasks;
 import org.assertj.core.api.Assertions;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mockito;
@@ -435,13 +441,11 @@ public class TestHadoopCommits extends HadoopTableTestBase {
               for (int numCommittedFiles = 0;
                   numCommittedFiles < numberOfCommitedFilesPerThread;
                   numCommittedFiles++) {
-                while (barrier.get() < numCommittedFiles * threadsCount) {
-                  try {
-                    Thread.sleep(10);
-                  } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                  }
-                }
+                final int currentFilesCount = numCommittedFiles;
+                Awaitility.await()
+                    .pollInterval(Duration.ofMillis(10))
+                    .atMost(Duration.ofSeconds(10))
+                    .until(() -> barrier.get() >= currentFilesCount * threadsCount);
                 tableWithHighRetries.newFastAppend().appendFile(file).commit();
                 barrier.incrementAndGet();
               }
@@ -450,5 +454,41 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     tableWithHighRetries.refresh();
     Assertions.assertThat(Lists.newArrayList(tableWithHighRetries.snapshots()))
         .hasSize(threadsCount * numberOfCommitedFilesPerThread);
+  }
+
+  @Test
+  public void testCommitFailedToAcquireLock() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Configuration conf = new Configuration();
+    LockManager lockManager = new NoLockManager();
+    HadoopTableOperations tableOperations =
+        new HadoopTableOperations(
+            new Path(table.location()), new HadoopFileIO(conf), conf, lockManager);
+    tableOperations.refresh();
+    BaseTable baseTable = (BaseTable) table;
+    TableMetadata meta2 = baseTable.operations().current();
+    Assertions.assertThatThrownBy(() -> tableOperations.commit(tableOperations.current(), meta2))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageStartingWith("Failed to acquire lock on file");
+  }
+
+  // Always returns false when trying to acquire
+  static class NoLockManager implements LockManager {
+
+    @Override
+    public boolean acquire(String entityId, String ownerId) {
+      return false;
+    }
+
+    @Override
+    public boolean release(String entityId, String ownerId) {
+      return false;
+    }
+
+    @Override
+    public void close() throws Exception {}
+
+    @Override
+    public void initialize(Map<String, String> properties) {}
   }
 }

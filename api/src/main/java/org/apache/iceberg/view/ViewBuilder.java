@@ -46,6 +46,16 @@ public interface ViewBuilder extends VersionBuilder<ViewBuilder> {
   ViewBuilder withProperty(String key, String value);
 
   /**
+   * Sets a location for the view
+   *
+   * @param location the location to set for the view
+   * @return this for method chaining
+   */
+  default ViewBuilder withLocation(String location) {
+    throw new UnsupportedOperationException("Setting a view's location is not supported");
+  }
+
+  /**
    * Create the view.
    *
    * @return the view created

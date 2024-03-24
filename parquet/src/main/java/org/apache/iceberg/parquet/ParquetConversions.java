@@ -21,6 +21,7 @@ package org.apache.iceberg.parquet;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.function.Function;
@@ -112,6 +113,10 @@ class ParquetConversions {
       case FIXED_LEN_BYTE_ARRAY:
       case BINARY:
         return binary -> ByteBuffer.wrap(((Binary) binary).getBytes());
+      case INT96:
+        return binary ->
+            ParquetUtil.extractTimestampInt96(
+                ByteBuffer.wrap(((Binary) binary).getBytes()).order(ByteOrder.LITTLE_ENDIAN));
       default:
     }
 

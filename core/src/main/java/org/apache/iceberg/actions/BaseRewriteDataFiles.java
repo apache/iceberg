@@ -20,15 +20,13 @@ package org.apache.iceberg.actions;
 
 import java.util.List;
 import org.immutables.value.Value;
-import org.immutables.value.Value.Style.BuilderVisibility;
-import org.immutables.value.Value.Style.ImplementationVisibility;
 
 @Value.Enclosing
 @SuppressWarnings("ImmutablesStyle")
 @Value.Style(
     typeImmutableEnclosing = "ImmutableRewriteDataFiles",
-    visibility = ImplementationVisibility.PUBLIC,
-    builderVisibility = BuilderVisibility.PUBLIC)
+    visibilityString = "PUBLIC",
+    builderVisibilityString = "PUBLIC")
 interface BaseRewriteDataFiles extends RewriteDataFiles {
 
   @Value.Immutable

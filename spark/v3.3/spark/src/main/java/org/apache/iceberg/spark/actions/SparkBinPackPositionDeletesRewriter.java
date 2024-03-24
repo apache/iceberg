@@ -91,7 +91,7 @@ class SparkBinPackPositionDeletesRewriter extends SizeBasedPositionDeletesRewrit
 
   protected void doRewrite(String groupId, List<PositionDeletesScanTask> group) {
     // all position deletes are of the same partition, because they are in same file group
-    Preconditions.checkArgument(group.size() > 0, "Empty group");
+    Preconditions.checkArgument(!group.isEmpty(), "Empty group");
     Types.StructType partitionType = group.get(0).spec().partitionType();
     StructLike partition = group.get(0).partition();
 

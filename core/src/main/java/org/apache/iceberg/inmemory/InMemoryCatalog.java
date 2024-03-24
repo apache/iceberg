@@ -42,6 +42,7 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
+import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
@@ -68,6 +69,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
   private FileIO io;
   private String catalogName;
   private String warehouseLocation;
+  private CloseableGroup closeableGroup;
 
   public InMemoryCatalog() {
     this.namespaces = Maps.newConcurrentMap();
@@ -87,6 +89,9 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
     String warehouse = properties.getOrDefault(CatalogProperties.WAREHOUSE_LOCATION, "");
     this.warehouseLocation = warehouse.replaceAll("/*$", "");
     this.io = new InMemoryFileIO();
+    this.closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(metricsReporter());
+    closeableGroup.setSuppressCloseFailure(true);
   }
 
   @Override
@@ -163,6 +168,10 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
 
       if (tables.containsKey(to)) {
         throw new AlreadyExistsException("Cannot rename %s to %s. Table already exists", from, to);
+      }
+
+      if (views.containsKey(to)) {
+        throw new AlreadyExistsException("Cannot rename %s to %s. View already exists", from, to);
       }
 
       tables.put(to, fromLocation);
@@ -298,6 +307,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
 
   @Override
   public void close() throws IOException {
+    closeableGroup.close();
     namespaces.clear();
     tables.clear();
     views.clear();
@@ -404,6 +414,10 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
                   throw new AlreadyExistsException("Table already exists: %s", tableName());
                 }
 
+                if (null == existingLocation) {
+                  throw new NoSuchTableException("Table does not exist: %s", tableName());
+                }
+
                 throw new CommitFailedException(
                     "Cannot commit to table %s metadata location from %s to %s "
                         + "because it has been concurrently modified to %s",
@@ -468,6 +482,10 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
               if (!Objects.equal(existingLocation, oldLocation)) {
                 if (null == base) {
                   throw new AlreadyExistsException("View already exists: %s", identifier);
+                }
+
+                if (null == existingLocation) {
+                  throw new NoSuchViewException("View does not exist: %s", identifier);
                 }
 
                 throw new CommitFailedException(

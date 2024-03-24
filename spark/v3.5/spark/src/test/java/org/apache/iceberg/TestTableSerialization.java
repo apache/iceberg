@@ -20,37 +20,42 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.source.SerializableTableWithSize;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestTableSerialization {
 
-  public TestTableSerialization(String isObjectStoreEnabled) {
-    this.isObjectStoreEnabled = isObjectStoreEnabled;
-  }
-
-  @Parameterized.Parameters(name = "isObjectStoreEnabled = {0}")
-  public static Object[] parameters() {
-    return new Object[] {"true", "false"};
+  @Parameters(name = "isObjectStoreEnabled = {0}")
+  public static List<String> parameters() {
+    return Arrays.asList("true", "false");
   }
 
   private static final HadoopTables TABLES = new HadoopTables();
 
-  private final String isObjectStoreEnabled;
+  @Parameter private String isObjectStoreEnabled;
 
   private static final Schema SCHEMA =
       new Schema(
@@ -64,28 +69,70 @@ public class TestTableSerialization {
 
   private static final SortOrder SORT_ORDER = SortOrder.builderFor(SCHEMA).asc("id").build();
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
   private Table table;
 
-  @Before
+  @BeforeEach
   public void initTable() throws IOException {
     Map<String, String> props =
         ImmutableMap.of("k1", "v1", TableProperties.OBJECT_STORE_ENABLED, isObjectStoreEnabled);
 
-    File tableLocation = temp.newFolder();
-    Assert.assertTrue(tableLocation.delete());
+    File tableLocation = Files.createTempDirectory(temp, "junit").toFile();
+    assertThat(tableLocation.delete()).isTrue();
 
     this.table = TABLES.create(SCHEMA, SPEC, SORT_ORDER, props, tableLocation.toString());
   }
 
-  @Test
+  @TestTemplate
+  public void testCloseSerializableTableKryoSerialization() throws Exception {
+    for (Table tbl : tables()) {
+      Table spyTable = spy(tbl);
+      FileIO spyIO = spy(tbl.io());
+      when(spyTable.io()).thenReturn(spyIO);
+
+      Table serializableTable = SerializableTableWithSize.copyOf(spyTable);
+
+      Table serializableTableCopy = spy(KryoHelpers.roundTripSerialize(serializableTable));
+      FileIO spyFileIOCopy = spy(serializableTableCopy.io());
+      when(serializableTableCopy.io()).thenReturn(spyFileIOCopy);
+
+      ((AutoCloseable) serializableTable).close(); // mimics close on the driver
+      ((AutoCloseable) serializableTableCopy).close(); // mimics close on executors
+
+      verify(spyIO, never()).close();
+      verify(spyFileIOCopy, times(1)).close();
+    }
+  }
+
+  @TestTemplate
+  public void testCloseSerializableTableJavaSerialization() throws Exception {
+    for (Table tbl : tables()) {
+      Table spyTable = spy(tbl);
+      FileIO spyIO = spy(tbl.io());
+      when(spyTable.io()).thenReturn(spyIO);
+
+      Table serializableTable = SerializableTableWithSize.copyOf(spyTable);
+
+      Table serializableTableCopy = spy(TestHelpers.roundTripSerialize(serializableTable));
+      FileIO spyFileIOCopy = spy(serializableTableCopy.io());
+      when(serializableTableCopy.io()).thenReturn(spyFileIOCopy);
+
+      ((AutoCloseable) serializableTable).close(); // mimics close on the driver
+      ((AutoCloseable) serializableTableCopy).close(); // mimics close on executors
+
+      verify(spyIO, never()).close();
+      verify(spyFileIOCopy, times(1)).close();
+    }
+  }
+
+  @TestTemplate
   public void testSerializableTableKryoSerialization() throws IOException {
     Table serializableTable = SerializableTableWithSize.copyOf(table);
     TestHelpers.assertSerializedAndLoadedMetadata(
         table, KryoHelpers.roundTripSerialize(serializableTable));
   }
 
-  @Test
+  @TestTemplate
   public void testSerializableMetadataTableKryoSerialization() throws IOException {
     for (MetadataTableType type : MetadataTableType.values()) {
       TableOperations ops = ((HasTableOperations) table).operations();
@@ -98,7 +145,7 @@ public class TestTableSerialization {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testSerializableTransactionTableKryoSerialization() throws IOException {
     Transaction txn = table.newTransaction();
 
@@ -109,5 +156,18 @@ public class TestTableSerialization {
 
     TestHelpers.assertSerializedMetadata(
         txnTable, KryoHelpers.roundTripSerialize(serializableTxnTable));
+  }
+
+  private List<Table> tables() {
+    List<Table> tables = Lists.newArrayList();
+
+    tables.add(table);
+
+    for (MetadataTableType type : MetadataTableType.values()) {
+      Table metadataTable = MetadataTableUtils.createMetadataTableInstance(table, type);
+      tables.add(metadataTable);
+    }
+
+    return tables;
   }
 }

@@ -18,10 +18,14 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
+
 import java.io.File;
 import java.io.FilenameFilter;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
@@ -31,6 +35,8 @@ import java.util.stream.Collectors;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.TrueFileFilter;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -40,9 +46,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalog;
-import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.iceberg.spark.source.SparkTable;
@@ -68,20 +74,15 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
 import scala.Option;
 import scala.Some;
 import scala.collection.JavaConverters;
 import scala.collection.Seq;
 
-public class TestCreateActions extends SparkCatalogTestBase {
+public class TestCreateActions extends CatalogTestBase {
   private static final String CREATE_PARTITIONED_PARQUET =
       "CREATE TABLE %s (id INT, data STRING) " + "using parquet PARTITIONED BY (id) LOCATION '%s'";
   private static final String CREATE_PARQUET =
@@ -94,7 +95,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
   private static final String NAMESPACE = "default";
 
-  @Parameterized.Parameters(name = "Catalog Name {0} - Options {2}")
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}, type = {3}")
   public static Object[][] parameters() {
     return new Object[][] {
       new Object[] {
@@ -106,7 +107,8 @@ public class TestCreateActions extends SparkCatalogTestBase {
             "parquet-enabled", "true",
             "cache-enabled",
                 "false" // Spark will delete tables using v1, leaving the cache out of sync
-            )
+            ),
+        "hive"
       },
       new Object[] {
         "spark_catalog",
@@ -117,47 +119,48 @@ public class TestCreateActions extends SparkCatalogTestBase {
             "parquet-enabled", "true",
             "cache-enabled",
                 "false" // Spark will delete tables using v1, leaving the cache out of sync
-            )
+            ),
+        "hadoop"
       },
       new Object[] {
         "testhive",
         SparkCatalog.class.getName(),
         ImmutableMap.of(
             "type", "hive",
-            "default-namespace", "default")
+            "default-namespace", "default"),
+        "hive"
       },
       new Object[] {
         "testhadoop",
         SparkCatalog.class.getName(),
         ImmutableMap.of(
             "type", "hadoop",
-            "default-namespace", "default")
+            "default-namespace", "default"),
+        "hadoop"
       }
     };
   }
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
-
   private String baseTableName = "baseTable";
   private File tableDir;
   private String tableLocation;
-  private final String type;
-  private final TableCatalog catalog;
 
-  public TestCreateActions(String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-    this.catalog = (TableCatalog) spark.sessionState().catalogManager().catalog(catalogName);
-    this.type = config.get("type");
-  }
+  @Parameter(index = 3)
+  private String type;
 
-  @Before
+  private TableCatalog catalog;
+
+  @BeforeEach
+  @Override
   public void before() {
+    super.before();
     try {
-      this.tableDir = temp.newFolder();
+      this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
     this.tableLocation = tableDir.toURI().toString();
+    this.catalog = (TableCatalog) spark.sessionState().catalogManager().catalog(catalogName);
 
     spark.conf().set("hive.exec.dynamic.partition", "true");
     spark.conf().set("hive.exec.dynamic.partition.mode", "nonstrict");
@@ -179,31 +182,33 @@ public class TestCreateActions extends SparkCatalogTestBase {
         .saveAsTable(baseTableName);
   }
 
-  @After
+  @AfterEach
   public void after() throws IOException {
     // Drop the hive table.
     spark.sql(String.format("DROP TABLE IF EXISTS %s", baseTableName));
   }
 
-  @Test
+  @TestTemplate
   public void testMigratePartitioned() throws Exception {
-    Assume.assumeTrue("Cannot migrate to a hadoop based catalog", !type.equals("hadoop"));
-    Assume.assumeTrue(
-        "Can only migrate from Spark Session Catalog", catalog.name().equals("spark_catalog"));
+    assumeThat(type).as("Cannot migrate to a hadoop based catalog").isNotEqualTo("hadoop");
+    assumeThat(catalog.name())
+        .as("Can only migrate from Spark Session Catalog")
+        .isEqualTo("spark_catalog");
     String source = sourceName("test_migrate_partitioned_table");
     String dest = source;
     createSourceTable(CREATE_PARTITIONED_PARQUET, source);
     assertMigratedFileCount(SparkActions.get().migrateTable(source), source, dest);
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionedTableWithUnRecoveredPartitions() throws Exception {
-    Assume.assumeTrue("Cannot migrate to a hadoop based catalog", !type.equals("hadoop"));
-    Assume.assumeTrue(
-        "Can only migrate from Spark Session Catalog", catalog.name().equals("spark_catalog"));
+    assumeThat(type).as("Cannot migrate to a hadoop based catalog").isNotEqualTo("hadoop");
+    assumeThat(catalog.name())
+        .as("Can only migrate from Spark Session Catalog")
+        .isEqualTo("spark_catalog");
     String source = sourceName("test_unrecovered_partitions");
     String dest = source;
-    File location = temp.newFolder();
+    File location = Files.createTempDirectory(temp, "junit").toFile();
     sql(CREATE_PARTITIONED_PARQUET, source, location);
 
     // Data generation and partition addition
@@ -219,15 +224,16 @@ public class TestCreateActions extends SparkCatalogTestBase {
     assertMigratedFileCount(SparkActions.get().migrateTable(source), source, dest);
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionedTableWithCustomPartitions() throws Exception {
-    Assume.assumeTrue("Cannot migrate to a hadoop based catalog", !type.equals("hadoop"));
-    Assume.assumeTrue(
-        "Can only migrate from Spark Session Catalog", catalog.name().equals("spark_catalog"));
+    assumeThat(type).as("Cannot migrate to a hadoop based catalog").isNotEqualTo("hadoop");
+    assumeThat(catalog.name())
+        .as("Can only migrate from Spark Session Catalog")
+        .isEqualTo("spark_catalog");
     String source = sourceName("test_custom_parts");
     String dest = source;
-    File tblLocation = temp.newFolder();
-    File partitionDataLoc = temp.newFolder();
+    File tblLocation = Files.createTempDirectory(temp, "junit").toFile();
+    File partitionDataLoc = Files.createTempDirectory(temp, "junit").toFile();
 
     // Data generation and partition addition
     spark.sql(String.format(CREATE_PARTITIONED_PARQUET, source, tblLocation));
@@ -243,11 +249,12 @@ public class TestCreateActions extends SparkCatalogTestBase {
     assertMigratedFileCount(SparkActions.get().migrateTable(source), source, dest);
   }
 
-  @Test
+  @TestTemplate
   public void testAddColumnOnMigratedTableAtEnd() throws Exception {
-    Assume.assumeTrue("Cannot migrate to a hadoop based catalog", !type.equals("hadoop"));
-    Assume.assumeTrue(
-        "Can only migrate from Spark Session Catalog", catalog.name().equals("spark_catalog"));
+    assumeThat(type).as("Cannot migrate to a hadoop based catalog").isNotEqualTo("hadoop");
+    assumeThat(catalog.name())
+        .as("Can only migrate from Spark Session Catalog")
+        .isEqualTo("spark_catalog");
     String source = sourceName("test_add_column_migrated_table");
     String dest = source;
     createSourceTable(CREATE_PARQUET, source);
@@ -264,30 +271,31 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String newCol1 = "newCol1";
     sparkTable.table().updateSchema().addColumn(newCol1, Types.IntegerType.get()).commit();
     Schema afterSchema = table.schema();
-    Assert.assertNull(beforeSchema.findField(newCol1));
-    Assert.assertNotNull(afterSchema.findField(newCol1));
+    assertThat(beforeSchema.findField(newCol1)).isNull();
+    assertThat(afterSchema.findField(newCol1)).isNotNull();
 
     // reads should succeed without any exceptions
     List<Object[]> results1 = sql("select * from %s order by id", dest);
-    Assert.assertTrue(results1.size() > 0);
+    assertThat(results1).isNotEmpty();
     assertEquals("Output must match", results1, expected1);
 
     String newCol2 = "newCol2";
     sql("ALTER TABLE %s ADD COLUMN %s INT", dest, newCol2);
     StructType schema = spark.table(dest).schema();
-    Assert.assertTrue(Arrays.asList(schema.fieldNames()).contains(newCol2));
+    assertThat(schema.fieldNames()).contains(newCol2);
 
     // reads should succeed without any exceptions
     List<Object[]> results2 = sql("select * from %s order by id", dest);
-    Assert.assertTrue(results2.size() > 0);
+    assertThat(results2).isNotEmpty();
     assertEquals("Output must match", results2, expected2);
   }
 
-  @Test
+  @TestTemplate
   public void testAddColumnOnMigratedTableAtMiddle() throws Exception {
-    Assume.assumeTrue("Cannot migrate to a hadoop based catalog", !type.equals("hadoop"));
-    Assume.assumeTrue(
-        "Can only migrate from Spark Session Catalog", catalog.name().equals("spark_catalog"));
+    assumeThat(type).as("Cannot migrate to a hadoop based catalog").isNotEqualTo("hadoop");
+    assumeThat(catalog.name())
+        .as("Can only migrate from Spark Session Catalog")
+        .isEqualTo("spark_catalog");
     String source = sourceName("test_add_column_migrated_table_middle");
     String dest = source;
     createSourceTable(CREATE_PARQUET, source);
@@ -308,26 +316,27 @@ public class TestCreateActions extends SparkCatalogTestBase {
         .moveAfter(newCol1, "id")
         .commit();
     Schema afterSchema = table.schema();
-    Assert.assertNull(beforeSchema.findField(newCol1));
-    Assert.assertNotNull(afterSchema.findField(newCol1));
+    assertThat(beforeSchema.findField(newCol1)).isNull();
+    assertThat(afterSchema.findField(newCol1)).isNotNull();
 
     // reads should succeed
     List<Object[]> results = sql("select * from %s order by id", dest);
-    Assert.assertTrue(results.size() > 0);
+    assertThat(results).isNotEmpty();
     assertEquals("Output must match", results, expected);
   }
 
-  @Test
+  @TestTemplate
   public void removeColumnsAtEnd() throws Exception {
-    Assume.assumeTrue("Cannot migrate to a hadoop based catalog", !type.equals("hadoop"));
-    Assume.assumeTrue(
-        "Can only migrate from Spark Session Catalog", catalog.name().equals("spark_catalog"));
+    assumeThat(type).as("Cannot migrate to a hadoop based catalog").isNotEqualTo("hadoop");
+    assumeThat(catalog.name())
+        .as("Can only migrate from Spark Session Catalog")
+        .isEqualTo("spark_catalog");
     String source = sourceName("test_remove_column_migrated_table");
     String dest = source;
 
     String colName1 = "newCol1";
     String colName2 = "newCol2";
-    File location = temp.newFolder();
+    File location = Files.createTempDirectory(temp, "junit").toFile();
     spark
         .range(10)
         .selectExpr("cast(id as INT)", "CAST(id as INT) " + colName1, "CAST(id as INT) " + colName2)
@@ -346,29 +355,30 @@ public class TestCreateActions extends SparkCatalogTestBase {
     Schema beforeSchema = table.schema();
     sparkTable.table().updateSchema().deleteColumn(colName1).commit();
     Schema afterSchema = table.schema();
-    Assert.assertNotNull(beforeSchema.findField(colName1));
-    Assert.assertNull(afterSchema.findField(colName1));
+    assertThat(beforeSchema.findField(colName1)).isNotNull();
+    assertThat(afterSchema.findField(colName1)).isNull();
 
     // reads should succeed without any exceptions
     List<Object[]> results1 = sql("select * from %s order by id", dest);
-    Assert.assertTrue(results1.size() > 0);
+    assertThat(results1).isNotEmpty();
     assertEquals("Output must match", expected1, results1);
 
     sql("ALTER TABLE %s DROP COLUMN %s", dest, colName2);
     StructType schema = spark.table(dest).schema();
-    Assert.assertFalse(Arrays.asList(schema.fieldNames()).contains(colName2));
+    assertThat(schema.fieldNames()).doesNotContain(colName2);
 
     // reads should succeed without any exceptions
     List<Object[]> results2 = sql("select * from %s order by id", dest);
-    Assert.assertTrue(results2.size() > 0);
+    assertThat(results2).isNotEmpty();
     assertEquals("Output must match", expected2, results2);
   }
 
-  @Test
+  @TestTemplate
   public void removeColumnFromMiddle() throws Exception {
-    Assume.assumeTrue("Cannot migrate to a hadoop based catalog", !type.equals("hadoop"));
-    Assume.assumeTrue(
-        "Can only migrate from Spark Session Catalog", catalog.name().equals("spark_catalog"));
+    assumeThat(type).as("Cannot migrate to a hadoop based catalog").isNotEqualTo("hadoop");
+    assumeThat(catalog.name())
+        .as("Can only migrate from Spark Session Catalog")
+        .isEqualTo("spark_catalog");
     String source = sourceName("test_remove_column_migrated_table_from_middle");
     String dest = source;
     String dropColumnName = "col1";
@@ -388,31 +398,32 @@ public class TestCreateActions extends SparkCatalogTestBase {
     // drop column
     sql("ALTER TABLE %s DROP COLUMN %s", dest, "col1");
     StructType schema = spark.table(dest).schema();
-    Assert.assertFalse(Arrays.asList(schema.fieldNames()).contains(dropColumnName));
+    assertThat(schema.fieldNames()).doesNotContain(dropColumnName);
 
     // reads should return same output as that of non-iceberg table
     List<Object[]> results = sql("select * from %s order by id", dest);
-    Assert.assertTrue(results.size() > 0);
+    assertThat(results).isNotEmpty();
     assertEquals("Output must match", expected, results);
   }
 
-  @Test
+  @TestTemplate
   public void testMigrateUnpartitioned() throws Exception {
-    Assume.assumeTrue("Cannot migrate to a hadoop based catalog", !type.equals("hadoop"));
-    Assume.assumeTrue(
-        "Can only migrate from Spark Session Catalog", catalog.name().equals("spark_catalog"));
+    assumeThat(type).as("Cannot migrate to a hadoop based catalog").isNotEqualTo("hadoop");
+    assumeThat(catalog.name())
+        .as("Can only migrate from Spark Session Catalog")
+        .isEqualTo("spark_catalog");
     String source = sourceName("test_migrate_unpartitioned_table");
     String dest = source;
     createSourceTable(CREATE_PARQUET, source);
     assertMigratedFileCount(SparkActions.get().migrateTable(source), source, dest);
   }
 
-  @Test
+  @TestTemplate
   public void testSnapshotPartitioned() throws Exception {
-    Assume.assumeTrue(
-        "Cannot snapshot with arbitrary location in a hadoop based catalog",
-        !type.equals("hadoop"));
-    File location = temp.newFolder();
+    assumeThat(type)
+        .as("Cannot snapshot with arbitrary location in a hadoop based catalog")
+        .isNotEqualTo("hadoop");
+    File location = Files.createTempDirectory(temp, "junit").toFile();
     String source = sourceName("test_snapshot_partitioned_table");
     String dest = destName("iceberg_snapshot_partitioned");
     createSourceTable(CREATE_PARTITIONED_PARQUET, source);
@@ -423,12 +434,12 @@ public class TestCreateActions extends SparkCatalogTestBase {
     assertIsolatedSnapshot(source, dest);
   }
 
-  @Test
+  @TestTemplate
   public void testSnapshotUnpartitioned() throws Exception {
-    Assume.assumeTrue(
-        "Cannot snapshot with arbitrary location in a hadoop based catalog",
-        !type.equals("hadoop"));
-    File location = temp.newFolder();
+    assumeThat(type)
+        .as("Cannot snapshot with arbitrary location in a hadoop based catalog")
+        .isNotEqualTo("hadoop");
+    File location = Files.createTempDirectory(temp, "junit").toFile();
     String source = sourceName("test_snapshot_unpartitioned_table");
     String dest = destName("iceberg_snapshot_unpartitioned");
     createSourceTable(CREATE_PARQUET, source);
@@ -439,12 +450,12 @@ public class TestCreateActions extends SparkCatalogTestBase {
     assertIsolatedSnapshot(source, dest);
   }
 
-  @Test
+  @TestTemplate
   public void testSnapshotHiveTable() throws Exception {
-    Assume.assumeTrue(
-        "Cannot snapshot with arbitrary location in a hadoop based catalog",
-        !type.equals("hadoop"));
-    File location = temp.newFolder();
+    assumeThat(type)
+        .as("Cannot snapshot with arbitrary location in a hadoop based catalog")
+        .isNotEqualTo("hadoop");
+    File location = Files.createTempDirectory(temp, "junit").toFile();
     String source = sourceName("snapshot_hive_table");
     String dest = destName("iceberg_snapshot_hive_table");
     createSourceTable(CREATE_HIVE_EXTERNAL_PARQUET, source);
@@ -455,19 +466,19 @@ public class TestCreateActions extends SparkCatalogTestBase {
     assertIsolatedSnapshot(source, dest);
   }
 
-  @Test
+  @TestTemplate
   public void testMigrateHiveTable() throws Exception {
-    Assume.assumeTrue("Cannot migrate to a hadoop based catalog", !type.equals("hadoop"));
+    assumeThat(type).as("Cannot migrate to a hadoop based catalog").isNotEqualTo("hadoop");
     String source = sourceName("migrate_hive_table");
     String dest = source;
     createSourceTable(CREATE_HIVE_EXTERNAL_PARQUET, source);
     assertMigratedFileCount(SparkActions.get().migrateTable(source), source, dest);
   }
 
-  @Test
+  @TestTemplate
   public void testSnapshotManagedHiveTable() throws Exception {
-    Assume.assumeTrue("Cannot migrate to a hadoop based catalog", !type.equals("hadoop"));
-    File location = temp.newFolder();
+    assumeThat(type).as("Cannot migrate to a hadoop based catalog").isNotEqualTo("hadoop");
+    File location = Files.createTempDirectory(temp, "junit").toFile();
     String source = sourceName("snapshot_managed_hive_table");
     String dest = destName("iceberg_snapshot_managed_hive_table");
     createSourceTable(CREATE_HIVE_PARQUET, source);
@@ -478,10 +489,10 @@ public class TestCreateActions extends SparkCatalogTestBase {
     assertIsolatedSnapshot(source, dest);
   }
 
-  @Test
+  @TestTemplate
   public void testMigrateManagedHiveTable() throws Exception {
-    Assume.assumeTrue("Cannot migrate to a hadoop based catalog", !type.equals("hadoop"));
-    File location = temp.newFolder();
+    assumeThat(type).as("Cannot migrate to a hadoop based catalog").isNotEqualTo("hadoop");
+    File location = Files.createTempDirectory(temp, "junit").toFile();
     String source = sourceName("migrate_managed_hive_table");
     String dest = destName("iceberg_migrate_managed_hive_table");
     createSourceTable(CREATE_HIVE_PARQUET, source);
@@ -491,7 +502,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
         dest);
   }
 
-  @Test
+  @TestTemplate
   public void testProperties() throws Exception {
     String source = sourceName("test_properties_table");
     String dest = destName("iceberg_properties");
@@ -516,17 +527,13 @@ public class TestCreateActions extends SparkCatalogTestBase {
     expectedProps.put("dogs", "sundance");
 
     for (Map.Entry<String, String> entry : expectedProps.entrySet()) {
-      Assert.assertTrue(
-          "Created table missing property " + entry.getKey(),
-          table.properties().containsKey(entry.getKey()));
-      Assert.assertEquals(
-          "Property value is not the expected value",
-          entry.getValue(),
-          table.properties().get(entry.getKey()));
+      assertThat(table.properties())
+          .as("Property value is not the expected value")
+          .containsEntry(entry.getKey(), entry.getValue());
     }
   }
 
-  @Test
+  @TestTemplate
   public void testSparkTableReservedProperties() throws Exception {
     String destTableName = "iceberg_reserved_properties";
     String source = sourceName("test_reserved_properties_table");
@@ -542,28 +549,36 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String[] keys = {"provider", "format", "current-snapshot-id", "location", "sort-order"};
 
     for (String entry : keys) {
-      Assert.assertTrue(
-          "Created table missing reserved property " + entry,
-          table.properties().containsKey(entry));
+      assertThat(table.properties())
+          .as("Created table missing reserved property " + entry)
+          .containsKey(entry);
     }
 
-    Assert.assertEquals("Unexpected provider", "iceberg", table.properties().get("provider"));
-    Assert.assertEquals("Unexpected format", "iceberg/parquet", table.properties().get("format"));
-    Assert.assertNotEquals(
-        "No current-snapshot-id found", "none", table.properties().get("current-snapshot-id"));
-    Assert.assertTrue(
-        "Location isn't correct", table.properties().get("location").endsWith(destTableName));
+    assertThat(table.properties().get("provider")).as("Unexpected provider").isEqualTo("iceberg");
+    assertThat(table.properties().get("format"))
+        .as("Unexpected provider")
+        .isEqualTo("iceberg/parquet");
+    assertThat(table.properties().get("current-snapshot-id"))
+        .as("No current-snapshot-id found")
+        .isNotEqualTo("none");
+    assertThat(table.properties().get("location"))
+        .as("Location isn't correct")
+        .endsWith(destTableName);
 
-    Assert.assertEquals("Unexpected format-version", "1", table.properties().get("format-version"));
+    assertThat(table.properties().get("format-version"))
+        .as("Unexpected format-version")
+        .isEqualTo("1");
     table.table().updateProperties().set("format-version", "2").commit();
-    Assert.assertEquals("Unexpected format-version", "2", table.properties().get("format-version"));
+    assertThat(table.properties().get("format-version"))
+        .as("Unexpected format-version")
+        .isEqualTo("2");
 
-    Assert.assertEquals(
-        "Sort-order isn't correct",
-        "id ASC NULLS FIRST, data DESC NULLS LAST",
-        table.properties().get("sort-order"));
-    Assert.assertNull(
-        "Identifier fields should be null", table.properties().get("identifier-fields"));
+    assertThat(table.properties().get("sort-order"))
+        .as("Sort-order isn't correct")
+        .isEqualTo("id ASC NULLS FIRST, data DESC NULLS LAST");
+    assertThat(table.properties().get("identifier-fields"))
+        .as("Identifier fields should be null")
+        .isNull();
 
     table
         .table()
@@ -572,11 +587,12 @@ public class TestCreateActions extends SparkCatalogTestBase {
         .requireColumn("id")
         .setIdentifierFields("id")
         .commit();
-    Assert.assertEquals(
-        "Identifier fields aren't correct", "[id]", table.properties().get("identifier-fields"));
+    assertThat(table.properties().get("identifier-fields"))
+        .as("Identifier fields aren't correct")
+        .isEqualTo("[id]");
   }
 
-  @Test
+  @TestTemplate
   public void testSnapshotDefaultLocation() throws Exception {
     String source = sourceName("test_snapshot_default");
     String dest = destName("iceberg_snapshot_default");
@@ -585,13 +601,14 @@ public class TestCreateActions extends SparkCatalogTestBase {
     assertIsolatedSnapshot(source, dest);
   }
 
-  @Test
+  @TestTemplate
   public void schemaEvolutionTestWithSparkAPI() throws Exception {
-    Assume.assumeTrue("Cannot migrate to a hadoop based catalog", !type.equals("hadoop"));
-    Assume.assumeTrue(
-        "Can only migrate from Spark Session Catalog", catalog.name().equals("spark_catalog"));
+    assumeThat(type).as("Cannot migrate to a hadoop based catalog").isNotEqualTo("hadoop");
+    assumeThat(catalog.name())
+        .as("Can only migrate from Spark Session Catalog")
+        .isEqualTo("spark_catalog");
 
-    File location = temp.newFolder();
+    File location = Files.createTempDirectory(temp, "junit").toFile();
     String tblName = sourceName("schema_evolution_test");
 
     // Data generation and partition addition
@@ -639,11 +656,12 @@ public class TestCreateActions extends SparkCatalogTestBase {
     assertEquals("Output must match", expectedAfterAddColumn, afterMigarteAfterAddResults);
   }
 
-  @Test
+  @TestTemplate
   public void schemaEvolutionTestWithSparkSQL() throws Exception {
-    Assume.assumeTrue("Cannot migrate to a hadoop based catalog", !type.equals("hadoop"));
-    Assume.assumeTrue(
-        "Can only migrate from Spark Session Catalog", catalog.name().equals("spark_catalog"));
+    assumeThat(type).as("Cannot migrate to a hadoop based catalog").isNotEqualTo("hadoop");
+    assumeThat(catalog.name())
+        .as("Can only migrate from Spark Session Catalog")
+        .isEqualTo("spark_catalog");
     String tblName = sourceName("schema_evolution_test_sql");
 
     // Data generation and partition addition
@@ -686,52 +704,52 @@ public class TestCreateActions extends SparkCatalogTestBase {
     assertEquals("Output must match", expectedAfterAddColumn, afterMigarteAfterAddResults);
   }
 
-  @Test
+  @TestTemplate
   public void testHiveStyleThreeLevelList() throws Exception {
     threeLevelList(true);
   }
 
-  @Test
+  @TestTemplate
   public void testThreeLevelList() throws Exception {
     threeLevelList(false);
   }
 
-  @Test
+  @TestTemplate
   public void testHiveStyleThreeLevelListWithNestedStruct() throws Exception {
     threeLevelListWithNestedStruct(true);
   }
 
-  @Test
+  @TestTemplate
   public void testThreeLevelListWithNestedStruct() throws Exception {
     threeLevelListWithNestedStruct(false);
   }
 
-  @Test
+  @TestTemplate
   public void testHiveStyleThreeLevelLists() throws Exception {
     threeLevelLists(true);
   }
 
-  @Test
+  @TestTemplate
   public void testThreeLevelLists() throws Exception {
     threeLevelLists(false);
   }
 
-  @Test
+  @TestTemplate
   public void testHiveStyleStructOfThreeLevelLists() throws Exception {
     structOfThreeLevelLists(true);
   }
 
-  @Test
+  @TestTemplate
   public void testStructOfThreeLevelLists() throws Exception {
     structOfThreeLevelLists(false);
   }
 
-  @Test
+  @TestTemplate
   public void testTwoLevelList() throws IOException {
     spark.conf().set("spark.sql.parquet.writeLegacyFormat", true);
 
     String tableName = sourceName("testTwoLevelList");
-    File location = temp.newFolder();
+    File location = Files.createTempDirectory(temp, "junit").toFile();
 
     StructType sparkSchema =
         new StructType(
@@ -791,7 +809,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
             HadoopInputFile.fromPath(
                 new Path(parquetFile.getPath()), spark.sessionState().newHadoopConf()));
     MessageType schema = pqReader.getFooter().getFileMetaData().getSchema();
-    Assert.assertEquals(MessageTypeParser.parseMessageType(expectedParquetSchema), schema);
+    assertThat(schema).isEqualTo(MessageTypeParser.parseMessageType(expectedParquetSchema));
 
     // create sql table on top of it
     sql(
@@ -806,7 +824,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     // check migrated table is returning expected result
     List<Object[]> results = sql("SELECT * FROM %s", tableName);
-    Assert.assertTrue(results.size() > 0);
+    assertThat(results).isNotEmpty();
     assertEquals("Output must match", expected, results);
   }
 
@@ -814,7 +832,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     spark.conf().set("spark.sql.parquet.writeLegacyFormat", useLegacyMode);
 
     String tableName = sourceName(String.format("threeLevelList_%s", useLegacyMode));
-    File location = temp.newFolder();
+    File location = Files.createTempDirectory(temp, "junit").toFile();
     sql(
         "CREATE TABLE %s (col1 ARRAY<STRUCT<col2 INT>>)" + " STORED AS parquet" + " LOCATION '%s'",
         tableName, location);
@@ -828,7 +846,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     // check migrated table is returning expected result
     List<Object[]> results = sql("SELECT * FROM %s", tableName);
-    Assert.assertTrue(results.size() > 0);
+    assertThat(results).isNotEmpty();
     assertEquals("Output must match", expected, results);
   }
 
@@ -837,7 +855,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     String tableName =
         sourceName(String.format("threeLevelListWithNestedStruct_%s", useLegacyMode));
-    File location = temp.newFolder();
+    File location = Files.createTempDirectory(temp, "junit").toFile();
     sql(
         "CREATE TABLE %s (col1 ARRAY<STRUCT<col2 STRUCT<col3 INT>>>)"
             + " STORED AS parquet"
@@ -853,7 +871,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     // check migrated table is returning expected result
     List<Object[]> results = sql("SELECT * FROM %s", tableName);
-    Assert.assertTrue(results.size() > 0);
+    assertThat(results).isNotEmpty();
     assertEquals("Output must match", expected, results);
   }
 
@@ -861,7 +879,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     spark.conf().set("spark.sql.parquet.writeLegacyFormat", useLegacyMode);
 
     String tableName = sourceName(String.format("threeLevelLists_%s", useLegacyMode));
-    File location = temp.newFolder();
+    File location = Files.createTempDirectory(temp, "junit").toFile();
     sql(
         "CREATE TABLE %s (col1 ARRAY<STRUCT<col2 INT>>, col3 ARRAY<STRUCT<col4 INT>>)"
             + " STORED AS parquet"
@@ -880,7 +898,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     // check migrated table is returning expected result
     List<Object[]> results = sql("SELECT * FROM %s", tableName);
-    Assert.assertTrue(results.size() > 0);
+    assertThat(results).isNotEmpty();
     assertEquals("Output must match", expected, results);
   }
 
@@ -888,7 +906,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     spark.conf().set("spark.sql.parquet.writeLegacyFormat", useLegacyMode);
 
     String tableName = sourceName(String.format("structOfThreeLevelLists_%s", useLegacyMode));
-    File location = temp.newFolder();
+    File location = Files.createTempDirectory(temp, "junit").toFile();
     sql(
         "CREATE TABLE %s (col1 STRUCT<col2 ARRAY<STRUCT<col3 INT>>>)"
             + " STORED AS parquet"
@@ -904,7 +922,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     // check migrated table is returning expected result
     List<Object[]> results = sql("SELECT * FROM %s", tableName);
-    Assert.assertTrue(results.size() > 0);
+    assertThat(results).isNotEmpty();
     assertEquals("Output must match", expected, results);
   }
 
@@ -925,7 +943,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
   private void createSourceTable(String createStatement, String tableName)
       throws IOException, NoSuchTableException, NoSuchDatabaseException, ParseException {
-    File location = temp.newFolder();
+    File location = Files.createTempDirectory(temp, "junit").toFile();
     spark.sql(String.format(createStatement, tableName, location));
     CatalogTable table = loadSessionTable(tableName);
     String format = table.provider().get();
@@ -945,8 +963,9 @@ public class TestCreateActions extends SparkCatalogTestBase {
     long expectedFiles = expectedFilesCount(source);
     MigrateTable.Result migratedFiles = migrateAction.execute();
     validateTables(source, dest);
-    Assert.assertEquals(
-        "Expected number of migrated files", expectedFiles, migratedFiles.migratedDataFilesCount());
+    assertThat(migratedFiles.migratedDataFilesCount())
+        .as("Expected number of migrated files")
+        .isEqualTo(expectedFiles);
   }
 
   // Counts the number of files in the source table, makes sure the same files exist in the
@@ -956,33 +975,38 @@ public class TestCreateActions extends SparkCatalogTestBase {
     long expectedFiles = expectedFilesCount(source);
     SnapshotTable.Result snapshotTableResult = snapshotTable.execute();
     validateTables(source, dest);
-    Assert.assertEquals(
-        "Expected number of imported snapshot files",
-        expectedFiles,
-        snapshotTableResult.importedDataFilesCount());
+    assertThat(snapshotTableResult.importedDataFilesCount())
+        .as("Expected number of imported snapshot files")
+        .isEqualTo(expectedFiles);
   }
 
   private void validateTables(String source, String dest)
       throws NoSuchTableException, ParseException {
     List<Row> expected = spark.table(source).collectAsList();
     SparkTable destTable = loadTable(dest);
-    Assert.assertEquals(
-        "Provider should be iceberg",
-        "iceberg",
-        destTable.properties().get(TableCatalog.PROP_PROVIDER));
+    assertThat(destTable.properties().get(TableCatalog.PROP_PROVIDER))
+        .as("Provider should be iceberg")
+        .isEqualTo("iceberg");
     List<Row> actual = spark.table(dest).collectAsList();
-    Assert.assertTrue(
-        String.format(
-            "Rows in migrated table did not match\nExpected :%s rows \nFound    :%s",
-            expected, actual),
-        expected.containsAll(actual) && actual.containsAll(expected));
+    assertThat(actual)
+        .as(
+            String.format(
+                "Rows in migrated table did not match\nExpected :%s rows \nFound    :%s",
+                expected, actual))
+        .containsAll(expected);
+    assertThat(expected)
+        .as(
+            String.format(
+                "Rows in migrated table did not match\nExpected :%s rows \nFound    :%s",
+                expected, actual))
+        .containsAll(actual);
   }
 
   private long expectedFilesCount(String source)
       throws NoSuchDatabaseException, NoSuchTableException, ParseException {
     CatalogTable sourceTable = loadSessionTable(source);
     List<URI> uris;
-    if (sourceTable.partitionColumnNames().size() == 0) {
+    if (sourceTable.partitionColumnNames().isEmpty()) {
       uris = Lists.newArrayList();
       uris.add(sourceTable.location());
     } else {
@@ -1016,14 +1040,15 @@ public class TestCreateActions extends SparkCatalogTestBase {
     df.write().format("iceberg").mode("append").saveAsTable(dest);
 
     List<Row> result = spark.sql(String.format("SELECT * FROM %s", source)).collectAsList();
-    Assert.assertEquals(
-        "No additional rows should be added to the original table", expected.size(), result.size());
+    assertThat(result)
+        .as("No additional rows should be added to the original table")
+        .hasSameSizeAs(expected);
 
     List<Row> snapshot =
         spark
             .sql(String.format("SELECT * FROM %s WHERE id = 4 AND data = 'd'", dest))
             .collectAsList();
-    Assert.assertEquals("Added row not found in snapshot", 1, snapshot.size());
+    assertThat(snapshot).as("Added row not found in snapshot").hasSize(1);
   }
 
   private String sourceName(String source) {

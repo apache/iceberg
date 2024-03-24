@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
@@ -31,6 +32,7 @@ import java.io.FileOutputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
@@ -39,21 +41,18 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.spark.SparkTestBase;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.SparkConf;
 import org.apache.spark.serializer.KryoSerializer;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
-public class TestScanTaskSerialization extends SparkTestBase {
+public class TestScanTaskSerialization extends TestBase {
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
   private static final Schema SCHEMA =
@@ -62,13 +61,13 @@ public class TestScanTaskSerialization extends SparkTestBase {
           optional(2, "c2", Types.StringType.get()),
           optional(3, "c3", Types.StringType.get()));
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
   private String tableLocation = null;
 
-  @Before
+  @BeforeEach
   public void setupTableLocation() throws Exception {
-    File tableDir = temp.newFolder();
+    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
     this.tableLocation = tableDir.toURI().toString();
   }
 
@@ -76,8 +75,8 @@ public class TestScanTaskSerialization extends SparkTestBase {
   public void testBaseCombinedScanTaskKryoSerialization() throws Exception {
     BaseCombinedScanTask scanTask = prepareBaseCombinedScanTaskForSerDeTest();
 
-    File data = temp.newFile();
-    Assert.assertTrue(data.delete());
+    File data = File.createTempFile("junit", null, temp.toFile());
+    assertThat(data.delete()).isTrue();
     Kryo kryo = new KryoSerializer(new SparkConf()).newKryo();
 
     try (Output out = new Output(new FileOutputStream(data))) {
@@ -86,7 +85,7 @@ public class TestScanTaskSerialization extends SparkTestBase {
 
     try (Input in = new Input(new FileInputStream(data))) {
       Object obj = kryo.readClassAndObject(in);
-      Assertions.assertThat(obj)
+      assertThat(obj)
           .as("Should be a BaseCombinedScanTask")
           .isInstanceOf(BaseCombinedScanTask.class);
       TaskCheckHelper.assertEquals(scanTask, (BaseCombinedScanTask) obj);
@@ -105,7 +104,7 @@ public class TestScanTaskSerialization extends SparkTestBase {
     try (ObjectInputStream in =
         new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
       Object obj = in.readObject();
-      Assertions.assertThat(obj)
+      assertThat(obj)
           .as("Should be a BaseCombinedScanTask")
           .isInstanceOf(BaseCombinedScanTask.class);
       TaskCheckHelper.assertEquals(scanTask, (BaseCombinedScanTask) obj);
@@ -117,10 +116,10 @@ public class TestScanTaskSerialization extends SparkTestBase {
   public void testBaseScanTaskGroupKryoSerialization() throws Exception {
     BaseScanTaskGroup<FileScanTask> taskGroup = prepareBaseScanTaskGroupForSerDeTest();
 
-    Assert.assertTrue("Task group can't be empty", taskGroup.tasks().size() > 0);
+    assertThat(taskGroup.tasks()).as("Task group can't be empty").isNotEmpty();
 
-    File data = temp.newFile();
-    Assert.assertTrue(data.delete());
+    File data = File.createTempFile("junit", null, temp.toFile());
+    assertThat(data.delete()).isTrue();
     Kryo kryo = new KryoSerializer(new SparkConf()).newKryo();
 
     try (Output out = new Output(Files.newOutputStream(data.toPath()))) {
@@ -129,9 +128,7 @@ public class TestScanTaskSerialization extends SparkTestBase {
 
     try (Input in = new Input(Files.newInputStream(data.toPath()))) {
       Object obj = kryo.readClassAndObject(in);
-      Assertions.assertThat(obj)
-          .as("should be a BaseScanTaskGroup")
-          .isInstanceOf(BaseScanTaskGroup.class);
+      assertThat(obj).as("should be a BaseScanTaskGroup").isInstanceOf(BaseScanTaskGroup.class);
       TaskCheckHelper.assertEquals(taskGroup, (BaseScanTaskGroup<FileScanTask>) obj);
     }
   }
@@ -141,7 +138,7 @@ public class TestScanTaskSerialization extends SparkTestBase {
   public void testBaseScanTaskGroupJavaSerialization() throws Exception {
     BaseScanTaskGroup<FileScanTask> taskGroup = prepareBaseScanTaskGroupForSerDeTest();
 
-    Assert.assertTrue("Task group can't be empty", taskGroup.tasks().size() > 0);
+    assertThat(taskGroup.tasks()).as("Task group can't be empty").isNotEmpty();
 
     ByteArrayOutputStream bytes = new ByteArrayOutputStream();
     try (ObjectOutputStream out = new ObjectOutputStream(bytes)) {
@@ -151,9 +148,7 @@ public class TestScanTaskSerialization extends SparkTestBase {
     try (ObjectInputStream in =
         new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
       Object obj = in.readObject();
-      Assertions.assertThat(obj)
-          .as("should be a BaseScanTaskGroup")
-          .isInstanceOf(BaseScanTaskGroup.class);
+      assertThat(obj).as("should be a BaseScanTaskGroup").isInstanceOf(BaseScanTaskGroup.class);
       TaskCheckHelper.assertEquals(taskGroup, (BaseScanTaskGroup<FileScanTask>) obj);
     }
   }

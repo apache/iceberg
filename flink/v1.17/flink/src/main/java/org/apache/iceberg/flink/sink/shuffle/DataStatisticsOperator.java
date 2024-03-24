@@ -22,7 +22,6 @@ import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
-import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.operators.coordination.OperatorEventGateway;
 import org.apache.flink.runtime.operators.coordination.OperatorEventHandler;
@@ -32,6 +31,12 @@ import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.table.data.RowData;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortKey;
+import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.flink.RowDataWrapper;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
@@ -45,11 +50,12 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 class DataStatisticsOperator<D extends DataStatistics<D, S>, S>
     extends AbstractStreamOperator<DataStatisticsOrRecord<D, S>>
     implements OneInputStreamOperator<RowData, DataStatisticsOrRecord<D, S>>, OperatorEventHandler {
+
   private static final long serialVersionUID = 1L;
 
   private final String operatorName;
-  // keySelector will be used to generate key from data for collecting data statistics
-  private final KeySelector<RowData, RowData> keySelector;
+  private final RowDataWrapper rowDataWrapper;
+  private final SortKey sortKey;
   private final OperatorEventGateway operatorEventGateway;
   private final TypeSerializer<DataStatistics<D, S>> statisticsSerializer;
   private transient volatile DataStatistics<D, S> localStatistics;
@@ -58,11 +64,13 @@ class DataStatisticsOperator<D extends DataStatistics<D, S>, S>
 
   DataStatisticsOperator(
       String operatorName,
-      KeySelector<RowData, RowData> keySelector,
+      Schema schema,
+      SortOrder sortOrder,
       OperatorEventGateway operatorEventGateway,
       TypeSerializer<DataStatistics<D, S>> statisticsSerializer) {
     this.operatorName = operatorName;
-    this.keySelector = keySelector;
+    this.rowDataWrapper = new RowDataWrapper(FlinkSchemaUtil.convert(schema), schema.asStruct());
+    this.sortKey = new SortKey(schema, sortOrder);
     this.operatorEventGateway = operatorEventGateway;
     this.statisticsSerializer = statisticsSerializer;
   }
@@ -126,10 +134,11 @@ class DataStatisticsOperator<D extends DataStatistics<D, S>, S>
   }
 
   @Override
-  public void processElement(StreamRecord<RowData> streamRecord) throws Exception {
+  public void processElement(StreamRecord<RowData> streamRecord) {
     RowData record = streamRecord.getValue();
-    RowData key = keySelector.getKey(record);
-    localStatistics.add(key);
+    StructLike struct = rowDataWrapper.wrap(record);
+    sortKey.wrap(struct);
+    localStatistics.add(sortKey);
     output.collect(new StreamRecord<>(DataStatisticsOrRecord.fromRecord(record)));
   }
 

@@ -24,34 +24,49 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.security.PrivilegedAction;
-import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hive.CachedClientPool.Key;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
-public class TestCachedClientPool extends HiveMetastoreTest {
+public class TestCachedClientPool {
+  private static final long EVICTION_INTERVAL = TimeUnit.SECONDS.toMillis(10);
+  private static final String DB_NAME = "hivedb";
+
+  @RegisterExtension
+  private static final HiveMetastoreExtension HIVE_METASTORE_EXTENSION =
+      HiveMetastoreExtension.builder().withDatabase(DB_NAME).build();
 
   @Test
   public void testClientPoolCleaner() throws InterruptedException {
-    CachedClientPool clientPool = new CachedClientPool(hiveConf, Collections.emptyMap());
+    CachedClientPool clientPool =
+        new CachedClientPool(
+            HIVE_METASTORE_EXTENSION.hiveConf(),
+            ImmutableMap.of(
+                CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS,
+                String.valueOf(EVICTION_INTERVAL)));
     HiveClientPool clientPool1 = clientPool.clientPool();
     assertThat(clientPool1)
         .isSameAs(
             CachedClientPool.clientPoolCache()
-                .getIfPresent(CachedClientPool.extractKey(null, hiveConf)));
+                .getIfPresent(
+                    CachedClientPool.extractKey(null, HIVE_METASTORE_EXTENSION.hiveConf())));
     TimeUnit.MILLISECONDS.sleep(EVICTION_INTERVAL - TimeUnit.SECONDS.toMillis(2));
     HiveClientPool clientPool2 = clientPool.clientPool();
     assertThat(clientPool2).isSameAs(clientPool1);
     TimeUnit.MILLISECONDS.sleep(EVICTION_INTERVAL + TimeUnit.SECONDS.toMillis(5));
     assertThat(
             CachedClientPool.clientPoolCache()
-                .getIfPresent(CachedClientPool.extractKey(null, hiveConf)))
+                .getIfPresent(
+                    CachedClientPool.extractKey(null, HIVE_METASTORE_EXTENSION.hiveConf())))
         .isNull();
 
     // The client has been really closed.
@@ -65,6 +80,8 @@ public class TestCachedClientPool extends HiveMetastoreTest {
     UserGroupInformation foo1 = UserGroupInformation.createProxyUser("foo", current);
     UserGroupInformation foo2 = UserGroupInformation.createProxyUser("foo", current);
     UserGroupInformation bar = UserGroupInformation.createProxyUser("bar", current);
+
+    HiveConf hiveConf = HIVE_METASTORE_EXTENSION.hiveConf();
 
     Key key1 =
         foo1.doAs(

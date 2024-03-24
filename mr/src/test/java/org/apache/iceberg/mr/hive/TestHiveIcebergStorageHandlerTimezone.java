@@ -19,10 +19,10 @@
 package org.apache.iceberg.mr.hive;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.junit.runners.Parameterized.Parameter;
-import static org.junit.runners.Parameterized.Parameters;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.text.DateFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -33,24 +33,24 @@ import java.util.TimeZone;
 import org.apache.hadoop.hive.serde2.io.DateWritable;
 import org.apache.hadoop.hive.serde2.io.TimestampWritable;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.common.DynFields;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestHiveIcebergStorageHandlerTimezone {
   private static final Optional<ThreadLocal<DateFormat>> dateFormat =
       Optional.ofNullable(
@@ -82,22 +82,21 @@ public class TestHiveIcebergStorageHandlerTimezone {
 
   private TestTables testTables;
 
-  @Parameter(0)
-  public String timezoneString;
+  @Parameter private String timezoneString;
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
-  @BeforeClass
+  @BeforeAll
   public static void beforeClass() {
     shell = HiveIcebergStorageHandlerTestUtils.shell();
   }
 
-  @AfterClass
+  @AfterAll
   public static void afterClass() throws Exception {
     shell.stop();
   }
 
-  @Before
+  @BeforeEach
   public void before() throws IOException {
     TimeZone.setDefault(TimeZone.getTimeZone(timezoneString));
 
@@ -115,12 +114,12 @@ public class TestHiveIcebergStorageHandlerTimezone {
     HiveIcebergStorageHandlerTestUtils.init(shell, testTables, temp, "spark");
   }
 
-  @After
+  @AfterEach
   public void after() throws Exception {
     HiveIcebergStorageHandlerTestUtils.close(shell);
   }
 
-  @Test
+  @TestTemplate
   public void testDateQuery() throws IOException {
     Schema dateSchema = new Schema(optional(1, "d_date", Types.DateType.get()));
 
@@ -134,24 +133,24 @@ public class TestHiveIcebergStorageHandlerTimezone {
 
     List<Object[]> result =
         shell.executeStatement("SELECT * from date_test WHERE d_date='2020-01-21'");
-    Assert.assertEquals(1, result.size());
-    Assert.assertEquals("2020-01-21", result.get(0)[0]);
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0)[0]).isEqualTo("2020-01-21");
 
     result =
         shell.executeStatement(
             "SELECT * from date_test WHERE d_date in ('2020-01-21', '2020-01-22')");
-    Assert.assertEquals(1, result.size());
-    Assert.assertEquals("2020-01-21", result.get(0)[0]);
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0)[0]).isEqualTo("2020-01-21");
 
     result = shell.executeStatement("SELECT * from date_test WHERE d_date > '2020-01-21'");
-    Assert.assertEquals(1, result.size());
-    Assert.assertEquals("2020-01-24", result.get(0)[0]);
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0)[0]).isEqualTo("2020-01-24");
 
     result = shell.executeStatement("SELECT * from date_test WHERE d_date='2020-01-20'");
-    Assert.assertEquals(0, result.size());
+    assertThat(result).isEmpty();
   }
 
-  @Test
+  @TestTemplate
   public void testTimestampQuery() throws IOException {
     Schema timestampSchema = new Schema(optional(1, "d_ts", Types.TimestampType.withoutZone()));
 
@@ -165,21 +164,21 @@ public class TestHiveIcebergStorageHandlerTimezone {
 
     List<Object[]> result =
         shell.executeStatement("SELECT d_ts FROM ts_test WHERE d_ts='2019-02-22 09:44:54.2'");
-    Assert.assertEquals(1, result.size());
-    Assert.assertEquals("2019-02-22 09:44:54.2", result.get(0)[0]);
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0)[0]).isEqualTo("2019-02-22 09:44:54.2");
 
     result =
         shell.executeStatement(
             "SELECT * FROM ts_test WHERE d_ts in ('2017-01-01 22:30:57.1', '2019-02-22 09:44:54.2')");
-    Assert.assertEquals(1, result.size());
-    Assert.assertEquals("2019-02-22 09:44:54.2", result.get(0)[0]);
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0)[0]).isEqualTo("2019-02-22 09:44:54.2");
 
     result =
         shell.executeStatement("SELECT d_ts FROM ts_test WHERE d_ts < '2019-02-22 09:44:54.2'");
-    Assert.assertEquals(1, result.size());
-    Assert.assertEquals("2019-01-22 09:44:54.1", result.get(0)[0]);
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0)[0]).isEqualTo("2019-01-22 09:44:54.1");
 
     result = shell.executeStatement("SELECT * FROM ts_test WHERE d_ts='2017-01-01 22:30:57.3'");
-    Assert.assertEquals(0, result.size());
+    assertThat(result).isEmpty();
   }
 }

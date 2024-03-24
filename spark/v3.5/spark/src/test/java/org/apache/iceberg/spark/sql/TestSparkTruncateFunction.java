@@ -18,252 +18,234 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
-import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
+import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.spark.sql.AnalysisException;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
 
-public class TestSparkTruncateFunction extends SparkTestBaseWithCatalog {
-  public TestSparkTruncateFunction() {}
+public class TestSparkTruncateFunction extends TestBaseWithCatalog {
 
-  @Before
+  @BeforeEach
   public void useCatalog() {
     sql("USE %s", catalogName);
   }
 
-  @Test
+  @TestTemplate
   public void testTruncateTinyInt() {
-    Assert.assertEquals((byte) 0, scalarSql("SELECT system.truncate(10, 0Y)"));
-    Assert.assertEquals((byte) 0, scalarSql("SELECT system.truncate(10, 1Y)"));
-    Assert.assertEquals((byte) 0, scalarSql("SELECT system.truncate(10, 5Y)"));
-    Assert.assertEquals((byte) 0, scalarSql("SELECT system.truncate(10, 9Y)"));
-    Assert.assertEquals((byte) 10, scalarSql("SELECT system.truncate(10, 10Y)"));
-    Assert.assertEquals((byte) 10, scalarSql("SELECT system.truncate(10, 11Y)"));
-    Assert.assertEquals((byte) -10, scalarSql("SELECT system.truncate(10, -1Y)"));
-    Assert.assertEquals((byte) -10, scalarSql("SELECT system.truncate(10, -5Y)"));
-    Assert.assertEquals((byte) -10, scalarSql("SELECT system.truncate(10, -10Y)"));
-    Assert.assertEquals((byte) -20, scalarSql("SELECT system.truncate(10, -11Y)"));
+    assertThat(scalarSql("SELECT system.truncate(10, 0Y)")).isEqualTo((byte) 0);
+    assertThat(scalarSql("SELECT system.truncate(10, 1Y)")).isEqualTo((byte) 0);
+    assertThat(scalarSql("SELECT system.truncate(10, 5Y)")).isEqualTo((byte) 0);
+    assertThat(scalarSql("SELECT system.truncate(10, 9Y)")).isEqualTo((byte) 0);
+    assertThat(scalarSql("SELECT system.truncate(10, 10Y)")).isEqualTo((byte) 10);
+    assertThat(scalarSql("SELECT system.truncate(10, 11Y)")).isEqualTo((byte) 10);
+    assertThat(scalarSql("SELECT system.truncate(10, -1Y)")).isEqualTo((byte) -10);
+    assertThat(scalarSql("SELECT system.truncate(10, -5Y)")).isEqualTo((byte) -10);
+    assertThat(scalarSql("SELECT system.truncate(10, -10Y)")).isEqualTo((byte) -10);
+    assertThat(scalarSql("SELECT system.truncate(10, -11Y)")).isEqualTo((byte) -20);
 
     // Check that different widths can be used
-    Assert.assertEquals((byte) -2, scalarSql("SELECT system.truncate(2, -1Y)"));
+    assertThat(scalarSql("SELECT system.truncate(2, -1Y)")).isEqualTo((byte) -2);
 
-    Assert.assertNull(
-        "Null input should return null",
-        scalarSql("SELECT system.truncate(2, CAST(null AS tinyint))"));
+    assertThat(scalarSql("SELECT system.truncate(2, CAST(null AS tinyint))"))
+        .as("Null input should return null")
+        .isNull();
   }
 
-  @Test
+  @TestTemplate
   public void testTruncateSmallInt() {
-    Assert.assertEquals((short) 0, scalarSql("SELECT system.truncate(10, 0S)"));
-    Assert.assertEquals((short) 0, scalarSql("SELECT system.truncate(10, 1S)"));
-    Assert.assertEquals((short) 0, scalarSql("SELECT system.truncate(10, 5S)"));
-    Assert.assertEquals((short) 0, scalarSql("SELECT system.truncate(10, 9S)"));
-    Assert.assertEquals((short) 10, scalarSql("SELECT system.truncate(10, 10S)"));
-    Assert.assertEquals((short) 10, scalarSql("SELECT system.truncate(10, 11S)"));
-    Assert.assertEquals((short) -10, scalarSql("SELECT system.truncate(10, -1S)"));
-    Assert.assertEquals((short) -10, scalarSql("SELECT system.truncate(10, -5S)"));
-    Assert.assertEquals((short) -10, scalarSql("SELECT system.truncate(10, -10S)"));
-    Assert.assertEquals((short) -20, scalarSql("SELECT system.truncate(10, -11S)"));
+    assertThat(scalarSql("SELECT system.truncate(10, 0S)")).isEqualTo((short) 0);
+    assertThat(scalarSql("SELECT system.truncate(10, 1S)")).isEqualTo((short) 0);
+    assertThat(scalarSql("SELECT system.truncate(10, 5S)")).isEqualTo((short) 0);
+    assertThat(scalarSql("SELECT system.truncate(10, 9S)")).isEqualTo((short) 0);
+    assertThat(scalarSql("SELECT system.truncate(10, 10S)")).isEqualTo((short) 10);
+    assertThat(scalarSql("SELECT system.truncate(10, 11S)")).isEqualTo((short) 10);
+    assertThat(scalarSql("SELECT system.truncate(10, -1S)")).isEqualTo((short) -10);
+    assertThat(scalarSql("SELECT system.truncate(10, -5S)")).isEqualTo((short) -10);
+    assertThat(scalarSql("SELECT system.truncate(10, -10S)")).isEqualTo((short) -10);
+    assertThat(scalarSql("SELECT system.truncate(10, -11S)")).isEqualTo((short) -20);
 
     // Check that different widths can be used
-    Assert.assertEquals((short) -2, scalarSql("SELECT system.truncate(2, -1S)"));
+    assertThat(scalarSql("SELECT system.truncate(2, -1S)")).isEqualTo((short) -2);
 
-    Assert.assertNull(
-        "Null input should return null",
-        scalarSql("SELECT system.truncate(2, CAST(null AS smallint))"));
+    assertThat(scalarSql("SELECT system.truncate(2, CAST(null AS smallint))"))
+        .as("Null input should return null")
+        .isNull();
   }
 
-  @Test
+  @TestTemplate
   public void testTruncateInt() {
-    Assert.assertEquals(0, scalarSql("SELECT system.truncate(10, 0)"));
-    Assert.assertEquals(0, scalarSql("SELECT system.truncate(10, 1)"));
-    Assert.assertEquals(0, scalarSql("SELECT system.truncate(10, 5)"));
-    Assert.assertEquals(0, scalarSql("SELECT system.truncate(10, 9)"));
-    Assert.assertEquals(10, scalarSql("SELECT system.truncate(10, 10)"));
-    Assert.assertEquals(10, scalarSql("SELECT system.truncate(10, 11)"));
-    Assert.assertEquals(-10, scalarSql("SELECT system.truncate(10, -1)"));
-    Assert.assertEquals(-10, scalarSql("SELECT system.truncate(10, -5)"));
-    Assert.assertEquals(-10, scalarSql("SELECT system.truncate(10, -10)"));
-    Assert.assertEquals(-20, scalarSql("SELECT system.truncate(10, -11)"));
+    assertThat(scalarSql("SELECT system.truncate(10, 0)")).isEqualTo(0);
+    assertThat(scalarSql("SELECT system.truncate(10, 1)")).isEqualTo(0);
+    assertThat(scalarSql("SELECT system.truncate(10, 5)")).isEqualTo(0);
+    assertThat(scalarSql("SELECT system.truncate(10, 9)")).isEqualTo(0);
+    assertThat(scalarSql("SELECT system.truncate(10, 10)")).isEqualTo(10);
+    assertThat(scalarSql("SELECT system.truncate(10, 11)")).isEqualTo(10);
+    assertThat(scalarSql("SELECT system.truncate(10, -1)")).isEqualTo(-10);
+    assertThat(scalarSql("SELECT system.truncate(10, -5)")).isEqualTo(-10);
+    assertThat(scalarSql("SELECT system.truncate(10, -10)")).isEqualTo(-10);
+    assertThat(scalarSql("SELECT system.truncate(10, -11)")).isEqualTo(-20);
 
     // Check that different widths can be used
-    Assert.assertEquals(-2, scalarSql("SELECT system.truncate(2, -1)"));
-    Assert.assertEquals(0, scalarSql("SELECT system.truncate(300, 1)"));
+    assertThat(scalarSql("SELECT system.truncate(2, -1)")).isEqualTo(-2);
+    assertThat(scalarSql("SELECT system.truncate(300, 1)")).isEqualTo(0);
 
-    Assert.assertNull(
-        "Null input should return null", scalarSql("SELECT system.truncate(2, CAST(null AS int))"));
+    assertThat(scalarSql("SELECT system.truncate(2, CAST(null AS int))"))
+        .as("Null input should return null")
+        .isNull();
   }
 
-  @Test
+  @TestTemplate
   public void testTruncateBigInt() {
-    Assert.assertEquals(0L, scalarSql("SELECT system.truncate(10, 0L)"));
-    Assert.assertEquals(0L, scalarSql("SELECT system.truncate(10, 1L)"));
-    Assert.assertEquals(0L, scalarSql("SELECT system.truncate(10, 5L)"));
-    Assert.assertEquals(0L, scalarSql("SELECT system.truncate(10, 9L)"));
-    Assert.assertEquals(10L, scalarSql("SELECT system.truncate(10, 10L)"));
-    Assert.assertEquals(10L, scalarSql("SELECT system.truncate(10, 11L)"));
-    Assert.assertEquals(-10L, scalarSql("SELECT system.truncate(10, -1L)"));
-    Assert.assertEquals(-10L, scalarSql("SELECT system.truncate(10, -5L)"));
-    Assert.assertEquals(-10L, scalarSql("SELECT system.truncate(10, -10L)"));
-    Assert.assertEquals(-20L, scalarSql("SELECT system.truncate(10, -11L)"));
+    assertThat(scalarSql("SELECT system.truncate(10, 0L)")).isEqualTo(0L);
+    assertThat(scalarSql("SELECT system.truncate(10, 1L)")).isEqualTo(0L);
+    assertThat(scalarSql("SELECT system.truncate(10, 5L)")).isEqualTo(0L);
+    assertThat(scalarSql("SELECT system.truncate(10, 9L)")).isEqualTo(0L);
+    assertThat(scalarSql("SELECT system.truncate(10, 10L)")).isEqualTo(10L);
+    assertThat(scalarSql("SELECT system.truncate(10, 11L)")).isEqualTo(10L);
+    assertThat(scalarSql("SELECT system.truncate(10, -1L)")).isEqualTo(-10L);
+    assertThat(scalarSql("SELECT system.truncate(10, -5L)")).isEqualTo(-10L);
+    assertThat(scalarSql("SELECT system.truncate(10, -10L)")).isEqualTo(-10L);
+    assertThat(scalarSql("SELECT system.truncate(10, -11L)")).isEqualTo(-20L);
 
     // Check that different widths can be used
-    Assert.assertEquals(-2L, scalarSql("SELECT system.truncate(2, -1L)"));
+    assertThat(scalarSql("SELECT system.truncate(2, -1L)")).isEqualTo(-2L);
 
-    Assert.assertNull(
-        "Null input should return null",
-        scalarSql("SELECT system.truncate(2, CAST(null AS bigint))"));
+    assertThat(scalarSql("SELECT system.truncate(2, CAST(null AS bigint))"))
+        .as("Null input should return null")
+        .isNull();
   }
 
-  @Test
+  @TestTemplate
   public void testTruncateDecimal() {
     // decimal truncation works by applying the decimal scale to the width: ie 10 scale 2 = 0.10
-    Assert.assertEquals(
-        new BigDecimal("12.30"),
-        scalarSql("SELECT system.truncate(10, CAST(%s as DECIMAL(9, 2)))", "12.34"));
+    assertThat(scalarSql("SELECT system.truncate(10, CAST(%s as DECIMAL(9, 2)))", "12.34"))
+        .isEqualTo(new BigDecimal("12.30"));
 
-    Assert.assertEquals(
-        new BigDecimal("12.30"),
-        scalarSql("SELECT system.truncate(10, CAST(%s as DECIMAL(9, 2)))", "12.30"));
+    assertThat(scalarSql("SELECT system.truncate(10, CAST(%s as DECIMAL(9, 2)))", "12.30"))
+        .isEqualTo(new BigDecimal("12.30"));
 
-    Assert.assertEquals(
-        new BigDecimal("12.290"),
-        scalarSql("SELECT system.truncate(10, CAST(%s as DECIMAL(9, 3)))", "12.299"));
+    assertThat(scalarSql("SELECT system.truncate(10, CAST(%s as DECIMAL(9, 3)))", "12.299"))
+        .isEqualTo(new BigDecimal("12.290"));
 
-    Assert.assertEquals(
-        new BigDecimal("0.03"),
-        scalarSql("SELECT system.truncate(3, CAST(%s as DECIMAL(5, 2)))", "0.05"));
+    assertThat(scalarSql("SELECT system.truncate(3, CAST(%s as DECIMAL(5, 2)))", "0.05"))
+        .isEqualTo(new BigDecimal("0.03"));
 
-    Assert.assertEquals(
-        new BigDecimal("0.00"),
-        scalarSql("SELECT system.truncate(10, CAST(%s as DECIMAL(9, 2)))", "0.05"));
+    assertThat(scalarSql("SELECT system.truncate(10, CAST(%s as DECIMAL(9, 2)))", "0.05"))
+        .isEqualTo(new BigDecimal("0.00"));
 
-    Assert.assertEquals(
-        new BigDecimal("-0.10"),
-        scalarSql("SELECT system.truncate(10, CAST(%s as DECIMAL(9, 2)))", "-0.05"));
+    assertThat(scalarSql("SELECT system.truncate(10, CAST(%s as DECIMAL(9, 2)))", "-0.05"))
+        .isEqualTo(new BigDecimal("-0.10"));
 
-    Assert.assertEquals(
-        "Implicit decimal scale and precision should be allowed",
-        new BigDecimal("12345.3480"),
-        scalarSql("SELECT system.truncate(10, 12345.3482)"));
+    assertThat(scalarSql("SELECT system.truncate(10, 12345.3482)"))
+        .as("Implicit decimal scale and precision should be allowed")
+        .isEqualTo(new BigDecimal("12345.3480"));
 
     BigDecimal truncatedDecimal =
         (BigDecimal) scalarSql("SELECT system.truncate(10, CAST(%s as DECIMAL(6, 4)))", "-0.05");
-    Assert.assertEquals(
-        "Truncating a decimal should return a decimal with the same scale",
-        4,
-        truncatedDecimal.scale());
+    assertThat(truncatedDecimal.scale())
+        .as("Truncating a decimal should return a decimal with the same scale")
+        .isEqualTo(4);
 
-    Assert.assertEquals(
-        "Truncating a decimal should return a decimal with the correct scale",
-        BigDecimal.valueOf(-500, 4),
-        truncatedDecimal);
+    assertThat(truncatedDecimal)
+        .as("Truncating a decimal should return a decimal with the correct scale")
+        .isEqualTo(BigDecimal.valueOf(-500, 4));
 
-    Assert.assertNull(
-        "Null input should return null",
-        scalarSql("SELECT system.truncate(2, CAST(null AS decimal))"));
+    assertThat(scalarSql("SELECT system.truncate(2, CAST(null AS decimal))"))
+        .as("Null input should return null")
+        .isNull();
   }
 
   @SuppressWarnings("checkstyle:AvoidEscapedUnicodeCharacters")
-  @Test
+  @TestTemplate
   public void testTruncateString() {
-    Assert.assertEquals(
-        "Should system.truncate strings longer than length",
-        "abcde",
-        scalarSql("SELECT system.truncate(5, 'abcdefg')"));
+    assertThat(scalarSql("SELECT system.truncate(5, 'abcdefg')"))
+        .as("Should system.truncate strings longer than length")
+        .isEqualTo("abcde");
 
-    Assert.assertEquals(
-        "Should not pad strings shorter than length",
-        "abc",
-        scalarSql("SELECT system.truncate(5, 'abc')"));
+    assertThat(scalarSql("SELECT system.truncate(5, 'abc')"))
+        .as("Should not pad strings shorter than length")
+        .isEqualTo("abc");
 
-    Assert.assertEquals(
-        "Should not alter strings equal to length",
-        "abcde",
-        scalarSql("SELECT system.truncate(5, 'abcde')"));
+    assertThat(scalarSql("SELECT system.truncate(5, 'abcde')"))
+        .as("Should not alter strings equal to length")
+        .isEqualTo("abcde");
 
-    Assert.assertEquals(
-        "Strings with multibyte unicode characters should should truncate along codepoint boundaries",
-        "イロ",
-        scalarSql("SELECT system.truncate(2, 'イロハニホヘト')"));
+    assertThat(scalarSql("SELECT system.truncate(2, 'イロハニホヘト')"))
+        .as("Strings with multibyte unicode characters should truncate along codepoint boundaries")
+        .isEqualTo("イロ");
 
-    Assert.assertEquals(
-        "Strings with multibyte unicode characters should truncate along codepoint boundaries",
-        "イロハ",
-        scalarSql("SELECT system.truncate(3, 'イロハニホヘト')"));
+    assertThat(scalarSql("SELECT system.truncate(3, 'イロハニホヘト')"))
+        .as("Strings with multibyte unicode characters should truncate along codepoint boundaries")
+        .isEqualTo("イロハ");
 
-    Assert.assertEquals(
-        "Strings with multibyte unicode characters should not alter input with fewer codepoints than width",
-        "イロハニホヘト",
-        scalarSql("SELECT system.truncate(7, 'イロハニホヘト')"));
+    assertThat(scalarSql("SELECT system.truncate(7, 'イロハニホヘト')"))
+        .as(
+            "Strings with multibyte unicode characters should not alter input with fewer codepoints than width")
+        .isEqualTo("イロハニホヘト");
 
     String stringWithTwoCodePointsEachFourBytes = "\uD800\uDC00\uD800\uDC00";
-    Assert.assertEquals(
-        "String truncation on four byte codepoints should work as expected",
-        "\uD800\uDC00",
-        scalarSql("SELECT system.truncate(1, '%s')", stringWithTwoCodePointsEachFourBytes));
+    assertThat(scalarSql("SELECT system.truncate(1, '%s')", stringWithTwoCodePointsEachFourBytes))
+        .as("String truncation on four byte codepoints should work as expected")
+        .isEqualTo("\uD800\uDC00");
 
-    Assert.assertEquals(
-        "Should handle three-byte UTF-8 characters appropriately",
-        "测",
-        scalarSql("SELECT system.truncate(1, '测试')"));
+    assertThat(scalarSql("SELECT system.truncate(1, '测试')"))
+        .as("Should handle three-byte UTF-8 characters appropriately")
+        .isEqualTo("测");
 
-    Assert.assertEquals(
-        "Should handle three-byte UTF-8 characters mixed with two byte utf-8 characters",
-        "测试ra",
-        scalarSql("SELECT system.truncate(4, '测试raul试测')"));
+    assertThat(scalarSql("SELECT system.truncate(4, '测试raul试测')"))
+        .as("Should handle three-byte UTF-8 characters mixed with two byte utf-8 characters")
+        .isEqualTo("测试ra");
 
-    Assert.assertEquals(
-        "Should not fail on the empty string", "", scalarSql("SELECT system.truncate(10, '')"));
+    assertThat(scalarSql("SELECT system.truncate(10, '')"))
+        .as("Should not fail on the empty string")
+        .isEqualTo("");
 
-    Assert.assertNull(
-        "Null input should return null as output",
-        scalarSql("SELECT system.truncate(3, CAST(null AS string))"));
+    assertThat(scalarSql("SELECT system.truncate(3, CAST(null AS string))"))
+        .as("Null input should return null as output")
+        .isNull();
 
-    Assert.assertEquals(
-        "Varchar should work like string",
-        "测试ra",
-        scalarSql("SELECT system.truncate(4, CAST('测试raul试测' AS varchar(8)))"));
+    assertThat(scalarSql("SELECT system.truncate(4, CAST('测试raul试测' AS varchar(8)))"))
+        .as("Varchar should work like string")
+        .isEqualTo("测试ra");
 
-    Assert.assertEquals(
-        "Char should work like string",
-        "测试ra",
-        scalarSql("SELECT system.truncate(4, CAST('测试raul试测' AS char(8)))"));
+    assertThat(scalarSql("SELECT system.truncate(4, CAST('测试raul试测' AS char(8)))"))
+        .as("Char should work like string")
+        .isEqualTo("测试ra");
   }
 
-  @Test
+  @TestTemplate
   public void testTruncateBinary() {
-    Assert.assertArrayEquals(
-        new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
-        (byte[]) scalarSql("SELECT system.truncate(10, X'0102030405060708090a0b0c0d0e0f')"));
-    Assert.assertArrayEquals(
-        "Should return the same input when value is equal to truncation width",
-        "abc".getBytes(StandardCharsets.UTF_8),
-        (byte[]) scalarSql("SELECT system.truncate(3, %s)", asBytesLiteral("abcdefg")));
-    Assert.assertArrayEquals(
-        "Should not truncate, pad, or trim the input when its length is less than the width",
-        "abc\0\0".getBytes(StandardCharsets.UTF_8),
-        (byte[]) scalarSql("SELECT system.truncate(10, %s)", asBytesLiteral("abc\0\0")));
-    Assert.assertArrayEquals(
-        "Should not pad the input when its length is equal to the width",
-        "abc".getBytes(StandardCharsets.UTF_8),
-        (byte[]) scalarSql("SELECT system.truncate(3, %s)", asBytesLiteral("abc")));
-    Assert.assertArrayEquals(
-        "Should handle three-byte UTF-8 characters appropriately",
-        "测试".getBytes(StandardCharsets.UTF_8),
-        (byte[]) scalarSql("SELECT system.truncate(6, %s)", asBytesLiteral("测试_")));
+    assertThat((byte[]) scalarSql("SELECT system.truncate(10, X'0102030405060708090a0b0c0d0e0f')"))
+        .isEqualTo(new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
 
-    Assert.assertNull(
-        "Null input should return null as output",
-        scalarSql("SELECT system.truncate(3, CAST(null AS binary))"));
+    assertThat((byte[]) scalarSql("SELECT system.truncate(3, %s)", asBytesLiteral("abcdefg")))
+        .as("Should return the same input when value is equal to truncation width")
+        .isEqualTo("abc".getBytes(StandardCharsets.UTF_8));
+
+    assertThat((byte[]) scalarSql("SELECT system.truncate(10, %s)", asBytesLiteral("abc\0\0")))
+        .as("Should not truncate, pad, or trim the input when its length is less than the width")
+        .isEqualTo("abc\0\0".getBytes(StandardCharsets.UTF_8));
+
+    assertThat((byte[]) scalarSql("SELECT system.truncate(3, %s)", asBytesLiteral("abc")))
+        .as("Should not pad the input when its length is equal to the width")
+        .isEqualTo("abc".getBytes(StandardCharsets.UTF_8));
+
+    assertThat((byte[]) scalarSql("SELECT system.truncate(6, %s)", asBytesLiteral("测试_")))
+        .as("Should handle three-byte UTF-8 characters appropriately")
+        .isEqualTo("测试".getBytes(StandardCharsets.UTF_8));
+
+    assertThat(scalarSql("SELECT system.truncate(3, CAST(null AS binary))"))
+        .as("Null input should return null as output")
+        .isNull();
   }
 
-  @Test
+  @TestTemplate
   public void testTruncateUsingDataframeForWidthWithVaryingWidth() {
     // This situation is atypical but allowed. Typically, width is static as data is partitioned on
     // one width.
@@ -276,63 +258,60 @@ public class TestSparkTruncateFunction extends SparkTestBaseWithCatalog {
             .selectExpr("system.truncate(width, value) as truncated_value")
             .filter("truncated_value == 0")
             .count();
-    Assert.assertEquals(
-        "A truncate function with variable widths should be usable on dataframe columns",
-        rumRows,
-        numNonZero);
+    assertThat(numNonZero)
+        .as("A truncate function with variable widths should be usable on dataframe columns")
+        .isEqualTo(rumRows);
   }
 
-  @Test
+  @TestTemplate
   public void testWidthAcceptsShortAndByte() {
-    Assert.assertEquals(
-        "Short types should be usable for the width field",
-        0L,
-        scalarSql("SELECT system.truncate(5S, 1L)"));
+    assertThat(scalarSql("SELECT system.truncate(5S, 1L)"))
+        .as("Short types should be usable for the width field")
+        .isEqualTo(0L);
 
-    Assert.assertEquals(
-        "Byte types should be allowed for the width field",
-        0,
-        scalarSql("SELECT system.truncate(5Y, 1)"));
+    assertThat(scalarSql("SELECT system.truncate(5Y, 1)"))
+        .as("Byte types should be allowed for the width field")
+        .isEqualTo(0);
   }
 
-  @Test
+  @TestTemplate
   public void testWrongNumberOfArguments() {
-    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.truncate()"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.truncate()"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             "Function 'truncate' cannot process input: (): Wrong number of inputs (expected width and value)");
 
-    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.truncate(1)"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.truncate(1)"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             "Function 'truncate' cannot process input: (int): Wrong number of inputs (expected width and value)");
 
-    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.truncate(1, 1L, 1)"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.truncate(1, 1L, 1)"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             "Function 'truncate' cannot process input: (int, bigint, int): Wrong number of inputs (expected width and value)");
   }
 
-  @Test
+  @TestTemplate
   public void testInvalidTypesCannotBeUsedForWidth() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> scalarSql("SELECT system.truncate(CAST('12.34' as DECIMAL(9, 2)), 10)"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             "Function 'truncate' cannot process input: (decimal(9,2), int): Expected truncation width to be tinyint, shortint or int");
 
-    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.truncate('5', 10)"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.truncate('5', 10)"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             "Function 'truncate' cannot process input: (string, int): Expected truncation width to be tinyint, shortint or int");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> scalarSql("SELECT system.truncate(INTERVAL '100-00' YEAR TO MONTH, 10)"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             "Function 'truncate' cannot process input: (interval year to month, int): Expected truncation width to be tinyint, shortint or int");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 scalarSql(
                     "SELECT system.truncate(CAST('11 23:4:0' AS INTERVAL DAY TO SECOND), 10)"))
@@ -341,42 +320,40 @@ public class TestSparkTruncateFunction extends SparkTestBaseWithCatalog {
             "Function 'truncate' cannot process input: (interval day to second, int): Expected truncation width to be tinyint, shortint or int");
   }
 
-  @Test
+  @TestTemplate
   public void testInvalidTypesForTruncationColumn() {
-    Assertions.assertThatThrownBy(
-            () -> scalarSql("SELECT system.truncate(10, cast(12.3456 as float))"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.truncate(10, cast(12.3456 as float))"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             "Function 'truncate' cannot process input: (int, float): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary");
 
-    Assertions.assertThatThrownBy(
-            () -> scalarSql("SELECT system.truncate(10, cast(12.3456 as double))"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.truncate(10, cast(12.3456 as double))"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             "Function 'truncate' cannot process input: (int, double): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary");
 
-    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.truncate(10, true)"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.truncate(10, true)"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             "Function 'truncate' cannot process input: (int, boolean): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary");
 
-    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.truncate(10, map(1, 1))"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.truncate(10, map(1, 1))"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             "Function 'truncate' cannot process input: (int, map<int,int>): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary");
 
-    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.truncate(10, array(1L))"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.truncate(10, array(1L))"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             "Function 'truncate' cannot process input: (int, array<bigint>): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> scalarSql("SELECT system.truncate(10, INTERVAL '100-00' YEAR TO MONTH)"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             "Function 'truncate' cannot process input: (int, interval year to month): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 scalarSql(
                     "SELECT system.truncate(10, CAST('11 23:4:0' AS INTERVAL DAY TO SECOND))"))
@@ -385,74 +362,73 @@ public class TestSparkTruncateFunction extends SparkTestBaseWithCatalog {
             "Function 'truncate' cannot process input: (int, interval day to second): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary");
   }
 
-  @Test
+  @TestTemplate
   public void testMagicFunctionsResolveForTinyIntAndSmallIntWidths() {
     // Magic functions have staticinvoke in the explain output. Nonmagic calls use
     // applyfunctionexpression instead.
     String tinyIntWidthExplain =
         (String) scalarSql("EXPLAIN EXTENDED SELECT system.truncate(1Y, 6)");
-    Assertions.assertThat(tinyIntWidthExplain)
+    assertThat(tinyIntWidthExplain)
         .contains("cast(1 as int)")
         .contains(
             "staticinvoke(class org.apache.iceberg.spark.functions.TruncateFunction$TruncateInt");
 
     String smallIntWidth = (String) scalarSql("EXPLAIN EXTENDED SELECT system.truncate(5S, 6L)");
-    Assertions.assertThat(smallIntWidth)
+    assertThat(smallIntWidth)
         .contains("cast(5 as int)")
         .contains(
             "staticinvoke(class org.apache.iceberg.spark.functions.TruncateFunction$TruncateBigInt");
   }
 
-  @Test
+  @TestTemplate
   public void testThatMagicFunctionsAreInvoked() {
     // Magic functions have `staticinvoke` in the explain output.
     // Non-magic calls have `applyfunctionexpression` instead.
 
     // TinyInt
-    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED select system.truncate(5, 6Y)"))
+    assertThat(scalarSql("EXPLAIN EXTENDED select system.truncate(5, 6Y)"))
         .asString()
         .isNotNull()
         .contains(
             "staticinvoke(class org.apache.iceberg.spark.functions.TruncateFunction$TruncateTinyInt");
 
     // SmallInt
-    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED select system.truncate(5, 6S)"))
+    assertThat(scalarSql("EXPLAIN EXTENDED select system.truncate(5, 6S)"))
         .asString()
         .isNotNull()
         .contains(
             "staticinvoke(class org.apache.iceberg.spark.functions.TruncateFunction$TruncateSmallInt");
 
     // Int
-    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED select system.truncate(5, 6)"))
+    assertThat(scalarSql("EXPLAIN EXTENDED select system.truncate(5, 6)"))
         .asString()
         .isNotNull()
         .contains(
             "staticinvoke(class org.apache.iceberg.spark.functions.TruncateFunction$TruncateInt");
 
     // Long
-    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.truncate(5, 6L)"))
+    assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.truncate(5, 6L)"))
         .asString()
         .isNotNull()
         .contains(
             "staticinvoke(class org.apache.iceberg.spark.functions.TruncateFunction$TruncateBigInt");
 
     // String
-    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.truncate(5, 'abcdefg')"))
+    assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.truncate(5, 'abcdefg')"))
         .asString()
         .isNotNull()
         .contains(
             "staticinvoke(class org.apache.iceberg.spark.functions.TruncateFunction$TruncateString");
 
     // Decimal
-    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.truncate(5, 12.34)"))
+    assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.truncate(5, 12.34)"))
         .asString()
         .isNotNull()
         .contains(
             "staticinvoke(class org.apache.iceberg.spark.functions.TruncateFunction$TruncateDecimal");
 
     // Binary
-    Assertions.assertThat(
-            scalarSql("EXPLAIN EXTENDED SELECT system.truncate(4, X'0102030405060708')"))
+    assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.truncate(4, X'0102030405060708')"))
         .asString()
         .isNotNull()
         .contains(

@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
@@ -220,6 +221,11 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   }
 
   @Override
+  public UpdatePartitionStatistics updatePartitionStatistics() {
+    return new SetPartitionStatistics(ops);
+  }
+
+  @Override
   public ExpireSnapshots expireSnapshots() {
     return new RemoveSnapshots(ops);
   }
@@ -255,8 +261,18 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   }
 
   @Override
+  public List<PartitionStatisticsFile> partitionStatisticsFiles() {
+    return ops.current().partitionStatisticsFiles();
+  }
+
+  @Override
   public Map<String, SnapshotRef> refs() {
     return ops.current().refs();
+  }
+
+  @Override
+  public UUID uuid() {
+    return UUID.fromString(ops.current().uuid());
   }
 
   @Override

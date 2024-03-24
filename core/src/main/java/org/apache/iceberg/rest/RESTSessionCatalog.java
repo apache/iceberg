@@ -38,6 +38,7 @@ import java.util.function.Supplier;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.MetadataUpdate;
@@ -49,13 +50,16 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.Transactions;
-import org.apache.iceberg.catalog.BaseSessionCatalog;
+import org.apache.iceberg.catalog.BaseViewSessionCatalog;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.NoSuchViewException;
+import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
@@ -65,12 +69,15 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.auth.OAuth2Util.AuthSession;
 import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
+import org.apache.iceberg.rest.requests.CreateViewRequest;
+import org.apache.iceberg.rest.requests.ImmutableCreateViewRequest;
 import org.apache.iceberg.rest.requests.ImmutableRegisterTableRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
@@ -82,15 +89,26 @@ import org.apache.iceberg.rest.responses.GetNamespaceResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
+import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.EnvironmentUtil;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.ThreadPools;
+import org.apache.iceberg.view.BaseView;
+import org.apache.iceberg.view.ImmutableSQLViewRepresentation;
+import org.apache.iceberg.view.ImmutableViewVersion;
+import org.apache.iceberg.view.View;
+import org.apache.iceberg.view.ViewBuilder;
+import org.apache.iceberg.view.ViewMetadata;
+import org.apache.iceberg.view.ViewRepresentation;
+import org.apache.iceberg.view.ViewUtil;
+import org.apache.iceberg.view.ViewVersion;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class RESTSessionCatalog extends BaseSessionCatalog
+public class RESTSessionCatalog extends BaseViewSessionCatalog
     implements Configurable<Object>, Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(RESTSessionCatalog.class);
   private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
@@ -107,6 +125,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   private final Function<Map<String, String>, RESTClient> clientBuilder;
   private final BiFunction<SessionContext, Map<String, String>, FileIO> ioBuilder;
   private Cache<String, AuthSession> sessions = null;
+  private Cache<String, AuthSession> tableSessions = null;
   private Cache<TableOperations, FileIO> fileIOCloser;
   private AuthSession catalogAuth = null;
   private boolean keepTokenRefreshed = true;
@@ -160,11 +179,16 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     OAuthTokenResponse authResponse;
     String credential = props.get(OAuth2Properties.CREDENTIAL);
     String scope = props.getOrDefault(OAuth2Properties.SCOPE, OAuth2Properties.CATALOG_SCOPE);
+    Map<String, String> optionalOAuthParams = OAuth2Util.buildOptionalParam(props);
+    String oauth2ServerUri =
+        props.getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens());
     try (RESTClient initClient = clientBuilder.apply(props)) {
       Map<String, String> initHeaders =
           RESTUtil.merge(configHeaders(props), OAuth2Util.authHeaders(initToken));
       if (credential != null && !credential.isEmpty()) {
-        authResponse = OAuth2Util.fetchToken(initClient, initHeaders, credential, scope);
+        authResponse =
+            OAuth2Util.fetchToken(
+                initClient, initHeaders, credential, scope, oauth2ServerUri, optionalOAuthParams);
         Map<String, String> authHeaders =
             RESTUtil.merge(initHeaders, OAuth2Util.authHeaders(authResponse.token()));
         config = fetchConfig(initClient, authHeaders, props);
@@ -181,6 +205,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     Map<String, String> baseHeaders = configHeaders(mergedProps);
 
     this.sessions = newSessionCache(mergedProps);
+    this.tableSessions = newSessionCache(mergedProps);
     this.keepTokenRefreshed =
         PropertyUtil.propertyAsBoolean(
             mergedProps,
@@ -190,7 +215,9 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     this.paths = ResourcePaths.forCatalogProperties(mergedProps);
 
     String token = mergedProps.get(OAuth2Properties.TOKEN);
-    this.catalogAuth = new AuthSession(baseHeaders, null, null, credential, scope);
+    this.catalogAuth =
+        new AuthSession(
+            baseHeaders, null, null, credential, scope, oauth2ServerUri, optionalOAuthParams);
     if (authResponse != null) {
       this.catalogAuth =
           AuthSession.fromTokenResponse(
@@ -226,7 +253,15 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     AuthSession session =
         sessions.get(
             context.sessionId(),
-            id -> newSession(context.credentials(), context.properties(), catalogAuth));
+            id -> {
+              Pair<String, Supplier<AuthSession>> newSession =
+                  newSession(context.credentials(), context.properties(), catalogAuth);
+              if (null != newSession) {
+                return newSession.second().get();
+              }
+
+              return null;
+            });
 
     return session != null ? session : catalogAuth;
   }
@@ -687,6 +722,17 @@ public class RESTSessionCatalog extends BaseSessionCatalog
 
     @Override
     public Transaction replaceTransaction() {
+      try {
+        if (viewExists(context, ident)) {
+          throw new AlreadyExistsException("View with same name already exists: %s", ident);
+        }
+      } catch (RESTException | UnsupportedOperationException e) {
+        // don't fail if the server doesn't support views, which could be due to:
+        // 1. server or backing catalog doesn't support views
+        // 2. newer client talks to an older server that doesn't support views
+        LOG.debug("Failed to check whether view {} exists", ident, e);
+      }
+
       LoadTableResponse response = loadInternal(context, ident, snapshotMode);
       String fullName = fullTableName(ident);
 
@@ -839,7 +885,12 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   }
 
   private AuthSession tableSession(Map<String, String> tableConf, AuthSession parent) {
-    AuthSession session = newSession(tableConf, tableConf, parent);
+    Pair<String, Supplier<AuthSession>> newSession = newSession(tableConf, tableConf, parent);
+    if (null == newSession) {
+      return parent;
+    }
+
+    AuthSession session = tableSessions.get(newSession.first(), id -> newSession.second().get());
 
     return session != null ? session : parent;
   }
@@ -869,30 +920,46 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     return configResponse;
   }
 
-  private AuthSession newSession(
+  private Pair<String, Supplier<AuthSession>> newSession(
       Map<String, String> credentials, Map<String, String> properties, AuthSession parent) {
     if (credentials != null) {
       // use the bearer token without exchanging
       if (credentials.containsKey(OAuth2Properties.TOKEN)) {
-        return AuthSession.fromAccessToken(
-            client,
-            tokenRefreshExecutor(),
+        return Pair.of(
             credentials.get(OAuth2Properties.TOKEN),
-            expiresAtMillis(properties),
-            parent);
+            () ->
+                AuthSession.fromAccessToken(
+                    client,
+                    tokenRefreshExecutor(),
+                    credentials.get(OAuth2Properties.TOKEN),
+                    expiresAtMillis(properties),
+                    parent));
       }
 
       if (credentials.containsKey(OAuth2Properties.CREDENTIAL)) {
         // fetch a token using the client credentials flow
-        return AuthSession.fromCredential(
-            client, tokenRefreshExecutor(), credentials.get(OAuth2Properties.CREDENTIAL), parent);
+        return Pair.of(
+            credentials.get(OAuth2Properties.CREDENTIAL),
+            () ->
+                AuthSession.fromCredential(
+                    client,
+                    tokenRefreshExecutor(),
+                    credentials.get(OAuth2Properties.CREDENTIAL),
+                    parent));
       }
 
       for (String tokenType : TOKEN_PREFERENCE_ORDER) {
         if (credentials.containsKey(tokenType)) {
           // exchange the token for an access token using the token exchange flow
-          return AuthSession.fromTokenExchange(
-              client, tokenRefreshExecutor(), credentials.get(tokenType), tokenType, parent);
+          return Pair.of(
+              credentials.get(tokenType),
+              () ->
+                  AuthSession.fromTokenExchange(
+                      client,
+                      tokenRefreshExecutor(),
+                      credentials.get(tokenType),
+                      tokenType,
+                      parent));
         }
       }
     }
@@ -916,6 +983,12 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   private void checkIdentifierIsValid(TableIdentifier tableIdentifier) {
     if (tableIdentifier.namespace().isEmpty()) {
       throw new NoSuchTableException("Invalid table identifier: %s", tableIdentifier);
+    }
+  }
+
+  private void checkViewIdentifierIsValid(TableIdentifier identifier) {
+    if (identifier.namespace().isEmpty()) {
+      throw new NoSuchViewException("Invalid view identifier: %s", identifier);
     }
   }
 
@@ -970,5 +1043,254 @@ public class RESTSessionCatalog extends BaseSessionCatalog
         null,
         headers(context),
         ErrorHandlers.tableCommitHandler());
+  }
+
+  @Override
+  public List<TableIdentifier> listViews(SessionContext context, Namespace namespace) {
+    checkNamespaceIsValid(namespace);
+
+    ListTablesResponse response =
+        client.get(
+            paths.views(namespace),
+            ListTablesResponse.class,
+            headers(context),
+            ErrorHandlers.namespaceErrorHandler());
+    return response.identifiers();
+  }
+
+  @Override
+  public View loadView(SessionContext context, TableIdentifier identifier) {
+    checkViewIdentifierIsValid(identifier);
+
+    LoadViewResponse response;
+    try {
+      response =
+          client.get(
+              paths.view(identifier),
+              LoadViewResponse.class,
+              headers(context),
+              ErrorHandlers.viewErrorHandler());
+    } catch (UnsupportedOperationException | RESTException e) {
+      // Normally, copying an exception message is a bad practice but engines may show just the
+      // message and suppress the exception cause when the view does not exist. Since 401 and 403
+      // responses can trigger this case, including the message increases the chances that the "Not
+      // authorized" or "Forbidden" message is preserved and shown.
+      throw new NoSuchViewException(
+          e, "Unable to load view %s.%s: %s", name(), identifier, e.getMessage());
+    }
+
+    AuthSession session = tableSession(response.config(), session(context));
+    ViewMetadata metadata = response.metadata();
+
+    RESTViewOperations ops =
+        new RESTViewOperations(client, paths.view(identifier), session::headers, metadata);
+
+    return new BaseView(ops, ViewUtil.fullViewName(name(), identifier));
+  }
+
+  @Override
+  public RESTViewBuilder buildView(SessionContext context, TableIdentifier identifier) {
+    return new RESTViewBuilder(context, identifier);
+  }
+
+  @Override
+  public boolean dropView(SessionContext context, TableIdentifier identifier) {
+    checkViewIdentifierIsValid(identifier);
+
+    try {
+      client.delete(
+          paths.view(identifier), null, headers(context), ErrorHandlers.viewErrorHandler());
+      return true;
+    } catch (NoSuchViewException e) {
+      return false;
+    }
+  }
+
+  @Override
+  public void renameView(SessionContext context, TableIdentifier from, TableIdentifier to) {
+    checkViewIdentifierIsValid(from);
+    checkViewIdentifierIsValid(to);
+
+    RenameTableRequest request =
+        RenameTableRequest.builder().withSource(from).withDestination(to).build();
+
+    client.post(
+        paths.renameView(), request, null, headers(context), ErrorHandlers.viewErrorHandler());
+  }
+
+  private class RESTViewBuilder implements ViewBuilder {
+    private final SessionContext context;
+    private final TableIdentifier identifier;
+    private final Map<String, String> properties = Maps.newHashMap();
+    private final List<ViewRepresentation> representations = Lists.newArrayList();
+    private Namespace defaultNamespace = null;
+    private String defaultCatalog = null;
+    private Schema schema = null;
+    private String location = null;
+
+    private RESTViewBuilder(SessionContext context, TableIdentifier identifier) {
+      checkViewIdentifierIsValid(identifier);
+      this.identifier = identifier;
+      this.context = context;
+    }
+
+    @Override
+    public ViewBuilder withSchema(Schema newSchema) {
+      this.schema = newSchema;
+      return this;
+    }
+
+    @Override
+    public ViewBuilder withQuery(String dialect, String sql) {
+      representations.add(
+          ImmutableSQLViewRepresentation.builder().dialect(dialect).sql(sql).build());
+      return this;
+    }
+
+    @Override
+    public ViewBuilder withDefaultCatalog(String catalog) {
+      this.defaultCatalog = catalog;
+      return this;
+    }
+
+    @Override
+    public ViewBuilder withDefaultNamespace(Namespace namespace) {
+      this.defaultNamespace = namespace;
+      return this;
+    }
+
+    @Override
+    public ViewBuilder withProperties(Map<String, String> newProperties) {
+      this.properties.putAll(newProperties);
+      return this;
+    }
+
+    @Override
+    public ViewBuilder withProperty(String key, String value) {
+      this.properties.put(key, value);
+      return this;
+    }
+
+    @Override
+    public ViewBuilder withLocation(String newLocation) {
+      this.location = newLocation;
+      return this;
+    }
+
+    @Override
+    public View create() {
+      Preconditions.checkState(
+          !representations.isEmpty(), "Cannot create view without specifying a query");
+      Preconditions.checkState(null != schema, "Cannot create view without specifying schema");
+      Preconditions.checkState(
+          null != defaultNamespace, "Cannot create view without specifying a default namespace");
+
+      ViewVersion viewVersion =
+          ImmutableViewVersion.builder()
+              .versionId(1)
+              .schemaId(schema.schemaId())
+              .addAllRepresentations(representations)
+              .defaultNamespace(defaultNamespace)
+              .defaultCatalog(defaultCatalog)
+              .timestampMillis(System.currentTimeMillis())
+              .putAllSummary(EnvironmentContext.get())
+              .build();
+
+      CreateViewRequest request =
+          ImmutableCreateViewRequest.builder()
+              .name(identifier.name())
+              .location(location)
+              .schema(schema)
+              .viewVersion(viewVersion)
+              .properties(properties)
+              .build();
+
+      LoadViewResponse response =
+          client.post(
+              paths.views(identifier.namespace()),
+              request,
+              LoadViewResponse.class,
+              headers(context),
+              ErrorHandlers.viewErrorHandler());
+
+      AuthSession session = tableSession(response.config(), session(context));
+      RESTViewOperations ops =
+          new RESTViewOperations(
+              client, paths.view(identifier), session::headers, response.metadata());
+
+      return new BaseView(ops, ViewUtil.fullViewName(name(), identifier));
+    }
+
+    @Override
+    public View createOrReplace() {
+      try {
+        return replace(loadView());
+      } catch (NoSuchViewException e) {
+        return create();
+      }
+    }
+
+    @Override
+    public View replace() {
+      if (tableExists(context, identifier)) {
+        throw new AlreadyExistsException("Table with same name already exists: %s", identifier);
+      }
+
+      return replace(loadView());
+    }
+
+    private LoadViewResponse loadView() {
+      return client.get(
+          paths.view(identifier),
+          LoadViewResponse.class,
+          headers(context),
+          ErrorHandlers.viewErrorHandler());
+    }
+
+    private View replace(LoadViewResponse response) {
+      Preconditions.checkState(
+          !representations.isEmpty(), "Cannot replace view without specifying a query");
+      Preconditions.checkState(null != schema, "Cannot replace view without specifying schema");
+      Preconditions.checkState(
+          null != defaultNamespace, "Cannot replace view without specifying a default namespace");
+
+      ViewMetadata metadata = response.metadata();
+
+      int maxVersionId =
+          metadata.versions().stream()
+              .map(ViewVersion::versionId)
+              .max(Integer::compareTo)
+              .orElseGet(metadata::currentVersionId);
+
+      ViewVersion viewVersion =
+          ImmutableViewVersion.builder()
+              .versionId(maxVersionId + 1)
+              .schemaId(schema.schemaId())
+              .addAllRepresentations(representations)
+              .defaultNamespace(defaultNamespace)
+              .defaultCatalog(defaultCatalog)
+              .timestampMillis(System.currentTimeMillis())
+              .putAllSummary(EnvironmentContext.get())
+              .build();
+
+      ViewMetadata.Builder builder =
+          ViewMetadata.buildFrom(metadata)
+              .setProperties(properties)
+              .setCurrentVersion(viewVersion, schema);
+
+      if (null != location) {
+        builder.setLocation(location);
+      }
+
+      ViewMetadata replacement = builder.build();
+
+      AuthSession session = tableSession(response.config(), session(context));
+      RESTViewOperations ops =
+          new RESTViewOperations(client, paths.view(identifier), session::headers, metadata);
+
+      ops.commit(metadata, replacement);
+
+      return new BaseView(ops, ViewUtil.fullViewName(name(), identifier));
+    }
   }
 }

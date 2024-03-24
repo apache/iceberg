@@ -2,7 +2,6 @@
 .DS_Store
 .cache
 tmp/
-site
 
 # intellij files
 .idea
@@ -25,10 +24,12 @@ gradle/wrapper/gradle-wrapper.jar
 lib/
 
 # web site build
-site/site
+site/site/
+site/docs/docs/
+site/docs/.asf.yaml
+site/docs/javadoc/
 
 # benchmark output
-spark/v3.2/spark/benchmark/*
 spark/v3.3/spark/benchmark/*
 spark/v3.3/spark-extensions/benchmark/*
 spark/v3.4/spark/benchmark/*
@@ -64,13 +65,3 @@ metastore_db/
 # Spark/metastore files
 spark-warehouse/
 derby.log
-
-# Python stuff
-python/.mypy_cache/
-python/htmlcov
-python/coverage.xml
-
-python/pyiceberg/avro/decoder_fast.c
-python/pyiceberg/avro/*.html
-python/pyiceberg/avro/*.so
-

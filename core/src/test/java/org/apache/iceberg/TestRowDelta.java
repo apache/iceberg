@@ -62,7 +62,7 @@ public class TestRowDelta extends V2TableTestBase {
 
   @Test
   public void testAddDeleteFile() {
-    SnapshotUpdate rowDelta =
+    SnapshotUpdate<?> rowDelta =
         table.newRowDelta().addRows(FILE_A).addDeletes(FILE_A_DELETES).addDeletes(FILE_B_DELETES);
 
     commit(table, rowDelta, branch);
@@ -97,7 +97,7 @@ public class TestRowDelta extends V2TableTestBase {
 
   @Test
   public void testValidateDataFilesExistDefaults() {
-    SnapshotUpdate rowDelta1 = table.newAppend().appendFile(FILE_A).appendFile(FILE_B);
+    SnapshotUpdate<?> rowDelta1 = table.newAppend().appendFile(FILE_A).appendFile(FILE_B);
 
     commit(table, rowDelta1, branch);
 
@@ -105,12 +105,12 @@ public class TestRowDelta extends V2TableTestBase {
     long validateFromSnapshotId = latestSnapshot(table, branch).snapshotId();
 
     // overwrite FILE_A
-    SnapshotUpdate rowDelta2 = table.newOverwrite().deleteFile(FILE_A).addFile(FILE_A2);
+    SnapshotUpdate<?> rowDelta2 = table.newOverwrite().deleteFile(FILE_A).addFile(FILE_A2);
 
     commit(table, rowDelta2, branch);
 
     // delete FILE_B
-    SnapshotUpdate rowDelta3 = table.newDelete().deleteFile(FILE_B);
+    SnapshotUpdate<?> rowDelta3 = table.newDelete().deleteFile(FILE_B);
 
     commit(table, rowDelta3, branch);
 

@@ -21,16 +21,26 @@ name: "Hive CI"
 on:
   push:
     branches:
-    - 'master'
+    - 'main'
     - '0.**'
     tags:
     - 'apache-iceberg-**'
   pull_request:
     paths-ignore:
-    - '.github/ISSUE_TEMPLATE/iceberg_bug_report.yml'
-    - '.github/workflows/python-ci.yml'
-    - '.github/workflows/spark-ci.yml'
+    - '.github/ISSUE_TEMPLATE/**'
+    - '.github/workflows/api-binary-compatibility.yml'
+    - '.github/workflows/delta-conversion-ci.yml'
     - '.github/workflows/flink-ci.yml'
+    - '.github/workflows/java-ci.yml'
+    - '.github/workflows/jmh-benchmarks-ci.yml'
+    - '.github/workflows/labeler.yml'
+    - '.github/workflows/licence-check.yml'
+    - '.github/workflows/open-api.yml'
+    - '.github/workflows/publish-snapshot.yml'
+    - '.github/workflows/recurring-jmh-benchmarks.yml'
+    - '.github/workflows/site-ci.yml'
+    - '.github/workflows/spark-ci.yml'
+    - '.github/workflows/stale.yml'
     - '.gitignore'
     - '.asf.yml'
     - 'dev/**'
@@ -38,8 +48,8 @@ on:
     - 'spark/**'
     - 'flink/**'
     - 'pig/**'
-    - 'python/**'
     - 'docs/**'
+    - 'site/**'
     - 'open-api/**'
     - 'format/**'
     - '.gitattributes'
@@ -62,11 +72,11 @@ jobs:
       SPARK_LOCAL_IP: localhost
     steps:
     - uses: actions/checkout@v4
-    - uses: actions/setup-java@v3
+    - uses: actions/setup-java@v4
       with:
         distribution: zulu
         java-version: ${{ matrix.jvm }}
-    - uses: actions/cache@v3
+    - uses: actions/cache@v4
       with:
         path: |
           ~/.gradle/caches
@@ -75,7 +85,7 @@ jobs:
         restore-keys: ${{ runner.os }}-gradle-
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
     - run: ./gradlew -DsparkVersions= -DhiveVersions=2 -DflinkVersions= -Pquick=true :iceberg-mr:check :iceberg-hive-runtime:check -x javadoc
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       if: failure()
       with:
         name: test logs
@@ -88,11 +98,11 @@ jobs:
       SPARK_LOCAL_IP: localhost
     steps:
     - uses: actions/checkout@v4
-    - uses: actions/setup-java@v3
+    - uses: actions/setup-java@v4
       with:
         distribution: zulu
         java-version: 8
-    - uses: actions/cache@v3
+    - uses: actions/cache@v4
       with:
         path: |
           ~/.gradle/caches
@@ -101,7 +111,7 @@ jobs:
         restore-keys: ${{ runner.os }}-gradle-
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
     - run: ./gradlew -DsparkVersions= -DhiveVersions=3 -DflinkVersions= -Pquick=true :iceberg-hive3-orc-bundle:check :iceberg-hive3:check :iceberg-hive-runtime:check -x javadoc
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       if: failure()
       with:
         name: test logs

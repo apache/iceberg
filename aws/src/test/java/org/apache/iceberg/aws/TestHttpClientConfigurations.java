@@ -34,9 +34,8 @@ public class TestHttpClientConfigurations {
     properties.put(HttpClientProperties.URLCONNECTION_CONNECTION_TIMEOUT_MS, "80");
     properties.put(HttpClientProperties.APACHE_SOCKET_TIMEOUT_MS, "100");
     properties.put(HttpClientProperties.APACHE_CONNECTION_TIMEOUT_MS, "200");
-    AwsProperties awsProperties = new AwsProperties(properties);
     UrlConnectionHttpClientConfigurations urlConnectionHttpClientConfigurations =
-        UrlConnectionHttpClientConfigurations.create(awsProperties.httpClientProperties());
+        UrlConnectionHttpClientConfigurations.create(properties);
     UrlConnectionHttpClient.Builder urlConnectionHttpClientBuilder =
         UrlConnectionHttpClient.builder();
     UrlConnectionHttpClient.Builder spyUrlConnectionHttpClientBuilder =
@@ -51,10 +50,8 @@ public class TestHttpClientConfigurations {
 
   @Test
   public void testUrlConnectionDefaultConfigurations() {
-    Map<String, String> properties = Maps.newHashMap();
-    AwsProperties awsProperties = new AwsProperties(properties);
     UrlConnectionHttpClientConfigurations urlConnectionHttpClientConfigurations =
-        UrlConnectionHttpClientConfigurations.create(awsProperties.httpClientProperties());
+        UrlConnectionHttpClientConfigurations.create(Maps.newHashMap());
     UrlConnectionHttpClient.Builder urlConnectionHttpClientBuilder =
         UrlConnectionHttpClient.builder();
     UrlConnectionHttpClient.Builder spyUrlConnectionHttpClientBuilder =
@@ -83,9 +80,8 @@ public class TestHttpClientConfigurations {
     properties.put(HttpClientProperties.APACHE_MAX_CONNECTIONS, "104");
     properties.put(HttpClientProperties.APACHE_TCP_KEEP_ALIVE_ENABLED, "true");
     properties.put(HttpClientProperties.APACHE_USE_IDLE_CONNECTION_REAPER_ENABLED, "false");
-    AwsProperties awsProperties = new AwsProperties(properties);
     ApacheHttpClientConfigurations apacheHttpClientConfigurations =
-        ApacheHttpClientConfigurations.create(awsProperties.httpClientProperties());
+        ApacheHttpClientConfigurations.create(properties);
     ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
     ApacheHttpClient.Builder spyApacheHttpClientBuilder = Mockito.spy(apacheHttpClientBuilder);
 
@@ -104,10 +100,8 @@ public class TestHttpClientConfigurations {
 
   @Test
   public void testApacheDefaultConfigurations() {
-    Map<String, String> properties = Maps.newHashMap();
-    AwsProperties awsProperties = new AwsProperties(properties);
     ApacheHttpClientConfigurations apacheHttpClientConfigurations =
-        ApacheHttpClientConfigurations.create(awsProperties.httpClientProperties());
+        ApacheHttpClientConfigurations.create(Maps.newHashMap());
     ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
     ApacheHttpClient.Builder spyApacheHttpClientBuilder = Mockito.spy(apacheHttpClientBuilder);
 

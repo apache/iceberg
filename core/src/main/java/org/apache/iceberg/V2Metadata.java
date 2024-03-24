@@ -23,6 +23,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -46,7 +47,8 @@ class V2Metadata {
           ManifestFile.ADDED_ROWS_COUNT.asRequired(),
           ManifestFile.EXISTING_ROWS_COUNT.asRequired(),
           ManifestFile.DELETED_ROWS_COUNT.asRequired(),
-          ManifestFile.PARTITION_SUMMARIES);
+          ManifestFile.PARTITION_SUMMARIES,
+          ManifestFile.KEY_METADATA);
 
   /**
    * A wrapper class to write any ManifestFile implementation to Avro using the v2 write schema.
@@ -557,6 +559,11 @@ class V2Metadata {
 
     @Override
     public F copy() {
+      throw new UnsupportedOperationException("Cannot copy IndexedDataFile wrapper");
+    }
+
+    @Override
+    public F copyWithStats(Set<Integer> requestedColumnIds) {
       throw new UnsupportedOperationException("Cannot copy IndexedDataFile wrapper");
     }
 

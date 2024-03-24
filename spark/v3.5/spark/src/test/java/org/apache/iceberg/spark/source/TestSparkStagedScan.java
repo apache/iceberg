@@ -18,38 +18,32 @@
  */
 package org.apache.iceberg.spark.source;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.ScanTaskSetManager;
-import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
 
-public class TestSparkStagedScan extends SparkCatalogTestBase {
+public class TestSparkStagedScan extends CatalogTestBase {
 
-  public TestSparkStagedScan(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testTaskSetLoading() throws NoSuchTableException, IOException {
     sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
 
@@ -59,7 +53,7 @@ public class TestSparkStagedScan extends SparkCatalogTestBase {
     df.writeTo(tableName).append();
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should produce 1 snapshot", 1, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).as("Should produce 1 snapshot").hasSize(1);
 
     try (CloseableIterable<FileScanTask> fileScanTasks = table.newScan().planFiles()) {
       ScanTaskSetManager taskSetManager = ScanTaskSetManager.get();
@@ -84,7 +78,7 @@ public class TestSparkStagedScan extends SparkCatalogTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testTaskSetPlanning() throws NoSuchTableException, IOException {
     sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
 
@@ -95,7 +89,7 @@ public class TestSparkStagedScan extends SparkCatalogTestBase {
     df.coalesce(1).writeTo(tableName).append();
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should produce 2 snapshots", 2, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).as("Should produce 2 snapshot").hasSize(2);
 
     try (CloseableIterable<FileScanTask> fileScanTasks = table.newScan().planFiles()) {
       ScanTaskSetManager taskSetManager = ScanTaskSetManager.get();
@@ -111,7 +105,9 @@ public class TestSparkStagedScan extends SparkCatalogTestBase {
               .option(SparkReadOptions.SCAN_TASK_SET_ID, setID)
               .option(SparkReadOptions.SPLIT_SIZE, tasks.get(0).file().fileSizeInBytes())
               .load(tableName);
-      Assert.assertEquals("Num partitions should match", 2, scanDF.javaRDD().getNumPartitions());
+      assertThat(scanDF.javaRDD().getNumPartitions())
+          .as("Num partitions should match")
+          .isEqualTo(2);
 
       // load the staged file set and make sure we combine both files into a single split
       scanDF =
@@ -121,7 +117,9 @@ public class TestSparkStagedScan extends SparkCatalogTestBase {
               .option(SparkReadOptions.SCAN_TASK_SET_ID, setID)
               .option(SparkReadOptions.SPLIT_SIZE, Long.MAX_VALUE)
               .load(tableName);
-      Assert.assertEquals("Num partitions should match", 1, scanDF.javaRDD().getNumPartitions());
+      assertThat(scanDF.javaRDD().getNumPartitions())
+          .as("Num partitions should match")
+          .isEqualTo(1);
     }
   }
 }

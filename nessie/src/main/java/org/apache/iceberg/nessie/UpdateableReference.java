@@ -62,7 +62,8 @@ class UpdateableReference {
 
   public void checkMutable() {
     Preconditions.checkArgument(
-        mutable, "You can only mutate tables when using a branch without a hash or timestamp.");
+        mutable,
+        "You can only mutate tables/views when using a branch without a hash or timestamp.");
   }
 
   public String getName() {

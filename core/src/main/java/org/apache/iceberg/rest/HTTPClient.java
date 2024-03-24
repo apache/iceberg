@@ -34,6 +34,8 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
+import org.apache.hc.client5.http.io.HttpClientConnectionManager;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHeaders;
@@ -72,6 +74,10 @@ public class HTTPClient implements RESTClient {
   static final String CLIENT_GIT_COMMIT_SHORT_HEADER = "X-Client-Git-Commit-Short";
 
   private static final String REST_MAX_RETRIES = "rest.client.max-retries";
+  private static final String REST_MAX_CONNECTIONS = "rest.client.max-connections";
+  private static final int REST_MAX_CONNECTIONS_DEFAULT = 100;
+  private static final String REST_MAX_CONNECTIONS_PER_ROUTE = "rest.client.connections-per-route";
+  private static final int REST_MAX_CONNECTIONS_PER_ROUTE_DEFAULT = 100;
 
   private final String uri;
   private final CloseableHttpClient httpClient;
@@ -87,6 +93,18 @@ public class HTTPClient implements RESTClient {
     this.mapper = objectMapper;
 
     HttpClientBuilder clientBuilder = HttpClients.custom();
+
+    HttpClientConnectionManager connectionManager =
+        PoolingHttpClientConnectionManagerBuilder.create()
+            .useSystemProperties()
+            .setMaxConnTotal(Integer.getInteger(REST_MAX_CONNECTIONS, REST_MAX_CONNECTIONS_DEFAULT))
+            .setMaxConnPerRoute(
+                PropertyUtil.propertyAsInt(
+                    properties,
+                    REST_MAX_CONNECTIONS_PER_ROUTE,
+                    REST_MAX_CONNECTIONS_PER_ROUTE_DEFAULT))
+            .build();
+    clientBuilder.setConnectionManager(connectionManager);
 
     if (baseHeaders != null) {
       clientBuilder.setDefaultHeaders(
@@ -187,16 +205,24 @@ public class HTTPClient implements RESTClient {
   }
 
   private URI buildUri(String path, Map<String, String> params) {
-    String baseUri = String.format("%s/%s", uri, path);
+    // if full path is provided, use the input path as path
+    if (path.startsWith("/")) {
+      throw new RESTException(
+          "Received a malformed path for a REST request: %s. Paths should not start with /", path);
+    }
+    String fullPath =
+        (path.startsWith("https://") || path.startsWith("http://"))
+            ? path
+            : String.format("%s/%s", uri, path);
     try {
-      URIBuilder builder = new URIBuilder(baseUri);
+      URIBuilder builder = new URIBuilder(fullPath);
       if (params != null) {
         params.forEach(builder::addParameter);
       }
       return builder.build();
     } catch (URISyntaxException e) {
       throw new RESTException(
-          "Failed to create request URI from base %s, params %s", baseUri, params);
+          "Failed to create request URI from base %s, params %s", fullPath, params);
     }
   }
 
@@ -205,7 +231,7 @@ public class HTTPClient implements RESTClient {
    *
    * @param method - HTTP method, such as GET, POST, HEAD, etc.
    * @param queryParams - A map of query parameters
-   * @param path - URL path to send the request to
+   * @param path - URI to send the request to
    * @param requestBody - Content to place in the request body
    * @param responseType - Class of the Response type. Needs to have serializer registered with
    *     ObjectMapper
@@ -232,7 +258,7 @@ public class HTTPClient implements RESTClient {
    *
    * @param method - HTTP method, such as GET, POST, HEAD, etc.
    * @param queryParams - A map of query parameters
-   * @param path - URL path to send the request to
+   * @param path - URL to send the request to
    * @param requestBody - Content to place in the request body
    * @param responseType - Class of the Response type. Needs to have serializer registered with
    *     ObjectMapper
@@ -252,11 +278,6 @@ public class HTTPClient implements RESTClient {
       Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler,
       Consumer<Map<String, String>> responseHeaders) {
-    if (path.startsWith("/")) {
-      throw new RESTException(
-          "Received a malformed path for a REST request: %s. Paths should not start with /", path);
-    }
-
     HttpUriRequestBase request = new HttpUriRequestBase(method.name(), buildUri(path, queryParams));
 
     if (requestBody instanceof Map) {
@@ -441,9 +462,9 @@ public class HTTPClient implements RESTClient {
       this.properties = properties;
     }
 
-    public Builder uri(String baseUri) {
-      Preconditions.checkNotNull(baseUri, "Invalid uri for http client: null");
-      this.uri = RESTUtil.stripTrailingSlash(baseUri);
+    public Builder uri(String path) {
+      Preconditions.checkNotNull(path, "Invalid uri for http client: null");
+      this.uri = RESTUtil.stripTrailingSlash(path);
       return this;
     }
 

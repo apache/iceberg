@@ -30,6 +30,7 @@ import org.apache.iceberg.PositionDeletesTable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.io.ClusteredPositionDeleteWriter;
 import org.apache.iceberg.io.FileIO;
@@ -70,6 +71,7 @@ public class SparkPositionDeletesRewrite implements Write {
   private final String queryId;
   private final FileFormat format;
   private final long targetFileSize;
+  private final DeleteGranularity deleteGranularity;
   private final Schema writeSchema;
   private final StructType dsSchema;
   private final String fileSetId;
@@ -103,6 +105,7 @@ public class SparkPositionDeletesRewrite implements Write {
     this.queryId = writeInfo.queryId();
     this.format = writeConf.deleteFileFormat();
     this.targetFileSize = writeConf.targetDeleteFileSize();
+    this.deleteGranularity = writeConf.deleteGranularity();
     this.writeSchema = writeSchema;
     this.dsSchema = dsSchema;
     this.fileSetId = writeConf.rewrittenFileSetId();
@@ -129,11 +132,17 @@ public class SparkPositionDeletesRewrite implements Write {
           queryId,
           format,
           targetFileSize,
+          deleteGranularity,
           writeSchema,
           dsSchema,
           specId,
           partition,
           writeProperties);
+    }
+
+    @Override
+    public boolean useCommitCoordinator() {
+      return false;
     }
 
     @Override
@@ -174,6 +183,7 @@ public class SparkPositionDeletesRewrite implements Write {
     private final String queryId;
     private final FileFormat format;
     private final Long targetFileSize;
+    private final DeleteGranularity deleteGranularity;
     private final Schema writeSchema;
     private final StructType dsSchema;
     private final int specId;
@@ -185,6 +195,7 @@ public class SparkPositionDeletesRewrite implements Write {
         String queryId,
         FileFormat format,
         long targetFileSize,
+        DeleteGranularity deleteGranularity,
         Schema writeSchema,
         StructType dsSchema,
         int specId,
@@ -194,6 +205,7 @@ public class SparkPositionDeletesRewrite implements Write {
       this.queryId = queryId;
       this.format = format;
       this.targetFileSize = targetFileSize;
+      this.deleteGranularity = deleteGranularity;
       this.writeSchema = writeSchema;
       this.dsSchema = dsSchema;
       this.specId = specId;
@@ -236,6 +248,7 @@ public class SparkPositionDeletesRewrite implements Write {
           writerFactoryWithoutRow,
           deleteFileFactory,
           targetFileSize,
+          deleteGranularity,
           dsSchema,
           specId,
           partition);
@@ -284,6 +297,7 @@ public class SparkPositionDeletesRewrite implements Write {
     private final SparkFileWriterFactory writerFactoryWithoutRow;
     private final OutputFileFactory deleteFileFactory;
     private final long targetFileSize;
+    private final DeleteGranularity deleteGranularity;
     private final PositionDelete<InternalRow> positionDelete;
     private final FileIO io;
     private final PartitionSpec spec;
@@ -305,6 +319,7 @@ public class SparkPositionDeletesRewrite implements Write {
      * @param writerFactoryWithoutRow writer factory for deletes with null 'row'
      * @param deleteFileFactory delete file factory
      * @param targetFileSize target file size
+     * @param deleteGranularity delete granularity
      * @param dsSchema schema of incoming dataset of position deletes
      * @param specId partition spec id of incoming position deletes. All incoming partition deletes
      *     are required to have the same spec id.
@@ -317,11 +332,13 @@ public class SparkPositionDeletesRewrite implements Write {
         SparkFileWriterFactory writerFactoryWithoutRow,
         OutputFileFactory deleteFileFactory,
         long targetFileSize,
+        DeleteGranularity deleteGranularity,
         StructType dsSchema,
         int specId,
         StructLike partition) {
       this.deleteFileFactory = deleteFileFactory;
       this.targetFileSize = targetFileSize;
+      this.deleteGranularity = deleteGranularity;
       this.writerFactoryWithRow = writerFactoryWithRow;
       this.writerFactoryWithoutRow = writerFactoryWithoutRow;
       this.positionDelete = PositionDelete.create();
@@ -382,7 +399,7 @@ public class SparkPositionDeletesRewrite implements Write {
       if (writerWithRow == null) {
         this.writerWithRow =
             new ClusteredPositionDeleteWriter<>(
-                writerFactoryWithRow, deleteFileFactory, io, targetFileSize);
+                writerFactoryWithRow, deleteFileFactory, io, targetFileSize, deleteGranularity);
       }
       return writerWithRow;
     }
@@ -391,7 +408,7 @@ public class SparkPositionDeletesRewrite implements Write {
       if (writerWithoutRow == null) {
         this.writerWithoutRow =
             new ClusteredPositionDeleteWriter<>(
-                writerFactoryWithoutRow, deleteFileFactory, io, targetFileSize);
+                writerFactoryWithoutRow, deleteFileFactory, io, targetFileSize, deleteGranularity);
       }
       return writerWithoutRow;
     }

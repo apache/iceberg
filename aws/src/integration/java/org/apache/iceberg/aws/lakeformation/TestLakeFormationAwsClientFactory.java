@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.aws.lakeformation;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.aws.AwsIntegTestUtil;
@@ -26,6 +27,8 @@ import org.apache.iceberg.aws.HttpClientProperties;
 import org.apache.iceberg.aws.glue.GlueCatalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.assertj.core.api.Assertions;
+import org.awaitility.Awaitility;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -41,6 +44,7 @@ import software.amazon.awssdk.services.iam.model.CreateRoleRequest;
 import software.amazon.awssdk.services.iam.model.CreateRoleResponse;
 import software.amazon.awssdk.services.iam.model.DeleteRolePolicyRequest;
 import software.amazon.awssdk.services.iam.model.DeleteRoleRequest;
+import software.amazon.awssdk.services.iam.model.GetRolePolicyRequest;
 import software.amazon.awssdk.services.iam.model.PutRolePolicyRequest;
 
 public class TestLakeFormationAwsClientFactory {
@@ -128,8 +132,18 @@ public class TestLakeFormationAwsClientFactory {
                     + glueArnPrefix
                     + ":userDefinedFunction/allowed_*/*\"]}]}")
             .build());
-    waitForIamConsistency();
-
+    Awaitility.await()
+        .pollDelay(Duration.ofSeconds(1))
+        .atMost(Duration.ofSeconds(10))
+        .untilAsserted(
+            () ->
+                Assertions.assertThat(
+                        iam.getRolePolicy(
+                            GetRolePolicyRequest.builder()
+                                .roleName(roleName)
+                                .policyName(policyName)
+                                .build()))
+                    .isNotNull());
     GlueCatalog glueCatalog = new GlueCatalog();
     assumeRoleProperties.put("warehouse", "s3://path");
     glueCatalog.initialize("test", assumeRoleProperties);
@@ -161,9 +175,5 @@ public class TestLakeFormationAwsClientFactory {
         LOG.error("Error closing GlueCatalog", e);
       }
     }
-  }
-
-  private void waitForIamConsistency() throws Exception {
-    Thread.sleep(IAM_PROPAGATION_DELAY); // sleep to make sure IAM up to date
   }
 }

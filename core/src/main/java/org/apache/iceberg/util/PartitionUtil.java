@@ -64,7 +64,7 @@ public class PartitionUtil {
 
     // add _partition
     if (partitionType != null) {
-      if (partitionType.fields().size() > 0) {
+      if (!partitionType.fields().isEmpty()) {
         StructLike coercedPartition = coercePartition(partitionType, spec, partitionData);
         idToConstant.put(
             MetadataColumns.PARTITION_COLUMN_ID,

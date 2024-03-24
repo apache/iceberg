@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.util;
 
+import java.util.AbstractSet;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
@@ -32,7 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 
-public class PartitionSet implements Set<Pair<Integer, StructLike>> {
+public class PartitionSet extends AbstractSet<Pair<Integer, StructLike>> {
   public static PartitionSet create(Map<Integer, PartitionSpec> specsById) {
     return new PartitionSet(specsById);
   }
@@ -62,7 +63,7 @@ public class PartitionSet implements Set<Pair<Integer, StructLike>> {
     if (o instanceof Pair) {
       Object first = ((Pair<?, ?>) o).first();
       Object second = ((Pair<?, ?>) o).second();
-      if (first instanceof Integer && second instanceof StructLike) {
+      if (first instanceof Integer && (second == null || second instanceof StructLike)) {
         return contains((Integer) first, (StructLike) second);
       }
     }
@@ -97,7 +98,7 @@ public class PartitionSet implements Set<Pair<Integer, StructLike>> {
     if (o instanceof Pair) {
       Object first = ((Pair<?, ?>) o).first();
       Object second = ((Pair<?, ?>) o).second();
-      if (first instanceof Integer && second instanceof StructLike) {
+      if (first instanceof Integer && (second == null || second instanceof StructLike)) {
         return remove((Integer) first, (StructLike) second);
       }
     }

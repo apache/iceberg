@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark;
 
+import java.time.Duration;
+
 public class SparkSQLProperties {
 
   private SparkSQLProperties() {}
@@ -74,4 +76,25 @@ public class SparkSQLProperties {
 
   // Overrides the delete planning mode
   public static final String DELETE_PLANNING_MODE = "spark.sql.iceberg.delete-planning-mode";
+
+  // Controls whether to report locality information to Spark while allocating input partitions
+  public static final String LOCALITY = "spark.sql.iceberg.locality.enabled";
+
+  public static final String EXECUTOR_CACHE_ENABLED = "spark.sql.iceberg.executor-cache.enabled";
+  public static final boolean EXECUTOR_CACHE_ENABLED_DEFAULT = true;
+
+  public static final String EXECUTOR_CACHE_TIMEOUT = "spark.sql.iceberg.executor-cache.timeout";
+  public static final Duration EXECUTOR_CACHE_TIMEOUT_DEFAULT = Duration.ofMinutes(10);
+
+  public static final String EXECUTOR_CACHE_MAX_ENTRY_SIZE =
+      "spark.sql.iceberg.executor-cache.max-entry-size";
+  public static final long EXECUTOR_CACHE_MAX_ENTRY_SIZE_DEFAULT = 64 * 1024 * 1024; // 64 MB
+
+  public static final String EXECUTOR_CACHE_MAX_TOTAL_SIZE =
+      "spark.sql.iceberg.executor-cache.max-total-size";
+  public static final long EXECUTOR_CACHE_MAX_TOTAL_SIZE_DEFAULT = 128 * 1024 * 1024; // 128 MB
+
+  public static final String EXECUTOR_CACHE_LOCALITY_ENABLED =
+      "spark.sql.iceberg.executor-cache.locality.enabled";
+  public static final boolean EXECUTOR_CACHE_LOCALITY_ENABLED_DEFAULT = false;
 }

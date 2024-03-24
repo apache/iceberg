@@ -30,6 +30,8 @@ import static org.apache.iceberg.TableMetadataParser.SCHEMA;
 import static org.apache.iceberg.TableMetadataParser.SNAPSHOTS;
 import static org.apache.iceberg.TestHelpers.assertSameSchemaList;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.entry;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import java.io.File;
@@ -59,11 +61,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestTableMetadata {
   private static final String TEST_LOCATION = "s3://bucket/test/location";
@@ -87,11 +86,12 @@ public class TestTableMetadata {
           .desc(Expressions.bucket("z", 4), NullOrder.NULLS_LAST)
           .build();
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
   public TableOperations ops = new LocalTableOperations(temp);
 
   @Test
+  @SuppressWarnings("MethodLength")
   public void testJsonConversion() throws Exception {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
 
@@ -145,6 +145,14 @@ public class TestTableMetadata {
                     new GenericBlobMetadata(
                         "some-stats", 11L, 2, ImmutableList.of(4), ImmutableMap.of()))));
 
+    List<PartitionStatisticsFile> partitionStatisticsFiles =
+        ImmutableList.of(
+            ImmutableGenericPartitionStatisticsFile.builder()
+                .snapshotId(11L)
+                .path("/some/partition/stats/file.parquet")
+                .fileSizeInBytes(42L)
+                .build());
+
     TableMetadata expected =
         new TableMetadata(
             null,
@@ -169,73 +177,40 @@ public class TestTableMetadata {
             ImmutableList.of(),
             refs,
             statisticsFiles,
+            partitionStatisticsFiles,
             ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(expected);
     TableMetadata metadata = TableMetadataParser.fromJson(asJson);
 
-    Assert.assertEquals(
-        "Format version should match", expected.formatVersion(), metadata.formatVersion());
-    Assert.assertEquals("Table UUID should match", expected.uuid(), metadata.uuid());
-    Assert.assertEquals("Table location should match", expected.location(), metadata.location());
-    Assert.assertEquals(
-        "Last sequence number should match",
-        expected.lastSequenceNumber(),
-        metadata.lastSequenceNumber());
-    Assert.assertEquals(
-        "Last column ID should match", expected.lastColumnId(), metadata.lastColumnId());
-    Assert.assertEquals(
-        "Current schema id should match", expected.currentSchemaId(), metadata.currentSchemaId());
+    assertThat(metadata.formatVersion()).isEqualTo(expected.formatVersion());
+    assertThat(metadata.uuid()).isEqualTo(expected.uuid());
+    assertThat(metadata.location()).isEqualTo(expected.location());
+    assertThat(metadata.lastSequenceNumber()).isEqualTo(expected.lastSequenceNumber());
+    assertThat(metadata.lastColumnId()).isEqualTo(expected.lastColumnId());
+    assertThat(metadata.currentSchemaId()).isEqualTo(expected.currentSchemaId());
     assertSameSchemaList(expected.schemas(), metadata.schemas());
-    Assert.assertEquals(
-        "Partition spec should match", expected.spec().toString(), metadata.spec().toString());
-    Assert.assertEquals(
-        "Default spec ID should match", expected.defaultSpecId(), metadata.defaultSpecId());
-    Assert.assertEquals("PartitionSpec map should match", expected.specs(), metadata.specs());
-    Assert.assertEquals(
-        "lastAssignedFieldId across all PartitionSpecs should match",
-        expected.spec().lastAssignedFieldId(),
-        metadata.lastAssignedPartitionId());
-    Assert.assertEquals(
-        "Default sort ID should match",
-        expected.defaultSortOrderId(),
-        metadata.defaultSortOrderId());
-    Assert.assertEquals("Sort order should match", expected.sortOrder(), metadata.sortOrder());
-    Assert.assertEquals(
-        "Sort order map should match", expected.sortOrders(), metadata.sortOrders());
-    Assert.assertEquals("Properties should match", expected.properties(), metadata.properties());
-    Assert.assertEquals(
-        "Snapshot logs should match", expected.snapshotLog(), metadata.snapshotLog());
-    Assert.assertEquals(
-        "Current snapshot ID should match",
-        currentSnapshotId,
-        metadata.currentSnapshot().snapshotId());
-    Assert.assertEquals(
-        "Parent snapshot ID should match",
-        (Long) previousSnapshotId,
-        metadata.currentSnapshot().parentId());
-    Assert.assertEquals(
-        "Current snapshot files should match",
-        currentSnapshot.allManifests(ops.io()),
-        metadata.currentSnapshot().allManifests(ops.io()));
-    Assert.assertEquals(
-        "Schema ID for current snapshot should match",
-        (Integer) 7,
-        metadata.currentSnapshot().schemaId());
-    Assert.assertEquals(
-        "Previous snapshot ID should match",
-        previousSnapshotId,
-        metadata.snapshot(previousSnapshotId).snapshotId());
-    Assert.assertEquals(
-        "Previous snapshot files should match",
-        previousSnapshot.allManifests(ops.io()),
-        metadata.snapshot(previousSnapshotId).allManifests(ops.io()));
-    Assert.assertNull(
-        "Previous snapshot's schema ID should be null",
-        metadata.snapshot(previousSnapshotId).schemaId());
-    Assert.assertEquals(
-        "Statistics files should match", statisticsFiles, metadata.statisticsFiles());
-    Assert.assertEquals("Refs map should match", refs, metadata.refs());
+    assertThat(metadata.spec().toString()).isEqualTo(expected.spec().toString());
+    assertThat(metadata.defaultSpecId()).isEqualTo(expected.defaultSpecId());
+    assertThat(metadata.specs()).isEqualTo(expected.specs());
+    assertThat(metadata.lastAssignedPartitionId()).isEqualTo(expected.spec().lastAssignedFieldId());
+    assertThat(metadata.defaultSortOrderId()).isEqualTo(expected.defaultSortOrderId());
+    assertThat(metadata.sortOrder()).isEqualTo(expected.sortOrder());
+    assertThat(metadata.sortOrders()).isEqualTo(expected.sortOrders());
+    assertThat(metadata.properties()).isEqualTo(expected.properties());
+    assertThat(metadata.snapshotLog()).isEqualTo(expected.snapshotLog());
+    assertThat(metadata.currentSnapshot().snapshotId()).isEqualTo(currentSnapshotId);
+    assertThat(metadata.currentSnapshot().parentId()).isEqualTo(previousSnapshotId);
+    assertThat(metadata.currentSnapshot().allManifests(ops.io()))
+        .isEqualTo(currentSnapshot.allManifests(ops.io()));
+    assertThat(metadata.currentSnapshot().schemaId()).isEqualTo(7);
+    assertThat(metadata.snapshot(previousSnapshotId).snapshotId()).isEqualTo(previousSnapshotId);
+    assertThat(metadata.snapshot(previousSnapshotId).allManifests(ops.io()))
+        .isEqualTo(previousSnapshot.allManifests(ops.io()));
+    assertThat(metadata.snapshot(previousSnapshotId).schemaId()).isNull();
+    assertThat(metadata.statisticsFiles()).isEqualTo(statisticsFiles);
+    assertThat(metadata.partitionStatisticsFiles()).isEqualTo(partitionStatisticsFiles);
+    assertThat(metadata.refs()).isEqualTo(refs);
   }
 
   @Test
@@ -291,79 +266,46 @@ public class TestTableMetadata {
             ImmutableList.of(),
             ImmutableMap.of(),
             ImmutableList.of(),
+            ImmutableList.of(),
             ImmutableList.of());
 
     String asJson = toJsonWithoutSpecAndSchemaList(expected);
     TableMetadata metadata = TableMetadataParser.fromJson(asJson);
 
-    Assert.assertEquals(
-        "Format version should match", expected.formatVersion(), metadata.formatVersion());
-    Assert.assertNull("Table UUID should not be assigned", metadata.uuid());
-    Assert.assertEquals("Table location should match", expected.location(), metadata.location());
-    Assert.assertEquals(
-        "Last sequence number should default to 0",
-        expected.lastSequenceNumber(),
-        metadata.lastSequenceNumber());
-    Assert.assertEquals(
-        "Last column ID should match", expected.lastColumnId(), metadata.lastColumnId());
-    Assert.assertEquals(
-        "Current schema ID should be default to TableMetadata.INITIAL_SCHEMA_ID",
-        TableMetadata.INITIAL_SCHEMA_ID,
-        metadata.currentSchemaId());
-    Assert.assertEquals("Schemas size should match", 1, metadata.schemas().size());
-    Assert.assertEquals(
-        "Schemas should contain the schema",
-        metadata.schemas().get(0).asStruct(),
-        schema.asStruct());
-    Assert.assertEquals(
-        "Partition spec should be the default",
-        expected.spec().toString(),
-        metadata.spec().toString());
-    Assert.assertEquals(
-        "Default spec ID should default to TableMetadata.INITIAL_SPEC_ID",
-        TableMetadata.INITIAL_SPEC_ID,
-        metadata.defaultSpecId());
-    Assert.assertEquals("PartitionSpec should contain the spec", 1, metadata.specs().size());
-    Assert.assertTrue(
-        "PartitionSpec should contain the spec", metadata.specs().get(0).compatibleWith(spec));
-    Assert.assertEquals(
-        "PartitionSpec should have ID TableMetadata.INITIAL_SPEC_ID",
-        TableMetadata.INITIAL_SPEC_ID,
-        metadata.specs().get(0).specId());
-    Assert.assertEquals(
-        "lastAssignedFieldId across all PartitionSpecs should match",
-        expected.spec().lastAssignedFieldId(),
-        metadata.lastAssignedPartitionId());
-    Assert.assertEquals("Properties should match", expected.properties(), metadata.properties());
-    Assert.assertEquals(
-        "Snapshot logs should match", expected.snapshotLog(), metadata.snapshotLog());
-    Assert.assertEquals(
-        "Current snapshot ID should match",
-        currentSnapshotId,
-        metadata.currentSnapshot().snapshotId());
-    Assert.assertEquals(
-        "Parent snapshot ID should match",
-        (Long) previousSnapshotId,
-        metadata.currentSnapshot().parentId());
-    Assert.assertEquals(
-        "Current snapshot files should match",
-        currentSnapshot.allManifests(ops.io()),
-        metadata.currentSnapshot().allManifests(ops.io()));
-    Assert.assertNull(
-        "Current snapshot's schema ID should be null", metadata.currentSnapshot().schemaId());
-    Assert.assertEquals(
-        "Previous snapshot ID should match",
-        previousSnapshotId,
-        metadata.snapshot(previousSnapshotId).snapshotId());
-    Assert.assertEquals(
-        "Previous snapshot files should match",
-        previousSnapshot.allManifests(ops.io()),
-        metadata.snapshot(previousSnapshotId).allManifests(ops.io()));
-    Assert.assertEquals(
-        "Snapshot logs should match", expected.previousFiles(), metadata.previousFiles());
-    Assert.assertNull(
-        "Previous snapshot's schema ID should be null",
-        metadata.snapshot(previousSnapshotId).schemaId());
+    assertThat(metadata.formatVersion()).isEqualTo(expected.formatVersion());
+    assertThat(metadata.uuid()).as("Table UUID should not be assigned").isNull();
+    assertThat(metadata.location()).isEqualTo(expected.location());
+    assertThat(metadata.lastSequenceNumber())
+        .as("Last sequence number should default to 0")
+        .isEqualTo(expected.lastSequenceNumber());
+
+    assertThat(metadata.lastColumnId()).isEqualTo(expected.lastColumnId());
+    assertThat(metadata.currentSchemaId())
+        .as("Current schema ID should be default to TableMetadata.INITIAL_SCHEMA_ID")
+        .isEqualTo(TableMetadata.INITIAL_SCHEMA_ID);
+    assertThat(metadata.schemas()).hasSize(1);
+    assertThat(metadata.schemas().get(0).asStruct()).isEqualTo(schema.asStruct());
+    assertThat(metadata.spec().toString()).isEqualTo(expected.spec().toString());
+    assertThat(metadata.defaultSpecId()).isEqualTo(TableMetadata.INITIAL_SPEC_ID);
+    assertThat(metadata.specs()).hasSize(1);
+    assertThat(metadata.specs())
+        .first()
+        .satisfies(partitionSpec -> partitionSpec.compatibleWith(spec));
+    assertThat(metadata.specs().get(0).specId()).isEqualTo(TableMetadata.INITIAL_SPEC_ID);
+    assertThat(metadata.lastAssignedPartitionId()).isEqualTo(expected.spec().lastAssignedFieldId());
+    assertThat(metadata.properties()).isEqualTo(expected.properties());
+    assertThat(metadata.snapshotLog()).isEqualTo(expected.snapshotLog());
+    assertThat(metadata.currentSnapshot().snapshotId()).isEqualTo(currentSnapshotId);
+    assertThat(metadata.currentSnapshot().parentId()).isEqualTo(previousSnapshotId);
+    assertThat(metadata.currentSnapshot().allManifests(ops.io()))
+        .as("Current snapshot files should match")
+        .isEqualTo(currentSnapshot.allManifests(ops.io()));
+    assertThat(metadata.currentSnapshot().schemaId()).isNull();
+    assertThat(metadata.snapshot(previousSnapshotId).snapshotId()).isEqualTo(previousSnapshotId);
+    assertThat(metadata.snapshot(previousSnapshotId).allManifests(ops.io()))
+        .isEqualTo(previousSnapshot.allManifests(ops.io()));
+    assertThat(metadata.previousFiles()).isEqualTo(expected.previousFiles());
+    assertThat(metadata.snapshot(previousSnapshotId).schemaId()).isNull();
   }
 
   @Test
@@ -407,7 +349,7 @@ public class TestTableMetadata {
     Map<String, SnapshotRef> refs =
         ImmutableMap.of("main", SnapshotRef.branchBuilder(previousSnapshotId).build());
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 new TableMetadata(
                     null,
@@ -432,6 +374,7 @@ public class TestTableMetadata {
                     ImmutableList.of(),
                     refs,
                     ImmutableList.of(),
+                    ImmutableList.of(),
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Current snapshot ID does not match main branch");
@@ -451,7 +394,7 @@ public class TestTableMetadata {
     Map<String, SnapshotRef> refs =
         ImmutableMap.of("main", SnapshotRef.branchBuilder(snapshotId).build());
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 new TableMetadata(
                     null,
@@ -476,6 +419,7 @@ public class TestTableMetadata {
                     ImmutableList.of(),
                     refs,
                     ImmutableList.of(),
+                    ImmutableList.of(),
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Current snapshot is not set, but main branch exists");
@@ -490,7 +434,7 @@ public class TestTableMetadata {
     Map<String, SnapshotRef> refs =
         ImmutableMap.of("main", SnapshotRef.branchBuilder(snapshotId).build());
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 new TableMetadata(
                     null,
@@ -514,6 +458,7 @@ public class TestTableMetadata {
                     ImmutableList.of(),
                     ImmutableList.of(),
                     refs,
+                    ImmutableList.of(),
                     ImmutableList.of(),
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
@@ -618,13 +563,13 @@ public class TestTableMetadata {
             ImmutableList.copyOf(previousMetadataLog),
             ImmutableMap.of(),
             ImmutableList.of(),
+            ImmutableList.of(),
             ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(base);
     TableMetadata metadataFromJson = TableMetadataParser.fromJson(asJson);
 
-    Assert.assertEquals(
-        "Metadata logs should match", previousMetadataLog, metadataFromJson.previousFiles());
+    assertThat(metadataFromJson.previousFiles()).isEqualTo(previousMetadataLog);
   }
 
   @Test
@@ -697,6 +642,7 @@ public class TestTableMetadata {
             ImmutableList.copyOf(previousMetadataLog),
             ImmutableMap.of(),
             ImmutableList.of(),
+            ImmutableList.of(),
             ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
@@ -707,9 +653,8 @@ public class TestTableMetadata {
     Set<MetadataLogEntry> removedPreviousMetadata = Sets.newHashSet(base.previousFiles());
     removedPreviousMetadata.removeAll(metadata.previousFiles());
 
-    Assert.assertEquals(
-        "Metadata logs should match", previousMetadataLog, metadata.previousFiles());
-    Assert.assertEquals("Removed Metadata logs should be empty", 0, removedPreviousMetadata.size());
+    assertThat(metadata.previousFiles()).isEqualTo(previousMetadataLog);
+    assertThat(removedPreviousMetadata).isEmpty();
   }
 
   @Test
@@ -794,6 +739,7 @@ public class TestTableMetadata {
             ImmutableList.copyOf(previousMetadataLog),
             ImmutableMap.of(),
             ImmutableList.of(),
+            ImmutableList.of(),
             ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
@@ -807,12 +753,9 @@ public class TestTableMetadata {
     removedPreviousMetadata.addAll(base.previousFiles());
     removedPreviousMetadata.removeAll(metadata.previousFiles());
 
-    Assert.assertEquals(
-        "Metadata logs should match", previousMetadataLog.subList(1, 6), metadata.previousFiles());
-    Assert.assertEquals(
-        "Removed Metadata logs should contain 1",
-        previousMetadataLog.subList(0, 1),
-        ImmutableList.copyOf(removedPreviousMetadata));
+    assertThat(metadata.previousFiles()).isEqualTo(previousMetadataLog.subList(1, 6));
+    assertThat(ImmutableList.copyOf(removedPreviousMetadata))
+        .isEqualTo(previousMetadataLog.subList(0, 1));
   }
 
   @Test
@@ -897,6 +840,7 @@ public class TestTableMetadata {
             ImmutableList.copyOf(previousMetadataLog),
             ImmutableMap.of(),
             ImmutableList.of(),
+            ImmutableList.of(),
             ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
@@ -910,17 +854,14 @@ public class TestTableMetadata {
     removedPreviousMetadata.addAll(base.previousFiles());
     removedPreviousMetadata.removeAll(metadata.previousFiles());
 
-    Assert.assertEquals(
-        "Metadata logs should match", previousMetadataLog.subList(4, 6), metadata.previousFiles());
-    Assert.assertEquals(
-        "Removed Metadata logs should contain 4",
-        previousMetadataLog.subList(0, 4),
-        ImmutableList.copyOf(removedPreviousMetadata));
+    assertThat(metadata.previousFiles()).isEqualTo(previousMetadataLog.subList(4, 6));
+    assertThat(ImmutableList.copyOf(removedPreviousMetadata))
+        .isEqualTo(previousMetadataLog.subList(0, 4));
   }
 
   @Test
   public void testV2UUIDValidation() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 new TableMetadata(
                     null,
@@ -945,6 +886,7 @@ public class TestTableMetadata {
                     ImmutableList.of(),
                     ImmutableMap.of(),
                     ImmutableList.of(),
+                    ImmutableList.of(),
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("UUID is required in format v2");
@@ -953,7 +895,7 @@ public class TestTableMetadata {
   @Test
   public void testVersionValidation() {
     int unsupportedVersion = TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION + 1;
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 new TableMetadata(
                     null,
@@ -978,6 +920,7 @@ public class TestTableMetadata {
                     ImmutableList.of(),
                     ImmutableMap.of(),
                     ImmutableList.of(),
+                    ImmutableList.of(),
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Unsupported format version: v" + unsupportedVersion);
@@ -987,14 +930,14 @@ public class TestTableMetadata {
   public void testParserVersionValidation() throws Exception {
     String supportedVersion1 = readTableMetadataInputFile("TableMetadataV1Valid.json");
     TableMetadata parsed1 = TableMetadataParser.fromJson(supportedVersion1);
-    Assert.assertNotNull("Should successfully read supported metadata version", parsed1);
+    assertThat(parsed1).as("Should successfully read supported metadata version").isNotNull();
 
     String supportedVersion2 = readTableMetadataInputFile("TableMetadataV2Valid.json");
     TableMetadata parsed2 = TableMetadataParser.fromJson(supportedVersion2);
-    Assert.assertNotNull("Should successfully read supported metadata version", parsed2);
+    assertThat(parsed2).as("Should successfully read supported metadata version").isNotNull();
 
     String unsupportedVersion = readTableMetadataInputFile("TableMetadataUnsupportedVersion.json");
-    Assertions.assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupportedVersion))
+    assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupportedVersion))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot read unsupported version");
   }
@@ -1003,7 +946,7 @@ public class TestTableMetadata {
   public void testParserV2PartitionSpecsValidation() throws Exception {
     String unsupportedVersion =
         readTableMetadataInputFile("TableMetadataV2MissingPartitionSpecs.json");
-    Assertions.assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupportedVersion))
+    assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupportedVersion))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("partition-specs must exist in format v2");
   }
@@ -1012,7 +955,7 @@ public class TestTableMetadata {
   public void testParserV2LastAssignedFieldIdValidation() throws Exception {
     String unsupportedVersion =
         readTableMetadataInputFile("TableMetadataV2MissingLastPartitionId.json");
-    Assertions.assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupportedVersion))
+    assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupportedVersion))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("last-partition-id must exist in format v2");
   }
@@ -1020,7 +963,7 @@ public class TestTableMetadata {
   @Test
   public void testParserV2SortOrderValidation() throws Exception {
     String unsupportedVersion = readTableMetadataInputFile("TableMetadataV2MissingSortOrder.json");
-    Assertions.assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupportedVersion))
+    assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupportedVersion))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("sort-orders must exist in format v2");
   }
@@ -1028,7 +971,7 @@ public class TestTableMetadata {
   @Test
   public void testParserV2CurrentSchemaIdValidation() throws Exception {
     String unsupported = readTableMetadataInputFile("TableMetadataV2CurrentSchemaNotFound.json");
-    Assertions.assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupported))
+    assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupported))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot find schema with current-schema-id=2 from schemas");
   }
@@ -1036,7 +979,7 @@ public class TestTableMetadata {
   @Test
   public void testParserV2SchemasValidation() throws Exception {
     String unsupported = readTableMetadataInputFile("TableMetadataV2MissingSchemas.json");
-    Assertions.assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupported))
+    assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupported))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("schemas must exist in format v2");
   }
@@ -1072,7 +1015,7 @@ public class TestTableMetadata {
             .add(3, 1001, "z_partition", Transforms.bucket(8))
             .build();
 
-    Assert.assertEquals(expected, metadata.spec());
+    assertThat(metadata.spec()).isEqualTo(expected);
   }
 
   @Test
@@ -1094,7 +1037,7 @@ public class TestTableMetadata {
             ImmutableMap.of(),
             1);
 
-    Assertions.assertThatThrownBy(() -> metadata.updatePartitionSpec(spec))
+    assertThatThrownBy(() -> metadata.updatePartitionSpec(spec))
         .isInstanceOf(ValidationException.class)
         .hasMessageStartingWith("Spec does not use sequential IDs that are required in v1");
   }
@@ -1111,7 +1054,7 @@ public class TestTableMetadata {
     TableMetadata metadata =
         TableMetadata.newTableMetadata(
             schema, spec, SortOrder.unsorted(), location, ImmutableMap.of(), 1);
-    Assert.assertEquals(spec, metadata.spec());
+    assertThat(metadata.spec()).isEqualTo(spec);
 
     Schema updatedSchema =
         new Schema(
@@ -1130,10 +1073,10 @@ public class TestTableMetadata {
             .add(2, 1001, "y", Transforms.alwaysNull())
             .add(3, 1002, "z_bucket", Transforms.bucket(8))
             .build();
-    Assert.assertEquals(
-        "Should reassign the partition field IDs and reuse any existing IDs for equivalent fields",
-        expected,
-        updated.spec());
+    assertThat(updated.spec())
+        .as(
+            "Should reassign the partition field IDs and reuse any existing IDs for equivalent fields")
+        .isEqualTo(expected);
   }
 
   @Test
@@ -1148,7 +1091,7 @@ public class TestTableMetadata {
     TableMetadata metadata =
         TableMetadata.newTableMetadata(
             schema, spec, SortOrder.unsorted(), location, ImmutableMap.of(), 2);
-    Assert.assertEquals(spec, metadata.spec());
+    assertThat(metadata.spec()).isEqualTo(spec);
 
     Schema updatedSchema =
         new Schema(
@@ -1165,10 +1108,10 @@ public class TestTableMetadata {
             .add(3, 1002, "z_bucket", Transforms.bucket(8))
             .add(1, 1000, "x", Transforms.identity())
             .build();
-    Assert.assertEquals(
-        "Should reassign the partition field IDs and reuse any existing IDs for equivalent fields",
-        expected,
-        updated.spec());
+    assertThat(updated.spec())
+        .as(
+            "Should reassign the partition field IDs and reuse any existing IDs for equivalent fields")
+        .isEqualTo(expected);
   }
 
   @Test
@@ -1178,11 +1121,10 @@ public class TestTableMetadata {
     TableMetadata meta =
         TableMetadata.newTableMetadata(
             schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
-    Assert.assertTrue("Should default to unsorted order", meta.sortOrder().isUnsorted());
-    Assert.assertSame(
-        "Should detect identical unsorted order",
-        meta,
-        meta.replaceSortOrder(SortOrder.unsorted()));
+    assertThat(meta.sortOrder().isUnsorted()).isTrue();
+    assertThat(meta.replaceSortOrder(SortOrder.unsorted()))
+        .as("Should detect identical unsorted order")
+        .isSameAs(meta);
   }
 
   @Test
@@ -1194,49 +1136,34 @@ public class TestTableMetadata {
     TableMetadata sortedByX =
         TableMetadata.newTableMetadata(
             schema, PartitionSpec.unpartitioned(), order, null, ImmutableMap.of());
-    Assert.assertEquals("Should have 1 sort order", 1, sortedByX.sortOrders().size());
-    Assert.assertEquals("Should use orderId 1", 1, sortedByX.sortOrder().orderId());
-    Assert.assertEquals("Should be sorted by one field", 1, sortedByX.sortOrder().fields().size());
-    Assert.assertEquals(
-        "Should use the table's field ids", 1, sortedByX.sortOrder().fields().get(0).sourceId());
-    Assert.assertEquals(
-        "Should be ascending",
-        SortDirection.ASC,
-        sortedByX.sortOrder().fields().get(0).direction());
-    Assert.assertEquals(
-        "Should be nulls first",
-        NullOrder.NULLS_FIRST,
-        sortedByX.sortOrder().fields().get(0).nullOrder());
+    assertThat(sortedByX.sortOrders()).hasSize(1);
+    assertThat(sortedByX.sortOrder().orderId()).isEqualTo(1);
+    assertThat(sortedByX.sortOrder().fields()).hasSize(1);
+    assertThat(sortedByX.sortOrder().fields().get(0).sourceId()).isEqualTo(1);
+    assertThat(sortedByX.sortOrder().fields().get(0).direction()).isEqualTo(SortDirection.ASC);
+    assertThat(sortedByX.sortOrder().fields().get(0).nullOrder()).isEqualTo(NullOrder.NULLS_FIRST);
 
     // build an equivalent order with the correct schema
     SortOrder newOrder = SortOrder.builderFor(sortedByX.schema()).asc("x").build();
 
     TableMetadata alsoSortedByX = sortedByX.replaceSortOrder(newOrder);
-    Assert.assertSame("Should detect current sortOrder and not update", alsoSortedByX, sortedByX);
+    assertThat(sortedByX)
+        .as("Should detect current sortOrder and not update")
+        .isSameAs(alsoSortedByX);
 
     TableMetadata unsorted = alsoSortedByX.replaceSortOrder(SortOrder.unsorted());
-    Assert.assertEquals("Should have 2 sort orders", 2, unsorted.sortOrders().size());
-    Assert.assertEquals("Should use orderId 0", 0, unsorted.sortOrder().orderId());
-    Assert.assertTrue("Should be unsorted", unsorted.sortOrder().isUnsorted());
+    assertThat(unsorted.sortOrders()).hasSize(2);
+    assertThat(unsorted.sortOrder().orderId()).isEqualTo(0);
+    assertThat(unsorted.sortOrder().isUnsorted()).isTrue();
 
     TableMetadata sortedByXDesc =
         unsorted.replaceSortOrder(SortOrder.builderFor(unsorted.schema()).desc("x").build());
-    Assert.assertEquals("Should have 3 sort orders", 3, sortedByXDesc.sortOrders().size());
-    Assert.assertEquals("Should use orderId 2", 2, sortedByXDesc.sortOrder().orderId());
-    Assert.assertEquals(
-        "Should be sorted by one field", 1, sortedByXDesc.sortOrder().fields().size());
-    Assert.assertEquals(
-        "Should use the table's field ids",
-        1,
-        sortedByXDesc.sortOrder().fields().get(0).sourceId());
-    Assert.assertEquals(
-        "Should be ascending",
-        SortDirection.DESC,
-        sortedByXDesc.sortOrder().fields().get(0).direction());
-    Assert.assertEquals(
-        "Should be nulls first",
-        NullOrder.NULLS_FIRST,
-        sortedByX.sortOrder().fields().get(0).nullOrder());
+    assertThat(sortedByXDesc.sortOrders()).hasSize(3);
+    assertThat(sortedByXDesc.sortOrder().orderId()).isEqualTo(2);
+    assertThat(sortedByXDesc.sortOrder().fields()).hasSize(1);
+    assertThat(sortedByXDesc.sortOrder().fields().get(0).sourceId()).isEqualTo(1);
+    assertThat(sortedByXDesc.sortOrder().fields().get(0).direction()).isEqualTo(SortDirection.DESC);
+    assertThat(sortedByX.sortOrder().fields().get(0).nullOrder()).isEqualTo(NullOrder.NULLS_FIRST);
   }
 
   @Test
@@ -1246,8 +1173,7 @@ public class TestTableMetadata {
     TableMetadata meta =
         TableMetadata.newTableMetadata(
             schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
-    Assert.assertEquals(
-        "Should default to no statistics files", ImmutableList.of(), meta.statisticsFiles());
+    assertThat(meta.statisticsFiles()).as("Should default to no statistics files").isEmpty();
   }
 
   @Test
@@ -1266,12 +1192,12 @@ public class TestTableMetadata {
                     43, "/some/path/to/stats/file", 128, 27, ImmutableList.of()))
             .build();
 
-    Assertions.assertThat(withStatistics.statisticsFiles())
+    assertThat(withStatistics.statisticsFiles())
         .as("There should be one statistics file registered")
         .hasSize(1);
     StatisticsFile statisticsFile = Iterables.getOnlyElement(withStatistics.statisticsFiles());
-    Assert.assertEquals("Statistics file snapshot", 43L, statisticsFile.snapshotId());
-    Assert.assertEquals("Statistics file path", "/some/path/to/stats/file", statisticsFile.path());
+    assertThat(statisticsFile.snapshotId()).isEqualTo(43L);
+    assertThat(statisticsFile.path()).isEqualTo("/some/path/to/stats/file");
 
     TableMetadata withStatisticsReplaced =
         TableMetadata.buildFrom(withStatistics)
@@ -1281,12 +1207,12 @@ public class TestTableMetadata {
                     43, "/some/path/to/stats/file2", 128, 27, ImmutableList.of()))
             .build();
 
-    Assertions.assertThat(withStatisticsReplaced.statisticsFiles())
+    assertThat(withStatisticsReplaced.statisticsFiles())
         .as("There should be one statistics file registered")
         .hasSize(1);
     statisticsFile = Iterables.getOnlyElement(withStatisticsReplaced.statisticsFiles());
-    Assert.assertEquals("Statistics file snapshot", 43L, statisticsFile.snapshotId());
-    Assert.assertEquals("Statistics file path", "/some/path/to/stats/file2", statisticsFile.path());
+    assertThat(statisticsFile.snapshotId()).isEqualTo(43L);
+    assertThat(statisticsFile.path()).isEqualTo("/some/path/to/stats/file2");
   }
 
   @Test
@@ -1307,37 +1233,137 @@ public class TestTableMetadata {
                     44, "/some/path/to/stats/file2", 128, 27, ImmutableList.of()))
             .build();
 
-    Assert.assertSame(
-        "Should detect no statistics to remove",
-        meta,
-        TableMetadata.buildFrom(meta).removeStatistics(42L).build());
+    assertThat(TableMetadata.buildFrom(meta).removeStatistics(42L).build())
+        .as("Should detect no statistics to remove")
+        .isSameAs(meta);
 
     TableMetadata withOneRemoved = TableMetadata.buildFrom(meta).removeStatistics(43).build();
 
-    Assertions.assertThat(withOneRemoved.statisticsFiles())
+    assertThat(withOneRemoved.statisticsFiles())
         .as("There should be one statistics file retained")
         .hasSize(1);
     StatisticsFile statisticsFile = Iterables.getOnlyElement(withOneRemoved.statisticsFiles());
-    Assert.assertEquals("Statistics file snapshot", 44L, statisticsFile.snapshotId());
-    Assert.assertEquals("Statistics file path", "/some/path/to/stats/file2", statisticsFile.path());
+    assertThat(statisticsFile.snapshotId()).isEqualTo(44L);
+    assertThat(statisticsFile.path()).isEqualTo("/some/path/to/stats/file2");
+  }
+
+  @Test
+  public void testPartitionStatistics() {
+    Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
+
+    TableMetadata meta =
+        TableMetadata.newTableMetadata(
+            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+    assertThat(meta.partitionStatisticsFiles())
+        .as("Should default to no partition statistics files")
+        .isEmpty();
+  }
+
+  @Test
+  public void testSetPartitionStatistics() {
+    Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
+
+    TableMetadata meta =
+        TableMetadata.newTableMetadata(
+            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+
+    TableMetadata withPartitionStatistics =
+        TableMetadata.buildFrom(meta)
+            .setPartitionStatistics(
+                ImmutableGenericPartitionStatisticsFile.builder()
+                    .snapshotId(43)
+                    .path("/some/path/to/partition/stats/file" + ".parquet")
+                    .fileSizeInBytes(42L)
+                    .build())
+            .build();
+
+    assertThat(withPartitionStatistics.partitionStatisticsFiles())
+        .as("There should be one partition statistics file registered")
+        .hasSize(1);
+    PartitionStatisticsFile partitionStatisticsFile =
+        Iterables.getOnlyElement(withPartitionStatistics.partitionStatisticsFiles());
+    assertThat(partitionStatisticsFile.snapshotId()).isEqualTo(43L);
+    assertThat(partitionStatisticsFile.path())
+        .isEqualTo("/some/path/to/partition/stats/file.parquet");
+    assertThat(partitionStatisticsFile.fileSizeInBytes()).isEqualTo(42L);
+
+    TableMetadata withStatisticsReplaced =
+        TableMetadata.buildFrom(withPartitionStatistics)
+            .setPartitionStatistics(
+                ImmutableGenericPartitionStatisticsFile.builder()
+                    .snapshotId(43)
+                    .path("/some/path/to/partition/stats/file2" + ".parquet")
+                    .fileSizeInBytes(48L)
+                    .build())
+            .build();
+
+    assertThat(withStatisticsReplaced.partitionStatisticsFiles())
+        .as("There should be one statistics file registered")
+        .hasSize(1);
+    partitionStatisticsFile =
+        Iterables.getOnlyElement(withStatisticsReplaced.partitionStatisticsFiles());
+    assertThat(partitionStatisticsFile.snapshotId()).isEqualTo(43L);
+    assertThat(partitionStatisticsFile.path())
+        .isEqualTo("/some/path/to/partition/stats/file2.parquet");
+    assertThat(partitionStatisticsFile.fileSizeInBytes()).isEqualTo(48L);
+  }
+
+  @Test
+  public void testRemovePartitionStatistics() {
+    Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
+
+    TableMetadata meta =
+        TableMetadata.buildFrom(
+                TableMetadata.newTableMetadata(
+                    schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of()))
+            .setPartitionStatistics(
+                ImmutableGenericPartitionStatisticsFile.builder()
+                    .snapshotId(43)
+                    .path("/some/path/to/partition/stats/file1" + ".parquet")
+                    .fileSizeInBytes(48L)
+                    .build())
+            .setPartitionStatistics(
+                ImmutableGenericPartitionStatisticsFile.builder()
+                    .snapshotId(44)
+                    .path("/some/path/to/partition/stats/file2" + ".parquet")
+                    .fileSizeInBytes(49L)
+                    .build())
+            .build();
+
+    assertThat(TableMetadata.buildFrom(meta).removePartitionStatistics(42L).build())
+        .as("Should detect no partition statistics to remove")
+        .isSameAs(meta);
+
+    TableMetadata withOneRemoved =
+        TableMetadata.buildFrom(meta).removePartitionStatistics(43).build();
+
+    assertThat(withOneRemoved.partitionStatisticsFiles())
+        .as("There should be one partition statistics file retained")
+        .hasSize(1);
+    PartitionStatisticsFile partitionStatisticsFile =
+        Iterables.getOnlyElement(withOneRemoved.partitionStatisticsFiles());
+    assertThat(partitionStatisticsFile.snapshotId()).isEqualTo(44L);
+    assertThat(partitionStatisticsFile.path())
+        .isEqualTo("/some/path/to/partition/stats/file2.parquet");
+    assertThat(partitionStatisticsFile.fileSizeInBytes()).isEqualTo(49L);
   }
 
   @Test
   public void testParseSchemaIdentifierFields() throws Exception {
     String data = readTableMetadataInputFile("TableMetadataV2Valid.json");
     TableMetadata parsed = TableMetadataParser.fromJson(data);
-    Assert.assertEquals(Sets.newHashSet(), parsed.schemasById().get(0).identifierFieldIds());
-    Assert.assertEquals(Sets.newHashSet(1, 2), parsed.schemasById().get(1).identifierFieldIds());
+    assertThat(parsed.schemasById().get(0).identifierFieldIds()).isEmpty();
+    assertThat(parsed.schemasById().get(1).identifierFieldIds()).containsExactly(1, 2);
   }
 
   @Test
   public void testParseMinimal() throws Exception {
     String data = readTableMetadataInputFile("TableMetadataV2ValidMinimal.json");
     TableMetadata parsed = TableMetadataParser.fromJson(data);
-    Assertions.assertThat(parsed.snapshots()).isEmpty();
-    Assertions.assertThat(parsed.snapshotLog()).isEmpty();
-    Assertions.assertThat(parsed.properties()).isEmpty();
-    Assertions.assertThat(parsed.previousFiles()).isEmpty();
+    assertThat(parsed.snapshots()).isEmpty();
+    assertThat(parsed.snapshotLog()).isEmpty();
+    assertThat(parsed.properties()).isEmpty();
+    assertThat(parsed.previousFiles()).isEmpty();
   }
 
   @Test
@@ -1353,8 +1379,8 @@ public class TestTableMetadata {
             Lists.newArrayList(Types.NestedField.required(1, "x", Types.StringType.get())),
             Sets.newHashSet(1));
     TableMetadata newMeta = meta.updateSchema(newSchema, 1);
-    Assert.assertEquals(2, newMeta.schemas().size());
-    Assert.assertEquals(Sets.newHashSet(1), newMeta.schema().identifierFieldIds());
+    assertThat(newMeta.schemas()).hasSize(2);
+    assertThat(newMeta.schema().identifierFieldIds()).containsExactly(1);
   }
 
   @Test
@@ -1364,16 +1390,10 @@ public class TestTableMetadata {
     TableMetadata freshTable =
         TableMetadata.newTableMetadata(
             schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
-    Assert.assertEquals(
-        "Should use TableMetadata.INITIAL_SCHEMA_ID for current schema id",
-        TableMetadata.INITIAL_SCHEMA_ID,
-        freshTable.currentSchemaId());
+    assertThat(freshTable.currentSchemaId()).isEqualTo(TableMetadata.INITIAL_SCHEMA_ID);
     assertSameSchemaList(ImmutableList.of(schema), freshTable.schemas());
-    Assert.assertEquals(
-        "Should have expected schema upon return",
-        schema.asStruct(),
-        freshTable.schema().asStruct());
-    Assert.assertEquals("Should return expected last column id", 1, freshTable.lastColumnId());
+    assertThat(freshTable.schema().asStruct()).isEqualTo(schema.asStruct());
+    assertThat(freshTable.lastColumnId()).isEqualTo(1);
 
     // update schema
     Schema schema2 =
@@ -1381,14 +1401,11 @@ public class TestTableMetadata {
             Types.NestedField.required(1, "y", Types.LongType.get(), "comment"),
             Types.NestedField.required(2, "x", Types.StringType.get()));
     TableMetadata twoSchemasTable = freshTable.updateSchema(schema2, 2);
-    Assert.assertEquals("Should have current schema id as 1", 1, twoSchemasTable.currentSchemaId());
+    assertThat(twoSchemasTable.currentSchemaId()).isEqualTo(1);
     assertSameSchemaList(
         ImmutableList.of(schema, new Schema(1, schema2.columns())), twoSchemasTable.schemas());
-    Assert.assertEquals(
-        "Should have expected schema upon return",
-        schema2.asStruct(),
-        twoSchemasTable.schema().asStruct());
-    Assert.assertEquals("Should return expected last column id", 2, twoSchemasTable.lastColumnId());
+    assertThat(twoSchemasTable.schema().asStruct()).isEqualTo(schema2.asStruct());
+    assertThat(twoSchemasTable.lastColumnId()).isEqualTo(2);
 
     // update schema with the same schema and last column ID as current shouldn't cause change
     Schema sameSchema2 =
@@ -1396,35 +1413,25 @@ public class TestTableMetadata {
             Types.NestedField.required(1, "y", Types.LongType.get(), "comment"),
             Types.NestedField.required(2, "x", Types.StringType.get()));
     TableMetadata sameSchemaTable = twoSchemasTable.updateSchema(sameSchema2, 2);
-    Assert.assertSame("Should return same table metadata", twoSchemasTable, sameSchemaTable);
+    assertThat(sameSchemaTable).isSameAs(twoSchemasTable);
 
     // update schema with the same schema and different last column ID as current should create
     // a new table
     TableMetadata differentColumnIdTable = sameSchemaTable.updateSchema(sameSchema2, 3);
-    Assert.assertEquals(
-        "Should have current schema id as 1", 1, differentColumnIdTable.currentSchemaId());
+    assertThat(differentColumnIdTable.currentSchemaId()).isEqualTo(1);
     assertSameSchemaList(
         ImmutableList.of(schema, new Schema(1, schema2.columns())),
         differentColumnIdTable.schemas());
-    Assert.assertEquals(
-        "Should have expected schema upon return",
-        schema2.asStruct(),
-        differentColumnIdTable.schema().asStruct());
-    Assert.assertEquals(
-        "Should return expected last column id", 3, differentColumnIdTable.lastColumnId());
+    assertThat(differentColumnIdTable.schema().asStruct()).isEqualTo(schema2.asStruct());
+    assertThat(differentColumnIdTable.lastColumnId()).isEqualTo(3);
 
     // update schema with old schema does not change schemas
     TableMetadata revertSchemaTable = differentColumnIdTable.updateSchema(schema, 3);
-    Assert.assertEquals(
-        "Should have current schema id as 0", 0, revertSchemaTable.currentSchemaId());
+    assertThat(revertSchemaTable.currentSchemaId()).isEqualTo(0);
     assertSameSchemaList(
         ImmutableList.of(schema, new Schema(1, schema2.columns())), revertSchemaTable.schemas());
-    Assert.assertEquals(
-        "Should have expected schema upon return",
-        schema.asStruct(),
-        revertSchemaTable.schema().asStruct());
-    Assert.assertEquals(
-        "Should return expected last column id", 3, revertSchemaTable.lastColumnId());
+    assertThat(revertSchemaTable.schema().asStruct()).isEqualTo(schema.asStruct());
+    assertThat(revertSchemaTable.lastColumnId()).isEqualTo(3);
 
     // create new schema will use the largest schema id + 1
     Schema schema3 =
@@ -1433,18 +1440,13 @@ public class TestTableMetadata {
             Types.NestedField.required(4, "x", Types.StringType.get()),
             Types.NestedField.required(6, "z", Types.IntegerType.get()));
     TableMetadata threeSchemaTable = revertSchemaTable.updateSchema(schema3, 6);
-    Assert.assertEquals(
-        "Should have current schema id as 2", 2, threeSchemaTable.currentSchemaId());
+    assertThat(threeSchemaTable.currentSchemaId()).isEqualTo(2);
     assertSameSchemaList(
         ImmutableList.of(
             schema, new Schema(1, schema2.columns()), new Schema(2, schema3.columns())),
         threeSchemaTable.schemas());
-    Assert.assertEquals(
-        "Should have expected schema upon return",
-        schema3.asStruct(),
-        threeSchemaTable.schema().asStruct());
-    Assert.assertEquals(
-        "Should return expected last column id", 6, threeSchemaTable.lastColumnId());
+    assertThat(threeSchemaTable.schema().asStruct()).isEqualTo(schema3.asStruct());
+    assertThat(threeSchemaTable.lastColumnId()).isEqualTo(6);
   }
 
   @Test
@@ -1505,39 +1507,53 @@ public class TestTableMetadata {
         meta.replaceProperties(
             ImmutableMap.of(TableProperties.FORMAT_VERSION, "2", "key2", "val2"));
 
-    Assert.assertEquals(
-        "format version should be configured based on the format-version key",
-        2,
-        meta.formatVersion());
-    Assert.assertEquals(
-        "should not contain format-version but should contain new properties",
-        ImmutableMap.of("key2", "val2"),
-        meta.properties());
+    assertThat(meta.formatVersion())
+        .as("format version should be configured based on the format-version key")
+        .isEqualTo(2);
+    assertThat(meta.properties())
+        .as("should not contain format-version but should contain new properties")
+        .containsExactly(entry("key2", "val2"));
   }
 
   @Test
   public void testParseStatisticsFiles() throws Exception {
     String data = readTableMetadataInputFile("TableMetadataStatisticsFiles.json");
     TableMetadata parsed = TableMetadataParser.fromJson(data);
-    Assertions.assertThat(parsed.statisticsFiles()).as("parsed statistics files").hasSize(1);
-    Assert.assertEquals(
-        "parsed statistics file",
-        new GenericStatisticsFile(
-            3055729675574597004L,
-            "s3://a/b/stats.puffin",
-            413,
-            42,
-            ImmutableList.of(
-                new GenericBlobMetadata(
-                    "ndv", 3055729675574597004L, 1, ImmutableList.of(1), ImmutableMap.of()))),
-        Iterables.getOnlyElement(parsed.statisticsFiles()));
+    assertThat(parsed.statisticsFiles()).hasSize(1);
+    assertThat(parsed.statisticsFiles())
+        .hasSize(1)
+        .first()
+        .isEqualTo(
+            new GenericStatisticsFile(
+                3055729675574597004L,
+                "s3://a/b/stats.puffin",
+                413,
+                42,
+                ImmutableList.of(
+                    new GenericBlobMetadata(
+                        "ndv", 3055729675574597004L, 1, ImmutableList.of(1), ImmutableMap.of()))));
+  }
+
+  @Test
+  public void testParsePartitionStatisticsFiles() throws Exception {
+    String data = readTableMetadataInputFile("TableMetadataPartitionStatisticsFiles.json");
+    TableMetadata parsed = TableMetadataParser.fromJson(data);
+    assertThat(parsed.partitionStatisticsFiles())
+        .hasSize(1)
+        .first()
+        .isEqualTo(
+            ImmutableGenericPartitionStatisticsFile.builder()
+                .snapshotId(3055729675574597004L)
+                .path("s3://a/b/partition-stats.parquet")
+                .fileSizeInBytes(43L)
+                .build());
   }
 
   @Test
   public void testNoReservedPropertyForTableMetadataCreation() {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 TableMetadata.newTableMetadata(
                     schema,
@@ -1550,7 +1566,7 @@ public class TestTableMetadata {
         .hasMessage(
             "Table properties should not contain reserved properties, but got {format-version=1}");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 TableMetadata.newTableMetadata(
                     schema,
@@ -1570,15 +1586,14 @@ public class TestTableMetadata {
     TableMetadata meta =
         TableMetadata.newTableMetadata(
             TEST_SCHEMA, SPEC_5, SORT_ORDER_3, locationWithSlash, Collections.emptyMap());
-    Assert.assertEquals(
-        "Metadata should never return a location ending in a slash",
-        locationWithoutSlash,
-        meta.location());
+    assertThat(meta.location())
+        .as("Metadata should never return a location ending in a slash")
+        .isEqualTo(locationWithoutSlash);
   }
 
   private String createManifestListWithManifestFile(
       long snapshotId, Long parentSnapshotId, String manifestFile) throws IOException {
-    File manifestList = temp.newFile("manifests" + UUID.randomUUID());
+    File manifestList = File.createTempFile("manifests", null, temp.toFile());
     manifestList.deleteOnExit();
 
     try (ManifestListWriter writer =
@@ -1588,5 +1603,28 @@ public class TestTableMetadata {
     }
 
     return localInput(manifestList).location();
+  }
+
+  @Test
+  public void buildReplacementKeepsSnapshotLog() throws Exception {
+    TableMetadata metadata =
+        TableMetadataParser.fromJson(readTableMetadataInputFile("TableMetadataV2Valid.json"));
+    assertThat(metadata.currentSnapshot()).isNotNull();
+    assertThat(metadata.snapshots()).hasSize(2);
+    assertThat(metadata.snapshotLog()).hasSize(2);
+
+    TableMetadata replacement =
+        metadata.buildReplacement(
+            metadata.schema(),
+            metadata.spec(),
+            metadata.sortOrder(),
+            metadata.location(),
+            metadata.properties());
+
+    assertThat(replacement.currentSnapshot()).isNull();
+    assertThat(replacement.snapshots()).hasSize(2).containsExactlyElementsOf(metadata.snapshots());
+    assertThat(replacement.snapshotLog())
+        .hasSize(2)
+        .containsExactlyElementsOf(metadata.snapshotLog());
   }
 }

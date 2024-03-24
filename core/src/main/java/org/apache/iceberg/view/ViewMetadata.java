@@ -21,6 +21,7 @@ package org.apache.iceberg.view;
 import java.io.Serializable;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -31,6 +32,7 @@ import javax.annotation.Nullable;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -38,13 +40,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import org.immutables.value.Value;
-import org.immutables.value.Value.Style.ImplementationVisibility;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @SuppressWarnings("ImmutablesStyle")
 @Value.Immutable(builder = false)
-@Value.Style(allParameters = true, visibility = ImplementationVisibility.PACKAGE)
+@Value.Style(allParameters = true, visibilityString = "PACKAGE")
 public interface ViewMetadata extends Serializable {
   Logger LOG = LoggerFactory.getLogger(ViewMetadata.class);
   int SUPPORTED_VIEW_FORMAT_VERSION = 1;
@@ -156,6 +157,9 @@ public interface ViewMetadata extends Serializable {
 
     // internal change tracking
     private Integer lastAddedVersionId = null;
+    private Integer lastAddedSchemaId = null;
+    private ViewHistoryEntry historyEntry = null;
+    private ViewVersion previousViewVersion = null;
 
     // indexes
     private final Map<Integer, ViewVersion> versionsById;
@@ -185,6 +189,7 @@ public interface ViewMetadata extends Serializable {
       this.location = base.location();
       this.uuid = base.uuid();
       this.metadataLocation = null;
+      this.previousViewVersion = base.currentVersion();
     }
 
     public Builder upgradeFormatVersion(int newFormatVersion) {
@@ -243,6 +248,12 @@ public interface ViewMetadata extends Serializable {
         changes.add(new MetadataUpdate.SetCurrentViewVersion(newVersionId));
       }
 
+      this.historyEntry =
+          ImmutableViewHistoryEntry.builder()
+              .timestampMillis(version.timestampMillis())
+              .versionId(version.versionId())
+              .build();
+
       return this;
     }
 
@@ -258,14 +269,26 @@ public interface ViewMetadata extends Serializable {
       return this;
     }
 
-    private int addVersionInternal(ViewVersion version) {
-      int newVersionId = reuseOrCreateNewViewVersionId(version);
+    private int addVersionInternal(ViewVersion newVersion) {
+      int newVersionId = reuseOrCreateNewViewVersionId(newVersion);
+      ViewVersion version = newVersion;
+      if (newVersionId != version.versionId()) {
+        version = ImmutableViewVersion.builder().from(version).versionId(newVersionId).build();
+      }
+
       if (versionsById.containsKey(newVersionId)) {
         boolean addedInBuilder =
             changes(MetadataUpdate.AddViewVersion.class)
                 .anyMatch(added -> added.viewVersion().versionId() == newVersionId);
         this.lastAddedVersionId = addedInBuilder ? newVersionId : null;
         return newVersionId;
+      }
+
+      if (newVersion.schemaId() == LAST_ADDED) {
+        ValidationException.check(
+            lastAddedSchemaId != null, "Cannot set last added schema: no schema has been added");
+        version =
+            ImmutableViewVersion.builder().from(newVersion).schemaId(lastAddedSchemaId).build();
       }
 
       Preconditions.checkArgument(
@@ -278,27 +301,22 @@ public interface ViewMetadata extends Serializable {
         if (repr instanceof SQLViewRepresentation) {
           SQLViewRepresentation sql = (SQLViewRepresentation) repr;
           Preconditions.checkArgument(
-              dialects.add(sql.dialect()),
+              dialects.add(sql.dialect().toLowerCase(Locale.ROOT)),
               "Invalid view version: Cannot add multiple queries for dialect %s",
-              sql.dialect());
+              sql.dialect().toLowerCase(Locale.ROOT));
         }
       }
 
-      ViewVersion newVersion;
-      if (newVersionId != version.versionId()) {
-        newVersion = ImmutableViewVersion.builder().from(version).versionId(newVersionId).build();
-      } else {
-        newVersion = version;
-      }
+      versions.add(version);
+      versionsById.put(version.versionId(), version);
 
-      versions.add(newVersion);
-      versionsById.put(newVersion.versionId(), newVersion);
-      changes.add(new MetadataUpdate.AddViewVersion(newVersion));
-      history.add(
-          ImmutableViewHistoryEntry.builder()
-              .timestampMillis(newVersion.timestampMillis())
-              .versionId(newVersion.versionId())
-              .build());
+      if (null != lastAddedSchemaId && version.schemaId() == lastAddedSchemaId) {
+        changes.add(
+            new MetadataUpdate.AddViewVersion(
+                ImmutableViewVersion.builder().from(version).schemaId(LAST_ADDED).build()));
+      } else {
+        changes.add(new MetadataUpdate.AddViewVersion(version));
+      }
 
       this.lastAddedVersionId = newVersionId;
 
@@ -321,14 +339,15 @@ public interface ViewMetadata extends Serializable {
 
     /**
      * Checks whether the given view versions would behave the same while ignoring the view version
-     * id, the creation timestamp, and the summary.
+     * id, the creation timestamp, and the operation.
      *
      * @param one the view version to compare
      * @param two the view version to compare
      * @return true if the given view versions would behave the same
      */
     private boolean sameViewVersion(ViewVersion one, ViewVersion two) {
-      return Objects.equals(one.representations(), two.representations())
+      return Objects.equals(one.summary(), two.summary())
+          && Objects.equals(one.representations(), two.representations())
           && Objects.equals(one.defaultCatalog(), two.defaultCatalog())
           && Objects.equals(one.defaultNamespace(), two.defaultNamespace())
           && one.schemaId() == two.schemaId();
@@ -357,6 +376,8 @@ public interface ViewMetadata extends Serializable {
       schemas.add(newSchema);
       schemasById.put(newSchema.schemaId(), newSchema);
       changes.add(new MetadataUpdate.AddSchema(newSchema, highestFieldId));
+
+      this.lastAddedSchemaId = newSchemaId;
 
       return newSchemaId;
     }
@@ -413,7 +434,7 @@ public interface ViewMetadata extends Serializable {
 
     public ViewMetadata build() {
       Preconditions.checkArgument(null != location, "Invalid location: null");
-      Preconditions.checkArgument(versions.size() > 0, "Invalid view: no versions were added");
+      Preconditions.checkArgument(!versions.isEmpty(), "Invalid view: no versions were added");
 
       // when associated with a metadata file, metadata must have no changes so that the metadata
       // matches exactly what is in the metadata file, which does not store changes. metadata
@@ -421,6 +442,18 @@ public interface ViewMetadata extends Serializable {
       Preconditions.checkArgument(
           metadataLocation == null || changes.isEmpty(),
           "Cannot create view metadata with a metadata location and changes");
+
+      if (null != historyEntry) {
+        history.add(historyEntry);
+      }
+
+      if (null != previousViewVersion
+          && !PropertyUtil.propertyAsBoolean(
+              properties,
+              ViewProperties.REPLACE_DROP_DIALECT_ALLOWED,
+              ViewProperties.REPLACE_DROP_DIALECT_ALLOWED_DEFAULT)) {
+        checkIfDialectIsDropped(previousViewVersion, versionsById.get(currentVersionId));
+      }
 
       int historySize =
           PropertyUtil.propertyAsInt(
@@ -463,6 +496,7 @@ public interface ViewMetadata extends Serializable {
           metadataLocation);
     }
 
+    @VisibleForTesting
     static List<ViewVersion> expireVersions(
         Map<Integer, ViewVersion> versionsById, int numVersionsToKeep) {
       // version ids are assigned sequentially. keep the latest versions by ID.
@@ -477,6 +511,7 @@ public interface ViewMetadata extends Serializable {
       return retainedVersions;
     }
 
+    @VisibleForTesting
     static List<ViewHistoryEntry> updateHistory(List<ViewHistoryEntry> history, Set<Integer> ids) {
       List<ViewHistoryEntry> retainedHistory = Lists.newArrayList();
       for (ViewHistoryEntry entry : history) {
@@ -493,6 +528,30 @@ public interface ViewMetadata extends Serializable {
 
     private <U extends MetadataUpdate> Stream<U> changes(Class<U> updateClass) {
       return changes.stream().filter(updateClass::isInstance).map(updateClass::cast);
+    }
+
+    private void checkIfDialectIsDropped(ViewVersion previous, ViewVersion current) {
+      Set<String> baseDialects = sqlDialectsFor(previous);
+      Set<String> updatedDialects = sqlDialectsFor(current);
+
+      Preconditions.checkState(
+          updatedDialects.containsAll(baseDialects),
+          "Cannot replace view due to loss of view dialects (%s=false):\nPrevious dialects: %s\nNew dialects: %s",
+          ViewProperties.REPLACE_DROP_DIALECT_ALLOWED,
+          baseDialects,
+          updatedDialects);
+    }
+
+    private Set<String> sqlDialectsFor(ViewVersion viewVersion) {
+      Set<String> dialects = Sets.newHashSet();
+      for (ViewRepresentation repr : viewVersion.representations()) {
+        if (repr instanceof SQLViewRepresentation) {
+          SQLViewRepresentation sql = (SQLViewRepresentation) repr;
+          dialects.add(sql.dialect().toLowerCase(Locale.ROOT));
+        }
+      }
+
+      return dialects;
     }
   }
 }

@@ -18,9 +18,13 @@
  */
 package org.apache.iceberg;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 import org.apache.avro.AvroRuntimeException;
@@ -39,11 +43,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestManifestListVersions {
   private static final String PATH = "s3://bucket/table/m1.avro";
@@ -98,11 +99,11 @@ public class TestManifestListVersions {
           PARTITION_SUMMARIES,
           KEY_METADATA);
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
   @Test
   public void testV1WriteDeleteManifest() {
-    Assertions.assertThatThrownBy(() -> writeManifestList(TEST_DELETE_MANIFEST, 1))
+    assertThatThrownBy(() -> writeManifestList(TEST_DELETE_MANIFEST, 1))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot store delete manifests in a v1 table");
   }
@@ -112,24 +113,21 @@ public class TestManifestListVersions {
     ManifestFile manifest = writeAndReadManifestList(1);
 
     // v2 fields are not written and are defaulted
-    Assert.assertEquals(
-        "Should not contain sequence number, default to 0", 0, manifest.sequenceNumber());
-    Assert.assertEquals(
-        "Should not contain min sequence number, default to 0", 0, manifest.minSequenceNumber());
+    assertThat(manifest.sequenceNumber()).isEqualTo(0);
+    assertThat(manifest.minSequenceNumber()).isEqualTo(0);
 
     // v1 fields are read correctly, even though order changed
-    Assert.assertEquals("Path", PATH, manifest.path());
-    Assert.assertEquals("Length", LENGTH, manifest.length());
-    Assert.assertEquals("Spec id", SPEC_ID, manifest.partitionSpecId());
-    Assert.assertEquals("Content", ManifestContent.DATA, manifest.content());
-    Assert.assertEquals("Snapshot id", SNAPSHOT_ID, (long) manifest.snapshotId());
-    Assert.assertEquals("Added files count", ADDED_FILES, (int) manifest.addedFilesCount());
-    Assert.assertEquals(
-        "Existing files count", EXISTING_FILES, (int) manifest.existingFilesCount());
-    Assert.assertEquals("Deleted files count", DELETED_FILES, (int) manifest.deletedFilesCount());
-    Assert.assertEquals("Added rows count", ADDED_ROWS, (long) manifest.addedRowsCount());
-    Assert.assertEquals("Existing rows count", EXISTING_ROWS, (long) manifest.existingRowsCount());
-    Assert.assertEquals("Deleted rows count", DELETED_ROWS, (long) manifest.deletedRowsCount());
+    assertThat(manifest.path()).isEqualTo(PATH);
+    assertThat(manifest.length()).isEqualTo(LENGTH);
+    assertThat(manifest.partitionSpecId()).isEqualTo(SPEC_ID);
+    assertThat(manifest.content()).isEqualTo(ManifestContent.DATA);
+    assertThat(manifest.snapshotId()).isEqualTo(SNAPSHOT_ID);
+    assertThat(manifest.addedFilesCount()).isEqualTo(ADDED_FILES);
+    assertThat(manifest.existingFilesCount()).isEqualTo(EXISTING_FILES);
+    assertThat(manifest.deletedFilesCount()).isEqualTo(DELETED_FILES);
+    assertThat(manifest.addedRowsCount()).isEqualTo(ADDED_ROWS);
+    assertThat(manifest.existingRowsCount()).isEqualTo(EXISTING_ROWS);
+    assertThat(manifest.deletedRowsCount()).isEqualTo(DELETED_ROWS);
   }
 
   @Test
@@ -137,20 +135,19 @@ public class TestManifestListVersions {
     ManifestFile manifest = writeAndReadManifestList(2);
 
     // all v2 fields should be read correctly
-    Assert.assertEquals("Path", PATH, manifest.path());
-    Assert.assertEquals("Length", LENGTH, manifest.length());
-    Assert.assertEquals("Spec id", SPEC_ID, manifest.partitionSpecId());
-    Assert.assertEquals("Content", ManifestContent.DATA, manifest.content());
-    Assert.assertEquals("Sequence number", SEQ_NUM, manifest.sequenceNumber());
-    Assert.assertEquals("Min sequence number", MIN_SEQ_NUM, manifest.minSequenceNumber());
-    Assert.assertEquals("Snapshot id", SNAPSHOT_ID, (long) manifest.snapshotId());
-    Assert.assertEquals("Added files count", ADDED_FILES, (int) manifest.addedFilesCount());
-    Assert.assertEquals("Added rows count", ADDED_ROWS, (long) manifest.addedRowsCount());
-    Assert.assertEquals(
-        "Existing files count", EXISTING_FILES, (int) manifest.existingFilesCount());
-    Assert.assertEquals("Existing rows count", EXISTING_ROWS, (long) manifest.existingRowsCount());
-    Assert.assertEquals("Deleted files count", DELETED_FILES, (int) manifest.deletedFilesCount());
-    Assert.assertEquals("Deleted rows count", DELETED_ROWS, (long) manifest.deletedRowsCount());
+    assertThat(manifest.path()).isEqualTo(PATH);
+    assertThat(manifest.length()).isEqualTo(LENGTH);
+    assertThat(manifest.partitionSpecId()).isEqualTo(SPEC_ID);
+    assertThat(manifest.content()).isEqualTo(ManifestContent.DATA);
+    assertThat(manifest.sequenceNumber()).isEqualTo(SEQ_NUM);
+    assertThat(manifest.minSequenceNumber()).isEqualTo(MIN_SEQ_NUM);
+    assertThat(manifest.snapshotId()).isEqualTo(SNAPSHOT_ID);
+    assertThat(manifest.addedFilesCount()).isEqualTo(ADDED_FILES);
+    assertThat(manifest.addedRowsCount()).isEqualTo(ADDED_ROWS);
+    assertThat(manifest.existingFilesCount()).isEqualTo(EXISTING_FILES);
+    assertThat(manifest.existingRowsCount()).isEqualTo(EXISTING_ROWS);
+    assertThat(manifest.deletedFilesCount()).isEqualTo(DELETED_FILES);
+    assertThat(manifest.deletedRowsCount()).isEqualTo(DELETED_ROWS);
   }
 
   @Test
@@ -159,21 +156,16 @@ public class TestManifestListVersions {
     GenericData.Record generic = readGeneric(manifestList, V1Metadata.MANIFEST_LIST_SCHEMA);
 
     // v1 metadata should match even though order changed
-    Assert.assertEquals("Path", PATH, generic.get("manifest_path").toString());
-    Assert.assertEquals("Length", LENGTH, generic.get("manifest_length"));
-    Assert.assertEquals("Spec id", SPEC_ID, generic.get("partition_spec_id"));
-    Assert.assertEquals("Snapshot id", SNAPSHOT_ID, (long) generic.get("added_snapshot_id"));
-    Assert.assertEquals(
-        "Added files count", ADDED_FILES, (int) generic.get("added_data_files_count"));
-    Assert.assertEquals(
-        "Existing files count", EXISTING_FILES, (int) generic.get("existing_data_files_count"));
-    Assert.assertEquals(
-        "Deleted files count", DELETED_FILES, (int) generic.get("deleted_data_files_count"));
-    Assert.assertEquals("Added rows count", ADDED_ROWS, (long) generic.get("added_rows_count"));
-    Assert.assertEquals(
-        "Existing rows count", EXISTING_ROWS, (long) generic.get("existing_rows_count"));
-    Assert.assertEquals(
-        "Deleted rows count", DELETED_ROWS, (long) generic.get("deleted_rows_count"));
+    assertThat(generic.get("manifest_path")).asString().isEqualTo(PATH);
+    assertThat(generic.get("manifest_length")).isEqualTo(LENGTH);
+    assertThat(generic.get("partition_spec_id")).isEqualTo(SPEC_ID);
+    assertThat(generic.get("added_snapshot_id")).isEqualTo(SNAPSHOT_ID);
+    assertThat(generic.get("added_files_count")).isEqualTo(ADDED_FILES);
+    assertThat(generic.get("existing_files_count")).isEqualTo(EXISTING_FILES);
+    assertThat(generic.get("deleted_files_count")).isEqualTo(DELETED_FILES);
+    assertThat(generic.get("added_rows_count")).isEqualTo(ADDED_ROWS);
+    assertThat(generic.get("existing_rows_count")).isEqualTo(EXISTING_ROWS);
+    assertThat(generic.get("deleted_rows_count")).isEqualTo(DELETED_ROWS);
     assertEmptyAvroField(generic, ManifestFile.MANIFEST_CONTENT.name());
     assertEmptyAvroField(generic, ManifestFile.SEQUENCE_NUMBER.name());
     assertEmptyAvroField(generic, ManifestFile.MIN_SEQUENCE_NUMBER.name());
@@ -187,21 +179,16 @@ public class TestManifestListVersions {
     GenericData.Record generic = readGeneric(manifestList, V1Metadata.MANIFEST_LIST_SCHEMA);
 
     // v1 metadata should match even though order changed
-    Assert.assertEquals("Path", PATH, generic.get("manifest_path").toString());
-    Assert.assertEquals("Length", LENGTH, generic.get("manifest_length"));
-    Assert.assertEquals("Spec id", SPEC_ID, generic.get("partition_spec_id"));
-    Assert.assertEquals("Snapshot id", SNAPSHOT_ID, (long) generic.get("added_snapshot_id"));
-    Assert.assertEquals(
-        "Added files count", ADDED_FILES, (int) generic.get("added_data_files_count"));
-    Assert.assertEquals(
-        "Existing files count", EXISTING_FILES, (int) generic.get("existing_data_files_count"));
-    Assert.assertEquals(
-        "Deleted files count", DELETED_FILES, (int) generic.get("deleted_data_files_count"));
-    Assert.assertEquals("Added rows count", ADDED_ROWS, (long) generic.get("added_rows_count"));
-    Assert.assertEquals(
-        "Existing rows count", EXISTING_ROWS, (long) generic.get("existing_rows_count"));
-    Assert.assertEquals(
-        "Deleted rows count", DELETED_ROWS, (long) generic.get("deleted_rows_count"));
+    assertThat(generic.get("manifest_path")).asString().isEqualTo(PATH);
+    assertThat(generic.get("manifest_length")).isEqualTo(LENGTH);
+    assertThat(generic.get("partition_spec_id")).isEqualTo(SPEC_ID);
+    assertThat(generic.get("added_snapshot_id")).isEqualTo(SNAPSHOT_ID);
+    assertThat(generic.get("added_files_count")).isEqualTo(ADDED_FILES);
+    assertThat(generic.get("existing_files_count")).isEqualTo(EXISTING_FILES);
+    assertThat(generic.get("deleted_files_count")).isEqualTo(DELETED_FILES);
+    assertThat(generic.get("added_rows_count")).isEqualTo(ADDED_ROWS);
+    assertThat(generic.get("existing_rows_count")).isEqualTo(EXISTING_ROWS);
+    assertThat(generic.get("deleted_rows_count")).isEqualTo(DELETED_ROWS);
     assertEmptyAvroField(generic, ManifestFile.MANIFEST_CONTENT.name());
     assertEmptyAvroField(generic, ManifestFile.SEQUENCE_NUMBER.name());
     assertEmptyAvroField(generic, ManifestFile.MIN_SEQUENCE_NUMBER.name());
@@ -209,8 +196,8 @@ public class TestManifestListVersions {
 
   @Test
   public void testManifestsWithoutRowStats() throws IOException {
-    File manifestListFile = temp.newFile("manifest-list.avro");
-    Assert.assertTrue(manifestListFile.delete());
+    File manifestListFile = File.createTempFile("manifest-list", ".avro", temp.toFile());
+    assertThat(manifestListFile.delete()).isTrue();
 
     Collection<String> columnNamesWithoutRowStats =
         ImmutableList.of(
@@ -218,9 +205,9 @@ public class TestManifestListVersions {
             "manifest_length",
             "partition_spec_id",
             "added_snapshot_id",
-            "added_data_files_count",
-            "existing_data_files_count",
-            "deleted_data_files_count",
+            "added_files_count",
+            "existing_files_count",
+            "deleted_files_count",
             "partitions");
     Schema schemaWithoutRowStats =
         V1Metadata.MANIFEST_LIST_SCHEMA.select(columnNamesWithoutRowStats);
@@ -241,9 +228,9 @@ public class TestManifestListVersions {
               .set("manifest_length", 1024L)
               .set("partition_spec_id", 1)
               .set("added_snapshot_id", 100L)
-              .set("added_data_files_count", 2)
-              .set("existing_data_files_count", 3)
-              .set("deleted_data_files_count", 4)
+              .set("added_files_count", 2)
+              .set("existing_files_count", 3)
+              .set("deleted_files_count", 4)
               .set("partitions", null)
               .build();
       appender.add(withoutRowStats);
@@ -252,18 +239,15 @@ public class TestManifestListVersions {
     List<ManifestFile> files = ManifestLists.read(outputFile.toInputFile());
     ManifestFile manifest = Iterables.getOnlyElement(files);
 
-    Assert.assertTrue("Added files should be present", manifest.hasAddedFiles());
-    Assert.assertEquals("Added files count should match", 2, (int) manifest.addedFilesCount());
-    Assert.assertNull("Added rows count should be null", manifest.addedRowsCount());
-
-    Assert.assertTrue("Existing files should be present", manifest.hasExistingFiles());
-    Assert.assertEquals(
-        "Existing files count should match", 3, (int) manifest.existingFilesCount());
-    Assert.assertNull("Existing rows count should be null", manifest.existingRowsCount());
-
-    Assert.assertTrue("Deleted files should be present", manifest.hasDeletedFiles());
-    Assert.assertEquals("Deleted files count should match", 4, (int) manifest.deletedFilesCount());
-    Assert.assertNull("Deleted rows count should be null", manifest.deletedRowsCount());
+    assertThat(manifest.hasAddedFiles()).isTrue();
+    assertThat(manifest.addedFilesCount()).isEqualTo(2);
+    assertThat(manifest.addedRowsCount()).isNull();
+    assertThat(manifest.hasExistingFiles()).isTrue();
+    assertThat(manifest.existingFilesCount()).isEqualTo(3);
+    assertThat(manifest.existingRowsCount()).isNull();
+    assertThat(manifest.hasDeletedFiles()).isTrue();
+    assertThat(manifest.deletedFilesCount()).isEqualTo(4);
+    assertThat(manifest.deletedRowsCount()).isNull();
   }
 
   @Test
@@ -300,36 +284,19 @@ public class TestManifestListVersions {
 
     List<ManifestFile> files = ManifestLists.read(manifestList);
     ManifestFile returnedManifest = Iterables.getOnlyElement(files);
-    Assert.assertEquals(
-        "Number of partition field summaries should match",
-        2,
-        returnedManifest.partitions().size());
+    assertThat(returnedManifest.partitions()).hasSize(2);
 
     ManifestFile.PartitionFieldSummary first = returnedManifest.partitions().get(0);
-    Assert.assertFalse(
-        "First partition field summary should not contain null", first.containsNull());
-    Assert.assertNull("First partition field summary has unknown NaN", first.containsNaN());
-    Assert.assertEquals(
-        "Lower bound for first partition field summary should match",
-        firstSummaryLowerBound,
-        first.lowerBound());
-    Assert.assertEquals(
-        "Upper bound for first partition field summary should match",
-        firstSummaryUpperBound,
-        first.upperBound());
+    assertThat(first.containsNull()).isFalse();
+    assertThat(first.containsNaN()).isNull();
+    assertThat(first.lowerBound()).isEqualTo(firstSummaryLowerBound);
+    assertThat(first.upperBound()).isEqualTo(firstSummaryUpperBound);
 
     ManifestFile.PartitionFieldSummary second = returnedManifest.partitions().get(1);
-    Assert.assertTrue("Second partition field summary should contain null", second.containsNull());
-    Assert.assertFalse(
-        "Second partition field summary should not contain NaN", second.containsNaN());
-    Assert.assertEquals(
-        "Lower bound for second partition field summary should match",
-        secondSummaryLowerBound,
-        second.lowerBound());
-    Assert.assertEquals(
-        "Upper bound for second partition field summary should match",
-        secondSummaryUpperBound,
-        second.upperBound());
+    assertThat(second.containsNull()).isTrue();
+    assertThat(second.containsNaN()).isFalse();
+    assertThat(second.lowerBound()).isEqualTo(secondSummaryLowerBound);
+    assertThat(second.upperBound()).isEqualTo(secondSummaryUpperBound);
   }
 
   private InputFile writeManifestList(ManifestFile manifest, int formatVersion) throws IOException {
@@ -350,7 +317,7 @@ public class TestManifestListVersions {
     try (CloseableIterable<GenericData.Record> files =
         Avro.read(manifestList).project(schema).reuseContainers(false).build()) {
       List<GenericData.Record> records = Lists.newLinkedList(files);
-      Assert.assertEquals("Should contain one manifest", 1, records.size());
+      assertThat(records).hasSize(1);
       return records.get(0);
     }
   }
@@ -358,12 +325,12 @@ public class TestManifestListVersions {
   private ManifestFile writeAndReadManifestList(int formatVersion) throws IOException {
     List<ManifestFile> manifests =
         ManifestLists.read(writeManifestList(TEST_MANIFEST, formatVersion));
-    Assert.assertEquals("Should contain one manifest", 1, manifests.size());
+    assertThat(manifests).hasSize(1);
     return manifests.get(0);
   }
 
   private void assertEmptyAvroField(GenericRecord record, String field) {
-    Assertions.assertThatThrownBy(() -> record.get(field))
+    assertThatThrownBy(() -> record.get(field))
         .isInstanceOf(AvroRuntimeException.class)
         .hasMessage("Not a valid schema field: " + field);
   }

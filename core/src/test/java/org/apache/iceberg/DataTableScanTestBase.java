@@ -18,6 +18,10 @@
  */
 package org.apache.iceberg;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
@@ -25,18 +29,13 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Test;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public abstract class DataTableScanTestBase<
         ScanT extends Scan<ScanT, T, G>, T extends ScanTask, G extends ScanTaskGroup<T>>
     extends ScanTestBase<ScanT, T, G> {
-
-  public DataTableScanTestBase(int formatVersion) {
-    super(formatVersion);
-  }
 
   protected abstract ScanT useRef(ScanT scan, String ref);
 
@@ -44,9 +43,9 @@ public abstract class DataTableScanTestBase<
 
   protected abstract ScanT asOfTime(ScanT scan, long timestampMillis);
 
-  @Test
+  @TestTemplate
   public void testTaskRowCounts() {
-    Assume.assumeTrue(formatVersion == 2);
+    assumeThat(formatVersion).isEqualTo(2);
 
     DataFile dataFile1 = newDataFile("data_bucket=0");
     table.newFastAppend().appendFile(dataFile1).commit();
@@ -63,15 +62,15 @@ public abstract class DataTableScanTestBase<
     ScanT scan = newScan().option(TableProperties.SPLIT_SIZE, "50");
 
     List<T> fileScanTasks = Lists.newArrayList(scan.planFiles());
-    Assert.assertEquals("Must have 2 FileScanTasks", 2, fileScanTasks.size());
+    assertThat(fileScanTasks).as("Must have 2 FileScanTasks").hasSize(2);
     for (T task : fileScanTasks) {
-      Assert.assertEquals("Rows count must match", 10, task.estimatedRowsCount());
+      assertThat(task.estimatedRowsCount()).as("Rows count must match").isEqualTo(10);
     }
 
     List<G> combinedScanTasks = Lists.newArrayList(scan.planTasks());
-    Assert.assertEquals("Must have 4 CombinedScanTask", 4, combinedScanTasks.size());
+    assertThat(combinedScanTasks).as("Must have 4 CombinedScanTask").hasSize(4);
     for (G task : combinedScanTasks) {
-      Assert.assertEquals("Rows count must match", 5, task.estimatedRowsCount());
+      assertThat(task.estimatedRowsCount()).as("Rows count must match").isEqualTo(5);
     }
   }
 
@@ -96,7 +95,7 @@ public abstract class DataTableScanTestBase<
         .build();
   }
 
-  @Test
+  @TestTemplate
   public void testScanFromBranchTip() throws IOException {
     table.newFastAppend().appendFile(FILE_A).commit();
     // Add B and C to new branch
@@ -112,7 +111,7 @@ public abstract class DataTableScanTestBase<
     validateExpectedFileScanTasks(mainScan, ImmutableList.of(FILE_A.path(), FILE_D.path()));
   }
 
-  @Test
+  @TestTemplate
   public void testScanFromTag() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
     table.manageSnapshots().createTag("tagB", table.currentSnapshot().snapshotId()).commit();
@@ -124,31 +123,30 @@ public abstract class DataTableScanTestBase<
         mainScan, ImmutableList.of(FILE_A.path(), FILE_B.path(), FILE_C.path()));
   }
 
-  @Test
+  @TestTemplate
   public void testScanFromRefWhenSnapshotSetFails() {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
     table.manageSnapshots().createTag("tagB", table.currentSnapshot().snapshotId()).commit();
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> useRef(useSnapshot(newScan(), table.currentSnapshot().snapshotId()), "tagB"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot override ref, already set snapshot id=1");
   }
 
-  @Test
+  @TestTemplate
   public void testSettingSnapshotWhenRefSetFails() {
     table.newFastAppend().appendFile(FILE_A).commit();
     Snapshot snapshotA = table.currentSnapshot();
     table.newFastAppend().appendFile(FILE_B).commit();
     table.manageSnapshots().createTag("tagB", table.currentSnapshot().snapshotId()).commit();
 
-    Assertions.assertThatThrownBy(
-            () -> useSnapshot(useRef(newScan(), "tagB"), snapshotA.snapshotId()))
+    assertThatThrownBy(() -> useSnapshot(useRef(newScan(), "tagB"), snapshotA.snapshotId()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot override snapshot, already set snapshot id=2");
   }
 
-  @Test
+  @TestTemplate
   public void testBranchTimeTravelFails() {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
     table
@@ -156,27 +154,26 @@ public abstract class DataTableScanTestBase<
         .createBranch("testBranch", table.currentSnapshot().snapshotId())
         .commit();
 
-    Assertions.assertThatThrownBy(
-            () -> asOfTime(useRef(newScan(), "testBranch"), System.currentTimeMillis()))
+    assertThatThrownBy(() -> asOfTime(useRef(newScan(), "testBranch"), System.currentTimeMillis()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot override snapshot, already set snapshot id=1");
   }
 
-  @Test
+  @TestTemplate
   public void testSettingMultipleRefsFails() {
     table.newFastAppend().appendFile(FILE_A).commit();
     table.manageSnapshots().createTag("tagA", table.currentSnapshot().snapshotId()).commit();
     table.newFastAppend().appendFile(FILE_B).commit();
     table.manageSnapshots().createTag("tagB", table.currentSnapshot().snapshotId()).commit();
 
-    Assertions.assertThatThrownBy(() -> useRef(useRef(newScan(), "tagB"), "tagA"))
+    assertThatThrownBy(() -> useRef(useRef(newScan(), "tagB"), "tagA"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot override ref, already set snapshot id=2");
   }
 
-  @Test
+  @TestTemplate
   public void testSettingInvalidRefFails() {
-    Assertions.assertThatThrownBy(() -> useRef(newScan(), "nonexisting"))
+    assertThatThrownBy(() -> useRef(newScan(), "nonexisting"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot find ref nonexisting");
   }
@@ -184,18 +181,18 @@ public abstract class DataTableScanTestBase<
   private void validateExpectedFileScanTasks(ScanT scan, List<CharSequence> expectedFileScanPaths)
       throws IOException {
     try (CloseableIterable<T> scanTasks = scan.planFiles()) {
-      Assert.assertEquals(expectedFileScanPaths.size(), Iterables.size(scanTasks));
+      assertThat(scanTasks).hasSameSizeAs(expectedFileScanPaths);
       List<CharSequence> actualFiles = Lists.newArrayList();
       for (T task : scanTasks) {
         actualFiles.add(((FileScanTask) task).file().path());
       }
-      Assert.assertTrue(actualFiles.containsAll(expectedFileScanPaths));
+      assertThat(actualFiles).containsAll(expectedFileScanPaths);
     }
   }
 
-  @Test
+  @TestTemplate
   public void testSequenceNumbersThroughPlanFiles() {
-    Assume.assumeTrue(formatVersion == 2);
+    assumeThat(formatVersion).isEqualTo(2);
 
     DataFile dataFile1 = newDataFile("data_bucket=0");
     table.newFastAppend().appendFile(dataFile1).commit();
@@ -212,7 +209,7 @@ public abstract class DataTableScanTestBase<
     ScanT scan = newScan();
 
     List<T> fileScanTasks = Lists.newArrayList(scan.planFiles());
-    Assert.assertEquals("Must have 2 FileScanTasks", 2, fileScanTasks.size());
+    assertThat(fileScanTasks).as("Must have 2 FileScanTasks").hasSize(2);
     for (T task : fileScanTasks) {
       FileScanTask fileScanTask = (FileScanTask) task;
       DataFile file = fileScanTask.file();
@@ -228,26 +225,25 @@ public abstract class DataTableScanTestBase<
         expectedDeleteSequenceNumber = 4L;
       }
 
-      Assert.assertEquals(
-          "Data sequence number mismatch",
-          expectedDataSequenceNumber,
-          file.dataSequenceNumber().longValue());
-      Assert.assertEquals(
-          "File sequence number mismatch",
-          expectedDataSequenceNumber,
-          file.fileSequenceNumber().longValue());
+      assertThat(file.dataSequenceNumber().longValue())
+          .as("Data sequence number mismatch")
+          .isEqualTo(expectedDataSequenceNumber);
+
+      assertThat(file.fileSequenceNumber().longValue())
+          .as("File sequence number mismatch")
+          .isEqualTo(expectedDataSequenceNumber);
 
       List<DeleteFile> deleteFiles = fileScanTask.deletes();
-      Assert.assertEquals("Must have 1 delete file", 1, Iterables.size(deleteFiles));
+      assertThat(deleteFiles).as("Must have 1 delete file").hasSize(1);
+
       DeleteFile deleteFile = Iterables.getOnlyElement(deleteFiles);
-      Assert.assertEquals(
-          "Data sequence number mismatch",
-          expectedDeleteSequenceNumber,
-          deleteFile.dataSequenceNumber().longValue());
-      Assert.assertEquals(
-          "File sequence number mismatch",
-          expectedDeleteSequenceNumber,
-          deleteFile.fileSequenceNumber().longValue());
+      assertThat(deleteFile.dataSequenceNumber().longValue())
+          .as("Data sequence number mismatch")
+          .isEqualTo(expectedDeleteSequenceNumber);
+
+      assertThat(deleteFile.fileSequenceNumber().longValue())
+          .as("File sequence number mismatch")
+          .isEqualTo(expectedDeleteSequenceNumber);
     }
   }
 }

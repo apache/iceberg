@@ -28,6 +28,8 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFAULT;
+import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED;
+import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
@@ -41,6 +43,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.exceptions.CleanableFailure;
@@ -85,6 +89,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   private final TableOperations ops;
   private final boolean strictCleanup;
+  private final boolean canInheritSnapshotId;
   private final String commitUUID = UUID.randomUUID().toString();
   private final AtomicInteger manifestCount = new AtomicInteger(0);
   private final AtomicInteger attempt = new AtomicInteger(0);
@@ -116,6 +121,11 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     this.targetManifestSizeBytes =
         ops.current()
             .propertyAsLong(MANIFEST_TARGET_SIZE_BYTES, MANIFEST_TARGET_SIZE_BYTES_DEFAULT);
+    boolean snapshotIdInheritanceEnabled =
+        ops.current()
+            .propertyAsBoolean(
+                SNAPSHOT_ID_INHERITANCE_ENABLED, SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT);
+    this.canInheritSnapshotId = ops.current().formatVersion() > 1 || snapshotIdInheritanceEnabled;
   }
 
   protected abstract ThisT self();
@@ -247,7 +257,6 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
           .run(index -> manifestFiles[index] = manifestsWithMetadata.get(manifests.get(index)));
 
       writer.addAll(Arrays.asList(manifestFiles));
-
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to write manifest list file");
     }
@@ -491,6 +500,11 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                         "snap-%d-%d-%s", snapshotId(), attempt.incrementAndGet(), commitUUID))));
   }
 
+  /**
+   * @deprecated will be removed in 1.7.0; Use {@link SnapshotProducer#newManifestOutputFile}
+   *     instead
+   */
+  @Deprecated
   protected OutputFile newManifestOutput() {
     return ops.io()
         .newOutputFile(
@@ -498,14 +512,22 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                 FileFormat.AVRO.addExtension(commitUUID + "-m" + manifestCount.getAndIncrement())));
   }
 
+  protected EncryptedOutputFile newManifestOutputFile() {
+    String manifestFileLocation =
+        ops.metadataFileLocation(
+            FileFormat.AVRO.addExtension(commitUUID + "-m" + manifestCount.getAndIncrement()));
+    return EncryptingFileIO.combine(ops.io(), ops.encryption())
+        .newEncryptingOutputFile(manifestFileLocation);
+  }
+
   protected ManifestWriter<DataFile> newManifestWriter(PartitionSpec spec) {
     return ManifestFiles.write(
-        ops.current().formatVersion(), spec, newManifestOutput(), snapshotId());
+        ops.current().formatVersion(), spec, newManifestOutputFile(), snapshotId());
   }
 
   protected ManifestWriter<DeleteFile> newDeleteManifestWriter(PartitionSpec spec) {
     return ManifestFiles.writeDeleteManifest(
-        ops.current().formatVersion(), spec, newManifestOutput(), snapshotId());
+        ops.current().formatVersion(), spec, newManifestOutputFile(), snapshotId());
   }
 
   protected RollingManifestWriter<DataFile> newRollingManifestWriter(PartitionSpec spec) {
@@ -534,6 +556,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       }
     }
     return snapshotId;
+  }
+
+  protected boolean canInheritSnapshotId() {
+    return canInheritSnapshotId;
   }
 
   private static ManifestFile addMetadata(TableOperations ops, ManifestFile manifest) {

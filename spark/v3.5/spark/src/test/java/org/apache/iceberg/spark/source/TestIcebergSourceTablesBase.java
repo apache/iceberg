@@ -22,10 +22,13 @@ import static org.apache.iceberg.ManifestContent.DATA;
 import static org.apache.iceberg.ManifestContent.DELETES;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
@@ -74,8 +77,8 @@ import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
-import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.spark.SparkWriteOptions;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Types;
@@ -91,14 +94,11 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.functions;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.StructType;
-import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
-public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
+public abstract class TestIcebergSourceTablesBase extends TestBase {
 
   private static final Schema SCHEMA =
       new Schema(
@@ -117,7 +117,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   private static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA).identity("id").build();
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir protected Path temp;
 
   public abstract Table createTable(
       TableIdentifier ident, Schema schema, PartitionSpec spec, Map<String, String> properties);
@@ -130,7 +130,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   public abstract void dropTable(TableIdentifier ident) throws IOException;
 
-  @After
+  @AfterEach
   public void removeTable() {
     spark.sql("DROP TABLE IF EXISTS parquet_table");
   }
@@ -160,7 +160,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     List<SimpleRecord> actualRecords =
         resultDf.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
 
-    Assert.assertEquals("Records should match", expectedRecords, actualRecords);
+    assertThat(actualRecords).as("Records should match").isEqualTo(expectedRecords);
   }
 
   @Test
@@ -187,8 +187,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     Snapshot snapshot = table.currentSnapshot();
 
-    Assert.assertEquals(
-        "Should only contain one manifest", 1, snapshot.allManifests(table.io()).size());
+    assertThat(snapshot.allManifests(table.io())).as("Should only contain one manifest").hasSize(1);
 
     InputFile manifest = table.io().newInputFile(snapshot.allManifests(table.io()).get(0).path());
     List<GenericData.Record> expected = Lists.newArrayList();
@@ -205,8 +204,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
           });
     }
 
-    Assert.assertEquals("Entries table should have one row", 1, expected.size());
-    Assert.assertEquals("Actual results should have one row", 1, actual.size());
+    assertThat(expected).as("Entries table should have one row").hasSize(1);
+    assertThat(actual).as("Actual results should have one row").hasSize(1);
     TestHelpers.assertEqualsSafe(
         TestHelpers.nonDerivedSchema(entriesTableDs), expected.get(0), actual.get(0));
   }
@@ -236,8 +235,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .select("status")
             .collectAsList();
 
-    Assert.assertEquals("Results should contain only one status", 1, actual.size());
-    Assert.assertEquals("That status should be Added (1)", 1, actual.get(0).getInt(0));
+    assertThat(actual).as("Results should contain only one status").hasSize(1);
+    assertThat(actual.get(0).getInt(0)).as("That status should be Added (1)").isEqualTo(1);
   }
 
   @Test
@@ -408,8 +407,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     expected.sort(Comparator.comparing(o -> (Long) o.get("snapshot_id")));
 
-    Assert.assertEquals("Entries table should have 3 rows", 3, expected.size());
-    Assert.assertEquals("Actual results should have 3 rows", 3, actual.size());
+    assertThat(expected).as("Entries table should have 3 rows").hasSize(3);
+    assertThat(actual).as("Actual results should have 3 rows").hasSize(3);
+
     for (int i = 0; i < expected.size(); i += 1) {
       TestHelpers.assertEqualsSafe(
           TestHelpers.nonDerivedSchema(entriesTableDs), expected.get(i), actual.get(i));
@@ -434,16 +434,20 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     final int expectedEntryCount = 1;
 
     // count entries
-    Assert.assertEquals(
-        "Count should return " + expectedEntryCount,
-        expectedEntryCount,
-        spark.read().format("iceberg").load(loadLocation(tableIdentifier, "entries")).count());
+    assertThat(
+            spark.read().format("iceberg").load(loadLocation(tableIdentifier, "entries")).count())
+        .as("Count should return " + expectedEntryCount)
+        .isEqualTo(expectedEntryCount);
 
     // count all_entries
-    Assert.assertEquals(
-        "Count should return " + expectedEntryCount,
-        expectedEntryCount,
-        spark.read().format("iceberg").load(loadLocation(tableIdentifier, "all_entries")).count());
+    assertThat(
+            spark
+                .read()
+                .format("iceberg")
+                .load(loadLocation(tableIdentifier, "all_entries"))
+                .count())
+        .as("Count should return " + expectedEntryCount)
+        .isEqualTo(expectedEntryCount);
   }
 
   @Test
@@ -492,8 +496,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
       }
     }
 
-    Assert.assertEquals("Files table should have one row", 1, expected.size());
-    Assert.assertEquals("Actual results should have one row", 1, actual.size());
+    assertThat(expected).as("Files table should have one row").hasSize(1);
+    assertThat(actual).as("Actual results should have one row").hasSize(1);
 
     TestHelpers.assertEqualsSafe(
         TestHelpers.nonDerivedSchema(filesTableDs), expected.get(0), actual.get(0));
@@ -510,7 +514,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         String.format(
             "CREATE TABLE parquet_table (data string, id int) "
                 + "USING parquet PARTITIONED BY (id) LOCATION '%s'",
-            temp.newFolder()));
+            temp.toFile()));
 
     List<SimpleRecord> records =
         Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(2, "b"));
@@ -548,8 +552,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     }
 
     Types.StructType struct = TestHelpers.nonDerivedSchema(filesTableDs);
-    Assert.assertEquals("Files table should have one row", 2, expected.size());
-    Assert.assertEquals("Actual results should have one row", 2, actual.size());
+    assertThat(expected).as("Files table should have 2 rows").hasSize(2);
+    assertThat(actual).as("Actual results should have 2 rows").hasSize(2);
     TestHelpers.assertEqualsSafe(struct, expected.get(0), actual.get(0));
     TestHelpers.assertEqualsSafe(struct, expected.get(1), actual.get(1));
   }
@@ -566,7 +570,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         String.format(
             "CREATE TABLE parquet_table (data string, id int) "
                 + "USING parquet PARTITIONED BY (id) LOCATION '%s'",
-            temp.newFolder()));
+            temp.toFile()));
 
     List<SimpleRecord> records =
         Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(2, "b"));
@@ -593,11 +597,11 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     long snapshotId = table.currentSnapshot().snapshotId();
 
-    Assert.assertEquals("Entries table should have 2 rows", 2, actual.size());
-    Assert.assertEquals("Sequence number must match", 0, actual.get(0).getLong(0));
-    Assert.assertEquals("Snapshot id must match", snapshotId, actual.get(0).getLong(1));
-    Assert.assertEquals("Sequence number must match", 0, actual.get(1).getLong(0));
-    Assert.assertEquals("Snapshot id must match", snapshotId, actual.get(1).getLong(1));
+    assertThat(actual).as("Entries table should have 2 rows").hasSize(2);
+    assertThat(actual.get(0).getLong(0)).as("Sequence number must match").isEqualTo(0);
+    assertThat(actual.get(0).getLong(1)).as("Snapshot id must match").isEqualTo(snapshotId);
+    assertThat(actual.get(1).getLong(0)).as("Sequence number must match").isEqualTo(0);
+    assertThat(actual.get(1).getLong(1)).as("Snapshot id must match").isEqualTo(snapshotId);
   }
 
   @Test
@@ -650,8 +654,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
       }
     }
 
-    Assert.assertEquals("Files table should have one row", 1, expected.size());
-    Assert.assertEquals("Actual results should have one row", 1, actual.size());
+    assertThat(expected).as("Files table should have one row").hasSize(1);
+    assertThat(actual).as("Actual results should have one row").hasSize(1);
     TestHelpers.assertEqualsSafe(
         TestHelpers.nonDerivedSchema(filesTableDs), expected.get(0), actual.get(0));
   }
@@ -702,12 +706,11 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .load(loadLocation(tableIdentifier, "all_entries"))
             .collectAsList();
 
-    Assert.assertTrue(
-        "Stage table should have some snapshots", table.snapshots().iterator().hasNext());
-    Assert.assertNull("Stage table should have null currentSnapshot", table.currentSnapshot());
-    Assert.assertEquals("Actual results should have two rows", 2, actualAllData.size());
-    Assert.assertEquals("Actual results should have two rows", 2, actualAllManifests.size());
-    Assert.assertEquals("Actual results should have two rows", 2, actualAllEntries.size());
+    assertThat(table.snapshots().iterator()).as("Stage table should have some snapshots").hasNext();
+    assertThat(table.currentSnapshot()).as("Stage table should have null currentSnapshot").isNull();
+    assertThat(actualAllData).as("Actual results should have two rows").hasSize(2);
+    assertThat(actualAllManifests).as("Actual results should have two rows").hasSize(2);
+    assertThat(actualAllEntries).as("Actual results should have two rows").hasSize(2);
   }
 
   @Test
@@ -765,8 +768,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     expected.sort(Comparator.comparing(o -> o.get("file_path").toString()));
 
-    Assert.assertEquals("Files table should have two rows", 2, expected.size());
-    Assert.assertEquals("Actual results should have two rows", 2, actual.size());
+    assertThat(expected).as("Files table should have two rows").hasSize(2);
+    assertThat(actual).as("Actual results should have two rows").hasSize(2);
     for (int i = 0; i < expected.size(); i += 1) {
       TestHelpers.assertEqualsSafe(
           TestHelpers.nonDerivedSchema(filesTableDs), expected.get(i), actual.get(i));
@@ -857,7 +860,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
                 .set("is_current_ancestor", true)
                 .build());
 
-    Assert.assertEquals("History table should have a row for each commit", 4, actual.size());
+    assertThat(actual).as("History table should have a row for each commit").hasSize(4);
     TestHelpers.assertEqualsSafe(historyTable.schema().asStruct(), expected.get(0), actual.get(0));
     TestHelpers.assertEqualsSafe(historyTable.schema().asStruct(), expected.get(1), actual.get(1));
     TestHelpers.assertEqualsSafe(historyTable.schema().asStruct(), expected.get(2), actual.get(2));
@@ -936,7 +939,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
                         "total-data-files", "0"))
                 .build());
 
-    Assert.assertEquals("Snapshots table should have a row for each snapshot", 2, actual.size());
+    assertThat(actual).as("Snapshots table should have a row for each snapshot").hasSize(2);
     TestHelpers.assertEqualsSafe(snapTable.schema().asStruct(), expected.get(0), actual.get(0));
     TestHelpers.assertEqualsSafe(snapTable.schema().asStruct(), expected.get(1), actual.get(1));
   }
@@ -1009,7 +1012,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
                         "total-data-files", "0"))
                 .build());
 
-    Assert.assertEquals("Snapshots table should have a row for each snapshot", 2, actual.size());
+    assertThat(actual).as("Snapshots table should have a row for each snapshot").hasSize(2);
     TestHelpers.assertEqualsSafe(projectedSchema.asStruct(), expected.get(0), actual.get(0));
     TestHelpers.assertEqualsSafe(projectedSchema.asStruct(), expected.get(1), actual.get(1));
   }
@@ -1094,7 +1097,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
                                     .build()))
                     .build());
 
-    Assert.assertEquals("Manifests table should have two manifest rows", 2, actual.size());
+    assertThat(actual).as("Manifests table should have two manifest rows").hasSize(2);
     TestHelpers.assertEqualsSafe(manifestTable.schema().asStruct(), expected.get(0), actual.get(0));
     TestHelpers.assertEqualsSafe(manifestTable.schema().asStruct(), expected.get(1), actual.get(1));
   }
@@ -1117,7 +1120,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     if (!spark.version().startsWith("2")) {
       // Spark 2 isn't able to actually push down nested struct projections so this will not break
-      Assertions.assertThatThrownBy(
+      assertThatThrownBy(
               () ->
                   spark
                       .read()
@@ -1175,7 +1178,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
                                     .build()))
                     .build());
 
-    Assert.assertEquals("Manifests table should have one manifest row", 1, actual.size());
+    assertThat(actual).as("Manifests table should have one manifest row").hasSize(1);
     TestHelpers.assertEqualsSafe(projectedSchema.asStruct(), expected.get(0), actual.get(0));
   }
 
@@ -1227,7 +1230,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .sorted(Comparator.comparing(o -> o.get("path").toString()))
             .collect(Collectors.toList());
 
-    Assert.assertEquals("Manifests table should have 5 manifest rows", 5, actual.size());
+    assertThat(actual).as("Manifests table should have 5 manifest rows").hasSize(5);
     for (int i = 0; i < expected.size(); i += 1) {
       TestHelpers.assertEqualsSafe(
           manifestTable.schema().asStruct(), expected.get(i), actual.get(i));
@@ -1290,10 +1293,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     Table partitionsTable = loadTable(tableIdentifier, "partitions");
 
-    Assert.assertEquals(
-        "Schema should not have partition field",
-        expectedSchema,
-        partitionsTable.schema().asStruct());
+    assertThat(expectedSchema)
+        .as("Schema should not have partition field")
+        .isEqualTo(partitionsTable.schema().asStruct());
 
     GenericRecordBuilder builder =
         new GenericRecordBuilder(AvroSchemaUtil.convert(partitionsTable.schema(), "partitions"));
@@ -1319,7 +1321,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .load(loadLocation(tableIdentifier, "partitions"))
             .collectAsList();
 
-    Assert.assertEquals("Unpartitioned partitions table should have one row", 1, actual.size());
+    assertThat(actual).as("Unpartitioned partitions table should have one row").hasSize(1);
     TestHelpers.assertEqualsSafe(expectedSchema, expectedRow, actual.get(0));
   }
 
@@ -1400,8 +1402,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("last_updated_snapshot_id", secondCommitId)
             .build());
 
-    Assert.assertEquals("Partitions table should have two rows", 2, expected.size());
-    Assert.assertEquals("Actual results should have two rows", 2, actual.size());
+    assertThat(expected).as("Partitions table should have two rows").hasSize(2);
+    assertThat(actual).as("Actual results should have two rows").hasSize(2);
     for (int i = 0; i < 2; i += 1) {
       TestHelpers.assertEqualsSafe(
           partitionsTable.schema().asStruct(), expected.get(i), actual.get(i));
@@ -1417,7 +1419,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .orderBy("partition.id")
             .collectAsList();
 
-    Assert.assertEquals("Actual results should have one row", 1, actualAfterFirstCommit.size());
+    assertThat(actualAfterFirstCommit).as("Actual results should have one row").hasSize(1);
     TestHelpers.assertEqualsSafe(
         partitionsTable.schema().asStruct(), expected.get(0), actualAfterFirstCommit.get(0));
 
@@ -1429,7 +1431,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .load(loadLocation(tableIdentifier, "partitions"))
             .filter("partition.id < 2")
             .collectAsList();
-    Assert.assertEquals("Actual results should have one row", 1, filtered.size());
+
+    assertThat(filtered).as("Actual results should have one row").hasSize(1);
     TestHelpers.assertEqualsSafe(
         partitionsTable.schema().asStruct(), expected.get(0), filtered.get(0));
 
@@ -1440,7 +1443,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .load(loadLocation(tableIdentifier, "partitions"))
             .filter("partition.id < 2 or record_count=1")
             .collectAsList();
-    Assert.assertEquals("Actual results should have two row", 2, nonFiltered.size());
+
+    assertThat(nonFiltered).as("Actual results should have two rows").hasSize(2);
     for (int i = 0; i < 2; i += 1) {
       TestHelpers.assertEqualsSafe(
           partitionsTable.schema().asStruct(), expected.get(i), actual.get(i));
@@ -1481,12 +1485,11 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     // check if rewrite manifest does not override metadata about data file's creating snapshot
     RewriteManifests.Result rewriteManifestResult =
         SparkActions.get().rewriteManifests(table).execute();
-    Assert.assertEquals(
-        "rewrite replaced 2 manifests",
-        2,
-        Iterables.size(rewriteManifestResult.rewrittenManifests()));
-    Assert.assertEquals(
-        "rewrite added 1 manifests", 1, Iterables.size(rewriteManifestResult.addedManifests()));
+    assertThat(rewriteManifestResult.rewrittenManifests())
+        .as("rewrite replaced 2 manifests")
+        .hasSize(2);
+
+    assertThat(rewriteManifestResult.addedManifests()).as("rewrite added 1 manifests").hasSize(1);
 
     List<Row> actual =
         spark
@@ -1538,8 +1541,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("last_updated_snapshot_id", secondCommitId)
             .build());
 
-    Assert.assertEquals("Partitions table should have two rows", 2, expected.size());
-    Assert.assertEquals("Actual results should have two rows", 2, actual.size());
+    assertThat(expected).as("Partitions table should have two rows").hasSize(2);
+    assertThat(actual).as("Actual results should have two rows").hasSize(2);
     for (int i = 0; i < 2; i += 1) {
       TestHelpers.assertEqualsSafe(
           partitionsTable.schema().asStruct(), expected.get(i), actual.get(i));
@@ -1553,7 +1556,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .load(loadLocation(tableIdentifier, "partitions"))
             .filter("partition.id < 2")
             .collectAsList();
-    Assert.assertEquals("Actual results should have one row", 1, filtered.size());
+    assertThat(filtered).as("Actual results should have one row").hasSize(1);
     TestHelpers.assertEqualsSafe(
         partitionsTable.schema().asStruct(), expected.get(0), filtered.get(0));
 
@@ -1584,8 +1587,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .format("iceberg")
             .load(loadLocation(tableIdentifier, "partitions"))
             .collectAsList();
-    Assert.assertEquals(
-        "Actual results should have two row", 2, actualAfterSnapshotExpiration.size());
+    assertThat(actualAfterSnapshotExpiration).as("Actual results should have two rows").hasSize(2);
     for (int i = 0; i < 2; i += 1) {
       TestHelpers.assertEqualsSafe(
           partitionsTable.schema().asStruct(),
@@ -1600,9 +1602,15 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     Table table = createTable(tableIdentifier, SCHEMA, SPEC);
     Table partitionsTable = loadTable(tableIdentifier, "partitions");
     Dataset<Row> df1 =
-        spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
+        spark.createDataFrame(
+            Lists.newArrayList(
+                new SimpleRecord(1, "a"), new SimpleRecord(1, "b"), new SimpleRecord(1, "c")),
+            SimpleRecord.class);
     Dataset<Row> df2 =
-        spark.createDataFrame(Lists.newArrayList(new SimpleRecord(2, "b")), SimpleRecord.class);
+        spark.createDataFrame(
+            Lists.newArrayList(
+                new SimpleRecord(2, "d"), new SimpleRecord(2, "e"), new SimpleRecord(2, "f")),
+            SimpleRecord.class);
 
     df1.select("id", "data")
         .write()
@@ -1622,8 +1630,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     // test position deletes
     table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
-    DeleteFile deleteFile = writePosDeleteFile(table);
-    table.newRowDelta().addDeletes(deleteFile).commit();
+    DeleteFile deleteFile1 = writePosDeleteFile(table, 0);
+    DeleteFile deleteFile2 = writePosDeleteFile(table, 1);
+    table.newRowDelta().addDeletes(deleteFile1).addDeletes(deleteFile2).commit();
     table.refresh();
     long posDeleteCommitId = table.currentSnapshot().snapshotId();
 
@@ -1634,7 +1643,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .load(loadLocation(tableIdentifier, "partitions"))
             .orderBy("partition.id")
             .collectAsList();
-    Assert.assertEquals("Actual results should have two rows", 2, actual.size());
+    assertThat(actual).as("Actual results should have two rows").hasSize(2);
 
     GenericRecordBuilder builder =
         new GenericRecordBuilder(AvroSchemaUtil.convert(partitionsTable.schema(), "partitions"));
@@ -1646,7 +1655,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     expected.add(
         builder
             .set("partition", partitionBuilder.set("id", 1).build())
-            .set("record_count", 1L)
+            .set("record_count", 3L)
             .set("file_count", 1)
             .set(
                 "total_data_file_size_in_bytes",
@@ -1662,13 +1671,13 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     expected.add(
         builder
             .set("partition", partitionBuilder.set("id", 2).build())
-            .set("record_count", 1L)
+            .set("record_count", 3L)
             .set("file_count", 1)
             .set(
                 "total_data_file_size_in_bytes",
                 totalSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
-            .set("position_delete_record_count", 1L) // should be incremented now
-            .set("position_delete_file_count", 1) // should be incremented now
+            .set("position_delete_record_count", 2L) // should be incremented now
+            .set("position_delete_file_count", 2) // should be incremented now
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
             .set("spec_id", 0)
@@ -1682,8 +1691,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     }
 
     // test equality delete
-    DeleteFile eqDeleteFile = writeEqDeleteFile(table);
-    table.newRowDelta().addDeletes(eqDeleteFile).commit();
+    DeleteFile eqDeleteFile1 = writeEqDeleteFile(table, "d");
+    DeleteFile eqDeleteFile2 = writeEqDeleteFile(table, "f");
+    table.newRowDelta().addDeletes(eqDeleteFile1).addDeletes(eqDeleteFile2).commit();
     table.refresh();
     long eqDeleteCommitId = table.currentSnapshot().snapshotId();
     actual =
@@ -1693,18 +1703,18 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .load(loadLocation(tableIdentifier, "partitions"))
             .orderBy("partition.id")
             .collectAsList();
-    Assert.assertEquals("Actual results should have two rows", 2, actual.size());
+    assertThat(actual).as("Actual results should have two rows").hasSize(2);
     expected.remove(0);
     expected.add(
         0,
         builder
             .set("partition", partitionBuilder.set("id", 1).build())
-            .set("record_count", 1L)
+            .set("record_count", 3L)
             .set("file_count", 1)
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
-            .set("equality_delete_record_count", 1L) // should be incremented now
-            .set("equality_delete_file_count", 1) // should be incremented now
+            .set("equality_delete_record_count", 2L) // should be incremented now
+            .set("equality_delete_file_count", 2) // should be incremented now
             .set("last_updated_at", table.snapshot(eqDeleteCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", eqDeleteCommitId)
             .build());
@@ -1735,8 +1745,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     table.refresh();
 
     Dataset<Row> resultDf = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
-    Assert.assertEquals(
-        "Records should match", originalRecords, resultDf.orderBy("id").collectAsList());
+    assertThat(originalRecords)
+        .as("Records should match")
+        .isEqualTo(resultDf.orderBy("id").collectAsList());
 
     Snapshot snapshotBeforeAddColumn = table.currentSnapshot();
 
@@ -1765,8 +1776,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             RowFactory.create(5, "xyz", "C"));
 
     Dataset<Row> resultDf2 = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
-    Assert.assertEquals(
-        "Records should match", updatedRecords, resultDf2.orderBy("id").collectAsList());
+    assertThat(updatedRecords)
+        .as("Records should match")
+        .isEqualTo(resultDf2.orderBy("id").collectAsList());
 
     Dataset<Row> resultDf3 =
         spark
@@ -1774,9 +1786,12 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .format("iceberg")
             .option(SparkReadOptions.SNAPSHOT_ID, snapshotBeforeAddColumn.snapshotId())
             .load(loadLocation(tableIdentifier));
-    Assert.assertEquals(
-        "Records should match", originalRecords, resultDf3.orderBy("id").collectAsList());
-    Assert.assertEquals("Schemas should match", originalSparkSchema, resultDf3.schema());
+
+    assertThat(originalRecords)
+        .as("Records should match")
+        .isEqualTo(resultDf3.orderBy("id").collectAsList());
+
+    assertThat(resultDf3.schema()).as("Schemas should match").isEqualTo(originalSparkSchema);
   }
 
   @Test
@@ -1802,8 +1817,10 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     table.refresh();
 
     Dataset<Row> resultDf = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
-    Assert.assertEquals(
-        "Records should match", originalRecords, resultDf.orderBy("id").collectAsList());
+
+    assertThat(resultDf.orderBy("id").collectAsList())
+        .as("Records should match")
+        .isEqualTo(originalRecords);
 
     long tsBeforeDropColumn = waitUntilAfter(System.currentTimeMillis());
     table.updateSchema().deleteColumn("data").commit();
@@ -1831,8 +1848,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             RowFactory.create(5, "C"));
 
     Dataset<Row> resultDf2 = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
-    Assert.assertEquals(
-        "Records should match", updatedRecords, resultDf2.orderBy("id").collectAsList());
+    assertThat(resultDf2.orderBy("id").collectAsList())
+        .as("Records should match")
+        .isEqualTo(updatedRecords);
 
     Dataset<Row> resultDf3 =
         spark
@@ -1840,9 +1858,12 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .format("iceberg")
             .option(SparkReadOptions.AS_OF_TIMESTAMP, tsBeforeDropColumn)
             .load(loadLocation(tableIdentifier));
-    Assert.assertEquals(
-        "Records should match", originalRecords, resultDf3.orderBy("id").collectAsList());
-    Assert.assertEquals("Schemas should match", originalSparkSchema, resultDf3.schema());
+
+    assertThat(resultDf3.orderBy("id").collectAsList())
+        .as("Records should match")
+        .isEqualTo(originalRecords);
+
+    assertThat(resultDf3.schema()).as("Schemas should match").isEqualTo(originalSparkSchema);
 
     // At tsAfterDropColumn, there has been a schema change, but no new snapshot,
     // so the snapshot as of tsAfterDropColumn is the same as that as of tsBeforeDropColumn.
@@ -1852,9 +1873,12 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .format("iceberg")
             .option(SparkReadOptions.AS_OF_TIMESTAMP, tsAfterDropColumn)
             .load(loadLocation(tableIdentifier));
-    Assert.assertEquals(
-        "Records should match", originalRecords, resultDf4.orderBy("id").collectAsList());
-    Assert.assertEquals("Schemas should match", originalSparkSchema, resultDf4.schema());
+
+    assertThat(resultDf4.orderBy("id").collectAsList())
+        .as("Records should match")
+        .isEqualTo(originalRecords);
+
+    assertThat(resultDf4.schema()).as("Schemas should match").isEqualTo(originalSparkSchema);
   }
 
   @Test
@@ -1878,8 +1902,10 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     table.refresh();
 
     Dataset<Row> resultDf = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
-    Assert.assertEquals(
-        "Records should match", originalRecords, resultDf.orderBy("id").collectAsList());
+
+    assertThat(resultDf.orderBy("id").collectAsList())
+        .as("Records should match")
+        .isEqualTo(originalRecords);
 
     Snapshot snapshotBeforeAddColumn = table.currentSnapshot();
 
@@ -1908,8 +1934,10 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             RowFactory.create(5, "xyz", "C"));
 
     Dataset<Row> resultDf2 = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
-    Assert.assertEquals(
-        "Records should match", updatedRecords, resultDf2.orderBy("id").collectAsList());
+
+    assertThat(resultDf2.orderBy("id").collectAsList())
+        .as("Records should match")
+        .isEqualTo(updatedRecords);
 
     table.updateSchema().deleteColumn("data").commit();
 
@@ -1922,8 +1950,10 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             RowFactory.create(5, "C"));
 
     Dataset<Row> resultDf3 = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
-    Assert.assertEquals(
-        "Records should match", recordsAfterDropColumn, resultDf3.orderBy("id").collectAsList());
+
+    assertThat(resultDf3.orderBy("id").collectAsList())
+        .as("Records should match")
+        .isEqualTo(recordsAfterDropColumn);
 
     Dataset<Row> resultDf4 =
         spark
@@ -1931,9 +1961,12 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .format("iceberg")
             .option(SparkReadOptions.SNAPSHOT_ID, snapshotBeforeAddColumn.snapshotId())
             .load(loadLocation(tableIdentifier));
-    Assert.assertEquals(
-        "Records should match", originalRecords, resultDf4.orderBy("id").collectAsList());
-    Assert.assertEquals("Schemas should match", originalSparkSchema, resultDf4.schema());
+
+    assertThat(resultDf4.orderBy("id").collectAsList())
+        .as("Records should match")
+        .isEqualTo(originalRecords);
+
+    assertThat(resultDf4.schema()).as("Schemas should match").isEqualTo(originalSparkSchema);
   }
 
   @Test
@@ -1964,19 +1997,19 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .location(table.location() + "/metadata")
             .olderThan(System.currentTimeMillis())
             .execute();
-    Assert.assertTrue(
-        "Should not delete any metadata files", Iterables.isEmpty(result1.orphanFileLocations()));
+
+    assertThat(result1.orphanFileLocations()).as("Should not delete any metadata files").isEmpty();
 
     DeleteOrphanFiles.Result result2 =
         actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
-    Assert.assertEquals(
-        "Should delete 1 data file", 1, Iterables.size(result2.orphanFileLocations()));
+
+    assertThat(result2.orphanFileLocations()).as("Should delete 1 data file").hasSize(1);
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
     List<SimpleRecord> actualRecords =
         resultDF.as(Encoders.bean(SimpleRecord.class)).collectAsList();
 
-    Assert.assertEquals("Rows must match", records, actualRecords);
+    assertThat(actualRecords).as("Rows must match").isEqualTo(records);
   }
 
   @Test
@@ -2016,7 +2049,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .map(r -> (Integer) r.getAs(DataFile.SPEC_ID.name()))
             .collect(Collectors.toList());
 
-    Assert.assertEquals("Should have two partition specs", ImmutableList.of(spec0, spec1), actual);
+    assertThat(ImmutableList.of(spec0, spec1))
+        .as("Should have two partition specs")
+        .isEqualTo(actual);
   }
 
   @Test
@@ -2050,7 +2085,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     table.refresh();
     Snapshot snapshot2 = table.currentSnapshot();
-    Assert.assertEquals("Should have two manifests", 2, snapshot2.allManifests(table.io()).size());
+    assertThat(snapshot2.allManifests(table.io())).as("Should have two manifests").hasSize(2);
     snapshotIdToManifests.addAll(
         snapshot2.allManifests(table.io()).stream()
             .map(manifest -> Pair.of(snapshot2.snapshotId(), manifest))
@@ -2092,7 +2127,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .sorted(Comparator.comparing(o -> o.get("path").toString()))
             .collect(Collectors.toList());
 
-    Assert.assertEquals("Manifests table should have 3 manifest rows", 3, actual.size());
+    assertThat(actual).as("Manifests table should have 3 manifest rows").hasSize(3);
     for (int i = 0; i < expected.size(); i += 1) {
       TestHelpers.assertEqualsSafe(
           manifestTable.schema().asStruct(), expected.get(i), actual.get(i));
@@ -2101,7 +2136,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   @Test
   public void testTableWithInt96Timestamp() throws IOException {
-    File parquetTableDir = temp.newFolder("table_timestamp_int96");
+    File parquetTableDir = temp.resolve("table_timestamp_int96").toFile();
     String parquetTableLocation = parquetTableDir.toURI().toString();
     Schema schema =
         new Schema(
@@ -2146,20 +2181,28 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             stagingLocation);
 
         // validate we get the expected results back
-        List<Row> expected = spark.table("parquet_table").select("tmp_col").collectAsList();
-        List<Row> actual =
-            spark
-                .read()
-                .format("iceberg")
-                .load(loadLocation(tableIdentifier))
-                .select("tmp_col")
-                .collectAsList();
-        Assertions.assertThat(actual)
-            .as("Rows must match")
-            .containsExactlyInAnyOrderElementsOf(expected);
+        testWithFilter("tmp_col < to_timestamp('2000-01-31 08:30:00')", tableIdentifier);
+        testWithFilter("tmp_col <= to_timestamp('2000-01-31 08:30:00')", tableIdentifier);
+        testWithFilter("tmp_col == to_timestamp('2000-01-31 08:30:00')", tableIdentifier);
+        testWithFilter("tmp_col > to_timestamp('2000-01-31 08:30:00')", tableIdentifier);
+        testWithFilter("tmp_col >= to_timestamp('2000-01-31 08:30:00')", tableIdentifier);
         dropTable(tableIdentifier);
       }
     }
+  }
+
+  private void testWithFilter(String filterExpr, TableIdentifier tableIdentifier) {
+    List<Row> expected =
+        spark.table("parquet_table").select("tmp_col").filter(filterExpr).collectAsList();
+    List<Row> actual =
+        spark
+            .read()
+            .format("iceberg")
+            .load(loadLocation(tableIdentifier))
+            .select("tmp_col")
+            .filter(filterExpr)
+            .collectAsList();
+    assertThat(actual).as("Rows must match").containsExactlyInAnyOrderElementsOf(expected);
   }
 
   private GenericData.Record manifestRecord(
@@ -2237,26 +2280,30 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   }
 
   private DeleteFile writePosDeleteFile(Table table) {
+    return writePosDeleteFile(table, 0L);
+  }
+
+  private DeleteFile writePosDeleteFile(Table table, long pos) {
     DataFile dataFile =
         Iterables.getFirst(table.currentSnapshot().addedDataFiles(table.io()), null);
     PartitionSpec dataFileSpec = table.specs().get(dataFile.specId());
     StructLike dataFilePartition = dataFile.partition();
 
     PositionDelete<InternalRow> delete = PositionDelete.create();
-    delete.set(dataFile.path(), 0L, null);
+    delete.set(dataFile.path(), pos, null);
 
     return writePositionDeletes(table, dataFileSpec, dataFilePartition, ImmutableList.of(delete));
   }
 
-  private DeleteFile writeEqDeleteFile(Table table) {
+  private DeleteFile writeEqDeleteFile(Table table, String dataValue) {
     List<Record> deletes = Lists.newArrayList();
-    Schema deleteRowSchema = SCHEMA.select("id");
+    Schema deleteRowSchema = SCHEMA.select("data");
     Record delete = GenericRecord.create(deleteRowSchema);
-    deletes.add(delete.copy("id", 1));
+    deletes.add(delete.copy("data", dataValue));
     try {
       return FileHelpers.writeDeleteFile(
           table,
-          Files.localOutput(temp.newFile()),
+          Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
           org.apache.iceberg.TestHelpers.Row.of(1),
           deletes,
           deleteRowSchema);
@@ -2271,16 +2318,14 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   private void assertDataFilePartitions(
       List<DataFile> dataFiles, List<Integer> expectedPartitionIds) {
-    Assert.assertEquals(
-        "Table should have " + expectedPartitionIds.size() + " data files",
-        expectedPartitionIds.size(),
-        dataFiles.size());
+    assertThat(dataFiles)
+        .as("Table should have " + expectedPartitionIds.size() + " data files")
+        .hasSameSizeAs(expectedPartitionIds);
 
     for (int i = 0; i < dataFiles.size(); ++i) {
-      Assert.assertEquals(
-          "Data file should have partition of id " + expectedPartitionIds.get(i),
-          expectedPartitionIds.get(i).intValue(),
-          dataFiles.get(i).partition().get(0, Integer.class).intValue());
+      assertThat(dataFiles.get(i).partition().get(0, Integer.class).intValue())
+          .as("Data file should have partition of id " + expectedPartitionIds.get(i))
+          .isEqualTo(expectedPartitionIds.get(i).intValue());
     }
   }
 }

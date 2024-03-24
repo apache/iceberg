@@ -312,18 +312,18 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
       migratedDataFilesBuilder.add(dataFile.path().toString());
     }
 
-    if (filesToAdd.size() > 0 && filesToRemove.size() > 0) {
+    if (!filesToAdd.isEmpty() && !filesToRemove.isEmpty()) {
       // OverwriteFiles case
       OverwriteFiles overwriteFiles = transaction.newOverwrite();
       filesToAdd.forEach(overwriteFiles::addFile);
       filesToRemove.forEach(overwriteFiles::deleteFile);
       overwriteFiles.commit();
-    } else if (filesToAdd.size() > 0) {
+    } else if (!filesToAdd.isEmpty()) {
       // AppendFiles case
       AppendFiles appendFiles = transaction.newAppend();
       filesToAdd.forEach(appendFiles::appendFile);
       appendFiles.commit();
-    } else if (filesToRemove.size() > 0) {
+    } else if (!filesToRemove.isEmpty()) {
       // DeleteFiles case
       DeleteFiles deleteFiles = transaction.newDelete();
       filesToRemove.forEach(deleteFiles::deleteFile);
@@ -386,18 +386,18 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
         nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
     Metrics metrics = getMetricsForFile(file, format, metricsConfig, nameMapping);
 
-    String partition =
+    List<String> partitionValueList =
         spec.fields().stream()
             .map(PartitionField::name)
-            .map(name -> String.format("%s=%s", name, partitionValues.get(name)))
-            .collect(Collectors.joining("/"));
+            .map(partitionValues::get)
+            .collect(Collectors.toList());
 
     return DataFiles.builder(spec)
         .withPath(fullFilePath)
         .withFormat(format)
         .withFileSizeInBytes(fileSize)
         .withMetrics(metrics)
-        .withPartitionPath(partition)
+        .withPartitionValues(partitionValueList)
         .build();
   }
 

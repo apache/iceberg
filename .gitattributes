@@ -28,8 +28,6 @@
 /examples      export-ignore
 /examples/**   export-ignore
 jitpack.yml    export-ignore
-/python        export-ignore
-/python/**     export-ignore
 /docs          export-ignore
 /docs/**       export-ignore
 

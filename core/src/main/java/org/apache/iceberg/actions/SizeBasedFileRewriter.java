@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentScanTask;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -111,6 +112,8 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
   private boolean rewriteAll;
   private long maxGroupSize;
 
+  private int outputSpecId;
+
   protected SizeBasedFileRewriter(Table table) {
     this.table = table;
   }
@@ -146,6 +149,7 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
     this.minInputFiles = minInputFiles(options);
     this.rewriteAll = rewriteAll(options);
     this.maxGroupSize = maxGroupSize(options);
+    this.outputSpecId = outputSpecId(options);
 
     if (rewriteAll) {
       LOG.info("Configured to rewrite all provided files in table {}", table.name());
@@ -181,13 +185,21 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
   }
 
   /**
-   * Returns the smallest of our max write file threshold and our estimated split size based on the
-   * number of output files we want to generate. Add an overhead onto the estimated split size to
-   * try to avoid small errors in size creating brand-new files.
+   * Calculates the split size to use in bin-packing rewrites.
+   *
+   * <p>This method determines the target split size as the input size divided by the desired number
+   * of output files. The final split size is adjusted to be at least as big as the target file size
+   * but less than the max write file size.
    */
   protected long splitSize(long inputSize) {
     long estimatedSplitSize = (inputSize / numOutputFiles(inputSize)) + SPLIT_OVERHEAD;
-    return Math.min(estimatedSplitSize, writeMaxFileSize());
+    if (estimatedSplitSize < targetFileSize) {
+      return targetFileSize;
+    } else if (estimatedSplitSize > writeMaxFileSize()) {
+      return writeMaxFileSize();
+    } else {
+      return estimatedSplitSize;
+    }
   }
 
   /**
@@ -248,6 +260,24 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
    */
   protected long writeMaxFileSize() {
     return (long) (targetFileSize + ((maxFileSize - targetFileSize) * 0.5));
+  }
+
+  protected PartitionSpec outputSpec() {
+    return table.specs().get(outputSpecId);
+  }
+
+  protected int outputSpecId() {
+    return outputSpecId;
+  }
+
+  private int outputSpecId(Map<String, String> options) {
+    int specId =
+        PropertyUtil.propertyAsInt(options, RewriteDataFiles.OUTPUT_SPEC_ID, table.spec().specId());
+    Preconditions.checkArgument(
+        table.specs().containsKey(specId),
+        "Cannot use output spec id %s because the table does not contain a reference to this spec-id.",
+        specId);
+    return specId;
   }
 
   private Map<String, Long> sizeThresholds(Map<String, String> options) {

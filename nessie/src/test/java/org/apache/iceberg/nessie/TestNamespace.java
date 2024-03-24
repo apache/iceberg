@@ -21,6 +21,7 @@ package org.apache.iceberg.nessie;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -30,6 +31,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
@@ -106,7 +108,7 @@ public class TestNamespace extends BaseTestIceberg {
 
     Assertions.assertThatThrownBy(() -> catalog.dropNamespace(namespace))
         .isInstanceOf(NamespaceNotEmptyException.class)
-        .hasMessage("Namespace 'test' is not empty. One or more tables exist.");
+        .hasMessageContaining("Namespace 'test' is not empty");
 
     catalog.dropTable(identifier, true);
     catalog.dropNamespace(namespace);
@@ -130,6 +132,36 @@ public class TestNamespace extends BaseTestIceberg {
             () -> catalog.setProperties(Namespace.of("unknown"), updatedProperties))
         .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessage("Namespace does not exist: unknown");
+  }
+
+  @Test
+  public void testEmptyNamespace() {
+    Assertions.assertThatThrownBy(
+            () -> catalog.createNamespace(Namespace.empty(), Collections.emptyMap()))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Invalid namespace: ");
+
+    Assertions.assertThat(catalog.namespaceExists(Namespace.empty())).isFalse();
+
+    Assertions.assertThatThrownBy(() -> catalog.loadNamespaceMetadata(Namespace.empty()))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Invalid namespace: ");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                catalog.setProperties(
+                    Namespace.empty(), ImmutableMap.of("prop2", "val2", "prop", "val")))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Invalid namespace: ");
+
+    Assertions.assertThatThrownBy(
+            () -> catalog.removeProperties(Namespace.empty(), ImmutableSet.of("prop2")))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Invalid namespace: ");
+
+    Assertions.assertThatThrownBy(() -> catalog.dropNamespace(Namespace.empty()))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Invalid namespace: ");
   }
 
   @Test

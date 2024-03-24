@@ -28,6 +28,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
 import java.util.List;
+import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -54,7 +55,7 @@ class ViewVersionReplace implements ReplaceViewVersion {
     return internalApply().currentVersion();
   }
 
-  private ViewMetadata internalApply() {
+  ViewMetadata internalApply() {
     Preconditions.checkState(
         !representations.isEmpty(), "Cannot replace view without specifying a query");
     Preconditions.checkState(null != schema, "Cannot replace view without specifying schema");
@@ -77,7 +78,7 @@ class ViewVersionReplace implements ReplaceViewVersion {
             .schemaId(schema.schemaId())
             .defaultNamespace(defaultNamespace)
             .defaultCatalog(defaultCatalog)
-            .putSummary("operation", "replace")
+            .putAllSummary(EnvironmentContext.get())
             .addAllRepresentations(representations)
             .build();
 
