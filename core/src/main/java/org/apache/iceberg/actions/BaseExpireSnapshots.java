@@ -35,5 +35,11 @@ interface BaseExpireSnapshots extends ExpireSnapshots {
     default long deletedStatisticsFilesCount() {
       return ExpireSnapshots.Result.super.deletedStatisticsFilesCount();
     }
+
+    @Override
+    @Value.Default
+    default long deletedFilesSizeInBytes() {
+      return ExpireSnapshots.Result.super.deletedFilesSizeInBytes();
+    }
   }
 }
