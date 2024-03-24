@@ -118,5 +118,9 @@ public interface ExpireSnapshots extends Action<ExpireSnapshots, ExpireSnapshots
     default long deletedStatisticsFilesCount() {
       return 0L;
     }
+
+    default long deletedFilesSizeInBytes() {
+      return 0L;
+    }
   }
 }

@@ -265,6 +265,7 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
         .deletedManifestsCount(summary.manifestsCount())
         .deletedManifestListsCount(summary.manifestListsCount())
         .deletedStatisticsFilesCount(summary.statisticsFilesCount())
+        .deletedFilesSizeInBytes(summary.totalSizeInBytes())
         .build();
   }
 }
