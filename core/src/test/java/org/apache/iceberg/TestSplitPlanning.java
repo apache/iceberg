@@ -52,7 +52,6 @@ public class TestSplitPlanning extends TestBase {
       new Schema(
           optional(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
 
-  // @Rule public TemporaryFolder temp = new TemporaryFolder();
   @TempDir private Path temp;
 
   private Table table = null;

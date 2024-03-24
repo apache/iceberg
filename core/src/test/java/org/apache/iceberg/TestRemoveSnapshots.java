@@ -141,7 +141,7 @@ public class TestRemoveSnapshots extends TestBase {
                     .allManifests(table.io())
                     .get(0)
                     .path(), // manifest contained only deletes, was dropped
-                FILE_A.path().toString() // deleted
+                FILE_A.path() // deleted
                 ));
   }
 
@@ -196,7 +196,8 @@ public class TestRemoveSnapshots extends TestBase {
                     .get(0)
                     .path(), // manifest was rewritten for delete
                 secondSnapshot.manifestListLocation(), // snapshot expired
-                FILE_A.path()));
+                FILE_A.path() // deleted
+                ));
   }
 
   @TestTemplate
@@ -287,7 +288,9 @@ public class TestRemoveSnapshots extends TestBase {
         .isEqualTo(
             Sets.newHashSet(
                 secondSnapshot.manifestListLocation(), // snapshot expired
-                Iterables.getOnlyElement(secondSnapshotManifests)
+                secondSnapshotManifests.stream()
+                    .findFirst()
+                    .get()
                     .path(), // manifest is no longer referenced
                 FILE_B.path()) // added, but rolled back
             );
@@ -1053,9 +1056,8 @@ public class TestRemoveSnapshots extends TestBase {
     assertThat(table.currentSnapshot()).isEqualTo(thirdSnapshot);
     assertThat(table.snapshots()).hasSize(1);
     assertThat(deletedFiles)
-        .isEqualTo(
-            Sets.newHashSet(
-                firstSnapshot.manifestListLocation(), secondSnapshot.manifestListLocation()));
+        .containsExactlyInAnyOrder(
+            firstSnapshot.manifestListLocation(), secondSnapshot.manifestListLocation());
   }
 
   @TestTemplate
@@ -1215,7 +1217,7 @@ public class TestRemoveSnapshots extends TestBase {
     removeSnapshots(table).expireOlderThan(tAfterCommits).commit();
 
     // only the current snapshot and its stats file should be retained
-    assumeThat(table.snapshots()).hasSize(1);
+    assertThat(table.snapshots()).hasSize(1);
     assertThat(table.statisticsFiles())
         .hasSize(1)
         .extracting(StatisticsFile::snapshotId)
@@ -1312,7 +1314,7 @@ public class TestRemoveSnapshots extends TestBase {
         reusePartitionStatsFile(table.currentSnapshot().snapshotId(), statisticsFile1);
     commitPartitionStats(table, statisticsFile2);
 
-    assumeThat(table.partitionStatisticsFiles()).hasSize(2);
+    assertThat(table.partitionStatisticsFiles()).hasSize(2);
 
     long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
     removeSnapshots(table).expireOlderThan(tAfterCommits).commit();

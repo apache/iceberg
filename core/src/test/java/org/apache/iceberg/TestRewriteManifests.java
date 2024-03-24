@@ -132,7 +132,7 @@ public class TestRewriteManifests extends TestBase {
     table.rewriteManifests().clusterBy(file -> "").commit();
 
     List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
-    assertThat(manifests).as("Manifests must be merged into 1").hasSize(1);
+    assertThat(manifests).hasSize(1);
 
     // get the correct file order
     List<DataFile> files;

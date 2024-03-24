@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.TestTemplate;
 
@@ -83,15 +82,15 @@ public class TestV1ToV2RowDeltaDelete extends TestBase {
     assertThat(deleteManifests).hasSize(1);
     ManifestFile deleteManifest = deleteManifests.get(0);
     verifyManifestSequenceNumber(deleteManifest, 1, 1);
-    List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
-    assertThat(tasks).hasSize(3);
-    Optional<FileScanTask> task =
-        tasks.stream().filter(t -> t.file().path().equals(FILE_A.path())).findFirst();
-    assertThat(task.isPresent()).isTrue();
-    assertThat(task.get().deletes()).hasSize(1);
-    assertThat(task.get().deletes().get(0).path())
-        .as("Should have only pos delete file")
-        .isEqualTo(FILE_A_EQ_1.path());
+    assertThat(table.newScan().planFiles())
+        .hasSize(3)
+        .filteredOn(fileScanTask -> fileScanTask.file().path().equals(FILE_A.path()))
+        .first()
+        .satisfies(
+            fileScanTask -> {
+              assertThat(fileScanTask.deletes()).hasSize(1);
+              assertThat(fileScanTask.deletes().get(0).path()).isEqualTo(FILE_A_EQ_1.path());
+            });
 
     // first commit after row-delta changes
     table.newDelete().deleteFile(FILE_B).commit();
@@ -101,12 +100,12 @@ public class TestV1ToV2RowDeltaDelete extends TestBase {
     assertThat(dataManifests).hasSize(1).first().isNotEqualTo(dataManifest);
     assertThat(deleteManifests).hasSize(1).first().isEqualTo(deleteManifest);
     ManifestFile dataManifest2 = dataManifests.get(0);
-    verifyManifestSequenceNumber(dataManifests.get(0), 2, 0);
-    tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
-    assertThat(tasks).hasSize(2);
-    task = tasks.stream().filter(t -> t.file().path().equals(FILE_A.path())).findFirst();
-    assertThat(task.isPresent()).isTrue();
-    assertThat(task.get().deletes()).hasSize(1);
+    verifyManifestSequenceNumber(dataManifest2, 2, 0);
+    assertThat(table.newScan().planFiles())
+        .hasSize(2)
+        .filteredOn(fileScanTask -> fileScanTask.file().path().equals(FILE_A.path()))
+        .first()
+        .satisfies(fileScanTask -> assertThat(fileScanTask.deletes()).hasSize(1));
 
     // second commit after row-delta changes
     table.newDelete().deleteFile(FILE_C).commit();
@@ -115,13 +114,12 @@ public class TestV1ToV2RowDeltaDelete extends TestBase {
     deleteManifests = table.currentSnapshot().deleteManifests(ops.io());
     assertThat(dataManifests).hasSize(1).first().isNotEqualTo(dataManifest2);
     assertThat(deleteManifests).hasSize(1).first().isEqualTo(deleteManifest);
-    ManifestFile dataManifest3 = dataManifests.get(0);
-    verifyManifestSequenceNumber(dataManifest3, 3, 0);
-    tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
-    assertThat(tasks).hasSize(1);
-    task = tasks.stream().filter(t -> t.file().path().equals(FILE_A.path())).findFirst();
-    assertThat(task.isPresent()).isTrue();
-    assertThat(task.get().deletes()).hasSize(1);
+    verifyManifestSequenceNumber(dataManifests.get(0), 3, 0);
+    assertThat(table.newScan().planFiles())
+        .hasSize(1)
+        .filteredOn(fileScanTask -> fileScanTask.file().path().equals(FILE_A.path()))
+        .first()
+        .satisfies(fileScanTask -> assertThat(fileScanTask.deletes()).hasSize(1));
   }
 
   @TestTemplate
@@ -135,20 +133,26 @@ public class TestV1ToV2RowDeltaDelete extends TestBase {
 
     table.newRowDelta().addDeletes(FILE_A_POS_1).addDeletes(FILE_A_EQ_1).commit();
 
-    List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
-    assertThat(tasks).hasSize(3);
-    assertThat(tasks.get(0).file().path()).isEqualTo(FILE_B.path());
-    assertThat(tasks.get(0).deletes()).isEmpty();
+    assertThat(table.newScan().planFiles())
+        .hasSize(3)
+        .first()
+        .satisfies(
+            fileScanTask -> {
+              assertThat(fileScanTask.file().path()).isEqualTo(FILE_B.path());
+              assertThat(fileScanTask.deletes()).isEmpty();
+            });
 
     table.newDelete().deleteFile(FILE_B).commit();
-    tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
-    assertThat(tasks).hasSize(2);
-    assertThat(tasks.get(0).deletes()).isEmpty();
+    assertThat(table.newScan().planFiles())
+        .hasSize(2)
+        .first()
+        .satisfies(fileScanTask -> assertThat(fileScanTask.deletes()).isEmpty());
 
     table.newDelete().deleteFile(FILE_C).commit();
-    tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
-    assertThat(tasks).hasSize(1);
-    assertThat(tasks.get(0).deletes()).isEmpty();
+    assertThat(table.newScan().planFiles())
+        .hasSize(1)
+        .first()
+        .satisfies(fileScanTask -> assertThat(fileScanTask.deletes()).isEmpty());
   }
 
   @TestTemplate

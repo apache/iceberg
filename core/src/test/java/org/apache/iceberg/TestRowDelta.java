@@ -125,7 +125,7 @@ public class TestRowDelta extends V2TableTestBase {
         .as("Table state should not be modified by failed RowDelta operation")
         .isEqualTo(deleteSnapshotId);
 
-    assertThat(latestSnapshot(table, branch).deleteManifests(table.io())).hasSize(0);
+    assertThat(latestSnapshot(table, branch).deleteManifests(table.io())).isEmpty();
 
     commit(
         table,
@@ -176,7 +176,7 @@ public class TestRowDelta extends V2TableTestBase {
         .as("Table state should not be modified by failed RowDelta operation")
         .isEqualTo(deleteSnapshotId);
 
-    assertThat(latestSnapshot(table, branch).deleteManifests(table.io())).hasSize(0);
+    assertThat(latestSnapshot(table, branch).deleteManifests(table.io())).isEmpty();
   }
 
   @TestTemplate
@@ -208,7 +208,7 @@ public class TestRowDelta extends V2TableTestBase {
         .as("Table state should not be modified by failed RowDelta operation")
         .isEqualTo(deleteSnapshotId);
 
-    assertThat(latestSnapshot(table, branch).deleteManifests(table.io())).hasSize(0);
+    assertThat(latestSnapshot(table, branch).deleteManifests(table.io())).isEmpty();
   }
 
   @TestTemplate
