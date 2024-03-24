@@ -1,3 +1,4 @@
+#
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,10 +15,26 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+#
 
-mkdocs-awesome-pages-plugin==2.9.2
-mkdocs-macros-plugin==1.0.5
-mkdocs-material==9.5.15
-mkdocs-material-extensions==1.3.1
-mkdocs-monorepo-plugin @ git+https://github.com/bitsondatadev/mkdocs-monorepo-plugin@url-fix
-mkdocs-redirects==1.2.1
+name: Check Markdown docs links
+
+on:
+  push:
+    paths:
+      - docs/**
+      - site/**
+    branches:
+      - 'main'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  markdown-link-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: gaurav-nelson/github-action-markdown-link-check@v1
+        with:
+          config-file: 'site/link-checker-config.json'
+          use-verbose-mode: yes

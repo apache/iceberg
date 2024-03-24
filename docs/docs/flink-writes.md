@@ -67,7 +67,7 @@ Iceberg supports `UPSERT` based on the primary key when writing data into v2 tab
     ) with ('format-version'='2', 'write.upsert.enabled'='true');
     ```
 
-2. Enabling `UPSERT` mode using `upsert-enabled` in the [write options](#write-options) provides more flexibility than a table level config. Note that you still need to use v2 table format and specify the [primary key](../flink-ddl.md/#primary-key) or [identifier fields](../../spec.md#identifier-field-ids) when creating the table.
+2. Enabling `UPSERT` mode using `upsert-enabled` in the [write options](#write-options) provides more flexibility than a table level config. Note that you still need to use v2 table format and specify the [primary key](flink-ddl.md/#primary-key) or [identifier fields](../../spec.md#identifier-field-ids) when creating the table.
 
     ```sql
     INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
@@ -185,7 +185,7 @@ FlinkSink.builderFor(
 
 ### Branch Writes
 Writing to branches in Iceberg tables is also supported via the `toBranch` API in `FlinkSink`
-For more information on branches please refer to [branches](../branching.md).
+For more information on branches please refer to [branches](branching.md).
 ```java
 FlinkSink.forRowData(input)
     .tableLoader(tableLoader)
@@ -262,13 +262,13 @@ INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
 ...
 ```
 
-Check out all the options here: [write-options](../flink-configuration.md#write-options) 
+Check out all the options here: [write-options](flink-configuration.md#write-options) 
 
 ## Notes
 
 Flink streaming write jobs rely on snapshot summary to keep the last committed checkpoint ID, and
-store uncommitted data as temporary files. Therefore, [expiring snapshots](../maintenance.md#expire-snapshots)
-and [deleting orphan files](../maintenance.md#delete-orphan-files) could possibly corrupt
+store uncommitted data as temporary files. Therefore, [expiring snapshots](maintenance.md#expire-snapshots)
+and [deleting orphan files](maintenance.md#delete-orphan-files) could possibly corrupt
 the state of the Flink job. To avoid that, make sure to keep the last snapshot created by the Flink
 job (which can be identified by the `flink.job-id` property in the summary), and only delete
 orphan files that are old enough.
