@@ -27,9 +27,17 @@ public class FileInfo {
   private String path;
   private String type;
 
+  private long sizeInBytes;
+
   public FileInfo(String path, String type) {
     this.path = path;
     this.type = type;
+  }
+
+  public FileInfo(String path, String type, long sizeInBytes) {
+    this.path = path;
+    this.type = type;
+    this.sizeInBytes = sizeInBytes;
   }
 
   public FileInfo() {}
@@ -48,5 +56,13 @@ public class FileInfo {
 
   public void setType(String type) {
     this.type = type;
+  }
+
+  public long getSizeInBytes() {
+    return sizeInBytes;
+  }
+
+  public void setSizeInBytes(long sizeInBytes) {
+    this.sizeInBytes = sizeInBytes;
   }
 }

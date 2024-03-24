@@ -252,8 +252,9 @@ abstract class BaseSparkAction<ThisT> {
             fileInfo -> {
               String path = fileInfo.getPath();
               String type = fileInfo.getType();
+              long sizeInBytes = fileInfo.getSizeInBytes();
               deleteFunc.accept(path);
-              summary.deletedFile(path, type);
+              summary.deletedFile(path, type, sizeInBytes);
             });
 
     return summary;
@@ -298,6 +299,7 @@ abstract class BaseSparkAction<ThisT> {
     private final AtomicLong manifestListsCount = new AtomicLong(0L);
     private final AtomicLong statisticsFilesCount = new AtomicLong(0L);
     private final AtomicLong otherFilesCount = new AtomicLong(0L);
+    private final AtomicLong totalSizeInBytes = new AtomicLong(0L);
 
     public void deletedFiles(String type, int numFiles) {
       if (FileContent.DATA.name().equalsIgnoreCase(type)) {
@@ -326,7 +328,8 @@ abstract class BaseSparkAction<ThisT> {
       }
     }
 
-    public void deletedFile(String path, String type) {
+    public void deletedFile(String path, String type, long fileSizeInBytes) {
+      totalSizeInBytes.addAndGet(fileSizeInBytes);
       if (FileContent.DATA.name().equalsIgnoreCase(type)) {
         dataFilesCount.incrementAndGet();
         LOG.trace("Deleted data file: {}", path);
@@ -388,6 +391,10 @@ abstract class BaseSparkAction<ThisT> {
       return otherFilesCount.get();
     }
 
+    public long totalSizeInBytes() {
+      return totalSizeInBytes.get();
+    }
+
     public long totalFilesCount() {
       return dataFilesCount()
           + positionDeleteFilesCount()
@@ -415,7 +422,7 @@ abstract class BaseSparkAction<ThisT> {
       ManifestContent content = manifest.content();
       FileIO io = table.getValue().io();
       Map<Integer, PartitionSpec> specs = table.getValue().specs();
-      List<String> proj = ImmutableList.of(DataFile.FILE_PATH.name(), DataFile.CONTENT.name());
+      List<String> proj = ImmutableList.of(DataFile.FILE_PATH.name(), DataFile.CONTENT.name(), DataFile.FILE_SIZE.name());
 
       switch (content) {
         case DATA:
@@ -432,7 +439,7 @@ abstract class BaseSparkAction<ThisT> {
     }
 
     static FileInfo toFileInfo(ContentFile<?> file) {
-      return new FileInfo(file.path().toString(), file.content().toString());
+      return new FileInfo(file.path().toString(), file.content().toString(), file.fileSizeInBytes());
     }
   }
 }
