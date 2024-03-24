@@ -422,7 +422,9 @@ abstract class BaseSparkAction<ThisT> {
       ManifestContent content = manifest.content();
       FileIO io = table.getValue().io();
       Map<Integer, PartitionSpec> specs = table.getValue().specs();
-      List<String> proj = ImmutableList.of(DataFile.FILE_PATH.name(), DataFile.CONTENT.name(), DataFile.FILE_SIZE.name());
+      List<String> proj =
+          ImmutableList.of(
+              DataFile.FILE_PATH.name(), DataFile.CONTENT.name(), DataFile.FILE_SIZE.name());
 
       switch (content) {
         case DATA:
@@ -439,7 +441,8 @@ abstract class BaseSparkAction<ThisT> {
     }
 
     static FileInfo toFileInfo(ContentFile<?> file) {
-      return new FileInfo(file.path().toString(), file.content().toString(), file.fileSizeInBytes());
+      return new FileInfo(
+          file.path().toString(), file.content().toString(), file.fileSizeInBytes());
     }
   }
 }
