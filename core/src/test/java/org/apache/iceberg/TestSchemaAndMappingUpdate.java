@@ -260,7 +260,7 @@ public class TestSchemaAndMappingUpdate extends TestBase {
     MappedField newMapping = updated.find("id");
     assertThat(newMapping).isNotNull();
     assertThat(newMapping.id()).isEqualTo(idColumnId);
-    assertThat(newMapping.names()).isEqualTo(Sets.newHashSet("id", "data"));
+    assertThat(newMapping.names()).containsExactly("data", "id");
     assertThat(newMapping.nestedMapping()).isNull();
 
     MappedField updatedMapping = updated.find(startIdColumnId);
@@ -283,8 +283,7 @@ public class TestSchemaAndMappingUpdate extends TestBase {
 
     NameMapping afterRename =
         NameMappingParser.fromJson(table.properties().get(TableProperties.DEFAULT_NAME_MAPPING));
-    assertThat(afterRename.find(startIdColumnId).names())
-        .isEqualTo(Sets.newHashSet("id", "object_id"));
+    assertThat(afterRename.find(startIdColumnId).names()).containsExactly("id", "object_id");
 
     // add a new column with the renamed column's old name
     // also, rename the original column again to ensure its names are handled correctly
@@ -312,7 +311,7 @@ public class TestSchemaAndMappingUpdate extends TestBase {
     MappedField updatedMapping = updated.find(startIdColumnId);
     assertThat(updatedMapping).isNotNull();
     assertThat(updatedMapping.id()).isEqualTo(startIdColumnId);
-    assertThat(updatedMapping.names()).isEqualTo(Sets.newHashSet("object_id", "oid"));
+    assertThat(updatedMapping.names()).containsExactly("oid", "object_id");
     assertThat(updatedMapping.nestedMapping()).isNull();
   }
 
@@ -329,8 +328,7 @@ public class TestSchemaAndMappingUpdate extends TestBase {
 
     NameMapping afterRename =
         NameMappingParser.fromJson(table.properties().get(TableProperties.DEFAULT_NAME_MAPPING));
-    assertThat(afterRename.find(startIdColumnId).names())
-        .isEqualTo(Sets.newHashSet("id", "object_id"));
+    assertThat(afterRename.find(startIdColumnId).names()).containsExactly("id", "object_id");
 
     // rename the data column to the renamed column's old name
     // also, rename the original column again to ensure its names are handled correctly
@@ -348,14 +346,14 @@ public class TestSchemaAndMappingUpdate extends TestBase {
 
     MappedField newMapping = updated.find("id");
     assertThat(newMapping).isNotNull();
-    assertThat(newMapping.names()).isEqualTo(Sets.newHashSet("id", "data"));
+    assertThat(newMapping.names()).containsExactly("data", "id");
     assertThat(newMapping.id()).isEqualTo(idColumnId);
     assertThat(newMapping.nestedMapping()).isNull();
 
     MappedField updatedMapping = updated.find(startIdColumnId);
     assertThat(updatedMapping).isNotNull();
     assertThat(updatedMapping.id()).isEqualTo(startIdColumnId);
-    assertThat(updatedMapping.names()).isEqualTo(Sets.newHashSet("object_id", "oid"));
+    assertThat(updatedMapping.names()).containsExactly("oid", "object_id");
     assertThat(updatedMapping.nestedMapping()).isNull();
   }
 

@@ -18,8 +18,12 @@
  */
 package org.apache.iceberg;
 
-public class V2TableTestBase extends TableTestBase {
-  public V2TableTestBase() {
-    super(2);
+import java.util.Arrays;
+import java.util.List;
+
+public class V2TableTestBase extends TestBase {
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(2);
   }
 }

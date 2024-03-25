@@ -24,26 +24,27 @@ import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.expressions.Expressions.truncate;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SortOrderUtil;
-import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestSortOrder {
 
   // column ids will be reassigned during table creation
@@ -69,59 +70,52 @@ public class TestSortOrder {
           required(30, "ext", Types.StringType.get()),
           required(42, "Ext1", Types.StringType.get()));
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
+
   private File tableDir = null;
 
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1, 2);
   }
 
-  private final int formatVersion;
+  @Parameter private int formatVersion;
 
-  public TestSortOrder(int formatVersion) {
-    this.formatVersion = formatVersion;
-  }
-
-  @Before
+  @BeforeEach
   public void setupTableDir() throws IOException {
-    this.tableDir = temp.newFolder();
+    this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
   }
 
-  @After
+  @AfterEach
   public void cleanupTables() {
     TestTables.clearTables();
   }
 
-  @Test
+  @TestTemplate
   public void testSortOrderBuilder() {
-    Assert.assertEquals(
-        "Should be able to build unsorted order",
-        SortOrder.unsorted(),
-        SortOrder.builderFor(SCHEMA).withOrderId(0).build());
+    assertThat(SortOrder.builderFor(SCHEMA).withOrderId(0).build()).isEqualTo(SortOrder.unsorted());
 
-    Assertions.assertThatThrownBy(
-            () -> SortOrder.builderFor(SCHEMA).asc("data").withOrderId(0).build())
+    assertThatThrownBy(() -> SortOrder.builderFor(SCHEMA).asc("data").withOrderId(0).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Sort order ID 0 is reserved for unsorted order");
 
-    Assertions.assertThatThrownBy(() -> SortOrder.builderFor(SCHEMA).withOrderId(1).build())
+    assertThatThrownBy(() -> SortOrder.builderFor(SCHEMA).withOrderId(1).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Unsorted order ID must be 0");
   }
 
-  @Test
+  @TestTemplate
   public void testDefaultOrder() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     TestTables.TestTable table = TestTables.create(tableDir, "test", SCHEMA, spec, formatVersion);
-    Assert.assertEquals("Expected 1 sort order", 1, table.sortOrders().size());
+    assertThat(table.sortOrders()).hasSize(1);
 
     SortOrder actualOrder = table.sortOrder();
-    Assert.assertEquals("Order ID must match", 0, actualOrder.orderId());
-    Assert.assertTrue("Order must unsorted", actualOrder.isUnsorted());
+    assertThat(actualOrder.orderId()).isEqualTo(0);
+    assertThat(actualOrder.isUnsorted()).isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testFreshIds() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).withSpecId(5).identity("data").build();
     SortOrder order =
@@ -133,20 +127,16 @@ public class TestSortOrder {
     TestTables.TestTable table =
         TestTables.create(tableDir, "test", SCHEMA, spec, order, formatVersion);
 
-    Assert.assertEquals("Expected 1 sort order", 1, table.sortOrders().size());
-    Assert.assertTrue(
-        "Order ID must be fresh",
-        table.sortOrders().containsKey(TableMetadata.INITIAL_SORT_ORDER_ID));
+    assertThat(table.sortOrders()).hasSize(1).containsKey(TableMetadata.INITIAL_SORT_ORDER_ID);
 
     SortOrder actualOrder = table.sortOrder();
-    Assert.assertEquals(
-        "Order ID must be fresh", TableMetadata.INITIAL_SORT_ORDER_ID, actualOrder.orderId());
-    Assert.assertEquals("Order must have 2 fields", 2, actualOrder.fields().size());
-    Assert.assertEquals("Field id must be fresh", 8, actualOrder.fields().get(0).sourceId());
-    Assert.assertEquals("Field id must be fresh", 2, actualOrder.fields().get(1).sourceId());
+    assertThat(actualOrder.orderId()).isEqualTo(TableMetadata.INITIAL_SORT_ORDER_ID);
+    assertThat(actualOrder.fields()).hasSize(2);
+    assertThat(actualOrder.fields().get(0).sourceId()).isEqualTo(8);
+    assertThat(actualOrder.fields().get(1).sourceId()).isEqualTo(2);
   }
 
-  @Test
+  @TestTemplate
   public void testCompatibleOrders() {
     SortOrder order1 = SortOrder.builderFor(SCHEMA).withOrderId(9).asc("s.id", NULLS_LAST).build();
 
@@ -175,37 +165,37 @@ public class TestSortOrder {
         SortOrder.builderFor(SCHEMA).withOrderId(11).desc("s.id", NULLS_LAST).build();
 
     // an unsorted order satisfies only itself
-    Assert.assertTrue(SortOrder.unsorted().satisfies(SortOrder.unsorted()));
-    Assert.assertFalse(SortOrder.unsorted().satisfies(order1));
-    Assert.assertFalse(SortOrder.unsorted().satisfies(order2));
-    Assert.assertFalse(SortOrder.unsorted().satisfies(order3));
-    Assert.assertFalse(SortOrder.unsorted().satisfies(order4));
-    Assert.assertFalse(SortOrder.unsorted().satisfies(order5));
+    assertThat(SortOrder.unsorted().satisfies(SortOrder.unsorted())).isTrue();
+    assertThat(SortOrder.unsorted().satisfies(order1)).isFalse();
+    assertThat(SortOrder.unsorted().satisfies(order2)).isFalse();
+    assertThat(SortOrder.unsorted().satisfies(order3)).isFalse();
+    assertThat(SortOrder.unsorted().satisfies(order4)).isFalse();
+    assertThat(SortOrder.unsorted().satisfies(order5)).isFalse();
 
     // any ordering satisfies an unsorted ordering
-    Assert.assertTrue(order1.satisfies(SortOrder.unsorted()));
-    Assert.assertTrue(order2.satisfies(SortOrder.unsorted()));
-    Assert.assertTrue(order3.satisfies(SortOrder.unsorted()));
-    Assert.assertTrue(order4.satisfies(SortOrder.unsorted()));
-    Assert.assertTrue(order5.satisfies(SortOrder.unsorted()));
+    assertThat(order1.satisfies(SortOrder.unsorted())).isTrue();
+    assertThat(order2.satisfies(SortOrder.unsorted())).isTrue();
+    assertThat(order3.satisfies(SortOrder.unsorted())).isTrue();
+    assertThat(order4.satisfies(SortOrder.unsorted())).isTrue();
+    assertThat(order5.satisfies(SortOrder.unsorted())).isTrue();
 
     // order1 has the same fields but different sort direction compared to order5
-    Assert.assertFalse(order1.satisfies(order5));
+    assertThat(order1.satisfies(order5)).isFalse();
 
     // order2 has more fields than order1 and is compatible
-    Assert.assertTrue(order2.satisfies(order1));
+    assertThat(order2.satisfies(order1)).isTrue();
     // order2 has more fields than order5 but is incompatible
-    Assert.assertFalse(order2.satisfies(order5));
+    assertThat(order2.satisfies(order5)).isFalse();
     // order2 has the same fields but different null order compared to order3
-    Assert.assertFalse(order2.satisfies(order3));
+    assertThat(order2.satisfies(order3)).isFalse();
     // order2 has the same fields but different sort direction compared to order4
-    Assert.assertFalse(order2.satisfies(order4));
+    assertThat(order2.satisfies(order4)).isFalse();
 
     // order1 has fewer fields than order2 and is incompatible
-    Assert.assertFalse(order1.satisfies(order2));
+    assertThat(order1.satisfies(order2)).isFalse();
   }
 
-  @Test
+  @TestTemplate
   public void testSatisfiesTruncateFieldOrder() {
     SortOrder id = SortOrder.builderFor(SCHEMA).asc("data", NULLS_LAST).build();
     SortOrder truncate4 =
@@ -213,36 +203,35 @@ public class TestSortOrder {
     SortOrder truncate2 =
         SortOrder.builderFor(SCHEMA).asc(Expressions.truncate("data", 2), NULLS_LAST).build();
 
-    Assert.assertTrue(id.satisfies(truncate2));
-    Assert.assertTrue(id.satisfies(truncate4));
-    Assert.assertFalse(truncate2.satisfies(id));
-    Assert.assertFalse(truncate4.satisfies(id));
-    Assert.assertTrue(truncate4.satisfies(truncate2));
-    Assert.assertFalse(truncate2.satisfies(truncate4));
+    assertThat(id.satisfies(truncate2)).isTrue();
+    assertThat(truncate2.satisfies(id)).isFalse();
+    assertThat(truncate4.satisfies(id)).isFalse();
+    assertThat(truncate4.satisfies(truncate2)).isTrue();
+    assertThat(truncate2.satisfies(truncate4)).isFalse();
   }
 
-  @Test
+  @TestTemplate
   public void testSatisfiesDateFieldOrder() {
     SortOrder id = SortOrder.builderFor(SCHEMA).asc("d", NULLS_LAST).build();
     SortOrder year = SortOrder.builderFor(SCHEMA).asc(Expressions.year("d"), NULLS_LAST).build();
     SortOrder month = SortOrder.builderFor(SCHEMA).asc(Expressions.month("d"), NULLS_LAST).build();
     SortOrder day = SortOrder.builderFor(SCHEMA).asc(Expressions.day("d"), NULLS_LAST).build();
 
-    Assert.assertTrue(id.satisfies(year));
-    Assert.assertTrue(id.satisfies(month));
-    Assert.assertTrue(id.satisfies(day));
-    Assert.assertFalse(year.satisfies(id));
-    Assert.assertFalse(month.satisfies(id));
-    Assert.assertFalse(day.satisfies(id));
-    Assert.assertTrue(day.satisfies(year));
-    Assert.assertTrue(day.satisfies(month));
-    Assert.assertTrue(month.satisfies(year));
-    Assert.assertFalse(month.satisfies(day));
-    Assert.assertFalse(year.satisfies(day));
-    Assert.assertFalse(year.satisfies(month));
+    assertThat(id.satisfies(year)).isTrue();
+    assertThat(id.satisfies(month)).isTrue();
+    assertThat(id.satisfies(day)).isTrue();
+    assertThat(year.satisfies(id)).isFalse();
+    assertThat(month.satisfies(id)).isFalse();
+    assertThat(day.satisfies(id)).isFalse();
+    assertThat(day.satisfies(year)).isTrue();
+    assertThat(day.satisfies(month)).isTrue();
+    assertThat(month.satisfies(year)).isTrue();
+    assertThat(month.satisfies(day)).isFalse();
+    assertThat(year.satisfies(day)).isFalse();
+    assertThat(year.satisfies(month)).isFalse();
   }
 
-  @Test
+  @TestTemplate
   public void testSatisfiesTimestampFieldOrder() {
     SortOrder id = SortOrder.builderFor(SCHEMA).asc("ts", NULLS_LAST).build();
     SortOrder year = SortOrder.builderFor(SCHEMA).asc(Expressions.year("ts"), NULLS_LAST).build();
@@ -250,41 +239,40 @@ public class TestSortOrder {
     SortOrder day = SortOrder.builderFor(SCHEMA).asc(Expressions.day("ts"), NULLS_LAST).build();
     SortOrder hour = SortOrder.builderFor(SCHEMA).asc(Expressions.hour("ts"), NULLS_LAST).build();
 
-    Assert.assertTrue(id.satisfies(year));
-    Assert.assertTrue(id.satisfies(month));
-    Assert.assertTrue(id.satisfies(day));
-    Assert.assertTrue(id.satisfies(hour));
-    Assert.assertFalse(year.satisfies(id));
-    Assert.assertFalse(month.satisfies(id));
-    Assert.assertFalse(day.satisfies(id));
-    Assert.assertFalse(hour.satisfies(id));
-    Assert.assertTrue(hour.satisfies(year));
-    Assert.assertTrue(hour.satisfies(month));
-    Assert.assertTrue(hour.satisfies(day));
-    Assert.assertTrue(day.satisfies(year));
-    Assert.assertTrue(day.satisfies(month));
-    Assert.assertFalse(day.satisfies(hour));
-    Assert.assertTrue(month.satisfies(year));
-    Assert.assertFalse(month.satisfies(day));
-    Assert.assertFalse(month.satisfies(hour));
-    Assert.assertFalse(year.satisfies(day));
-    Assert.assertFalse(year.satisfies(month));
-    Assert.assertFalse(year.satisfies(hour));
+    assertThat(id.satisfies(year)).isTrue();
+    assertThat(id.satisfies(month)).isTrue();
+    assertThat(id.satisfies(day)).isTrue();
+    assertThat(id.satisfies(hour)).isTrue();
+    assertThat(year.satisfies(id)).isFalse();
+    assertThat(month.satisfies(id)).isFalse();
+    assertThat(day.satisfies(id)).isFalse();
+    assertThat(hour.satisfies(id)).isFalse();
+    assertThat(hour.satisfies(year)).isTrue();
+    assertThat(hour.satisfies(month)).isTrue();
+    assertThat(hour.satisfies(day)).isTrue();
+    assertThat(day.satisfies(year)).isTrue();
+    assertThat(day.satisfies(month)).isTrue();
+    assertThat(day.satisfies(hour)).isFalse();
+    assertThat(month.satisfies(year)).isTrue();
+    assertThat(month.satisfies(day)).isFalse();
+    assertThat(month.satisfies(hour)).isFalse();
+    assertThat(year.satisfies(day)).isFalse();
+    assertThat(year.satisfies(month)).isFalse();
+    assertThat(year.satisfies(hour)).isFalse();
   }
 
-  @Test
+  @TestTemplate
   public void testSameOrder() {
     SortOrder order1 = SortOrder.builderFor(SCHEMA).withOrderId(9).asc("s.id", NULLS_LAST).build();
 
     SortOrder order2 = SortOrder.builderFor(SCHEMA).withOrderId(10).asc("s.id", NULLS_LAST).build();
 
     // orders have different ids but are logically the same
-    Assert.assertNotEquals("Orders must not be equal", order1, order2);
-    Assert.assertTrue("Orders must be equivalent", order1.sameOrder(order2));
-    Assert.assertTrue("Orders must be equivalent", order2.sameOrder(order1));
+    assertThat(order2).isNotEqualTo(order1);
+    assertThat(order2.fields()).isEqualTo(order1.fields());
   }
 
-  @Test
+  @TestTemplate
   public void testSchemaEvolutionWithSortOrder() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     SortOrder order =
@@ -295,14 +283,13 @@ public class TestSortOrder {
     table.updateSchema().renameColumn("s.id", "s.id2").commit();
 
     SortOrder actualOrder = table.sortOrder();
-    Assert.assertEquals(
-        "Order ID must match", TableMetadata.INITIAL_SORT_ORDER_ID, actualOrder.orderId());
-    Assert.assertEquals("Order must have 2 fields", 2, actualOrder.fields().size());
-    Assert.assertEquals("Field id must match", 8, actualOrder.fields().get(0).sourceId());
-    Assert.assertEquals("Field id must match", 2, actualOrder.fields().get(1).sourceId());
+    assertThat(actualOrder.orderId()).isEqualTo(TableMetadata.INITIAL_SORT_ORDER_ID);
+    assertThat(actualOrder.fields()).hasSize(2);
+    assertThat(actualOrder.fields().get(0).sourceId()).isEqualTo(8);
+    assertThat(actualOrder.fields().get(1).sourceId()).isEqualTo(2);
   }
 
-  @Test
+  @TestTemplate
   public void testColumnDropWithSortOrder() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
 
@@ -316,16 +303,14 @@ public class TestSortOrder {
     table.updateSchema().deleteColumn("id").commit();
 
     SortOrder actualOrder = table.sortOrder();
-    Assert.assertEquals(
-        "Order ID must match", TableMetadata.INITIAL_SORT_ORDER_ID + 1, actualOrder.orderId());
-    Assert.assertEquals(
-        "Schema must have one less column", initialColSize - 1, table.schema().columns().size());
+    assertThat(actualOrder.orderId()).isEqualTo(TableMetadata.INITIAL_SORT_ORDER_ID + 1);
+    assertThat(table.schema().columns()).hasSize(initialColSize - 1);
 
     // ensure that the table metadata can be serialized and reloaded with an invalid order
     TableMetadataParser.fromJson(TableMetadataParser.toJson(table.ops().current()));
   }
 
-  @Test
+  @TestTemplate
   public void testIncompatibleSchemaEvolutionWithSortOrder() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     SortOrder order =
@@ -333,26 +318,26 @@ public class TestSortOrder {
     TestTables.TestTable table =
         TestTables.create(tableDir, "test", SCHEMA, spec, order, formatVersion);
 
-    Assertions.assertThatThrownBy(() -> table.updateSchema().deleteColumn("s.id").commit())
+    assertThatThrownBy(() -> table.updateSchema().deleteColumn("s.id").commit())
         .isInstanceOf(ValidationException.class)
         .hasMessageStartingWith("Cannot find source column for sort field");
   }
 
-  @Test
+  @TestTemplate
   public void testEmptySortOrder() {
     SortOrder order = SortOrder.builderFor(SCHEMA).build();
-    Assert.assertEquals("Order must be unsorted", SortOrder.unsorted(), order);
+    assertThat(order).isEqualTo(SortOrder.unsorted());
   }
 
-  @Test
+  @TestTemplate
   public void testSortedColumnNames() {
     SortOrder order =
         SortOrder.builderFor(SCHEMA).withOrderId(10).asc("s.id").desc(truncate("data", 10)).build();
     Set<String> sortedCols = SortOrderUtil.orderPreservingSortedColumns(order);
-    Assert.assertEquals(ImmutableSet.of("s.id", "data"), sortedCols);
+    assertThat(sortedCols).containsExactly("s.id", "data");
   }
 
-  @Test
+  @TestTemplate
   public void testPreservingOrderSortedColumnNames() {
     SortOrder order =
         SortOrder.builderFor(SCHEMA)
@@ -361,13 +346,13 @@ public class TestSortOrder {
             .desc(truncate("data", 10))
             .build();
     Set<String> sortedCols = SortOrderUtil.orderPreservingSortedColumns(order);
-    Assert.assertEquals(ImmutableSet.of("data"), sortedCols);
+    assertThat(sortedCols).containsExactly("data");
   }
 
-  @Test
+  @TestTemplate
   public void testCaseSensitiveSortedColumnNames() {
     String fieldName = "ext1";
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 SortOrder.builderFor(SCHEMA)
                     .caseSensitive(true)
@@ -380,6 +365,6 @@ public class TestSortOrder {
     SortOrder ext1 =
         SortOrder.builderFor(SCHEMA).caseSensitive(false).withOrderId(10).asc("ext1").build();
     SortField sortField = ext1.fields().get(0);
-    Assert.assertEquals(sortField.sourceId(), SCHEMA.findField("Ext1").fieldId());
+    assertThat(SCHEMA.findField("Ext1").fieldId()).isEqualTo(sortField.sourceId());
   }
 }
