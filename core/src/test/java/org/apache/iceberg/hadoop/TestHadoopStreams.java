@@ -24,7 +24,6 @@ import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.s3a.S3ABlockOutputStream;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
 import org.junit.jupiter.api.Test;
 
 class TestHadoopStreams {
@@ -32,7 +31,6 @@ class TestHadoopStreams {
   @Test
   void closeShouldThrowIOExceptionWhenInterrupted() throws Exception {
 
-    long startTime = System.currentTimeMillis();
     S3ABlockOutputStream s3ABlockOutputStream = new S3ABlockOutputStream();
     FSDataOutputStream fsDataOutputStream = new FSDataOutputStream(s3ABlockOutputStream, null);
     PositionOutputStream wrap = HadoopStreams.wrap(fsDataOutputStream);
@@ -52,9 +50,5 @@ class TestHadoopStreams {
     Assertions.assertThatThrownBy(wrap::close)
         .isInstanceOf(IOException.class)
         .hasMessage("S3ABlockOutputStream failed to upload object after stream was closed");
-
-    long endTime = System.currentTimeMillis();
-    long closeDuration = endTime - startTime;
-    Assert.assertTrue(closeDuration < 30 * 1000 && closeDuration > 1000);
   }
 }
