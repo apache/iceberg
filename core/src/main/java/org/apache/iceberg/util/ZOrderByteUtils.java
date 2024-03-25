@@ -145,6 +145,11 @@ public class ZOrderByteUtils {
   @SuppressWarnings("ByteBufferBackingArray")
   public static ByteBuffer byteTruncateOrFill(byte[] val, int length, ByteBuffer reuse) {
     ByteBuffer bytes = ByteBuffers.reuse(reuse, length);
+    if (val == null) {
+      Arrays.fill(bytes.array(), 0, length, (byte) 0x00);
+      return bytes;
+    }
+
     if (val.length < length) {
       bytes.put(val, 0, val.length);
       Arrays.fill(bytes.array(), val.length, length, (byte) 0x00);
