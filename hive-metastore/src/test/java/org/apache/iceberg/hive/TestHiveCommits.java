@@ -66,7 +66,7 @@ public class TestHiveCommits extends HiveTableBaseTest {
 
     AtomicReference<HiveLock> lockRef = new AtomicReference<>();
 
-    when(spyOps.lockObject(any()))
+    when(spyOps.lockObject(metadataV2))
         .thenAnswer(
             i -> {
               HiveLock lock = (HiveLock) i.callRealMethod();
@@ -275,11 +275,11 @@ public class TestHiveCommits extends HiveTableBaseTest {
     AtomicReference<HiveLock> lock = new AtomicReference<>();
     doAnswer(
             l -> {
-              lock.set(ops.lockObject(l.getArgument(0)));
+              lock.set(ops.lockObject(metadataV2));
               return lock.get();
             })
         .when(spyOps)
-        .lockObject(any());
+        .lockObject(metadataV2);
 
     concurrentCommitAndThrowException(ops, spyOps, table, lock);
 
@@ -432,7 +432,7 @@ public class TestHiveCommits extends HiveTableBaseTest {
               return lockRef.get();
             })
         .when(spyOps)
-        .lockObject(any());
+        .lockObject(base);
 
     TableMetadata newMetadata =
         TableMetadata.buildFrom(base)
@@ -442,6 +442,7 @@ public class TestHiveCommits extends HiveTableBaseTest {
             .build();
     spyOps.commit(base, newMetadata);
 
+    assertThat(lockRef).as("Lock not captured by the stub").doesNotHaveNullValue();
     assertThat(lockRef.get())
         .as("New lock mechanism shouldn't take effect before the commit completes")
         .hasSameClassAs(initialLock);
