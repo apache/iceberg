@@ -57,7 +57,9 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
       String catalogName,
       TableIdentifier tableIdentifier,
       Map<String, String> catalogProperties,
-      JdbcUtil.SchemaVersion schemaVersion) {
+      JdbcUtil.SchemaVersion schemaVersion,
+      int metadataRefreshMaxRetries) {
+    setMetadataRefreshMaxRetries(metadataRefreshMaxRetries);
     this.catalogName = catalogName;
     this.tableIdentifier = tableIdentifier;
     this.fileIO = fileIO;

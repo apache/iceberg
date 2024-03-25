@@ -159,4 +159,8 @@ public class CatalogProperties {
 
   public static final String ENCRYPTION_KMS_TYPE = "encryption.kms-type";
   public static final String ENCRYPTION_KMS_IMPL = "encryption.kms-impl";
+
+  public static final String METADATA_REFRESH_MAX_RETRIES = "metadata-refresh-max-retries";
+  public static final int METADATA_REFRESH_MAX_RETRIES_DEFAULT = 20;
+
 }

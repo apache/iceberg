@@ -48,10 +48,14 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.view.BaseMetastoreViewCatalog;
 import org.apache.iceberg.view.BaseViewOperations;
 import org.apache.iceberg.view.ViewMetadata;
 import org.apache.iceberg.view.ViewUtil;
+
+import static org.apache.iceberg.CatalogProperties.METADATA_REFRESH_MAX_RETRIES;
+import static org.apache.iceberg.CatalogProperties.METADATA_REFRESH_MAX_RETRIES_DEFAULT;
 
 /**
  * Catalog implementation that uses in-memory data-structures to store the namespaces and tables.
@@ -70,6 +74,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
   private String catalogName;
   private String warehouseLocation;
   private CloseableGroup closeableGroup;
+  private Map<String, String> catalogProperties;
 
   public InMemoryCatalog() {
     this.namespaces = Maps.newConcurrentMap();
@@ -84,6 +89,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
+    this.catalogProperties = ImmutableMap.copyOf(properties);
     this.catalogName = name != null ? name : InMemoryCatalog.class.getSimpleName();
 
     String warehouse = properties.getOrDefault(CatalogProperties.WAREHOUSE_LOCATION, "");
@@ -96,7 +102,9 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
 
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
-    return new InMemoryTableOperations(io, tableIdentifier);
+    int metadataRefreshMaxRetries = PropertyUtil.propertyAsInt(
+            catalogProperties, METADATA_REFRESH_MAX_RETRIES, METADATA_REFRESH_MAX_RETRIES_DEFAULT);
+    return new InMemoryTableOperations(io, tableIdentifier, metadataRefreshMaxRetries);
   }
 
   @Override
@@ -373,7 +381,8 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
     private final TableIdentifier tableIdentifier;
     private final String fullTableName;
 
-    InMemoryTableOperations(FileIO fileIO, TableIdentifier tableIdentifier) {
+    InMemoryTableOperations(FileIO fileIO, TableIdentifier tableIdentifier, int metadataRefreshMaxRetries) {
+      setMetadataRefreshMaxRetries(metadataRefreshMaxRetries);
       this.fileIO = fileIO;
       this.tableIdentifier = tableIdentifier;
       this.fullTableName = fullTableName(catalogName, tableIdentifier);

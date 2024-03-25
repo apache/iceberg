@@ -83,6 +83,9 @@ import software.amazon.awssdk.services.glue.model.Table;
 import software.amazon.awssdk.services.glue.model.TableInput;
 import software.amazon.awssdk.services.glue.model.UpdateDatabaseRequest;
 
+import static org.apache.iceberg.CatalogProperties.METADATA_REFRESH_MAX_RETRIES;
+import static org.apache.iceberg.CatalogProperties.METADATA_REFRESH_MAX_RETRIES_DEFAULT;
+
 public class GlueCatalog extends BaseMetastoreCatalog
     implements SupportsNamespaces, Configurable<Configuration> {
 
@@ -232,6 +235,9 @@ public class GlueCatalog extends BaseMetastoreCatalog
             .put(S3FileIOProperties.PRELOAD_CLIENT_ENABLED, String.valueOf(true));
       }
 
+      int metadataRefreshMaxRetries = PropertyUtil.propertyAsInt(
+              catalogProperties, METADATA_REFRESH_MAX_RETRIES, METADATA_REFRESH_MAX_RETRIES_DEFAULT);
+
       // FileIO initialization depends on tableSpecificCatalogProperties, so a new FileIO is
       // initialized each time
       GlueTableOperations glueTableOperations =
@@ -242,7 +248,8 @@ public class GlueCatalog extends BaseMetastoreCatalog
               awsProperties,
               tableSpecificCatalogPropertiesBuilder.buildOrThrow(),
               hadoopConf,
-              tableIdentifier);
+              tableIdentifier,
+              metadataRefreshMaxRetries);
       fileIOCloser.put(glueTableOperations, glueTableOperations.io());
       return glueTableOperations;
     }
@@ -255,7 +262,8 @@ public class GlueCatalog extends BaseMetastoreCatalog
             awsProperties,
             catalogProperties,
             hadoopConf,
-            tableIdentifier);
+            tableIdentifier,
+            METADATA_REFRESH_MAX_RETRIES_DEFAULT);
     fileIOCloser.put(glueTableOperations, glueTableOperations.io());
     return glueTableOperations;
   }

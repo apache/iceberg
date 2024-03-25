@@ -59,7 +59,9 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
       AwsProperties awsProperties,
       String catalogName,
       FileIO fileIO,
-      TableIdentifier tableIdentifier) {
+      TableIdentifier tableIdentifier,
+      int metadataRefreshMaxRetries) {
+    setMetadataRefreshMaxRetries(metadataRefreshMaxRetries);
     this.dynamo = dynamo;
     this.awsProperties = awsProperties;
     this.fullTableName = String.format("%s.%s", catalogName, tableIdentifier);

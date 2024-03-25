@@ -42,6 +42,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
@@ -58,6 +59,9 @@ import software.amazon.awssdk.services.glue.model.Table;
 import software.amazon.awssdk.services.glue.model.TableInput;
 import software.amazon.awssdk.services.glue.model.UpdateTableRequest;
 import software.amazon.awssdk.utils.ImmutableMap;
+
+import static org.apache.iceberg.CatalogProperties.METADATA_REFRESH_MAX_RETRIES;
+import static org.apache.iceberg.CatalogProperties.METADATA_REFRESH_MAX_RETRIES_DEFAULT;
 
 class GlueTableOperations extends BaseMetastoreTableOperations {
 
@@ -93,7 +97,9 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
       AwsProperties awsProperties,
       Map<String, String> tableCatalogProperties,
       Object hadoopConf,
-      TableIdentifier tableIdentifier) {
+      TableIdentifier tableIdentifier,
+      int metadataRefreshMaxRetries) {
+    setMetadataRefreshMaxRetries(metadataRefreshMaxRetries);
     this.glue = glue;
     this.awsProperties = awsProperties;
     this.databaseName =

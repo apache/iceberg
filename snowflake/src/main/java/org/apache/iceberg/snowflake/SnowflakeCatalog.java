@@ -40,8 +40,12 @@ import org.apache.iceberg.jdbc.JdbcCatalog;
 import org.apache.iceberg.jdbc.JdbcClientPool;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static org.apache.iceberg.CatalogProperties.METADATA_REFRESH_MAX_RETRIES;
+import static org.apache.iceberg.CatalogProperties.METADATA_REFRESH_MAX_RETRIES_DEFAULT;
 
 public class SnowflakeCatalog extends BaseMetastoreCatalog
     implements SupportsNamespaces, Configurable<Object> {
@@ -253,7 +257,11 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
     // support tables across different cloud/storage providers with disjoint FileIO implementations.
     FileIO fileIO = fileIOFactory.newFileIO(fileIOImpl, catalogProperties, conf);
     closeableGroup.addCloseable(fileIO);
-    return new SnowflakeTableOperations(snowflakeClient, fileIO, catalogName, tableIdentifier);
+    int metadataRefreshMaxRetries = PropertyUtil.propertyAsInt(
+            catalogProperties, METADATA_REFRESH_MAX_RETRIES, METADATA_REFRESH_MAX_RETRIES_DEFAULT);
+
+    return new SnowflakeTableOperations(
+            snowflakeClient, fileIO, catalogName, tableIdentifier, metadataRefreshMaxRetries);
   }
 
   @Override

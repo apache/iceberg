@@ -45,7 +45,8 @@ public class EcsTableOperations extends BaseMetastoreTableOperations {
   private String eTag;
 
   public EcsTableOperations(
-      String tableName, EcsURI tableObject, FileIO fileIO, EcsCatalog catalog) {
+      String tableName, EcsURI tableObject, FileIO fileIO, EcsCatalog catalog, int metadataRefreshMaxRetries) {
+    setMetadataRefreshMaxRetries(metadataRefreshMaxRetries);
     this.tableName = tableName;
     this.tableObject = tableObject;
     this.fileIO = fileIO;

@@ -68,6 +68,9 @@ import org.apache.iceberg.view.ViewOperations;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.iceberg.CatalogProperties.METADATA_REFRESH_MAX_RETRIES;
+import static org.apache.iceberg.CatalogProperties.METADATA_REFRESH_MAX_RETRIES_DEFAULT;
+
 public class JdbcCatalog extends BaseMetastoreViewCatalog
     implements Configurable<Object>, SupportsNamespaces {
 
@@ -244,8 +247,10 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
 
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
+    int metadataRefreshMaxRetries = PropertyUtil.propertyAsInt(
+            catalogProperties, METADATA_REFRESH_MAX_RETRIES, METADATA_REFRESH_MAX_RETRIES_DEFAULT);
     return new JdbcTableOperations(
-        connections, io, catalogName, tableIdentifier, catalogProperties, schemaVersion);
+        connections, io, catalogName, tableIdentifier, catalogProperties, schemaVersion, metadataRefreshMaxRetries);
   }
 
   @Override

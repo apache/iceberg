@@ -53,6 +53,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.LocationUtil;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -83,6 +84,9 @@ import software.amazon.awssdk.services.dynamodb.model.TableStatus;
 import software.amazon.awssdk.services.dynamodb.model.TransactWriteItem;
 import software.amazon.awssdk.services.dynamodb.model.TransactWriteItemsRequest;
 import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
+
+import static org.apache.iceberg.CatalogProperties.METADATA_REFRESH_MAX_RETRIES;
+import static org.apache.iceberg.CatalogProperties.METADATA_REFRESH_MAX_RETRIES_DEFAULT;
 
 /** DynamoDB implementation of Iceberg catalog */
 public class DynamoDbCatalog extends BaseMetastoreCatalog
@@ -156,7 +160,10 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
     validateTableIdentifier(tableIdentifier);
-    return new DynamoDbTableOperations(dynamo, awsProperties, catalogName, fileIO, tableIdentifier);
+    int metadataRefreshMaxRetries = PropertyUtil.propertyAsInt(
+            catalogProperties, METADATA_REFRESH_MAX_RETRIES, METADATA_REFRESH_MAX_RETRIES_DEFAULT);
+    return new DynamoDbTableOperations(
+            dynamo, awsProperties, catalogName, fileIO, tableIdentifier, metadataRefreshMaxRetries);
   }
 
   @Override

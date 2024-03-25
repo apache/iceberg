@@ -42,7 +42,9 @@ class SnowflakeTableOperations extends BaseMetastoreTableOperations {
       SnowflakeClient snowflakeClient,
       FileIO fileIO,
       String catalogName,
-      TableIdentifier tableIdentifier) {
+      TableIdentifier tableIdentifier,
+      int metadataRefreshMaxRetries) {
+    setMetadataRefreshMaxRetries(metadataRefreshMaxRetries);
     this.snowflakeClient = snowflakeClient;
     this.fileIO = fileIO;
     this.tableIdentifier = tableIdentifier;
