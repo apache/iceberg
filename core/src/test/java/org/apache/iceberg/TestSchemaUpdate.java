@@ -1601,9 +1601,8 @@ public class TestSchemaUpdate {
 
     assertThat(newSchema.identifierFieldIds())
         .as("add column then set as identifier should succeed")
-        .isEqualTo(
-            Sets.newHashSet(
-                newSchema.findField("id").fieldId(), newSchema.findField("new_field").fieldId()));
+        .containsExactly(
+            newSchema.findField("id").fieldId(), newSchema.findField("new_field").fieldId());
 
     newSchema =
         new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
@@ -1614,9 +1613,8 @@ public class TestSchemaUpdate {
 
     assertThat(newSchema.identifierFieldIds())
         .as("set identifier then add column should succeed")
-        .isEqualTo(
-            Sets.newHashSet(
-                newSchema.findField("id").fieldId(), newSchema.findField("new_field").fieldId()));
+        .containsExactly(
+            newSchema.findField("id").fieldId(), newSchema.findField("new_field").fieldId());
   }
 
   @Test
@@ -1686,9 +1684,8 @@ public class TestSchemaUpdate {
 
     assertThat(newSchema.identifierFieldIds())
         .as("add a field with dot as identifier should succeed")
-        .isEqualTo(
-            Sets.newHashSet(
-                newSchema.findField("id").fieldId(), newSchema.findField("dot.field").fieldId()));
+        .containsExactly(
+            newSchema.findField("id").fieldId(), newSchema.findField("dot.field").fieldId());
   }
 
   @Test
@@ -1708,10 +1705,9 @@ public class TestSchemaUpdate {
 
     assertThat(newSchema.identifierFieldIds())
         .as("remove an identifier field should succeed")
-        .isEqualTo(
-            Sets.newHashSet(
-                newSchema.findField("new_field").fieldId(),
-                newSchema.findField("new_field2").fieldId()));
+        .containsExactly(
+            newSchema.findField("new_field").fieldId(),
+            newSchema.findField("new_field2").fieldId());
 
     newSchema =
         new SchemaUpdate(newSchema, SCHEMA_LAST_COLUMN_ID)
