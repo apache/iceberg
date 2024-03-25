@@ -19,26 +19,42 @@
 package org.apache.iceberg.hadoop;
 
 import java.io.IOException;
+import java.util.concurrent.Executors;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.s3a.S3ABlockOutputStream;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.assertj.core.api.Assertions;
+import org.junit.Assert;
 import org.junit.jupiter.api.Test;
 
 class TestHadoopStreams {
 
   @Test
-  void closeShouldThrowIOExceptionWhenInterrupted() throws IOException {
+  void closeShouldThrowIOExceptionWhenInterrupted() throws Exception {
 
-    FSDataOutputStream fsDataOutputStream =
-        new FSDataOutputStream(new S3ABlockOutputStream(), null);
+    long startTime = System.currentTimeMillis();
+    S3ABlockOutputStream s3ABlockOutputStream = new S3ABlockOutputStream();
+    FSDataOutputStream fsDataOutputStream = new FSDataOutputStream(s3ABlockOutputStream, null);
     PositionOutputStream wrap = HadoopStreams.wrap(fsDataOutputStream);
 
-    // mock interrupt in S3ABlockOutputStream#putObject
-    Thread.currentThread().interrupt();
+    // interrupt mock upload on close after a delay
+    Executors.newSingleThreadExecutor()
+        .execute(
+            () -> {
+              try {
+                Thread.sleep(1000);
+              } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+              }
+              s3ABlockOutputStream.interruptClose();
+            });
 
     Assertions.assertThatThrownBy(wrap::close)
         .isInstanceOf(IOException.class)
         .hasMessage("S3ABlockOutputStream failed to upload object after stream was closed");
+
+    long endTime = System.currentTimeMillis();
+    long closeDuration = endTime - startTime;
+    Assert.assertTrue(closeDuration < 30 * 1000 && closeDuration > 1000);
   }
 }

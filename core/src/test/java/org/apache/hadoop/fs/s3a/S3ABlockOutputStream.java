@@ -20,9 +20,19 @@ package org.apache.hadoop.fs.s3a;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 /** mock class for testing hadoop s3a writer */
 public class S3ABlockOutputStream extends OutputStream {
+  public ExecutorService mockCloseService;
+  public Future<?> mockUploadOnClose;
+
+  public S3ABlockOutputStream() {
+    mockCloseService = Executors.newSingleThreadExecutor();
+  }
 
   @Override
   public void write(int b) throws IOException {
@@ -31,6 +41,27 @@ public class S3ABlockOutputStream extends OutputStream {
 
   @Override
   public void close() throws IOException {
+    try {
+      mockUploadOnClose =
+          mockCloseService.submit(
+              () -> {
+                try {
+                  Thread.sleep(30 * 1000);
+                } catch (InterruptedException e) {
+                  // ignore
+                }
+              });
+      mockUploadOnClose.get();
+    } catch (CancellationException | InterruptedException e) {
+      // mock interrupt in S3ABlockOutputStream#putObject
+      Thread.currentThread().interrupt();
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
     super.close();
+  }
+
+  public void interruptClose() {
+    mockUploadOnClose.cancel(true);
   }
 }
