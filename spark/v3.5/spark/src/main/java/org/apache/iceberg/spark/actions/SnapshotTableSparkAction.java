@@ -54,6 +54,7 @@ public class SnapshotTableSparkAction extends BaseTableCreationSparkAction<Snaps
   private StagingTableCatalog destCatalog;
   private Identifier destTableIdent;
   private String destTableLocation = null;
+  private int parallelism = 1;
 
   SnapshotTableSparkAction(
       SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
@@ -99,6 +100,12 @@ public class SnapshotTableSparkAction extends BaseTableCreationSparkAction<Snaps
   }
 
   @Override
+  public SnapshotTable parallelism(int numThreads) {
+    this.parallelism = numThreads;
+    return this;
+  }
+
+  @Override
   public SnapshotTable.Result execute() {
     String desc = String.format("Snapshotting table %s as %s", sourceTableIdent(), destTableIdent);
     JobGroupInfo info = newJobGroupInfo("SNAPSHOT-TABLE", desc);
@@ -126,7 +133,8 @@ public class SnapshotTableSparkAction extends BaseTableCreationSparkAction<Snaps
       TableIdentifier v1TableIdent = v1SourceTable().identifier();
       String stagingLocation = getMetadataLocation(icebergTable);
       LOG.info("Generating Iceberg metadata for {} in {}", destTableIdent(), stagingLocation);
-      SparkTableUtil.importSparkTable(spark(), v1TableIdent, icebergTable, stagingLocation);
+      SparkTableUtil.importSparkTable(
+          spark(), v1TableIdent, icebergTable, stagingLocation, parallelism);
 
       LOG.info("Committing staged changes to {}", destTableIdent());
       stagedTable.commitStagedChanges();

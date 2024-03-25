@@ -21,18 +21,30 @@ package org.apache.iceberg.spark.extensions;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.data.MigrationService;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.spark.sql.AnalysisException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.MockedStatic;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestSnapshotTableProcedure extends ExtensionsTestBase {
@@ -222,5 +234,63 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
     assertThatThrownBy(() -> sql("CALL %s.system.snapshot('src', '')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot handle an empty identifier for argument table");
+  }
+
+  @TestTemplate
+  public void testSnapshotWithSingleThread() throws IOException {
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        sourceName, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", sourceName);
+
+    ExecutorService service = mock(ExecutorService.class);
+    sql(
+        "CALL %s.system.snapshot(source_table => '%s', table => '%s', parallelism => %d)",
+        catalogName, sourceName, tableName, 1);
+    verifyNoInteractions(service);
+  }
+
+  @TestTemplate
+  public void testSnapshotWithMultiThreads() throws IOException {
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        sourceName, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", sourceName);
+
+    try (MockedStatic<MigrationService> service = mockStatic(MigrationService.class)) {
+      int parallelism = 5;
+      ExecutorService executorService = mock(ExecutorService.class);
+      service.when(() -> MigrationService.get(eq(parallelism))).thenReturn(executorService);
+      Future future = mock(Future.class);
+      when(executorService.submit(any(Runnable.class))).thenReturn(future);
+      when(future.isDone()).thenReturn(true);
+
+      sql(
+          "CALL %s.system.snapshot(source_table => '%s', table => '%s', parallelism => %d)",
+          catalogName, sourceName, tableName, parallelism);
+      verify(executorService, times(2)).submit(any(Runnable.class));
+    }
+  }
+
+  @TestTemplate
+  public void testMigrateWithInvalidParallelism() throws IOException {
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        sourceName, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", sourceName);
+
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.snapshot(source_table => '%s', table => '%s', parallelism => %d)",
+                    catalogName, sourceName, tableName, -1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Parallelism should be larger than 0");
   }
 }

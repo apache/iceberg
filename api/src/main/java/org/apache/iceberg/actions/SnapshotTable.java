@@ -57,6 +57,16 @@ public interface SnapshotTable extends Action<SnapshotTable, SnapshotTable.Resul
    */
   SnapshotTable tableProperty(String key, String value);
 
+  /**
+   * Sets the number of threads to use for file reading. The default is 1.
+   *
+   * @param numThreads the number of threads
+   * @return this for method chaining
+   */
+  default SnapshotTable parallelism(int numThreads) {
+    throw new UnsupportedOperationException("Setting parallelism is not supported");
+  }
+
   /** The action result that contains a summary of the execution. */
   interface Result {
     /** Returns the number of imported data files. */

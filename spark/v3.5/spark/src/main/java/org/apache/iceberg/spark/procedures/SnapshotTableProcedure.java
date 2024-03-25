@@ -38,7 +38,8 @@ class SnapshotTableProcedure extends BaseProcedure {
         ProcedureParameter.required("source_table", DataTypes.StringType),
         ProcedureParameter.required("table", DataTypes.StringType),
         ProcedureParameter.optional("location", DataTypes.StringType),
-        ProcedureParameter.optional("properties", STRING_MAP)
+        ProcedureParameter.optional("properties", STRING_MAP),
+        ProcedureParameter.optional("parallelism", DataTypes.IntegerType)
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -100,6 +101,12 @@ class SnapshotTableProcedure extends BaseProcedure {
 
     if (snapshotLocation != null) {
       action.tableLocation(snapshotLocation);
+    }
+
+    if (!args.isNullAt(4)) {
+      int parallelism = args.getInt(4);
+      Preconditions.checkArgument(parallelism > 0, "Parallelism should be larger than 0");
+      action = action.parallelism(parallelism);
     }
 
     SnapshotTable.Result result = action.tableProperties(properties).execute();

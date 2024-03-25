@@ -59,6 +59,7 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
 
   private Identifier backupIdent;
   private boolean dropBackup = false;
+  private int parallelism = 1;
 
   MigrateTableSparkAction(
       SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
@@ -109,6 +110,12 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
   }
 
   @Override
+  public MigrateTableSparkAction parallelism(int numThreads) {
+    this.parallelism = numThreads;
+    return this;
+  }
+
+  @Override
   public MigrateTable.Result execute() {
     String desc = String.format("Migrating table %s", destTableIdent().toString());
     JobGroupInfo info = newJobGroupInfo("MIGRATE-TABLE", desc);
@@ -137,7 +144,8 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
       TableIdentifier v1BackupIdent = new TableIdentifier(backupIdent.name(), backupNamespace);
       String stagingLocation = getMetadataLocation(icebergTable);
       LOG.info("Generating Iceberg metadata for {} in {}", destTableIdent(), stagingLocation);
-      SparkTableUtil.importSparkTable(spark(), v1BackupIdent, icebergTable, stagingLocation);
+      SparkTableUtil.importSparkTable(
+          spark(), v1BackupIdent, icebergTable, stagingLocation, parallelism);
 
       LOG.info("Committing staged changes to {}", destTableIdent());
       stagedTable.commitStagedChanges();

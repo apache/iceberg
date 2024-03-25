@@ -398,6 +398,34 @@ public class SparkTableUtil {
    * @param sourceTableIdent an identifier of the source Spark table
    * @param targetTable an Iceberg table where to import the data
    * @param stagingDir a staging directory to store temporary manifest files
+   * @param parallelism number of threads to use for file reading
+   */
+  public static void importSparkTable(
+      SparkSession spark,
+      TableIdentifier sourceTableIdent,
+      Table targetTable,
+      String stagingDir,
+      int parallelism) {
+    importSparkTable(
+        spark,
+        sourceTableIdent,
+        targetTable,
+        stagingDir,
+        Collections.emptyMap(),
+        false,
+        parallelism);
+  }
+
+  /**
+   * Import files from an existing Spark table to an Iceberg table.
+   *
+   * <p>The import uses the Spark session to get table metadata. It assumes no operation is going on
+   * the original and target table and thus is not thread-safe.
+   *
+   * @param spark a Spark session
+   * @param sourceTableIdent an identifier of the source Spark table
+   * @param targetTable an Iceberg table where to import the data
+   * @param stagingDir a staging directory to store temporary manifest files
    * @param partitionFilter only import partitions whose values match those in the map, can be
    *     partially defined
    * @param checkDuplicateFiles if true, throw exception if import results in a duplicate data file
@@ -550,7 +578,7 @@ public class SparkTableUtil {
       }
 
       AppendFiles append = targetTable.newAppend();
-      files.forEach(append::appendFile);
+      files.stream().filter(java.util.Objects::nonNull).forEach(append::appendFile);
       append.commit();
     } catch (NoSuchDatabaseException e) {
       throw SparkExceptionUtil.toUncheckedException(

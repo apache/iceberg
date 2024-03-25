@@ -24,8 +24,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
@@ -44,8 +42,6 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.orc.OrcMetrics;
 import org.apache.iceberg.parquet.ParquetUtil;
-import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
-import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.util.Tasks;
 
 public class TableMigrationUtil {
@@ -131,7 +127,7 @@ public class TableMigrationUtil {
           Tasks.range(fileStatus.size()).stopOnFailure().throwFailureWhenFinished();
 
       if (parallelism > 1) {
-        service = migrationService(parallelism);
+        service = MigrationService.get(parallelism);
         task.executeWith(service);
       }
 
@@ -213,13 +209,5 @@ public class TableMigrationUtil {
         .withMetrics(metrics)
         .withPartitionValues(partitionValues)
         .build();
-  }
-
-  private static ExecutorService migrationService(int parallelism) {
-    return MoreExecutors.getExitingExecutorService(
-        (ThreadPoolExecutor)
-            Executors.newFixedThreadPool(
-                parallelism,
-                new ThreadFactoryBuilder().setNameFormat("table-migration-%d").build()));
   }
 }

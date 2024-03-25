@@ -60,6 +60,16 @@ public interface MigrateTable extends Action<MigrateTable, MigrateTable.Result> 
     throw new UnsupportedOperationException("Backup table name cannot be specified");
   }
 
+  /**
+   * Sets the number of threads to use for file reading. The default is 1.
+   *
+   * @param numThreads the number of threads
+   * @return this for method chaining
+   */
+  default MigrateTable parallelism(int numThreads) {
+    throw new UnsupportedOperationException("Setting parallelism is not supported");
+  }
+
   /** The action result that contains a summary of the execution. */
   interface Result {
     /** Returns the number of migrated data files. */
