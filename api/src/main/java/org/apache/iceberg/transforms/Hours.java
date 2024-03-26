@@ -34,16 +34,19 @@ public class Hours<T> extends TimeTransform<T> {
   @Override
   @SuppressWarnings("unchecked")
   protected Transform<T, Integer> toEnum(Type type) {
-    if (type.typeId() == Type.TypeID.TIMESTAMP) {
-      return (Transform<T, Integer>) Timestamps.get((Types.TimestampType) type, ChronoUnit.HOURS);
+    switch (type.typeId()) {
+      case TIMESTAMP:
+        return (Transform<T, Integer>) Timestamps.HOUR_FROM_MICROS;
+      case TIMESTAMP_NANO:
+        return (Transform<T, Integer>) Timestamps.HOUR_FROM_NANOS;
+      default:
+        throw new IllegalArgumentException("Unsupported type: " + type);
     }
-
-    throw new IllegalArgumentException("Unsupported type: " + type);
   }
 
   @Override
   public boolean canTransform(Type type) {
-    return type.typeId() == Type.TypeID.TIMESTAMP;
+    return type.typeId() == Type.TypeID.TIMESTAMP || type.typeId() == Type.TypeID.TIMESTAMP_NANO;
   }
 
   @Override
@@ -63,12 +66,14 @@ public class Hours<T> extends TimeTransform<T> {
           || otherResultTypeUnit == ChronoUnit.DAYS
           || otherResultTypeUnit == ChronoUnit.MONTHS
           || otherResultTypeUnit == ChronoUnit.YEARS;
-    } else {
-      return other instanceof Hours
-          || other instanceof Days
-          || other instanceof Months
-          || other instanceof Years;
+    } else if (other instanceof Hours
+        || other instanceof Days
+        || other instanceof Months
+        || other instanceof Years) {
+      return true;
     }
+
+    return false;
   }
 
   @Override

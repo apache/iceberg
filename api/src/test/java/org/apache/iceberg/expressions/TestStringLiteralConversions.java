@@ -101,7 +101,7 @@ public class TestStringLiteralConversions {
 
     // Timestamp with explicit UTC offset, +00:00
     Literal<CharSequence> timestampStr = Literal.of("2017-08-18T14:21:01.919+00:00");
-    Literal<Long> timestamp = timestampStr.to(Types.TimestampType.microsWithZone());
+    Literal<Long> timestamp = timestampStr.to(Types.TimestampType.withZone());
     long avroValue =
         avroConversion.toLong(
             LocalDateTime.of(2017, 8, 18, 14, 21, 1, 919 * 1000000).toInstant(ZoneOffset.UTC),
@@ -112,7 +112,7 @@ public class TestStringLiteralConversions {
 
     // Timestamp without an explicit zone should be UTC (equal to the previous converted value)
     timestampStr = Literal.of("2017-08-18T14:21:01.919");
-    timestamp = timestampStr.to(Types.TimestampType.microsWithoutZone());
+    timestamp = timestampStr.to(Types.TimestampType.withoutZone());
 
     assertThat((long) timestamp.value())
         .as("Timestamp without zone should match UTC")
@@ -120,7 +120,7 @@ public class TestStringLiteralConversions {
 
     // Timestamp with an explicit offset should be adjusted to UTC
     timestampStr = Literal.of("2017-08-18T14:21:01.919-07:00");
-    timestamp = timestampStr.to(Types.TimestampType.microsWithZone());
+    timestamp = timestampStr.to(Types.TimestampType.withZone());
     avroValue =
         avroConversion.toLong(
             LocalDateTime.of(2017, 8, 18, 21, 21, 1, 919 * 1000000).toInstant(ZoneOffset.UTC),
@@ -140,7 +140,7 @@ public class TestStringLiteralConversions {
         new TimeConversions.TimestampMicrosConversion();
 
     Literal<CharSequence> timestampStr = Literal.of("2017-08-18T14:21:01.123456789");
-    Literal<Long> timestamp = timestampStr.to(Types.TimestampType.microsWithoutZone());
+    Literal<Long> timestamp = timestampStr.to(Types.TimestampType.withoutZone());
     long avroValue =
         avroConversion.toLong(
             LocalDateTime.of(2017, 8, 18, 14, 21, 1, 123456000).toInstant(ZoneOffset.UTC),
@@ -154,11 +154,13 @@ public class TestStringLiteralConversions {
 
   @Test
   public void testStringToTimestampLiteralWithNanosecondPrecisionFromNanoseconds() {
+    // TODO(epg): "Test that Avro produces a value within 1 micro of this" ???
+    //  https://github.com/apache/iceberg/pull/9008#discussion_r1520435413
     // Not using Avro's timestamp conversion as it has no timestampNanos().
     long expected = 1503066061123456789L;
 
     Literal<CharSequence> timestampStr = Literal.of("2017-08-18T14:21:01.123456789");
-    Literal<Long> timestamp = timestampStr.to(Types.TimestampType.nanosWithoutZone());
+    Literal<Long> timestamp = timestampStr.to(Types.TimestampNanoType.withoutZone());
     assertThat((long) timestamp.value())
         .as("Timestamp without zone should match UTC")
         .isEqualTo(expected);
@@ -173,7 +175,7 @@ public class TestStringLiteralConversions {
 
     // Timestamp with explicit UTC offset, +00:00
     Literal<CharSequence> timestampStr = Literal.of("1969-12-31T23:59:58.999999+00:00");
-    Literal<Long> timestamp = timestampStr.to(Types.TimestampType.microsWithZone());
+    Literal<Long> timestamp = timestampStr.to(Types.TimestampType.withZone());
     long avroValue =
         avroConversion.toLong(
             LocalDateTime.of(1969, 12, 31, 23, 59, 58, 999999 * 1_000).toInstant(ZoneOffset.UTC),
@@ -188,7 +190,7 @@ public class TestStringLiteralConversions {
 
     // Timestamp without an explicit zone should be UTC (equal to the previous converted value)
     timestampStr = Literal.of("1969-12-31T23:59:58.999999");
-    timestamp = timestampStr.to(Types.TimestampType.microsWithoutZone());
+    timestamp = timestampStr.to(Types.TimestampType.withoutZone());
 
     assertThat((long) timestamp.value())
         .as("Timestamp without zone should match UTC")
@@ -196,7 +198,7 @@ public class TestStringLiteralConversions {
 
     // Timestamp with an explicit offset should be adjusted to UTC
     timestampStr = Literal.of("1969-12-31T16:59:58.999999-07:00");
-    timestamp = timestampStr.to(Types.TimestampType.microsWithZone());
+    timestamp = timestampStr.to(Types.TimestampType.withZone());
     avroValue =
         avroConversion.toLong(
             LocalDateTime.of(1969, 12, 31, 23, 59, 58, 999999 * 1_000).toInstant(ZoneOffset.UTC),
@@ -214,12 +216,12 @@ public class TestStringLiteralConversions {
   public void testTimestampWithZoneWithoutZoneInLiteral() {
     // Zone must be present in literals when converting to timestamp with zone
     Assertions.assertThatThrownBy(
-            () -> Literal.of("2017-08-18T14:21:01.919123").to(Types.TimestampType.microsWithZone()))
+            () -> Literal.of("2017-08-18T14:21:01.919123").to(Types.TimestampType.withZone()))
         .isInstanceOf(DateTimeException.class)
         .hasMessageContaining("could not be parsed");
     Assertions.assertThatThrownBy(
             () ->
-                Literal.of("2017-08-18T14:21:01.919123456").to(Types.TimestampType.nanosWithZone()))
+                Literal.of("2017-08-18T14:21:01.919123456").to(Types.TimestampNanoType.withZone()))
         .isInstanceOf(DateTimeException.class)
         .hasMessageContaining("could not be parsed");
   }
@@ -230,13 +232,13 @@ public class TestStringLiteralConversions {
     Assertions.assertThatThrownBy(
             () ->
                 Literal.of("2017-08-18T14:21:01.919123+07:00")
-                    .to(Types.TimestampType.microsWithoutZone()))
+                    .to(Types.TimestampType.withoutZone()))
         .isInstanceOf(DateTimeException.class)
         .hasMessageContaining("could not be parsed");
     Assertions.assertThatThrownBy(
             () ->
                 Literal.of("2017-08-18T14:21:01.919123456+07:00")
-                    .to(Types.TimestampType.nanosWithoutZone()))
+                    .to(Types.TimestampNanoType.withoutZone()))
         .isInstanceOf(DateTimeException.class)
         .hasMessageContaining("could not be parsed");
   }

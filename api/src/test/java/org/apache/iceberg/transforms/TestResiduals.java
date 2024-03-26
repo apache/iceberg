@@ -199,23 +199,19 @@ public class TestResiduals {
   public void testInTimestamp() {
     Schema schema =
         new Schema(
-            Types.NestedField.optional(50, "ts", Types.TimestampType.microsWithoutZone()),
+            Types.NestedField.optional(50, "ts", Types.TimestampType.withoutZone()),
             Types.NestedField.optional(51, "dateint", Types.IntegerType.get()));
 
     Long date20191201 =
         (Long)
-            Literal.of("2019-12-01T00:00:00.00000")
-                .to(Types.TimestampType.microsWithoutZone())
-                .value();
+            Literal.of("2019-12-01T00:00:00.00000").to(Types.TimestampType.withoutZone()).value();
     Long date20191202 =
         (Long)
-            Literal.of("2019-12-02T00:00:00.00000")
-                .to(Types.TimestampType.microsWithoutZone())
-                .value();
+            Literal.of("2019-12-02T00:00:00.00000").to(Types.TimestampType.withoutZone()).value();
 
     PartitionSpec spec = PartitionSpec.builderFor(schema).day("ts").build();
 
-    Function<Object, Integer> day = Transforms.day().bind(Types.TimestampType.microsWithoutZone());
+    Function<Object, Integer> day = Transforms.day().bind(Types.TimestampType.withoutZone());
     Integer tsDay = day.apply(date20191201);
 
     Expression pred = in("ts", date20191201, date20191202);
@@ -311,23 +307,19 @@ public class TestResiduals {
   public void testNotInTimestamp() {
     Schema schema =
         new Schema(
-            Types.NestedField.optional(50, "ts", Types.TimestampType.microsWithoutZone()),
+            Types.NestedField.optional(50, "ts", Types.TimestampType.withoutZone()),
             Types.NestedField.optional(51, "dateint", Types.IntegerType.get()));
 
     Long date20191201 =
         (Long)
-            Literal.of("2019-12-01T00:00:00.00000")
-                .to(Types.TimestampType.microsWithoutZone())
-                .value();
+            Literal.of("2019-12-01T00:00:00.00000").to(Types.TimestampType.withoutZone()).value();
     Long date20191202 =
         (Long)
-            Literal.of("2019-12-02T00:00:00.00000")
-                .to(Types.TimestampType.microsWithoutZone())
-                .value();
+            Literal.of("2019-12-02T00:00:00.00000").to(Types.TimestampType.withoutZone()).value();
 
     PartitionSpec spec = PartitionSpec.builderFor(schema).day("ts").build();
 
-    Function<Object, Integer> day = Transforms.day().bind(Types.TimestampType.microsWithoutZone());
+    Function<Object, Integer> day = Transforms.day().bind(Types.TimestampType.withoutZone());
     Integer tsDay = day.apply(date20191201);
 
     Expression pred = notIn("ts", date20191201, date20191202);

@@ -38,8 +38,9 @@ public class Months<T> extends TimeTransform<T> {
       case DATE:
         return (Transform<T, Integer>) Dates.MONTH;
       case TIMESTAMP:
-        return (Transform<T, Integer>)
-            Timestamps.get((Types.TimestampType) type, ChronoUnit.MONTHS);
+        return (Transform<T, Integer>) Timestamps.MONTH_FROM_MICROS;
+      case TIMESTAMP_NANO:
+        return (Transform<T, Integer>) Timestamps.MONTH_FROM_NANOS;
       default:
         throw new IllegalArgumentException("Unsupported type: " + type);
     }
@@ -61,9 +62,11 @@ public class Months<T> extends TimeTransform<T> {
       return otherResultTypeUnit == ChronoUnit.MONTHS || otherResultTypeUnit == ChronoUnit.YEARS;
     } else if (other instanceof Dates) {
       return Dates.MONTH.satisfiesOrderOf(other);
-    } else {
-      return other instanceof Months || other instanceof Years;
+    } else if (other instanceof Months || other instanceof Years) {
+      return true;
     }
+
+    return false;
   }
 
   @Override

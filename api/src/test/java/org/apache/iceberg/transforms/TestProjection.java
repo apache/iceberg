@@ -268,10 +268,10 @@ public class TestProjection {
   public void testProjectionNames() {
     final Schema schema =
         new Schema(
-            required(1, "timestamp1", Types.TimestampType.microsWithoutZone()),
-            optional(2, "timestamp2", Types.TimestampType.microsWithoutZone()),
-            optional(3, "timestamp3", Types.TimestampType.microsWithoutZone()),
-            optional(4, "timestamp4", Types.TimestampType.microsWithoutZone()),
+            required(1, "timestamp1", Types.TimestampType.withoutZone()),
+            optional(2, "timestamp2", Types.TimestampType.withoutZone()),
+            optional(3, "timestamp3", Types.TimestampType.withoutZone()),
+            optional(4, "timestamp4", Types.TimestampType.withoutZone()),
             optional(5, "date1", Types.DateType.get()),
             optional(6, "date2", Types.DateType.get()),
             optional(7, "date3", Types.DateType.get()),

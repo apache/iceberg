@@ -24,7 +24,7 @@ import java.util.function.Function;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types.TimestampType;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SerializableFunction;
 
 /**
@@ -176,7 +176,17 @@ public interface Transform<S, T> extends Serializable {
       case TIME:
         return TransformUtil.humanTime((Long) value);
       case TIMESTAMP:
-        return TransformUtil.humanTimestamp((TimestampType) type, (Long) value);
+        if (((Types.TimestampType) type).shouldAdjustToUTC()) {
+          return TransformUtil.humanTimestampWithZone((Long) value);
+        } else {
+          return TransformUtil.humanTimestampWithoutZone((Long) value);
+        }
+      case TIMESTAMP_NANO:
+        if (((Types.TimestampNanoType) type).shouldAdjustToUTC()) {
+          return TransformUtil.humanTimestampNanoWithZone((Long) value);
+        } else {
+          return TransformUtil.humanTimestampNanoWithoutZone((Long) value);
+        }
       case FIXED:
       case BINARY:
         if (value instanceof ByteBuffer) {

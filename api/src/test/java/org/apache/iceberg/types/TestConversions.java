@@ -37,6 +37,7 @@ import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.types.Types.TimeType;
+import org.apache.iceberg.types.Types.TimestampNanoType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.types.Types.UUIDType;
 import org.junit.jupiter.api.Test;
@@ -97,21 +98,19 @@ public class TestConversions {
     // little-endian long
     // 400000L is 0...110|00011010|10000000 in binary
     // 10000000 -> -128, 00011010 -> 26, 00000110 -> 6, ... , 00000000 -> 0
-    assertConversion(
-        400000L, TimestampType.microsWithoutZone(), new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
-    assertConversion(
-        400000L, TimestampType.microsWithZone(), new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
-    assertThat(Literal.of(400000L).to(TimestampType.microsWithoutZone()).toByteBuffer().array())
+    assertConversion(400000L, TimestampType.withoutZone(), new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
+    assertConversion(400000L, TimestampType.withZone(), new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
+    assertThat(Literal.of(400000L).to(TimestampType.withoutZone()).toByteBuffer().array())
         .isEqualTo(new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
-    assertThat(Literal.of(400000L).to(TimestampType.microsWithZone()).toByteBuffer().array())
+    assertThat(Literal.of(400000L).to(TimestampType.withZone()).toByteBuffer().array())
         .isEqualTo(new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
     assertConversion(
-        400000L, TimestampType.nanosWithoutZone(), new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
+        400000L, TimestampNanoType.withoutZone(), new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
     assertConversion(
-        400000L, TimestampType.nanosWithZone(), new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
-    assertThat(Literal.of(400000L).to(TimestampType.nanosWithoutZone()).toByteBuffer().array())
+        400000L, TimestampNanoType.withZone(), new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
+    assertThat(Literal.of(400000L).to(TimestampNanoType.withoutZone()).toByteBuffer().array())
         .isEqualTo(new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
-    assertThat(Literal.of(400000L).to(TimestampType.nanosWithZone()).toByteBuffer().array())
+    assertThat(Literal.of(400000L).to(TimestampNanoType.withZone()).toByteBuffer().array())
         .isEqualTo(new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
 
     // strings are stored as UTF-8 bytes (without length)

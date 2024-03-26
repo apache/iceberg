@@ -54,6 +54,7 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
         return (B) new BucketInteger(numBuckets);
       case TIME:
       case TIMESTAMP:
+      case TIMESTAMP_NANO:
       case LONG:
         return (B) new BucketLong(numBuckets);
       case DECIMAL:
@@ -107,6 +108,7 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
       case DATE:
       case TIME:
       case TIMESTAMP:
+      case TIMESTAMP_NANO:
       case STRING:
       case BINARY:
       case FIXED:

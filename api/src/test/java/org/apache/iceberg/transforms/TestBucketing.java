@@ -107,61 +107,60 @@ public class TestBucketing {
         .isEqualTo(-662762989);
 
     Literal<Long> timestampVal =
-        Literal.of("2017-11-16T22:31:08").to(Types.TimestampType.microsWithoutZone());
+        Literal.of("2017-11-16T22:31:08").to(Types.TimestampType.withoutZone());
     assertThat(BucketUtil.hash(timestampVal.value()))
         .as("Spec example: hash(2017-11-16T22:31:08) = -2047944441")
         .isEqualTo(-2047944441);
 
-    timestampVal =
-        Literal.of("2017-11-16T22:31:08.000001").to(Types.TimestampType.microsWithoutZone());
+    timestampVal = Literal.of("2017-11-16T22:31:08.000001").to(Types.TimestampType.withoutZone());
     assertThat(BucketUtil.hash(timestampVal.value()))
         .as("Spec example: hash(2017-11-16T22:31:08.000001) = -1207196810")
         .isEqualTo(-1207196810);
 
     Literal<Long> timestamptzVal =
-        Literal.of("2017-11-16T14:31:08-08:00").to(Types.TimestampType.microsWithZone());
+        Literal.of("2017-11-16T14:31:08-08:00").to(Types.TimestampType.withZone());
     assertThat(BucketUtil.hash(timestamptzVal.value()))
         .as("Spec example: hash(2017-11-16T14:31:08-08:00) = -2047944441")
         .isEqualTo(-2047944441);
 
     timestamptzVal =
-        Literal.of("2017-11-16T14:31:08.000001-08:00").to(Types.TimestampType.microsWithZone());
+        Literal.of("2017-11-16T14:31:08.000001-08:00").to(Types.TimestampType.withZone());
     assertThat(BucketUtil.hash(timestamptzVal.value()))
         .as("Spec example: hash(2017-11-16T14:31:08.000001-08:00) = -1207196810")
         .isEqualTo(-1207196810);
 
     Literal<Long> timestampNsVal =
-        Literal.of("2017-11-16T22:31:08").to(Types.TimestampType.nanosWithoutZone());
+        Literal.of("2017-11-16T22:31:08").to(Types.TimestampNanoType.withoutZone());
     assertThat(BucketUtil.hash(timestampNsVal.value()))
         .as("Spec example: hash(2017-11-16T22:31:08) = -737750069")
         .isEqualTo(-737750069);
 
     timestampNsVal =
-        Literal.of("2017-11-16T22:31:08.000001").to(Types.TimestampType.nanosWithoutZone());
+        Literal.of("2017-11-16T22:31:08.000001").to(Types.TimestampNanoType.withoutZone());
     assertThat(BucketUtil.hash(timestampNsVal.value()))
         .as("Spec example: hash(2017-11-16T22:31:08.000001) = -976603392")
         .isEqualTo(-976603392);
 
     timestampNsVal =
-        Literal.of("2017-11-16T22:31:08.000000001").to(Types.TimestampType.nanosWithoutZone());
+        Literal.of("2017-11-16T22:31:08.000000001").to(Types.TimestampNanoType.withoutZone());
     assertThat(BucketUtil.hash(timestampNsVal.value()))
-        .as("Spec example: hash(2017-11-16T22:31:08.000000001) = -160215926")
+        .as("hash(2017-11-16T22:31:08.000000001) = -160215926")
         .isEqualTo(-160215926);
 
     Literal<Long> timestamptzNsVal =
-        Literal.of("2017-11-16T14:31:08-08:00").to(Types.TimestampType.nanosWithZone());
+        Literal.of("2017-11-16T14:31:08-08:00").to(Types.TimestampNanoType.withZone());
     assertThat(BucketUtil.hash(timestamptzNsVal.value()))
         .as("Spec example: hash(2017-11-16T14:31:08-08:00) = -737750069")
         .isEqualTo(-737750069);
 
     timestamptzNsVal =
-        Literal.of("2017-11-16T14:31:08.000001-08:00").to(Types.TimestampType.nanosWithZone());
+        Literal.of("2017-11-16T14:31:08.000001-08:00").to(Types.TimestampNanoType.withZone());
     assertThat(BucketUtil.hash(timestamptzNsVal.value()))
         .as("Spec example: hash(2017-11-16T14:31:08.000001-08:00) = -976603392")
         .isEqualTo(-976603392);
 
     timestamptzNsVal =
-        Literal.of("2017-11-16T14:31:08.000000001-08:00").to(Types.TimestampType.nanosWithZone());
+        Literal.of("2017-11-16T14:31:08.000000001-08:00").to(Types.TimestampNanoType.withZone());
     assertThat(BucketUtil.hash(timestamptzNsVal.value()))
         .as("Spec example: hash(2017-11-16T14:31:08.000000001-08:00) = -160215926")
         .isEqualTo(-160215926);

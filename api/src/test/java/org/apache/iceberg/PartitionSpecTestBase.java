@@ -29,13 +29,13 @@ public class PartitionSpecTestBase {
           Types.NestedField.required(2, "l", Types.LongType.get()),
           Types.NestedField.required(3, "d", Types.DateType.get()),
           Types.NestedField.required(4, "t", Types.TimeType.get()),
-          Types.NestedField.required(5, "ts", Types.TimestampType.microsWithoutZone()),
+          Types.NestedField.required(5, "ts", Types.TimestampType.withoutZone()),
           Types.NestedField.required(6, "dec", Types.DecimalType.of(9, 2)),
           Types.NestedField.required(7, "s", Types.StringType.get()),
           Types.NestedField.required(8, "u", Types.UUIDType.get()),
           Types.NestedField.required(9, "f", Types.FixedType.ofLength(3)),
           Types.NestedField.required(10, "b", Types.BinaryType.get()),
-          Types.NestedField.required(11, "tsn", Types.TimestampType.nanosWithoutZone()));
+          Types.NestedField.required(11, "tsn", Types.TimestampNanoType.withoutZone()));
 
   // a spec with all of the allowed transform/type pairs
   public static final PartitionSpec[] SPECS =

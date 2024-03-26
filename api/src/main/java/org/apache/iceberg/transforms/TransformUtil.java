@@ -26,7 +26,6 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
-import org.apache.iceberg.types.Types;
 
 class TransformUtil {
 
@@ -55,26 +54,20 @@ class TransformUtil {
     return LocalTime.ofNanoOfDay(microsFromMidnight * 1000).toString();
   }
 
-  public static String humanTimestamp(Types.TimestampType tsType, Long value) {
-    if (tsType.shouldAdjustToUTC()) {
-      switch (tsType.unit()) {
-        case MICROS:
-          return ChronoUnit.MICROS.addTo(EPOCH, value).toString();
-        case NANOS:
-          return ChronoUnit.NANOS.addTo(EPOCH, value).toString();
-        default:
-          throw new UnsupportedOperationException("Unsupported timestamp unit: " + tsType.unit());
-      }
-    } else {
-      switch (tsType.unit()) {
-        case MICROS:
-          return ChronoUnit.MICROS.addTo(EPOCH, value).toLocalDateTime().toString();
-        case NANOS:
-          return ChronoUnit.NANOS.addTo(EPOCH, value).toLocalDateTime().toString();
-        default:
-          throw new UnsupportedOperationException("Unsupported timestamp unit: " + tsType.unit());
-      }
-    }
+  static String humanTimestampWithZone(Long timestampMicros) {
+    return ChronoUnit.MICROS.addTo(EPOCH, timestampMicros).toString();
+  }
+
+  static String humanTimestampWithoutZone(Long timestampMicros) {
+    return ChronoUnit.MICROS.addTo(EPOCH, timestampMicros).toLocalDateTime().toString();
+  }
+
+  static String humanTimestampNanoWithZone(Long timestampMicros) {
+    return ChronoUnit.NANOS.addTo(EPOCH, timestampMicros).toString();
+  }
+
+  static String humanTimestampNanoWithoutZone(Long timestampMicros) {
+    return ChronoUnit.NANOS.addTo(EPOCH, timestampMicros).toLocalDateTime().toString();
   }
 
   static String humanHour(int hourOrdinal) {

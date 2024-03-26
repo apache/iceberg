@@ -32,7 +32,7 @@ public class TestPartitionPaths {
       new Schema(
           Types.NestedField.required(1, "id", Types.IntegerType.get()),
           Types.NestedField.optional(2, "data", Types.StringType.get()),
-          Types.NestedField.optional(3, "ts", Types.TimestampType.microsWithoutZone()));
+          Types.NestedField.optional(3, "ts", Types.TimestampType.withoutZone()));
 
   @Test
   public void testPartitionPath() {
@@ -42,8 +42,8 @@ public class TestPartitionPaths {
     Transform<Integer, Integer> bucket = Transforms.bucket(10);
 
     Literal<Long> ts =
-        Literal.of("2017-12-01T10:12:55.038194").to(Types.TimestampType.microsWithoutZone());
-    Object tsHour = hour.bind(Types.TimestampType.microsWithoutZone()).apply(ts.value());
+        Literal.of("2017-12-01T10:12:55.038194").to(Types.TimestampType.withoutZone());
+    Object tsHour = hour.bind(Types.TimestampType.withoutZone()).apply(ts.value());
     Object idBucket = bucket.bind(Types.IntegerType.get()).apply(1);
 
     Row partition = Row.of(tsHour, idBucket);
@@ -61,8 +61,8 @@ public class TestPartitionPaths {
     Transform<Integer, Integer> bucket = Transforms.bucket(10);
 
     Literal<Long> ts =
-        Literal.of("2017-12-01T10:12:55.038194789").to(Types.TimestampType.nanosWithoutZone());
-    Object tsHour = hour.bind(Types.TimestampType.nanosWithoutZone()).apply(ts.value());
+        Literal.of("2017-12-01T10:12:55.038194789").to(Types.TimestampNanoType.withoutZone());
+    Object tsHour = hour.bind(Types.TimestampNanoType.withoutZone()).apply(ts.value());
     Object idBucket = bucket.bind(Types.IntegerType.get()).apply(1);
 
     Row partition = Row.of(tsHour, idBucket);

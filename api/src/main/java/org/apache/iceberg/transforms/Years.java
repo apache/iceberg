@@ -38,7 +38,9 @@ class Years<T> extends TimeTransform<T> {
       case DATE:
         return (Transform<T, Integer>) Dates.YEAR;
       case TIMESTAMP:
-        return (Transform<T, Integer>) Timestamps.get((Types.TimestampType) type, ChronoUnit.YEARS);
+        return (Transform<T, Integer>) Timestamps.YEAR_FROM_MICROS;
+      case TIMESTAMP_NANO:
+        return (Transform<T, Integer>) Timestamps.YEAR_FROM_NANOS;
       default:
         throw new IllegalArgumentException("Unsupported type: " + type);
     }
@@ -59,9 +61,11 @@ class Years<T> extends TimeTransform<T> {
       return ((Timestamps) other).getResultTypeUnit() == ChronoUnit.YEARS;
     } else if (other instanceof Dates) {
       return Dates.YEAR.satisfiesOrderOf(other);
-    } else {
-      return other instanceof Years;
+    } else if (other instanceof Years) {
+      return true;
     }
+
+    return false;
   }
 
   @Override

@@ -178,10 +178,10 @@ public class TestAccessors {
 
   @Test
   public void testTimestamp() {
-    assertAccessorReturns(Types.TimestampType.microsWithoutZone(), 123L);
-    assertAccessorReturns(Types.TimestampType.microsWithZone(), 123L);
-    assertAccessorReturns(Types.TimestampType.nanosWithoutZone(), 123L);
-    assertAccessorReturns(Types.TimestampType.nanosWithZone(), 123L);
+    assertAccessorReturns(Types.TimestampType.withoutZone(), 123L);
+    assertAccessorReturns(Types.TimestampType.withZone(), 123L);
+    assertAccessorReturns(Types.TimestampNanoType.withoutZone(), 123L);
+    assertAccessorReturns(Types.TimestampNanoType.withZone(), 123L);
   }
 
   @Test

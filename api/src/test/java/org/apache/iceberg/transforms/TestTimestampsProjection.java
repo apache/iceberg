@@ -44,7 +44,7 @@ import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
 public class TestTimestampsProjection {
-  private static final Types.TimestampType TYPE = Types.TimestampType.microsWithoutZone();
+  private static final Types.TimestampType TYPE = Types.TimestampType.withoutZone();
   private static final Schema SCHEMA = new Schema(optional(1, "timestamp", TYPE));
 
   @SuppressWarnings("unchecked")

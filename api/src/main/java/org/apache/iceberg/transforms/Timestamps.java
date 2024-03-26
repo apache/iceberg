@@ -29,7 +29,6 @@ import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.SerializableFunction;
 
@@ -44,7 +43,7 @@ class Timestamps implements Transform<Long, Integer> {
   static final Timestamps DAY_FROM_NANOS = new Timestamps(ChronoUnit.NANOS, ChronoUnit.DAYS);
   static final Timestamps HOUR_FROM_NANOS = new Timestamps(ChronoUnit.NANOS, ChronoUnit.HOURS);
 
-  static Timestamps get(TimestampType type, String resultTypeUnit) {
+  static Timestamps get(Types.TimestampType type, String resultTypeUnit) {
     switch (resultTypeUnit.toLowerCase(Locale.ENGLISH)) {
       case "year":
         return get(type, ChronoUnit.YEARS);
@@ -60,9 +59,9 @@ class Timestamps implements Transform<Long, Integer> {
     }
   }
 
-  static Timestamps get(TimestampType type, ChronoUnit resultTypeUnit) {
-    switch (type.unit()) {
-      case MICROS:
+  static Timestamps get(Types.TimestampType type, ChronoUnit resultTypeUnit) {
+    switch (type.typeId()) {
+      case TIMESTAMP:
         switch (resultTypeUnit) {
           case YEARS:
             return YEAR_FROM_MICROS;
@@ -74,7 +73,7 @@ class Timestamps implements Transform<Long, Integer> {
             return HOUR_FROM_MICROS;
         }
         break;
-      case NANOS:
+      case TIMESTAMP_NANO:
         switch (resultTypeUnit) {
           case YEARS:
             return YEAR_FROM_NANOS;
@@ -87,8 +86,10 @@ class Timestamps implements Transform<Long, Integer> {
         }
         break;
       default:
-        throw new UnsupportedOperationException("Unsupported timestamp unit: " + type.unit());
+        // `type` is out of range.
+        throw new UnsupportedOperationException("Unsupported timestamp unit: " + type);
     }
+    // `resultTypeUnit` is out of range.
     throw new IllegalArgumentException(
         "Unsupported source/result type units: " + type + "->" + resultTypeUnit);
   }
@@ -125,19 +126,7 @@ class Timestamps implements Transform<Long, Integer> {
                   "Unsupported result type unit: " + resultTypeUnit);
           }
         case NANOS:
-          switch (resultTypeUnit) {
-            case YEARS:
-              return DateTimeUtil.nanosToYears(timestampUnits);
-            case MONTHS:
-              return DateTimeUtil.nanosToMonths(timestampUnits);
-            case DAYS:
-              return DateTimeUtil.nanosToDays(timestampUnits);
-            case HOURS:
-              return DateTimeUtil.nanosToHours(timestampUnits);
-            default:
-              throw new UnsupportedOperationException(
-                  "Unsupported result type unit: " + resultTypeUnit);
-          }
+          return DateTimeUtil.convertNanos(timestampUnits, resultTypeUnit);
         default:
           throw new UnsupportedOperationException(
               "Unsupported source type unit: " + sourceTypeUnit);
@@ -164,7 +153,7 @@ class Timestamps implements Transform<Long, Integer> {
 
   @Override
   public boolean canTransform(Type type) {
-    return type.typeId() == Type.TypeID.TIMESTAMP;
+    return type.typeId() == Type.TypeID.TIMESTAMP || type.typeId() == Type.TypeID.TIMESTAMP_NANO;
   }
 
   @Override
