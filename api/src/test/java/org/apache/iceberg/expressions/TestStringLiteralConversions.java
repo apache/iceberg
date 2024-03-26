@@ -154,13 +154,24 @@ public class TestStringLiteralConversions {
 
   @Test
   public void testStringToTimestampLiteralWithNanosecondPrecisionFromNanoseconds() {
-    // TODO(epg): "Test that Avro produces a value within 1 micro of this" ???
-    //  https://github.com/apache/iceberg/pull/9008#discussion_r1520435413
-    // Not using Avro's timestamp conversion as it has no timestampNanos().
-    long expected = 1503066061123456789L;
-
     Literal<CharSequence> timestampStr = Literal.of("2017-08-18T14:21:01.123456789");
     Literal<Long> timestamp = timestampStr.to(Types.TimestampNanoType.withoutZone());
+
+    // use Avro's timestamp conversion to validate the result within one microsecond
+    Schema avroSchema = LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
+    TimeConversions.TimestampMicrosConversion avroConversion =
+        new TimeConversions.TimestampMicrosConversion();
+    long avroValue =
+        avroConversion.toLong(
+            LocalDateTime.of(2017, 8, 18, 14, 21, 1, 123456000).toInstant(ZoneOffset.UTC),
+            avroSchema,
+            avroSchema.getLogicalType());
+    assertThat(timestamp.value() - avroValue * 1000)
+        .as("Timestamp without zone should match UTC")
+        .isLessThan(1000);
+
+    // Not only using Avro's timestamp conversion as it has no timestampNanos().
+    long expected = 1503066061123456789L;
     assertThat((long) timestamp.value())
         .as("Timestamp without zone should match UTC")
         .isEqualTo(expected);
