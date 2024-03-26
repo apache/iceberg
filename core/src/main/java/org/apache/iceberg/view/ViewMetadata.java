@@ -85,22 +85,6 @@ public interface ViewMetadata extends Serializable {
   @Nullable
   String metadataFileLocation();
 
-  default String property(String property, String defaultValue) {
-    return properties().getOrDefault(property, defaultValue);
-  }
-
-  default boolean propertyAsBoolean(String property, boolean defaultValue) {
-    return PropertyUtil.propertyAsBoolean(properties(), property, defaultValue);
-  }
-
-  default int propertyAsInt(String property, int defaultValue) {
-    return PropertyUtil.propertyAsInt(properties(), property, defaultValue);
-  }
-
-  default long propertyAsLong(String property, long defaultValue) {
-    return PropertyUtil.propertyAsLong(properties(), property, defaultValue);
-  }
-
   default ViewVersion version(int versionId) {
     return versionsById().get(versionId);
   }
