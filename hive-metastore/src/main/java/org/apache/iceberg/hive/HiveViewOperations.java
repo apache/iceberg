@@ -218,8 +218,25 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
               e);
         }
 
-        LOG.error("Cannot tell if commit to {}.{} succeeded.", database, viewName, e);
-        throw new CommitStateUnknownException(e);
+        LOG.error(
+            "Cannot tell if commit to {}.{} succeeded, attempting to reconnect and check.",
+            database,
+            viewName,
+            e);
+        commitStatus =
+            checkCommitStatus(
+                viewName,
+                newMetadataLocation,
+                metadata.properties(),
+                () -> checkCurrentMetadataLocation(newMetadataLocation));
+        switch (commitStatus) {
+          case SUCCESS:
+            break;
+          case FAILURE:
+            throw e;
+          case UNKNOWN:
+            throw new CommitStateUnknownException(e);
+        }
       }
     } catch (TException e) {
       throw new RuntimeException(
@@ -238,6 +255,17 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
 
     LOG.info(
         "Committed to view {} with the new metadata location {}", fullName, newMetadataLocation);
+  }
+
+  /**
+   * Validate if the new metadata location is the current metadata location.
+   *
+   * @param newMetadataLocation newly written metadata location
+   * @return true if the new metadata location is the current metadata location
+   */
+  private boolean checkCurrentMetadataLocation(String newMetadataLocation) {
+    ViewMetadata metadata = refresh();
+    return newMetadataLocation.equals(metadata.metadataFileLocation());
   }
 
   private void setHmsTableParameters(

@@ -38,7 +38,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
-import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
@@ -170,12 +169,9 @@ public class TestHiveViewCommits {
         .isEqualTo(2);
   }
 
-  /**
-   * Pretends we throw an error while persisting that actually does commit serverside, Since it
-   * fails on client side. It will delete the corresponding metadata file.
-   */
+  /** Pretends we throw an error while persisting that actually does commit serverside. */
   @Test
-  public void testThriftExceptionFailureOnCommit() throws TException, InterruptedException {
+  public void testThriftExceptionSuccessOnCommit() throws TException, InterruptedException {
     HiveViewOperations ops = (HiveViewOperations) ((BaseView) view).operations();
 
     ViewMetadata metadataV1 = ops.current();
@@ -190,16 +186,11 @@ public class TestHiveViewCommits {
 
     // Simulate a communication error after a successful commit
     commitAndThrowException(ops, spyOps);
-
-    assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
-        .isInstanceOf(CommitStateUnknownException.class)
-        .hasMessageContaining("Datacenter on fire");
-
-    assertThatThrownBy(ops::refresh).isInstanceOf(NotFoundException.class);
+    spyOps.commit(metadataV2, metadataV1);
 
     assertThat(ops.current()).as("Current metadata should have not changed").isEqualTo(metadataV2);
     assertThat(metadataFileExists(ops.current()))
-        .as("Previous(V2) metadata file should still exist")
+        .as("Current metadata file should still exist")
         .isTrue();
   }
 
