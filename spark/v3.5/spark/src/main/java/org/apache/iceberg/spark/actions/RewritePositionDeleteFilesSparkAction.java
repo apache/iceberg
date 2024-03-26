@@ -35,6 +35,7 @@ import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.PositionDeletesScanTask;
+import org.apache.iceberg.PositionDeletesTable;
 import org.apache.iceberg.PositionDeletesTable.PositionDeletesBatchScan;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.StructLike;
@@ -59,6 +60,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.PartitionUtil;
 import org.apache.iceberg.util.PropertyUtil;
@@ -458,6 +460,7 @@ public class RewritePositionDeleteFilesSparkAction
   }
 
   private StructLike coercePartition(PositionDeletesScanTask task, StructType partitionType) {
-    return PartitionUtil.coercePartition(partitionType, task.spec(), task.partition());
+    Types.StructType dedupType = PositionDeletesTable.partitionType(table.schema(), partitionType);
+    return PartitionUtil.coercePartition(dedupType, task.spec(), task.partition());
   }
 }
