@@ -298,10 +298,10 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
         CatalogUtil.dropViewMetadata(ops.io(), lastViewMetadata);
       }
 
-      LOG.info("Dropped View: {}", identifier);
+      LOG.info("Dropped view: {}", identifier);
       return true;
 
-    } catch (NoSuchViewException | NoSuchObjectException e) {
+    } catch (NoSuchObjectException e) {
       LOG.info("Skipping drop, view does not exist: {}", identifier, e);
       return false;
     } catch (TException e) {
@@ -320,10 +320,6 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
   @Override
   @SuppressWarnings("FormatStringAnnotation")
   public void renameView(TableIdentifier from, TableIdentifier to) {
-    if (!namespaceExists(to.namespace())) {
-      throw new NoSuchNamespaceException(
-          "Cannot rename %s to %s. Namespace does not exist: %s", from, to, to.namespace());
-    }
     renameTableOrView(from, to, HiveOperationsBase.ContentType.VIEW);
   }
 
@@ -347,7 +343,12 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
       TableIdentifier originalTo,
       HiveOperationsBase.ContentType contentType) {
     if (!isValidIdentifier(from)) {
-      throw new NoSuchTableException("Invalid identifier: %s", from);
+      switch (contentType) {
+        case TABLE:
+          throw new NoSuchTableException("Invalid identifier: %s", from);
+        case VIEW:
+          throw new NoSuchViewException("Invalid identifier: %s", from);
+      }
     }
 
     TableIdentifier to = removeCatalogName(originalTo);
