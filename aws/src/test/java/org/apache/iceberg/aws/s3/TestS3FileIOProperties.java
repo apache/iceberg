@@ -447,13 +447,13 @@ public class TestS3FileIOProperties {
 
     S3Configuration s3Configuration = s3ConfigurationCaptor.getValue();
     Assertions.assertThat(s3Configuration.pathStyleAccessEnabled())
-        .withFailMessage("s3 path style access enabled parameter should be set to true")
+        .as("s3 path style access enabled parameter should be set to true")
         .isTrue();
     Assertions.assertThat(s3Configuration.useArnRegionEnabled())
-        .withFailMessage("s3 use arn region enabled parameter should be set to true")
+        .as("s3 use arn region enabled parameter should be set to true")
         .isTrue();
     Assertions.assertThat(s3Configuration.accelerateModeEnabled())
-        .withFailMessage("s3 acceleration mode enabled parameter should be set to true")
+        .as("s3 acceleration mode enabled parameter should be set to true")
         .isFalse();
   }
 
@@ -477,5 +477,15 @@ public class TestS3FileIOProperties {
 
     s3FileIOProperties.applyEndpointConfigurations(mockS3ClientBuilder);
     Mockito.verify(mockS3ClientBuilder).endpointOverride(Mockito.any(URI.class));
+  }
+
+  @Test
+  public void testApplyUserAgentConfigurations() {
+    Map<String, String> properties = Maps.newHashMap();
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
+    S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);
+    s3FileIOProperties.applyUserAgentConfigurations(mockS3ClientBuilder);
+
+    Mockito.verify(mockS3ClientBuilder).overrideConfiguration(Mockito.any(Consumer.class));
   }
 }

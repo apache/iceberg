@@ -22,6 +22,43 @@ title: "Blogs"
 
 Here is a list of company blogs that talk about Iceberg. The blogs are ordered from most recent to oldest.
 
+<!-- markdown-link-check-disable-next-line -->
+### [The Apache Iceberg Lakehouse: The Great Data Equalizer](https://amdatalakehouse.substack.com/p/the-apache-iceberg-lakehouse-the)
+**Date**: March 6th, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+### [Data Lakehouse Versioning Comparison: (Nessie, Apache Iceberg, LakeFS)](https://www.dremio.com/blog/data-lakehouse-versioning-comparison-nessie-apache-iceberg-lakefs/)
+**Date**: March 5th, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+### [What is Lakehouse Management?: Git-for-Data, Automated Apache Iceberg Table Maintenance and more](https://www.dremio.com/blog/what-is-lakehouse-management-git-for-data-automated-apache-iceberg-table-maintenance-and-more/)
+**Date**: February 23rd, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+### [What is DataOps? Automating Data Management on the Apache Iceberg Lakehouse](https://www.dremio.com/blog/what-is-dataops-automating-data-management-on-the-apache-iceberg-lakehouse/)
+**Date**: February 23rd, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [What is the Data Lakehouse and the Role of Apache Iceberg, Nessie and Dremio?](https://amdatalakehouse.substack.com/p/what-is-the-data-lakehouse-and-the)
+**Date**: February 21st, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+### [Ingesting Data Into Apache Iceberg Tables with Dremio: A Unified Path to Iceberg](https://www.dremio.com/blog/ingesting-data-into-apache-iceberg-tables-with-dremio-a-unified-path-to-iceberg/)
+**Date**: February 1st, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+### [Open Source and the Data Lakehouse: Apache Arrow, Apache Iceberg, Nessie and Dremio](https://www.dremio.com/blog/open-source-and-the-data-lakehouse-apache-arrow-apache-iceberg-nessie-and-dremio/)
+**Date**: February 1st, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
 ### [How not to use Apache Iceberg](https://medium.com/@ajanthabhat/how-not-to-use-apache-iceberg-046ae7e7c884)
 **Date**: January 23rd, 2024, **Company**: Dremio
 
@@ -36,6 +73,16 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 **Date**: October 12th, 2023, **Company**: Cloudera
 
 **Authors**: [Ayush Saxena](https://www.linkedin.com/in/ayush151/)
+
+### [Getting Started with Flink SQL and Apache Iceberg](https://www.dremio.com/blog/getting-started-with-flink-sql-and-apache-iceberg/)
+**Date**: August 8th, 2023, **Company**: Dremio
+
+**Authors**: [Dipankar Mazumdar](https://www.linkedin.com/in/dipankar-mazumdar/) & [Ajantha Bhat](https://www.linkedin.com/in/ajanthabhat/)
+
+### [Using Flink with Apache Iceberg and Nessie](https://www.dremio.com/blog/using-flink-with-apache-iceberg-and-nessie/)
+**Date**: July 28th, 2023, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
 
 ### [From Hive Tables to Iceberg Tables: Hassle-Free](https://blog.cloudera.com/from-hive-tables-to-iceberg-tables-hassle-free/)
 **Date**: July 14th, 2023, **Company**: Cloudera
@@ -57,23 +104,38 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 
 **Authors**: [Rui Li](https://www.linkedin.com/in/rui-li-19282979/)
 
+### [How to Convert JSON Files Into an Apache Iceberg Table with Dremio](https://www.dremio.com/blog/how-to-convert-json-files-into-an-apache-iceberg-table-with-dremio/)
+**Date**: May 31st, 2023, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+### [Deep Dive Into Configuring Your Apache Iceberg Catalog with Apache Spark](https://www.dremio.com/blog/deep-dive-into-configuring-your-apache-iceberg-catalog-with-apache-spark/)
+**Date**: May 31st, 2023, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+### [Streamlining Data Quality in Apache Iceberg with write-audit-publish & branching](https://www.dremio.com/blog/streamlining-data-quality-in-apache-iceberg-with-write-audit-publish-branching/)
+**Date**: May 19th, 2023, **Company**: Dremio
+
+**Authors**: [Dipankar Mazumdar](https://www.linkedin.com/in/dipankar-mazumdar/) & [Ajantha Bhat](https://www.linkedin.com/in/ajanthabhat/)
+
 ### [Introducing the Apache Iceberg Catalog Migration Tool](https://www.dremio.com/blog/introducing-the-apache-iceberg-catalog-migration-tool/)
-**Date**: May 12th, 2022, **Company**: Dremio
+**Date**: May 12th, 2023, **Company**: Dremio
 
 **Authors**: [Dipankar Mazumdar](https://www.linkedin.com/in/dipankar-mazumdar/) & [Ajantha Bhat](https://www.linkedin.com/in/ajanthabhat/)
 
 ### [3 Ways to Use Python with Apache Iceberg](https://www.dremio.com/blog/3-ways-to-use-python-with-apache-iceberg/)
-**Date**: April 12th, 2022, **Company**: Dremio
+**Date**: April 12th, 2023, **Company**: Dremio
 
 **Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
 
 ### [3 Ways to Convert a Delta Lake Table Into an Apache Iceberg Table](https://www.dremio.com/blog/3-ways-to-convert-a-delta-lake-table-into-an-apache-iceberg-table/)
-**Date**: April 3rd, 2022, **Company**: Dremio
+**Date**: April 3rd, 2023, **Company**: Dremio
 
 **Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
 
 ### [How to Convert CSV Files into an Apache Iceberg table with Dremio](https://www.dremio.com/blog/how-to-convert-csv-files-into-an-apache-iceberg-table-with-dremio/)
-**Date**: April 3rd, 2022, **Company**: Dremio
+**Date**: April 3rd, 2023, **Company**: Dremio
 
 **Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
 
@@ -87,6 +149,7 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 
 **Author**: [Dipankar Mazumdar](https://www.linkedin.com/in/dipankar-mazumdar/)
 
+<!-- markdown-link-check-disable-next-line -->
 ### [Iceberg Tables: Catalog Support Now Available](https://www.snowflake.com/blog/iceberg-tables-catalog-support-available-now/)
 **Date**: March 29th, 2023, **Company**: Snowflake
 
@@ -302,6 +365,7 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 
 **Author**: [Sam Redai](https://www.linkedin.com/in/sredai/), [Kyle Bendickson](https://www.linkedin.com/in/kylebendickson/)
 
+<!-- markdown-link-check-disable-next-line -->
 ### [Expanding the Data Cloud with Apache Iceberg](https://www.snowflake.com/blog/expanding-the-data-cloud-with-apache-iceberg/)
 **Date**: January 21st, 2022, **Company**: Snowflake
 
@@ -316,11 +380,6 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 **Date**: December 10th, 2021, **Company**: Tabular
 
 **Author**: [Sam Redai](https://www.linkedin.com/in/sredai/)
-
-### [Using Flink CDC to synchronize data from MySQL sharding tables and build real-time data lake](https://ververica.github.io/flink-cdc-connectors/master/content/quickstart/build-real-time-data-lake-tutorial.html)
-**Date**: November 11th, 2021, **Company**: Ververica, Alibaba Cloud
-
-**Author**: [Yuxia Luo](https://github.com/luoyuxia), [Jark Wu](https://github.com/wuchong), [Zheng Hu](https://www.linkedin.com/in/zheng-hu-37017683/)
 
 ### [Metadata Indexing in Iceberg](https://tabular.io/blog/iceberg-metadata-indexing/)
 **Date**: October 10th, 2021, **Company**: Tabular
@@ -390,7 +449,7 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 ### [High Throughput Ingestion with Iceberg](https://medium.com/adobetech/high-throughput-ingestion-with-iceberg-ccf7877a413f)
 **Date**: Dec 22nd, 2020, **Company**: Adobe
 
-**Author**: [Andrei Ionescu](http://linkedin.com/in/andreiionescu), [Shone Sadler](https://www.linkedin.com/in/shonesadler/), [Anil Malkani](https://www.linkedin.com/in/anil-malkani-52861a/)
+**Author**: [Andrei Ionescu](https://www.linkedin.com/in/andreiionescu), [Shone Sadler](https://www.linkedin.com/in/shonesadler/), [Anil Malkani](https://www.linkedin.com/in/anil-malkani-52861a/)
 
 ### [Optimizing data warehouse storage](https://netflixtechblog.com/optimizing-data-warehouse-storage-7b94a48fdcbe)
 **Date**: Dec 21st, 2020, **Company**: Netflix

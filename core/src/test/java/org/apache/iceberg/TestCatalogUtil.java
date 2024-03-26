@@ -160,7 +160,9 @@ public class TestCatalogUtil {
     Assertions.assertThatThrownBy(
             () -> CatalogUtil.loadFileIO(TestFileIOBadArg.class.getName(), Maps.newHashMap(), null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot initialize FileIO, missing no-arg constructor");
+        .hasMessageStartingWith(
+            "Cannot initialize FileIO implementation "
+                + "org.apache.iceberg.TestCatalogUtil$TestFileIOBadArg: Cannot find constructor");
   }
 
   @Test
@@ -219,6 +221,32 @@ public class TestCatalogUtil {
                         TestFileIONotImpl.class.getName())))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("does not implement MetricsReporter");
+  }
+
+  @Test
+  public void fullTableNameWithDifferentValues() {
+    String uriTypeCatalogName = "thrift://host:port/db.table";
+    String namespace = "ns";
+    String nameSpaceWithTwoLevels = "ns.l2";
+    String tableName = "tbl";
+    TableIdentifier tableIdentifier = TableIdentifier.of(namespace, tableName);
+    Assertions.assertThat(CatalogUtil.fullTableName(uriTypeCatalogName, tableIdentifier))
+        .isEqualTo(uriTypeCatalogName + "/" + namespace + "." + tableName);
+
+    tableIdentifier = TableIdentifier.of(nameSpaceWithTwoLevels, tableName);
+    Assertions.assertThat(CatalogUtil.fullTableName(uriTypeCatalogName, tableIdentifier))
+        .isEqualTo(uriTypeCatalogName + "/" + nameSpaceWithTwoLevels + "." + tableName);
+
+    Assertions.assertThat(CatalogUtil.fullTableName(uriTypeCatalogName + "/", tableIdentifier))
+        .isEqualTo(uriTypeCatalogName + "/" + nameSpaceWithTwoLevels + "." + tableName);
+
+    String nonUriCatalogName = "test.db.catalog";
+    Assertions.assertThat(CatalogUtil.fullTableName(nonUriCatalogName, tableIdentifier))
+        .isEqualTo(nonUriCatalogName + "." + nameSpaceWithTwoLevels + "." + tableName);
+
+    String pathStyleCatalogName = "/test/db";
+    Assertions.assertThat(CatalogUtil.fullTableName(pathStyleCatalogName, tableIdentifier))
+        .isEqualTo(pathStyleCatalogName + "/" + nameSpaceWithTwoLevels + "." + tableName);
   }
 
   public static class TestCatalog extends BaseMetastoreCatalog {

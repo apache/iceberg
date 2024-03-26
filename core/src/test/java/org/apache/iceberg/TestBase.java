@@ -211,6 +211,15 @@ public class TestBase {
                         && Files.getFileExtension(name).equalsIgnoreCase("avro")));
   }
 
+  List<File> listManifestLists(File tableDirToList) {
+    return Lists.newArrayList(
+        new File(tableDirToList, "metadata")
+            .listFiles(
+                (dir, name) ->
+                    name.startsWith("snap")
+                        && Files.getFileExtension(name).equalsIgnoreCase("avro")));
+  }
+
   public static long countAllMetadataFiles(File tableDir) {
     return Arrays.stream(new File(tableDir, "metadata").listFiles())
         .filter(f -> f.isFile())
@@ -366,24 +375,24 @@ public class TestBase {
   }
 
   @SuppressWarnings("checkstyle:HiddenField")
-  Snapshot commit(Table table, SnapshotUpdate snapshotUpdate, String branch) {
+  Snapshot commit(Table table, SnapshotUpdate<?> snapshotUpdate, String branch) {
     Snapshot snapshot;
     if (branch.equals(SnapshotRef.MAIN_BRANCH)) {
       snapshotUpdate.commit();
       snapshot = table.currentSnapshot();
     } else {
-      ((SnapshotProducer) snapshotUpdate.toBranch(branch)).commit();
+      ((SnapshotProducer<?>) snapshotUpdate.toBranch(branch)).commit();
       snapshot = table.snapshot(branch);
     }
 
     return snapshot;
   }
 
-  Snapshot apply(SnapshotUpdate snapshotUpdate, String branch) {
+  Snapshot apply(SnapshotUpdate<?> snapshotUpdate, String branch) {
     if (branch.equals(SnapshotRef.MAIN_BRANCH)) {
-      return ((SnapshotProducer) snapshotUpdate).apply();
+      return ((SnapshotProducer<?>) snapshotUpdate).apply();
     } else {
-      return ((SnapshotProducer) snapshotUpdate.toBranch(branch)).apply();
+      return ((SnapshotProducer<?>) snapshotUpdate.toBranch(branch)).apply();
     }
   }
 

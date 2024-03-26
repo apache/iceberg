@@ -18,8 +18,13 @@
  */
 package org.apache.iceberg;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
@@ -27,21 +32,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public class TestManifestReaderStats extends TableTestBase {
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
-  }
-
-  public TestManifestReaderStats(int formatVersion) {
-    super(formatVersion);
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestManifestReaderStats extends TestBase {
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1, 2);
   }
 
   private static final Map<Integer, Long> VALUE_COUNT = ImmutableMap.of(3, 3L);
@@ -65,7 +63,7 @@ public class TestManifestReaderStats extends TableTestBase {
           .withMetrics(METRICS)
           .build();
 
-  @Test
+  @TestTemplate
   public void testReadIncludesFullStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)) {
@@ -75,7 +73,7 @@ public class TestManifestReaderStats extends TableTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testReadEntriesWithFilterIncludesFullStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader =
@@ -86,7 +84,7 @@ public class TestManifestReaderStats extends TableTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testReadIteratorWithFilterIncludesFullStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader =
@@ -96,7 +94,7 @@ public class TestManifestReaderStats extends TableTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testReadEntriesWithFilterAndSelectIncludesFullStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader =
@@ -109,7 +107,7 @@ public class TestManifestReaderStats extends TableTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testReadIteratorWithFilterAndSelectDropsStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader =
@@ -121,7 +119,7 @@ public class TestManifestReaderStats extends TableTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testReadIteratorWithFilterAndSelectRecordCountDropsStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader =
@@ -133,7 +131,7 @@ public class TestManifestReaderStats extends TableTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testReadIteratorWithFilterAndSelectStatsIncludesFullStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader =
@@ -148,7 +146,7 @@ public class TestManifestReaderStats extends TableTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testReadIteratorWithProjectStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader =
@@ -156,18 +154,18 @@ public class TestManifestReaderStats extends TableTestBase {
             .project(new Schema(ImmutableList.of(DataFile.FILE_PATH, DataFile.VALUE_COUNTS)))) {
       DataFile entry = reader.iterator().next();
 
-      Assert.assertEquals(FILE_PATH, entry.path());
-      Assert.assertEquals(VALUE_COUNT, entry.valueCounts());
-      Assert.assertNull(entry.columnSizes());
-      Assert.assertNull(entry.nullValueCounts());
-      Assert.assertNull(entry.nanValueCounts());
-      Assert.assertNull(entry.lowerBounds());
-      Assert.assertNull(entry.upperBounds());
+      assertThat(entry.path()).isEqualTo(FILE_PATH);
+      assertThat(entry.valueCounts()).isEqualTo(VALUE_COUNT);
+      assertThat(entry.columnSizes()).isNull();
+      assertThat(entry.nullValueCounts()).isNull();
+      assertThat(entry.nanValueCounts()).isNull();
+      assertThat(entry.lowerBounds()).isNull();
+      assertThat(entry.upperBounds()).isNull();
       assertNullRecordCount(entry);
     }
   }
 
-  @Test
+  @TestTemplate
   public void testReadEntriesWithSelectNotProjectStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader =
@@ -177,20 +175,20 @@ public class TestManifestReaderStats extends TableTestBase {
       DataFile dataFile = entry.file();
 
       // selected field is populated
-      Assert.assertEquals(FILE_PATH, dataFile.path());
+      assertThat(dataFile.path()).isEqualTo(FILE_PATH);
 
       // not selected fields are all null and not projected
-      Assert.assertNull(dataFile.columnSizes());
-      Assert.assertNull(dataFile.valueCounts());
-      Assert.assertNull(dataFile.nullValueCounts());
-      Assert.assertNull(dataFile.lowerBounds());
-      Assert.assertNull(dataFile.upperBounds());
-      Assert.assertNull(dataFile.nanValueCounts());
+      assertThat(dataFile.columnSizes()).isNull();
+      assertThat(dataFile.valueCounts()).isNull();
+      assertThat(dataFile.nullValueCounts()).isNull();
+      assertThat(dataFile.nanValueCounts()).isNull();
+      assertThat(dataFile.lowerBounds()).isNull();
+      assertThat(dataFile.upperBounds()).isNull();
       assertNullRecordCount(dataFile);
     }
   }
 
-  @Test
+  @TestTemplate
   public void testReadEntriesWithSelectCertainStatNotProjectStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader =
@@ -199,82 +197,76 @@ public class TestManifestReaderStats extends TableTestBase {
       DataFile dataFile = reader.iterator().next();
 
       // selected fields are populated
-      Assert.assertEquals(VALUE_COUNT, dataFile.valueCounts());
-      Assert.assertEquals(FILE_PATH, dataFile.path());
+      assertThat(dataFile.path()).isEqualTo(FILE_PATH);
+      assertThat(dataFile.valueCounts()).isEqualTo(VALUE_COUNT);
 
       // not selected fields are all null and not projected
-      Assert.assertNull(dataFile.columnSizes());
-      Assert.assertNull(dataFile.nullValueCounts());
-      Assert.assertNull(dataFile.nanValueCounts());
-      Assert.assertNull(dataFile.lowerBounds());
-      Assert.assertNull(dataFile.upperBounds());
+      assertThat(dataFile.columnSizes()).isNull();
+      assertThat(dataFile.nullValueCounts()).isNull();
+      assertThat(dataFile.nanValueCounts()).isNull();
+      assertThat(dataFile.lowerBounds()).isNull();
+      assertThat(dataFile.upperBounds()).isNull();
       assertNullRecordCount(dataFile);
     }
   }
 
   private void assertFullStats(DataFile dataFile) {
-    Assert.assertEquals(3, dataFile.recordCount());
-    Assert.assertNull(dataFile.columnSizes());
-    Assert.assertEquals(VALUE_COUNT, dataFile.valueCounts());
-    Assert.assertEquals(NULL_VALUE_COUNTS, dataFile.nullValueCounts());
-    Assert.assertEquals(NAN_VALUE_COUNTS, dataFile.nanValueCounts());
-    Assert.assertEquals(LOWER_BOUNDS, dataFile.lowerBounds());
-    Assert.assertEquals(UPPER_BOUNDS, dataFile.upperBounds());
+    assertThat(dataFile.recordCount()).isEqualTo(3);
+    assertThat(dataFile.columnSizes()).isNull();
+    assertThat(dataFile.valueCounts()).isEqualTo(VALUE_COUNT);
+    assertThat(dataFile.nullValueCounts()).isEqualTo(NULL_VALUE_COUNTS);
+    assertThat(dataFile.nanValueCounts()).isEqualTo(NAN_VALUE_COUNTS);
+    assertThat(dataFile.lowerBounds()).isEqualTo(LOWER_BOUNDS);
+    assertThat(dataFile.upperBounds()).isEqualTo(UPPER_BOUNDS);
 
     if (dataFile.valueCounts() != null) {
-      Assertions.assertThatThrownBy(
-              () -> dataFile.valueCounts().clear(), "Should not be modifiable")
+      assertThatThrownBy(() -> dataFile.valueCounts().clear(), "Should not be modifiable")
           .isInstanceOf(UnsupportedOperationException.class);
     }
 
     if (dataFile.nullValueCounts() != null) {
-      Assertions.assertThatThrownBy(
-              () -> dataFile.nullValueCounts().clear(), "Should not be modifiable")
+      assertThatThrownBy(() -> dataFile.nullValueCounts().clear(), "Should not be modifiable")
           .isInstanceOf(UnsupportedOperationException.class);
     }
 
     if (dataFile.nanValueCounts() != null) {
-      Assertions.assertThatThrownBy(
-              () -> dataFile.nanValueCounts().clear(), "Should not be modifiable")
+      assertThatThrownBy(() -> dataFile.nanValueCounts().clear(), "Should not be modifiable")
           .isInstanceOf(UnsupportedOperationException.class);
     }
 
     if (dataFile.upperBounds() != null) {
-      Assertions.assertThatThrownBy(
-              () -> dataFile.upperBounds().clear(), "Should not be modifiable")
+      assertThatThrownBy(() -> dataFile.upperBounds().clear(), "Should not be modifiable")
           .isInstanceOf(UnsupportedOperationException.class);
     }
 
     if (dataFile.lowerBounds() != null) {
-      Assertions.assertThatThrownBy(
-              () -> dataFile.lowerBounds().clear(), "Should not be modifiable")
+      assertThatThrownBy(() -> dataFile.lowerBounds().clear(), "Should not be modifiable")
           .isInstanceOf(UnsupportedOperationException.class);
     }
 
     if (dataFile.columnSizes() != null) {
-      Assertions.assertThatThrownBy(
-              () -> dataFile.columnSizes().clear(), "Should not be modifiable")
+      assertThatThrownBy(() -> dataFile.columnSizes().clear(), "Should not be modifiable")
           .isInstanceOf(UnsupportedOperationException.class);
     }
 
-    Assert.assertEquals(FILE_PATH, dataFile.path()); // always select file path in all test cases
+    assertThat(dataFile.path()).isEqualTo(FILE_PATH); // always select file path in all test cases
   }
 
   private void assertStatsDropped(DataFile dataFile) {
-    Assert.assertEquals(
-        3, dataFile.recordCount()); // record count is not considered as droppable stats
-    Assert.assertNull(dataFile.columnSizes());
-    Assert.assertNull(dataFile.valueCounts());
-    Assert.assertNull(dataFile.nullValueCounts());
-    Assert.assertNull(dataFile.lowerBounds());
-    Assert.assertNull(dataFile.upperBounds());
-    Assert.assertNull(dataFile.nanValueCounts());
+    assertThat(dataFile.recordCount())
+        .isEqualTo(3); // record count is not considered as droppable stats
+    assertThat(dataFile.columnSizes()).isNull();
+    assertThat(dataFile.valueCounts()).isNull();
+    assertThat(dataFile.nullValueCounts()).isNull();
+    assertThat(dataFile.nanValueCounts()).isNull();
+    assertThat(dataFile.lowerBounds()).isNull();
+    assertThat(dataFile.upperBounds()).isNull();
 
-    Assert.assertEquals(FILE_PATH, dataFile.path()); // always select file path in all test cases
+    assertThat(dataFile.path()).isEqualTo(FILE_PATH); // always select file path in all test cases
   }
 
   private void assertNullRecordCount(DataFile dataFile) {
     // record count is a primitive type, accessing null record count will throw NPE
-    Assertions.assertThatThrownBy(dataFile::recordCount).isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(dataFile::recordCount).isInstanceOf(NullPointerException.class);
   }
 }

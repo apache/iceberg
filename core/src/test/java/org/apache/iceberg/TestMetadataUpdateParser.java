@@ -19,14 +19,16 @@
 package org.apache.iceberg;
 
 import static org.apache.iceberg.Files.localInput;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.fail;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
-import java.util.UUID;
 import java.util.stream.IntStream;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -38,15 +40,12 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.view.ImmutableViewVersion;
 import org.apache.iceberg.view.ViewVersion;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestMetadataUpdateParser {
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
   private static final Schema ID_DATA_SCHEMA =
       new Schema(
@@ -59,7 +58,7 @@ public class TestMetadataUpdateParser {
         ImmutableList.of("{\"action\":null,\"format-version\":2}", "{\"format-version\":2}");
 
     for (String json : invalidJson) {
-      Assertions.assertThatThrownBy(() -> MetadataUpdateParser.fromJson(json))
+      assertThatThrownBy(() -> MetadataUpdateParser.fromJson(json))
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessage("Cannot parse metadata update. Missing field: action");
     }
@@ -81,10 +80,9 @@ public class TestMetadataUpdateParser {
     String expected =
         "{\"action\":\"assign-uuid\",\"uuid\":\"9510c070-5e6d-4b40-bf40-a8915bb76e5d\"}";
     MetadataUpdate actual = new MetadataUpdate.AssignUUID(uuid);
-    Assert.assertEquals(
-        "Assign UUID should convert to the correct JSON value",
-        expected,
-        MetadataUpdateParser.toJson(actual));
+    assertThat(MetadataUpdateParser.toJson(actual))
+        .as("Assign UUID should convert to the correct JSON value")
+        .isEqualTo(expected);
   }
 
   /** UpgradeFormatVersion * */
@@ -104,10 +102,9 @@ public class TestMetadataUpdateParser {
     String expected = "{\"action\":\"upgrade-format-version\",\"format-version\":2}";
     MetadataUpdate.UpgradeFormatVersion actual =
         new MetadataUpdate.UpgradeFormatVersion(formatVersion);
-    Assert.assertEquals(
-        "Upgrade format version should convert to the correct JSON value",
-        expected,
-        MetadataUpdateParser.toJson(actual));
+    assertThat(MetadataUpdateParser.toJson(actual))
+        .as("Upgrade format version should convert to the correct JSON value")
+        .isEqualTo(expected);
   }
 
   /** AddSchema * */
@@ -145,7 +142,9 @@ public class TestMetadataUpdateParser {
             SchemaParser.toJson(schema), lastColumnId);
     MetadataUpdate update = new MetadataUpdate.AddSchema(schema, lastColumnId);
     String actual = MetadataUpdateParser.toJson(update);
-    Assert.assertEquals("Add schema should convert to the correct JSON value", expected, actual);
+    assertThat(actual)
+        .as("Add schema should convert to the correct JSON value")
+        .isEqualTo(expected);
   }
 
   /** SetCurrentSchema * */
@@ -165,8 +164,9 @@ public class TestMetadataUpdateParser {
     String expected = String.format("{\"action\":\"%s\",\"schema-id\":%d}", action, schemaId);
     MetadataUpdate update = new MetadataUpdate.SetCurrentSchema(schemaId);
     String actual = MetadataUpdateParser.toJson(update);
-    Assert.assertEquals(
-        "Set current schema should convert to the correct JSON value", expected, actual);
+    assertThat(actual)
+        .as("Set current schema should convert to the correct JSON value")
+        .isEqualTo(expected);
   }
 
   /** AddPartitionSpec * */
@@ -277,8 +277,9 @@ public class TestMetadataUpdateParser {
             .build();
     MetadataUpdate update = new MetadataUpdate.AddPartitionSpec(expectedSpec);
     String actual = MetadataUpdateParser.toJson(update);
-    Assert.assertEquals(
-        "Add partition spec should convert to the correct JSON value", expected, actual);
+    assertThat(actual)
+        .as("Add partition spec should convert to the correct JSON value")
+        .isEqualTo(expected);
   }
 
   /** SetDefaultPartitionSpec * */
@@ -289,8 +290,9 @@ public class TestMetadataUpdateParser {
     String expected = String.format("{\"action\":\"%s\",\"spec-id\":%d}", action, specId);
     MetadataUpdate update = new MetadataUpdate.SetDefaultPartitionSpec(specId);
     String actual = MetadataUpdateParser.toJson(update);
-    Assert.assertEquals(
-        "Set default partition spec should serialize to the correct JSON value", expected, actual);
+    assertThat(actual)
+        .as("Set default partition spec should serialize to the correct JSON value")
+        .isEqualTo(expected);
   }
 
   @Test
@@ -319,10 +321,9 @@ public class TestMetadataUpdateParser {
         String.format(
             "{\"action\":\"%s\",\"sort-order\":%s}", action, SortOrderParser.toJson(sortOrder));
     MetadataUpdate update = new MetadataUpdate.AddSortOrder(sortOrder);
-    Assert.assertEquals(
-        "Add sort order should serialize to the correct JSON value",
-        expected,
-        MetadataUpdateParser.toJson(update));
+    assertThat(MetadataUpdateParser.toJson(update))
+        .as("Add sort order should serialize to the correct JSON value")
+        .isEqualTo(expected);
   }
 
   @Test
@@ -352,8 +353,9 @@ public class TestMetadataUpdateParser {
         String.format("{\"action\":\"%s\",\"sort-order-id\":%d}", action, sortOrderId);
     MetadataUpdate update = new MetadataUpdate.SetDefaultSortOrder(sortOrderId);
     String actual = MetadataUpdateParser.toJson(update);
-    Assert.assertEquals(
-        "Set default sort order should serialize to the correct JSON value", expected, actual);
+    assertThat(actual)
+        .as("Set default sort order should serialize to the correct JSON value")
+        .isEqualTo(expected);
   }
 
   @Test
@@ -389,8 +391,9 @@ public class TestMetadataUpdateParser {
     String expected = String.format("{\"action\":\"%s\",\"snapshot\":%s}", action, snapshotJson);
     MetadataUpdate update = new MetadataUpdate.AddSnapshot(snapshot);
     String actual = MetadataUpdateParser.toJson(update);
-    Assert.assertEquals(
-        "Add snapshot should serialize to the correct JSON value", expected, actual);
+    assertThat(actual)
+        .as("Add snapshot should serialize to the correct JSON value")
+        .isEqualTo(expected);
   }
 
   @Test
@@ -435,8 +438,9 @@ public class TestMetadataUpdateParser {
     String expected = String.format("{\"action\":\"%s\",\"snapshot-ids\":[2]}", action);
     MetadataUpdate update = new MetadataUpdate.RemoveSnapshot(snapshotId);
     String actual = MetadataUpdateParser.toJson(update);
-    Assert.assertEquals(
-        "Remove snapshots should serialize to the correct JSON value", expected, actual);
+    assertThat(actual)
+        .as("Remove snapshots should serialize to the correct JSON value")
+        .isEqualTo(expected);
   }
 
   /** RemoveSnapshotRef * */
@@ -454,10 +458,9 @@ public class TestMetadataUpdateParser {
     String snapshotRef = "snapshot-ref";
     String expected = "{\"action\":\"remove-snapshot-ref\",\"ref-name\":\"snapshot-ref\"}";
     MetadataUpdate actual = new MetadataUpdate.RemoveSnapshotRef(snapshotRef);
-    Assert.assertEquals(
-        "RemoveSnapshotRef should convert to the correct JSON value",
-        expected,
-        MetadataUpdateParser.toJson(actual));
+    assertThat(MetadataUpdateParser.toJson(actual))
+        .as("RemoveSnapshotRef should convert to the correct JSON value")
+        .isEqualTo(expected);
   }
 
   /** SetSnapshotRef * */
@@ -599,10 +602,10 @@ public class TestMetadataUpdateParser {
         new MetadataUpdate.SetSnapshotRef(
             refName, snapshotId, type, minSnapshotsToKeep, maxSnapshotAgeMs, maxRefAgeMs);
     String actual = MetadataUpdateParser.toJson(update);
-    Assert.assertEquals(
-        "Set snapshot ref should serialize to the correct JSON value for tag with default fields",
-        expected,
-        actual);
+    assertThat(actual)
+        .as(
+            "Set snapshot ref should serialize to the correct JSON value for tag with default fields")
+        .isEqualTo(expected);
   }
 
   @Test
@@ -620,10 +623,9 @@ public class TestMetadataUpdateParser {
         new MetadataUpdate.SetSnapshotRef(
             refName, snapshotId, type, minSnapshotsToKeep, maxSnapshotAgeMs, maxRefAgeMs);
     String actual = MetadataUpdateParser.toJson(update);
-    Assert.assertEquals(
-        "Set snapshot ref should serialize to the correct JSON value for tag with all fields",
-        expected,
-        actual);
+    assertThat(actual)
+        .as("Set snapshot ref should serialize to the correct JSON value for tag with all fields")
+        .isEqualTo(expected);
   }
 
   @Test
@@ -640,10 +642,10 @@ public class TestMetadataUpdateParser {
         new MetadataUpdate.SetSnapshotRef(
             refName, snapshotId, type, minSnapshotsToKeep, maxSnapshotAgeMs, maxRefAgeMs);
     String actual = MetadataUpdateParser.toJson(update);
-    Assert.assertEquals(
-        "Set snapshot ref should serialize to the correct JSON value for branch with default fields",
-        expected,
-        actual);
+    assertThat(actual)
+        .as(
+            "Set snapshot ref should serialize to the correct JSON value for branch with default fields")
+        .isEqualTo(expected);
   }
 
   @Test
@@ -661,10 +663,10 @@ public class TestMetadataUpdateParser {
         new MetadataUpdate.SetSnapshotRef(
             refName, snapshotId, type, minSnapshotsToKeep, maxSnapshotAgeMs, maxRefAgeMs);
     String actual = MetadataUpdateParser.toJson(update);
-    Assert.assertEquals(
-        "Set snapshot ref should serialize to the correct JSON value for branch with all fields",
-        expected,
-        actual);
+    assertThat(actual)
+        .as(
+            "Set snapshot ref should serialize to the correct JSON value for branch with all fields")
+        .isEqualTo(expected);
   }
 
   /** SetProperties */
@@ -703,7 +705,7 @@ public class TestMetadataUpdateParser {
     props.put("prop2", null);
     String propsMap = "{\"prop1\":\"val1\",\"prop2\":null}";
     String json = String.format("{\"action\":\"%s\",\"updated\":%s}", action, propsMap);
-    Assertions.assertThatThrownBy(() -> MetadataUpdateParser.fromJson(json))
+    assertThatThrownBy(() -> MetadataUpdateParser.fromJson(json))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to a string value: prop2: null");
   }
@@ -719,8 +721,9 @@ public class TestMetadataUpdateParser {
     String expected = String.format("{\"action\":\"%s\",\"updates\":%s}", action, propsMap);
     MetadataUpdate update = new MetadataUpdate.SetProperties(props);
     String actual = MetadataUpdateParser.toJson(update);
-    Assert.assertEquals(
-        "Set properties should serialize to the correct JSON value", expected, actual);
+    assertThat(actual)
+        .as("Set properties should serialize to the correct JSON value")
+        .isEqualTo(expected);
   }
 
   /** RemoveProperties */
@@ -755,8 +758,9 @@ public class TestMetadataUpdateParser {
     String expected = String.format("{\"action\":\"%s\",\"removals\":%s}", action, toRemoveAsJSON);
     MetadataUpdate update = new MetadataUpdate.RemoveProperties(toRemove);
     String actual = MetadataUpdateParser.toJson(update);
-    Assert.assertEquals(
-        "Remove properties should serialize to the correct JSON value", expected, actual);
+    assertThat(actual)
+        .as("Remove properties should serialize to the correct JSON value")
+        .isEqualTo(expected);
   }
 
   /** SetLocation */
@@ -776,8 +780,9 @@ public class TestMetadataUpdateParser {
     String expected = String.format("{\"action\":\"%s\",\"location\":\"%s\"}", action, location);
     MetadataUpdate update = new MetadataUpdate.SetLocation(location);
     String actual = MetadataUpdateParser.toJson(update);
-    Assert.assertEquals(
-        "Remove properties should serialize to the correct JSON value", expected, actual);
+    assertThat(actual)
+        .as("Remove properties should serialize to the correct JSON value")
+        .isEqualTo(expected);
   }
 
   @Test
@@ -807,10 +812,9 @@ public class TestMetadataUpdateParser {
                         ImmutableMap.of("prop-key", "prop-value")))));
     assertEquals(
         MetadataUpdateParser.SET_STATISTICS, expected, MetadataUpdateParser.fromJson(json));
-    Assert.assertEquals(
-        "Set statistics should convert to the correct JSON value",
-        json,
-        MetadataUpdateParser.toJson(expected));
+    assertThat(MetadataUpdateParser.toJson(expected))
+        .as("Set statistics should convert to the correct JSON value")
+        .isEqualTo(json);
   }
 
   @Test
@@ -819,10 +823,9 @@ public class TestMetadataUpdateParser {
     MetadataUpdate expected = new MetadataUpdate.RemoveStatistics(1940541653261589030L);
     assertEquals(
         MetadataUpdateParser.REMOVE_STATISTICS, expected, MetadataUpdateParser.fromJson(json));
-    Assert.assertEquals(
-        "Remove statistics should convert to the correct JSON value",
-        json,
-        MetadataUpdateParser.toJson(expected));
+    assertThat(MetadataUpdateParser.toJson(expected))
+        .as("Remove statistics should convert to the correct JSON value")
+        .isEqualTo(json);
   }
 
   /** AddViewVersion */
@@ -864,7 +867,7 @@ public class TestMetadataUpdateParser {
             action);
 
     MetadataUpdate update = new MetadataUpdate.AddViewVersion(viewVersion);
-    Assertions.assertThat(MetadataUpdateParser.toJson(update)).isEqualTo(expected);
+    assertThat(MetadataUpdateParser.toJson(update)).isEqualTo(expected);
   }
 
   /** SetCurrentViewVersion */
@@ -881,7 +884,7 @@ public class TestMetadataUpdateParser {
     String action = MetadataUpdateParser.SET_CURRENT_VIEW_VERSION;
     String expected = String.format("{\"action\":\"%s\",\"view-version-id\":23}", action);
     MetadataUpdate update = new MetadataUpdate.SetCurrentViewVersion(23);
-    Assertions.assertThat(MetadataUpdateParser.toJson(update)).isEqualTo(expected);
+    assertThat(MetadataUpdateParser.toJson(update)).isEqualTo(expected);
   }
 
   @Test
@@ -904,10 +907,9 @@ public class TestMetadataUpdateParser {
         MetadataUpdateParser.SET_PARTITION_STATISTICS,
         expected,
         MetadataUpdateParser.fromJson(json));
-    Assert.assertEquals(
-        "Set partition statistics should convert to the correct JSON value",
-        json,
-        MetadataUpdateParser.toJson(expected));
+    assertThat(MetadataUpdateParser.toJson(expected))
+        .as("Set partition statistics should convert to the correct JSON value")
+        .isEqualTo(json);
   }
 
   @Test
@@ -919,10 +921,9 @@ public class TestMetadataUpdateParser {
         MetadataUpdateParser.REMOVE_PARTITION_STATISTICS,
         expected,
         MetadataUpdateParser.fromJson(json));
-    Assert.assertEquals(
-        "Remove partition statistics should convert to the correct JSON value",
-        json,
-        MetadataUpdateParser.toJson(expected));
+    assertThat(MetadataUpdateParser.toJson(expected))
+        .as("Remove partition statistics should convert to the correct JSON value")
+        .isEqualTo(json);
   }
 
   public void assertEquals(
@@ -1030,49 +1031,45 @@ public class TestMetadataUpdateParser {
             (MetadataUpdate.SetCurrentViewVersion) actualUpdate);
         break;
       default:
-        Assert.fail("Unrecognized metadata update action: " + action);
+        fail("Unrecognized metadata update action: " + action);
     }
   }
 
   private static void assertEqualsAssignUUID(
       MetadataUpdate.AssignUUID expected, MetadataUpdate.AssignUUID actual) {
-    Assert.assertEquals("UUIDs should be equal", expected.uuid(), actual.uuid());
+    assertThat(actual.uuid()).isEqualTo(expected.uuid());
   }
 
   private static void assertEqualsUpgradeFormatVersion(
       MetadataUpdate.UpgradeFormatVersion expected, MetadataUpdate.UpgradeFormatVersion actual) {
-    Assert.assertEquals(
-        "Format version should be equal", expected.formatVersion(), actual.formatVersion());
+    assertThat(actual.formatVersion()).isEqualTo(expected.formatVersion());
   }
 
   private static void assertEqualsAddSchema(
       MetadataUpdate.AddSchema expected, MetadataUpdate.AddSchema actual) {
-    Assert.assertTrue("Schemas should be the same", expected.schema().sameSchema(actual.schema()));
-    Assert.assertEquals(
-        "Last column id should be equal", expected.lastColumnId(), actual.lastColumnId());
+    assertThat(actual.schema().asStruct()).isEqualTo(expected.schema().asStruct());
+    assertThat(actual.lastColumnId()).isEqualTo(expected.lastColumnId());
   }
 
   private static void assertEqualsSetCurrentSchema(
       MetadataUpdate.SetCurrentSchema expected, MetadataUpdate.SetCurrentSchema actual) {
-    Assert.assertEquals("Schema id should be equal", expected.schemaId(), actual.schemaId());
+    assertThat(actual.schemaId()).isEqualTo(expected.schemaId());
   }
 
   private static void assertEqualsSetDefaultPartitionSpec(
       MetadataUpdate.SetDefaultPartitionSpec expected,
       MetadataUpdate.SetDefaultPartitionSpec actual) {
-    Assertions.assertThat(actual.specId()).isEqualTo(expected.specId());
+    assertThat(actual.specId()).isEqualTo(expected.specId());
   }
 
   private static void assertEqualsAddPartitionSpec(
       MetadataUpdate.AddPartitionSpec expected, MetadataUpdate.AddPartitionSpec actual) {
-    Assert.assertEquals(
-        "Unbound partition specs should have the same spec id",
-        expected.spec().specId(),
-        actual.spec().specId());
-    Assert.assertEquals(
-        "Unbound partition specs should have the same number of fields",
-        expected.spec().fields().size(),
-        actual.spec().fields().size());
+    assertThat(actual.spec().specId())
+        .as("Unbound partition specs should have the same spec id")
+        .isEqualTo(expected.spec().specId());
+    assertThat(actual.spec().fields())
+        .as("Unbound partition specs should have the same number of fields")
+        .hasSameSizeAs(expected.spec().fields());
 
     IntStream.range(0, expected.spec().fields().size())
         .forEachOrdered(
@@ -1081,27 +1078,23 @@ public class TestMetadataUpdateParser {
                   expected.spec().fields().get(i);
               UnboundPartitionSpec.UnboundPartitionField actualField =
                   actual.spec().fields().get(i);
-              Assert.assertTrue(
-                  "Fields of the unbound partition spec should be the same",
-                  Objects.equals(expectedField.partitionId(), actualField.partitionId())
-                      && expectedField.name().equals(actualField.name())
-                      && Objects.equals(
-                          expectedField.transformAsString(), actualField.transformAsString())
-                      && expectedField.sourceId() == actualField.sourceId());
+              assertThat(actualField.partitionId()).isEqualTo(expectedField.partitionId());
+              assertThat(actualField.name()).isEqualTo(expectedField.name());
+              assertThat(actualField.transformAsString())
+                  .isEqualTo(expectedField.transformAsString());
+              assertThat(actualField.sourceId()).isEqualTo(expectedField.sourceId());
             });
   }
 
   private static void assertEqualsAddSortOrder(
       MetadataUpdate.AddSortOrder expected, MetadataUpdate.AddSortOrder actual) {
-    Assert.assertEquals(
-        "Order id of the sort order should be the same",
-        expected.sortOrder().orderId(),
-        actual.sortOrder().orderId());
+    assertThat(actual.sortOrder().orderId())
+        .as("Order id of the sort order should be the same")
+        .isEqualTo(expected.sortOrder().orderId());
 
-    Assert.assertEquals(
-        "Sort orders should have the same number of fields",
-        expected.sortOrder().fields().size(),
-        actual.sortOrder().fields().size());
+    assertThat(actual.sortOrder().fields())
+        .as("Sort orders should have the same number of fields")
+        .hasSameSizeAs(expected.sortOrder().fields());
 
     IntStream.range(0, expected.sortOrder().fields().size())
         .forEachOrdered(
@@ -1109,45 +1102,31 @@ public class TestMetadataUpdateParser {
               UnboundSortOrder.UnboundSortField expectedField =
                   expected.sortOrder().fields().get(i);
               UnboundSortOrder.UnboundSortField actualField = actual.sortOrder().fields().get(i);
-              Assert.assertTrue(
-                  "Fields of the sort order should be the same",
-                  expectedField.sourceId() == actualField.sourceId()
-                      && expectedField.nullOrder().equals(actualField.nullOrder())
-                      && expectedField.direction().equals(actualField.direction())
-                      && Objects.equals(
-                          expectedField.transformAsString(), actualField.transformAsString()));
+              assertThat(actualField.sourceId()).isEqualTo(expectedField.sourceId());
+              assertThat(actualField.nullOrder()).isEqualTo(expectedField.nullOrder());
+              assertThat(actualField.direction()).isEqualTo(expectedField.direction());
+              assertThat(actualField.transformAsString())
+                  .isEqualTo(expectedField.transformAsString());
             });
   }
 
   private static void assertEqualsSetDefaultSortOrder(
       MetadataUpdate.SetDefaultSortOrder expected, MetadataUpdate.SetDefaultSortOrder actual) {
-    Assert.assertEquals(
-        "Sort order id should be the same", expected.sortOrderId(), actual.sortOrderId());
+    assertThat(actual.sortOrderId()).isEqualTo(expected.sortOrderId());
   }
 
   private static void assertEqualsSetStatistics(
       MetadataUpdate.SetStatistics expected, MetadataUpdate.SetStatistics actual) {
-    Assert.assertEquals("Snapshot IDs should be equal", expected.snapshotId(), actual.snapshotId());
-    Assert.assertEquals(
-        "Statistics files snapshot IDs should be equal",
-        expected.statisticsFile().snapshotId(),
-        actual.statisticsFile().snapshotId());
-    Assert.assertEquals(
-        "Statistics files paths should be equal",
-        expected.statisticsFile().path(),
-        actual.statisticsFile().path());
-    Assert.assertEquals(
-        "Statistics files size should be equal",
-        expected.statisticsFile().fileSizeInBytes(),
-        actual.statisticsFile().fileSizeInBytes());
-    Assert.assertEquals(
-        "Statistics files footer size should be equal",
-        expected.statisticsFile().fileFooterSizeInBytes(),
-        actual.statisticsFile().fileFooterSizeInBytes());
-    Assert.assertEquals(
-        "Statistics blob list size should be equal",
-        expected.statisticsFile().blobMetadata().size(),
-        actual.statisticsFile().blobMetadata().size());
+    assertThat(actual.snapshotId()).isEqualTo(expected.snapshotId());
+    assertThat(actual.statisticsFile().snapshotId())
+        .isEqualTo(expected.statisticsFile().snapshotId());
+    assertThat(actual.statisticsFile().path()).isEqualTo(expected.statisticsFile().path());
+    assertThat(actual.statisticsFile().fileSizeInBytes())
+        .isEqualTo(expected.statisticsFile().fileSizeInBytes());
+    assertThat(actual.statisticsFile().fileFooterSizeInBytes())
+        .isEqualTo(expected.statisticsFile().fileFooterSizeInBytes());
+    assertThat(actual.statisticsFile().blobMetadata())
+        .hasSameSizeAs(expected.statisticsFile().blobMetadata());
 
     Streams.zip(
             expected.statisticsFile().blobMetadata().stream(),
@@ -1158,123 +1137,90 @@ public class TestMetadataUpdateParser {
               BlobMetadata expectedBlob = pair.first();
               BlobMetadata actualBlob = pair.second();
 
-              Assert.assertEquals(
-                  "Expected blob type should be equal", expectedBlob.type(), actualBlob.type());
-              Assert.assertEquals(
-                  "Expected blob fields should be equal",
-                  expectedBlob.fields(),
-                  actualBlob.fields());
-              Assert.assertEquals(
-                  "Expected blob source snapshot ID should be equal",
-                  expectedBlob.sourceSnapshotId(),
-                  actualBlob.sourceSnapshotId());
-              Assert.assertEquals(
-                  "Expected blob source snapshot sequence number should be equal",
-                  expectedBlob.sourceSnapshotSequenceNumber(),
-                  actualBlob.sourceSnapshotSequenceNumber());
-              Assert.assertEquals(
-                  "Expected blob properties should be equal",
-                  expectedBlob.properties(),
-                  actualBlob.properties());
+              assertThat(actualBlob.type()).isEqualTo(expectedBlob.type());
+              assertThat(actualBlob.fields()).isEqualTo(expectedBlob.fields());
+              assertThat(actualBlob.sourceSnapshotId()).isEqualTo(expectedBlob.sourceSnapshotId());
+              assertThat(actualBlob.sourceSnapshotSequenceNumber())
+                  .isEqualTo(expectedBlob.sourceSnapshotSequenceNumber());
+              assertThat(actualBlob.properties()).isEqualTo(expectedBlob.properties());
             });
   }
 
   private static void assertEqualsRemoveStatistics(
       MetadataUpdate.RemoveStatistics expected, MetadataUpdate.RemoveStatistics actual) {
-    Assert.assertEquals(
-        "Snapshots to remove should be the same", expected.snapshotId(), actual.snapshotId());
+    assertThat(actual.snapshotId())
+        .as("Snapshots to remove should be the same")
+        .isEqualTo(expected.snapshotId());
   }
 
   private static void assertEqualsSetPartitionStatistics(
       MetadataUpdate.SetPartitionStatistics expected,
       MetadataUpdate.SetPartitionStatistics actual) {
-    Assert.assertEquals("Snapshot IDs should be equal", expected.snapshotId(), actual.snapshotId());
-    Assert.assertEquals(
-        "Partition Statistics files snapshot IDs should be equal",
-        expected.partitionStatisticsFile().snapshotId(),
-        actual.partitionStatisticsFile().snapshotId());
-    Assert.assertEquals(
-        "Partition statistics files paths should be equal",
-        expected.partitionStatisticsFile().path(),
-        actual.partitionStatisticsFile().path());
-    Assert.assertEquals(
-        "Partition statistics file size should be equal",
-        expected.partitionStatisticsFile().fileSizeInBytes(),
-        actual.partitionStatisticsFile().fileSizeInBytes());
+    assertThat(actual.snapshotId()).isEqualTo(expected.snapshotId());
+    assertThat(actual.partitionStatisticsFile().snapshotId())
+        .isEqualTo(expected.partitionStatisticsFile().snapshotId());
+    assertThat(actual.partitionStatisticsFile().path())
+        .isEqualTo(expected.partitionStatisticsFile().path());
+    assertThat(actual.partitionStatisticsFile().fileSizeInBytes())
+        .isEqualTo(expected.partitionStatisticsFile().fileSizeInBytes());
   }
 
   private static void assertEqualsRemovePartitionStatistics(
       MetadataUpdate.RemovePartitionStatistics expected,
       MetadataUpdate.RemovePartitionStatistics actual) {
-    Assert.assertEquals(
-        "Snapshots to remove should be the same", expected.snapshotId(), actual.snapshotId());
+    assertThat(actual.snapshotId()).isEqualTo(expected.snapshotId());
   }
 
   private static void assertEqualsAddSnapshot(
       MetadataUpdate.AddSnapshot expected, MetadataUpdate.AddSnapshot actual) {
-    Assert.assertEquals(
-        "Snapshot ID should be equal",
-        expected.snapshot().snapshotId(),
-        actual.snapshot().snapshotId());
-    Assert.assertEquals(
-        "Manifest list location should be equal",
-        expected.snapshot().manifestListLocation(),
-        actual.snapshot().manifestListLocation());
-    Assertions.assertThat(actual.snapshot().summary())
+    assertThat(actual.snapshot().snapshotId()).isEqualTo(expected.snapshot().snapshotId());
+    assertThat(actual.snapshot().manifestListLocation())
+        .isEqualTo(expected.snapshot().manifestListLocation());
+    assertThat(actual.snapshot().summary())
         .as("Snapshot summary should be equivalent")
         .containsExactlyEntriesOf(expected.snapshot().summary());
-    Assert.assertEquals(
-        "Snapshot Parent ID should be equal",
-        expected.snapshot().parentId(),
-        actual.snapshot().parentId());
-    Assert.assertEquals(
-        "Snapshot timestamp should be equal",
-        expected.snapshot().timestampMillis(),
-        actual.snapshot().timestampMillis());
-    Assert.assertEquals(
-        "Snapshot schema id should be equal",
-        expected.snapshot().schemaId(),
-        actual.snapshot().schemaId());
+    assertThat(actual.snapshot().parentId()).isEqualTo(expected.snapshot().parentId());
+    assertThat(actual.snapshot().timestampMillis())
+        .isEqualTo(expected.snapshot().timestampMillis());
+    assertThat(actual.snapshot().schemaId()).isEqualTo(expected.snapshot().schemaId());
   }
 
   private static void assertEqualsRemoveSnapshots(
       MetadataUpdate.RemoveSnapshot expected, MetadataUpdate.RemoveSnapshot actual) {
-    Assert.assertEquals(
-        "Snapshots to remove should be the same", expected.snapshotId(), actual.snapshotId());
+    assertThat(actual.snapshotId())
+        .as("Snapshots to remove should be the same")
+        .isEqualTo(expected.snapshotId());
   }
 
   private static void assertEqualsSetSnapshotRef(
       MetadataUpdate.SetSnapshotRef expected, MetadataUpdate.SetSnapshotRef actual) {
     // Non-null fields
-    Assert.assertNotNull("Snapshot ref name should not be null", actual.name());
-    Assert.assertEquals("Snapshot ref name should be equal", expected.name(), actual.name());
-    Assert.assertEquals("Snapshot ID should be equal", expected.snapshotId(), actual.snapshotId());
-    Assert.assertNotNull("Snapshot reference type should not be null", actual.type());
-    Assert.assertEquals("Snapshot reference type should be equal", expected.type(), actual.type());
+    assertThat(actual.name()).isNotNull().isEqualTo(expected.name());
+    assertThat(actual.snapshotId()).isEqualTo(expected.snapshotId());
+    assertThat(actual.type()).isNotNull().isEqualTo(expected.type());
 
     // Nullable fields
-    Assert.assertEquals(
-        "Min snapshots to keep should be equal when present and null when missing or explicitly null",
-        expected.minSnapshotsToKeep(),
-        actual.minSnapshotsToKeep());
-    Assert.assertEquals(
-        "Max snapshot age ms should be equal when present and null when missing or explicitly null",
-        expected.maxSnapshotAgeMs(),
-        actual.maxSnapshotAgeMs());
-    Assert.assertEquals(
-        "Max ref age ms should be equal when present and null when missing or explicitly null",
-        expected.maxRefAgeMs(),
-        actual.maxRefAgeMs());
+    assertThat(actual.minSnapshotsToKeep())
+        .as(
+            "Min snapshots to keep should be equal when present and null when missing or explicitly null")
+        .isEqualTo(expected.minSnapshotsToKeep());
+    assertThat(actual.maxSnapshotAgeMs())
+        .as(
+            "Max snapshot age ms should be equal when present and null when missing or explicitly null")
+        .isEqualTo(expected.maxSnapshotAgeMs());
+    assertThat(actual.maxRefAgeMs())
+        .as("Max ref age ms should be equal when present and null when missing or explicitly null")
+        .isEqualTo(expected.maxRefAgeMs());
   }
 
   private static void assertEqualsRemoveSnapshotRef(
       MetadataUpdate.RemoveSnapshotRef expected, MetadataUpdate.RemoveSnapshotRef actual) {
-    Assertions.assertThat(actual.name()).isEqualTo(expected.name());
+    assertThat(actual.name()).isEqualTo(expected.name());
   }
 
   private static void assertEqualsSetProperties(
       MetadataUpdate.SetProperties expected, MetadataUpdate.SetProperties actual) {
-    Assertions.assertThat(actual.updated())
+    assertThat(actual.updated())
         .as("Properties to set / update should not be null")
         .isNotNull()
         .as("Properties to set / update should be the same")
@@ -1283,7 +1229,7 @@ public class TestMetadataUpdateParser {
 
   private static void assertEqualsRemoveProperties(
       MetadataUpdate.RemoveProperties expected, MetadataUpdate.RemoveProperties actual) {
-    Assertions.assertThat(actual.removed())
+    assertThat(actual.removed())
         .as("Properties to remove should not be null")
         .isNotNull()
         .as("Properties to remove should be equal")
@@ -1292,22 +1238,22 @@ public class TestMetadataUpdateParser {
 
   private static void assertEqualsSetLocation(
       MetadataUpdate.SetLocation expected, MetadataUpdate.SetLocation actual) {
-    Assert.assertEquals("Location should be the same", expected.location(), actual.location());
+    assertThat(actual.location()).isEqualTo(expected.location());
   }
 
   private static void assertEqualsAddViewVersion(
       MetadataUpdate.AddViewVersion expected, MetadataUpdate.AddViewVersion actual) {
-    Assertions.assertThat(actual.viewVersion()).isEqualTo(expected.viewVersion());
+    assertThat(actual.viewVersion()).isEqualTo(expected.viewVersion());
   }
 
   private static void assertEqualsSetCurrentViewVersion(
       MetadataUpdate.SetCurrentViewVersion expected, MetadataUpdate.SetCurrentViewVersion actual) {
-    Assertions.assertThat(actual.versionId()).isEqualTo(expected.versionId());
+    assertThat(actual.versionId()).isEqualTo(expected.versionId());
   }
 
   private String createManifestListWithManifestFiles(long snapshotId, Long parentSnapshotId)
       throws IOException {
-    File manifestList = temp.newFile("manifests" + UUID.randomUUID());
+    File manifestList = File.createTempFile("manifests", null, temp.toFile());
     manifestList.deleteOnExit();
 
     List<ManifestFile> manifests =
