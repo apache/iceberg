@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.entry;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
@@ -186,7 +185,8 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
     ScanTask task = tasks.get(0);
     assertThat(task).isInstanceOf(PositionDeletesScanTask.class);
 
-    Types.StructType partitionType = Partitioning.partitionType(table);
+    Types.StructType partitionType =
+        PositionDeletesTable.partitionType(table.schema(), Partitioning.partitionType(table));
     PositionDeletesScanTask posDeleteTask = (PositionDeletesScanTask) task;
 
     int filePartition = posDeleteTask.file().partition().get(0, Integer.class);
@@ -200,11 +200,9 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
     assertThat(taskConstantPartition)
         .as("Expected correct partition on constant column")
         .isEqualTo(1);
-
     assertThat(posDeleteTask.spec().fields().get(0).fieldId())
         .as("Expected correct partition field id on task's spec")
-        .isEqualTo(table.ops().current().spec().partitionType().fields().get(0).fieldId());
-
+        .isEqualTo(partitionType.fields().get(1).fieldId());
     assertThat(posDeleteTask.file().specId())
         .as("Expected correct partition spec id on task")
         .isEqualTo(table.ops().current().spec().specId());
