@@ -771,38 +771,25 @@ public abstract class TestMetrics {
 
   protected void assertCounts(
       int fieldId, Long valueCount, Long nullValueCount, Long nanValueCount, Metrics metrics) {
-    assertThat(metrics.valueCounts())
-        .satisfiesAnyOf(
-            valueCounts -> assertThat(valueCounts).containsEntry(fieldId, valueCount),
-            valueCounts -> assertThat(valueCounts).doesNotContainKey(fieldId));
-
-    assertThat(metrics.nullValueCounts())
-        .satisfiesAnyOf(
-            nullValueCounts -> assertThat(nullValueCounts).containsEntry(fieldId, nullValueCount),
-            nullValueCounts -> assertThat(nullValueCounts).doesNotContainKey(fieldId));
-
-    assertThat(metrics.nanValueCounts())
-        .satisfiesAnyOf(
-            nanValueCounts -> assertThat(nanValueCounts).containsEntry(fieldId, nanValueCount),
-            nanValueCounts -> assertThat(nanValueCounts).doesNotContainKey(fieldId));
+    assertThat(metrics.valueCounts().get(fieldId)).isEqualTo(valueCount);
+    assertThat(metrics.nullValueCounts().get(fieldId)).isEqualTo(nullValueCount);
+    assertThat(metrics.nanValueCounts().get(fieldId)).isEqualTo(nanValueCount);
   }
 
   protected <T> void assertBounds(
       int fieldId, Type type, T lowerBound, T upperBound, Metrics metrics) {
-    assertThat(metrics.lowerBounds())
-        .satisfiesAnyOf(
-            lowerBounds ->
-                assertThat(Optional.ofNullable(fromByteBuffer(type, lowerBounds.get(fieldId))))
-                    .get()
-                    .isEqualTo(lowerBound),
-            lowerBounds -> assertThat(lowerBounds).doesNotContainKey(fieldId));
+    Map<Integer, ByteBuffer> lowerBounds = metrics.lowerBounds();
+    Map<Integer, ByteBuffer> upperBounds = metrics.upperBounds();
 
-    assertThat(metrics.upperBounds())
-        .satisfiesAnyOf(
-            upperBounds ->
-                assertThat(Optional.ofNullable(fromByteBuffer(type, upperBounds.get(fieldId))))
-                    .get()
-                    .isEqualTo(upperBound),
-            upperBounds -> assertThat(upperBounds).doesNotContainKey(fieldId));
+    assertThat(
+            lowerBounds.containsKey(fieldId)
+                ? Optional.ofNullable(fromByteBuffer(type, lowerBounds.get(fieldId))).get()
+                : null)
+        .isEqualTo(lowerBound);
+    assertThat(
+            upperBounds.containsKey(fieldId)
+                ? Optional.ofNullable(fromByteBuffer(type, upperBounds.get(fieldId))).get()
+                : null)
+        .isEqualTo(upperBound);
   }
 }
