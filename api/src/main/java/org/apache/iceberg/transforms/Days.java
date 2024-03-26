@@ -58,13 +58,16 @@ public class Days<T> extends TimeTransform<T> {
     }
 
     if (other instanceof Timestamps) {
-      // TODO(epg): "I'd prefer to keep the logic of this check inside of the satisfiesOrderOf
-      // function"
-      //   https://github.com/apache/iceberg/pull/9008#discussion_r1520360025
       ChronoUnit otherResultTypeUnit = ((Timestamps) other).getResultTypeUnit();
-      return otherResultTypeUnit == ChronoUnit.DAYS
-          || otherResultTypeUnit == ChronoUnit.MONTHS
-          || otherResultTypeUnit == ChronoUnit.YEARS;
+      switch (otherResultTypeUnit) {
+        case MICROS:
+          return Timestamps.DAY_FROM_MICROS.satisfiesOrderOf(other);
+        case NANOS:
+          return Timestamps.DAY_FROM_NANOS.satisfiesOrderOf(other);
+        default:
+          throw new UnsupportedOperationException(
+              "Unsupported timestamp unit: " + otherResultTypeUnit);
+      }
     } else if (other instanceof Dates) {
       return Dates.DAY.satisfiesOrderOf(other);
     } else if (other instanceof Days || other instanceof Months || other instanceof Years) {

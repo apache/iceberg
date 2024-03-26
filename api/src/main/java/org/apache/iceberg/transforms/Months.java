@@ -59,7 +59,15 @@ public class Months<T> extends TimeTransform<T> {
 
     if (other instanceof Timestamps) {
       ChronoUnit otherResultTypeUnit = ((Timestamps) other).getResultTypeUnit();
-      return otherResultTypeUnit == ChronoUnit.MONTHS || otherResultTypeUnit == ChronoUnit.YEARS;
+      switch (otherResultTypeUnit) {
+        case MICROS:
+          return Timestamps.MONTH_FROM_MICROS.satisfiesOrderOf(other);
+        case NANOS:
+          return Timestamps.MONTH_FROM_NANOS.satisfiesOrderOf(other);
+        default:
+          throw new UnsupportedOperationException(
+              "Unsupported timestamp unit: " + otherResultTypeUnit);
+      }
     } else if (other instanceof Dates) {
       return Dates.MONTH.satisfiesOrderOf(other);
     } else if (other instanceof Months || other instanceof Years) {

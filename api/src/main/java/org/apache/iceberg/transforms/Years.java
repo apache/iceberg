@@ -58,7 +58,16 @@ class Years<T> extends TimeTransform<T> {
     }
 
     if (other instanceof Timestamps) {
-      return ((Timestamps) other).getResultTypeUnit() == ChronoUnit.YEARS;
+      ChronoUnit otherResultTypeUnit = ((Timestamps) other).getResultTypeUnit();
+      switch (otherResultTypeUnit) {
+        case MICROS:
+          return Timestamps.YEAR_FROM_MICROS.satisfiesOrderOf(other);
+        case NANOS:
+          return Timestamps.YEAR_FROM_NANOS.satisfiesOrderOf(other);
+        default:
+          throw new UnsupportedOperationException(
+              "Unsupported timestamp unit: " + otherResultTypeUnit);
+      }
     } else if (other instanceof Dates) {
       return Dates.YEAR.satisfiesOrderOf(other);
     } else if (other instanceof Years) {

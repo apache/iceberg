@@ -19,7 +19,6 @@
 package org.apache.iceberg.transforms;
 
 import java.io.ObjectStreamException;
-import java.time.temporal.ChronoUnit;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -61,11 +60,7 @@ public class Hours<T> extends TimeTransform<T> {
     }
 
     if (other instanceof Timestamps) {
-      ChronoUnit otherResultTypeUnit = ((Timestamps) other).getResultTypeUnit();
-      return otherResultTypeUnit == ChronoUnit.HOURS
-          || otherResultTypeUnit == ChronoUnit.DAYS
-          || otherResultTypeUnit == ChronoUnit.MONTHS
-          || otherResultTypeUnit == ChronoUnit.YEARS;
+      return other == Timestamps.HOUR_FROM_MICROS || other == Timestamps.HOUR_FROM_NANOS;
     } else if (other instanceof Hours
         || other instanceof Days
         || other instanceof Months
