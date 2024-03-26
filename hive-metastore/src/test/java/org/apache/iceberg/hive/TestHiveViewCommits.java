@@ -38,6 +38,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
@@ -116,7 +117,7 @@ public class TestHiveViewCommits {
 
     AtomicReference<HiveLock> lockRef = new AtomicReference<>();
 
-    when(spyOps.lockObject(metadataV1.properties(), catalog.getConf(), catalog.name()))
+    when(spyOps.lockObject())
         .thenAnswer(
             i -> {
               HiveLock lock = (HiveLock) i.callRealMethod();
@@ -169,9 +170,12 @@ public class TestHiveViewCommits {
         .isEqualTo(2);
   }
 
-  /** Pretends we throw an error while persisting that actually does commit serverside */
+  /**
+   * Pretends we throw an error while persisting that actually does commit serverside, Since it
+   * fails on client side. It will delete the corresponding metadata file.
+   */
   @Test
-  public void testThriftExceptionSuccessOnCommit() throws TException, InterruptedException {
+  public void testThriftExceptionFailureOnCommit() throws TException, InterruptedException {
     HiveViewOperations ops = (HiveViewOperations) ((BaseView) view).operations();
 
     ViewMetadata metadataV1 = ops.current();
@@ -187,19 +191,16 @@ public class TestHiveViewCommits {
     // Simulate a communication error after a successful commit
     commitAndThrowException(ops, spyOps);
 
-    // Shouldn't throw because the commit actually succeeds even though persistTable throws an
-    // exception
-    spyOps.commit(metadataV2, metadataV1);
+    assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
+        .isInstanceOf(CommitStateUnknownException.class)
+        .hasMessageContaining("Datacenter on fire");
 
-    ops.refresh();
+    assertThatThrownBy(ops::refresh).isInstanceOf(NotFoundException.class);
 
-    assertThat(ops.current()).as("Current metadata should have changed").isNotEqualTo(metadataV2);
+    assertThat(ops.current()).as("Current metadata should have not changed").isEqualTo(metadataV2);
     assertThat(metadataFileExists(ops.current()))
-        .as("Current metadata file should still exist")
+        .as("Previous(V2) metadata file should still exist")
         .isTrue();
-    assertThat(metadataFileCount(ops.current()))
-        .as("Commit should have been successful and new metadata file should be made")
-        .isEqualTo(2);
   }
 
   /**
@@ -232,41 +233,6 @@ public class TestHiveViewCommits {
     assertThat(metadataFileExists(ops.current()))
         .as("Current metadata file should still exist")
         .isTrue();
-    assertThat(metadataFileCount(ops.current()))
-        .as("Client could not determine outcome so new metadata file should also exist")
-        .isEqualTo(2);
-  }
-
-  /**
-   * Pretends we throw an exception while persisting and don't know what happened, can't check to
-   * find out, but in reality the commit succeeded
-   */
-  @Test
-  public void testThriftExceptionsUnknownSuccessCommit() throws TException, InterruptedException {
-    HiveViewOperations ops = (HiveViewOperations) ((BaseView) view).operations();
-    ViewMetadata metadataV1 = ops.current();
-    assertThat(ops.current().properties()).hasSize(0);
-
-    view.updateProperties().set("k1", "v1").commit();
-    ops.refresh();
-    ViewMetadata metadataV2 = ops.current();
-    assertThat(ops.current().properties()).hasSize(1);
-
-    HiveViewOperations spyOps = spy(ops);
-
-    commitAndThrowException(ops, spyOps);
-    breakFallbackCatalogCommitCheck(spyOps);
-
-    assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
-        .isInstanceOf(CommitStateUnknownException.class)
-        .hasMessageStartingWith("Datacenter on fire");
-
-    ops.refresh();
-
-    assertThat(ops.current()).as("Current metadata should have changed").isNotEqualTo(metadataV2);
-    assertThat(metadataFileExists(ops.current()))
-        .as("Current metadata file should still exist")
-        .isTrue();
   }
 
   /**
@@ -293,7 +259,7 @@ public class TestHiveViewCommits {
     ViewMetadata metadataV1 = ops.current();
     assertThat(ops.current().properties()).hasSize(0);
 
-    view.updateProperties().set("k1", "v1").commit();
+    view.updateProperties().set("k0", "v0").commit();
     ops.refresh();
     ViewMetadata metadataV2 = ops.current();
     assertThat(ops.current().properties()).hasSize(1);
@@ -303,19 +269,21 @@ public class TestHiveViewCommits {
     AtomicReference<HiveLock> lock = new AtomicReference<>();
     doAnswer(
             l -> {
-              lock.set(ops.lockObject(metadataV1.properties(), catalog.getConf(), catalog.name()));
+              lock.set(ops.lockObject());
               return lock.get();
             })
         .when(spyOps)
-        .lockObject(metadataV1.properties(), catalog.getConf(), catalog.name());
+        .lockObject();
 
     concurrentCommitAndThrowException(ops, spyOps, (BaseView) view, lock);
 
     /*
-    This commit and our concurrent commit should succeed even though this commit throws an exception
+    This commit should fail and concurrent commit should succeed even though this commit throws an exception
     after the persist operation succeeds
      */
-    spyOps.commit(metadataV2, metadataV1);
+    assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
+        .isInstanceOf(CommitStateUnknownException.class)
+        .hasMessageContaining("Datacenter on fire");
 
     ops.refresh();
 
@@ -324,8 +292,8 @@ public class TestHiveViewCommits {
         .as("Current metadata file should still exist")
         .isTrue();
     assertThat(ops.current().properties())
-        .as("The properties addition from the concurrent commit should have been successful")
-        .hasSize(1);
+        .as("The new properties from the concurrent commit should have been successful")
+        .hasSize(2);
   }
 
   @Test
@@ -357,7 +325,7 @@ public class TestHiveViewCommits {
     HiveViewOperations spyOps = spy(ops);
 
     // Sets NoLock
-    doReturn(new NoLock()).when(spyOps).lockObject(any(), any(), any());
+    doReturn(new NoLock()).when(spyOps).lockObject();
 
     // Simulate a concurrent view modification error
     doThrow(
@@ -446,7 +414,7 @@ public class TestHiveViewCommits {
               // Simulate lock expiration or removal
               lock.get().unlock();
               baseView.operations().refresh();
-              baseView.updateProperties().set("k1", "v1").commit();
+              baseView.updateProperties().set("k1", "v1").set("k2", "v2").commit();
               throw new TException("Datacenter on fire");
             })
         .when(spyOperations)
