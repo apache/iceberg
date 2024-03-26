@@ -316,6 +316,7 @@ public class PositionDeletesTable extends BaseMetadataTable {
                       manifest,
                       table().specs().get(manifest.partitionSpecId()),
                       schemaString,
+                      transformedSpecs,
                       residualCache,
                       specStringCache));
 
@@ -330,6 +331,7 @@ public class PositionDeletesTable extends BaseMetadataTable {
         ManifestFile manifest,
         PartitionSpec spec,
         String schemaString,
+        Map<Integer, PartitionSpec> transformedSpecs,
         LoadingCache<Integer, ResidualEvaluator> residualCache,
         LoadingCache<Integer, String> specStringCache) {
       return new CloseableIterable<ScanTask>() {
@@ -357,8 +359,8 @@ public class PositionDeletesTable extends BaseMetadataTable {
                   .scanMetrics(scanMetrics())
                   .liveEntries();
 
-          // Partition Filter by metadata table filter (on transformed spec/schema)
-          PartitionSpec transformedSpec = transformSpec(tableSchema(), spec, fieldMap);
+          // Partition Filter by metadata table filter (bind on transformed spec/schema)
+          PartitionSpec transformedSpec = transformedSpecs.get(spec.specId());
           Expression projected =
               Projections.inclusive(transformedSpec, isCaseSensitive()).project(filter());
           Evaluator eval =
