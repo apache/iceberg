@@ -42,6 +42,7 @@ import org.apache.iceberg.ClientPool;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -63,6 +64,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.view.BaseMetastoreViewCatalog;
+import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewBuilder;
 import org.apache.iceberg.view.ViewMetadata;
 import org.apache.iceberg.view.ViewOperations;
@@ -128,20 +130,12 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
 
   @Override
   public TableBuilder buildTable(TableIdentifier identifier, Schema schema) {
-    if (viewExists(identifier)) {
-      throw new org.apache.iceberg.exceptions.AlreadyExistsException(
-          "View with same name already exists: %s", identifier);
-    }
-    return super.buildTable(identifier, schema);
+    return new ViewAwareTableBuilder(identifier, schema);
   }
 
   @Override
   public ViewBuilder buildView(TableIdentifier identifier) {
-    if (tableExists(identifier)) {
-      throw new org.apache.iceberg.exceptions.AlreadyExistsException(
-          "Table with same name already exists: %s", identifier);
-    }
-    return super.buildView(identifier);
+    return new TableAwareViewBuilder(identifier);
   }
 
   @Override
@@ -393,7 +387,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     } catch (InvalidOperationException e) {
       if (e.getMessage() != null
           && e.getMessage().contains(String.format("new table %s already exists", to))) {
-        throwErrorForExistedToContent(from, removeCatalogName(from));
+        throwErrorForExistedToContent(from, removeCatalogName(to));
       } else {
         throw new RuntimeException("Failed to rename " + from + " to " + to, e);
       }
@@ -803,5 +797,73 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
   @VisibleForTesting
   ClientPool<IMetaStoreClient, TException> clientPool() {
     return clients;
+  }
+
+  /**
+   * The purpose of this class is to add view detection only for Hive-Specific tables. Hive catalog
+   * follows checks at different levels: 1. During refresh, it validates if the table is an iceberg
+   * table or not. 2. During commit, it validates if there is any concurrent commit with table or
+   * table-name already exists. This class helps to do the validation on an early basis.
+   */
+  private class ViewAwareTableBuilder extends BaseMetastoreViewCatalogTableBuilder {
+
+    private final TableIdentifier identifier;
+
+    private ViewAwareTableBuilder(TableIdentifier identifier, Schema schema) {
+      super(identifier, schema);
+      this.identifier = identifier;
+    }
+
+    @Override
+    public Transaction createOrReplaceTransaction() {
+      if (viewExists(identifier)) {
+        throw new org.apache.iceberg.exceptions.AlreadyExistsException(
+            "View with same name already exists: %s", identifier);
+      }
+      return super.createOrReplaceTransaction();
+    }
+
+    @Override
+    public org.apache.iceberg.Table create() {
+      if (viewExists(identifier)) {
+        throw new org.apache.iceberg.exceptions.AlreadyExistsException(
+            "View with same name already exists: %s", identifier);
+      }
+      return super.create();
+    }
+  }
+
+  /**
+   * The purpose of this class is to add table detection only for Hive-Specific view. Hive catalog
+   * follows checks at different levels: 1. During refresh, it validates if the view is an iceberg
+   * view or not. 2. During commit, it validates if there is any concurrent commit with view or
+   * view-name already exists. This class helps to do the validation on an early basis.
+   */
+  private class TableAwareViewBuilder extends BaseViewBuilder {
+
+    private final TableIdentifier identifier;
+
+    private TableAwareViewBuilder(TableIdentifier identifier) {
+      super(identifier);
+      this.identifier = identifier;
+    }
+
+    @Override
+    public View createOrReplace() {
+      if (tableExists(identifier)) {
+        throw new org.apache.iceberg.exceptions.AlreadyExistsException(
+            "Table with same name already exists: %s", identifier);
+      }
+      return super.createOrReplace();
+    }
+
+    @Override
+    public View create() {
+      if (tableExists(identifier)) {
+        throw new org.apache.iceberg.exceptions.AlreadyExistsException(
+            "Table with same name already exists: %s", identifier);
+      }
+      return super.create();
+    }
   }
 }
