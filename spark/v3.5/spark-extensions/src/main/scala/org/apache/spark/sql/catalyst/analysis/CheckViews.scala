@@ -25,6 +25,7 @@ import org.apache.spark.sql.catalyst.plans.logical.AlterViewAs
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.catalyst.plans.logical.SubqueryAlias
+import org.apache.spark.sql.catalyst.plans.logical.View
 import org.apache.spark.sql.catalyst.plans.logical.views.CreateIcebergView
 import org.apache.spark.sql.catalyst.plans.logical.views.ResolvedV2View
 import org.apache.spark.sql.connector.catalog.ViewCatalog
@@ -43,7 +44,7 @@ object CheckViews extends (LogicalPlan => Unit) {
         SchemaUtils.checkColumnNameDuplication(query.schema.fieldNames, SQLConf.get.resolver)
         if (replace) {
           val viewIdent: Seq[String] = resolvedIdent.catalog.name() +: resolvedIdent.identifier.asMultipartIdentifier
-          checkCyclicViewReference(viewIdent, query)
+          checkCyclicViewReference(viewIdent, query, Seq(viewIdent))
         }
 
       case AlterViewAs(ResolvedV2View(_, _), _, _) =>
@@ -75,26 +76,41 @@ object CheckViews extends (LogicalPlan => Unit) {
 
   private def checkCyclicViewReference(
     viewIdent: Seq[String],
-    plan: LogicalPlan): Unit = {
+    plan: LogicalPlan,
+    cyclePath: Seq[Seq[String]]): Unit = {
     plan match {
       case sub@SubqueryAlias(_, Project(_, _)) =>
-        val ident: Seq[String] = sub.identifier.qualifier :+ sub.identifier.name
-        if (ident == viewIdent) {
-          throw new AnalysisException(String.format("Recursive cycle in view detected: %s", viewIdent.asIdentifier))
-        } else {
-          sub.children.foreach { c =>
-            checkCyclicViewReference(viewIdent, c)
-          }
-        }
+        val currentViewIdent: Seq[String] = sub.identifier.qualifier :+ sub.identifier.name
+        checkIfRecursiveView(viewIdent, currentViewIdent, cyclePath, sub.children)
+      case v1View: View =>
+        val currentViewIdent: Seq[String] = v1View.desc.identifier.nameParts
+        checkIfRecursiveView(viewIdent, currentViewIdent, cyclePath, v1View.children)
       case _ =>
-        plan.children.foreach(child => checkCyclicViewReference(viewIdent, child))
+        plan.children.foreach(child => checkCyclicViewReference(viewIdent, child, cyclePath))
     }
 
     plan.expressions.flatMap(_.flatMap {
       case e: SubqueryExpression =>
-        checkCyclicViewReference(viewIdent, e.plan)
+        checkCyclicViewReference(viewIdent, e.plan, cyclePath)
         None
       case _ => None
     })
+  }
+
+  private def checkIfRecursiveView(
+    viewIdent: Seq[String],
+    currentViewIdent: Seq[String],
+    cyclePath: Seq[Seq[String]],
+    children: Seq[LogicalPlan]
+  ): Unit = {
+    val newCyclePath = cyclePath :+ currentViewIdent
+    if (currentViewIdent == viewIdent) {
+      throw new AnalysisException(String.format("Recursive cycle in view detected: %s (cycle: %s)",
+        viewIdent.asIdentifier, newCyclePath.map(p => p.mkString(".")).mkString(" -> ")))
+    } else {
+      children.foreach { c =>
+        checkCyclicViewReference(viewIdent, c, newCyclePath)
+      }
+    }
   }
 }

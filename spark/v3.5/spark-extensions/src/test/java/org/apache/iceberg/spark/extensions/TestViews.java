@@ -1876,11 +1876,13 @@ public class TestViews extends ExtensionsTestBase {
     sql("CREATE VIEW %s AS SELECT * FROM %s", viewTwo, viewOne);
 
     // viewOne points to viewTwo points to viewOne, creating a recursive cycle
-    assertThatThrownBy(() -> sql("CREATE OR REPLACE VIEW %s AS SELECT * FROM %s", viewOne, viewTwo))
+    String view1 = String.format("%s.%s.%s", catalogName, NAMESPACE, viewOne);
+    String view2 = String.format("%s.%s.%s", catalogName, NAMESPACE, viewTwo);
+    String cycle = String.format("%s -> %s -> %s", view1, view2, view1);
+    assertThatThrownBy(() -> sql("CREATE OR REPLACE VIEW %s AS SELECT * FROM %s", viewOne, view2))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
-            String.format(
-                "Recursive cycle in view detected: %s.%s.%s", catalogName, NAMESPACE, viewOne));
+            String.format("Recursive cycle in view detected: %s (cycle: %s)", view1, cycle));
   }
 
   @TestTemplate
@@ -1895,15 +1897,13 @@ public class TestViews extends ExtensionsTestBase {
 
     sql("USE %s", catalogName);
     // viewOne points to viewTwo points to viewOne, creating a recursive cycle
-    assertThatThrownBy(
-            () ->
-                sql(
-                    "CREATE OR REPLACE VIEW %s AS SELECT * FROM spark_catalog.%s.%s",
-                    viewOne, NAMESPACE, viewTwo))
+    String view1 = String.format("%s.%s.%s", catalogName, NAMESPACE, viewOne);
+    String view2 = String.format("%s.%s.%s", "spark_catalog", NAMESPACE, viewTwo);
+    String cycle = String.format("%s -> %s -> %s", view1, view2, view1);
+    assertThatThrownBy(() -> sql("CREATE OR REPLACE VIEW %s AS SELECT * FROM %s", viewOne, view2))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
-            String.format(
-                "Recursive cycle in view detected: %s.%s.%s", catalogName, NAMESPACE, viewOne));
+            String.format("Recursive cycle in view detected: %s (cycle: %s)", view1, cycle));
   }
 
   @TestTemplate
@@ -1923,11 +1923,12 @@ public class TestViews extends ExtensionsTestBase {
             viewTwo);
 
     // viewOne points to CTE, creating a recursive cycle
+    String view1 = String.format("%s.%s.%s", catalogName, NAMESPACE, viewOne);
+    String cycle = String.format("%s -> %s -> %s", view1, viewTwo, view1);
     assertThatThrownBy(() -> sql("CREATE OR REPLACE VIEW %s AS %s", viewOne, sql))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
-            String.format(
-                "Recursive cycle in view detected: %s.%s.%s", catalogName, NAMESPACE, viewOne));
+            String.format("Recursive cycle in view detected: %s (cycle: %s)", view1, cycle));
   }
 
   @TestTemplate
@@ -1944,11 +1945,12 @@ public class TestViews extends ExtensionsTestBase {
         String.format("SELECT * FROM %s WHERE id = (SELECT id FROM %s)", tableName, viewTwo);
 
     // viewOne points to subquery expression, creating a recursive cycle
+    String view1 = String.format("%s.%s.%s", catalogName, NAMESPACE, viewOne);
+    String cycle = String.format("%s -> %s -> %s", view1, viewTwo, view1);
     assertThatThrownBy(() -> sql("CREATE OR REPLACE VIEW %s AS %s", viewOne, sql))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
-            String.format(
-                "Recursive cycle in view detected: %s.%s.%s", catalogName, NAMESPACE, viewOne));
+            String.format("Recursive cycle in view detected: %s (cycle: %s)", view1, cycle));
   }
 
   private void insertRows(int numRows) throws NoSuchTableException {
