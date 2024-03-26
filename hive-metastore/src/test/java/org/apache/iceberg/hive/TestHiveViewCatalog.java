@@ -21,12 +21,14 @@ package org.apache.iceberg.hive;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.util.List;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
+import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -34,6 +36,8 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchIcebergViewException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -86,7 +90,28 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
   }
 
   @Test
-  public void testHiveViewAndIcebergViewWithSameName() throws TException {
+  public void testInvalidIdentifiersWithRename() {
+    TableIdentifier invalidFrom = TableIdentifier.of(Namespace.of("l1", "l2"), "view");
+    TableIdentifier validTo = TableIdentifier.of(Namespace.of("l1"), "renamedView");
+    assertThatThrownBy(() -> catalog.renameView(invalidFrom, validTo))
+        .isInstanceOf(NoSuchViewException.class)
+        .hasMessageContaining("Invalid identifier: " + invalidFrom);
+    assertThatThrownBy(() -> catalog.renameTable(invalidFrom, validTo))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageContaining("Invalid identifier: " + invalidFrom);
+
+    TableIdentifier validFrom = TableIdentifier.of(Namespace.of("l1"), "view");
+    TableIdentifier invalidTo = TableIdentifier.of(Namespace.of("l1", "l2"), "view");
+    assertThatThrownBy(() -> catalog.renameView(validFrom, invalidTo))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid identifier: " + invalidTo);
+    assertThatThrownBy(() -> catalog.renameTable(validFrom, invalidTo))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid identifier: " + invalidTo);
+  }
+
+  @Test
+  public void testHiveViewAndIcebergViewWithSameName() throws TException, IOException {
     String dbName = "hivedb";
     Namespace ns = Namespace.of(dbName);
     String viewName = "test_hive_view";
@@ -98,13 +123,13 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
 
     assertThat(catalog.listViews(ns)).isEmpty();
     // create a hive table
-    org.apache.hadoop.hive.metastore.api.Table hiveTable =
-        createHiveView(viewName, dbName, tempDir.toUri().toString());
+    Table hiveTable =
+        createHiveView(
+            viewName, dbName, Files.createTempDirectory("hive-view-tests-name").toString());
     HIVE_METASTORE_EXTENSION.metastoreClient().createTable(hiveTable);
 
     catalog.setListAllTables(true);
-    List<TableIdentifier> tableIdents1 = catalog.listTables(ns);
-    assertThat(tableIdents1).as("should have one table with type VIRTUAL_VIEW.").hasSize(1);
+    assertThat(catalog.listTables(ns)).containsExactly(identifier).hasSize(1);
 
     assertThat(catalog.viewExists(identifier)).isFalse();
 
@@ -121,7 +146,7 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
   }
 
   @Test
-  public void testListView() throws TException {
+  public void testListViewWithHiveView() throws TException, IOException {
     String dbName = "hivedb";
     Namespace ns = Namespace.of(dbName);
     TableIdentifier identifier = TableIdentifier.of(ns, "test_iceberg_view");
@@ -135,16 +160,18 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
 
     String hiveViewName = "test_hive_view";
     // create a hive table
-    org.apache.hadoop.hive.metastore.api.Table hiveTable =
-        createHiveView(hiveViewName, dbName, tempDir.toUri().toString());
+    Table hiveTable =
+        createHiveView(
+            hiveViewName, dbName, Files.createTempDirectory("hive-view-tests-list").toString());
     HIVE_METASTORE_EXTENSION.metastoreClient().createTable(hiveTable);
 
     catalog.setListAllTables(true);
-    List<TableIdentifier> tableIdents1 = catalog.listTables(ns);
-    assertThat(tableIdents1).as("should have one table with type VIRTUAL_VIEW.").hasSize(1);
 
-    List<TableIdentifier> tableIdents2 = catalog.listViews(ns);
-    assertThat(tableIdents2).as("should have zero iceberg view.").hasSize(0);
+    assertThat(catalog.listTables(ns))
+        .containsExactly(TableIdentifier.of(ns, hiveViewName))
+        .hasSize(1);
+
+    assertThat(catalog.listViews(ns)).hasSize(0);
 
     catalog
         .buildView(identifier)
@@ -154,12 +181,10 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
         .create();
     assertThat(catalog.viewExists(identifier)).isTrue();
 
-    List<TableIdentifier> tableIdents3 = catalog.listViews(ns);
-    assertThat(tableIdents3).as("should have one iceberg view .").hasSize(1);
+    assertThat(catalog.listViews(ns)).containsExactly(identifier).hasSize(1);
   }
 
-  private org.apache.hadoop.hive.metastore.api.Table createHiveView(
-      String hiveViewName, String dbName, String location) {
+  private Table createHiveView(String hiveViewName, String dbName, String location) {
     Map<String, String> parameters = Maps.newHashMap();
     parameters.put(
         serdeConstants.SERIALIZATION_CLASS, "org.apache.hadoop.hive.serde2.thrift.test.IntString");
@@ -183,8 +208,8 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
             Lists.newArrayList(),
             Maps.newHashMap());
 
-    org.apache.hadoop.hive.metastore.api.Table hiveTable =
-        new org.apache.hadoop.hive.metastore.api.Table(
+    Table hiveTable =
+        new Table(
             hiveViewName,
             dbName,
             "test_owner",

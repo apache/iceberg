@@ -46,6 +46,7 @@ import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.view.BaseViewOperations;
 import org.apache.iceberg.view.ViewMetadata;
 import org.apache.thrift.TException;
@@ -141,7 +142,10 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
       } else {
         tbl =
             newHmsTable(
-                metadata.property(HiveCatalog.HMS_TABLE_OWNER, HiveHadoopUtil.currentUser()));
+                PropertyUtil.propertyAsString(
+                    metadata.properties(),
+                    HiveCatalog.HMS_TABLE_OWNER,
+                    HiveHadoopUtil.currentUser()));
         LOG.debug("Committing new view: {}", fullName);
       }
 
