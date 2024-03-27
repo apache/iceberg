@@ -59,16 +59,19 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 
 **Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
 
+<!-- markdown-link-check-disable-next-line -->
 ### [How not to use Apache Iceberg](https://medium.com/@ajanthabhat/how-not-to-use-apache-iceberg-046ae7e7c884)
 **Date**: January 23rd, 2024, **Company**: Dremio
 
 **Authors**: [Ajantha Bhat](https://www.linkedin.com/in/ajanthabhat/)
 
+<!-- markdown-link-check-disable-next-line -->
 ### [Apache Hive-4.x with Iceberg Branches & Tags](https://medium.com/@ayushtkn/apache-hive-4-x-with-iceberg-branches-tags-3d52293ac0bf/)
 **Date**: October 12th, 2023, **Company**: Cloudera
 
 **Authors**: [Ayush Saxena](https://www.linkedin.com/in/ayush151/)
 
+<!-- markdown-link-check-disable-next-line -->
 ### [Apache Hive 4.x With Apache Iceberg](https://medium.com/@ayushtkn/apache-hive-4-x-with-apache-iceberg-part-i-355e7a380725/)
 **Date**: October 12th, 2023, **Company**: Cloudera
 
@@ -99,6 +102,7 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 
 **Authors**: [Riza Suminto](https://www.linkedin.com/in/rizasuminto/)
 
+<!-- markdown-link-check-disable-next-line -->
 ### [How Bilibili Builds OLAP Data Lakehouse with Apache Iceberg](https://medium.com/@lirui.fudan/how-bilibili-builds-olap-data-lakehouse-with-apache-iceberg-9f3408e53f9)
 **Date**: June 14th, 2023, **Company**: Bilibili
 
@@ -165,21 +169,25 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 
 **Author**: [Benny Chow](https://www.linkedin.com/in/bechow/)
 
+<!-- markdown-link-check-disable-next-line -->
 ### [Understanding Iceberg Table Metadata](https://medium.com/snowflake/understanding-iceberg-table-metadata-b1209fbcc7c3)
 **Date**: January 30st, 2023, **Company**: Snowflake
 
 **Author**: [Phani Raj](https://www.linkedin.com/in/phani-raj-9830a31b/)
 
+<!-- markdown-link-check-disable-next-line -->
 ### [Creating and managing Apache Iceberg tables using serverless features and without coding](https://medium.com/snowflake/creating-and-managing-apache-iceberg-tables-using-serverless-features-and-without-coding-14d2198cf5b5)
 **Date**: January 27th, 2023, **Company**: Snowflake
 
 **Author**: [Parag Jain](https://www.linkedin.com/in/paragjainsa/)
 
+<!-- markdown-link-check-disable-next-line -->
 ### [Getting started with Apache Iceberg](https://medium.com/snowflake/getting-started-with-apache-iceberg-80f338921a31)
 **Date**: January 27th, 2023, **Company**: Snowflake
 
 **Author**: [Jedidiah Rajbhushan](https://www.linkedin.com/in/jrajbhushan/)
 
+<!-- markdown-link-check-disable-next-line -->
 ### [How Apache Iceberg enables ACID compliance for data lakes](https://medium.com/snowflake/how-apache-iceberg-enables-acid-compliance-for-data-lakes-9069ae783b60/)
 **Date**: January 13th, 2023, **Company**: Snowflake
 
