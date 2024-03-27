@@ -600,10 +600,10 @@ paths:
       summary: Perform scan planning against a table
       operationId: PlanTable
       description:
-        Perform scan planning against a table based on the user's scan requirements including selected columns and filters.
+        Perform scan planning against a table based on the scan requirements including selected columns and filters.
         
-        Users can provide an optional `plan-task` from the response of `PreplanTable` API to 
-        limit the request of the full task set to a subset of table files.
+        An optional `plan-task` can be provided from a `PreplanTableResponse`
+        to limit the request of the full task set to a subset of table files.
         If a valid `plan-task` is provided, the service must attempt to send all results for that planning task.
       
         If a user receives a 413 `PayloadTooLargeWithPlanResponse` or 422 `UnprocessableEntityResponse`, 
@@ -4044,7 +4044,7 @@ components:
 
     UnprocessableEntityResponse:
       description:
-        Service can not process entity.
+        Service can not process entity. Informs user to leverage /preplan before doing /plan
       content:
         application/json:
           schema:
