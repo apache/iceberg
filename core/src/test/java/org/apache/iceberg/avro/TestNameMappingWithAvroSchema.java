@@ -18,12 +18,13 @@
  */
 package org.apache.iceberg.avro;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import org.apache.avro.Schema;
 import org.apache.iceberg.mapping.MappedField;
 import org.apache.iceberg.mapping.MappedFields;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestNameMappingWithAvroSchema {
   @Test
@@ -132,9 +133,9 @@ public class TestNameMappingWithAvroSchema {
                                     MappedField.of(13, "string"), MappedField.of(14, "int"))))),
                     MappedField.of(21, "timezone"),
                     MappedField.of(22, "bitmap"))));
-    Assert.assertEquals(
-        expected,
-        AvroWithPartnerByStructureVisitor.visit(
-            icebergSchema.asStruct(), schema, nameMappingWithAvroSchema));
+    assertThat(
+            AvroWithPartnerByStructureVisitor.visit(
+                icebergSchema.asStruct(), schema, nameMappingWithAvroSchema))
+        .isEqualTo(expected);
   }
 }
