@@ -35,7 +35,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.InputFile;
@@ -781,15 +780,16 @@ public abstract class TestMetrics {
     Map<Integer, ByteBuffer> lowerBounds = metrics.lowerBounds();
     Map<Integer, ByteBuffer> upperBounds = metrics.upperBounds();
 
-    assertThat(
-            lowerBounds.containsKey(fieldId)
-                ? Optional.ofNullable(fromByteBuffer(type, lowerBounds.get(fieldId))).get()
-                : null)
-        .isEqualTo(lowerBound);
-    assertThat(
-            upperBounds.containsKey(fieldId)
-                ? Optional.ofNullable(fromByteBuffer(type, upperBounds.get(fieldId))).get()
-                : null)
-        .isEqualTo(upperBound);
+    if (lowerBounds.containsKey(fieldId)) {
+      assertThat((Object) fromByteBuffer(type, lowerBounds.get(fieldId))).isEqualTo(lowerBound);
+    } else {
+      assertThat(lowerBound).isNull();
+    }
+
+    if (upperBounds.containsKey(fieldId)) {
+      assertThat((Object) fromByteBuffer(type, upperBounds.get(fieldId))).isEqualTo(upperBound);
+    } else {
+      assertThat(upperBound).isNull();
+    }
   }
 }
