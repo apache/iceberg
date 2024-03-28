@@ -19,7 +19,7 @@
 package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.junit.Assert.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -28,7 +28,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
@@ -119,10 +118,10 @@ public abstract class FilterFilesTestBase<
     table.refresh();
 
     ScanT emptyScan = newScan(table).filter(Expressions.equal("id", 5));
-    assertEquals(0, Iterables.size(emptyScan.planFiles()));
+    assertThat(emptyScan.planFiles()).isEmpty();
 
     ScanT nonEmptyScan = newScan(table).filter(Expressions.equal("id", 1));
-    assertEquals(1, Iterables.size(nonEmptyScan.planFiles()));
+    assertThat(nonEmptyScan.planFiles()).hasSize(1);
   }
 
   private void testCaseInsensitiveFilterFiles(Table table) {
@@ -153,9 +152,9 @@ public abstract class FilterFilesTestBase<
     table.refresh();
 
     ScanT emptyScan = newScan(table).caseSensitive(false).filter(Expressions.equal("ID", 5));
-    assertEquals(0, Iterables.size(emptyScan.planFiles()));
+    assertThat(emptyScan.planFiles()).hasSize(0);
 
     ScanT nonEmptyScan = newScan(table).caseSensitive(false).filter(Expressions.equal("ID", 1));
-    assertEquals(1, Iterables.size(nonEmptyScan.planFiles()));
+    assertThat(nonEmptyScan.planFiles()).hasSize(1);
   }
 }

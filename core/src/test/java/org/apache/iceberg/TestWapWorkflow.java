@@ -18,35 +18,32 @@
  */
 package org.apache.iceberg;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.util.Arrays;
+import java.util.List;
 import org.apache.iceberg.exceptions.CherrypickAncestorCommitException;
 import org.apache.iceberg.exceptions.DuplicateWAPCommitException;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public class TestWapWorkflow extends TableTestBase {
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestWapWorkflow extends TestBase {
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1, 2);
   }
 
-  public TestWapWorkflow(int formatVersion) {
-    super(formatVersion);
-  }
-
-  @Before
+  @BeforeEach
   public void setupTableProperties() {
     table.updateProperties().set(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED, "true").commit();
   }
 
-  @Test
+  @TestTemplate
   public void testCherryPickOverwrite() {
     table.newAppend().appendFile(FILE_A).commit();
 
@@ -68,7 +65,7 @@ public class TestWapWorkflow extends TableTestBase {
     validateTableFiles(table, FILE_B);
   }
 
-  @Test
+  @TestTemplate
   public void testCherryPickOverwriteFailsIfCurrentHasChanged() {
     table.newAppend().appendFile(FILE_A).commit();
 
@@ -87,8 +84,7 @@ public class TestWapWorkflow extends TableTestBase {
             .get();
 
     // try to cherry-pick, which should fail because the overwrite's parent is no longer current
-    Assertions.assertThatThrownBy(
-            () -> table.manageSnapshots().cherrypick(overwrite.snapshotId()).commit())
+    assertThatThrownBy(() -> table.manageSnapshots().cherrypick(overwrite.snapshotId()).commit())
         .isInstanceOf(ValidationException.class)
         .hasMessage(
             "Cannot cherry-pick snapshot 2: not append, dynamic overwrite, or fast-forward");
@@ -97,7 +93,7 @@ public class TestWapWorkflow extends TableTestBase {
     validateTableFiles(table, FILE_A, FILE_C);
   }
 
-  @Test
+  @TestTemplate
   public void testCurrentSnapshotOperation() {
 
     table.newAppend().appendFile(FILE_A).commit();
@@ -109,38 +105,27 @@ public class TestWapWorkflow extends TableTestBase {
 
     Snapshot wapSnapshot = base.snapshots().get(1);
 
-    Assert.assertEquals("Metadata should have both snapshots", 2, base.snapshots().size());
-    Assert.assertEquals(
-        "Snapshot should have wap id in summary", "123456789", wapSnapshot.summary().get("wap.id"));
-    Assert.assertEquals(
-        "Current snapshot should be first commit's snapshot",
-        firstSnapshotId,
-        base.currentSnapshot().snapshotId());
-    Assert.assertEquals(
-        "Snapshot log should indicate number of snapshots committed", 1, base.snapshotLog().size());
+    assertThat(base.snapshots()).hasSize(2);
+    assertThat(wapSnapshot.summary()).containsEntry("wap.id", "123456789");
+    assertThat(base.currentSnapshot().snapshotId()).isEqualTo(firstSnapshotId);
+    assertThat(base.snapshotLog())
+        .as("Snapshot log should indicate number of snapshots committed")
+        .hasSize(1);
 
     // do setCurrentSnapshot
     table.manageSnapshots().setCurrentSnapshot(wapSnapshot.snapshotId()).commit();
     base = readMetadata();
 
-    Assert.assertEquals(
-        "Current snapshot should be what we rolled back to",
-        wapSnapshot.snapshotId(),
-        base.currentSnapshot().snapshotId());
-    Assert.assertEquals("Metadata should have both snapshots", 2, base.snapshots().size());
-    Assert.assertEquals(
-        "Should contain manifests for both files",
-        2,
-        base.currentSnapshot().allManifests(table.io()).size());
-    Assert.assertEquals(
-        "Should contain append from last commit",
-        1,
-        Iterables.size(base.currentSnapshot().addedDataFiles(table.io())));
-    Assert.assertEquals(
-        "Snapshot log should indicate number of snapshots committed", 2, base.snapshotLog().size());
+    assertThat(base.currentSnapshot().snapshotId()).isEqualTo(wapSnapshot.snapshotId());
+    assertThat(base.snapshots()).hasSize(2);
+    assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(2);
+    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(base.snapshotLog())
+        .as("Snapshot log should indicate number of snapshots committed")
+        .hasSize(2);
   }
 
-  @Test
+  @TestTemplate
   public void testSetCurrentSnapshotNoWAP() {
 
     table.newAppend().appendFile(FILE_A).commit();
@@ -154,24 +139,16 @@ public class TestWapWorkflow extends TableTestBase {
     table.manageSnapshots().setCurrentSnapshot(firstSnapshotId).commit();
     base = readMetadata();
 
-    Assert.assertEquals(
-        "Current snapshot should be what we rolled back to",
-        firstSnapshotId,
-        base.currentSnapshot().snapshotId());
-    Assert.assertEquals("Metadata should have both snapshots", 2, base.snapshots().size());
-    Assert.assertEquals(
-        "Should contain manifests for both files",
-        1,
-        base.currentSnapshot().allManifests(table.io()).size());
-    Assert.assertEquals(
-        "Should contain append from last commit",
-        1,
-        Iterables.size(base.currentSnapshot().addedDataFiles(table.io())));
-    Assert.assertEquals(
-        "Snapshot log should indicate number of snapshots committed", 3, base.snapshotLog().size());
+    assertThat(base.currentSnapshot().snapshotId()).isEqualTo(firstSnapshotId);
+    assertThat(base.snapshots()).hasSize(2);
+    assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(1);
+    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(base.snapshotLog())
+        .as("Snapshot log should indicate number of snapshots committed")
+        .hasSize(3);
   }
 
-  @Test
+  @TestTemplate
   public void testRollbackOnInvalidNonAncestor() {
 
     table.newAppend().appendFile(FILE_A).commit();
@@ -183,42 +160,31 @@ public class TestWapWorkflow extends TableTestBase {
 
     Snapshot wapSnapshot = base.snapshots().get(1);
 
-    Assert.assertEquals("Metadata should have both snapshots", 2, base.snapshots().size());
-    Assert.assertEquals(
-        "Snapshot should have wap id in summary", "123456789", wapSnapshot.summary().get("wap.id"));
-    Assert.assertEquals(
-        "Current snapshot should be first commit's snapshot",
-        firstSnapshotId,
-        base.currentSnapshot().snapshotId());
-    Assert.assertEquals(
-        "Snapshot log should indicate number of snapshots committed", 1, base.snapshotLog().size());
+    assertThat(base.snapshots()).hasSize(2);
+    assertThat(wapSnapshot.summary()).containsEntry("wap.id", "123456789");
+    assertThat(base.currentSnapshot().snapshotId()).isEqualTo(firstSnapshotId);
+    assertThat(base.snapshotLog())
+        .as("Snapshot log should indicate number of snapshots committed")
+        .hasSize(1);
 
     // do rollback
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             // rollback to snapshot that is not an ancestor
             () -> table.manageSnapshots().rollbackTo(wapSnapshot.snapshotId()).commit())
         .isInstanceOf(ValidationException.class)
         .hasMessage("Cannot roll back to snapshot, not an ancestor of the current state: 2");
     base = readMetadata();
 
-    Assert.assertEquals(
-        "Current snapshot should be what we rolled back to",
-        firstSnapshotId,
-        base.currentSnapshot().snapshotId());
-    Assert.assertEquals("Metadata should have both snapshots", 2, base.snapshots().size());
-    Assert.assertEquals(
-        "Should contain manifests for one snapshot",
-        1,
-        base.currentSnapshot().allManifests(table.io()).size());
-    Assert.assertEquals(
-        "Should contain append from last commit",
-        1,
-        Iterables.size(base.currentSnapshot().addedDataFiles(table.io())));
-    Assert.assertEquals(
-        "Snapshot log should indicate number of snapshots committed", 1, base.snapshotLog().size());
+    assertThat(base.currentSnapshot().snapshotId()).isEqualTo(firstSnapshotId);
+    assertThat(base.snapshots()).hasSize(2);
+    assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(1);
+    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(base.snapshotLog())
+        .as("Snapshot log should indicate number of snapshots committed")
+        .hasSize(1);
   }
 
-  @Test
+  @TestTemplate
   public void testRollbackAndCherrypick() {
     // first snapshot
     table.newAppend().appendFile(FILE_A).commit();
@@ -239,26 +205,22 @@ public class TestWapWorkflow extends TableTestBase {
     // rollback to first snapshot
     table.manageSnapshots().rollbackTo(firstSnapshotId).commit();
     base = readMetadata();
-    Assert.assertEquals(
-        "Should be at first snapshot", firstSnapshotId, base.currentSnapshot().snapshotId());
-    Assert.assertEquals(
-        "Should have all three snapshots in the system", 3, base.snapshots().size());
+    assertThat(base.currentSnapshot().snapshotId()).isEqualTo(firstSnapshotId);
+    assertThat(base.snapshots()).hasSize(3);
 
     // fast forward to third snapshot
     table.manageSnapshots().cherrypick(thirdSnapshot.snapshotId()).commit();
     base = readMetadata();
-    Assert.assertEquals(
-        "Current state should be at third snapshot", 4, base.currentSnapshot().snapshotId());
+    assertThat(base.currentSnapshot().snapshotId()).isEqualTo(4);
 
     // fast forward to 2nd snapshot
     table.manageSnapshots().cherrypick(secondSnapshot.snapshotId()).commit();
     base = readMetadata();
-    Assert.assertEquals(
-        "Current state should be at second snapshot", 5, base.currentSnapshot().snapshotId());
-    Assert.assertEquals("Count all snapshots", 5, base.snapshots().size());
+    assertThat(base.currentSnapshot().snapshotId()).isEqualTo(5);
+    assertThat(base.snapshots()).hasSize(5);
   }
 
-  @Test
+  @TestTemplate
   public void testRollbackToTime() {
 
     // first snapshot
@@ -279,13 +241,11 @@ public class TestWapWorkflow extends TableTestBase {
     table.manageSnapshots().rollbackToTime(secondSnapshot.timestampMillis()).commit();
     base = readMetadata();
 
-    Assert.assertEquals(
-        "Should be at first snapshot", firstSnapshotId, base.currentSnapshot().snapshotId());
-    Assert.assertEquals(
-        "Should have all three snapshots in the system", 3, base.snapshots().size());
+    assertThat(base.currentSnapshot().snapshotId()).isEqualTo(firstSnapshotId);
+    assertThat(base.snapshots()).hasSize(3);
   }
 
-  @Test
+  @TestTemplate
   public void testWithCherryPicking() {
 
     table.newAppend().appendFile(FILE_A).commit();
@@ -299,15 +259,12 @@ public class TestWapWorkflow extends TableTestBase {
     // pick the snapshot that's staged but not committed
     Snapshot wapSnapshot = base.snapshots().get(1);
 
-    Assert.assertEquals("Should have both snapshots", 2, base.snapshots().size());
-    Assert.assertEquals(
-        "Should have first wap id in summary", "123456789", wapSnapshot.summary().get("wap.id"));
-    Assert.assertEquals(
-        "Current snapshot should be first commit's snapshot",
-        firstSnapshotId,
-        base.currentSnapshot().snapshotId());
-    Assert.assertEquals(
-        "Snapshot log should indicate number of snapshots committed", 1, base.snapshotLog().size());
+    assertThat(base.snapshots()).hasSize(2);
+    assertThat(wapSnapshot.summary()).containsEntry("wap.id", "123456789");
+    assertThat(base.currentSnapshot().snapshotId()).isEqualTo(firstSnapshotId);
+    assertThat(base.snapshotLog())
+        .as("Snapshot log should indicate number of snapshots committed")
+        .hasSize(1);
 
     // cherry-pick snapshot
     table.manageSnapshots().cherrypick(wapSnapshot.snapshotId()).commit();
@@ -315,24 +272,16 @@ public class TestWapWorkflow extends TableTestBase {
 
     // check if the effective current snapshot is set to the new snapshot created
     //   as a result of the cherry-pick operation
-    Assert.assertEquals(
-        "Current snapshot should be fast-forwarded to wap snapshot",
-        wapSnapshot.snapshotId(),
-        base.currentSnapshot().snapshotId());
-    Assert.assertEquals("Should have two snapshots", 2, base.snapshots().size());
-    Assert.assertEquals(
-        "Should contain manifests for both files",
-        2,
-        base.currentSnapshot().allManifests(table.io()).size());
-    Assert.assertEquals(
-        "Should contain append from last commit",
-        1,
-        Iterables.size(base.currentSnapshot().addedDataFiles(table.io())));
-    Assert.assertEquals(
-        "Snapshot log should indicate number of snapshots committed", 2, base.snapshotLog().size());
+    assertThat(base.currentSnapshot().snapshotId()).isEqualTo(wapSnapshot.snapshotId());
+    assertThat(base.snapshots()).hasSize(2);
+    assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(2);
+    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(base.snapshotLog())
+        .as("Snapshot log should indicate number of snapshots committed")
+        .hasSize(2);
   }
 
-  @Test
+  @TestTemplate
   public void testWithTwoPhaseCherryPicking() {
 
     table.newAppend().appendFile(FILE_A).commit();
@@ -352,25 +301,15 @@ public class TestWapWorkflow extends TableTestBase {
     Snapshot wap1Snapshot = base.snapshots().get(1);
     Snapshot wap2Snapshot = base.snapshots().get(2);
 
-    Assert.assertEquals("Should have three snapshots", 3, base.snapshots().size());
-    Assert.assertEquals(
-        "Should have first wap id in summary", "123456789", wap1Snapshot.summary().get("wap.id"));
-    Assert.assertEquals(
-        "Should have second wap id in summary", "987654321", wap2Snapshot.summary().get("wap.id"));
-    Assert.assertEquals(
-        "Current snapshot should be first commit's snapshot",
-        firstSnapshotId,
-        base.currentSnapshot().snapshotId());
-    Assert.assertEquals(
-        "Parent snapshot id should be same for first WAP snapshot",
-        firstSnapshotId,
-        wap1Snapshot.parentId().longValue());
-    Assert.assertEquals(
-        "Parent snapshot id should be same for second WAP snapshot",
-        firstSnapshotId,
-        wap2Snapshot.parentId().longValue());
-    Assert.assertEquals(
-        "Snapshot log should indicate number of snapshots committed", 1, base.snapshotLog().size());
+    assertThat(base.snapshots()).hasSize(3);
+    assertThat(wap1Snapshot.summary()).containsEntry("wap.id", "123456789");
+    assertThat(wap2Snapshot.summary()).containsEntry("wap.id", "987654321");
+    assertThat(base.currentSnapshot().snapshotId()).isEqualTo(firstSnapshotId);
+    assertThat(wap1Snapshot.parentId()).isEqualTo(firstSnapshotId);
+    assertThat(wap2Snapshot.parentId()).isEqualTo(firstSnapshotId);
+    assertThat(base.snapshotLog())
+        .as("Snapshot log should indicate number of snapshots committed")
+        .hasSize(1);
 
     // load current snapshot
     parentSnapshot = base.currentSnapshot();
@@ -380,24 +319,15 @@ public class TestWapWorkflow extends TableTestBase {
 
     // check if the effective current snapshot is set to the new snapshot created
     //   as a result of the cherry-pick operation
-    Assert.assertEquals(
-        "Current snapshot should be set to one after wap snapshot",
-        parentSnapshot.snapshotId() + 1,
-        base.currentSnapshot().snapshotId());
-    Assert.assertEquals(
-        "Should contain manifests for both files",
-        2,
-        base.currentSnapshot().allManifests(table.io()).size());
-    Assert.assertEquals(
-        "Should contain append from last commit",
-        1,
-        Iterables.size(base.currentSnapshot().addedDataFiles(table.io())));
-    Assert.assertEquals(
-        "Parent snapshot id should change to latest snapshot before commit",
-        parentSnapshot.snapshotId(),
-        base.currentSnapshot().parentId().longValue());
-    Assert.assertEquals(
-        "Snapshot log should indicate number of snapshots committed", 2, base.snapshotLog().size());
+    assertThat(base.currentSnapshot().snapshotId()).isEqualTo(parentSnapshot.snapshotId() + 1);
+    assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(2);
+    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(base.currentSnapshot().parentId())
+        .as("Parent snapshot id should change to latest snapshot before commit")
+        .isEqualTo(parentSnapshot.snapshotId());
+    assertThat(base.snapshotLog())
+        .as("Snapshot log should indicate number of snapshots committed")
+        .hasSize(2);
 
     // load current snapshot
     parentSnapshot = base.currentSnapshot();
@@ -407,27 +337,19 @@ public class TestWapWorkflow extends TableTestBase {
 
     // check if the effective current snapshot is set to the new snapshot created
     //   as a result of the cherry-pick operation
-    Assert.assertEquals(
-        "Current snapshot should be set to one after wap snapshot",
-        parentSnapshot.snapshotId() + 1 /* one fast-forwarded snapshot */ + 1,
-        base.currentSnapshot().snapshotId());
-    Assert.assertEquals(
-        "Should contain manifests for both files",
-        3,
-        base.currentSnapshot().allManifests(table.io()).size());
-    Assert.assertEquals(
-        "Should contain append from last commit",
-        1,
-        Iterables.size(base.currentSnapshot().addedDataFiles(table.io())));
-    Assert.assertEquals(
-        "Parent snapshot id should change to latest snapshot before commit",
-        parentSnapshot.snapshotId(),
-        base.currentSnapshot().parentId().longValue());
-    Assert.assertEquals(
-        "Snapshot log should indicate number of snapshots committed", 3, base.snapshotLog().size());
+    assertThat(base.currentSnapshot().snapshotId())
+        .isEqualTo(parentSnapshot.snapshotId() + 1 /* one fast-forwarded snapshot */ + 1);
+    assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(3);
+    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(base.currentSnapshot().parentId())
+        .as("Parent snapshot id should change to latest snapshot before commit")
+        .isEqualTo(parentSnapshot.snapshotId());
+    assertThat(base.snapshotLog())
+        .as("Snapshot log should indicate number of snapshots committed")
+        .hasSize(3);
   }
 
-  @Test
+  @TestTemplate
   public void testWithCommitsBetweenCherryPicking() {
     table.newAppend().appendFile(FILE_A).commit();
     TableMetadata base = readMetadata();
@@ -446,25 +368,15 @@ public class TestWapWorkflow extends TableTestBase {
     Snapshot wap1Snapshot = base.snapshots().get(1);
     Snapshot wap2Snapshot = base.snapshots().get(2);
 
-    Assert.assertEquals("Should have three snapshots", 3, base.snapshots().size());
-    Assert.assertEquals(
-        "Should have first wap id in summary", "123456789", wap1Snapshot.summary().get("wap.id"));
-    Assert.assertEquals(
-        "Should have second wap id in summary", "987654321", wap2Snapshot.summary().get("wap.id"));
-    Assert.assertEquals(
-        "Current snapshot should be first commit's snapshot",
-        firstSnapshotId,
-        base.currentSnapshot().snapshotId());
-    Assert.assertEquals(
-        "Parent snapshot id should be same for first WAP snapshot",
-        firstSnapshotId,
-        wap1Snapshot.parentId().longValue());
-    Assert.assertEquals(
-        "Parent snapshot id should be same for second WAP snapshot",
-        firstSnapshotId,
-        wap2Snapshot.parentId().longValue());
-    Assert.assertEquals(
-        "Snapshot log should indicate number of snapshots committed", 1, base.snapshotLog().size());
+    assertThat(base.snapshots()).hasSize(3);
+    assertThat(wap1Snapshot.summary()).containsEntry("wap.id", "123456789");
+    assertThat(wap2Snapshot.summary()).containsEntry("wap.id", "987654321");
+    assertThat(base.currentSnapshot().snapshotId()).isEqualTo(firstSnapshotId);
+    assertThat(wap1Snapshot.parentId()).isEqualTo(firstSnapshotId);
+    assertThat(wap2Snapshot.parentId()).isEqualTo(firstSnapshotId);
+    assertThat(base.snapshotLog())
+        .as("Snapshot log should indicate number of snapshots committed")
+        .hasSize(1);
 
     // load current snapshot
     parentSnapshot = base.currentSnapshot();
@@ -473,17 +385,12 @@ public class TestWapWorkflow extends TableTestBase {
     table.newAppend().appendFile(FILE_D).commit();
     base = readMetadata();
 
-    Assert.assertEquals("Should have four snapshots", 4, base.snapshots().size());
-    Assert.assertEquals(
-        "Current snapshot should carry over the parent snapshot",
-        parentSnapshot.snapshotId(),
-        base.currentSnapshot().parentId().longValue());
-    Assert.assertEquals(
-        "Should contain manifests for two files",
-        2,
-        base.currentSnapshot().allManifests(table.io()).size());
-    Assert.assertEquals(
-        "Snapshot log should indicate number of snapshots committed", 2, base.snapshotLog().size());
+    assertThat(base.snapshots()).hasSize(4);
+    assertThat(base.currentSnapshot().parentId()).isEqualTo(parentSnapshot.snapshotId());
+    assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(2);
+    assertThat(base.snapshotLog())
+        .as("Snapshot log should indicate number of snapshots committed")
+        .hasSize(2);
 
     // load current snapshot
     parentSnapshot = base.currentSnapshot();
@@ -493,25 +400,14 @@ public class TestWapWorkflow extends TableTestBase {
 
     // check if the effective current snapshot is set to the new snapshot created
     //   as a result of the cherry-pick operation
-    Assert.assertEquals("Should have five snapshots", 5, base.snapshots().size());
-    Assert.assertEquals(
-        "Current snapshot should be set to one after wap snapshot",
-        parentSnapshot.snapshotId() + 1,
-        base.currentSnapshot().snapshotId());
-    Assert.assertEquals(
-        "Should contain manifests for three files",
-        3,
-        base.currentSnapshot().allManifests(table.io()).size());
-    Assert.assertEquals(
-        "Should contain append from last commit",
-        1,
-        Iterables.size(base.currentSnapshot().addedDataFiles(table.io())));
-    Assert.assertEquals(
-        "Parent snapshot id should point to same snapshot",
-        parentSnapshot.snapshotId(),
-        base.currentSnapshot().parentId().longValue());
-    Assert.assertEquals(
-        "Snapshot log should indicate number of snapshots committed", 3, base.snapshotLog().size());
+    assertThat(base.snapshots()).hasSize(5);
+    assertThat(base.currentSnapshot().snapshotId()).isEqualTo(parentSnapshot.snapshotId() + 1);
+    assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(3);
+    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(base.currentSnapshot().parentId()).isEqualTo(parentSnapshot.snapshotId());
+    assertThat(base.snapshotLog())
+        .as("Snapshot log should indicate number of snapshots committed")
+        .hasSize(3);
 
     // load current snapshot
     parentSnapshot = base.currentSnapshot();
@@ -521,28 +417,17 @@ public class TestWapWorkflow extends TableTestBase {
 
     // check if the effective current snapshot is set to the new snapshot created
     //   as a result of the cherry-pick operation
-    Assert.assertEquals("Should have all the snapshots", 6, base.snapshots().size());
-    Assert.assertEquals(
-        "Current snapshot should be set to one after wap snapshot",
-        parentSnapshot.snapshotId() + 1,
-        base.currentSnapshot().snapshotId());
-    Assert.assertEquals(
-        "Should contain manifests for four files",
-        4,
-        base.currentSnapshot().allManifests(table.io()).size());
-    Assert.assertEquals(
-        "Should contain append from last commit",
-        1,
-        Iterables.size(base.currentSnapshot().addedDataFiles(table.io())));
-    Assert.assertEquals(
-        "Parent snapshot id should point to same snapshot",
-        parentSnapshot.snapshotId(),
-        base.currentSnapshot().parentId().longValue());
-    Assert.assertEquals(
-        "Snapshot log should indicate number of snapshots committed", 4, base.snapshotLog().size());
+    assertThat(base.snapshots()).hasSize(6);
+    assertThat(base.currentSnapshot().snapshotId()).isEqualTo(parentSnapshot.snapshotId() + 1);
+    assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(4);
+    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(base.currentSnapshot().parentId()).isEqualTo(parentSnapshot.snapshotId());
+    assertThat(base.snapshotLog())
+        .as("Snapshot log should indicate number of snapshots committed")
+        .hasSize(4);
   }
 
-  @Test
+  @TestTemplate
   public void testWithCherryPickingWithCommitRetry() {
 
     table.newAppend().appendFile(FILE_A).commit();
@@ -559,19 +444,13 @@ public class TestWapWorkflow extends TableTestBase {
     // pick the snapshot that's staged but not committed
     Snapshot wap1Snapshot = base.snapshots().get(1);
 
-    Assert.assertEquals("Should have two snapshots", 2, base.snapshots().size());
-    Assert.assertEquals(
-        "Should have first wap id in summary", "123456789", wap1Snapshot.summary().get("wap.id"));
-    Assert.assertEquals(
-        "Current snapshot should be first commit's snapshot",
-        firstSnapshotId,
-        base.currentSnapshot().snapshotId());
-    Assert.assertEquals(
-        "Parent snapshot id should be same for first WAP snapshot",
-        firstSnapshotId,
-        wap1Snapshot.parentId().longValue());
-    Assert.assertEquals(
-        "Snapshot log should indicate number of snapshots committed", 1, base.snapshotLog().size());
+    assertThat(base.snapshots()).hasSize(2);
+    assertThat(wap1Snapshot.summary()).containsEntry("wap.id", "123456789");
+    assertThat(base.currentSnapshot().snapshotId()).isEqualTo(firstSnapshotId);
+    assertThat(wap1Snapshot.parentId()).isEqualTo(firstSnapshotId);
+    assertThat(base.snapshotLog())
+        .as("Snapshot log should indicate number of snapshots committed")
+        .hasSize(1);
 
     // load current snapshot
     base = readMetadata();
@@ -583,27 +462,16 @@ public class TestWapWorkflow extends TableTestBase {
 
     // check if the effective current snapshot is set to the new snapshot created
     //   as a result of the cherry-pick operation
-    Assert.assertEquals(
-        "Current snapshot should be set to one after wap snapshot",
-        parentSnapshot.snapshotId() + 1,
-        base.currentSnapshot().snapshotId());
-    Assert.assertEquals(
-        "Should contain manifests for both files",
-        2,
-        base.currentSnapshot().allManifests(table.io()).size());
-    Assert.assertEquals(
-        "Should not contain redundant append due to retry",
-        1,
-        Iterables.size(base.currentSnapshot().addedDataFiles(table.io())));
-    Assert.assertEquals(
-        "Parent snapshot id should change to latest snapshot before commit",
-        parentSnapshot.snapshotId(),
-        base.currentSnapshot().parentId().longValue());
-    Assert.assertEquals(
-        "Snapshot log should indicate number of snapshots committed", 2, base.snapshotLog().size());
+    assertThat(base.currentSnapshot().snapshotId()).isEqualTo(parentSnapshot.snapshotId() + 1);
+    assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(2);
+    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(base.currentSnapshot().parentId()).isEqualTo(parentSnapshot.snapshotId());
+    assertThat(base.snapshotLog())
+        .as("Snapshot log should indicate number of snapshots committed")
+        .hasSize(2);
   }
 
-  @Test
+  @TestTemplate
   public void testCherrypickingAncestor() {
 
     table.newAppend().appendFile(FILE_A).commit();
@@ -617,15 +485,12 @@ public class TestWapWorkflow extends TableTestBase {
     // pick the snapshot that's staged but not committed
     Snapshot wapSnapshot = base.snapshots().get(1);
 
-    Assert.assertEquals("Should have both snapshots", 2, base.snapshots().size());
-    Assert.assertEquals(
-        "Should have first wap id in summary", "123456789", wapSnapshot.summary().get("wap.id"));
-    Assert.assertEquals(
-        "Current snapshot should be first commit's snapshot",
-        firstSnapshotId,
-        base.currentSnapshot().snapshotId());
-    Assert.assertEquals(
-        "Snapshot log should indicate number of snapshots committed", 1, base.snapshotLog().size());
+    assertThat(base.snapshots()).hasSize(2);
+    assertThat(wapSnapshot.summary()).containsEntry("wap.id", "123456789");
+    assertThat(base.currentSnapshot().snapshotId()).isEqualTo(firstSnapshotId);
+    assertThat(base.snapshotLog())
+        .as("Snapshot log should indicate number of snapshots committed")
+        .hasSize(1);
 
     // cherry-pick snapshot
     table.manageSnapshots().cherrypick(wapSnapshot.snapshotId()).commit();
@@ -634,30 +499,22 @@ public class TestWapWorkflow extends TableTestBase {
 
     // check if the effective current snapshot is set to the new snapshot created
     //   as a result of the cherry-pick operation
-    Assert.assertEquals(
-        "Current snapshot should be fast-forwarded to wap snapshot",
-        wapSnapshot.snapshotId(),
-        base.currentSnapshot().snapshotId());
-    Assert.assertEquals("Should have two snapshots", 2, base.snapshots().size());
-    Assert.assertEquals(
-        "Should contain manifests for both files",
-        2,
-        base.currentSnapshot().allManifests(table.io()).size());
-    Assert.assertEquals(
-        "Should contain append from last commit",
-        1,
-        Iterables.size(base.currentSnapshot().addedDataFiles(table.io())));
-    Assert.assertEquals(
-        "Snapshot log should indicate number of snapshots committed", 2, base.snapshotLog().size());
+    assertThat(base.currentSnapshot().snapshotId()).isEqualTo(wapPublishedId);
+    assertThat(base.snapshots()).hasSize(2);
+    assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(2);
+    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(base.snapshotLog())
+        .as("Snapshot log should indicate number of snapshots committed")
+        .hasSize(2);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             // duplicate cherry-pick snapshot
             () -> table.manageSnapshots().cherrypick(firstSnapshotId).commit())
         .isInstanceOf(CherrypickAncestorCommitException.class)
         .hasMessage("Cannot cherrypick snapshot 1: already an ancestor");
   }
 
-  @Test
+  @TestTemplate
   public void testDuplicateCherrypick() {
     table.newAppend().appendFile(FILE_A).commit();
     TableMetadata base = readMetadata();
@@ -673,39 +530,26 @@ public class TestWapWorkflow extends TableTestBase {
     Snapshot wapSnapshot1 = base.snapshots().get(1);
     Snapshot wapSnapshot2 = base.snapshots().get(2);
 
-    Assert.assertEquals("Should have both snapshots", 3, base.snapshots().size());
-    Assert.assertEquals(
-        "Should have wap id in first wap snapshot summary",
-        "123456789",
-        wapSnapshot1.summary().get("wap.id"));
-    Assert.assertEquals(
-        "Should have wap id in second wap snapshot summary",
-        "123456789",
-        wapSnapshot2.summary().get("wap.id"));
-    Assert.assertEquals(
-        "Current snapshot should be first commit's snapshot",
-        firstSnapshotId,
-        base.currentSnapshot().snapshotId());
-    Assert.assertEquals(
-        "Snapshot log should indicate number of snapshots committed", 1, base.snapshotLog().size());
+    assertThat(base.snapshots()).hasSize(3);
+    assertThat(wapSnapshot1.summary()).containsEntry("wap.id", "123456789");
+    assertThat(wapSnapshot2.summary()).containsEntry("wap.id", "123456789");
+    assertThat(base.currentSnapshot().snapshotId()).isEqualTo(firstSnapshotId);
+    assertThat(base.snapshotLog())
+        .as("Snapshot log should indicate number of snapshots committed")
+        .hasSize(1);
 
     // cherry-pick snapshot
     table.manageSnapshots().cherrypick(wapSnapshot1.snapshotId()).commit();
     base = readMetadata();
 
-    Assert.assertEquals("Should have three snapshots", 3, base.snapshots().size());
-    Assert.assertEquals(
-        "Should contain manifests for both files",
-        2,
-        base.currentSnapshot().allManifests(table.io()).size());
-    Assert.assertEquals(
-        "Should contain append from last commit",
-        1,
-        Iterables.size(base.currentSnapshot().addedDataFiles(table.io())));
-    Assert.assertEquals(
-        "Snapshot log should indicate number of snapshots committed", 2, base.snapshotLog().size());
+    assertThat(base.snapshots()).hasSize(3);
+    assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(2);
+    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(base.snapshotLog())
+        .as("Snapshot log should indicate number of snapshots committed")
+        .hasSize(2);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             // duplicate cherry-pick snapshot
             () -> table.manageSnapshots().cherrypick(wapSnapshot2.snapshotId()).commit())
         .isInstanceOf(DuplicateWAPCommitException.class)
@@ -713,7 +557,7 @@ public class TestWapWorkflow extends TableTestBase {
             "Duplicate request to cherry pick wap id that was published already: 123456789");
   }
 
-  @Test
+  @TestTemplate
   public void testNonWapCherrypick() {
     table.newAppend().appendFile(FILE_A).commit();
     TableMetadata base = readMetadata();
@@ -727,41 +571,29 @@ public class TestWapWorkflow extends TableTestBase {
     base = readMetadata();
     long thirdSnapshotId = base.currentSnapshot().snapshotId();
 
-    Assert.assertEquals(
-        "Should be pointing to third snapshot",
-        thirdSnapshotId,
-        table.currentSnapshot().snapshotId());
+    assertThat(table.currentSnapshot().snapshotId()).isEqualTo(thirdSnapshotId);
 
     // NOOP commit
     table.manageSnapshots().commit();
-    Assert.assertEquals(
-        "Should still be pointing to third snapshot",
-        thirdSnapshotId,
-        table.currentSnapshot().snapshotId());
+    assertThat(table.currentSnapshot().snapshotId()).isEqualTo(thirdSnapshotId);
 
     // Rollback to second snapshot
     table.manageSnapshots().rollbackTo(secondSnapshotId).commit();
-    Assert.assertEquals(
-        "Should be pointing to second snapshot",
-        secondSnapshotId,
-        table.currentSnapshot().snapshotId());
+    assertThat(table.currentSnapshot().snapshotId()).isEqualTo(secondSnapshotId);
 
     // Cherrypick down to third
     table.manageSnapshots().cherrypick(thirdSnapshotId).commit();
-    Assert.assertEquals(
-        "Should be re-using wap snapshot after cherrypick",
-        3,
-        table.currentSnapshot().snapshotId());
+    assertThat(table.currentSnapshot().snapshotId()).isEqualTo(3);
 
     // try double cherrypicking of the third snapshot
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             // double cherrypicking of second snapshot
             () -> table.manageSnapshots().cherrypick(thirdSnapshotId).commit())
         .isInstanceOf(CherrypickAncestorCommitException.class)
         .hasMessage("Cannot cherrypick snapshot 3: already an ancestor");
 
     // try cherrypicking an ancestor
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             // double cherrypicking of second snapshot
             () -> table.manageSnapshots().cherrypick(firstSnapshotId).commit())
         .isInstanceOf(CherrypickAncestorCommitException.class)

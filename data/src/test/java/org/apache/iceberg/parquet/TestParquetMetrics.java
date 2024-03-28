@@ -26,6 +26,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestMetrics;
@@ -37,23 +38,13 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.parquet.hadoop.ParquetFileReader;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 /** Test Metrics for Parquet. */
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestParquetMetrics extends TestMetrics {
   private static final Map<String, String> SMALL_ROW_GROUP_CONFIG =
       ImmutableMap.of(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, "1600");
-
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
-  }
-
-  public TestParquetMetrics(int formatVersion) {
-    super(formatVersion);
-  }
 
   @Override
   public FileFormat fileFormat() {
@@ -62,7 +53,7 @@ public class TestParquetMetrics extends TestMetrics {
 
   @Override
   protected OutputFile createOutputFile() throws IOException {
-    File tmpFolder = temp.newFolder("parquet");
+    File tmpFolder = java.nio.file.Files.createTempDirectory(temp, "parquet").toFile();
     String filename = UUID.randomUUID().toString();
     return Files.localOutput(new File(tmpFolder, FileFormat.PARQUET.addExtension(filename)));
   }

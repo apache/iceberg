@@ -19,12 +19,12 @@
 package org.apache.iceberg.mapping;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestNameMapping {
   @Test
@@ -36,7 +36,7 @@ public class TestNameMapping {
     MappedFields expected = MappedFields.of(MappedField.of(1, "id"), MappedField.of(2, "data"));
 
     NameMapping mapping = MappingUtil.create(schema);
-    Assert.assertEquals(expected, mapping.asMappedFields());
+    assertThat(mapping.asMappedFields()).isEqualTo(expected);
   }
 
   @Test
@@ -62,7 +62,7 @@ public class TestNameMapping {
                 MappedFields.of(MappedField.of(4, "latitude"), MappedField.of(5, "longitude"))));
 
     NameMapping mapping = MappingUtil.create(schema);
-    Assert.assertEquals(expected, mapping.asMappedFields());
+    assertThat(mapping.asMappedFields()).isEqualTo(expected);
   }
 
   @Test
@@ -84,7 +84,7 @@ public class TestNameMapping {
                 3, "map", MappedFields.of(MappedField.of(4, "key"), MappedField.of(5, "value"))));
 
     NameMapping mapping = MappingUtil.create(schema);
-    Assert.assertEquals(expected, mapping.asMappedFields());
+    assertThat(mapping.asMappedFields()).isEqualTo(expected);
   }
 
   @Test
@@ -117,7 +117,7 @@ public class TestNameMapping {
                     MappedField.of(5, "value"))));
 
     NameMapping mapping = MappingUtil.create(schema);
-    Assert.assertEquals(expected, mapping.asMappedFields());
+    assertThat(mapping.asMappedFields()).isEqualTo(expected);
   }
 
   @Test
@@ -152,7 +152,7 @@ public class TestNameMapping {
                         MappedFields.of(MappedField.of(6, "x"), MappedField.of(7, "y"))))));
 
     NameMapping mapping = MappingUtil.create(schema);
-    Assert.assertEquals(expected, mapping.asMappedFields());
+    assertThat(mapping.asMappedFields()).isEqualTo(expected);
   }
 
   @Test
@@ -170,13 +170,13 @@ public class TestNameMapping {
             MappedField.of(3, "list", MappedFields.of(MappedField.of(4, "element"))));
 
     NameMapping mapping = MappingUtil.create(schema);
-    Assert.assertEquals(expected, mapping.asMappedFields());
+    assertThat(mapping.asMappedFields()).isEqualTo(expected);
   }
 
   @Test
   public void testFailsDuplicateId() {
     // the schema can be created because ID indexing is lazy
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 new Schema(
                     required(1, "id", Types.LongType.get()),
@@ -187,7 +187,7 @@ public class TestNameMapping {
 
   @Test
   public void testFailsDuplicateName() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> new NameMapping(MappedFields.of(MappedField.of(1, "x"), MappedField.of(2, "x"))))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Multiple entries with same key: x=2 and x=1");
@@ -227,17 +227,17 @@ public class TestNameMapping {
 
     NameMapping mapping = MappingUtil.create(schema);
 
-    Assert.assertNull("Should not return a field mapping for a missing ID", mapping.find(100));
-    Assert.assertEquals(MappedField.of(2, "data"), mapping.find(2));
-    Assert.assertEquals(MappedField.of(6, "x"), mapping.find(6));
-    Assert.assertEquals(MappedField.of(9, "element"), mapping.find(9));
-    Assert.assertEquals(MappedField.of(11, "latitude"), mapping.find(11));
-    Assert.assertEquals(
-        MappedField.of(
-            10,
-            "location",
-            MappedFields.of(MappedField.of(11, "latitude"), MappedField.of(12, "longitude"))),
-        mapping.find(10));
+    assertThat(mapping.find(100)).as("Should not return a field mapping for a missing ID").isNull();
+    assertThat(mapping.find(2)).isEqualTo(MappedField.of(2, "data"));
+    assertThat(mapping.find(6)).isEqualTo(MappedField.of(6, "x"));
+    assertThat(mapping.find(9)).isEqualTo(MappedField.of(9, "element"));
+    assertThat(mapping.find(11)).isEqualTo(MappedField.of(11, "latitude"));
+    assertThat(mapping.find(10))
+        .isEqualTo(
+            MappedField.of(
+                10,
+                "location",
+                MappedFields.of(MappedField.of(11, "latitude"), MappedField.of(12, "longitude"))));
   }
 
   @Test
@@ -266,20 +266,27 @@ public class TestNameMapping {
 
     NameMapping mapping = MappingUtil.create(schema);
 
-    Assert.assertNull(
-        "Should not return a field mapping for a nested name", mapping.find("element"));
-    Assert.assertNull("Should not return a field mapping for a nested name", mapping.find("x"));
-    Assert.assertNull("Should not return a field mapping for a nested name", mapping.find("key"));
-    Assert.assertNull("Should not return a field mapping for a nested name", mapping.find("value"));
-    Assert.assertEquals(MappedField.of(2, "data"), mapping.find("data"));
-    Assert.assertEquals(MappedField.of(6, "x"), mapping.find("map", "value", "x"));
-    Assert.assertEquals(MappedField.of(9, "element"), mapping.find("list", "element"));
-    Assert.assertEquals(MappedField.of(11, "latitude"), mapping.find("location", "latitude"));
-    Assert.assertEquals(
-        MappedField.of(
-            10,
-            "location",
-            MappedFields.of(MappedField.of(11, "latitude"), MappedField.of(12, "longitude"))),
-        mapping.find("location"));
+    assertThat(mapping.find("element"))
+        .as("Should not return a field mapping for a nested name")
+        .isNull();
+    assertThat(mapping.find("x"))
+        .as("Should not return a field mapping for a nested name")
+        .isNull();
+    assertThat(mapping.find("key"))
+        .as("Should not return a field mapping for a nested name")
+        .isNull();
+    assertThat(mapping.find("value"))
+        .as("Should not return a field mapping for a nested name")
+        .isNull();
+    assertThat(mapping.find("data")).isEqualTo(MappedField.of(2, "data"));
+    assertThat(mapping.find("map", "value", "x")).isEqualTo(MappedField.of(6, "x"));
+    assertThat(mapping.find("list", "element")).isEqualTo(MappedField.of(9, "element"));
+    assertThat(mapping.find("location", "latitude")).isEqualTo(MappedField.of(11, "latitude"));
+    assertThat(mapping.find("location"))
+        .isEqualTo(
+            MappedField.of(
+                10,
+                "location",
+                MappedFields.of(MappedField.of(11, "latitude"), MappedField.of(12, "longitude"))));
   }
 }

@@ -18,11 +18,12 @@
  */
 package org.apache.iceberg.encryption;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestStandardKeyMetadataParser {
 
@@ -35,14 +36,14 @@ public class TestStandardKeyMetadataParser {
     ByteBuffer serialized = metadata.buffer();
 
     StandardKeyMetadata parsedMetadata = StandardKeyMetadata.parse(serialized);
-    Assert.assertEquals(parsedMetadata.encryptionKey(), encryptionKey);
-    Assert.assertEquals(parsedMetadata.aadPrefix(), aadPrefix);
+    assertThat(encryptionKey).isEqualTo(parsedMetadata.encryptionKey());
+    assertThat(aadPrefix).isEqualTo(parsedMetadata.aadPrefix());
   }
 
   @Test
   public void testUnsupportedVersion() {
     ByteBuffer badBuffer = ByteBuffer.wrap(new byte[] {0x02});
-    Assertions.assertThatThrownBy(() -> StandardKeyMetadata.parse(badBuffer))
+    assertThatThrownBy(() -> StandardKeyMetadata.parse(badBuffer))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot resolve schema for version: 2");
   }
