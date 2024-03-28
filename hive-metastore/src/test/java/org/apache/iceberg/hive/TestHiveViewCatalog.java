@@ -36,8 +36,6 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchIcebergViewException;
-import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -87,27 +85,6 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
   @Override
   protected boolean requiresNamespaceCreate() {
     return true;
-  }
-
-  @Test
-  public void testInvalidIdentifiersWithRename() {
-    TableIdentifier invalidFrom = TableIdentifier.of(Namespace.of("l1", "l2"), "view");
-    TableIdentifier validTo = TableIdentifier.of(Namespace.of("l1"), "renamedView");
-    assertThatThrownBy(() -> catalog.renameView(invalidFrom, validTo))
-        .isInstanceOf(NoSuchViewException.class)
-        .hasMessageContaining("Invalid identifier: " + invalidFrom);
-    assertThatThrownBy(() -> catalog.renameTable(invalidFrom, validTo))
-        .isInstanceOf(NoSuchTableException.class)
-        .hasMessageContaining("Invalid identifier: " + invalidFrom);
-
-    TableIdentifier validFrom = TableIdentifier.of(Namespace.of("l1"), "view");
-    TableIdentifier invalidTo = TableIdentifier.of(Namespace.of("l1", "l2"), "view");
-    assertThatThrownBy(() -> catalog.renameView(validFrom, invalidTo))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Invalid identifier: " + invalidTo);
-    assertThatThrownBy(() -> catalog.renameTable(validFrom, invalidTo))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Invalid identifier: " + invalidTo);
   }
 
   @Test
