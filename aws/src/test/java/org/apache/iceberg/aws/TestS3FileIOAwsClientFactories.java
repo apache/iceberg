@@ -35,7 +35,7 @@ public class TestS3FileIOAwsClientFactories {
         "org.apache.iceberg.aws.s3.DefaultS3FileIOAwsClientFactory");
     Object factoryImpl = S3FileIOAwsClientFactories.initialize(properties);
     Assertions.assertThat(factoryImpl)
-        .withFailMessage(
+        .as(
             "should instantiate an object of type S3FileIOAwsClientFactory when s3.client-factory-impl is set")
         .isInstanceOf(S3FileIOAwsClientFactory.class);
   }
@@ -46,7 +46,7 @@ public class TestS3FileIOAwsClientFactories {
     Map<String, String> properties = Maps.newHashMap();
     Object factoryImpl = S3FileIOAwsClientFactories.initialize(properties);
     Assertions.assertThat(factoryImpl)
-        .withFailMessage(
+        .as(
             "should instantiate an object of type AwsClientFactory when s3.client-factory-impl is not set")
         .isInstanceOf(AwsClientFactory.class);
   }

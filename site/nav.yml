@@ -21,13 +21,14 @@ nav:
     - Spark: spark-quickstart.md
     - Hive: hive-quickstart.md
   - Docs: 
+    - nightly: '!include docs/docs/nightly/mkdocs.yml'
     - latest: '!include docs/docs/latest/mkdocs.yml'
+    - 1.5.0: '!include docs/docs/1.5.0/mkdocs.yml'
     - 1.4.3: '!include docs/docs/1.4.3/mkdocs.yml'
     - 1.4.2: '!include docs/docs/1.4.2/mkdocs.yml'
     - 1.4.1: '!include docs/docs/1.4.1/mkdocs.yml'
     - 1.4.0: '!include docs/docs/1.4.0/mkdocs.yml'
   - Releases: releases.md
-  - Roadmap: roadmap.md
   - Blogs: blogs.md
   - Talks: talks.md
   - Vendors: vendors.md

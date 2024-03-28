@@ -260,6 +260,41 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void testRewriteDataFilesWithZOrderNullBinaryColumn() {
+    sql("CREATE TABLE %s (c1 int, c2 string, c3 binary) USING iceberg", tableName);
+
+    for (int i = 0; i < 5; i++) {
+      sql("INSERT INTO %s values (1, 'foo', null), (2, 'bar', null)", tableName);
+    }
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_data_files(table => '%s', "
+                + "strategy => 'sort', sort_order => 'zorder(c2,c3)')",
+            catalogName, tableIdent);
+
+    assertEquals(
+        "Action should rewrite 10 data files and add 1 data files",
+        row(10, 1),
+        Arrays.copyOf(output.get(0), 2));
+    assertThat(output.get(0)).hasSize(4);
+    assertThat(snapshotSummary())
+        .containsEntry(SnapshotSummary.REMOVED_FILE_SIZE_PROP, String.valueOf(output.get(0)[2]));
+    assertThat(sql("SELECT * FROM %s", tableName))
+        .containsExactly(
+            row(2, "bar", null),
+            row(2, "bar", null),
+            row(2, "bar", null),
+            row(2, "bar", null),
+            row(2, "bar", null),
+            row(1, "foo", null),
+            row(1, "foo", null),
+            row(1, "foo", null),
+            row(1, "foo", null),
+            row(1, "foo", null));
+  }
+
+  @TestTemplate
   public void testRewriteDataFilesWithZOrderAndMultipleShufflePartitionsPerFile() {
     createTable();
     insertData(10 /* file count */);

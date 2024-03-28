@@ -20,7 +20,10 @@ package org.apache.iceberg.flink;
 
 import java.util.List;
 import java.util.Set;
+import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.catalog.Column;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.utils.TypeConversions;
@@ -55,35 +58,69 @@ public class FlinkSchemaUtil {
 
   private FlinkSchemaUtil() {}
 
-  /** Convert the flink table schema to apache iceberg schema. */
+  /** @deprecated Use {@link #convert(ResolvedSchema)} instead. */
+  @Deprecated
   public static Schema convert(TableSchema schema) {
     LogicalType schemaType = schema.toRowDataType().getLogicalType();
     Preconditions.checkArgument(
-        schemaType instanceof RowType, "Schema logical type should be RowType.");
+        schemaType instanceof RowType, "Schema logical type should be row type.");
 
     RowType root = (RowType) schemaType;
     Type converted = root.accept(new FlinkTypeToType(root));
 
-    Schema iSchema = new Schema(converted.asStructType().fields());
-    return freshIdentifierFieldIds(iSchema, schema);
+    Schema icebergSchema = new Schema(converted.asStructType().fields());
+    if (schema.getPrimaryKey().isPresent()) {
+      return freshIdentifierFieldIds(icebergSchema, schema.getPrimaryKey().get().getColumns());
+    } else {
+      return icebergSchema;
+    }
   }
 
-  private static Schema freshIdentifierFieldIds(Schema iSchema, TableSchema schema) {
+  /** Convert the flink table schema to apache iceberg schema with column comment. */
+  public static Schema convert(ResolvedSchema flinkSchema) {
+    List<Column> tableColumns = flinkSchema.getColumns();
+    // copy from org.apache.flink.table.api.Schema#toRowDataType
+    DataTypes.Field[] fields =
+        tableColumns.stream()
+            .map(
+                column -> {
+                  if (column.getComment().isPresent()) {
+                    return DataTypes.FIELD(
+                        column.getName(), column.getDataType(), column.getComment().get());
+                  } else {
+                    return DataTypes.FIELD(column.getName(), column.getDataType());
+                  }
+                })
+            .toArray(DataTypes.Field[]::new);
+
+    LogicalType schemaType = DataTypes.ROW(fields).notNull().getLogicalType();
+    Preconditions.checkArgument(
+        schemaType instanceof RowType, "Schema logical type should be row type.");
+
+    RowType root = (RowType) schemaType;
+    Type converted = root.accept(new FlinkTypeToType(root));
+    Schema icebergSchema = new Schema(converted.asStructType().fields());
+    if (flinkSchema.getPrimaryKey().isPresent()) {
+      return freshIdentifierFieldIds(icebergSchema, flinkSchema.getPrimaryKey().get().getColumns());
+    } else {
+      return icebergSchema;
+    }
+  }
+
+  private static Schema freshIdentifierFieldIds(Schema icebergSchema, List<String> primaryKeys) {
     // Locate the identifier field id list.
     Set<Integer> identifierFieldIds = Sets.newHashSet();
-    if (schema.getPrimaryKey().isPresent()) {
-      for (String column : schema.getPrimaryKey().get().getColumns()) {
-        Types.NestedField field = iSchema.findField(column);
-        Preconditions.checkNotNull(
-            field,
-            "Cannot find field ID for the primary key column %s in schema %s",
-            column,
-            iSchema);
-        identifierFieldIds.add(field.fieldId());
-      }
+    for (String primaryKey : primaryKeys) {
+      Types.NestedField field = icebergSchema.findField(primaryKey);
+      Preconditions.checkNotNull(
+          field,
+          "Cannot find field ID for the primary key column %s in schema %s",
+          primaryKey,
+          icebergSchema);
+      identifierFieldIds.add(field.fieldId());
     }
-
-    return new Schema(iSchema.schemaId(), iSchema.asStruct().fields(), identifierFieldIds);
+    return new Schema(
+        icebergSchema.schemaId(), icebergSchema.asStruct().fields(), identifierFieldIds);
   }
 
   /**
@@ -109,7 +146,11 @@ public class FlinkSchemaUtil {
 
     // fix types that can't be represented in Flink (UUID)
     Schema fixedSchema = FlinkFixupTypes.fixup(schema, baseSchema);
-    return freshIdentifierFieldIds(fixedSchema, flinkSchema);
+    if (flinkSchema.getPrimaryKey().isPresent()) {
+      return freshIdentifierFieldIds(fixedSchema, flinkSchema.getPrimaryKey().get().getColumns());
+    } else {
+      return fixedSchema;
+    }
   }
 
   /**

@@ -35,6 +35,7 @@ spark-shell --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ iceb
 ```
 
 !!! info
+    <!-- markdown-link-check-disable-next-line -->
     If you want to include Iceberg in your Spark installation, add the [`iceberg-spark-runtime-3.5_2.12` Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.5_2.12/{{ icebergVersion }}/iceberg-spark-runtime-3.5_2.12-{{ icebergVersion }}.jar) to Spark's `jars` folder.
 
 
@@ -127,6 +128,66 @@ SELECT * FROM local.db.table.snapshots;
 val df = spark.table("local.db.table")
 df.count()
 ```
+
+### Type compatibility
+
+Spark and Iceberg support different set of types. Iceberg does the type conversion automatically, but not for all combinations,
+so you may want to understand the type conversion in Iceberg in prior to design the types of columns in your tables.
+
+#### Spark type to Iceberg type
+
+This type conversion table describes how Spark types are converted to the Iceberg types. The conversion applies on both creating Iceberg table and writing to Iceberg table via Spark.
+
+| Spark           | Iceberg                    | Notes |
+|-----------------|----------------------------|-------|
+| boolean         | boolean                    |       |
+| short           | integer                    |       |
+| byte            | integer                    |       |
+| integer         | integer                    |       |
+| long            | long                       |       |
+| float           | float                      |       |
+| double          | double                     |       |
+| date            | date                       |       |
+| timestamp       | timestamp with timezone    |       |
+| timestamp_ntz    | timestamp without timezone |       |
+| char            | string                     |       |
+| varchar         | string                     |       |
+| string          | string                     |       |
+| binary          | binary                     |       |
+| decimal         | decimal                    |       |
+| struct          | struct                     |       |
+| array           | list                       |       |
+| map             | map                        |       |
+
+!!! info
+    The table is based on representing conversion during creating table. In fact, broader supports are applied on write. Here're some points on write:
+
+    * Iceberg numeric types (`integer`, `long`, `float`, `double`, `decimal`) support promotion during writes. e.g. You can write Spark types `short`, `byte`, `integer`, `long` to Iceberg type `long`.
+    * You can write to Iceberg `fixed` type using Spark `binary` type. Note that assertion on the length will be performed.
+
+#### Iceberg type to Spark type
+
+This type conversion table describes how Iceberg types are converted to the Spark types. The conversion applies on reading from Iceberg table via Spark.
+
+| Iceberg                    | Spark                   | Note          |
+|----------------------------|-------------------------|---------------|
+| boolean                    | boolean                 |               |
+| integer                    | integer                 |               |
+| long                       | long                    |               |
+| float                      | float                   |               |
+| double                     | double                  |               |
+| date                       | date                    |               |
+| time                       |                         | Not supported |
+| timestamp with timezone    | timestamp               |               |
+| timestamp without timezone | timestamp_ntz            |               |
+| string                     | string                  |               |
+| uuid                       | string                  |               |
+| fixed                      | binary                  |               |
+| binary                     | binary                  |               |
+| decimal                    | decimal                 |               |
+| struct                     | struct                  |               |
+| list                       | array                   |               |
+| map                        | map                     |               |
 
 ### Next steps
 

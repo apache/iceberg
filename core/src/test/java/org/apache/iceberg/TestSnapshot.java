@@ -18,27 +18,25 @@
  */
 package org.apache.iceberg;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
+
+import java.util.Arrays;
+import java.util.List;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public class TestSnapshot extends TableTestBase {
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestSnapshot extends TestBase {
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1, 2);
   }
 
-  public TestSnapshot(int formatVersion) {
-    super(formatVersion);
-  }
-
-  @Test
+  @TestTemplate
   public void testAppendFilesFromTable() {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
@@ -58,7 +56,7 @@ public class TestSnapshot extends TableTestBase {
     validateSnapshot(oldSnapshot, newSnapshot, FILE_A, FILE_B);
   }
 
-  @Test
+  @TestTemplate
   public void testAppendFoundFiles() {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
@@ -81,7 +79,7 @@ public class TestSnapshot extends TableTestBase {
     validateSnapshot(oldSnapshot, newSnapshot, FILE_A, FILE_B);
   }
 
-  @Test
+  @TestTemplate
   public void testCachedDataFiles() {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
@@ -98,27 +96,25 @@ public class TestSnapshot extends TableTestBase {
     Snapshot thirdSnapshot = table.currentSnapshot();
 
     Iterable<DataFile> removedDataFiles = thirdSnapshot.removedDataFiles(FILE_IO);
-    Assert.assertEquals("Must have 1 removed data file", 1, Iterables.size(removedDataFiles));
+    assertThat(removedDataFiles).as("Must have 1 removed data file").hasSize(1);
 
     DataFile removedDataFile = Iterables.getOnlyElement(removedDataFiles);
-    Assert.assertEquals("Path must match", FILE_A.path(), removedDataFile.path());
-    Assert.assertEquals("Spec ID must match", FILE_A.specId(), removedDataFile.specId());
-    Assert.assertEquals("Partition must match", FILE_A.partition(), removedDataFile.partition());
+    assertThat(removedDataFile.path()).isEqualTo(FILE_A.path());
+    assertThat(removedDataFile.specId()).isEqualTo(FILE_A.specId());
+    assertThat(removedDataFile.partition()).isEqualTo(FILE_A.partition());
 
     Iterable<DataFile> addedDataFiles = thirdSnapshot.addedDataFiles(FILE_IO);
-    Assert.assertEquals("Must have 1 added data file", 1, Iterables.size(addedDataFiles));
+    assertThat(addedDataFiles).as("Must have 1 added data file").hasSize(1);
 
     DataFile addedDataFile = Iterables.getOnlyElement(addedDataFiles);
-    Assert.assertEquals("Path must match", thirdSnapshotDataFile.path(), addedDataFile.path());
-    Assert.assertEquals(
-        "Spec ID must match", thirdSnapshotDataFile.specId(), addedDataFile.specId());
-    Assert.assertEquals(
-        "Partition must match", thirdSnapshotDataFile.partition(), addedDataFile.partition());
+    assertThat(addedDataFile.path()).isEqualTo(thirdSnapshotDataFile.path());
+    assertThat(addedDataFile.specId()).isEqualTo(thirdSnapshotDataFile.specId());
+    assertThat(addedDataFile.partition()).isEqualTo(thirdSnapshotDataFile.partition());
   }
 
-  @Test
+  @TestTemplate
   public void testCachedDeleteFiles() {
-    Assume.assumeTrue("Delete files only supported in V2", formatVersion >= 2);
+    assumeThat(formatVersion).as("Delete files only supported in V2").isGreaterThanOrEqualTo(2);
 
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
@@ -148,30 +144,23 @@ public class TestSnapshot extends TableTestBase {
     Snapshot thirdSnapshot = table.currentSnapshot();
 
     Iterable<DeleteFile> removedDeleteFiles = thirdSnapshot.removedDeleteFiles(FILE_IO);
-    Assert.assertEquals("Must have 1 removed delete file", 1, Iterables.size(removedDeleteFiles));
+    assertThat(removedDeleteFiles).as("Must have 1 removed delete file").hasSize(1);
 
     DeleteFile removedDeleteFile = Iterables.getOnlyElement(removedDeleteFiles);
-    Assert.assertEquals(
-        "Path must match", secondSnapshotDeleteFile.path(), removedDeleteFile.path());
-    Assert.assertEquals(
-        "Spec ID must match", secondSnapshotDeleteFile.specId(), removedDeleteFile.specId());
-    Assert.assertEquals(
-        "Partition must match",
-        secondSnapshotDeleteFile.partition(),
-        removedDeleteFile.partition());
+    assertThat(removedDeleteFile.path()).isEqualTo(secondSnapshotDeleteFile.path());
+    assertThat(removedDeleteFile.specId()).isEqualTo(secondSnapshotDeleteFile.specId());
+    assertThat(removedDeleteFile.partition()).isEqualTo(secondSnapshotDeleteFile.partition());
 
     Iterable<DeleteFile> addedDeleteFiles = thirdSnapshot.addedDeleteFiles(FILE_IO);
-    Assert.assertEquals("Must have 1 added delete file", 1, Iterables.size(addedDeleteFiles));
+    assertThat(addedDeleteFiles).as("Must have 1 added delete file").hasSize(1);
 
     DeleteFile addedDeleteFile = Iterables.getOnlyElement(addedDeleteFiles);
-    Assert.assertEquals("Path must match", thirdSnapshotDeleteFile.path(), addedDeleteFile.path());
-    Assert.assertEquals(
-        "Spec ID must match", thirdSnapshotDeleteFile.specId(), addedDeleteFile.specId());
-    Assert.assertEquals(
-        "Partition must match", thirdSnapshotDeleteFile.partition(), addedDeleteFile.partition());
+    assertThat(addedDeleteFile.path()).isEqualTo(thirdSnapshotDeleteFile.path());
+    assertThat(addedDeleteFile.specId()).isEqualTo(thirdSnapshotDeleteFile.specId());
+    assertThat(addedDeleteFile.partition()).isEqualTo(thirdSnapshotDeleteFile.partition());
   }
 
-  @Test
+  @TestTemplate
   public void testSequenceNumbersInAddedDataFiles() {
     long expectedSequenceNumber = 0L;
     if (formatVersion >= 2) {
@@ -193,22 +182,21 @@ public class TestSnapshot extends TableTestBase {
     Snapshot snapshot = table.currentSnapshot();
     Iterable<DataFile> addedDataFiles = snapshot.addedDataFiles(table.io());
 
-    Assert.assertEquals(
-        "Sequence number mismatch in Snapshot", expectedSequenceNumber, snapshot.sequenceNumber());
+    assertThat(snapshot.sequenceNumber())
+        .as("Sequence number mismatch in Snapshot")
+        .isEqualTo(expectedSequenceNumber);
 
     for (DataFile df : addedDataFiles) {
-      Assert.assertEquals(
-          "Data sequence number mismatch",
-          expectedSequenceNumber,
-          df.dataSequenceNumber().longValue());
-      Assert.assertEquals(
-          "File sequence number mismatch",
-          expectedSequenceNumber,
-          df.fileSequenceNumber().longValue());
+      assertThat(df.dataSequenceNumber().longValue())
+          .as("Data sequence number mismatch")
+          .isEqualTo(expectedSequenceNumber);
+      assertThat(df.fileSequenceNumber().longValue())
+          .as("File sequence number mismatch")
+          .isEqualTo(expectedSequenceNumber);
     }
   }
 
-  @Test
+  @TestTemplate
   public void testSequenceNumbersInRemovedDataFiles() {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
@@ -239,28 +227,24 @@ public class TestSnapshot extends TableTestBase {
 
     Snapshot snapshot = table.currentSnapshot();
     Iterable<DataFile> removedDataFiles = snapshot.removedDataFiles(table.io());
-    Assert.assertEquals("Must have 1 removed data file", 1, Iterables.size(removedDataFiles));
+    assertThat(removedDataFiles).as("Must have 1 removed data file").hasSize(1);
 
     DataFile removedDataFile = Iterables.getOnlyElement(removedDataFiles);
 
-    Assert.assertEquals(
-        "Sequence number mismatch in Snapshot",
-        expectedSnapshotSequenceNumber,
-        snapshot.sequenceNumber());
-
-    Assert.assertEquals(
-        "Data sequence number mismatch",
-        expectedFileSequenceNumber,
-        removedDataFile.dataSequenceNumber().longValue());
-    Assert.assertEquals(
-        "File sequence number mismatch",
-        expectedFileSequenceNumber,
-        removedDataFile.fileSequenceNumber().longValue());
+    assertThat(snapshot.sequenceNumber())
+        .as("Sequence number mismatch in Snapshot")
+        .isEqualTo(expectedSnapshotSequenceNumber);
+    assertThat(removedDataFile.dataSequenceNumber().longValue())
+        .as("Data sequence number mismatch")
+        .isEqualTo(expectedFileSequenceNumber);
+    assertThat(removedDataFile.fileSequenceNumber().longValue())
+        .as("File sequence number mismatch")
+        .isEqualTo(expectedFileSequenceNumber);
   }
 
-  @Test
+  @TestTemplate
   public void testSequenceNumbersInAddedDeleteFiles() {
-    Assume.assumeTrue("Delete files only supported in V2", formatVersion >= 2);
+    assumeThat(formatVersion).as("Delete files only supported in V2").isGreaterThanOrEqualTo(2);
 
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
@@ -277,20 +261,18 @@ public class TestSnapshot extends TableTestBase {
 
     Snapshot snapshot = table.currentSnapshot();
     Iterable<DeleteFile> addedDeleteFiles = snapshot.addedDeleteFiles(table.io());
-    Assert.assertEquals("Must have 1 added delete file", 1, Iterables.size(addedDeleteFiles));
+    assertThat(addedDeleteFiles).as("Must have 1 added delete file").hasSize(1);
 
     DeleteFile addedDeleteFile = Iterables.getOnlyElement(addedDeleteFiles);
 
-    Assert.assertEquals(
-        "Sequence number mismatch in Snapshot", expectedSequenceNumber, snapshot.sequenceNumber());
-
-    Assert.assertEquals(
-        "Data sequence number mismatch",
-        expectedSequenceNumber,
-        addedDeleteFile.dataSequenceNumber().longValue());
-    Assert.assertEquals(
-        "File sequence number mismatch",
-        expectedSequenceNumber,
-        addedDeleteFile.fileSequenceNumber().longValue());
+    assertThat(snapshot.sequenceNumber())
+        .as("Sequence number mismatch in Snapshot")
+        .isEqualTo(expectedSequenceNumber);
+    assertThat(addedDeleteFile.dataSequenceNumber().longValue())
+        .as("Data sequence number mismatch")
+        .isEqualTo(expectedSequenceNumber);
+    assertThat(addedDeleteFile.fileSequenceNumber().longValue())
+        .as("File sequence number mismatch")
+        .isEqualTo(expectedSequenceNumber);
   }
 }
