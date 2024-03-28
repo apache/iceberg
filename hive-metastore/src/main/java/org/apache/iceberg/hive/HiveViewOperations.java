@@ -120,7 +120,7 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
     boolean hiveEngineEnabled = false;
 
     CommitStatus commitStatus = CommitStatus.FAILURE;
-    boolean updateHiveTable = false;
+    boolean updateHiveView = false;
 
     HiveLock lock = lockObject();
     try {
@@ -134,10 +134,16 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
         if (newView
             && tbl.getParameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP)
                 != null) {
-          throw new AlreadyExistsException("View already exists: %s.%s", database, viewName);
+          throw new AlreadyExistsException(
+              "%s already exists: %s.%s",
+              tbl.getTableType().equalsIgnoreCase(TableType.VIRTUAL_VIEW.name())
+                  ? ContentType.VIEW.value()
+                  : ContentType.TABLE.value(),
+              database,
+              viewName);
         }
 
-        updateHiveTable = true;
+        updateHiveView = true;
         LOG.debug("Committing existing view: {}", fullName);
       } else {
         tbl =
@@ -178,7 +184,7 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
       lock.ensureActive();
 
       try {
-        persistTable(tbl, updateHiveTable, hiveLockEnabled(conf) ? null : baseMetadataLocation);
+        persistTable(tbl, updateHiveView, hiveLockEnabled(conf) ? null : baseMetadataLocation);
         lock.ensureActive();
 
         commitStatus = CommitStatus.SUCCESS;
@@ -190,7 +196,7 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
                 + "Please check the commit history. If you are running into this issue, try reducing "
                 + "iceberg.hive.lock-heartbeat-interval-ms.",
             le);
-      } catch (AlreadyExistsException e) {
+      } catch (org.apache.hadoop.hive.metastore.api.AlreadyExistsException e) {
         throw new AlreadyExistsException(e, "View already exists: %s.%s", database, viewName);
 
       } catch (InvalidObjectException e) {
