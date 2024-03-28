@@ -338,6 +338,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
         .collect(Collectors.toList());
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private void renameTableOrView(
       TableIdentifier from,
       TableIdentifier originalTo,
@@ -356,6 +357,16 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     if (!namespaceExists(to.namespace())) {
       throw new NoSuchNamespaceException(
           "Cannot rename %s to %s. Namespace does not exist: %s", from, to, to.namespace());
+    }
+
+    if (tableExists(to)) {
+      throw new org.apache.iceberg.exceptions.AlreadyExistsException(
+          "Cannot rename %s to %s. Table already exists", from, to);
+    }
+
+    if (viewExists(to)) {
+      throw new org.apache.iceberg.exceptions.AlreadyExistsException(
+          "Cannot rename %s to %s. View already exists", from, to);
     }
 
     String toDatabase = to.namespace().level(0);
@@ -388,7 +399,8 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     } catch (InvalidOperationException e) {
       if (e.getMessage() != null
           && e.getMessage().contains(String.format("new table %s already exists", to))) {
-        throwErrorForExistedToContent(from, removeCatalogName(to));
+        throw new org.apache.iceberg.exceptions.AlreadyExistsException(
+            "Table already exists: %s", to);
       } else {
         throw new RuntimeException("Failed to rename " + from + " to " + to, e);
       }
@@ -410,26 +422,6 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
         break;
       case VIEW:
         HiveOperationsBase.validateTableIsIcebergView(table, fullName);
-    }
-  }
-
-  private void throwErrorForExistedToContent(TableIdentifier from, TableIdentifier to) {
-    String toDatabase = to.namespace().level(0);
-    try {
-      Table table = clients.run(client -> client.getTable(toDatabase, to.name()));
-      throw new org.apache.iceberg.exceptions.AlreadyExistsException(
-          "Cannot rename %s to %s. %s already exists",
-          from,
-          to,
-          table.getTableType().equalsIgnoreCase(TableType.VIRTUAL_VIEW.name())
-              ? HiveOperationsBase.ContentType.VIEW.value()
-              : HiveOperationsBase.ContentType.TABLE.value());
-    } catch (TException e) {
-      throw new RuntimeException("Failed to load content " + to, e);
-
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      throw new RuntimeException("Interrupted in call to load content", e);
     }
   }
 
