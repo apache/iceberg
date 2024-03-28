@@ -409,6 +409,7 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 
 **Author**: [Jason Hughes](https://www.linkedin.com/in/jasonhhughes/)
 
+<!-- markdown-link-check-disable-next-line -->
 ### [Migrating to Apache Iceberg at Adobe Experience Platform](https://medium.com/adobetech/migrating-to-apache-iceberg-at-adobe-experience-platform-40fa80f8b8de)
 **Date**: Jun 17th, 2021, **Company**: Adobe
 
@@ -439,11 +440,13 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 
 **Author**: [Susan Hall](https://thenewstack.io/author/susanhall/)
 
+<!-- markdown-link-check-disable-next-line -->
 ### [A Short Introduction to Apache Iceberg](https://medium.com/expedia-group-tech/a-short-introduction-to-apache-iceberg-d34f628b6799)
 **Date**: Jan 26th, 2021, **Company**: Expedia
 
 **Author**: [Christine Mathiesen](https://www.linkedin.com/in/christine-mathiesen-676a98159/)
 
+<!-- markdown-link-check-disable-next-line -->
 ### [Taking Query Optimizations to the Next Level with Iceberg](https://medium.com/adobetech/taking-query-optimizations-to-the-next-level-with-iceberg-6c968b83cd6f)
 **Date**: Jan 14th, 2021, **Company**: Adobe
 
@@ -454,6 +457,7 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 
 **Author**: [Zihan Li](https://www.linkedin.com/in/zihan-li-0a8a15149/), [Sudarshan Vasudevan](https://www.linkedin.com/in/suddu/), [Lei Sun](https://www.linkedin.com/in/lei-s-a93138a0/), [Shirshanka Das](https://www.linkedin.com/in/shirshankadas/)
 
+<!-- markdown-link-check-disable-next-line -->
 ### [High Throughput Ingestion with Iceberg](https://medium.com/adobetech/high-throughput-ingestion-with-iceberg-ccf7877a413f)
 **Date**: Dec 22nd, 2020, **Company**: Adobe
 
@@ -464,6 +468,7 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 
 **Author**: [Anupom Syam](https://www.linkedin.com/in/anupom/)
 
+<!-- markdown-link-check-disable-next-line -->
 ### [Iceberg at Adobe](https://medium.com/adobetech/iceberg-at-adobe-88cf1950e866)
 **Date**: Dec 3rd, 2020, **Company**: Adobe
 
