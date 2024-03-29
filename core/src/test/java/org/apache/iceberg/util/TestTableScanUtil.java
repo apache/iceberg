@@ -42,7 +42,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SplittableScanTask;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.TableTestBase;
+import org.apache.iceberg.TestBase;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
@@ -136,7 +136,7 @@ public class TestTableScanUtil {
   @Test
   public void testTaskGroupPlanningCorruptedOffset() {
     DataFile dataFile =
-        DataFiles.builder(TableTestBase.SPEC)
+        DataFiles.builder(TestBase.SPEC)
             .withPath("/path/to/data-a.parquet")
             .withFileSizeInBytes(10)
             .withPartitionPath("data_bucket=0")
@@ -146,14 +146,14 @@ public class TestTableScanUtil {
             .build();
 
     ResidualEvaluator residualEvaluator =
-        ResidualEvaluator.of(TableTestBase.SPEC, Expressions.equal("id", 1), false);
+        ResidualEvaluator.of(TestBase.SPEC, Expressions.equal("id", 1), false);
 
     BaseFileScanTask baseFileScanTask =
         new BaseFileScanTask(
             dataFile,
             null,
-            SchemaParser.toJson(TableTestBase.SCHEMA),
-            PartitionSpecParser.toJson(TableTestBase.SPEC),
+            SchemaParser.toJson(TestBase.SCHEMA),
+            PartitionSpecParser.toJson(TestBase.SPEC),
             residualEvaluator);
 
     List<BaseFileScanTask> baseFileScanTasks = ImmutableList.of(baseFileScanTask);
