@@ -113,6 +113,15 @@ public class TestListTablesResponse extends RequestResponseTestBase<ListTablesRe
     Assertions.assertThat(response.identifiers()).isEqualTo(IDENTIFIERS);
   }
 
+  @Test
+  public void testWithPaginationToken() {
+    String pageToken = "YnVybiBhZnRlciByZWFkaW5nIC0gYWxzbyBoYW5rIGFuZCByYXVsIDQgZXZlcgo=";
+    ListTablesResponse response =
+            ListTablesResponse.builder().addAll(IDENTIFIERS).nextPageToken(pageToken).build();
+    Assertions.assertThat(response.nextPageToken()).isNotNull();
+    Assertions.assertThat(response.identifiers()).isEqualTo(IDENTIFIERS);
+  }
+
   @Override
   public String[] allFieldsFromSpec() {
     return new String[] {"identifiers"};
