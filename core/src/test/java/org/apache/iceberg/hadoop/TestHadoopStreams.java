@@ -34,7 +34,6 @@ class TestHadoopStreams {
     S3ABlockOutputStream s3ABlockOutputStream = new S3ABlockOutputStream();
     FSDataOutputStream fsDataOutputStream = new FSDataOutputStream(s3ABlockOutputStream, null);
     PositionOutputStream wrap = HadoopStreams.wrap(fsDataOutputStream);
-
     // interrupt mock upload on close after a delay
     Executors.newSingleThreadExecutor()
         .execute(
