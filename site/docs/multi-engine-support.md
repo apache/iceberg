@@ -59,6 +59,8 @@ Each engine version undergoes the following lifecycle stages:
 
 ### Apache Spark
 
+<!-- markdown-link-check-disable -->
+
 | Version    | Lifecycle Stage    | Initial Iceberg Support | Latest Iceberg Support | Latest Runtime Jar |
 | ---------- | ------------------ | ----------------------- |------------------------| ------------------ |
 | 2.4        | End of Life        | 0.7.0-incubating        | 1.2.1                  | [iceberg-spark-runtime-2.4](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-2.4/1.2.1/iceberg-spark-runtime-2.4-1.2.1.jar) |
@@ -69,12 +71,16 @@ Each engine version undergoes the following lifecycle stages:
 | 3.4        | Maintained         | 1.3.0                   | {{ icebergVersion }}   | [iceberg-spark-runtime-3.4_2.12](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.4_2.12/{{ icebergVersion }}/iceberg-spark-runtime-3.4_2.12-{{ icebergVersion }}.jar) |
 | 3.5        | Maintained         | 1.4.0                   | {{ icebergVersion }}   | [iceberg-spark-runtime-3.5_2.12](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.5_2.12/{{ icebergVersion }}/iceberg-spark-runtime-3.5_2.12-{{ icebergVersion }}.jar) |
 
+<!-- markdown-link-check-enable -->
+
 * [1] Spark 3.1 shares the same runtime jar `iceberg-spark3-runtime` with Spark 3.0 before Iceberg 0.13.0
 
 ### Apache Flink
 
 Based on the guideline of the Flink community, only the latest 2 minor versions are actively maintained.
 Users should continuously upgrade their Flink version to stay up-to-date.
+
+<!-- markdown-link-check-disable -->
 
 | Version | Lifecycle Stage | Initial Iceberg Support | Latest Iceberg Support | Latest Runtime Jar                                                                                                                                                                                   |
 | ------- | --------------- | ----------------------- |------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -87,14 +93,20 @@ Users should continuously upgrade their Flink version to stay up-to-date.
 | 1.17    | Maintained      | 1.3.0                   | {{ icebergVersion }}   | [iceberg-flink-runtime-1.17](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-1.17/{{ icebergVersion }}/iceberg-flink-runtime-1.17-{{ icebergVersion }}.jar) |
 | 1.18    | Maintained      | 1.5.0                   | {{ icebergVersion }}   | [iceberg-flink-runtime-1.18](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-1.18/{{ icebergVersion }}/iceberg-flink-runtime-1.18-{{ icebergVersion }}.jar) |
 
+<!-- markdown-link-check-enable -->
+
 * [3] Flink 1.12 shares the same runtime jar `iceberg-flink-runtime` with Flink 1.11 before Iceberg 0.13.0
 
 ### Apache Hive
+
+<!-- markdown-link-check-disable -->
 
 | Version        | Recommended minor version | Lifecycle Stage   | Initial Iceberg Support | Latest Iceberg Support | Latest Runtime Jar |
 | -------------- | ------------------------- | ----------------- | ----------------------- | ---------------------- | ------------------ |
 | 2              | 2.3.8                     | Maintained        | 0.8.0-incubating        | {{ icebergVersion }} | [iceberg-hive-runtime](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-hive-runtime/{{ icebergVersion }}/iceberg-hive-runtime-{{ icebergVersion }}.jar) |
 | 3              | 3.1.2                     | Maintained        | 0.10.0                  | {{ icebergVersion }} | [iceberg-hive-runtime](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-hive-runtime/{{ icebergVersion }}/iceberg-hive-runtime-{{ icebergVersion }}.jar) |
+
+<!-- markdown-link-check-enable -->
 
 ## Developer Guide
 

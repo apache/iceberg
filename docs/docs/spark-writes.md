@@ -20,9 +20,9 @@ title: "Writes"
 
 # Spark Writes
 
-To use Iceberg in Spark, first configure [Spark catalogs](../spark-configuration.md).
+To use Iceberg in Spark, first configure [Spark catalogs](spark-configuration.md).
 
-Some plans are only available when using [Iceberg SQL extensions](../spark-configuration.md#sql-extensions) in Spark 3.
+Some plans are only available when using [Iceberg SQL extensions](spark-configuration.md#sql-extensions) in Spark 3.
 
 Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations. Spark DSv2 is an evolving API with different levels of support in Spark versions:
 
@@ -200,7 +200,7 @@ Branch writes can also be performed as part of a write-audit-publish (WAP) workf
 Note WAP branch and branch identifier cannot both be specified.
 Also, the branch must exist before performing the write. 
 The operation does **not** create the branch if it does not exist. 
-For more information on branches please refer to [branches](../branching.md).
+For more information on branches please refer to [branches](branching.md).
  
 ```sql
 -- INSERT (1,' a') (2, 'b') into the audit branch.
@@ -364,7 +364,7 @@ There are 3 options for `write.distribution-mode`
 This mode does not request any shuffles or sort to be performed automatically by Spark. Because no work is done 
 automatically by Spark, the data must be *manually* sorted by partition value. The data must be sorted either within 
 each spark task, or globally within the entire dataset. A global sort will minimize the number of output files.  
-A sort can be avoided by using the Spark [write fanout](../spark-configuration.md#write-options) property but this will cause all 
+A sort can be avoided by using the Spark [write fanout](spark-configuration.md#write-options) property but this will cause all 
 file handles to remain open until each write task has completed.
 * `hash` - This mode is the new default and requests that Spark uses a hash-based exchange to shuffle the incoming
 write data before writing.  
@@ -385,7 +385,7 @@ sort-order. Further division and coalescing of tasks may take place because of
 
 When writing data to Iceberg with Spark, it's important to note that Spark cannot write a file larger than a Spark 
 task and a file cannot span an Iceberg partition boundary. This means although Iceberg will always roll over a file 
-when it grows to [`write.target-file-size-bytes`](../configuration.md#write-properties), but unless the Spark task is 
+when it grows to [`write.target-file-size-bytes`](configuration.md#write-properties), but unless the Spark task is 
 large enough that will not happen. The size of the file created on disk will also be much smaller than the Spark task 
 since the on disk data will be both compressed and in columnar format as opposed to Spark's uncompressed row 
 representation. This means a 100 megabyte Spark task will create a file much smaller than 100 megabytes even if that

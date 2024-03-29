@@ -20,7 +20,7 @@ title: "Daft"
 
 # Daft
 
-[Daft](www.getdaft.io) is a distributed query engine written in Python and Rust, two fast-growing ecosystems in the data engineering and machine learning industry.
+[Daft](https://www.getdaft.io/) is a distributed query engine written in Python and Rust, two fast-growing ecosystems in the data engineering and machine learning industry.
 
 It exposes its flavor of the familiar [Python DataFrame API](https://www.getdaft.io/projects/docs/en/latest/api_docs/dataframe.html) which is a common abstraction over querying tables of data in the Python data ecosystem.
 
