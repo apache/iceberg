@@ -20,9 +20,14 @@ package org.apache.iceberg.aliyun.oss;
 
 import com.aliyun.oss.OSS;
 import com.aliyun.oss.model.GetObjectRequest;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
+
+import org.apache.iceberg.aliyun.AliyunProperties;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.Counter;
@@ -49,11 +54,11 @@ class OSSInputStream extends SeekableInputStream {
 
   private final Counter readBytes;
   private final Counter readOperations;
+  private AliyunProperties aliyunProperties;
 
   OSSInputStream(OSS client, OSSURI uri) {
     this(client, uri, MetricsContext.nullMetrics());
   }
-
   OSSInputStream(OSS client, OSSURI uri, MetricsContext metrics) {
     this.client = client;
     this.uri = uri;
@@ -61,6 +66,15 @@ class OSSInputStream extends SeekableInputStream {
 
     this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Unit.BYTES);
     this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
+  }
+
+  OSSInputStream(OSS client, OSSURI uri, MetricsContext metrics, AliyunProperties aliyunProperties) {
+    this.client = client;
+    this.uri = uri;
+    this.createStack = Thread.currentThread().getStackTrace();
+    this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Unit.BYTES);
+    this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
+    this.aliyunProperties = aliyunProperties;
   }
 
   @Override
@@ -145,9 +159,23 @@ class OSSInputStream extends SeekableInputStream {
 
   private void openStream() throws IOException {
     closeStream();
-
+    // read data from oss and store in memory
+    // avoid exception about connection reset
     GetObjectRequest request = new GetObjectRequest(uri.bucket(), uri.key()).withRange(pos, -1);
-    stream = client.getObject(request).getObjectContent();
+    if (aliyunProperties.ossLoadBeforeReading())  {
+      try (InputStream ossInputStream = client.getObject(request).getObjectContent(); ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+        byte[] buffer = new byte[16384];
+        int len;
+        while ((len = ossInputStream.read(buffer)) != -1) {
+          outputStream.write(buffer, 0, len);
+        }
+        outputStream.flush();
+        byte[] data = outputStream.toByteArray();
+        stream = new ByteArrayInputStream(data);
+      }
+    } else {
+      stream = client.getObject(request).getObjectContent();
+    }
   }
 
   private void closeStream() throws IOException {

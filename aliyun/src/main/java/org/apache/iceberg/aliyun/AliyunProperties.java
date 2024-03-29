@@ -75,12 +75,14 @@ public class AliyunProperties implements Serializable {
    * java.io.tmpdir.
    */
   public static final String OSS_STAGING_DIRECTORY = "oss.staging-dir";
+  public static final String OSS_LOAD_BEFORE_READING = "oss.load-before-reading";
 
   private final String ossEndpoint;
   private final String accessKeyId;
   private final String accessKeySecret;
   private final String securityToken;
   private final String ossStagingDirectory;
+  private final boolean ossLoadBeforeReading;
 
   public AliyunProperties() {
     this(ImmutableMap.of());
@@ -94,8 +96,11 @@ public class AliyunProperties implements Serializable {
     this.securityToken = properties.get(CLIENT_SECURITY_TOKEN);
 
     this.ossStagingDirectory =
-        PropertyUtil.propertyAsString(
-            properties, OSS_STAGING_DIRECTORY, System.getProperty("java.io.tmpdir"));
+            PropertyUtil.propertyAsString(
+                    properties, OSS_STAGING_DIRECTORY, System.getProperty("java.io.tmpdir"));
+    this.ossLoadBeforeReading =
+            PropertyUtil.propertyAsBoolean(
+                    properties, OSS_LOAD_BEFORE_READING, false);
   }
 
   public String ossEndpoint() {
@@ -116,5 +121,9 @@ public class AliyunProperties implements Serializable {
 
   public String ossStagingDirectory() {
     return ossStagingDirectory;
+  }
+
+  public boolean ossLoadBeforeReading() {
+    return ossLoadBeforeReading;
   }
 }
