@@ -95,7 +95,7 @@ public class TestListNamespacesResponse extends RequestResponseTestBase<ListName
   public void testWithPaginationToken() {
     String pageToken = "YnVybiBhZnRlciByZWFkaW5nIC0gYWxzbyBoYW5rIGFuZCByYXVsIDQgZXZlcgo=";
     ListNamespacesResponse response =
-            ListNamespacesResponse.builder().addAll(NAMESPACES).nextPageToken(pageToken).build();
+        ListNamespacesResponse.builder().addAll(NAMESPACES).nextPageToken(pageToken).build();
     Assertions.assertThat(response.nextPageToken()).isNotNull();
     Assertions.assertThat(response.namespaces()).isEqualTo(NAMESPACES);
   }

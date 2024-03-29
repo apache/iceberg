@@ -117,7 +117,7 @@ public class TestListTablesResponse extends RequestResponseTestBase<ListTablesRe
   public void testWithPaginationToken() {
     String pageToken = "YnVybiBhZnRlciByZWFkaW5nIC0gYWxzbyBoYW5rIGFuZCByYXVsIDQgZXZlcgo=";
     ListTablesResponse response =
-            ListTablesResponse.builder().addAll(IDENTIFIERS).nextPageToken(pageToken).build();
+        ListTablesResponse.builder().addAll(IDENTIFIERS).nextPageToken(pageToken).build();
     Assertions.assertThat(response.nextPageToken()).isNotNull();
     Assertions.assertThat(response.identifiers()).isEqualTo(IDENTIFIERS);
   }
