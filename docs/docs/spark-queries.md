@@ -82,7 +82,7 @@ The `VERSION AS OF` clause can contain a long snapshot ID or a string branch or 
     If this is not desired, rename the tag or branch with a well-defined prefix such as 'snapshot-1'.
 
 
-```sql 
+```sql
 -- time travel to October 26, 1986 at 01:21:00
 SELECT * FROM prod.db.table TIMESTAMP AS OF '1986-10-26 01:21:00';
 
@@ -123,6 +123,27 @@ SELECT * FROM prod.db.table.`tag_historical-snapshot`;
 (Identifiers with "-" are not valid, and so must be escaped using back quotes.)
 
 Note that the identifier with branch or tag may not be used in combination with `VERSION AS OF`.
+
+
+#### Schema selection in time travel queries
+
+The different time travel queries mentioned in the previous section can use either the snapshot's schema or the table's schema:
+
+```sql
+-- time travel to October 26, 1986 at 01:21:00 -> uses the snapshot's schema
+SELECT * FROM prod.db.table TIMESTAMP AS OF '1986-10-26 01:21:00';
+
+-- time travel to snapshot with id 10963874102873L -> uses the snapshot's schema
+SELECT * FROM prod.db.table VERSION AS OF 10963874102873;
+
+-- time travel to the head of audit-branch -> uses the table's schema
+SELECT * FROM prod.db.table VERSION AS OF 'audit-branch';
+SELECT * FROM prod.db.table.`branch_audit-branch`;
+
+-- time travel to the snapshot referenced by the tag historical-snapshot -> uses the snapshot's schema
+SELECT * FROM prod.db.table VERSION AS OF 'historical-snapshot';
+SELECT * FROM prod.db.table.`tag_historical-snapshot`;
+```
 
 #### DataFrame
 
