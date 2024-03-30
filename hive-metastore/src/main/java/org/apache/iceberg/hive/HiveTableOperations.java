@@ -263,7 +263,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
         throw e;
 
       } catch (Throwable e) {
-        if (e.getMessage()
+        if (e.getMessage() != null && e.getMessage()
             .contains(
                 "The table has been modified. The parameter value for key '"
                     + HiveTableOperations.METADATA_LOCATION_PROP
