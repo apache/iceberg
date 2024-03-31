@@ -215,7 +215,7 @@ public class SparkCatalog extends BaseCatalog
       SparkTable sparkTable = (SparkTable) table;
 
       Preconditions.checkArgument(
-          sparkTable.snapshotId() == null,
+          sparkTable.snapshotId() == null && sparkTable.branch() == null,
           "Cannot do time-travel based on both table identifier and AS OF");
 
       // convert the timestamp to milliseconds as Spark passes microseconds
