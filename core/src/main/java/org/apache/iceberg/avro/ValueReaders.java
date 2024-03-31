@@ -42,10 +42,8 @@ import org.apache.avro.io.ResolvingDecoder;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.common.DynConstructors;
-import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.UUIDUtil;
@@ -59,10 +57,6 @@ public class ValueReaders {
 
   public static <T> ValueReader<T> constant(T value) {
     return new ConstantReader<>(value);
-  }
-
-  public static <T> ValueReader<T> constant(T value, Type type) {
-    return new ConstantReader<>(value, type);
   }
 
   public static <T> ValueReader<T> replaceWithConstant(ValueReader<?> reader, T value) {
@@ -206,59 +200,14 @@ public class ValueReaders {
 
   private static class ConstantReader<T> implements ValueReader<T> {
     private final T constant;
-    private final Type type;
 
     private ConstantReader(T constant) {
       this.constant = constant;
-      this.type = null;
-    }
-
-    private ConstantReader(T constant, Type type) {
-      this.constant = constant;
-      this.type = type;
     }
 
     @Override
     public T read(Decoder decoder, Object reuse) throws IOException {
-      // TODO: This cast implies that conversion should happen somewhere else. Keeping it here for
-      // illustration purposes.
-      return (T) toGenericRecord(type, constant);
-    }
-
-    // TODO: This method does not really belong here. Keeping it here for illustration purposes.
-    static Object toGenericRecord(Type type, Object data) {
-      // Recursively convert data to GenericRecord if type is a StructType.
-      // TODO: Rewrite this as a visitor.
-      if (type instanceof Types.StructType) {
-        Types.StructType structType = (Types.StructType) type;
-        GenericData.Record genericRecord = new GenericData.Record(AvroSchemaUtil.convert(type));
-        int index = 0;
-        for (Types.NestedField field : structType.fields()) {
-          genericRecord.put(
-              field.name(), toGenericRecord(field.type(), ((GenericRecord) data).get(index)));
-          index++;
-        }
-        return genericRecord;
-      } else if (type instanceof Types.MapType) {
-        Types.MapType mapType = (Types.MapType) type;
-        Map<Object, Object> genericMap =
-            Maps.newHashMapWithExpectedSize(((Map<Object, Object>) data).size());
-        for (Map.Entry<Object, Object> entry : ((Map<Object, Object>) data).entrySet()) {
-          genericMap.put(
-              toGenericRecord(mapType.keyType(), entry.getKey()),
-              toGenericRecord(mapType.valueType(), entry.getValue()));
-        }
-        return genericMap;
-      } else if (type instanceof Types.ListType) {
-        Types.ListType listType = (Types.ListType) type;
-        List<Object> genericList = Lists.newArrayListWithExpectedSize(((List<Object>) data).size());
-        for (Object element : (List<Object>) data) {
-          genericList.add(toGenericRecord(listType.elementType(), element));
-        }
-        return genericList;
-      } else {
-        return data;
-      }
+      return constant;
     }
 
     @Override
