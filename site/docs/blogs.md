@@ -23,6 +23,12 @@ title: "Blogs"
 Here is a list of company blogs that talk about Iceberg. The blogs are ordered from most recent to oldest.
 
 <!-- markdown-link-check-disable-next-line -->
+
+### [End-to-End Basic Data Engineering Tutorial (Apache Spark, Apache Iceberg Dremio, Apache Superset, Nessie)](https://alexmercedcoder.medium.com/end-to-end-basic-data-engineering-tutorial-apache-spark-apache-iceberg-dremio-apache-superset-a896ecab46f6)
+**Date**: April 1st, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
 ### [From MongoDB to Dashboards with Dremio and Apache Iceberg](https://www.dremio.com/blog/from-mongodb-to-dashboards-with-dremio-and-apache-iceberg/)
 **Date**: March 29th, 2024, **Company**: Dremio
 
