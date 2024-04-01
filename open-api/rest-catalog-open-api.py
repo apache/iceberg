@@ -220,7 +220,7 @@ class MetadataLog(BaseModel):
 
 class PlanTask(BaseModel):
     """
-    An opaque JSON object that contains information provided by the REST server, to be utilized by clients for distributed table scan planning, should be supplied as is for input in `PlanTable` operation.
+    An opaque JSON object that contains information provided by the REST server to be utilized by clients for distributed table scan planning; should be supplied as is for input in `PlanTable` operation.
     """
 
 
@@ -1171,7 +1171,7 @@ class PreplanTableRequest1(BaseModel):
     snapshot_id: int = Field(
         ...,
         alias='snapshot-id',
-        description="an int64 snapshot ID (if snapshot-range is not present); optional and defaults to the table's current snapshot",
+        description="Defaults to the table's current snapshot; Should only be specified if `snapshot-range` is not present.",
     )
     snapshot_range: Optional[List[int]] = Field(
         None,
@@ -1191,7 +1191,7 @@ class PreplanTableRequest2(BaseModel):
     snapshot_id: Optional[int] = Field(
         None,
         alias='snapshot-id',
-        description="an int64 snapshot ID (if snapshot-range is not present); optional and defaults to the table's current snapshot",
+        description="Defaults to the table's current snapshot; Should only be specified if `snapshot-range` is not present.",
     )
     snapshot_range: List[int] = Field(
         ...,
@@ -1215,7 +1215,7 @@ class PlanTableRequest1(BaseModel):
     stats_fields: Optional[List[str]] = Field(
         None,
         alias='stats-fields',
-        description='A list of string field names for which stats should be included',
+        description='A list of field names for which stats should be included',
     )
     plan_task: PlanTask = Field(..., alias='plan-task')
     snapshot_id: Optional[int] = Field(
@@ -1241,7 +1241,7 @@ class PlanTableRequest2(BaseModel):
     stats_fields: Optional[List[str]] = Field(
         None,
         alias='stats-fields',
-        description='A list of string field names for which stats should be included',
+        description='A list of field names for which stats should be included',
     )
     plan_task: Optional[PlanTask] = Field(None, alias='plan-task')
     snapshot_id: int = Field(
@@ -1267,7 +1267,7 @@ class PlanTableRequest3(BaseModel):
     stats_fields: Optional[List[str]] = Field(
         None,
         alias='stats-fields',
-        description='A list of string field names for which stats should be included',
+        description='A list of field names for which stats should be included',
     )
     plan_task: Optional[PlanTask] = Field(None, alias='plan-task')
     snapshot_id: Optional[int] = Field(

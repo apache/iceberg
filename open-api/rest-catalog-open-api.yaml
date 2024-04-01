@@ -605,9 +605,6 @@ paths:
         An optional `plan-task` can be provided from a `PreplanTableResponse`
         to limit the request of the full task set to a subset of table files.
         If a valid `plan-task` is provided, the service must attempt to send all results for that planning task.
-      
-        If a user receives a 413 `PayloadTooLargeWithPlanResponse` or 422 `UnprocessableEntityResponse`, 
-        the user should use /preplan before using /plan.
       requestBody:
         content:
           application/json:
@@ -2215,8 +2212,8 @@ components:
 
     PlanTask:
       description:
-        An opaque JSON object that contains information provided by the REST server,
-        to be utilized by clients for distributed table scan planning, should be supplied
+        An opaque JSON object that contains information provided by the REST server
+        to be utilized by clients for distributed table scan planning; should be supplied
         as is for input in `PlanTable` operation.
       type: object
 
@@ -3009,7 +3006,7 @@ components:
           type: boolean
           default: true
         snapshot-id:
-          description: an int64 snapshot ID (if snapshot-range is not present); optional and defaults to the table's current snapshot
+          description: Defaults to the table's current snapshot; Should only be specified if `snapshot-range` is not present.
           type: integer
           format: int64
         snapshot-range:
@@ -3039,7 +3036,7 @@ components:
           type: boolean
           default: true
         stats-fields:
-          description: A list of string field names for which stats should be included
+          description: A list of field names for which stats should be included
           type: array
           items:
             type: string
@@ -4014,7 +4011,7 @@ components:
 
     PayloadTooLargeWithPlanResponse:
       description:
-        Payload is too large. Informs user to leverage /preplan before doing /plan
+        Payload is too large. Required to use /preplan before /plan
       content:
         application/json:
           schema:
@@ -4044,14 +4041,14 @@ components:
 
     UnprocessableEntityResponse:
       description:
-        Service can not process entity. Informs user to leverage /preplan before doing /plan
+        Service cannot process entity. Required to use /preplan before /plan
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/IcebergErrorResponse'
           example: {
             "error": {
-              "message": " Cannot plan scan: plan-task is required; use /preplan to split planning into plan tasks",
+              "message": "Cannot plan scan: plan-task is required; use /preplan to split planning into plan tasks",
               "type": "UnprocessableEntityException",
               "code": 422
             }
