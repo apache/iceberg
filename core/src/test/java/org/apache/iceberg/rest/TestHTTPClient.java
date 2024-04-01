@@ -138,28 +138,27 @@ public class TestHTTPClient {
 
   @Test
   public void testHttpClientGetConnectionConfig() {
-    long connectionTimeout = 10L;
-    int socketTimeout = 10;
+    long connectionTimeoutMs = 10L;
+    int socketTimeoutMs = 10;
     Map<String, String> properties =
         ImmutableMap.of(
-            HTTPClient.REST_CONNECTION_TIMEOUT, String.valueOf(connectionTimeout),
-            HTTPClient.REST_SOCKET_TIMEOUT, String.valueOf(socketTimeout));
+            HTTPClient.REST_CONNECTION_TIMEOUT_MS, String.valueOf(connectionTimeoutMs),
+            HTTPClient.REST_SOCKET_TIMEOUT_MS, String.valueOf(socketTimeoutMs));
 
-    ConnectionConfig connectionConfig = HTTPClient.getConnectionConfig(properties);
+    ConnectionConfig connectionConfig = HTTPClient.configureConnectionConfig(properties);
     assertThat(connectionConfig).isNotNull();
-    assertThat(connectionConfig.getConnectTimeout().getDuration()).isEqualTo(connectionTimeout);
-    assertThat(connectionConfig.getSocketTimeout().getDuration()).isEqualTo(socketTimeout);
+    assertThat(connectionConfig.getConnectTimeout().getDuration()).isEqualTo(connectionTimeoutMs);
+    assertThat(connectionConfig.getSocketTimeout().getDuration()).isEqualTo(socketTimeoutMs);
   }
 
   @Test
   public void testHttpClientWithSocketTimeout() throws IOException {
-    long socketTimeoutSec = 2L;
+    long socketTimeoutMs = 2000L;
     Map<String, String> properties =
-        ImmutableMap.of(HTTPClient.REST_SOCKET_TIMEOUT, String.valueOf(socketTimeoutSec));
+        ImmutableMap.of(HTTPClient.REST_SOCKET_TIMEOUT_MS, String.valueOf(socketTimeoutMs));
     String path = "socket/timeout/path";
 
     try (HTTPClient client = HTTPClient.builder(properties).uri(URI).build()) {
-
       HttpRequest mockRequest =
           request()
               .withPath("/" + path)
@@ -170,13 +169,24 @@ public class TestHTTPClient {
           response()
               .withStatusCode(200)
               .withBody("Delayed response")
-              .withDelay(TimeUnit.SECONDS, 5);
+              .withDelay(TimeUnit.MILLISECONDS, 5000);
       mockServer.when(mockRequest).respond(mockResponse);
 
       Assertions.assertThatThrownBy(() -> client.head(path, ImmutableMap.of(), (unused) -> {}))
           .cause()
           .isInstanceOf(SocketTimeoutException.class);
     }
+  }
+
+  @Test
+  public void testHttpClientInvalidConnectionTimeout() {
+    // We expect a Runtime exception
+    String connectionTimeoutMsStr = "invalidMs";
+    Map<String, String> properties =
+        ImmutableMap.of(HTTPClient.REST_CONNECTION_TIMEOUT_MS, connectionTimeoutMsStr);
+
+    Assertions.assertThatThrownBy(() -> HTTPClient.builder(properties).uri(URI).build())
+        .isInstanceOf(RuntimeException.class);
   }
 
   public static void testHttpMethodOnSuccess(HttpMethod method) throws JsonProcessingException {

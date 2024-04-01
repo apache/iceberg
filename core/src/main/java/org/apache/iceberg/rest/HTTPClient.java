@@ -80,8 +80,11 @@ public class HTTPClient implements RESTClient {
   private static final int REST_MAX_CONNECTIONS_DEFAULT = 100;
   private static final String REST_MAX_CONNECTIONS_PER_ROUTE = "rest.client.connections-per-route";
   private static final int REST_MAX_CONNECTIONS_PER_ROUTE_DEFAULT = 100;
-  @VisibleForTesting static final String REST_CONNECTION_TIMEOUT = "rest.client.connection-timeout";
-  @VisibleForTesting static final String REST_SOCKET_TIMEOUT = "rest.client.socket-timeout";
+
+  @VisibleForTesting
+  static final String REST_CONNECTION_TIMEOUT_MS = "rest.client.connection-timeout-ms";
+
+  @VisibleForTesting static final String REST_SOCKET_TIMEOUT_MS = "rest.client.socket-timeout-ms";
 
   private final String uri;
   private final CloseableHttpClient httpClient;
@@ -443,13 +446,15 @@ public class HTTPClient implements RESTClient {
     return instance;
   }
 
-  static HttpClientConnectionManager getConnectionManager(
+  static HttpClientConnectionManager configureConnectionManager(
       Map<String, String> properties, ConnectionConfig connectionConfig) {
     PoolingHttpClientConnectionManagerBuilder connectionManagerBuilder =
         PoolingHttpClientConnectionManagerBuilder.create();
+
     if (connectionConfig != null) {
       connectionManagerBuilder.setDefaultConnectionConfig(connectionConfig);
     }
+
     return connectionManagerBuilder
         .useSystemProperties()
         .setMaxConnTotal(Integer.getInteger(REST_MAX_CONNECTIONS, REST_MAX_CONNECTIONS_DEFAULT))
@@ -460,10 +465,10 @@ public class HTTPClient implements RESTClient {
   }
 
   @VisibleForTesting
-  static ConnectionConfig getConnectionConfig(Map<String, String> properties) {
+  static ConnectionConfig configureConnectionConfig(Map<String, String> properties) {
     Long connectionTimeout =
-        PropertyUtil.propertyAsNullableLong(properties, REST_CONNECTION_TIMEOUT);
-    Integer socketTimeout = PropertyUtil.propertyAsNullableInt(properties, REST_SOCKET_TIMEOUT);
+        PropertyUtil.propertyAsNullableLong(properties, REST_CONNECTION_TIMEOUT_MS);
+    Integer socketTimeout = PropertyUtil.propertyAsNullableInt(properties, REST_SOCKET_TIMEOUT_MS);
 
     if (connectionTimeout == null && socketTimeout == null) {
       return null;
@@ -472,11 +477,13 @@ public class HTTPClient implements RESTClient {
     ConnectionConfig.Builder connConfigBuilder = ConnectionConfig.custom();
 
     if (connectionTimeout != null) {
-      connConfigBuilder.setConnectTimeout(connectionTimeout, TimeUnit.SECONDS);
+      connConfigBuilder.setConnectTimeout(connectionTimeout, TimeUnit.MILLISECONDS);
     }
+
     if (socketTimeout != null) {
-      connConfigBuilder.setSocketTimeout(socketTimeout, TimeUnit.SECONDS);
+      connConfigBuilder.setSocketTimeout(socketTimeout, TimeUnit.MILLISECONDS);
     }
+
     return connConfigBuilder.build();
   }
 
@@ -525,15 +532,13 @@ public class HTTPClient implements RESTClient {
         interceptor = loadInterceptorDynamically(SIGV4_REQUEST_INTERCEPTOR_IMPL, properties);
       }
 
-      ConnectionConfig connectionConfig = getConnectionConfig(properties);
-
       return new HTTPClient(
           uri,
           baseHeaders,
           mapper,
           interceptor,
           properties,
-          getConnectionManager(properties, connectionConfig));
+          configureConnectionManager(properties, configureConnectionConfig(properties)));
     }
   }
 
