@@ -37,9 +37,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import org.apache.hc.client5.http.auth.AuthScope;
+import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
 import org.apache.hc.client5.http.config.ConnectionConfig;
+import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
 import org.apache.hc.core5.http.EntityDetails;
 import org.apache.hc.core5.http.HttpException;
+import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpRequestInterceptor;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.protocol.HttpContext;
@@ -168,6 +172,14 @@ public class TestHTTPClient {
     String proxyHostName = "localhost";
     String authorizedUsername = "test-username";
     String authorizedPassword = "test-password";
+    String invalidPassword = "invalid-password";
+
+    // Let's build a basic credentials provider with invalid password
+    HttpHost proxy = new HttpHost(proxyHostName, proxyPort);
+    BasicCredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+    credentialsProvider.setCredentials(
+        new AuthScope(proxy),
+        new UsernamePasswordCredentials(authorizedUsername, invalidPassword.toCharArray()));
 
     try (ClientAndServer proxyServer =
             startClientAndServer(
@@ -175,13 +187,12 @@ public class TestHTTPClient {
                     .proxyAuthenticationUsername(authorizedUsername)
                     .proxyAuthenticationPassword(authorizedPassword),
                 proxyPort);
-
-        // Let's build a client with incorrect password
+        // Inject the client with invalid credentials provider
         RESTClient clientWithProxy =
             HTTPClient.builder(ImmutableMap.of())
                 .uri(URI)
                 .withProxy(proxyHostName, proxyPort)
-                .withProxyBasicAuthentication("test-username", "incorrect-password")
+                .withProxyCredentialsProvider(credentialsProvider)
                 .build()) {
 
       ErrorHandler onError =

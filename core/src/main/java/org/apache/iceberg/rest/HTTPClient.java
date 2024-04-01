@@ -29,13 +29,10 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import org.apache.hc.client5.http.auth.AuthScope;
 import org.apache.hc.client5.http.auth.CredentialsProvider;
-import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequest;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
 import org.apache.hc.client5.http.config.ConnectionConfig;
-import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
@@ -129,6 +126,7 @@ public class HTTPClient implements RESTClient {
       if (credsProvider != null) {
         clientBuilder.setDefaultCredentialsProvider(credsProvider);
       }
+
       clientBuilder.setProxy(proxy);
     }
 
@@ -511,8 +509,7 @@ public class HTTPClient implements RESTClient {
     private String uri;
     private ObjectMapper mapper = RESTObjectMapper.mapper();
     private HttpHost proxy;
-    private String proxyUsername;
-    private String proxyPassword;
+    private CredentialsProvider credentialsProvider;
 
     private Builder(Map<String, String> properties) {
       this.properties = properties;
@@ -530,11 +527,10 @@ public class HTTPClient implements RESTClient {
       return this;
     }
 
-    public Builder withProxyBasicAuthentication(String username, String password) {
-      Preconditions.checkNotNull(username, "Invalid username for http client proxy: null");
-      Preconditions.checkNotNull(password, "Invalid password for http client proxy: null");
-      this.proxyUsername = username;
-      this.proxyPassword = password;
+    public Builder withProxyCredentialsProvider(CredentialsProvider credentialsProvider) {
+      Preconditions.checkNotNull(
+          credentialsProvider, "Invalid credentials provider for http client proxy: null");
+      this.credentialsProvider = credentialsProvider;
       return this;
     }
 
@@ -563,19 +559,10 @@ public class HTTPClient implements RESTClient {
         interceptor = loadInterceptorDynamically(SIGV4_REQUEST_INTERCEPTOR_IMPL, properties);
       }
 
-      BasicCredentialsProvider credsProvider = null;
-
-      if (proxy != null && proxyUsername != null && proxyPassword != null) {
-        credsProvider = new BasicCredentialsProvider();
-        credsProvider.setCredentials(
-            new AuthScope(proxy),
-            new UsernamePasswordCredentials(proxyUsername, proxyPassword.toCharArray()));
-      }
-
       return new HTTPClient(
           uri,
           proxy,
-          credsProvider,
+          credentialsProvider,
           baseHeaders,
           mapper,
           interceptor,
