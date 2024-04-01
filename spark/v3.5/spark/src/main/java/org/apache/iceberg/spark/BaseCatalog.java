@@ -21,12 +21,14 @@ package org.apache.iceberg.spark;
 import org.apache.iceberg.spark.procedures.SparkProcedures;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
 import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
 import org.apache.spark.sql.connector.iceberg.catalog.Procedure;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureCatalog;
+import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
 abstract class BaseCatalog
     implements StagingTableCatalog,
@@ -34,6 +36,16 @@ abstract class BaseCatalog
         SupportsNamespaces,
         HasIcebergCatalog,
         SupportsFunctions {
+  /**
+   * Controls whether to mark all the fields as nullable when executing CREATE/REPLACE TABLE ... AS
+   * SELECT ... and creating the table. If false, fields' nullability will be preserved when
+   * creating the table.
+   */
+  private static final String TABLE_CREATE_NULLABLE_QUERY_SCHEMA = "use-nullable-query-schema";
+
+  private static final boolean TABLE_CREATE_NULLABLE_QUERY_SCHEMA_DEFAULT = true;
+
+  private boolean useNullableQuerySchema = TABLE_CREATE_NULLABLE_QUERY_SCHEMA_DEFAULT;
 
   @Override
   public Procedure loadProcedure(Identifier ident) throws NoSuchProcedureException {
@@ -64,6 +76,20 @@ abstract class BaseCatalog
   @Override
   public boolean isExistingNamespace(String[] namespace) {
     return namespaceExists(namespace);
+  }
+
+  @Override
+  public void initialize(String name, CaseInsensitiveStringMap options) {
+    this.useNullableQuerySchema =
+        PropertyUtil.propertyAsBoolean(
+            options,
+            TABLE_CREATE_NULLABLE_QUERY_SCHEMA,
+            TABLE_CREATE_NULLABLE_QUERY_SCHEMA_DEFAULT);
+  }
+
+  @Override
+  public boolean useNullableQuerySchema() {
+    return useNullableQuerySchema;
   }
 
   private static boolean isSystemNamespace(String[] namespace) {

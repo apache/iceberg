@@ -726,6 +726,8 @@ public class SparkCatalog extends BaseCatalog
 
   @Override
   public final void initialize(String name, CaseInsensitiveStringMap options) {
+    super.initialize(name, options);
+
     this.cacheEnabled =
         PropertyUtil.propertyAsBoolean(
             options, CatalogProperties.CACHE_ENABLED, CatalogProperties.CACHE_ENABLED_DEFAULT);
