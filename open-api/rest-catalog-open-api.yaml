@@ -3006,7 +3006,7 @@ components:
           type: boolean
           default: true
         snapshot-id:
-          description: Defaults to the table's current snapshot; Should only be specified if `snapshot-range` is not present.
+          description: Defaults to the table's current snapshot; This option is not allowed when `snapshot-range` is present in the request.
           type: integer
           format: int64
         snapshot-range:
@@ -3015,9 +3015,6 @@ components:
           items:
             type: integer
             format: int64
-      oneOf:
-        - required: [snapshot-id]
-        - required: [snapshot-range]
 
     PlanTableRequest:
       type: object
@@ -3043,7 +3040,7 @@ components:
         plan-task:
           $ref: '#/components/schemas/PlanTask'
         snapshot-id:
-          description: an int64 snapshot ID (if snapshot-range is not present); optional and defaults to the table's current snapshot. This option is not allowed when 'plan-task` is present in the request.
+          description: defaults to the table's current snapshot. This option is not allowed when `snapshot-range` or 'plan-task` is present in the request.
           type: integer
           format: int64
 
@@ -3053,10 +3050,6 @@ components:
           items:
             type: integer
             format: int64
-      oneOf:
-        - required: [plan-task]
-        - required: [snapshot-id]
-        - required: [snapshot-range]
 
     RegisterTableRequest:
       type: object
@@ -3759,6 +3752,7 @@ components:
       type: object
       required:
         - spec-id
+        - partition
         - content
         - file-path
         - file-format
