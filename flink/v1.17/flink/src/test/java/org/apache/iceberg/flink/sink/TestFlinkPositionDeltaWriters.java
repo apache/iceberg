@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.sink;
 import java.util.List;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.RowDataWrapper;
@@ -32,10 +31,6 @@ import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.StructLikeSet;
 
 public class TestFlinkPositionDeltaWriters extends TestPositionDeltaWriters<RowData> {
-
-  public TestFlinkPositionDeltaWriters(FileFormat fileFormat) {
-    super(fileFormat);
-  }
 
   @Override
   protected FileWriterFactory<RowData> newWriterFactory(

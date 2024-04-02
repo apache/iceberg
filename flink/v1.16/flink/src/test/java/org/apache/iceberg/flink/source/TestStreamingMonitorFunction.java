@@ -22,7 +22,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
@@ -33,9 +35,11 @@ import org.apache.flink.streaming.util.AbstractStreamOperatorTestHarness;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.TableTestBase;
+import org.apache.iceberg.TestBase;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
@@ -50,13 +54,12 @@ import org.apache.iceberg.util.ThreadPools;
 import org.assertj.core.api.Assertions;
 import org.awaitility.Awaitility;
 import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public class TestStreamingMonitorFunction extends TableTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestStreamingMonitorFunction extends TestBase {
 
   private static final Schema SCHEMA =
       new Schema(
@@ -65,19 +68,15 @@ public class TestStreamingMonitorFunction extends TableTestBase {
   private static final FileFormat DEFAULT_FORMAT = FileFormat.PARQUET;
   private static final long WAIT_TIME_MILLIS = 10 * 1000L;
 
-  @Parameterized.Parameters(name = "FormatVersion={0}")
-  public static Iterable<Object[]> parameters() {
-    return ImmutableList.of(new Object[] {1}, new Object[] {2});
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1, 2);
   }
 
-  public TestStreamingMonitorFunction(int formatVersion) {
-    super(formatVersion);
-  }
-
-  @Before
+  @BeforeEach
   @Override
   public void setupTable() throws IOException {
-    this.tableDir = temp.newFolder();
+    this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
     this.metadataDir = new File(tableDir, "metadata");
     Assert.assertTrue(tableDir.delete());
 
@@ -99,7 +98,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
     task.start();
   }
 
-  @Test
+  @TestTemplate
   public void testConsumeWithoutStartSnapshotId() throws Exception {
     List<List<Record>> recordsList = generateRecordsAndCommitTxn(10);
     ScanContext scanContext = ScanContext.builder().monitorInterval(Duration.ofMillis(100)).build();
@@ -122,7 +121,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testConsumeFromStartSnapshotId() throws Exception {
     // Commit the first five transactions.
     generateRecordsAndCommitTxn(5);
@@ -155,7 +154,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testConsumeFromStartTag() throws Exception {
     // Commit the first five transactions.
     generateRecordsAndCommitTxn(5);
@@ -187,7 +186,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testCheckpointRestore() throws Exception {
     List<List<Record>> recordsList = generateRecordsAndCommitTxn(10);
     ScanContext scanContext = ScanContext.builder().monitorInterval(Duration.ofMillis(100)).build();
@@ -243,7 +242,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
             });
   }
 
-  @Test
+  @TestTemplate
   public void testInvalidMaxPlanningSnapshotCount() {
     ScanContext scanContext1 =
         ScanContext.builder()
@@ -265,7 +264,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
         .hasMessage("The max-planning-snapshot-count must be greater than zero");
   }
 
-  @Test
+  @TestTemplate
   public void testConsumeWithMaxPlanningSnapshotCount() throws Exception {
     generateRecordsAndCommitTxn(10);
 

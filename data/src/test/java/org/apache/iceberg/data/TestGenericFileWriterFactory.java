@@ -19,7 +19,6 @@
 package org.apache.iceberg.data;
 
 import java.util.List;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.TestFileWriterFactory;
@@ -27,10 +26,6 @@ import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.StructLikeSet;
 
 public class TestGenericFileWriterFactory extends TestFileWriterFactory<Record> {
-
-  public TestGenericFileWriterFactory(FileFormat fileFormat, boolean partitioned) {
-    super(fileFormat, partitioned);
-  }
 
   @Override
   protected FileWriterFactory<Record> newWriterFactory(

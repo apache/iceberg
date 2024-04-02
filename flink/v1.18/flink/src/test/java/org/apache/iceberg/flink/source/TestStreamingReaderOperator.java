@@ -20,6 +20,8 @@ package org.apache.iceberg.flink.source;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
@@ -32,28 +34,28 @@ import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.TableTestBase;
+import org.apache.iceberg.TestBase;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.flink.TestTableLoader;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.ThreadPools;
 import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public class TestStreamingReaderOperator extends TableTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestStreamingReaderOperator extends TestBase {
 
   private static final Schema SCHEMA =
       new Schema(
@@ -61,19 +63,15 @@ public class TestStreamingReaderOperator extends TableTestBase {
           Types.NestedField.required(2, "data", Types.StringType.get()));
   private static final FileFormat DEFAULT_FORMAT = FileFormat.PARQUET;
 
-  @Parameterized.Parameters(name = "FormatVersion={0}")
-  public static Iterable<Object[]> parameters() {
-    return ImmutableList.of(new Object[] {1}, new Object[] {2});
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1, 2);
   }
 
-  public TestStreamingReaderOperator(int formatVersion) {
-    super(formatVersion);
-  }
-
-  @Before
+  @BeforeEach
   @Override
   public void setupTable() throws IOException {
-    this.tableDir = temp.newFolder();
+    this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
     this.metadataDir = new File(tableDir, "metadata");
     Assert.assertTrue(tableDir.delete());
 
@@ -81,7 +79,7 @@ public class TestStreamingReaderOperator extends TableTestBase {
     table = create(SCHEMA, PartitionSpec.unpartitioned());
   }
 
-  @Test
+  @TestTemplate
   public void testProcessAllRecords() throws Exception {
     List<List<Record>> expectedRecords = generateRecordsAndCommitTxn(10);
 
@@ -109,7 +107,7 @@ public class TestStreamingReaderOperator extends TableTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testTriggerCheckpoint() throws Exception {
     // Received emitted splits: split1, split2, split3, checkpoint request is triggered when reading
     // records from
@@ -150,7 +148,7 @@ public class TestStreamingReaderOperator extends TableTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testCheckpointRestore() throws Exception {
     List<List<Record>> expectedRecords = generateRecordsAndCommitTxn(15);
 

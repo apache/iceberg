@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.sink;
 
 import java.util.List;
 import org.apache.flink.table.data.RowData;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.io.FileWriterFactory;
@@ -28,10 +27,6 @@ import org.apache.iceberg.io.TestRollingFileWriters;
 import org.apache.iceberg.util.ArrayUtil;
 
 public class TestFlinkRollingFileWriters extends TestRollingFileWriters<RowData> {
-
-  public TestFlinkRollingFileWriters(FileFormat fileFormat, boolean partitioned) {
-    super(fileFormat, partitioned);
-  }
 
   @Override
   protected FileWriterFactory<RowData> newWriterFactory(

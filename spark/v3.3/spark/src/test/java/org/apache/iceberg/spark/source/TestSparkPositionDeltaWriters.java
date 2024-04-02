@@ -19,7 +19,6 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.List;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.TestPositionDeltaWriters;
@@ -32,10 +31,6 @@ import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
 
 public class TestSparkPositionDeltaWriters extends TestPositionDeltaWriters<InternalRow> {
-
-  public TestSparkPositionDeltaWriters(FileFormat fileFormat) {
-    super(fileFormat);
-  }
 
   @Override
   protected FileWriterFactory<InternalRow> newWriterFactory(

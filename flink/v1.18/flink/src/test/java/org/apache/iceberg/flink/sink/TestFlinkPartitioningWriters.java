@@ -18,10 +18,12 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import java.util.Arrays;
 import java.util.List;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.RowDataWrapper;
@@ -33,8 +35,12 @@ import org.apache.iceberg.util.StructLikeSet;
 
 public class TestFlinkPartitioningWriters<T> extends TestPartitioningWriters<RowData> {
 
-  public TestFlinkPartitioningWriters(FileFormat fileFormat) {
-    super(fileFormat);
+  @Parameters(name = "formatVersion = {0}, fileFormat = {1}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(
+        new Object[] {2, FileFormat.AVRO},
+        new Object[] {2, FileFormat.PARQUET},
+        new Object[] {2, FileFormat.ORC});
   }
 
   @Override

@@ -25,7 +25,7 @@ import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.TableTestBase;
+import org.apache.iceberg.TestBase;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
@@ -33,11 +33,7 @@ import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.StructLikeSet;
 
-public abstract class WriterTestBase<T> extends TableTestBase {
-
-  public WriterTestBase(int formatVersion) {
-    super(formatVersion);
-  }
+public abstract class WriterTestBase<T> extends TestBase {
 
   protected abstract FileWriterFactory<T> newWriterFactory(
       Schema dataSchema,
