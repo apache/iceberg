@@ -45,12 +45,15 @@ import org.apache.flink.types.RowKind;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.TableTestBase;
+import org.apache.iceberg.TestBase;
 import org.apache.iceberg.TestTables;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
@@ -65,31 +68,28 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeSet;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public class TestDeltaTaskWriter extends TableTestBase {
-  private static final int FORMAT_V2 = 2;
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestDeltaTaskWriter extends TestBase {
 
-  private final FileFormat format;
+  @Parameter(index = 1)
+  private FileFormat format;
 
-  @Parameterized.Parameters(name = "FileFormat = {0}")
-  public static Object[][] parameters() {
-    return new Object[][] {{"avro"}, {"orc"}, {"parquet"}};
-  }
-
-  public TestDeltaTaskWriter(String fileFormat) {
-    super(FORMAT_V2);
-    this.format = FileFormat.fromString(fileFormat);
+  @Parameters(name = "formatVersion = {0}, fileFormat = {1}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(
+        new Object[] {2, FileFormat.AVRO},
+        new Object[] {2, FileFormat.ORC},
+        new Object[] {2, FileFormat.PARQUET});
   }
 
   @Override
-  @Before
+  @BeforeEach
   public void setupTable() throws IOException {
-    this.tableDir = temp.newFolder();
+    this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
     Assert.assertTrue(tableDir.delete()); // created by table create
 
     this.metadataDir = new File(tableDir, "metadata");
@@ -170,13 +170,13 @@ public class TestDeltaTaskWriter extends TableTestBase {
         actualRowSet("*"));
   }
 
-  @Test
+  @TestTemplate
   public void testUnpartitioned() throws IOException {
     createAndInitTable(false);
     testCdcEvents(false);
   }
 
-  @Test
+  @TestTemplate
   public void testPartitioned() throws IOException {
     createAndInitTable(true);
     testCdcEvents(true);
@@ -201,12 +201,12 @@ public class TestDeltaTaskWriter extends TableTestBase {
     Assert.assertEquals("Should have no record", expectedRowSet(), actualRowSet("*"));
   }
 
-  @Test
+  @TestTemplate
   public void testUnpartitionedPureEqDeletes() throws IOException {
     testWritePureEqDeletes(false);
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionedPureEqDeletes() throws IOException {
     testWritePureEqDeletes(true);
   }
@@ -243,17 +243,17 @@ public class TestDeltaTaskWriter extends TableTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testUnpartitionedAbort() throws IOException {
     testAbort(false);
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionedAbort() throws IOException {
     testAbort(true);
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionedTableWithDataAsKey() throws IOException {
     createAndInitTable(true);
     List<Integer> equalityFieldIds = Lists.newArrayList(dataFieldId());
@@ -298,7 +298,7 @@ public class TestDeltaTaskWriter extends TableTestBase {
         actualRowSet("*"));
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionedTableWithDataAndIdAsKey() throws IOException {
     createAndInitTable(true);
     List<Integer> equalityFieldIds = Lists.newArrayList(dataFieldId(), idFieldId());
@@ -323,7 +323,7 @@ public class TestDeltaTaskWriter extends TableTestBase {
         "Should have expected records", expectedRowSet(createRecord(1, "aaa")), actualRowSet("*"));
   }
 
-  @Test
+  @TestTemplate
   public void testEqualityColumnOnCustomPrecisionTSColumn() throws IOException {
     Schema tableSchema =
         new Schema(
