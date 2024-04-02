@@ -24,7 +24,7 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 
 <!-- markdown-link-check-disable-next-line -->
 
-### [End-to-End Basic Data Engineering Tutorial (Apache Spark, Apache Iceberg Dremio, Apache Superset, Nessie)](https://medium.com/data-engineering-with-dremio/end-to-end-basic-data-engineering-tutorial-apache-spark-apache-iceberg-dremio-apache-superset-a896ecab46f6)
+### [End-to-End Basic Data Engineering Tutorial (Apache Spark, Apache Iceberg, Dremio, Apache Superset, Nessie)](https://medium.com/data-engineering-with-dremio/end-to-end-basic-data-engineering-tutorial-apache-spark-apache-iceberg-dremio-apache-superset-a896ecab46f6)
 **Date**: April 1st, 2024, **Company**: Dremio
 
 **Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
