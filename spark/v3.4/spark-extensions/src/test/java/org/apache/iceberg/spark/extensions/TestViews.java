@@ -478,6 +478,38 @@ public class TestViews extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void readFromViewReferencingTempFunction() throws NoSuchTableException {
+    insertRows(10);
+    String viewName = viewName("viewReferencingTempFunction");
+    String functionName = "test_avg";
+    String sql = String.format("SELECT %s(id) FROM %s", functionName, tableName);
+    sql(
+        "CREATE TEMPORARY FUNCTION %s AS 'org.apache.hadoop.hive.ql.udf.generic.GenericUDAFAverage'",
+        functionName);
+
+    ViewCatalog viewCatalog = viewCatalog();
+    Schema schema = tableCatalog().loadTable(TableIdentifier.of(NAMESPACE, tableName)).schema();
+
+    // it wouldn't be possible to reference a TEMP FUNCTION if the view had been created via SQL,
+    // but this can't be prevented when using the API directly
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("spark", sql)
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema)
+        .create();
+
+    assertThat(sql(sql)).hasSize(1).containsExactly(row(5.5));
+
+    // reading from a view that references a TEMP FUNCTION shouldn't be possible
+    assertThatThrownBy(() -> sql("SELECT * FROM %s", viewName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            String.format("Cannot load function: %s.%s.%s", catalogName, NAMESPACE, functionName));
+  }
+
+  @Test
   public void readFromViewWithCTE() throws NoSuchTableException {
     insertRows(10);
     String viewName = "viewWithCTE";
@@ -947,9 +979,10 @@ public class TestViews extends SparkExtensionsTestBase {
     assertThatThrownBy(
             () -> sql("CREATE VIEW %s AS SELECT id FROM %s", viewReferencingTempView, tempView))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("Cannot create the persistent object")
-        .hasMessageContaining(viewReferencingTempView)
-        .hasMessageContaining("of the type VIEW because it references to the temporary object")
+        .hasMessageContaining(
+            String.format(
+                "Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewReferencingTempView))
+        .hasMessageContaining("that references temporary view:")
         .hasMessageContaining(tempView);
   }
 
@@ -970,10 +1003,61 @@ public class TestViews extends SparkExtensionsTestBase {
                     "CREATE VIEW %s AS SELECT id FROM global_temp.%s",
                     viewReferencingTempView, globalTempView))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("Cannot create the persistent object")
-        .hasMessageContaining(viewReferencingTempView)
-        .hasMessageContaining("of the type VIEW because it references to the temporary object")
-        .hasMessageContaining(globalTempView);
+        .hasMessageContaining(
+            String.format(
+                "Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewReferencingTempView))
+        .hasMessageContaining("that references temporary view:")
+        .hasMessageContaining(String.format("%s.%s", "global_temp", globalTempView));
+  }
+
+  @Test
+  public void createViewReferencingTempFunction() {
+    String viewName = viewName("viewReferencingTemporaryFunction");
+    String functionName = "test_avg_func";
+
+    sql(
+        "CREATE TEMPORARY FUNCTION %s AS 'org.apache.hadoop.hive.ql.udf.generic.GenericUDAFAverage'",
+        functionName);
+
+    // creating a view that references a TEMP FUNCTION shouldn't be possible
+    assertThatThrownBy(
+            () -> sql("CREATE VIEW %s AS SELECT %s(id) FROM %s", viewName, functionName, tableName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            String.format("Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewName))
+        .hasMessageContaining("that references temporary function:")
+        .hasMessageContaining(functionName);
+  }
+
+  @Test
+  public void createViewReferencingQualifiedTempFunction() {
+    String viewName = viewName("viewReferencingTemporaryFunction");
+    String functionName = "test_avg_func_qualified";
+
+    sql(
+        "CREATE TEMPORARY FUNCTION %s AS 'org.apache.hadoop.hive.ql.udf.generic.GenericUDAFAverage'",
+        functionName);
+
+    // TEMP Function can't be referenced using catalog.schema.name
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CREATE VIEW %s AS SELECT %s.%s.%s(id) FROM %s",
+                    viewName, catalogName, NAMESPACE, functionName, tableName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Cannot resolve function")
+        .hasMessageContaining(
+            String.format("`%s`.`%s`.`%s`", catalogName, NAMESPACE, functionName));
+
+    // TEMP Function can't be referenced using schema.name
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CREATE VIEW %s AS SELECT %s.%s(id) FROM %s",
+                    viewName, NAMESPACE, functionName, tableName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Cannot resolve function")
+        .hasMessageContaining(String.format("`%s`.`%s`", NAMESPACE, functionName));
   }
 
   @Test
@@ -991,7 +1075,8 @@ public class TestViews extends SparkExtensionsTestBase {
     assertThatThrownBy(
             () -> sql("CREATE VIEW %s (id, data) AS SELECT id FROM %s", viewName, tableName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(String.format("Cannot create view %s.%s", NAMESPACE, viewName))
+        .hasMessageContaining(
+            String.format("Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewName))
         .hasMessageContaining("not enough data columns")
         .hasMessageContaining("View columns: id, data")
         .hasMessageContaining("Data columns: id");
@@ -999,7 +1084,8 @@ public class TestViews extends SparkExtensionsTestBase {
     assertThatThrownBy(
             () -> sql("CREATE VIEW %s (id) AS SELECT id, data FROM %s", viewName, tableName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(String.format("Cannot create view %s.%s", NAMESPACE, viewName))
+        .hasMessageContaining(
+            String.format("Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewName))
         .hasMessageContaining("too many data columns")
         .hasMessageContaining("View columns: id")
         .hasMessageContaining("Data columns: id, data");
@@ -1118,10 +1204,32 @@ public class TestViews extends SparkExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CREATE VIEW %s AS %s", viewName, sql))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("Cannot create the persistent object")
-        .hasMessageContaining(viewName)
-        .hasMessageContaining("of the type VIEW because it references to the temporary object")
+        .hasMessageContaining(
+            String.format("Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewName))
+        .hasMessageContaining("that references temporary view:")
         .hasMessageContaining(tempViewInCTE);
+  }
+
+  @Test
+  public void createViewWithCTEReferencingTempFunction() {
+    String viewName = "viewWithCTEReferencingTempFunction";
+    String functionName = "avg_function_in_cte";
+    String sql =
+        String.format(
+            "WITH avg_data AS (SELECT %s(id) as avg FROM %s) "
+                + "SELECT avg, count(1) AS count FROM avg_data GROUP BY max",
+            functionName, tableName);
+
+    sql(
+        "CREATE TEMPORARY FUNCTION %s AS 'org.apache.hadoop.hive.ql.udf.generic.GenericUDAFAverage'",
+        functionName);
+
+    assertThatThrownBy(() -> sql("CREATE VIEW %s AS %s", viewName, sql))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            String.format("Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewName))
+        .hasMessageContaining("that references temporary function:")
+        .hasMessageContaining(functionName);
   }
 
   @Test
@@ -1147,9 +1255,10 @@ public class TestViews extends SparkExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CREATE VIEW %s AS %s", viewName, sql))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(String.format("Cannot create the persistent object %s", viewName))
         .hasMessageContaining(
-            String.format("because it references to the temporary object %s", tempView));
+            String.format("Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewName))
+        .hasMessageContaining("that references temporary view:")
+        .hasMessageContaining(tempView);
   }
 
   @Test
@@ -1167,10 +1276,31 @@ public class TestViews extends SparkExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CREATE VIEW %s AS %s", viewName, sql))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(String.format("Cannot create the persistent object %s", viewName))
         .hasMessageContaining(
-            String.format(
-                "because it references to the temporary object global_temp.%s", globalTempView));
+            String.format("Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewName))
+        .hasMessageContaining("that references temporary view:")
+        .hasMessageContaining(String.format("%s.%s", "global_temp", globalTempView));
+  }
+
+  @Test
+  public void createViewWithSubqueryExpressionUsingTempFunction() {
+    String viewName = viewName("viewWithSubqueryExpression");
+    String functionName = "avg_function_in_subquery";
+    String sql =
+        String.format(
+            "SELECT * FROM %s WHERE id < (SELECT %s(id) FROM %s)",
+            tableName, functionName, tableName);
+
+    sql(
+        "CREATE TEMPORARY FUNCTION %s AS 'org.apache.hadoop.hive.ql.udf.generic.GenericUDAFAverage'",
+        functionName);
+
+    assertThatThrownBy(() -> sql("CREATE VIEW %s AS %s", viewName, sql))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            String.format("Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewName))
+        .hasMessageContaining("that references temporary function:")
+        .hasMessageContaining(functionName);
   }
 
   @Test
@@ -1333,6 +1463,37 @@ public class TestViews extends SparkExtensionsTestBase {
         .contains(
             // spark stores temp views case-insensitive by default
             row("global_temp", "globalviewforlisting", true), tempView);
+  }
+
+  @Test
+  public void showViewsWithCurrentNamespace() {
+    String namespaceOne = "show_views_ns1";
+    String namespaceTwo = "show_views_ns2";
+    String viewOne = viewName("viewOne");
+    String viewTwo = viewName("viewTwo");
+    sql("CREATE NAMESPACE IF NOT EXISTS %s", namespaceOne);
+    sql("CREATE NAMESPACE IF NOT EXISTS %s", namespaceTwo);
+
+    // create one view in each namespace
+    sql("CREATE VIEW %s.%s AS SELECT * FROM %s.%s", namespaceOne, viewOne, NAMESPACE, tableName);
+    sql("CREATE VIEW %s.%s AS SELECT * FROM %s.%s", namespaceTwo, viewTwo, NAMESPACE, tableName);
+
+    Object[] v1 = row(namespaceOne, viewOne, false);
+    Object[] v2 = row(namespaceTwo, viewTwo, false);
+
+    assertThat(sql("SHOW VIEWS IN %s.%s", catalogName, namespaceOne))
+        .contains(v1)
+        .doesNotContain(v2);
+    sql("USE %s", namespaceOne);
+    assertThat(sql("SHOW VIEWS")).contains(v1).doesNotContain(v2);
+    assertThat(sql("SHOW VIEWS LIKE 'viewOne*'")).contains(v1).doesNotContain(v2);
+
+    assertThat(sql("SHOW VIEWS IN %s.%s", catalogName, namespaceTwo))
+        .contains(v2)
+        .doesNotContain(v1);
+    sql("USE %s", namespaceTwo);
+    assertThat(sql("SHOW VIEWS")).contains(v2).doesNotContain(v1);
+    assertThat(sql("SHOW VIEWS LIKE 'viewTwo*'")).contains(v2).doesNotContain(v1);
   }
 
   @Test
@@ -1704,6 +1865,93 @@ public class TestViews extends SparkExtensionsTestBase {
         .first()
         .asInstanceOf(InstanceOfAssertFactories.type(SQLViewRepresentation.class))
         .isEqualTo(ImmutableSQLViewRepresentation.builder().dialect("spark").sql(sql).build());
+  }
+
+  @Test
+  public void createViewWithRecursiveCycle() {
+    String viewOne = viewName("viewOne");
+    String viewTwo = viewName("viewTwo");
+
+    sql("CREATE VIEW %s AS SELECT * FROM %s", viewOne, tableName);
+    // viewTwo points to viewOne
+    sql("CREATE VIEW %s AS SELECT * FROM %s", viewTwo, viewOne);
+
+    // viewOne points to viewTwo points to viewOne, creating a recursive cycle
+    String view1 = String.format("%s.%s.%s", catalogName, NAMESPACE, viewOne);
+    String view2 = String.format("%s.%s.%s", catalogName, NAMESPACE, viewTwo);
+    String cycle = String.format("%s -> %s -> %s", view1, view2, view1);
+    assertThatThrownBy(() -> sql("CREATE OR REPLACE VIEW %s AS SELECT * FROM %s", viewOne, view2))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            String.format("Recursive cycle in view detected: %s (cycle: %s)", view1, cycle));
+  }
+
+  @Test
+  public void createViewWithRecursiveCycleToV1View() {
+    String viewOne = viewName("view_one");
+    String viewTwo = viewName("view_two");
+
+    sql("CREATE VIEW %s AS SELECT * FROM %s", viewOne, tableName);
+    // viewTwo points to viewOne
+    sql("USE spark_catalog");
+    sql("CREATE VIEW %s AS SELECT * FROM %s.%s.%s", viewTwo, catalogName, NAMESPACE, viewOne);
+
+    sql("USE %s", catalogName);
+    // viewOne points to viewTwo points to viewOne, creating a recursive cycle
+    String view1 = String.format("%s.%s.%s", catalogName, NAMESPACE, viewOne);
+    String view2 = String.format("%s.%s.%s", "spark_catalog", NAMESPACE, viewTwo);
+    String cycle = String.format("%s -> %s -> %s", view1, view2, view1);
+    assertThatThrownBy(() -> sql("CREATE OR REPLACE VIEW %s AS SELECT * FROM %s", viewOne, view2))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            String.format("Recursive cycle in view detected: %s (cycle: %s)", view1, cycle));
+  }
+
+  @Test
+  public void createViewWithRecursiveCycleInCTE() {
+    String viewOne = viewName("viewOne");
+    String viewTwo = viewName("viewTwo");
+
+    sql("CREATE VIEW %s AS SELECT * FROM %s", viewOne, tableName);
+    // viewTwo points to viewOne
+    sql("CREATE VIEW %s AS SELECT * FROM %s", viewTwo, viewOne);
+
+    // CTE points to viewTwo
+    String sql =
+        String.format(
+            "WITH max_by_data AS (SELECT max(id) as max FROM %s) "
+                + "SELECT max, count(1) AS count FROM max_by_data GROUP BY max",
+            viewTwo);
+
+    // viewOne points to CTE, creating a recursive cycle
+    String view1 = String.format("%s.%s.%s", catalogName, NAMESPACE, viewOne);
+    String cycle = String.format("%s -> %s -> %s", view1, viewTwo, view1);
+    assertThatThrownBy(() -> sql("CREATE OR REPLACE VIEW %s AS %s", viewOne, sql))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            String.format("Recursive cycle in view detected: %s (cycle: %s)", view1, cycle));
+  }
+
+  @Test
+  public void createViewWithRecursiveCycleInSubqueryExpression() {
+    String viewOne = viewName("viewOne");
+    String viewTwo = viewName("viewTwo");
+
+    sql("CREATE VIEW %s AS SELECT * FROM %s", viewOne, tableName);
+    // viewTwo points to viewOne
+    sql("CREATE VIEW %s AS SELECT * FROM %s", viewTwo, viewOne);
+
+    // subquery expression points to viewTwo
+    String sql =
+        String.format("SELECT * FROM %s WHERE id = (SELECT id FROM %s)", tableName, viewTwo);
+
+    // viewOne points to subquery expression, creating a recursive cycle
+    String view1 = String.format("%s.%s.%s", catalogName, NAMESPACE, viewOne);
+    String cycle = String.format("%s -> %s -> %s", view1, viewTwo, view1);
+    assertThatThrownBy(() -> sql("CREATE OR REPLACE VIEW %s AS %s", viewOne, sql))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            String.format("Recursive cycle in view detected: %s (cycle: %s)", view1, cycle));
   }
 
   private void insertRows(int numRows) throws NoSuchTableException {

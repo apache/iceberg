@@ -19,28 +19,27 @@
 package org.apache.iceberg.mapping;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Arrays;
+import java.util.List;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.TableTestBase;
+import org.apache.iceberg.TestBase;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public class TestMappingUpdates extends TableTestBase {
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestMappingUpdates extends TestBase {
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1, 2);
   }
 
-  public TestMappingUpdates(int formatVersion) {
-    super(formatVersion);
-  }
-
-  @Test
+  @TestTemplate
   public void testAddColumnMappingUpdate() {
     NameMapping mapping = MappingUtil.create(table.schema());
     table
@@ -48,22 +47,21 @@ public class TestMappingUpdates extends TableTestBase {
         .set(TableProperties.DEFAULT_NAME_MAPPING, NameMappingParser.toJson(mapping))
         .commit();
 
-    Assert.assertEquals(
-        MappedFields.of(MappedField.of(1, "id"), MappedField.of(2, "data")),
-        mapping.asMappedFields());
+    assertThat(mapping.asMappedFields())
+        .isEqualTo(MappedFields.of(MappedField.of(1, "id"), MappedField.of(2, "data")));
 
     table.updateSchema().addColumn("ts", Types.TimestampType.withZone()).commit();
 
     NameMapping updated =
         NameMappingParser.fromJson(table.properties().get(TableProperties.DEFAULT_NAME_MAPPING));
 
-    Assert.assertEquals(
-        MappedFields.of(
-            MappedField.of(1, "id"), MappedField.of(2, "data"), MappedField.of(3, "ts")),
-        updated.asMappedFields());
+    assertThat(updated.asMappedFields())
+        .isEqualTo(
+            MappedFields.of(
+                MappedField.of(1, "id"), MappedField.of(2, "data"), MappedField.of(3, "ts")));
   }
 
-  @Test
+  @TestTemplate
   public void testAddNestedColumnMappingUpdate() {
     NameMapping mapping = MappingUtil.create(table.schema());
     table
@@ -71,9 +69,8 @@ public class TestMappingUpdates extends TableTestBase {
         .set(TableProperties.DEFAULT_NAME_MAPPING, NameMappingParser.toJson(mapping))
         .commit();
 
-    Assert.assertEquals(
-        MappedFields.of(MappedField.of(1, "id"), MappedField.of(2, "data")),
-        mapping.asMappedFields());
+    assertThat(mapping.asMappedFields())
+        .isEqualTo(MappedFields.of(MappedField.of(1, "id"), MappedField.of(2, "data")));
 
     table
         .updateSchema()
@@ -86,32 +83,32 @@ public class TestMappingUpdates extends TableTestBase {
     NameMapping updated =
         NameMappingParser.fromJson(table.properties().get(TableProperties.DEFAULT_NAME_MAPPING));
 
-    Assert.assertEquals(
-        MappedFields.of(
-            MappedField.of(1, "id"),
-            MappedField.of(2, "data"),
-            MappedField.of(
-                3, "point", MappedFields.of(MappedField.of(4, "x"), MappedField.of(5, "y")))),
-        updated.asMappedFields());
+    assertThat(updated.asMappedFields())
+        .isEqualTo(
+            MappedFields.of(
+                MappedField.of(1, "id"),
+                MappedField.of(2, "data"),
+                MappedField.of(
+                    3, "point", MappedFields.of(MappedField.of(4, "x"), MappedField.of(5, "y")))));
 
     table.updateSchema().addColumn("point", "z", Types.DoubleType.get()).commit();
 
     NameMapping pointUpdated =
         NameMappingParser.fromJson(table.properties().get(TableProperties.DEFAULT_NAME_MAPPING));
 
-    Assert.assertEquals(
-        MappedFields.of(
-            MappedField.of(1, "id"),
-            MappedField.of(2, "data"),
-            MappedField.of(
-                3,
-                "point",
-                MappedFields.of(
-                    MappedField.of(4, "x"), MappedField.of(5, "y"), MappedField.of(6, "z")))),
-        pointUpdated.asMappedFields());
+    assertThat(pointUpdated.asMappedFields())
+        .isEqualTo(
+            MappedFields.of(
+                MappedField.of(1, "id"),
+                MappedField.of(2, "data"),
+                MappedField.of(
+                    3,
+                    "point",
+                    MappedFields.of(
+                        MappedField.of(4, "x"), MappedField.of(5, "y"), MappedField.of(6, "z")))));
   }
 
-  @Test
+  @TestTemplate
   public void testRenameMappingUpdate() {
     NameMapping mapping = MappingUtil.create(table.schema());
     table
@@ -119,22 +116,21 @@ public class TestMappingUpdates extends TableTestBase {
         .set(TableProperties.DEFAULT_NAME_MAPPING, NameMappingParser.toJson(mapping))
         .commit();
 
-    Assert.assertEquals(
-        MappedFields.of(MappedField.of(1, "id"), MappedField.of(2, "data")),
-        mapping.asMappedFields());
+    assertThat(mapping.asMappedFields())
+        .isEqualTo(MappedFields.of(MappedField.of(1, "id"), MappedField.of(2, "data")));
 
     table.updateSchema().renameColumn("id", "object_id").commit();
 
     NameMapping updated =
         NameMappingParser.fromJson(table.properties().get(TableProperties.DEFAULT_NAME_MAPPING));
 
-    Assert.assertEquals(
-        MappedFields.of(
-            MappedField.of(1, ImmutableList.of("id", "object_id")), MappedField.of(2, "data")),
-        updated.asMappedFields());
+    assertThat(updated.asMappedFields())
+        .isEqualTo(
+            MappedFields.of(
+                MappedField.of(1, ImmutableList.of("id", "object_id")), MappedField.of(2, "data")));
   }
 
-  @Test
+  @TestTemplate
   public void testRenameNestedFieldMappingUpdate() {
     NameMapping mapping = MappingUtil.create(table.schema());
     table
@@ -153,33 +149,33 @@ public class TestMappingUpdates extends TableTestBase {
     NameMapping updated =
         NameMappingParser.fromJson(table.properties().get(TableProperties.DEFAULT_NAME_MAPPING));
 
-    Assert.assertEquals(
-        MappedFields.of(
-            MappedField.of(1, "id"),
-            MappedField.of(2, "data"),
-            MappedField.of(
-                3, "point", MappedFields.of(MappedField.of(4, "x"), MappedField.of(5, "y")))),
-        updated.asMappedFields());
+    assertThat(updated.asMappedFields())
+        .isEqualTo(
+            MappedFields.of(
+                MappedField.of(1, "id"),
+                MappedField.of(2, "data"),
+                MappedField.of(
+                    3, "point", MappedFields.of(MappedField.of(4, "x"), MappedField.of(5, "y")))));
 
     table.updateSchema().renameColumn("point.x", "X").renameColumn("point.y", "Y").commit();
 
     NameMapping pointUpdated =
         NameMappingParser.fromJson(table.properties().get(TableProperties.DEFAULT_NAME_MAPPING));
 
-    Assert.assertEquals(
-        MappedFields.of(
-            MappedField.of(1, "id"),
-            MappedField.of(2, "data"),
-            MappedField.of(
-                3,
-                "point",
-                MappedFields.of(
-                    MappedField.of(4, ImmutableList.of("x", "X")),
-                    MappedField.of(5, ImmutableList.of("y", "Y"))))),
-        pointUpdated.asMappedFields());
+    assertThat(pointUpdated.asMappedFields())
+        .isEqualTo(
+            MappedFields.of(
+                MappedField.of(1, "id"),
+                MappedField.of(2, "data"),
+                MappedField.of(
+                    3,
+                    "point",
+                    MappedFields.of(
+                        MappedField.of(4, ImmutableList.of("x", "X")),
+                        MappedField.of(5, ImmutableList.of("y", "Y"))))));
   }
 
-  @Test
+  @TestTemplate
   public void testRenameComplexFieldMappingUpdate() {
     NameMapping mapping = MappingUtil.create(table.schema());
     table
@@ -198,27 +194,27 @@ public class TestMappingUpdates extends TableTestBase {
     NameMapping updated =
         NameMappingParser.fromJson(table.properties().get(TableProperties.DEFAULT_NAME_MAPPING));
 
-    Assert.assertEquals(
-        MappedFields.of(
-            MappedField.of(1, "id"),
-            MappedField.of(2, "data"),
-            MappedField.of(
-                3, "point", MappedFields.of(MappedField.of(4, "x"), MappedField.of(5, "y")))),
-        updated.asMappedFields());
+    assertThat(updated.asMappedFields())
+        .isEqualTo(
+            MappedFields.of(
+                MappedField.of(1, "id"),
+                MappedField.of(2, "data"),
+                MappedField.of(
+                    3, "point", MappedFields.of(MappedField.of(4, "x"), MappedField.of(5, "y")))));
 
     table.updateSchema().renameColumn("point", "p2").commit();
 
     NameMapping pointUpdated =
         NameMappingParser.fromJson(table.properties().get(TableProperties.DEFAULT_NAME_MAPPING));
 
-    Assert.assertEquals(
-        MappedFields.of(
-            MappedField.of(1, "id"),
-            MappedField.of(2, "data"),
-            MappedField.of(
-                3,
-                ImmutableList.of("point", "p2"),
-                MappedFields.of(MappedField.of(4, "x"), MappedField.of(5, "y")))),
-        pointUpdated.asMappedFields());
+    assertThat(pointUpdated.asMappedFields())
+        .isEqualTo(
+            MappedFields.of(
+                MappedField.of(1, "id"),
+                MappedField.of(2, "data"),
+                MappedField.of(
+                    3,
+                    ImmutableList.of("point", "p2"),
+                    MappedFields.of(MappedField.of(4, "x"), MappedField.of(5, "y")))));
   }
 }

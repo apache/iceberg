@@ -391,4 +391,14 @@ public class TestZOrderByteUtil {
           .isEqualTo(stringCompare);
     }
   }
+
+  @Test
+  public void testByteTruncatedOrFillNullIsZeroArray() {
+    ByteBuffer buffer = ByteBuffer.allocate(128);
+    byte[] actualBytes = ZOrderByteUtils.byteTruncateOrFill(null, 128, buffer).array();
+    ByteBuffer expected = ByteBuffer.allocate(128);
+    Arrays.fill(expected.array(), 0, 128, (byte) 0x00);
+
+    assertThat(actualBytes).isEqualTo(expected.array());
+  }
 }

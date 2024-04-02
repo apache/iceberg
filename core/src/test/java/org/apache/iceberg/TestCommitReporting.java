@@ -21,21 +21,26 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 import org.apache.iceberg.ScanPlanningAndReportingTestBase.TestMetricsReporter;
 import org.apache.iceberg.metrics.CommitMetricsResult;
 import org.apache.iceberg.metrics.CommitReport;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
-import org.junit.Test;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestCommitReporting extends TableTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestCommitReporting extends TestBase {
 
   private final TestMetricsReporter reporter = new TestMetricsReporter();
 
-  public TestCommitReporting() {
-    super(2);
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(2);
   }
 
-  @Test
+  @TestTemplate
   public void addAndDeleteDataFiles() {
     String tableName = "add-and-delete-data-files";
     Table table =
@@ -80,7 +85,7 @@ public class TestCommitReporting extends TableTestBase {
     assertThat(metrics.totalFilesSizeInBytes().value()).isEqualTo(0L);
   }
 
-  @Test
+  @TestTemplate
   public void addAndDeleteDeleteFiles() {
     String tableName = "add-and-delete-delete-files";
     Table table =
@@ -150,7 +155,7 @@ public class TestCommitReporting extends TableTestBase {
     assertThat(metrics.totalFilesSizeInBytes().value()).isEqualTo(0L);
   }
 
-  @Test
+  @TestTemplate
   public void addAndDeleteManifests() throws IOException {
     String tableName = "add-and-delete-manifests";
     Table table =

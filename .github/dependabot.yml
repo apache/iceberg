@@ -24,16 +24,24 @@ updates:
     schedule:
       interval: "weekly"
       day: "sunday"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: "gradle"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "sunday"
     open-pull-requests-limit: 50
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "sunday"
     open-pull-requests-limit: 5
-
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]

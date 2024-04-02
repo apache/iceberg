@@ -19,31 +19,36 @@
 package org.apache.iceberg.actions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableTestBase;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.TestBase;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Tasks;
-import org.assertj.core.api.Assertions;
 import org.awaitility.Awaitility;
-import org.junit.Test;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestCommitService extends TableTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestCommitService extends TestBase {
 
-  public TestCommitService() {
-    super(1);
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1);
   }
 
-  @Test
+  @TestTemplate
   public void testCommittedResultsCorrectly() {
     CustomCommitService commitService = new CustomCommitService(table, 5, 10000);
     commitService.start();
@@ -55,10 +60,10 @@ public class TestCommitService extends TableTestBase {
 
     Set<Integer> expected = Sets.newHashSet(IntStream.range(0, 100).iterator());
     Set<Integer> actual = Sets.newHashSet(commitService.results());
-    Assertions.assertThat(actual).isEqualTo(expected);
+    assertThat(actual).isEqualTo(expected);
   }
 
-  @Test
+  @TestTemplate
   public void testAbortFileGroupsAfterTimeout() {
     CustomCommitService commitService = new CustomCommitService(table, 5, 200);
     commitService.start();
@@ -90,7 +95,7 @@ public class TestCommitService extends TableTestBase {
     // simulate timeout on the main thread, which then tries to abort file groups [5-7].
     // This tests the race conditions, as the committerService is also trying to commit groups
     // [5-7].
-    Assertions.assertThatThrownBy(commitService::close)
+    assertThatThrownBy(commitService::close)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Timeout occurred when waiting for commits");
 
@@ -102,14 +107,12 @@ public class TestCommitService extends TableTestBase {
         .untilAsserted(() -> assertThat(commitService.completedRewritesAllCommitted()).isTrue());
     if (commitService.aborted.isEmpty()) {
       // All file groups are committed
-      Assertions.assertThat(commitService.results())
-          .isEqualTo(ImmutableList.of(0, 1, 2, 3, 4, 5, 6, 7));
+      assertThat(commitService.results()).containsExactly(0, 1, 2, 3, 4, 5, 6, 7);
     } else {
       // File groups [5-7] are aborted
-      Assertions.assertThat(commitService.results())
-          .doesNotContainAnyElementsOf(commitService.aborted);
-      Assertions.assertThat(commitService.results()).isEqualTo(ImmutableList.of(0, 1, 2, 3, 4));
-      Assertions.assertThat(commitService.aborted).isEqualTo(ImmutableSet.of(5, 6, 7));
+      assertThat(commitService.results()).doesNotContainAnyElementsOf(commitService.aborted);
+      assertThat(commitService.results()).containsExactly(0, 1, 2, 3, 4);
+      assertThat(commitService.aborted).containsExactly(5, 6, 7);
     }
   }
 
