@@ -1428,40 +1428,28 @@ public class TestViews extends ExtensionsTestBase {
 
     // spark stores temp views case-insensitive by default
     Object[] tempView = row("", "tempviewforlisting", true);
-    assertThat(sql("SHOW VIEWS"))
-        .contains(
-            row(NAMESPACE.toString(), "prefixV2", false),
-            row(NAMESPACE.toString(), "prefixV3", false),
-            row(NAMESPACE.toString(), "v1", false),
-            tempView);
+    Object[] v1 = row(NAMESPACE.toString(), "v1", false);
+    Object[] v2 = row(NAMESPACE.toString(), "prefixV2", false);
+    Object[] v3 = row(NAMESPACE.toString(), "prefixV3", false);
+    assertThat(sql("SHOW VIEWS")).contains(v2, v3, v1, tempView);
 
-    assertThat(sql("SHOW VIEWS IN %s", catalogName))
-        .contains(
-            row(NAMESPACE.toString(), "prefixV2", false),
-            row(NAMESPACE.toString(), "prefixV3", false),
-            row(NAMESPACE.toString(), "v1", false),
-            tempView);
+    assertThat(sql("SHOW VIEWS IN %s", catalogName)).contains(tempView).doesNotContain(v1, v2, v3);
 
-    assertThat(sql("SHOW VIEWS IN %s.%s", catalogName, NAMESPACE))
-        .contains(
-            row(NAMESPACE.toString(), "prefixV2", false),
-            row(NAMESPACE.toString(), "prefixV3", false),
-            row(NAMESPACE.toString(), "v1", false),
-            tempView);
+    assertThat(sql("SHOW VIEWS IN %s.%s", catalogName, NAMESPACE)).contains(v2, v3, v1, tempView);
 
-    assertThat(sql("SHOW VIEWS LIKE 'pref*'"))
-        .contains(
-            row(NAMESPACE.toString(), "prefixV2", false),
-            row(NAMESPACE.toString(), "prefixV3", false));
+    assertThat(sql("SHOW VIEWS LIKE 'pref*'")).contains(v2, v3).doesNotContain(v1, tempView);
 
     assertThat(sql("SHOW VIEWS LIKE 'non-existing'")).isEmpty();
 
-    assertThat(sql("SHOW VIEWS IN spark_catalog.default")).contains(tempView);
+    assertThat(sql("SHOW VIEWS IN spark_catalog.default"))
+        .contains(tempView)
+        .doesNotContain(v1, v2, v3);
 
     assertThat(sql("SHOW VIEWS IN global_temp"))
         .contains(
             // spark stores temp views case-insensitive by default
-            row("global_temp", "globalviewforlisting", true), tempView);
+            row("global_temp", "globalviewforlisting", true), tempView)
+        .doesNotContain(v1, v2, v3);
   }
 
   @TestTemplate

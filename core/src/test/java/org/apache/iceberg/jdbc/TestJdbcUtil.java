@@ -22,6 +22,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
 import java.util.Properties;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
 
@@ -44,5 +46,11 @@ public class TestJdbcUtil {
     Properties actual = JdbcUtil.filterAndRemovePrefix(input, "jdbc.");
 
     assertThat(expected).isEqualTo(actual);
+  }
+
+  @Test
+  public void emptyNamespaceInIdentifier() {
+    assertThat(JdbcUtil.stringToTableIdentifier("", "tblName"))
+        .isEqualTo(TableIdentifier.of(Namespace.empty(), "tblName"));
   }
 }

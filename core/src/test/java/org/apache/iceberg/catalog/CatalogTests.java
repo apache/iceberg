@@ -168,6 +168,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     return true;
   }
 
+  protected boolean supportsEmptyNamespace() {
+    return false;
+  }
+
   @Test
   public void testCreateNamespace() {
     C catalog = catalog();
@@ -1003,6 +1007,77 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     catalog.dropTable(ns2Table1);
     assertEmpty("Should not contain ns_2.table_1 after drop", catalog, ns2);
+  }
+
+  @Test
+  public void listNamespacesWithEmptyNamespace() {
+    catalog().createNamespace(NS);
+
+    Assertions.assertThat(catalog().namespaceExists(Namespace.empty())).isFalse();
+    Assertions.assertThat(catalog().listNamespaces())
+        .contains(NS)
+        .doesNotContain(Namespace.empty());
+    Assertions.assertThat(catalog().listNamespaces(Namespace.empty()))
+        .contains(NS)
+        .doesNotContain(Namespace.empty());
+  }
+
+  @Test
+  public void createAndDropEmptyNamespace() {
+    Assumptions.assumeTrue(
+        supportsEmptyNamespace(),
+        "Only valid for catalogs that support creating/dropping empty namespaces");
+
+    Assertions.assertThat(catalog().namespaceExists(Namespace.empty())).isFalse();
+    catalog().createNamespace(Namespace.empty());
+    Assertions.assertThat(catalog().namespaceExists(Namespace.empty())).isTrue();
+
+    // TODO: if a catalog supports creating an empty namespace, what should be the expected behavior
+    // when listing all namespaces?
+    Assertions.assertThat(catalog().listNamespaces()).isEmpty();
+    Assertions.assertThat(catalog().listNamespaces(Namespace.empty())).isEmpty();
+
+    catalog().dropNamespace(Namespace.empty());
+    Assertions.assertThat(catalog().namespaceExists(Namespace.empty())).isFalse();
+  }
+
+  @Test
+  public void namespacePropertiesOnEmptyNamespace() {
+    Assumptions.assumeTrue(
+        supportsEmptyNamespace() && supportsNamespaceProperties(),
+        "Only valid for catalogs that support properties on empty namespaces");
+
+    catalog().createNamespace(Namespace.empty());
+
+    Map<String, String> properties = ImmutableMap.of("owner", "user", "created-at", "sometime");
+    catalog().setProperties(Namespace.empty(), properties);
+
+    Assertions.assertThat(catalog().loadNamespaceMetadata(Namespace.empty()))
+        .containsAllEntriesOf(properties);
+
+    catalog().removeProperties(Namespace.empty(), ImmutableSet.of("owner"));
+    Assertions.assertThat(catalog().loadNamespaceMetadata(Namespace.empty()))
+        .containsAllEntriesOf(ImmutableMap.of("created-at", "sometime"));
+  }
+
+  @Test
+  public void listTablesInEmptyNamespace() {
+    Assumptions.assumeTrue(
+        supportsEmptyNamespace(),
+        "Only valid for catalogs that support listing tables in empty namespaces");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(Namespace.empty());
+      catalog().createNamespace(NS);
+    }
+
+    TableIdentifier table1 = TableIdentifier.of(Namespace.empty(), "table_1");
+    TableIdentifier table2 = TableIdentifier.of(NS, "table_2");
+
+    catalog().buildTable(table1, SCHEMA).create();
+    catalog().buildTable(table2, SCHEMA).create();
+
+    Assertions.assertThat(catalog().listTables(Namespace.empty())).containsExactly(table1);
   }
 
   @Test

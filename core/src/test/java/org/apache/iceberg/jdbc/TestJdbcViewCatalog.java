@@ -64,4 +64,9 @@ public class TestJdbcViewCatalog extends ViewCatalogTests<JdbcCatalog> {
   protected boolean requiresNamespaceCreate() {
     return true;
   }
+
+  @Override
+  protected boolean supportsEmptyNamespace() {
+    return true;
+  }
 }
