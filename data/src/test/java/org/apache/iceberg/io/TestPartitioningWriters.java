@@ -19,6 +19,7 @@
 package org.apache.iceberg.io;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -38,8 +39,6 @@ import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.util.StructLikeSet;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -72,7 +71,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
   @BeforeEach
   public void setupTable() throws Exception {
     this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    Assert.assertTrue(tableDir.delete()); // created during table creation
+    assertThat(tableDir.delete()).isTrue(); // created during table creation
 
     this.metadataDir = new File(tableDir, "metadata");
     this.table = create(SCHEMA, PartitionSpec.unpartitioned());
@@ -86,10 +85,10 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
         new ClusteredDataWriter<>(writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
 
     writer.close();
-    Assert.assertEquals("Must be no data files", 0, writer.result().dataFiles().size());
+    assertThat(writer.result().dataFiles()).isEmpty();
 
     writer.close();
-    Assert.assertEquals("Must be no data files", 0, writer.result().dataFiles().size());
+    assertThat(writer.result().dataFiles()).isEmpty();
   }
 
   @TestTemplate
@@ -111,7 +110,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     writer.close();
 
     DataWriteResult result = writer.result();
-    Assert.assertEquals("Must be 3 data files", 3, result.dataFiles().size());
+    assertThat(result.dataFiles()).hasSize(3);
 
     RowDelta rowDelta = table.newRowDelta();
     result.dataFiles().forEach(rowDelta::addRows);
@@ -120,7 +119,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     List<T> expectedRows =
         ImmutableList.of(
             toRow(1, "aaa"), toRow(2, "aaa"), toRow(3, "bbb"), toRow(4, "bbb"), toRow(5, "ccc"));
-    Assert.assertEquals("Records should match", toSet(expectedRows), actualRowSet("*"));
+    assertThat(actualRowSet("*")).isEqualTo(toSet(expectedRows));
   }
 
   @TestTemplate
@@ -139,8 +138,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     writer.write(toRow(4, "bbb"), spec, partitionKey(spec, "bbb"));
     writer.write(toRow(5, "ccc"), spec, partitionKey(spec, "ccc"));
 
-    Assertions.assertThatThrownBy(
-            () -> writer.write(toRow(6, "aaa"), spec, partitionKey(spec, "aaa")))
+    assertThatThrownBy(() -> writer.write(toRow(6, "aaa"), spec, partitionKey(spec, "aaa")))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("Encountered records that belong to already closed files")
         .hasMessageEndingWith("partition 'data=aaa' in spec " + spec);
@@ -159,14 +157,14 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
             writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
 
     writer.close();
-    Assert.assertEquals(0, writer.result().deleteFiles().size());
-    Assert.assertEquals(0, writer.result().referencedDataFiles().size());
-    Assert.assertFalse(writer.result().referencesDataFiles());
+    assertThat(writer.result().deleteFiles()).isEmpty();
+    assertThat(writer.result().referencedDataFiles()).isEmpty();
+    assertThat(writer.result().referencesDataFiles()).isFalse();
 
     writer.close();
-    Assert.assertEquals(0, writer.result().deleteFiles().size());
-    Assert.assertEquals(0, writer.result().referencedDataFiles().size());
-    Assert.assertFalse(writer.result().referencesDataFiles());
+    assertThat(writer.result().deleteFiles()).isEmpty();
+    assertThat(writer.result().referencedDataFiles()).isEmpty();
+    assertThat(writer.result().referencesDataFiles()).isFalse();
   }
 
   @TestTemplate
@@ -222,17 +220,16 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     writer.close();
 
     DeleteWriteResult result = writer.result();
-    Assert.assertEquals("Must be 3 delete files", 3, result.deleteFiles().size());
-    Assert.assertEquals(
-        "Must not reference data files", 0, writer.result().referencedDataFiles().size());
-    Assert.assertFalse("Must not reference data files", writer.result().referencesDataFiles());
+    assertThat(result.deleteFiles()).hasSize(3);
+    assertThat(writer.result().referencedDataFiles()).isEmpty();
+    assertThat(writer.result().referencesDataFiles()).isFalse();
 
     RowDelta rowDelta = table.newRowDelta();
     result.deleteFiles().forEach(rowDelta::addDeletes);
     rowDelta.commit();
 
     List<T> expectedRows = ImmutableList.of(toRow(11, "aaa"), toRow(12, "bbb"), toRow(13, "ccc"));
-    Assert.assertEquals("Records should match", toSet(expectedRows), actualRowSet("*"));
+    assertThat(actualRowSet("*")).isEqualTo(toSet(expectedRows));
   }
 
   @TestTemplate
@@ -265,13 +262,13 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     writer.write(toRow(5, "ccc"), identitySpec, partitionKey(identitySpec, "ccc"));
     writer.write(toRow(6, "ddd"), identitySpec, partitionKey(identitySpec, "ddd"));
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> writer.write(toRow(7, "ccc"), identitySpec, partitionKey(identitySpec, "ccc")))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("Encountered records that belong to already closed files")
         .hasMessageEndingWith("partition 'data=ccc' in spec " + identitySpec);
 
-    Assertions.assertThatThrownBy(() -> writer.write(toRow(7, "aaa"), unpartitionedSpec, null))
+    assertThatThrownBy(() -> writer.write(toRow(7, "aaa"), unpartitionedSpec, null))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("Encountered records that belong to already closed files")
         .hasMessageEndingWith("spec []");
@@ -297,14 +294,14 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
             writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE, deleteGranularity);
 
     writer.close();
-    Assert.assertEquals(0, writer.result().deleteFiles().size());
-    Assert.assertEquals(0, writer.result().referencedDataFiles().size());
-    Assert.assertFalse(writer.result().referencesDataFiles());
+    assertThat(writer.result().deleteFiles()).isEmpty();
+    assertThat(writer.result().referencedDataFiles()).isEmpty();
+    assertThat(writer.result().referencesDataFiles()).isFalse();
 
     writer.close();
-    Assert.assertEquals(0, writer.result().deleteFiles().size());
-    Assert.assertEquals(0, writer.result().referencedDataFiles().size());
-    Assert.assertFalse(writer.result().referencesDataFiles());
+    assertThat(writer.result().deleteFiles()).isEmpty();
+    assertThat(writer.result().referencedDataFiles()).isEmpty();
+    assertThat(writer.result().referencesDataFiles()).isFalse();
   }
 
   @TestTemplate
@@ -373,17 +370,16 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     writer.close();
 
     DeleteWriteResult result = writer.result();
-    Assert.assertEquals("Must be 3 delete files", 3, result.deleteFiles().size());
-    Assert.assertEquals(
-        "Must reference 3 data files", 3, writer.result().referencedDataFiles().size());
-    Assert.assertTrue("Must reference data files", writer.result().referencesDataFiles());
+    assertThat(writer.result().deleteFiles()).hasSize(3);
+    assertThat(writer.result().referencedDataFiles()).hasSize(3);
+    assertThat(writer.result().referencesDataFiles()).isTrue();
 
     RowDelta rowDelta = table.newRowDelta();
     result.deleteFiles().forEach(rowDelta::addDeletes);
     rowDelta.commit();
 
     List<T> expectedRows = ImmutableList.of(toRow(11, "aaa"), toRow(12, "bbb"), toRow(13, "ccc"));
-    Assert.assertEquals("Records should match", toSet(expectedRows), actualRowSet("*"));
+    assertThat(actualRowSet("*")).isEqualTo(toSet(expectedRows));
   }
 
   @TestTemplate
@@ -433,7 +429,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
         identitySpec,
         partitionKey(identitySpec, "ddd"));
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               PositionDelete<T> positionDelete = positionDelete("file-5.parquet", 1L, null);
               writer.write(positionDelete, identitySpec, partitionKey(identitySpec, "ccc"));
@@ -442,7 +438,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
         .hasMessageContaining("Encountered records that belong to already closed files")
         .hasMessageEndingWith("partition 'data=ccc' in spec " + identitySpec);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               PositionDelete<T> positionDelete = positionDelete("file-1.parquet", 3L, null);
               writer.write(positionDelete, unpartitionedSpec, null);
@@ -516,10 +512,10 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
         new FanoutDataWriter<>(writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
 
     writer.close();
-    Assert.assertEquals("Must be no data files", 0, writer.result().dataFiles().size());
+    assertThat(writer.result().dataFiles()).isEmpty();
 
     writer.close();
-    Assert.assertEquals("Must be no data files", 0, writer.result().dataFiles().size());
+    assertThat(writer.result().dataFiles()).isEmpty();
   }
 
   @TestTemplate
@@ -541,7 +537,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     writer.close();
 
     DataWriteResult result = writer.result();
-    Assert.assertEquals("Must be 3 data files", 3, result.dataFiles().size());
+    assertThat(result.dataFiles()).hasSize(3);
 
     RowDelta rowDelta = table.newRowDelta();
     result.dataFiles().forEach(rowDelta::addRows);
@@ -550,7 +546,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     List<T> expectedRows =
         ImmutableList.of(
             toRow(1, "aaa"), toRow(2, "aaa"), toRow(3, "bbb"), toRow(4, "bbb"), toRow(5, "ccc"));
-    Assert.assertEquals("Records should match", toSet(expectedRows), actualRowSet("*"));
+    assertThat(actualRowSet("*")).isEqualTo(toSet(expectedRows));
   }
 
   @TestTemplate
@@ -571,14 +567,14 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
             writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE, deleteGranularity);
 
     writer.close();
-    Assert.assertEquals(0, writer.result().deleteFiles().size());
-    Assert.assertEquals(0, writer.result().referencedDataFiles().size());
-    Assert.assertFalse(writer.result().referencesDataFiles());
+    assertThat(writer.result().deleteFiles()).isEmpty();
+    assertThat(writer.result().referencedDataFiles()).isEmpty();
+    assertThat(writer.result().referencesDataFiles()).isFalse();
 
     writer.close();
-    Assert.assertEquals(0, writer.result().deleteFiles().size());
-    Assert.assertEquals(0, writer.result().referencedDataFiles().size());
-    Assert.assertFalse(writer.result().referencesDataFiles());
+    assertThat(writer.result().deleteFiles()).isEmpty();
+    assertThat(writer.result().referencedDataFiles()).isEmpty();
+    assertThat(writer.result().referencesDataFiles()).isFalse();
   }
 
   @TestTemplate
@@ -657,17 +653,16 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     writer.close();
 
     DeleteWriteResult result = writer.result();
-    Assert.assertEquals("Must be 3 delete files", 3, result.deleteFiles().size());
-    Assert.assertEquals(
-        "Must reference 3 data files", 3, writer.result().referencedDataFiles().size());
-    Assert.assertTrue("Must reference data files", writer.result().referencesDataFiles());
+    assertThat(writer.result().deleteFiles()).hasSize(3);
+    assertThat(writer.result().referencedDataFiles()).hasSize(3);
+    assertThat(writer.result().referencesDataFiles()).isTrue();
 
     RowDelta rowDelta = table.newRowDelta();
     result.deleteFiles().forEach(rowDelta::addDeletes);
     rowDelta.commit();
 
     List<T> expectedRows = ImmutableList.of(toRow(12, "bbb"));
-    Assert.assertEquals("Records should match", toSet(expectedRows), actualRowSet("*"));
+    assertThat(actualRowSet("*")).isEqualTo(toSet(expectedRows));
   }
 
   @TestTemplate
