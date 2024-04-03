@@ -28,6 +28,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
+import software.amazon.awssdk.http.crt.AwsCrtHttpClient;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
@@ -67,6 +68,23 @@ public class TestHttpClientProperties {
     assertThat(capturedHttpClientBuilder)
         .as("Should use apache http client")
         .isInstanceOf(ApacheHttpClient.Builder.class);
+  }
+
+  @Test
+  public void testAwsCrtHttpClientConfiguration() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(HttpClientProperties.CLIENT_TYPE, "aws-crt");
+    HttpClientProperties httpProperties = new HttpClientProperties(properties);
+    S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);
+    ArgumentCaptor<SdkHttpClient.Builder> httpClientBuilderCaptor =
+        ArgumentCaptor.forClass(SdkHttpClient.Builder.class);
+
+    httpProperties.applyHttpClientConfigurations(mockS3ClientBuilder);
+    Mockito.verify(mockS3ClientBuilder).httpClientBuilder(httpClientBuilderCaptor.capture());
+    SdkHttpClient.Builder capturedHttpClientBuilder = httpClientBuilderCaptor.getValue();
+    Assertions.assertThat(capturedHttpClientBuilder)
+        .as("Should use aws crt http client")
+        .isInstanceOf(AwsCrtHttpClient.Builder.class);
   }
 
   @Test
