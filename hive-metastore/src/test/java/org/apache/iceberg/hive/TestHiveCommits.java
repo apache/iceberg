@@ -403,22 +403,16 @@ public class TestHiveCommits extends HiveTableBaseTest {
     HiveTableOperations ops = (HiveTableOperations) ((HasTableOperations) table).operations();
 
     TableMetadata metadataV1 = ops.current();
-
     table.updateSchema().addColumn("n", Types.IntegerType.get()).commit();
 
     ops.refresh();
 
-    TableMetadata metadataV2 = ops.current();
-
-    assertThat(ops.current().schema().columns()).hasSize(2);
-
     HiveTableOperations spyOps = spy(ops);
-
     doThrow(new RuntimeException()).when(spyOps).persistTable(any(), anyBoolean(), any());
 
-    assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
+    assertThatThrownBy(() -> spyOps.commit(ops.current(), metadataV1))
         .isInstanceOf(CommitStateUnknownException.class)
-        .hasMessageStartingWith("null");
+        .hasMessageStartingWith("null\nCannot determine whether the commit was successful or not");
   }
 
   private void commitAndThrowException(
