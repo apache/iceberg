@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.source;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -51,9 +52,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.ThreadPools;
-import org.assertj.core.api.Assertions;
 import org.awaitility.Awaitility;
-import org.junit.Assert;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -78,7 +77,7 @@ public class TestStreamingMonitorFunction extends TestBase {
   public void setupTable() throws IOException {
     this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
     this.metadataDir = new File(tableDir, "metadata");
-    Assert.assertTrue(tableDir.delete());
+    assertThat(tableDir.delete()).isTrue();
 
     // Construct the iceberg table.
     table = create(SCHEMA, PartitionSpec.unpartitioned());
@@ -249,7 +248,7 @@ public class TestStreamingMonitorFunction extends TestBase {
             .monitorInterval(Duration.ofMillis(100))
             .maxPlanningSnapshotCount(0)
             .build();
-    Assertions.assertThatThrownBy(() -> createFunction(scanContext1))
+    assertThatThrownBy(() -> createFunction(scanContext1))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("The max-planning-snapshot-count must be greater than zero");
 
@@ -259,7 +258,7 @@ public class TestStreamingMonitorFunction extends TestBase {
             .maxPlanningSnapshotCount(-10)
             .build();
 
-    Assertions.assertThatThrownBy(() -> createFunction(scanContext2))
+    assertThatThrownBy(() -> createFunction(scanContext2))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("The max-planning-snapshot-count must be greater than zero");
   }
@@ -282,7 +281,7 @@ public class TestStreamingMonitorFunction extends TestBase {
     FlinkInputSplit[] expectedSplits =
         FlinkSplitPlanner.planInputSplits(table, scanContext, ThreadPools.getWorkerPool());
 
-    Assert.assertEquals("should produce 9 splits", 9, expectedSplits.length);
+    assertThat(expectedSplits).hasSize(9);
 
     // This covers three cases that maxPlanningSnapshotCount is less than, equal or greater than the
     // total splits number
@@ -306,10 +305,7 @@ public class TestStreamingMonitorFunction extends TestBase {
         function.monitorAndForwardSplits();
 
         if (maxPlanningSnapshotCount < 10) {
-          Assert.assertEquals(
-              "Should produce same splits as max-planning-snapshot-count",
-              maxPlanningSnapshotCount,
-              sourceContext.splits.size());
+          assertThat(sourceContext.splits).hasSize(maxPlanningSnapshotCount);
         }
       }
     }

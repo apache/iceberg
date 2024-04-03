@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink.source;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -49,7 +51,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.ThreadPools;
-import org.junit.Assert;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -73,7 +74,7 @@ public class TestStreamingReaderOperator extends TestBase {
   public void setupTable() throws IOException {
     this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
     this.metadataDir = new File(tableDir, "metadata");
-    Assert.assertTrue(tableDir.delete());
+    assertThat(tableDir.delete()).isTrue();
 
     // Construct the iceberg table.
     table = create(SCHEMA, PartitionSpec.unpartitioned());
@@ -84,7 +85,7 @@ public class TestStreamingReaderOperator extends TestBase {
     List<List<Record>> expectedRecords = generateRecordsAndCommitTxn(10);
 
     List<FlinkInputSplit> splits = generateSplits();
-    Assert.assertEquals("Should have 10 splits", 10, splits.size());
+    assertThat(splits).hasSize(10);
 
     try (OneInputStreamOperatorTestHarness<FlinkInputSplit, RowData> harness = createReader()) {
       harness.setup();
@@ -98,7 +99,7 @@ public class TestStreamingReaderOperator extends TestBase {
         harness.processElement(splits.get(i), -1);
 
         // Run the mail-box once to read all records from the given split.
-        Assert.assertTrue("Should processed 1 split", processor.runMailboxStep());
+        assertThat(processor.runMailboxStep()).as("Should processed 1 split").isTrue();
 
         // Assert the output has expected elements.
         expected.addAll(expectedRecords.get(i));
@@ -115,7 +116,7 @@ public class TestStreamingReaderOperator extends TestBase {
     List<List<Record>> expectedRecords = generateRecordsAndCommitTxn(3);
 
     List<FlinkInputSplit> splits = generateSplits();
-    Assert.assertEquals("Should have 3 splits", 3, splits.size());
+    assertThat(splits).hasSize(3);
 
     long timestamp = 0;
     try (OneInputStreamOperatorTestHarness<FlinkInputSplit, RowData> harness = createReader()) {
@@ -131,17 +132,18 @@ public class TestStreamingReaderOperator extends TestBase {
       // Trigger snapshot state, it will start to work once all records from split0 are read.
       processor.getMainMailboxExecutor().execute(() -> harness.snapshot(1, 3), "Trigger snapshot");
 
-      Assert.assertTrue("Should have processed the split0", processor.runMailboxStep());
-      Assert.assertTrue(
-          "Should have processed the snapshot state action", processor.runMailboxStep());
+      assertThat(processor.runMailboxStep()).as("Should have processed the split0").isTrue();
+      assertThat(processor.runMailboxStep())
+          .as("Should have processed the snapshot state action")
+          .isTrue();
 
       TestHelpers.assertRecords(readOutputValues(harness), expectedRecords.get(0), SCHEMA);
 
       // Read records from split1.
-      Assert.assertTrue("Should have processed the split1", processor.runMailboxStep());
+      assertThat(processor.runMailboxStep()).as("Should have processed the split1").isTrue();
 
       // Read records from split2.
-      Assert.assertTrue("Should have processed the split2", processor.runMailboxStep());
+      assertThat(processor.runMailboxStep()).as("Should have processed the split2").isTrue();
 
       TestHelpers.assertRecords(
           readOutputValues(harness), Lists.newArrayList(Iterables.concat(expectedRecords)), SCHEMA);
@@ -153,7 +155,7 @@ public class TestStreamingReaderOperator extends TestBase {
     List<List<Record>> expectedRecords = generateRecordsAndCommitTxn(15);
 
     List<FlinkInputSplit> splits = generateSplits();
-    Assert.assertEquals("Should have 10 splits", 15, splits.size());
+    assertThat(splits).hasSize(15);
 
     OperatorSubtaskState state;
     List<Record> expected = Lists.newArrayList();
@@ -170,7 +172,9 @@ public class TestStreamingReaderOperator extends TestBase {
       SteppingMailboxProcessor localMailbox = createLocalMailbox(harness);
       for (int i = 0; i < 5; i++) {
         expected.addAll(expectedRecords.get(i));
-        Assert.assertTrue("Should have processed the split#" + i, localMailbox.runMailboxStep());
+        assertThat(localMailbox.runMailboxStep())
+            .as("Should have processed the split#" + i)
+            .isTrue();
 
         TestHelpers.assertRecords(readOutputValues(harness), expected, SCHEMA);
       }
@@ -190,7 +194,9 @@ public class TestStreamingReaderOperator extends TestBase {
 
       for (int i = 5; i < 10; i++) {
         expected.addAll(expectedRecords.get(i));
-        Assert.assertTrue("Should have processed one split#" + i, localMailbox.runMailboxStep());
+        assertThat(localMailbox.runMailboxStep())
+            .as("Should have processed the split#" + i)
+            .isTrue();
 
         TestHelpers.assertRecords(readOutputValues(harness), expected, SCHEMA);
       }
@@ -200,7 +206,9 @@ public class TestStreamingReaderOperator extends TestBase {
         expected.addAll(expectedRecords.get(i));
         harness.processElement(splits.get(i), 1);
 
-        Assert.assertTrue("Should have processed the split#" + i, localMailbox.runMailboxStep());
+        assertThat(localMailbox.runMailboxStep())
+            .as("Should have processed the split#" + i)
+            .isTrue();
         TestHelpers.assertRecords(readOutputValues(harness), expected, SCHEMA);
       }
     }
