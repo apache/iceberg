@@ -356,7 +356,7 @@ public class TestDeltaTaskWriter extends TestBase {
             Arrays.stream(result.deleteFiles())
                 .map(ContentFile::content)
                 .collect(Collectors.toSet()))
-        .containsExactly(FileContent.POSITION_DELETES, FileContent.EQUALITY_DELETES);
+        .containsExactly(FileContent.EQUALITY_DELETES, FileContent.POSITION_DELETES);
     commitTransaction(result);
 
     Record expectedRecord = GenericRecord.create(tableSchema);
