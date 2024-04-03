@@ -8,6 +8,9 @@
     },
     {
       "pattern": "^../../javadoc"
+    },
+    {
+      "pattern": "^https://search.maven.org/"
     }
   ],
   "replacementPatterns": [
