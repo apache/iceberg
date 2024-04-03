@@ -24,6 +24,7 @@ import static org.apache.iceberg.flink.SimpleDataUtil.createRecord;
 import static org.apache.iceberg.flink.SimpleDataUtil.createUpdateAfter;
 import static org.apache.iceberg.flink.SimpleDataUtil.createUpdateBefore;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -63,11 +64,8 @@ import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeSet;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -90,7 +88,7 @@ public class TestDeltaTaskWriter extends TestBase {
   @BeforeEach
   public void setupTable() throws IOException {
     this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    Assert.assertTrue(tableDir.delete()); // created by table create
+    assertThat(tableDir.delete()).isTrue(); // created by table create
 
     this.metadataDir = new File(tableDir, "metadata");
   }
@@ -132,18 +130,17 @@ public class TestDeltaTaskWriter extends TestBase {
     writer.write(createDelete(3, "ccc")); // 1 pos-delete and 1 eq-delete.
 
     WriteResult result = writer.complete();
-    Assert.assertEquals(partitioned ? 7 : 1, result.dataFiles().length);
-    Assert.assertEquals(partitioned ? 3 : 1, result.deleteFiles().length);
+    assertThat(result.dataFiles()).hasSize(partitioned ? 7 : 1);
+    assertThat(result.deleteFiles()).hasSize(partitioned ? 3 : 1);
     commitTransaction(result);
 
-    Assert.assertEquals(
-        "Should have expected records.",
-        expectedRowSet(
-            createRecord(1, "eee"),
-            createRecord(2, "ddd"),
-            createRecord(4, "fff"),
-            createRecord(5, "ggg")),
-        actualRowSet("*"));
+    assertThat(actualRowSet("*"))
+        .isEqualTo(
+            expectedRowSet(
+                createRecord(1, "eee"),
+                createRecord(2, "ddd"),
+                createRecord(4, "fff"),
+                createRecord(5, "ggg")));
 
     // Start the 2nd transaction.
     writer = taskWriterFactory.create();
@@ -160,14 +157,13 @@ public class TestDeltaTaskWriter extends TestBase {
     writer.write(createDelete(4, "fff")); // 1 eq-delete.
 
     result = writer.complete();
-    Assert.assertEquals(partitioned ? 2 : 1, result.dataFiles().length);
-    Assert.assertEquals(partitioned ? 3 : 1, result.deleteFiles().length);
+    assertThat(result.dataFiles()).hasSize(partitioned ? 2 : 1);
+    assertThat(result.deleteFiles()).hasSize(partitioned ? 3 : 1);
     commitTransaction(result);
 
-    Assert.assertEquals(
-        "Should have expected records",
-        expectedRowSet(createRecord(1, "eee"), createRecord(5, "iii"), createRecord(6, "hhh")),
-        actualRowSet("*"));
+    assertThat(actualRowSet("*"))
+        .isEqualTo(
+            expectedRowSet(createRecord(1, "eee"), createRecord(5, "iii"), createRecord(6, "hhh")));
   }
 
   @TestTemplate
@@ -194,11 +190,11 @@ public class TestDeltaTaskWriter extends TestBase {
     writer.write(createDelete(3, "ccc"));
 
     WriteResult result = writer.complete();
-    Assert.assertEquals(0, result.dataFiles().length);
-    Assert.assertEquals(partitioned ? 3 : 1, result.deleteFiles().length);
+    assertThat(result.dataFiles()).isEmpty();
+    assertThat(result.deleteFiles()).hasSize(partitioned ? 3 : 1);
     commitTransaction(result);
 
-    Assert.assertEquals("Should have no record", expectedRowSet(), actualRowSet("*"));
+    assertThat(actualRowSet("*")).isEqualTo(expectedRowSet());
   }
 
   @TestTemplate
@@ -232,14 +228,11 @@ public class TestDeltaTaskWriter extends TestBase {
             .filter(p -> p.toFile().isFile())
             .filter(p -> !p.toString().endsWith(".crc"))
             .collect(Collectors.toList());
-    Assert.assertEquals(
-        "Should have expected file count, but files are: " + files,
-        partitioned ? 4 : 2,
-        files.size());
+    assertThat(files).hasSize(partitioned ? 4 : 2);
 
     writer.abort();
     for (Path file : files) {
-      Assert.assertFalse(Files.exists(file));
+      assertThat(file).doesNotExist();
     }
   }
 
@@ -268,14 +261,13 @@ public class TestDeltaTaskWriter extends TestBase {
     writer.write(createInsert(4, "ccc"));
 
     WriteResult result = writer.complete();
-    Assert.assertEquals(3, result.dataFiles().length);
-    Assert.assertEquals(1, result.deleteFiles().length);
+    assertThat(result.dataFiles()).hasSize(3);
+    assertThat(result.deleteFiles()).hasSize(1);
     commitTransaction(result);
 
-    Assert.assertEquals(
-        "Should have expected records",
-        expectedRowSet(createRecord(2, "aaa"), createRecord(3, "bbb"), createRecord(4, "ccc")),
-        actualRowSet("*"));
+    assertThat(actualRowSet("*"))
+        .isEqualTo(
+            expectedRowSet(createRecord(2, "aaa"), createRecord(3, "bbb"), createRecord(4, "ccc")));
 
     // Start the 2nd transaction.
     writer = taskWriterFactory.create();
@@ -284,18 +276,17 @@ public class TestDeltaTaskWriter extends TestBase {
     writer.write(createDelete(7, "ccc")); // 1 eq-delete.
 
     result = writer.complete();
-    Assert.assertEquals(2, result.dataFiles().length);
-    Assert.assertEquals(1, result.deleteFiles().length);
+    assertThat(result.dataFiles()).hasSize(2);
+    assertThat(result.deleteFiles()).hasSize(1);
     commitTransaction(result);
 
-    Assert.assertEquals(
-        "Should have expected records",
-        expectedRowSet(
-            createRecord(2, "aaa"),
-            createRecord(5, "aaa"),
-            createRecord(3, "bbb"),
-            createRecord(6, "bbb")),
-        actualRowSet("*"));
+    assertThat(actualRowSet("*"))
+        .isEqualTo(
+            expectedRowSet(
+                createRecord(2, "aaa"),
+                createRecord(5, "aaa"),
+                createRecord(3, "bbb"),
+                createRecord(6, "bbb")));
   }
 
   @TestTemplate
@@ -312,15 +303,12 @@ public class TestDeltaTaskWriter extends TestBase {
     writer.write(createDelete(2, "aaa")); // 1 pos-delete.
 
     WriteResult result = writer.complete();
-    Assert.assertEquals(1, result.dataFiles().length);
-    Assert.assertEquals(1, result.deleteFiles().length);
-    Assert.assertEquals(
-        Sets.newHashSet(FileContent.POSITION_DELETES),
-        Sets.newHashSet(result.deleteFiles()[0].content()));
+    assertThat(result.dataFiles()).hasSize(1);
+    assertThat(result.deleteFiles()).hasSize(1);
+    assertThat(result.deleteFiles()[0].content()).isEqualTo(FileContent.POSITION_DELETES);
     commitTransaction(result);
 
-    Assert.assertEquals(
-        "Should have expected records", expectedRowSet(createRecord(1, "aaa")), actualRowSet("*"));
+    assertThat(actualRowSet("*")).isEqualTo(expectedRowSet(createRecord(1, "aaa")));
   }
 
   @TestTemplate
@@ -361,14 +349,14 @@ public class TestDeltaTaskWriter extends TestBase {
 
     WriteResult result = writer.complete();
     // One data file
-    Assertions.assertThat(result.dataFiles().length).isEqualTo(1);
+    assertThat(result.dataFiles()).hasSize(1);
     // One eq delete file + one pos delete file
-    Assertions.assertThat(result.deleteFiles().length).isEqualTo(2);
-    Assertions.assertThat(
+    assertThat(result.deleteFiles()).hasSize(2);
+    assertThat(
             Arrays.stream(result.deleteFiles())
                 .map(ContentFile::content)
                 .collect(Collectors.toSet()))
-        .isEqualTo(Sets.newHashSet(FileContent.POSITION_DELETES, FileContent.EQUALITY_DELETES));
+        .containsExactly(FileContent.POSITION_DELETES, FileContent.EQUALITY_DELETES);
     commitTransaction(result);
 
     Record expectedRecord = GenericRecord.create(tableSchema);
@@ -376,7 +364,7 @@ public class TestDeltaTaskWriter extends TestBase {
     int cutPrecisionNano = start.getNano() / 1000000 * 1000000;
     expectedRecord.setField("ts", start.withNano(cutPrecisionNano));
 
-    Assertions.assertThat(actualRowSet("*")).isEqualTo(expectedRowSet(expectedRecord));
+    assertThat(actualRowSet("*")).isEqualTo(expectedRowSet(expectedRecord));
   }
 
   private void commitTransaction(WriteResult result) {

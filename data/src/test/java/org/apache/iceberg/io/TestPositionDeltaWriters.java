@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.io;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -34,7 +36,6 @@ import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.util.StructLikeSet;
-import org.junit.Assert;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -67,7 +68,7 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
   @BeforeEach
   public void setupTable() throws Exception {
     this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    Assert.assertTrue(tableDir.delete()); // created during table creation
+    assertThat(tableDir.delete()).isTrue(); // created during table creation
 
     this.metadataDir = new File(tableDir, "metadata");
     this.table = create(SCHEMA, PartitionSpec.unpartitioned());
@@ -94,9 +95,9 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
     DeleteFile[] deleteFiles = result.deleteFiles();
     CharSequence[] referencedDataFiles = result.referencedDataFiles();
 
-    Assert.assertEquals("Must be 1 data files", 1, dataFiles.length);
-    Assert.assertEquals("Must be no delete files", 0, deleteFiles.length);
-    Assert.assertEquals("Must not reference data files", 0, referencedDataFiles.length);
+    assertThat(dataFiles).hasSize(1);
+    assertThat(deleteFiles).isEmpty();
+    assertThat(referencedDataFiles).isEmpty();
   }
 
   @TestTemplate
@@ -121,9 +122,9 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
     DeleteFile[] deleteFiles = result.deleteFiles();
     CharSequence[] referencedDataFiles = result.referencedDataFiles();
 
-    Assert.assertEquals("Must be 1 data files", 1, dataFiles.length);
-    Assert.assertEquals("Must be no delete files", 0, deleteFiles.length);
-    Assert.assertEquals("Must not reference data files", 0, referencedDataFiles.length);
+    assertThat(dataFiles).hasSize(1);
+    assertThat(deleteFiles).isEmpty();
+    assertThat(referencedDataFiles).isEmpty();
 
     RowDelta rowDelta = table.newRowDelta();
     for (DataFile dataFile : dataFiles) {
@@ -132,7 +133,7 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
     rowDelta.commit();
 
     List<T> expectedRows = ImmutableList.of(toRow(1, "aaa"));
-    Assert.assertEquals("Records should match", toSet(expectedRows), actualRowSet("*"));
+    assertThat(actualRowSet("*")).isEqualTo(toSet(expectedRows));
   }
 
   @TestTemplate
@@ -177,10 +178,9 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
     DeleteFile[] deleteFiles = result.deleteFiles();
     CharSequence[] referencedDataFiles = result.referencedDataFiles();
 
-    Assert.assertEquals("Must be 0 data files", 0, dataFiles.length);
-    Assert.assertEquals("Must be 2 delete files", 2, deleteFiles.length);
-    Assert.assertEquals("Must reference 2 data files", 2, referencedDataFiles.length);
-
+    assertThat(dataFiles).isEmpty();
+    assertThat(deleteFiles).hasSize(2);
+    assertThat(referencedDataFiles).hasSize(2);
     RowDelta rowDelta = table.newRowDelta();
     for (DeleteFile deleteFile : deleteFiles) {
       rowDelta.addDeletes(deleteFile);
@@ -188,7 +188,7 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
     rowDelta.commit();
 
     List<T> expectedRows = ImmutableList.of(toRow(1, "aaa"), toRow(2, "aaa"), toRow(3, "bbb"));
-    Assert.assertEquals("Records should match", toSet(expectedRows), actualRowSet("*"));
+    assertThat(actualRowSet("*")).isEqualTo(toSet(expectedRows));
   }
 
   @TestTemplate
@@ -234,9 +234,9 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
     DeleteFile[] deleteFiles = result.deleteFiles();
     CharSequence[] referencedDataFiles = result.referencedDataFiles();
 
-    Assert.assertEquals("Must be 1 data files", 1, dataFiles.length);
-    Assert.assertEquals("Must be 2 delete files", 2, deleteFiles.length);
-    Assert.assertEquals("Must reference 2 data files", 2, referencedDataFiles.length);
+    assertThat(dataFiles).hasSize(1);
+    assertThat(deleteFiles).hasSize(2);
+    assertThat(referencedDataFiles).hasSize(2);
 
     RowDelta rowDelta = table.newRowDelta();
     for (DataFile dataFile : dataFiles) {
@@ -249,6 +249,6 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
 
     List<T> expectedRows =
         ImmutableList.of(toRow(1, "aaa"), toRow(2, "aaa"), toRow(3, "bbb"), toRow(10, "ccc"));
-    Assert.assertEquals("Records should match", toSet(expectedRows), actualRowSet("*"));
+    assertThat(actualRowSet("*")).isEqualTo(toSet(expectedRows));
   }
 }
