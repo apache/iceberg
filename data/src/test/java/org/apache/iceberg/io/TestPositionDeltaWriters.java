@@ -20,43 +20,42 @@ package org.apache.iceberg.io;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.util.Arrays;
 import java.util.List;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
 
-  @Parameterized.Parameters(name = "FileFormat={0}")
-  public static Object[] parameters() {
-    return new Object[][] {
-      new Object[] {FileFormat.AVRO},
-      new Object[] {FileFormat.ORC},
-      new Object[] {FileFormat.PARQUET}
-    };
+  @Parameters(name = "formatVersion = {0}, fileFormat = {1}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(
+        new Object[] {2, FileFormat.AVRO},
+        new Object[] {2, FileFormat.ORC},
+        new Object[] {2, FileFormat.PARQUET});
   }
 
-  private static final int TABLE_FORMAT_VERSION = 2;
   private static final long TARGET_FILE_SIZE = 128L * 1024 * 1024;
 
-  private final FileFormat fileFormat;
-  private OutputFileFactory fileFactory = null;
+  @Parameter(index = 1)
+  private FileFormat fileFormat;
 
-  public TestPositionDeltaWriters(FileFormat fileFormat) {
-    super(TABLE_FORMAT_VERSION);
-    this.fileFormat = fileFormat;
-  }
+  private OutputFileFactory fileFactory = null;
 
   protected abstract StructLikeSet toSet(Iterable<T> records);
 
@@ -65,9 +64,9 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
   }
 
   @Override
-  @Before
+  @BeforeEach
   public void setupTable() throws Exception {
-    this.tableDir = temp.newFolder();
+    this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
     Assert.assertTrue(tableDir.delete()); // created during table creation
 
     this.metadataDir = new File(tableDir, "metadata");
@@ -75,7 +74,7 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
     this.fileFactory = OutputFileFactory.builderFor(table, 1, 1).format(fileFormat).build();
   }
 
-  @Test
+  @TestTemplate
   public void testPositionDeltaWithOneDataWriter() throws IOException {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
 
@@ -100,7 +99,7 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
     Assert.assertEquals("Must not reference data files", 0, referencedDataFiles.length);
   }
 
-  @Test
+  @TestTemplate
   public void testPositionDeltaInsertOnly() throws IOException {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
 
@@ -136,7 +135,7 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
     Assert.assertEquals("Records should match", toSet(expectedRows), actualRowSet("*"));
   }
 
-  @Test
+  @TestTemplate
   public void testPositionDeltaDeleteOnly() throws IOException {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
 
@@ -192,7 +191,7 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
     Assert.assertEquals("Records should match", toSet(expectedRows), actualRowSet("*"));
   }
 
-  @Test
+  @TestTemplate
   public void testPositionDeltaMultipleSpecs() throws IOException {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
 

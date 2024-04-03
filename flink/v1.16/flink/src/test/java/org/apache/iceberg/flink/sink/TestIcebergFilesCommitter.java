@@ -27,6 +27,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.NavigableMap;
@@ -56,10 +57,13 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.GenericManifestFile;
 import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.TableTestBase;
+import org.apache.iceberg.TestBase;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestHelpers;
@@ -73,44 +77,39 @@ import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.ThreadPools;
 import org.junit.Assert;
 import org.junit.Assume;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public class TestIcebergFilesCommitter extends TableTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestIcebergFilesCommitter extends TestBase {
   private static final Configuration CONF = new Configuration();
 
   private File flinkManifestFolder;
 
-  private final FileFormat format;
-  private final String branch;
+  @Parameter(index = 1)
+  private FileFormat format;
 
-  @Parameterized.Parameters(name = "FileFormat = {0}, FormatVersion = {1}, branch = {2}")
-  public static Object[][] parameters() {
-    return new Object[][] {
-      new Object[] {"avro", 1, "main"},
-      new Object[] {"avro", 2, "test-branch"},
-      new Object[] {"parquet", 1, "main"},
-      new Object[] {"parquet", 2, "test-branch"},
-      new Object[] {"orc", 1, "main"},
-      new Object[] {"orc", 2, "test-branch"}
-    };
-  }
+  @Parameter(index = 2)
+  private String branch;
 
-  public TestIcebergFilesCommitter(String format, int formatVersion, String branch) {
-    super(formatVersion);
-    this.format = FileFormat.fromString(format);
-    this.branch = branch;
+  @Parameters(name = "formatVersion = {0}, fileFormat = {1}, branch = {2}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(
+        new Object[] {1, FileFormat.AVRO, "main"},
+        new Object[] {2, FileFormat.AVRO, "test-branch"},
+        new Object[] {1, FileFormat.PARQUET, "main"},
+        new Object[] {2, FileFormat.PARQUET, "test-branch"},
+        new Object[] {1, FileFormat.ORC, "main"},
+        new Object[] {2, FileFormat.ORC, "test-branch"});
   }
 
   @Override
-  @Before
+  @BeforeEach
   public void setupTable() throws IOException {
-    flinkManifestFolder = temp.newFolder();
+    flinkManifestFolder = Files.createTempDirectory(temp, "flink").toFile();
 
-    this.tableDir = temp.newFolder();
+    this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
     this.metadataDir = new File(tableDir, "metadata");
     Assert.assertTrue(tableDir.delete());
 
@@ -125,7 +124,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
         .commit();
   }
 
-  @Test
+  @TestTemplate
   public void testCommitTxnWithoutDataFiles() throws Exception {
     long checkpointId = 0;
     long timestamp = 0;
@@ -156,7 +155,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testMaxContinuousEmptyCommits() throws Exception {
     table.updateProperties().set(MAX_CONTINUOUS_EMPTY_COMMITS, "3").commit();
 
@@ -182,7 +181,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     return WriteResult.builder().addDataFiles(dataFile).build();
   }
 
-  @Test
+  @TestTemplate
   public void testCommitTxn() throws Exception {
     // Test with 3 continues checkpoints:
     //   1. snapshotState for checkpoint#1
@@ -225,7 +224,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testOrderedEventsBetweenCheckpoints() throws Exception {
     // It's possible that two checkpoints happen in the following orders:
     //   1. snapshotState for checkpoint#1;
@@ -278,7 +277,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testDisorderedEventsBetweenCheckpoints() throws Exception {
     // It's possible that the two checkpoints happen in the following orders:
     //   1. snapshotState for checkpoint#1;
@@ -331,7 +330,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testRecoveryFromValidSnapshot() throws Exception {
     long checkpointId = 0;
     long timestamp = 0;
@@ -392,7 +391,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testRecoveryFromSnapshotWithoutCompletedNotification() throws Exception {
     // We've two steps in checkpoint: 1. snapshotState(ckp); 2. notifyCheckpointComplete(ckp). It's
     // possible that we
@@ -490,7 +489,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testStartAnotherJobToWriteSameTable() throws Exception {
     long checkpointId = 0;
     long timestamp = 0;
@@ -557,7 +556,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testMultipleJobsWriteSameTable() throws Exception {
     long timestamp = 0;
     List<RowData> tableRows = Lists.newArrayList();
@@ -595,7 +594,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testMultipleSinksRecoveryFromValidSnapshot() throws Exception {
     long checkpointId = 0;
     long timestamp = 0;
@@ -693,7 +692,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testBoundedStream() throws Exception {
     JobID jobId = new JobID();
     OperatorID operatorId;
@@ -722,7 +721,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testFlinkManifests() throws Exception {
     long timestamp = 0;
     final long checkpoint = 10;
@@ -766,7 +765,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteFiles() throws Exception {
     Assume.assumeFalse("Only support equality-delete in format v2.", formatVersion < 2);
 
@@ -835,7 +834,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testCommitTwoCheckpointsInSingleTxn() throws Exception {
     Assume.assumeFalse("Only support equality-delete in format v2.", formatVersion < 2);
 
@@ -888,7 +887,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testSpecEvolution() throws Exception {
     long timestamp = 0;
     int checkpointId = 0;
