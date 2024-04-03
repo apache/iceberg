@@ -397,6 +397,30 @@ public class TestHiveCommits extends HiveTableBaseTest {
         .isTrue();
   }
 
+  @Test
+  public void testCommitExceptionWithoutMessage() throws TException, InterruptedException {
+    Table table = catalog.loadTable(TABLE_IDENTIFIER);
+    HiveTableOperations ops = (HiveTableOperations) ((HasTableOperations) table).operations();
+
+    TableMetadata metadataV1 = ops.current();
+
+    table.updateSchema().addColumn("n", Types.IntegerType.get()).commit();
+
+    ops.refresh();
+
+    TableMetadata metadataV2 = ops.current();
+
+    assertThat(ops.current().schema().columns()).hasSize(2);
+
+    HiveTableOperations spyOps = spy(ops);
+
+    doThrow(new RuntimeException()).when(spyOps).persistTable(any(), anyBoolean(), any());
+
+    assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
+        .isInstanceOf(CommitStateUnknownException.class)
+        .hasMessageStartingWith("null");
+  }
+
   private void commitAndThrowException(
       HiveTableOperations realOperations, HiveTableOperations spyOperations)
       throws TException, InterruptedException {
