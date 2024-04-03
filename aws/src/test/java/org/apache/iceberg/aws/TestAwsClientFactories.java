@@ -30,6 +30,8 @@ import org.apache.iceberg.util.SerializationUtil;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.ThrowableAssert;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
@@ -135,10 +137,16 @@ public class TestAwsClientFactories {
         .isInstanceOf(LakeFormationAwsClientFactory.class);
   }
 
-  @Test
-  public void testWithDummyValidCredentialsProvider() {
+  private static String[] httpClientTypes() {
+    return new String[] {"apache", "aws-crt", "urlconnection", null};
+  }
+
+  @ParameterizedTest
+  @MethodSource("httpClientTypes")
+  public void testWithDummyValidCredentialsProvider(String httpClientType) {
     AwsClientFactory defaultAwsClientFactory =
-        getAwsClientFactoryByCredentialsProvider(DummyValidProvider.class.getName());
+        getAwsClientFactoryByCredentialsProvider(
+            DummyValidProvider.class.getName(), httpClientType);
     assertDefaultAwsClientFactory(defaultAwsClientFactory);
     assertClientObjectsNotNull(defaultAwsClientFactory);
     // Ensuring S3Exception thrown instead exception thrown by resolveCredentials() implemented by
@@ -187,7 +195,7 @@ public class TestAwsClientFactories {
 
   private void testProviderAndAssertThrownBy(String providerClassName, String containsMessage) {
     AwsClientFactory defaultAwsClientFactory =
-        getAwsClientFactoryByCredentialsProvider(providerClassName);
+        getAwsClientFactoryByCredentialsProvider(providerClassName, null);
     assertDefaultAwsClientFactory(defaultAwsClientFactory);
     assertAllClientObjectsThrownBy(defaultAwsClientFactory, containsMessage);
   }
@@ -222,8 +230,12 @@ public class TestAwsClientFactories {
         .isInstanceOf(AwsClientFactories.DefaultAwsClientFactory.class);
   }
 
-  private AwsClientFactory getAwsClientFactoryByCredentialsProvider(String providerClass) {
+  private AwsClientFactory getAwsClientFactoryByCredentialsProvider(
+      String providerClass, String httpClientType) {
     Map<String, String> properties = getDefaultClientFactoryProperties(providerClass);
+    if (httpClientType != null) {
+      properties.put("http-client.type", httpClientType);
+    }
     AwsClientFactory defaultAwsClientFactory = AwsClientFactories.from(properties);
     return defaultAwsClientFactory;
   }
