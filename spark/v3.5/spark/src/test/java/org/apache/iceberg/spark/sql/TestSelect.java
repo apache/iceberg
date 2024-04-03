@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.text.SimpleDateFormat;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -349,6 +350,64 @@ public class TestSelect extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void readAndWriteWithBranchAfterSchemaChange() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    String branchName = "test_branch";
+    table.manageSnapshots().createBranch(branchName, table.currentSnapshot().snapshotId()).commit();
+
+    List<Object[]> expected =
+        Arrays.asList(row(1L, "a", 1.0f), row(2L, "b", 2.0f), row(3L, "c", Float.NaN));
+    assertThat(sql("SELECT * FROM %s", tableName)).containsExactlyElementsOf(expected);
+
+    // change schema on the table and add more data
+    sql("ALTER TABLE %s DROP COLUMN float", tableName);
+    sql("ALTER TABLE %s ADD COLUMN new_col date", tableName);
+    sql(
+        "INSERT INTO %s VALUES (4, 'd', date('2024-04-04')), (5, 'e', date('2024-05-05'))",
+        tableName);
+
+    // time-travel query using snapshot id should return the snapshot's schema
+    long branchSnapshotId = table.refs().get(branchName).snapshotId();
+    assertThat(sql("SELECT * FROM %s VERSION AS OF %s", tableName, branchSnapshotId))
+        .containsExactlyElementsOf(expected);
+
+    // querying the head of the branch should return the table's schema
+    assertThat(sql("SELECT * FROM %s VERSION AS OF '%s'", tableName, branchName))
+        .containsExactly(row(1L, "a", null), row(2L, "b", null), row(3L, "c", null));
+
+    if (!"spark_catalog".equals(catalogName)) {
+      // querying the head of the branch using 'branch_' should return the table's schema
+      assertThat(sql("SELECT * FROM %s.branch_%s", tableName, branchName))
+          .containsExactly(row(1L, "a", null), row(2L, "b", null), row(3L, "c", null));
+    }
+
+    // writing to a branch uses the table's schema
+    sql(
+        "INSERT INTO %s.branch_%s VALUES (6L, 'f', cast('2023-06-06' as date)), (7L, 'g', cast('2023-07-07' as date))",
+        tableName, branchName);
+
+    // querying the head of the branch returns the table's schema
+    assertThat(sql("SELECT * FROM %s VERSION AS OF '%s'", tableName, branchName))
+        .containsExactlyInAnyOrder(
+            row(1L, "a", null),
+            row(2L, "b", null),
+            row(3L, "c", null),
+            row(6L, "f", java.sql.Date.valueOf("2023-06-06")),
+            row(7L, "g", java.sql.Date.valueOf("2023-07-07")));
+
+    // using DataFrameReader with the 'branch' option should return the table's schema
+    Dataset<Row> df =
+        spark.read().format("iceberg").option(SparkReadOptions.BRANCH, branchName).load(tableName);
+    assertThat(rowsToJava(df.collectAsList()))
+        .containsExactlyInAnyOrder(
+            row(1L, "a", null),
+            row(2L, "b", null),
+            row(3L, "c", null),
+            row(6L, "f", java.sql.Date.valueOf("2023-06-06")),
+            row(7L, "g", java.sql.Date.valueOf("2023-07-07")));
+  }
+
+  @TestTemplate
   public void testUnknownReferenceAsOf() {
     assertThatThrownBy(() -> sql("SELECT * FROM %s VERSION AS OF 'test_unknown'", tableName))
         .hasMessageContaining("Cannot find matching snapshot ID or reference name for version")
@@ -468,6 +527,11 @@ public class TestSelect extends CatalogTestBase {
     // using branch_b1 in the table identifier and VERSION AS OF
     assertThatThrownBy(
             () -> sql("SELECT * FROM %s.branch_b1 VERSION AS OF %s", tableName, snapshotId))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot do time-travel based on both table identifier and AS OF");
+
+    // using branch_b1 in the table identifier and TIMESTAMP AS OF
+    assertThatThrownBy(() -> sql("SELECT * FROM %s.branch_b1 TIMESTAMP AS OF now()", tableName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot do time-travel based on both table identifier and AS OF");
   }
