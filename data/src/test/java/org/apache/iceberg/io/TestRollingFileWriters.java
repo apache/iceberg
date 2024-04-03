@@ -169,7 +169,6 @@ public abstract class TestRollingFileWriters<T> extends WriterTestBase<T> {
     // call close again to ensure it is idempotent
     writer.close();
 
-    DeleteWriteResult result = writer.result();
     assertThat(writer.result().deleteFiles()).hasSize(4);
     assertThat(writer.result().referencedDataFiles()).isEmpty();
     assertThat(writer.result().referencesDataFiles()).isFalse();
@@ -213,7 +212,6 @@ public abstract class TestRollingFileWriters<T> extends WriterTestBase<T> {
     // call close again to ensure it is idempotent
     writer.close();
 
-    DeleteWriteResult result = writer.result();
     assertThat(writer.result().deleteFiles()).hasSize(4);
     assertThat(writer.result().referencedDataFiles()).hasSize(1);
     assertThat(writer.result().referencesDataFiles()).isTrue();
