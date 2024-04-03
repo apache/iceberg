@@ -64,6 +64,7 @@ import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.jupiter.api.BeforeEach;
@@ -356,7 +357,7 @@ public class TestDeltaTaskWriter extends TestBase {
             Arrays.stream(result.deleteFiles())
                 .map(ContentFile::content)
                 .collect(Collectors.toSet()))
-        .containsExactly(FileContent.EQUALITY_DELETES, FileContent.POSITION_DELETES);
+        .isEqualTo(Sets.newHashSet(FileContent.POSITION_DELETES, FileContent.EQUALITY_DELETES));
     commitTransaction(result);
 
     Record expectedRecord = GenericRecord.create(tableSchema);
