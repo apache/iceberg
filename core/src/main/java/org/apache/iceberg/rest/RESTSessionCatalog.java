@@ -86,10 +86,11 @@ import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
+import org.apache.iceberg.rest.responses.ListNamespacesResponse;
+import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
-import org.apache.iceberg.rest.responses.Route;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.EnvironmentUtil;
 import org.apache.iceberg.util.Pair;
@@ -280,8 +281,34 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   @Override
   public List<TableIdentifier> listTables(SessionContext context, Namespace ns) {
     checkNamespaceIsValid(ns);
-    return new PaginatedList<>(
-        client, paths, headers(context), restPageSize, ns, Route.LIST_TABLES);
+    Map<String, String> queryParams = Maps.newHashMap();
+    if (restPageSize == null) {
+      ListTablesResponse response =
+          client.get(
+              paths.tables(ns),
+              queryParams,
+              ListTablesResponse.class,
+              headers(context),
+              ErrorHandlers.namespaceErrorHandler());
+      return response.identifiers();
+    }
+
+    List<TableIdentifier> identifiers = Lists.newArrayList();
+    String pageToken = "";
+    queryParams.put("pageSize", restPageSize);
+    while (pageToken != null) {
+      queryParams.put("pageToken", pageToken);
+      ListTablesResponse response =
+          client.get(
+              paths.tables(ns),
+              queryParams,
+              ListTablesResponse.class,
+              headers(context),
+              ErrorHandlers.namespaceErrorHandler());
+      pageToken = response.nextPageToken();
+      identifiers.addAll(response.identifiers());
+    }
+    return identifiers;
   }
 
   @Override
@@ -490,8 +517,37 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public List<Namespace> listNamespaces(SessionContext context, Namespace namespace) {
-    return new PaginatedList<>(
-        client, paths, headers(context), restPageSize, namespace, Route.LIST_NAMESPACES);
+    Map<String, String> queryParams = Maps.newHashMap();
+    if (!namespace.isEmpty()) {
+      queryParams.put("parent", RESTUtil.NAMESPACE_JOINER.join(namespace.levels()));
+    }
+    if (restPageSize == null) {
+      ListNamespacesResponse response =
+          client.get(
+              paths.namespaces(),
+              queryParams,
+              ListNamespacesResponse.class,
+              headers(context),
+              ErrorHandlers.namespaceErrorHandler());
+      return response.namespaces();
+    }
+
+    List<Namespace> namespaces = Lists.newArrayList();
+    String pageToken = "";
+    queryParams.put("pageSize", restPageSize);
+    while (pageToken != null) {
+      queryParams.put("pageToken", pageToken);
+      ListNamespacesResponse response =
+          client.get(
+              paths.namespaces(),
+              queryParams,
+              ListNamespacesResponse.class,
+              headers(context),
+              ErrorHandlers.namespaceErrorHandler());
+      pageToken = response.nextPageToken();
+      namespaces.addAll(response.namespaces());
+    }
+    return namespaces;
   }
 
   @Override
@@ -1030,8 +1086,34 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   @Override
   public List<TableIdentifier> listViews(SessionContext context, Namespace namespace) {
     checkNamespaceIsValid(namespace);
-    return new PaginatedList<>(
-        client, paths, headers(context), restPageSize, namespace, Route.LIST_VIEWS);
+    Map<String, String> queryParams = Maps.newHashMap();
+    if (restPageSize == null) {
+      ListTablesResponse response =
+          client.get(
+              paths.views(namespace),
+              queryParams,
+              ListTablesResponse.class,
+              headers(context),
+              ErrorHandlers.namespaceErrorHandler());
+      return response.identifiers();
+    }
+
+    List<TableIdentifier> views = Lists.newArrayList();
+    String pageToken = "";
+    queryParams.put("pageSize", restPageSize);
+    while (pageToken != null) {
+      queryParams.put("pageToken", pageToken);
+      ListTablesResponse response =
+          client.get(
+              paths.views(namespace),
+              queryParams,
+              ListTablesResponse.class,
+              headers(context),
+              ErrorHandlers.namespaceErrorHandler());
+      pageToken = response.nextPageToken();
+      views.addAll(response.identifiers());
+    }
+    return views;
   }
 
   @Override
