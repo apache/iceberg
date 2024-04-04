@@ -171,7 +171,6 @@ class SortOrder(BaseModel):
 
 class Summary(BaseModel):
     operation: Literal['append', 'replace', 'overwrite', 'delete']
-    additionalProperties: Optional[str] = None
 
 
 class Snapshot(BaseModel):
