@@ -47,3 +47,77 @@ It will promote the `before` or `after` element fields to top level and add the 
 | Property            | Description                                                                       |
 |---------------------|-----------------------------------------------------------------------------------|
 | cdc.target.pattern  | Pattern to use for setting the CDC target field value, default is `{db}.{table}`  |
+
+# JsonToMapTransform
+_(Experimental)_ 
+
+The `JsonToMapTransform` SMT parses Strings as Json object payloads to infer schemas.  The iceberg-kafka-connect 
+connector for schema-less data (e.g. the Map produced by the Kafka supplied JsonConverter) is to convert Maps into Iceberg 
+Structs.  This is fine when the JSON is well-structured, but when you have JSON objects with dynamically 
+changing keys, it will lead to an explosion of columns in the Iceberg table due to schema evolutions. 
+
+This SMT is useful in situations where the JSON is not well-structured, in order to get data into Iceberg where 
+it can be further processed by query engines into a more manageable form. It will convert nested objects to 
+Maps and include Map type in the Schema.  The connector will respect the Schema and create Iceberg tables with Iceberg
+Map (String) columns for the JSON objects. 
+
+Note:
+
+- You must use the `stringConverter` as the `value.converter` setting for your connector, not `jsonConverter`
+  - It expects JSON objects (`{...}`) in those strings. 
+- Message keys, tombstones, and headers are not transformed and are passed along as-is by the SMT
+
+## Configuration
+
+| Property             | Description  (default value)             |
+|----------------------|------------------------------------------|
+| json.root | (false) Boolean value to start at root   |
+
+The `transforms.IDENTIFIER_HERE.json.root` is meant for the most inconsistent data.  It will construct a Struct with a single field 
+called `payload` with a Schema of `Map<String, String>`.  
+
+If `transforms.IDENTIFIER_HERE.json.root` is false (the default), it will construct a Struct with inferred schemas for primitive and
+array fields.  Nested objects become fields of type `Map<String, String>`.
+
+Keys with empty arrays and empty objects are filtered out from the final schema.  Arrays will be typed unless the 
+json arrays have mixed types in which case they are converted to arrays of strings.
+
+Example json: 
+
+```json
+{
+  "key": 1, 
+  "array": [1,"two",3],
+  "empty_obj": {},
+  "nested_obj": {"some_key": ["one", "two"]}
+}
+```
+
+Will become the following if `json.root` is true:
+
+```
+SinkRecord.schema: 
+  "payload" : (Optional) Map<String, String>
+  
+Sinkrecord.value (Struct): 
+  "payload"  : Map(
+    "key" : "1",
+    "array" : "[1,"two",3]"
+    "empty_obj": "{}"
+    "nested_obj": "{"some_key":["one","two"]}}"
+   )
+```
+
+Will become the following if `json.root` is false
+
+```
+SinkRecord.schema: 
+  "key": (Optional) Int32,
+  "array": (Optional) Array<String>,
+  "nested_object": (Optional) Map<string, String>
+  
+SinkRecord.value (Struct):
+ "key" 1, 
+ "array" ["1", "two", "3"] 
+ "nested_object" Map ("some_key" : "["one", "two"]") 
+```
