@@ -18,35 +18,19 @@
  */
 package org.apache.iceberg.spark.actions;
 
-import org.apache.spark.sql.Encoder;
-import org.apache.spark.sql.Encoders;
+public class RichFileInfo extends FileInfo {
+  private long sizeInBytes;
 
-public class FileInfo {
-  public static final Encoder<FileInfo> ENCODER = Encoders.bean(FileInfo.class);
-
-  private String path;
-  private String type;
-
-  public FileInfo(String path, String type) {
-    this.path = path;
-    this.type = type;
+  public RichFileInfo(String path, String type, long sizeInBytes) {
+    super(path, type); // Call constructor of superclass FileInfo
+    this.sizeInBytes = sizeInBytes;
+  }
+  // Getter and setter for sizeInBytes
+  public long getSizeInBytes() {
+    return sizeInBytes;
   }
 
-  public FileInfo() {}
-
-  public String getPath() {
-    return path;
-  }
-
-  public void setPath(String path) {
-    this.path = path;
-  }
-
-  public String getType() {
-    return type;
-  }
-
-  public void setType(String type) {
-    this.type = type;
+  public void setSizeInBytes(long sizeInBytes) {
+    this.sizeInBytes = sizeInBytes;
   }
 }
