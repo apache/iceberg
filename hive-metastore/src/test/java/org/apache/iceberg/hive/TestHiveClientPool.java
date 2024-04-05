@@ -20,6 +20,7 @@ package org.apache.iceberg.hive;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -29,6 +30,7 @@ import java.util.List;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
+import org.apache.hadoop.hive.metastore.MetaStoreUtils;
 import org.apache.hadoop.hive.metastore.api.Function;
 import org.apache.hadoop.hive.metastore.api.FunctionType;
 import org.apache.hadoop.hive.metastore.api.GetAllFunctionsResponse;
@@ -39,6 +41,7 @@ import org.apache.thrift.transport.TTransportException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
 public class TestHiveClientPool {
@@ -114,6 +117,52 @@ public class TestHiveClientPool {
     assertThatThrownBy(() -> clients.run(client -> client.getTables("default", "t")))
         .isInstanceOf(MetaException.class)
         .hasMessage("Another meta exception");
+  }
+
+  @Test
+  public void testExceptionMessages() {
+    // Test Wrapped MetaException with a message
+    try (MockedStatic<MetaStoreUtils> mockedStatic = Mockito.mockStatic(MetaStoreUtils.class)) {
+      mockedStatic
+          .when(() -> MetaStoreUtils.newInstance(any(), any(), any()))
+          .thenThrow(new RuntimeException(new MetaException("Another meta exception")));
+      assertThatThrownBy(() -> clients.run(client -> client.getTables("default", "t")))
+          .isInstanceOf(RuntimeMetaException.class)
+          .hasMessage("Failed to connect to Hive Metastore");
+    }
+
+    // Test Wrapped MetaException with an empty message
+    try (MockedStatic<MetaStoreUtils> mockedStatic = Mockito.mockStatic(MetaStoreUtils.class)) {
+      mockedStatic
+          .when(() -> MetaStoreUtils.newInstance(any(), any(), any()))
+          .thenThrow(new RuntimeException(new MetaException()));
+      assertThatThrownBy(() -> clients.run(client -> client.getTables("default", "t")))
+          .isInstanceOf(RuntimeMetaException.class)
+          .hasMessage("Failed to connect to Hive Metastore");
+    }
+
+    // Test RuntimeException with an empty message
+    try (MockedStatic<MetaStoreUtils> mockedStatic = Mockito.mockStatic(MetaStoreUtils.class)) {
+      mockedStatic
+          .when(() -> MetaStoreUtils.newInstance(any(), any(), any()))
+          .thenThrow(new RuntimeException());
+      assertThatThrownBy(() -> clients.run(client -> client.getTables("default", "t")))
+          .isInstanceOf(RuntimeMetaException.class)
+          .hasMessage("Failed to connect to Hive Metastore");
+    }
+
+    // Test RuntimeException with a message
+    try (MockedStatic<MetaStoreUtils> mockedStatic = Mockito.mockStatic(MetaStoreUtils.class)) {
+      mockedStatic
+          .when(() -> MetaStoreUtils.newInstance(any(), any(), any()))
+          .thenThrow(new RuntimeException("Another instance of Derby may have already booted"));
+      assertThatThrownBy(() -> clients.run(client -> client.getTables("default", "t")))
+          .isInstanceOf(RuntimeMetaException.class)
+          .hasMessage(
+              "Failed to start an embedded metastore because embedded "
+                  + "Derby supports only one client at a time. To fix this, use a metastore that supports "
+                  + "multiple clients.");
+    }
   }
 
   @Test

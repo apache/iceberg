@@ -24,7 +24,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.spy;
 
 import java.io.File;
 import java.io.IOException;
@@ -986,13 +985,11 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     table.updateSchema().addColumn("n", Types.IntegerType.get()).commit();
     ops.refresh();
 
-    JdbcTableOperations spyOps = spy(ops);
-
     try (MockedStatic<JdbcUtil> mockedStatic = Mockito.mockStatic(JdbcUtil.class)) {
       mockedStatic
           .when(() -> JdbcUtil.loadTable(any(), any(), any(), any()))
           .thenThrow(new SQLException());
-      assertThatThrownBy(() -> spyOps.commit(ops.current(), metadataV1))
+      assertThatThrownBy(() -> ops.commit(ops.current(), metadataV1))
           .isInstanceOf(UncheckedSQLException.class)
           .hasMessageStartingWith("Unknown failure");
     }
@@ -1009,13 +1006,11 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     table.updateSchema().addColumn("n", Types.IntegerType.get()).commit();
     ops.refresh();
 
-    JdbcTableOperations spyOps = spy(ops);
-
     try (MockedStatic<JdbcUtil> mockedStatic = Mockito.mockStatic(JdbcUtil.class)) {
       mockedStatic
           .when(() -> JdbcUtil.loadTable(any(), any(), any(), any()))
           .thenThrow(new SQLException("constraint failed"));
-      assertThatThrownBy(() -> spyOps.commit(ops.current(), metadataV1))
+      assertThatThrownBy(() -> ops.commit(ops.current(), metadataV1))
           .isInstanceOf(AlreadyExistsException.class)
           .hasMessageStartingWith("Table already exists: " + tableIdent);
     }
