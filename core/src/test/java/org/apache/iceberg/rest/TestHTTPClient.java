@@ -134,7 +134,7 @@ public class TestHTTPClient {
   }
 
   @Test
-  public void testHttpClientProxyServer() throws IOException {
+  public void testProxyServer() throws IOException {
     int proxyPort = 1070;
     String proxyHostName = "localhost";
     try (ClientAndServer proxyServer = startClientAndServer(proxyPort);
@@ -181,7 +181,7 @@ public class TestHTTPClient {
   }
 
   @Test
-  public void testHttpClientProxyAuthenticationFailure() throws IOException {
+  public void testProxyAuthenticationFailure() throws IOException {
     int proxyPort = 1070;
     String proxyHostName = "localhost";
     String authorizedUsername = "test-username";
