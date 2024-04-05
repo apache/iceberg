@@ -509,7 +509,7 @@ public class HTTPClient implements RESTClient {
     private String uri;
     private ObjectMapper mapper = RESTObjectMapper.mapper();
     private HttpHost proxy;
-    private CredentialsProvider credentialsProvider;
+    private CredentialsProvider proxyCredentialsProvider;
 
     private Builder(Map<String, String> properties) {
       this.properties = properties;
@@ -527,10 +527,10 @@ public class HTTPClient implements RESTClient {
       return this;
     }
 
-    public Builder withProxyCredentialsProvider(CredentialsProvider credentialsProvider) {
+    public Builder withProxyCredentialsProvider(CredentialsProvider proxyCredentialsProvider) {
       Preconditions.checkNotNull(
-          credentialsProvider, "Invalid credentials provider for http client proxy: null");
-      this.credentialsProvider = credentialsProvider;
+          proxyCredentialsProvider, "Invalid credentials provider for http client proxy: null");
+      this.proxyCredentialsProvider = proxyCredentialsProvider;
       return this;
     }
 
@@ -559,10 +559,15 @@ public class HTTPClient implements RESTClient {
         interceptor = loadInterceptorDynamically(SIGV4_REQUEST_INTERCEPTOR_IMPL, properties);
       }
 
+      if (proxyCredentialsProvider != null) {
+        Preconditions.checkNotNull(
+            proxy, "Invalid http client proxy for proxy credentials provider: null");
+      }
+
       return new HTTPClient(
           uri,
           proxy,
-          credentialsProvider,
+          proxyCredentialsProvider,
           baseHeaders,
           mapper,
           interceptor,

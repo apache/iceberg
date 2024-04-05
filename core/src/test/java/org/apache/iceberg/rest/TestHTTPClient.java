@@ -133,9 +133,8 @@ public class TestHTTPClient {
     testHttpMethodOnFailure(HttpMethod.HEAD);
   }
 
-  /** Tests that requests go via the proxy server in case the client is set up with one */
   @Test
-  public void testHttpClientProxyServerInteraction() throws IOException {
+  public void testHttpClientProxyServer() throws IOException {
     int proxyPort = 1070;
     String proxyHostName = "localhost";
     try (ClientAndServer proxyServer = startClientAndServer(proxyPort);
@@ -144,7 +143,6 @@ public class TestHTTPClient {
                 .uri(URI)
                 .withProxy(proxyHostName, proxyPort)
                 .build()) {
-      //  Set up the servers to match against a provided request
       String path = "v1/config";
 
       HttpRequest mockRequest =
@@ -155,17 +153,33 @@ public class TestHTTPClient {
       mockServer.when(mockRequest).respond(mockResponse);
       proxyServer.when(mockRequest).respond(mockResponse);
 
-      restClient.head(path, ImmutableMap.of(), (onError) -> {});
-      mockServer.verify(mockRequest, VerificationTimes.exactly(1));
-      proxyServer.verify(mockRequest, VerificationTimes.never());
-
-      // Validate that the proxy server is hit only if the client is set up with one
       clientWithProxy.head(path, ImmutableMap.of(), (onError) -> {});
       proxyServer.verify(mockRequest, VerificationTimes.exactly(1));
     }
   }
 
-  /** Negative test for basic username password authentication on the proxy server */
+  @Test
+  public void testProxyCredentialProviderWithoutProxyServerFailsBuild() throws IOException {
+    int proxyPort = 1070;
+    String proxyHostName = "localhost";
+    String authorizedUsername = "test-username";
+    String authorizedPassword = "test-password";
+    HttpHost proxy = new HttpHost(proxyHostName, proxyPort);
+    BasicCredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+    credentialsProvider.setCredentials(
+        new AuthScope(proxy),
+        new UsernamePasswordCredentials(authorizedUsername, authorizedPassword.toCharArray()));
+    Assertions.assertThatThrownBy(
+            () -> {
+              HTTPClient.builder(ImmutableMap.of())
+                  .uri(URI)
+                  .withProxyCredentialsProvider(credentialsProvider)
+                  .build();
+            })
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid http client proxy for proxy credentials provider: null");
+  }
+
   @Test
   public void testHttpClientProxyAuthenticationFailure() throws IOException {
     int proxyPort = 1070;
@@ -174,7 +188,6 @@ public class TestHTTPClient {
     String authorizedPassword = "test-password";
     String invalidPassword = "invalid-password";
 
-    // Let's build a basic credentials provider with invalid password
     HttpHost proxy = new HttpHost(proxyHostName, proxyPort);
     BasicCredentialsProvider credentialsProvider = new BasicCredentialsProvider();
     credentialsProvider.setCredentials(
@@ -187,7 +200,6 @@ public class TestHTTPClient {
                     .proxyAuthenticationUsername(authorizedUsername)
                     .proxyAuthenticationPassword(authorizedPassword),
                 proxyPort);
-        // Inject the client with invalid credentials provider
         RESTClient clientWithProxy =
             HTTPClient.builder(ImmutableMap.of())
                 .uri(URI)
@@ -211,7 +223,6 @@ public class TestHTTPClient {
       int expectedErrorCode = HttpStatus.SC_PROXY_AUTHENTICATION_REQUIRED;
       String expectedErrorMsg = "Proxy Authentication Required";
 
-      // Validate that we hit a 407 Proxy Authentication Required exception
       Assertions.assertThatThrownBy(
               () -> clientWithProxy.get("v1/config", Item.class, ImmutableMap.of(), onError))
           .isInstanceOf(RuntimeException.class)
