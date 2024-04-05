@@ -129,7 +129,7 @@ public class JdbcViewOperations extends BaseViewOperations {
       throw new UncheckedSQLException(e, "Database warning");
     } catch (SQLException e) {
       // SQLite doesn't set SQLState or throw SQLIntegrityConstraintViolationException
-      if (e.getMessage().contains("constraint failed")) {
+      if (e.getMessage() != null && e.getMessage().contains("constraint failed")) {
         throw new AlreadyExistsException("View already exists: %s", viewIdentifier);
       }
 
