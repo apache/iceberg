@@ -18,15 +18,28 @@
  */
 package org.apache.iceberg.jdbc;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.spy;
+
+import java.sql.SQLException;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.view.BaseView;
 import org.apache.iceberg.view.ViewCatalogTests;
+import org.apache.iceberg.view.ViewMetadata;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 public class TestJdbcViewCatalog extends ViewCatalogTests<JdbcCatalog> {
 
@@ -63,5 +76,59 @@ public class TestJdbcViewCatalog extends ViewCatalogTests<JdbcCatalog> {
   @Override
   protected boolean requiresNamespaceCreate() {
     return true;
+  }
+
+  @Test
+  public void testCommitExceptionWithoutMessage() {
+    TableIdentifier identifier = TableIdentifier.of("namespace1", "view");
+    BaseView view =
+        (BaseView)
+            catalog
+                .buildView(identifier)
+                .withQuery("spark", "select * from tbl")
+                .withSchema(SCHEMA)
+                .withDefaultNamespace(Namespace.of("namespace1"))
+                .create();
+    JdbcViewOperations ops = (JdbcViewOperations) view.operations();
+    ViewMetadata metadataV1 = ops.current();
+    view.updateProperties().set("k1", "v1").commit();
+    ops.refresh();
+    JdbcViewOperations spyOps = spy(ops);
+
+    try (MockedStatic<JdbcUtil> mockedStatic = Mockito.mockStatic(JdbcUtil.class)) {
+      mockedStatic
+          .when(() -> JdbcUtil.loadView(any(), any(), any(), any()))
+          .thenThrow(new SQLException());
+      assertThatThrownBy(() -> spyOps.commit(ops.current(), metadataV1))
+          .isInstanceOf(UncheckedSQLException.class)
+          .hasMessageStartingWith("Unknown failure");
+    }
+  }
+
+  @Test
+  public void testCommitExceptionWithMessage() {
+    TableIdentifier identifier = TableIdentifier.of("namespace1", "view");
+    BaseView view =
+        (BaseView)
+            catalog
+                .buildView(identifier)
+                .withQuery("spark", "select * from tbl")
+                .withSchema(SCHEMA)
+                .withDefaultNamespace(Namespace.of("namespace1"))
+                .create();
+    JdbcViewOperations ops = (JdbcViewOperations) view.operations();
+    ViewMetadata metadataV1 = ops.current();
+    view.updateProperties().set("k1", "v1").commit();
+    ops.refresh();
+    JdbcViewOperations spyOps = spy(ops);
+
+    try (MockedStatic<JdbcUtil> mockedStatic = Mockito.mockStatic(JdbcUtil.class)) {
+      mockedStatic
+          .when(() -> JdbcUtil.loadView(any(), any(), any(), any()))
+          .thenThrow(new SQLException("constraint failed"));
+      assertThatThrownBy(() -> spyOps.commit(ops.current(), metadataV1))
+          .isInstanceOf(AlreadyExistsException.class)
+          .hasMessageStartingWith("View already exists: " + identifier);
+    }
   }
 }
