@@ -121,7 +121,6 @@ public class TestHiveClientPool {
 
   @Test
   public void testExceptionMessages() {
-    // Test Wrapped MetaException with a message
     try (MockedStatic<MetaStoreUtils> mockedStatic = Mockito.mockStatic(MetaStoreUtils.class)) {
       mockedStatic
           .when(() -> MetaStoreUtils.newInstance(any(), any(), any()))
@@ -131,7 +130,6 @@ public class TestHiveClientPool {
           .hasMessage("Failed to connect to Hive Metastore");
     }
 
-    // Test Wrapped MetaException with an empty message
     try (MockedStatic<MetaStoreUtils> mockedStatic = Mockito.mockStatic(MetaStoreUtils.class)) {
       mockedStatic
           .when(() -> MetaStoreUtils.newInstance(any(), any(), any()))
@@ -141,7 +139,6 @@ public class TestHiveClientPool {
           .hasMessage("Failed to connect to Hive Metastore");
     }
 
-    // Test RuntimeException with an empty message
     try (MockedStatic<MetaStoreUtils> mockedStatic = Mockito.mockStatic(MetaStoreUtils.class)) {
       mockedStatic
           .when(() -> MetaStoreUtils.newInstance(any(), any(), any()))
@@ -151,7 +148,6 @@ public class TestHiveClientPool {
           .hasMessage("Failed to connect to Hive Metastore");
     }
 
-    // Test RuntimeException with a message
     try (MockedStatic<MetaStoreUtils> mockedStatic = Mockito.mockStatic(MetaStoreUtils.class)) {
       mockedStatic
           .when(() -> MetaStoreUtils.newInstance(any(), any(), any()))

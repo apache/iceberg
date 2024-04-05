@@ -977,9 +977,9 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
   @Test
   public void testCommitExceptionWithoutMessage() {
-    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    TableIdentifier tableIdent = TableIdentifier.of("db", "tbl");
     BaseTable table = (BaseTable) catalog.buildTable(tableIdent, SCHEMA).create();
-    JdbcTableOperations ops = (JdbcTableOperations) table.operations();
+    TableOperations ops = table.operations();
     TableMetadata metadataV1 = ops.current();
 
     table.updateSchema().addColumn("n", Types.IntegerType.get()).commit();
@@ -997,10 +997,9 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
   @Test
   public void testCommitExceptionWithMessage() {
-    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    TableIdentifier tableIdent = TableIdentifier.of("db", "tbl");
     BaseTable table = (BaseTable) catalog.buildTable(tableIdent, SCHEMA).create();
-    JdbcTableOperations ops = (JdbcTableOperations) table.operations();
-
+    TableOperations ops = table.operations();
     TableMetadata metadataV1 = ops.current();
 
     table.updateSchema().addColumn("n", Types.IntegerType.get()).commit();

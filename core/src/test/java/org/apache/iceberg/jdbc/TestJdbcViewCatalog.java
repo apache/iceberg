@@ -34,6 +34,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.view.BaseView;
 import org.apache.iceberg.view.ViewCatalogTests;
 import org.apache.iceberg.view.ViewMetadata;
+import org.apache.iceberg.view.ViewOperations;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -88,8 +89,9 @@ public class TestJdbcViewCatalog extends ViewCatalogTests<JdbcCatalog> {
                 .withSchema(SCHEMA)
                 .withDefaultNamespace(Namespace.of("namespace1"))
                 .create();
-    JdbcViewOperations ops = (JdbcViewOperations) view.operations();
+    ViewOperations ops = view.operations();
     ViewMetadata metadataV1 = ops.current();
+
     view.updateProperties().set("k1", "v1").commit();
     ops.refresh();
 
@@ -114,8 +116,9 @@ public class TestJdbcViewCatalog extends ViewCatalogTests<JdbcCatalog> {
                 .withSchema(SCHEMA)
                 .withDefaultNamespace(Namespace.of("namespace1"))
                 .create();
-    JdbcViewOperations ops = (JdbcViewOperations) view.operations();
+    ViewOperations ops = view.operations();
     ViewMetadata metadataV1 = ops.current();
+
     view.updateProperties().set("k1", "v1").commit();
     ops.refresh();
 
