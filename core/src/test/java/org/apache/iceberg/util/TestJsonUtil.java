@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -542,5 +543,51 @@ public class TestJsonUtil {
             false);
     Assertions.assertThat(JsonUtil.getStringMap("items", JsonUtil.mapper().readTree(json)))
         .isEqualTo(items);
+  }
+
+  @Test
+  public void getStringMapNullableValues() throws JsonProcessingException {
+    Assertions.assertThatThrownBy(
+            () -> JsonUtil.getStringMapNullableValues("items", JsonUtil.mapper().readTree("{}")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse missing map: items");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                JsonUtil.getStringMapNullableValues(
+                    "items", JsonUtil.mapper().readTree("{\"items\": null}")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse string map from non-object value: items: null");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                JsonUtil.getStringMapNullableValues(
+                    "items", JsonUtil.mapper().readTree("{\"items\": {\"a\":\"23\", \"b\":45}}")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse to a string value: b: 45");
+
+    Map<String, String> itemsWithNullableValues = Maps.newHashMap();
+    itemsWithNullableValues.put("a", null);
+    itemsWithNullableValues.put("b", null);
+    itemsWithNullableValues.put("c", "23");
+    Assertions.assertThat(
+            JsonUtil.getStringMapNullableValues(
+                "items",
+                JsonUtil.mapper()
+                    .readTree("{\"items\": {\"a\": null, \"b\": null, \"c\": \"23\"}}")))
+        .isEqualTo(itemsWithNullableValues);
+
+    String json =
+        JsonUtil.generate(
+            gen -> {
+              gen.writeStartObject();
+              JsonUtil.writeStringMap("items", itemsWithNullableValues, gen);
+              gen.writeEndObject();
+            },
+            false);
+
+    Assertions.assertThat(
+            JsonUtil.getStringMapNullableValues("items", JsonUtil.mapper().readTree(json)))
+        .isEqualTo(itemsWithNullableValues);
   }
 }
