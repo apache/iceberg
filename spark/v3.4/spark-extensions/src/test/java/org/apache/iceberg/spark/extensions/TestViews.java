@@ -25,7 +25,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.IcebergBuild;
@@ -40,11 +39,18 @@ import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.view.ImmutableSQLViewRepresentation;
+import org.apache.iceberg.view.SQLViewRepresentation;
+import org.apache.iceberg.view.View;
+import org.apache.iceberg.view.ViewHistoryEntry;
+import org.apache.iceberg.view.ViewProperties;
+import org.apache.iceberg.view.ViewVersion;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.catalog.SessionCatalog;
+import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -472,6 +478,38 @@ public class TestViews extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void readFromViewReferencingTempFunction() throws NoSuchTableException {
+    insertRows(10);
+    String viewName = viewName("viewReferencingTempFunction");
+    String functionName = "test_avg";
+    String sql = String.format("SELECT %s(id) FROM %s", functionName, tableName);
+    sql(
+        "CREATE TEMPORARY FUNCTION %s AS 'org.apache.hadoop.hive.ql.udf.generic.GenericUDAFAverage'",
+        functionName);
+
+    ViewCatalog viewCatalog = viewCatalog();
+    Schema schema = tableCatalog().loadTable(TableIdentifier.of(NAMESPACE, tableName)).schema();
+
+    // it wouldn't be possible to reference a TEMP FUNCTION if the view had been created via SQL,
+    // but this can't be prevented when using the API directly
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("spark", sql)
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema)
+        .create();
+
+    assertThat(sql(sql)).hasSize(1).containsExactly(row(5.5));
+
+    // reading from a view that references a TEMP FUNCTION shouldn't be possible
+    assertThatThrownBy(() -> sql("SELECT * FROM %s", viewName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            String.format("Cannot load function: %s.%s.%s", catalogName, NAMESPACE, functionName));
+  }
+
+  @Test
   public void readFromViewWithCTE() throws NoSuchTableException {
     insertRows(10);
     String viewName = "viewWithCTE";
@@ -876,6 +914,9 @@ public class TestViews extends SparkExtensionsTestBase {
             v1SessionCatalog()
                 .tableExists(new org.apache.spark.sql.catalyst.TableIdentifier(v1View)))
         .isFalse();
+
+    sql("USE spark_catalog");
+    sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
   private SessionCatalog v1SessionCatalog() {
@@ -886,10 +927,1037 @@ public class TestViews extends SparkExtensionsTestBase {
     return viewName + new Random().nextInt(1000000);
   }
 
+  @Test
+  public void createViewIfNotExists() {
+    String viewName = "viewThatAlreadyExists";
+    sql("CREATE VIEW %s AS SELECT id FROM %s", viewName, tableName);
+
+    assertThatThrownBy(() -> sql("CREATE VIEW %s AS SELECT id FROM %s", viewName, tableName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            String.format(
+                "Cannot create view %s.%s because it already exists", NAMESPACE, viewName));
+
+    // using IF NOT EXISTS should work
+    assertThatNoException()
+        .isThrownBy(
+            () -> sql("CREATE VIEW IF NOT EXISTS %s AS SELECT id FROM %s", viewName, tableName));
+  }
+
+  @Test
+  public void createOrReplaceView() throws NoSuchTableException {
+    insertRows(6);
+    String viewName = viewName("simpleView");
+
+    sql("CREATE OR REPLACE VIEW %s AS SELECT id FROM %s WHERE id <= 3", viewName, tableName);
+    assertThat(sql("SELECT id FROM %s", viewName))
+        .hasSize(3)
+        .containsExactlyInAnyOrder(row(1), row(2), row(3));
+
+    sql("CREATE OR REPLACE VIEW %s AS SELECT id FROM %s WHERE id > 3", viewName, tableName);
+    assertThat(sql("SELECT id FROM %s", viewName))
+        .hasSize(3)
+        .containsExactlyInAnyOrder(row(4), row(5), row(6));
+  }
+
+  @Test
+  public void createViewWithInvalidSQL() {
+    assertThatThrownBy(() -> sql("CREATE VIEW simpleViewWithInvalidSQL AS invalid SQL"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Syntax error");
+  }
+
+  @Test
+  public void createViewReferencingTempView() throws NoSuchTableException {
+    insertRows(10);
+    String tempView = "temporaryViewBeingReferencedInAnotherView";
+    String viewReferencingTempView = "viewReferencingTemporaryView";
+
+    sql("CREATE TEMPORARY VIEW %s AS SELECT id FROM %s WHERE id <= 5", tempView, tableName);
+
+    // creating a view that references a TEMP VIEW shouldn't be possible
+    assertThatThrownBy(
+            () -> sql("CREATE VIEW %s AS SELECT id FROM %s", viewReferencingTempView, tempView))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            String.format(
+                "Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewReferencingTempView))
+        .hasMessageContaining("that references temporary view:")
+        .hasMessageContaining(tempView);
+  }
+
+  @Test
+  public void createViewReferencingGlobalTempView() throws NoSuchTableException {
+    insertRows(10);
+    String globalTempView = "globalTemporaryViewBeingReferenced";
+    String viewReferencingTempView = "viewReferencingGlobalTemporaryView";
+
+    sql(
+        "CREATE GLOBAL TEMPORARY VIEW %s AS SELECT id FROM %s WHERE id <= 5",
+        globalTempView, tableName);
+
+    // creating a view that references a GLOBAL TEMP VIEW shouldn't be possible
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CREATE VIEW %s AS SELECT id FROM global_temp.%s",
+                    viewReferencingTempView, globalTempView))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            String.format(
+                "Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewReferencingTempView))
+        .hasMessageContaining("that references temporary view:")
+        .hasMessageContaining(String.format("%s.%s", "global_temp", globalTempView));
+  }
+
+  @Test
+  public void createViewReferencingTempFunction() {
+    String viewName = viewName("viewReferencingTemporaryFunction");
+    String functionName = "test_avg_func";
+
+    sql(
+        "CREATE TEMPORARY FUNCTION %s AS 'org.apache.hadoop.hive.ql.udf.generic.GenericUDAFAverage'",
+        functionName);
+
+    // creating a view that references a TEMP FUNCTION shouldn't be possible
+    assertThatThrownBy(
+            () -> sql("CREATE VIEW %s AS SELECT %s(id) FROM %s", viewName, functionName, tableName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            String.format("Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewName))
+        .hasMessageContaining("that references temporary function:")
+        .hasMessageContaining(functionName);
+  }
+
+  @Test
+  public void createViewReferencingQualifiedTempFunction() {
+    String viewName = viewName("viewReferencingTemporaryFunction");
+    String functionName = "test_avg_func_qualified";
+
+    sql(
+        "CREATE TEMPORARY FUNCTION %s AS 'org.apache.hadoop.hive.ql.udf.generic.GenericUDAFAverage'",
+        functionName);
+
+    // TEMP Function can't be referenced using catalog.schema.name
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CREATE VIEW %s AS SELECT %s.%s.%s(id) FROM %s",
+                    viewName, catalogName, NAMESPACE, functionName, tableName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Cannot resolve function")
+        .hasMessageContaining(
+            String.format("`%s`.`%s`.`%s`", catalogName, NAMESPACE, functionName));
+
+    // TEMP Function can't be referenced using schema.name
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CREATE VIEW %s AS SELECT %s.%s(id) FROM %s",
+                    viewName, NAMESPACE, functionName, tableName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Cannot resolve function")
+        .hasMessageContaining(String.format("`%s`.`%s`", NAMESPACE, functionName));
+  }
+
+  @Test
+  public void createViewUsingNonExistingTable() {
+    assertThatThrownBy(
+            () -> sql("CREATE VIEW viewWithNonExistingTable AS SELECT id FROM non_existing"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("The table or view `non_existing` cannot be found");
+  }
+
+  @Test
+  public void createViewWithMismatchedColumnCounts() {
+    String viewName = "viewWithMismatchedColumnCounts";
+
+    assertThatThrownBy(
+            () -> sql("CREATE VIEW %s (id, data) AS SELECT id FROM %s", viewName, tableName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            String.format("Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewName))
+        .hasMessageContaining("not enough data columns")
+        .hasMessageContaining("View columns: id, data")
+        .hasMessageContaining("Data columns: id");
+
+    assertThatThrownBy(
+            () -> sql("CREATE VIEW %s (id) AS SELECT id, data FROM %s", viewName, tableName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            String.format("Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewName))
+        .hasMessageContaining("too many data columns")
+        .hasMessageContaining("View columns: id")
+        .hasMessageContaining("Data columns: id, data");
+  }
+
+  @Test
+  public void createViewWithColumnAliases() throws NoSuchTableException {
+    insertRows(6);
+    String viewName = "viewWithColumnAliases";
+
+    sql(
+        "CREATE VIEW %s (new_id COMMENT 'ID', new_data COMMENT 'DATA') AS SELECT id, data FROM %s WHERE id <= 3",
+        viewName, tableName);
+
+    View view = viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName));
+    assertThat(view.properties()).containsEntry("spark.query-column-names", "id,data");
+
+    assertThat(view.schema().columns()).hasSize(2);
+    Types.NestedField first = view.schema().columns().get(0);
+    assertThat(first.name()).isEqualTo("new_id");
+    assertThat(first.doc()).isEqualTo("ID");
+
+    Types.NestedField second = view.schema().columns().get(1);
+    assertThat(second.name()).isEqualTo("new_data");
+    assertThat(second.doc()).isEqualTo("DATA");
+
+    assertThat(sql("SELECT new_id FROM %s", viewName))
+        .hasSize(3)
+        .containsExactlyInAnyOrder(row(1), row(2), row(3));
+
+    sql("DROP VIEW %s", viewName);
+
+    sql(
+        "CREATE VIEW %s (new_data, new_id) AS SELECT data, id FROM %s WHERE id <= 3",
+        viewName, tableName);
+
+    assertThat(sql("SELECT new_id FROM %s", viewName))
+        .hasSize(3)
+        .containsExactlyInAnyOrder(row(1), row(2), row(3));
+  }
+
+  @Test
+  public void createViewWithDuplicateColumnNames() {
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CREATE VIEW viewWithDuplicateColumnNames (new_id, new_id) AS SELECT id, id FROM %s WHERE id <= 3",
+                    tableName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("The column `new_id` already exists");
+  }
+
+  @Test
+  public void createViewWithDuplicateQueryColumnNames() throws NoSuchTableException {
+    insertRows(3);
+    String viewName = "viewWithDuplicateQueryColumnNames";
+    String sql = String.format("SELECT id, id FROM %s WHERE id <= 3", tableName);
+
+    // not specifying column aliases in the view should fail
+    assertThatThrownBy(() -> sql("CREATE VIEW %s AS %s", viewName, sql))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("The column `id` already exists");
+
+    sql("CREATE VIEW %s (id_one, id_two) AS %s", viewName, sql);
+
+    assertThat(sql("SELECT * FROM %s", viewName))
+        .hasSize(3)
+        .containsExactlyInAnyOrder(row(1, 1), row(2, 2), row(3, 3));
+  }
+
+  @Test
+  public void createViewWithCTE() throws NoSuchTableException {
+    insertRows(10);
+    String viewName = "simpleViewWithCTE";
+    String sql =
+        String.format(
+            "WITH max_by_data AS (SELECT max(id) as max FROM %s) "
+                + "SELECT max, count(1) AS count FROM max_by_data GROUP BY max",
+            tableName);
+
+    sql("CREATE VIEW %s AS %s", viewName, sql);
+
+    assertThat(sql("SELECT * FROM %s", viewName)).hasSize(1).containsExactly(row(10, 1L));
+  }
+
+  @Test
+  public void createViewWithConflictingNamesForCTEAndTempView() throws NoSuchTableException {
+    insertRows(10);
+    String viewName = "viewWithConflictingNamesForCTEAndTempView";
+    String cteName = "cteName";
+    String sql =
+        String.format(
+            "WITH %s AS (SELECT max(id) as max FROM %s) "
+                + "(SELECT max, count(1) AS count FROM %s GROUP BY max)",
+            cteName, tableName, cteName);
+
+    // create a CTE and a TEMP VIEW with the same name
+    sql("CREATE TEMPORARY VIEW %s AS SELECT * from %s", cteName, tableName);
+    sql("CREATE VIEW %s AS %s", viewName, sql);
+
+    // CTE should take precedence over the TEMP VIEW when data is read
+    assertThat(sql("SELECT * FROM %s", viewName)).hasSize(1).containsExactly(row(10, 1L));
+  }
+
+  @Test
+  public void createViewWithCTEReferencingTempView() {
+    String viewName = "viewWithCTEReferencingTempView";
+    String tempViewInCTE = "tempViewInCTE";
+    String sql =
+        String.format(
+            "WITH max_by_data AS (SELECT max(id) as max FROM %s) "
+                + "SELECT max, count(1) AS count FROM max_by_data GROUP BY max",
+            tempViewInCTE);
+
+    sql("CREATE TEMPORARY VIEW %s AS SELECT id FROM %s WHERE ID <= 5", tempViewInCTE, tableName);
+
+    assertThatThrownBy(() -> sql("CREATE VIEW %s AS %s", viewName, sql))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            String.format("Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewName))
+        .hasMessageContaining("that references temporary view:")
+        .hasMessageContaining(tempViewInCTE);
+  }
+
+  @Test
+  public void createViewWithCTEReferencingTempFunction() {
+    String viewName = "viewWithCTEReferencingTempFunction";
+    String functionName = "avg_function_in_cte";
+    String sql =
+        String.format(
+            "WITH avg_data AS (SELECT %s(id) as avg FROM %s) "
+                + "SELECT avg, count(1) AS count FROM avg_data GROUP BY max",
+            functionName, tableName);
+
+    sql(
+        "CREATE TEMPORARY FUNCTION %s AS 'org.apache.hadoop.hive.ql.udf.generic.GenericUDAFAverage'",
+        functionName);
+
+    assertThatThrownBy(() -> sql("CREATE VIEW %s AS %s", viewName, sql))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            String.format("Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewName))
+        .hasMessageContaining("that references temporary function:")
+        .hasMessageContaining(functionName);
+  }
+
+  @Test
+  public void createViewWithNonExistingQueryColumn() {
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CREATE VIEW viewWithNonExistingQueryColumn AS SELECT non_existing FROM %s WHERE id <= 3",
+                    tableName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "A column or function parameter with name `non_existing` cannot be resolved");
+  }
+
+  @Test
+  public void createViewWithSubqueryExpressionUsingTempView() {
+    String viewName = "viewWithSubqueryExpression";
+    String tempView = "simpleTempView";
+    String sql =
+        String.format("SELECT * FROM %s WHERE id = (SELECT id FROM %s)", tableName, tempView);
+
+    sql("CREATE TEMPORARY VIEW %s AS SELECT id from %s WHERE id = 5", tempView, tableName);
+
+    assertThatThrownBy(() -> sql("CREATE VIEW %s AS %s", viewName, sql))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            String.format("Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewName))
+        .hasMessageContaining("that references temporary view:")
+        .hasMessageContaining(tempView);
+  }
+
+  @Test
+  public void createViewWithSubqueryExpressionUsingGlobalTempView() {
+    String viewName = "simpleViewWithSubqueryExpression";
+    String globalTempView = "simpleGlobalTempView";
+    String sql =
+        String.format(
+            "SELECT * FROM %s WHERE id = (SELECT id FROM global_temp.%s)",
+            tableName, globalTempView);
+
+    sql(
+        "CREATE GLOBAL TEMPORARY VIEW %s AS SELECT id from %s WHERE id = 5",
+        globalTempView, tableName);
+
+    assertThatThrownBy(() -> sql("CREATE VIEW %s AS %s", viewName, sql))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            String.format("Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewName))
+        .hasMessageContaining("that references temporary view:")
+        .hasMessageContaining(String.format("%s.%s", "global_temp", globalTempView));
+  }
+
+  @Test
+  public void createViewWithSubqueryExpressionUsingTempFunction() {
+    String viewName = viewName("viewWithSubqueryExpression");
+    String functionName = "avg_function_in_subquery";
+    String sql =
+        String.format(
+            "SELECT * FROM %s WHERE id < (SELECT %s(id) FROM %s)",
+            tableName, functionName, tableName);
+
+    sql(
+        "CREATE TEMPORARY FUNCTION %s AS 'org.apache.hadoop.hive.ql.udf.generic.GenericUDAFAverage'",
+        functionName);
+
+    assertThatThrownBy(() -> sql("CREATE VIEW %s AS %s", viewName, sql))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            String.format("Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewName))
+        .hasMessageContaining("that references temporary function:")
+        .hasMessageContaining(functionName);
+  }
+
+  @Test
+  public void createViewWithSubqueryExpressionInFilterThatIsRewritten()
+      throws NoSuchTableException {
+    insertRows(5);
+    String viewName = viewName("viewWithSubqueryExpression");
+    String sql =
+        String.format(
+            "SELECT id FROM %s WHERE id = (SELECT max(id) FROM %s)", tableName, tableName);
+
+    sql("CREATE VIEW %s AS %s", viewName, sql);
+
+    assertThat(sql("SELECT * FROM %s", viewName)).hasSize(1).containsExactly(row(5));
+
+    sql("USE spark_catalog");
+
+    assertThatThrownBy(() -> sql(sql))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(String.format("The table or view `%s` cannot be found", tableName));
+
+    // the underlying SQL in the View should be rewritten to have catalog & namespace
+    assertThat(sql("SELECT * FROM %s.%s.%s", catalogName, NAMESPACE, viewName))
+        .hasSize(1)
+        .containsExactly(row(5));
+  }
+
+  @Test
+  public void createViewWithSubqueryExpressionInQueryThatIsRewritten() throws NoSuchTableException {
+    insertRows(3);
+    String viewName = viewName("viewWithSubqueryExpression");
+    String sql =
+        String.format("SELECT (SELECT max(id) FROM %s) max_id FROM %s", tableName, tableName);
+
+    sql("CREATE VIEW %s AS %s", viewName, sql);
+
+    assertThat(sql("SELECT * FROM %s", viewName))
+        .hasSize(3)
+        .containsExactly(row(3), row(3), row(3));
+
+    sql("USE spark_catalog");
+
+    assertThatThrownBy(() -> sql(sql))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(String.format("The table or view `%s` cannot be found", tableName));
+
+    // the underlying SQL in the View should be rewritten to have catalog & namespace
+    assertThat(sql("SELECT * FROM %s.%s.%s", catalogName, NAMESPACE, viewName))
+        .hasSize(3)
+        .containsExactly(row(3), row(3), row(3));
+  }
+
+  @Test
+  public void describeView() {
+    String viewName = "describeView";
+
+    sql("CREATE VIEW %s AS SELECT id, data FROM %s WHERE id <= 3", viewName, tableName);
+    assertThat(sql("DESCRIBE %s", viewName))
+        .containsExactly(row("id", "int", ""), row("data", "string", ""));
+  }
+
+  @Test
+  public void describeExtendedView() {
+    String viewName = "describeExtendedView";
+    String sql = String.format("SELECT id, data FROM %s WHERE id <= 3", tableName);
+
+    sql(
+        "CREATE VIEW %s (new_id COMMENT 'ID', new_data COMMENT 'DATA') COMMENT 'view comment' AS %s",
+        viewName, sql);
+    assertThat(sql("DESCRIBE EXTENDED %s", viewName))
+        .contains(
+            row("new_id", "int", "ID"),
+            row("new_data", "string", "DATA"),
+            row("", "", ""),
+            row("# Detailed View Information", "", ""),
+            row("Comment", "view comment", ""),
+            row("View Catalog and Namespace", String.format("%s.%s", catalogName, NAMESPACE), ""),
+            row("View Query Output Columns", "[id, data]", ""),
+            row(
+                "View Properties",
+                String.format(
+                    "['format-version' = '1', 'location' = '/%s/%s', 'provider' = 'iceberg']",
+                    NAMESPACE, viewName),
+                ""));
+  }
+
+  @Test
+  public void showViewProperties() {
+    String viewName = "showViewProps";
+
+    sql(
+        "CREATE VIEW %s TBLPROPERTIES ('key1'='val1', 'key2'='val2') AS SELECT id, data FROM %s WHERE id <= 3",
+        viewName, tableName);
+    assertThat(sql("SHOW TBLPROPERTIES %s", viewName))
+        .contains(row("key1", "val1"), row("key2", "val2"));
+  }
+
+  @Test
+  public void showViewPropertiesByKey() {
+    String viewName = "showViewPropsByKey";
+
+    sql("CREATE VIEW %s AS SELECT id, data FROM %s WHERE id <= 3", viewName, tableName);
+    assertThat(sql("SHOW TBLPROPERTIES %s", viewName)).contains(row("provider", "iceberg"));
+
+    assertThat(sql("SHOW TBLPROPERTIES %s (provider)", viewName))
+        .contains(row("provider", "iceberg"));
+
+    assertThat(sql("SHOW TBLPROPERTIES %s (non.existing)", viewName))
+        .contains(
+            row(
+                "non.existing",
+                String.format(
+                    "View %s.%s.%s does not have property: non.existing",
+                    catalogName, NAMESPACE, viewName)));
+  }
+
+  @Test
+  public void showViews() throws NoSuchTableException {
+    insertRows(6);
+    String sql = String.format("SELECT * from %s", tableName);
+    sql("CREATE VIEW v1 AS %s", sql);
+    sql("CREATE VIEW prefixV2 AS %s", sql);
+    sql("CREATE VIEW prefixV3 AS %s", sql);
+    sql("CREATE GLOBAL TEMPORARY VIEW globalViewForListing AS %s", sql);
+    sql("CREATE TEMPORARY VIEW tempViewForListing AS %s", sql);
+
+    // spark stores temp views case-insensitive by default
+    Object[] tempView = row("", "tempviewforlisting", true);
+    assertThat(sql("SHOW VIEWS"))
+        .contains(
+            row(NAMESPACE.toString(), "prefixV2", false),
+            row(NAMESPACE.toString(), "prefixV3", false),
+            row(NAMESPACE.toString(), "v1", false),
+            tempView);
+
+    assertThat(sql("SHOW VIEWS IN %s", catalogName))
+        .contains(
+            row(NAMESPACE.toString(), "prefixV2", false),
+            row(NAMESPACE.toString(), "prefixV3", false),
+            row(NAMESPACE.toString(), "v1", false),
+            tempView);
+
+    assertThat(sql("SHOW VIEWS IN %s.%s", catalogName, NAMESPACE))
+        .contains(
+            row(NAMESPACE.toString(), "prefixV2", false),
+            row(NAMESPACE.toString(), "prefixV3", false),
+            row(NAMESPACE.toString(), "v1", false),
+            tempView);
+
+    assertThat(sql("SHOW VIEWS LIKE 'pref*'"))
+        .contains(
+            row(NAMESPACE.toString(), "prefixV2", false),
+            row(NAMESPACE.toString(), "prefixV3", false));
+
+    assertThat(sql("SHOW VIEWS LIKE 'non-existing'")).isEmpty();
+
+    assertThat(sql("SHOW VIEWS IN spark_catalog.default")).contains(tempView);
+
+    assertThat(sql("SHOW VIEWS IN global_temp"))
+        .contains(
+            // spark stores temp views case-insensitive by default
+            row("global_temp", "globalviewforlisting", true), tempView);
+  }
+
+  @Test
+  public void showViewsWithCurrentNamespace() {
+    String namespaceOne = "show_views_ns1";
+    String namespaceTwo = "show_views_ns2";
+    String viewOne = viewName("viewOne");
+    String viewTwo = viewName("viewTwo");
+    sql("CREATE NAMESPACE IF NOT EXISTS %s", namespaceOne);
+    sql("CREATE NAMESPACE IF NOT EXISTS %s", namespaceTwo);
+
+    // create one view in each namespace
+    sql("CREATE VIEW %s.%s AS SELECT * FROM %s.%s", namespaceOne, viewOne, NAMESPACE, tableName);
+    sql("CREATE VIEW %s.%s AS SELECT * FROM %s.%s", namespaceTwo, viewTwo, NAMESPACE, tableName);
+
+    Object[] v1 = row(namespaceOne, viewOne, false);
+    Object[] v2 = row(namespaceTwo, viewTwo, false);
+
+    assertThat(sql("SHOW VIEWS IN %s.%s", catalogName, namespaceOne))
+        .contains(v1)
+        .doesNotContain(v2);
+    sql("USE %s", namespaceOne);
+    assertThat(sql("SHOW VIEWS")).contains(v1).doesNotContain(v2);
+    assertThat(sql("SHOW VIEWS LIKE 'viewOne*'")).contains(v1).doesNotContain(v2);
+
+    assertThat(sql("SHOW VIEWS IN %s.%s", catalogName, namespaceTwo))
+        .contains(v2)
+        .doesNotContain(v1);
+    sql("USE %s", namespaceTwo);
+    assertThat(sql("SHOW VIEWS")).contains(v2).doesNotContain(v1);
+    assertThat(sql("SHOW VIEWS LIKE 'viewTwo*'")).contains(v2).doesNotContain(v1);
+  }
+
+  @Test
+  public void showCreateSimpleView() {
+    String viewName = "showCreateSimpleView";
+    String sql = String.format("SELECT id, data FROM %s WHERE id <= 3", tableName);
+
+    sql("CREATE VIEW %s AS %s", viewName, sql);
+
+    String expected =
+        String.format(
+            "CREATE VIEW %s.%s.%s (\n"
+                + "  id,\n"
+                + "  data)\n"
+                + "TBLPROPERTIES (\n"
+                + "  'format-version' = '1',\n"
+                + "  'location' = '/%s/%s',\n"
+                + "  'provider' = 'iceberg')\n"
+                + "AS\n%s\n",
+            catalogName, NAMESPACE, viewName, NAMESPACE, viewName, sql);
+    assertThat(sql("SHOW CREATE TABLE %s", viewName)).containsExactly(row(expected));
+  }
+
+  @Test
+  public void showCreateComplexView() {
+    String viewName = "showCreateComplexView";
+    String sql = String.format("SELECT id, data FROM %s WHERE id <= 3", tableName);
+
+    sql(
+        "CREATE VIEW %s (new_id COMMENT 'ID', new_data COMMENT 'DATA')"
+            + "COMMENT 'view comment' TBLPROPERTIES ('key1'='val1', 'key2'='val2') AS %s",
+        viewName, sql);
+
+    String expected =
+        String.format(
+            "CREATE VIEW %s.%s.%s (\n"
+                + "  new_id COMMENT 'ID',\n"
+                + "  new_data COMMENT 'DATA')\n"
+                + "COMMENT 'view comment'\n"
+                + "TBLPROPERTIES (\n"
+                + "  'format-version' = '1',\n"
+                + "  'key1' = 'val1',\n"
+                + "  'key2' = 'val2',\n"
+                + "  'location' = '/%s/%s',\n"
+                + "  'provider' = 'iceberg')\n"
+                + "AS\n%s\n",
+            catalogName, NAMESPACE, viewName, NAMESPACE, viewName, sql);
+    assertThat(sql("SHOW CREATE TABLE %s", viewName)).containsExactly(row(expected));
+  }
+
+  @Test
+  public void alterViewSetProperties() {
+    String viewName = "viewWithSetProperties";
+
+    sql("CREATE VIEW %s AS SELECT id FROM %s WHERE id <= 3", viewName, tableName);
+
+    ViewCatalog viewCatalog = viewCatalog();
+    assertThat(viewCatalog.loadView(TableIdentifier.of(NAMESPACE, viewName)).properties())
+        .doesNotContainKey("key1")
+        .doesNotContainKey("comment");
+
+    sql("ALTER VIEW %s SET TBLPROPERTIES ('key1' = 'val1', 'comment' = 'view comment')", viewName);
+    assertThat(viewCatalog.loadView(TableIdentifier.of(NAMESPACE, viewName)).properties())
+        .containsEntry("key1", "val1")
+        .containsEntry("comment", "view comment");
+
+    sql("ALTER VIEW %s SET TBLPROPERTIES ('key1' = 'new_val1')", viewName);
+    assertThat(viewCatalog.loadView(TableIdentifier.of(NAMESPACE, viewName)).properties())
+        .containsEntry("key1", "new_val1")
+        .containsEntry("comment", "view comment");
+  }
+
+  @Test
+  public void alterViewSetReservedProperties() {
+    String viewName = "viewWithSetReservedProperties";
+
+    sql("CREATE VIEW %s AS SELECT id FROM %s WHERE id <= 3", viewName, tableName);
+
+    assertThatThrownBy(() -> sql("ALTER VIEW %s SET TBLPROPERTIES ('provider' = 'val1')", viewName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "The feature is not supported: provider is a reserved table property");
+
+    assertThatThrownBy(
+            () -> sql("ALTER VIEW %s SET TBLPROPERTIES ('location' = 'random_location')", viewName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "The feature is not supported: location is a reserved table property");
+
+    assertThatThrownBy(
+            () -> sql("ALTER VIEW %s SET TBLPROPERTIES ('format-version' = '99')", viewName))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining("Cannot set reserved property: 'format-version'");
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "ALTER VIEW %s SET TBLPROPERTIES ('spark.query-column-names' = 'a,b,c')",
+                    viewName))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining("Cannot set reserved property: 'spark.query-column-names'");
+  }
+
+  @Test
+  public void alterViewUnsetProperties() {
+    String viewName = "viewWithUnsetProperties";
+    sql("CREATE VIEW %s AS SELECT id FROM %s WHERE id <= 3", viewName, tableName);
+
+    ViewCatalog viewCatalog = viewCatalog();
+    assertThat(viewCatalog.loadView(TableIdentifier.of(NAMESPACE, viewName)).properties())
+        .doesNotContainKey("key1")
+        .doesNotContainKey("comment");
+
+    sql("ALTER VIEW %s SET TBLPROPERTIES ('key1' = 'val1', 'comment' = 'view comment')", viewName);
+    assertThat(viewCatalog.loadView(TableIdentifier.of(NAMESPACE, viewName)).properties())
+        .containsEntry("key1", "val1")
+        .containsEntry("comment", "view comment");
+
+    sql("ALTER VIEW %s UNSET TBLPROPERTIES ('key1')", viewName);
+    assertThat(viewCatalog.loadView(TableIdentifier.of(NAMESPACE, viewName)).properties())
+        .doesNotContainKey("key1")
+        .containsEntry("comment", "view comment");
+  }
+
+  @Test
+  public void alterViewUnsetUnknownProperty() {
+    String viewName = "viewWithUnsetUnknownProp";
+    sql("CREATE VIEW %s AS SELECT id FROM %s WHERE id <= 3", viewName, tableName);
+
+    assertThatThrownBy(() -> sql("ALTER VIEW %s UNSET TBLPROPERTIES ('unknown-key')", viewName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Cannot remove property that is not set: 'unknown-key'");
+
+    assertThatNoException()
+        .isThrownBy(
+            () -> sql("ALTER VIEW %s UNSET TBLPROPERTIES IF EXISTS ('unknown-key')", viewName));
+  }
+
+  @Test
+  public void alterViewUnsetReservedProperties() {
+    String viewName = "viewWithUnsetReservedProperties";
+
+    sql("CREATE VIEW %s AS SELECT id FROM %s WHERE id <= 3", viewName, tableName);
+
+    assertThatThrownBy(() -> sql("ALTER VIEW %s UNSET TBLPROPERTIES ('provider')", viewName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "The feature is not supported: provider is a reserved table property");
+
+    assertThatThrownBy(() -> sql("ALTER VIEW %s UNSET TBLPROPERTIES ('location')", viewName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "The feature is not supported: location is a reserved table property");
+
+    assertThatThrownBy(() -> sql("ALTER VIEW %s UNSET TBLPROPERTIES ('format-version')", viewName))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining("Cannot unset reserved property: 'format-version'");
+
+    // spark.query-column-names is only used internally, so it technically doesn't exist on a Spark
+    // VIEW
+    assertThatThrownBy(
+            () -> sql("ALTER VIEW %s UNSET TBLPROPERTIES ('spark.query-column-names')", viewName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Cannot remove property that is not set: 'spark.query-column-names'");
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "ALTER VIEW %s UNSET TBLPROPERTIES IF EXISTS ('spark.query-column-names')",
+                    viewName))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining("Cannot unset reserved property: 'spark.query-column-names'");
+  }
+
+  @Test
+  public void createOrReplaceViewWithColumnAliases() throws NoSuchTableException {
+    insertRows(6);
+    String viewName = viewName("viewWithColumnAliases");
+
+    sql(
+        "CREATE VIEW %s (new_id COMMENT 'ID', new_data COMMENT 'DATA') AS SELECT id, data FROM %s WHERE id <= 3",
+        viewName, tableName);
+
+    View view = viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName));
+    assertThat(view.properties()).containsEntry("spark.query-column-names", "id,data");
+
+    assertThat(view.schema().columns()).hasSize(2);
+    Types.NestedField first = view.schema().columns().get(0);
+    assertThat(first.name()).isEqualTo("new_id");
+    assertThat(first.doc()).isEqualTo("ID");
+
+    Types.NestedField second = view.schema().columns().get(1);
+    assertThat(second.name()).isEqualTo("new_data");
+    assertThat(second.doc()).isEqualTo("DATA");
+
+    assertThat(sql("SELECT new_id FROM %s", viewName))
+        .hasSize(3)
+        .containsExactlyInAnyOrder(row(1), row(2), row(3));
+
+    sql(
+        "CREATE OR REPLACE VIEW %s (data2 COMMENT 'new data', id2 COMMENT 'new ID') AS SELECT data, id FROM %s WHERE id <= 3",
+        viewName, tableName);
+
+    assertThat(sql("SELECT data2, id2 FROM %s", viewName))
+        .hasSize(3)
+        .containsExactlyInAnyOrder(row("2", 1), row("4", 2), row("6", 3));
+
+    view = viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName));
+    assertThat(view.properties()).containsEntry("spark.query-column-names", "data,id");
+
+    assertThat(view.schema().columns()).hasSize(2);
+    first = view.schema().columns().get(0);
+    assertThat(first.name()).isEqualTo("data2");
+    assertThat(first.doc()).isEqualTo("new data");
+
+    second = view.schema().columns().get(1);
+    assertThat(second.name()).isEqualTo("id2");
+    assertThat(second.doc()).isEqualTo("new ID");
+  }
+
+  @Test
+  public void alterViewIsNotSupported() throws NoSuchTableException {
+    insertRows(6);
+    String viewName = "alteredView";
+
+    sql("CREATE VIEW %s AS SELECT id, data FROM %s WHERE id <= 3", viewName, tableName);
+
+    assertThat(sql("SELECT id FROM %s", viewName))
+        .hasSize(3)
+        .containsExactlyInAnyOrder(row(1), row(2), row(3));
+
+    assertThatThrownBy(
+            () -> sql("ALTER VIEW %s AS SELECT id FROM %s WHERE id > 3", viewName, tableName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "ALTER VIEW <viewName> AS is not supported. Use CREATE OR REPLACE VIEW instead");
+  }
+
+  @Test
+  public void createOrReplaceViewKeepsViewHistory() {
+    String viewName = viewName("viewWithHistoryAfterReplace");
+    String sql = String.format("SELECT id, data FROM %s WHERE id <= 3", tableName);
+    String updatedSql = String.format("SELECT id FROM %s WHERE id > 3", tableName);
+
+    sql(
+        "CREATE VIEW %s (new_id COMMENT 'some ID', new_data COMMENT 'some data') AS %s",
+        viewName, sql);
+
+    View view = viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName));
+    assertThat(view.history()).hasSize(1);
+    assertThat(view.sqlFor("spark").sql()).isEqualTo(sql);
+    assertThat(view.currentVersion().versionId()).isEqualTo(1);
+    assertThat(view.currentVersion().schemaId()).isEqualTo(0);
+    assertThat(view.schemas()).hasSize(1);
+    assertThat(view.schema().asStruct())
+        .isEqualTo(
+            new Schema(
+                    Types.NestedField.optional(0, "new_id", Types.IntegerType.get(), "some ID"),
+                    Types.NestedField.optional(1, "new_data", Types.StringType.get(), "some data"))
+                .asStruct());
+
+    sql("CREATE OR REPLACE VIEW %s (updated_id COMMENT 'updated ID') AS %s", viewName, updatedSql);
+
+    view = viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName));
+    assertThat(view.history()).hasSize(2);
+    assertThat(view.sqlFor("spark").sql()).isEqualTo(updatedSql);
+    assertThat(view.currentVersion().versionId()).isEqualTo(2);
+    assertThat(view.currentVersion().schemaId()).isEqualTo(1);
+    assertThat(view.schemas()).hasSize(2);
+    assertThat(view.schema().asStruct())
+        .isEqualTo(
+            new Schema(
+                    Types.NestedField.optional(
+                        0, "updated_id", Types.IntegerType.get(), "updated ID"))
+                .asStruct());
+  }
+
+  @Test
+  public void replacingTrinoViewShouldFail() {
+    String viewName = viewName("trinoView");
+    String sql = String.format("SELECT id FROM %s", tableName);
+
+    ViewCatalog viewCatalog = viewCatalog();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("trino", sql)
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema(sql))
+        .create();
+
+    assertThatThrownBy(() -> sql("CREATE OR REPLACE VIEW %s AS %s", viewName, sql))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot replace view due to loss of view dialects (replace.drop-dialect.allowed=false):\n"
+                + "Previous dialects: [trino]\n"
+                + "New dialects: [spark]");
+  }
+
+  @Test
+  public void replacingTrinoAndSparkViewShouldFail() {
+    String viewName = viewName("trinoAndSparkView");
+    String sql = String.format("SELECT id FROM %s", tableName);
+
+    ViewCatalog viewCatalog = viewCatalog();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("trino", sql)
+        .withQuery("spark", sql)
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema(sql))
+        .create();
+
+    assertThatThrownBy(() -> sql("CREATE OR REPLACE VIEW %s AS %s", viewName, sql))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot replace view due to loss of view dialects (replace.drop-dialect.allowed=false):\n"
+                + "Previous dialects: [trino, spark]\n"
+                + "New dialects: [spark]");
+  }
+
+  @Test
+  public void replacingViewWithDialectDropAllowed() {
+    String viewName = viewName("trinoView");
+    String sql = String.format("SELECT id FROM %s", tableName);
+
+    ViewCatalog viewCatalog = viewCatalog();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("trino", sql)
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema(sql))
+        .create();
+
+    // allowing to drop the trino dialect should replace the view
+    sql(
+        "CREATE OR REPLACE VIEW %s TBLPROPERTIES ('%s'='true') AS SELECT id FROM %s",
+        viewName, ViewProperties.REPLACE_DROP_DIALECT_ALLOWED, tableName);
+
+    View view = viewCatalog.loadView(TableIdentifier.of(NAMESPACE, viewName));
+    assertThat(view.currentVersion().representations())
+        .hasSize(1)
+        .first()
+        .asInstanceOf(InstanceOfAssertFactories.type(SQLViewRepresentation.class))
+        .isEqualTo(ImmutableSQLViewRepresentation.builder().dialect("spark").sql(sql).build());
+
+    // trino view should show up in the view versions & history
+    assertThat(view.history()).hasSize(2);
+    assertThat(view.history()).element(0).extracting(ViewHistoryEntry::versionId).isEqualTo(1);
+    assertThat(view.history()).element(1).extracting(ViewHistoryEntry::versionId).isEqualTo(2);
+
+    assertThat(view.versions()).hasSize(2);
+    assertThat(view.versions()).element(0).extracting(ViewVersion::versionId).isEqualTo(1);
+    assertThat(view.versions()).element(1).extracting(ViewVersion::versionId).isEqualTo(2);
+
+    assertThat(Lists.newArrayList(view.versions()).get(0).representations())
+        .hasSize(1)
+        .first()
+        .asInstanceOf(InstanceOfAssertFactories.type(SQLViewRepresentation.class))
+        .isEqualTo(ImmutableSQLViewRepresentation.builder().dialect("trino").sql(sql).build());
+
+    assertThat(Lists.newArrayList(view.versions()).get(1).representations())
+        .hasSize(1)
+        .first()
+        .asInstanceOf(InstanceOfAssertFactories.type(SQLViewRepresentation.class))
+        .isEqualTo(ImmutableSQLViewRepresentation.builder().dialect("spark").sql(sql).build());
+  }
+
+  @Test
+  public void createViewWithRecursiveCycle() {
+    String viewOne = viewName("viewOne");
+    String viewTwo = viewName("viewTwo");
+
+    sql("CREATE VIEW %s AS SELECT * FROM %s", viewOne, tableName);
+    // viewTwo points to viewOne
+    sql("CREATE VIEW %s AS SELECT * FROM %s", viewTwo, viewOne);
+
+    // viewOne points to viewTwo points to viewOne, creating a recursive cycle
+    String view1 = String.format("%s.%s.%s", catalogName, NAMESPACE, viewOne);
+    String view2 = String.format("%s.%s.%s", catalogName, NAMESPACE, viewTwo);
+    String cycle = String.format("%s -> %s -> %s", view1, view2, view1);
+    assertThatThrownBy(() -> sql("CREATE OR REPLACE VIEW %s AS SELECT * FROM %s", viewOne, view2))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            String.format("Recursive cycle in view detected: %s (cycle: %s)", view1, cycle));
+  }
+
+  @Test
+  public void createViewWithRecursiveCycleToV1View() {
+    String viewOne = viewName("view_one");
+    String viewTwo = viewName("view_two");
+
+    sql("CREATE VIEW %s AS SELECT * FROM %s", viewOne, tableName);
+    // viewTwo points to viewOne
+    sql("USE spark_catalog");
+    sql("CREATE VIEW %s AS SELECT * FROM %s.%s.%s", viewTwo, catalogName, NAMESPACE, viewOne);
+
+    sql("USE %s", catalogName);
+    // viewOne points to viewTwo points to viewOne, creating a recursive cycle
+    String view1 = String.format("%s.%s.%s", catalogName, NAMESPACE, viewOne);
+    String view2 = String.format("%s.%s.%s", "spark_catalog", NAMESPACE, viewTwo);
+    String cycle = String.format("%s -> %s -> %s", view1, view2, view1);
+    assertThatThrownBy(() -> sql("CREATE OR REPLACE VIEW %s AS SELECT * FROM %s", viewOne, view2))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            String.format("Recursive cycle in view detected: %s (cycle: %s)", view1, cycle));
+  }
+
+  @Test
+  public void createViewWithRecursiveCycleInCTE() {
+    String viewOne = viewName("viewOne");
+    String viewTwo = viewName("viewTwo");
+
+    sql("CREATE VIEW %s AS SELECT * FROM %s", viewOne, tableName);
+    // viewTwo points to viewOne
+    sql("CREATE VIEW %s AS SELECT * FROM %s", viewTwo, viewOne);
+
+    // CTE points to viewTwo
+    String sql =
+        String.format(
+            "WITH max_by_data AS (SELECT max(id) as max FROM %s) "
+                + "SELECT max, count(1) AS count FROM max_by_data GROUP BY max",
+            viewTwo);
+
+    // viewOne points to CTE, creating a recursive cycle
+    String view1 = String.format("%s.%s.%s", catalogName, NAMESPACE, viewOne);
+    String cycle = String.format("%s -> %s -> %s", view1, viewTwo, view1);
+    assertThatThrownBy(() -> sql("CREATE OR REPLACE VIEW %s AS %s", viewOne, sql))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            String.format("Recursive cycle in view detected: %s (cycle: %s)", view1, cycle));
+  }
+
+  @Test
+  public void createViewWithRecursiveCycleInSubqueryExpression() {
+    String viewOne = viewName("viewOne");
+    String viewTwo = viewName("viewTwo");
+
+    sql("CREATE VIEW %s AS SELECT * FROM %s", viewOne, tableName);
+    // viewTwo points to viewOne
+    sql("CREATE VIEW %s AS SELECT * FROM %s", viewTwo, viewOne);
+
+    // subquery expression points to viewTwo
+    String sql =
+        String.format("SELECT * FROM %s WHERE id = (SELECT id FROM %s)", tableName, viewTwo);
+
+    // viewOne points to subquery expression, creating a recursive cycle
+    String view1 = String.format("%s.%s.%s", catalogName, NAMESPACE, viewOne);
+    String cycle = String.format("%s -> %s -> %s", view1, viewTwo, view1);
+    assertThatThrownBy(() -> sql("CREATE OR REPLACE VIEW %s AS %s", viewOne, sql))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            String.format("Recursive cycle in view detected: %s (cycle: %s)", view1, cycle));
+  }
+
   private void insertRows(int numRows) throws NoSuchTableException {
     List<SimpleRecord> records = Lists.newArrayListWithCapacity(numRows);
     for (int i = 1; i <= numRows; i++) {
-      records.add(new SimpleRecord(i, UUID.randomUUID().toString()));
+      records.add(new SimpleRecord(i, Integer.toString(i * 2)));
     }
 
     Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);

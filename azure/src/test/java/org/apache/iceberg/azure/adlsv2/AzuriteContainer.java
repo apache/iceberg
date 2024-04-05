@@ -33,7 +33,7 @@ public class AzuriteContainer extends GenericContainer<AzuriteContainer> {
 
   private static final int DEFAULT_PORT = 10000; // default blob service port
   private static final String DEFAULT_IMAGE = "mcr.microsoft.com/azure-storage/azurite";
-  private static final String DEFAULT_TAG = "3.26.0";
+  private static final String DEFAULT_TAG = "3.29.0";
   private static final String LOG_WAIT_REGEX =
       "Azurite Blob service is successfully listening at .*";
 

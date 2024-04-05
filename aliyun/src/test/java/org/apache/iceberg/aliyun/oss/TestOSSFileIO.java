@@ -158,6 +158,9 @@ public class TestOSSFileIO extends AliyunOSSTestBase {
     Assertions.assertThat(oss.getCredentialsProvider().getCredentials().getSecretAccessKey())
         .as("Should have expected secret key")
         .isEqualTo(accessSecret);
+    Assertions.assertThat(oss.getCredentialsProvider().getCredentials().getSecurityToken())
+        .as("Should have no security token")
+        .isNull();
   }
 
   private FileIO fileIO() {

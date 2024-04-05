@@ -150,12 +150,6 @@ public class PositionDeletesTable extends BaseMetadataTable {
       super(table, schema, TableScanContext.empty());
     }
 
-    /** @deprecated the API will be removed in v1.5.0 */
-    @Deprecated
-    protected PositionDeletesBatchScan(Table table, Schema schema, TableScanContext context) {
-      super(table, schema, context);
-    }
-
     protected PositionDeletesBatchScan(
         Table table, Schema schema, TableScanContext context, Expression baseTableFilter) {
       super(table, schema, context);

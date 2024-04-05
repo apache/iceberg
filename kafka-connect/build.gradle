@@ -30,3 +30,30 @@ project(":iceberg-kafka-connect:iceberg-kafka-connect-events") {
     useJUnitPlatform()
   }  
 }
+
+project(":iceberg-kafka-connect:iceberg-kafka-connect") {
+  dependencies {
+    api project(':iceberg-api')
+    implementation project(':iceberg-core')
+    implementation project(':iceberg-common')
+    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    implementation project(':iceberg-data')
+    implementation project(':iceberg-kafka-connect:iceberg-kafka-connect-events')
+    implementation platform(libs.jackson.bom)
+    implementation "com.fasterxml.jackson.core:jackson-core"
+    implementation "com.fasterxml.jackson.core:jackson-databind"
+    implementation libs.avro.avro
+
+    compileOnly libs.kafka.clients
+    compileOnly libs.kafka.connect.api
+    compileOnly libs.kafka.connect.json
+
+    testImplementation libs.hadoop3.client
+    testRuntimeOnly project(':iceberg-parquet')
+    testRuntimeOnly project(':iceberg-orc')
+  }
+
+  test {
+    useJUnitPlatform()
+  }
+}

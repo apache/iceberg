@@ -21,8 +21,10 @@ package org.apache.iceberg.nessie;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
+import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.LocationUtil;
@@ -45,7 +47,7 @@ import org.projectnessie.model.Branch;
 import org.projectnessie.model.Reference;
 import org.projectnessie.model.Tag;
 import org.projectnessie.versioned.storage.common.persist.Persist;
-import org.projectnessie.versioned.storage.inmemory.InmemoryBackendTestFactory;
+import org.projectnessie.versioned.storage.inmemorytests.InmemoryBackendTestFactory;
 import org.projectnessie.versioned.storage.testextension.NessieBackend;
 import org.projectnessie.versioned.storage.testextension.NessiePersist;
 import org.projectnessie.versioned.storage.testextension.PersistExtension;
@@ -110,18 +112,17 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
   }
 
   private NessieCatalog initNessieCatalog(String ref) {
-    NessieCatalog newCatalog = new NessieCatalog();
-    newCatalog.setConf(hadoopConfig);
-    ImmutableMap<String, String> options =
+    Map<String, String> options =
         ImmutableMap.of(
+            "type",
+            "nessie",
             "ref",
             ref,
             CatalogProperties.URI,
             uri,
             CatalogProperties.WAREHOUSE_LOCATION,
             temp.toUri().toString());
-    newCatalog.initialize("nessie", options);
-    return newCatalog;
+    return (NessieCatalog) CatalogUtil.buildIcebergCatalog("nessie", options, hadoopConfig);
   }
 
   @Override

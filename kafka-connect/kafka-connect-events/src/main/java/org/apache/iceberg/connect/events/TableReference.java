@@ -18,15 +18,15 @@
  */
 package org.apache.iceberg.connect.events;
 
-import static java.util.stream.Collectors.toList;
-
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StringType;
@@ -63,6 +63,9 @@ public class TableReference implements IndexedRecord {
   }
 
   public TableReference(String catalog, List<String> namespace, String name) {
+    Preconditions.checkNotNull(catalog, "Catalog cannot be null");
+    Preconditions.checkNotNull(namespace, "Namespace cannot be null");
+    Preconditions.checkNotNull(name, "Name cannot be null");
     this.catalog = catalog;
     this.namespace = namespace;
     this.name = name;
@@ -92,7 +95,9 @@ public class TableReference implements IndexedRecord {
         return;
       case NAMESPACE:
         this.namespace =
-            v == null ? null : ((List<Utf8>) v).stream().map(Utf8::toString).collect(toList());
+            v == null
+                ? null
+                : ((List<Utf8>) v).stream().map(Utf8::toString).collect(Collectors.toList());
         return;
       case NAME:
         this.name = v == null ? null : v.toString();

@@ -465,7 +465,7 @@ public class TestStrictMetricsEvaluator extends BaseStrictMetricsEvaluator {
     boolean shouldRead =
         new StrictMetricsEvaluator(SCHEMA, notIn("id", INT_MIN_VALUE - 25, INT_MIN_VALUE - 24))
             .eval(FILE);
-    Assert.assertTrue("Should not match: all values !=5 and !=6", shouldRead);
+    assertThat(shouldRead).as("Should match: all values !=5 and !=6").isTrue();
 
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, notIn("id", INT_MIN_VALUE - 1, INT_MIN_VALUE))

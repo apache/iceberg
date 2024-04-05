@@ -27,6 +27,9 @@ public class OAuth2Properties {
   /** A credential to exchange for a token in the OAuth2 client credentials flow. */
   public static final String CREDENTIAL = "credential";
 
+  /** Token endpoint URI to fetch token from if the Rest Catalog is not the authorization server. */
+  public static final String OAUTH2_SERVER_URI = "oauth2-server-uri";
+
   /**
    * Interval in milliseconds to wait before attempting to exchange the configured catalog Bearer
    * token. By default, token exchange will be attempted after 1 hour.
@@ -45,6 +48,12 @@ public class OAuth2Properties {
 
   /** Additional scope for OAuth2. */
   public static final String SCOPE = "scope";
+
+  /** Optional param audience for OAuth2. */
+  public static final String AUDIENCE = "audience";
+
+  /** Optional param resource for OAuth2. */
+  public static final String RESOURCE = "resource";
 
   /** Scope for OAuth2 flows. */
   public static final String CATALOG_SCOPE = "catalog";

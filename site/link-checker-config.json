@@ -1,0 +1,26 @@
+{
+  "ignorePatterns": [
+    {
+      "pattern": "^https://www.linkedin.com/"
+    },
+    {
+      "pattern": "^https://mvnrepository.com/"
+    },
+    {
+      "pattern": "^../../javadoc"
+    },
+    {
+      "pattern": "^https://search.maven.org/"
+    }
+  ],
+  "replacementPatterns": [
+    {
+      "pattern": "^docs/latest/",
+      "replacement": "{{BASEURL}}/docs/docs/"
+    },
+    {
+      "pattern": "^../../",
+      "replacement": "{{BASEURL}}/site/docs/"
+    }
+  ]
+}

@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import org.apache.flink.api.common.JobID;
@@ -30,7 +31,9 @@ import org.apache.flink.api.common.JobStatus;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.client.program.ClusterClient;
+import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.runtime.client.JobStatusMessage;
+import org.apache.flink.runtime.testutils.InMemoryReporter;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.data.RowData;
@@ -58,9 +61,11 @@ import org.junit.rules.TemporaryFolder;
 
 public class TestIcebergSourceContinuous {
 
+  public static final InMemoryReporter METRIC_REPORTER = InMemoryReporter.create();
+
   @ClassRule
   public static final MiniClusterWithClientResource MINI_CLUSTER_RESOURCE =
-      MiniClusterResource.createWithClassloaderCheckDisabled();
+      MiniClusterResource.createWithClassloaderCheckDisabled(METRIC_REPORTER);
 
   @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
 
@@ -112,6 +117,8 @@ public class TestIcebergSourceContinuous {
 
       List<Row> result3 = waitForResult(iter, 2);
       TestHelpers.assertRecords(result3, batch3, tableResource.table().schema());
+
+      assertThatIcebergEnumeratorMetricsExist();
     }
   }
 
@@ -162,6 +169,8 @@ public class TestIcebergSourceContinuous {
 
       List<Row> result3 = waitForResult(iter, 2);
       TestHelpers.assertRecords(result3, batch3, tableResource.table().schema());
+
+      assertThatIcebergEnumeratorMetricsExist();
     }
   }
 
@@ -211,6 +220,8 @@ public class TestIcebergSourceContinuous {
 
       List<Row> result3 = waitForResult(iter, 2);
       TestHelpers.assertRecords(result3, batch3, tableResource.table().schema());
+
+      assertThatIcebergEnumeratorMetricsExist();
     }
   }
 
@@ -263,6 +274,8 @@ public class TestIcebergSourceContinuous {
 
       List<Row> result3 = waitForResult(iter, 2);
       TestHelpers.assertRecords(result3, batch3, tableResource.table().schema());
+
+      assertThatIcebergEnumeratorMetricsExist();
     }
   }
 
@@ -313,6 +326,8 @@ public class TestIcebergSourceContinuous {
 
       List<Row> result3 = waitForResult(iter, 2);
       TestHelpers.assertRecords(result3, batch3, tableResource.table().schema());
+
+      assertThatIcebergEnumeratorMetricsExist();
     }
   }
 
@@ -367,6 +382,94 @@ public class TestIcebergSourceContinuous {
 
       List<Row> result3 = waitForResult(iter, 2);
       TestHelpers.assertRecords(result3, batch3, tableResource.table().schema());
+
+      assertThatIcebergEnumeratorMetricsExist();
+    }
+  }
+
+  @Test
+  public void testReadingFromBranch() throws Exception {
+    String branch = "b1";
+    GenericAppenderHelper dataAppender =
+        new GenericAppenderHelper(tableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER);
+
+    List<Record> batchBase =
+        RandomGenericData.generate(tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+    dataAppender.appendToTable(batchBase);
+
+    // create branch
+    tableResource
+        .table()
+        .manageSnapshots()
+        .createBranch(branch, tableResource.table().currentSnapshot().snapshotId())
+        .commit();
+
+    // snapshot1 to branch
+    List<Record> batch1 =
+        RandomGenericData.generate(tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+    dataAppender.appendToTable(branch, batch1);
+
+    // snapshot2 to branch
+    List<Record> batch2 =
+        RandomGenericData.generate(tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+    dataAppender.appendToTable(branch, batch2);
+
+    List<Record> branchExpectedRecords = Lists.newArrayList();
+    branchExpectedRecords.addAll(batchBase);
+    branchExpectedRecords.addAll(batch1);
+    branchExpectedRecords.addAll(batch2);
+    // reads from branch: it should contain the first snapshot (before the branch creation) followed
+    // by the next 2 snapshots added
+    ScanContext scanContext =
+        ScanContext.builder()
+            .streaming(true)
+            .monitorInterval(Duration.ofMillis(10L))
+            .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
+            .useBranch(branch)
+            .build();
+
+    try (CloseableIterator<Row> iter =
+        createStream(scanContext).executeAndCollect(getClass().getSimpleName())) {
+      List<Row> resultMain = waitForResult(iter, 6);
+      TestHelpers.assertRecords(resultMain, branchExpectedRecords, tableResource.table().schema());
+
+      // snapshot3 to branch
+      List<Record> batch3 =
+          RandomGenericData.generate(
+              tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+      dataAppender.appendToTable(branch, batch3);
+
+      List<Row> result3 = waitForResult(iter, 2);
+      TestHelpers.assertRecords(result3, batch3, tableResource.table().schema());
+
+      // snapshot4 to branch
+      List<Record> batch4 =
+          RandomGenericData.generate(
+              tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+      dataAppender.appendToTable(branch, batch4);
+
+      List<Row> result4 = waitForResult(iter, 2);
+      TestHelpers.assertRecords(result4, batch4, tableResource.table().schema());
+    }
+
+    // read only from main branch. Should contain only the first snapshot
+    scanContext =
+        ScanContext.builder()
+            .streaming(true)
+            .monitorInterval(Duration.ofMillis(10L))
+            .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
+            .build();
+    try (CloseableIterator<Row> iter =
+        createStream(scanContext).executeAndCollect(getClass().getSimpleName())) {
+      List<Row> resultMain = waitForResult(iter, 2);
+      TestHelpers.assertRecords(resultMain, batchBase, tableResource.table().schema());
+
+      List<Record> batchMain2 =
+          RandomGenericData.generate(
+              tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+      dataAppender.appendToTable(batchMain2);
+      resultMain = waitForResult(iter, 2);
+      TestHelpers.assertRecords(resultMain, batchMain2, tableResource.table().schema());
     }
   }
 
@@ -384,6 +487,7 @@ public class TestIcebergSourceContinuous {
                     .startSnapshotTimestamp(scanContext.startSnapshotTimestamp())
                     .startSnapshotId(scanContext.startSnapshotId())
                     .monitorInterval(Duration.ofMillis(10L))
+                    .branch(scanContext.branch())
                     .build(),
                 WatermarkStrategy.noWatermarks(),
                 "icebergSource",
@@ -417,5 +521,23 @@ public class TestIcebergSourceContinuous {
         .filter(status -> status.getJobState() == JobStatus.RUNNING)
         .map(JobStatusMessage::getJobId)
         .collect(Collectors.toList());
+  }
+
+  private static void assertThatIcebergEnumeratorMetricsExist() {
+    assertThatIcebergSourceMetricExists(
+        "enumerator", "coordinator.enumerator.elapsedSecondsSinceLastSplitDiscovery");
+    assertThatIcebergSourceMetricExists("enumerator", "coordinator.enumerator.unassignedSplits");
+    assertThatIcebergSourceMetricExists("enumerator", "coordinator.enumerator.pendingRecords");
+  }
+
+  private static void assertThatIcebergSourceMetricExists(
+      String metricGroupPattern, String metricName) {
+    Optional<MetricGroup> groups = METRIC_REPORTER.findGroup(metricGroupPattern);
+    assertThat(groups).isPresent();
+    assertThat(
+            METRIC_REPORTER.getMetricsByGroup(groups.get()).keySet().stream()
+                .map(name -> groups.get().getMetricIdentifier(name)))
+        .satisfiesOnlyOnce(
+            fullMetricName -> assertThat(fullMetricName).containsSubsequence(metricName));
   }
 }

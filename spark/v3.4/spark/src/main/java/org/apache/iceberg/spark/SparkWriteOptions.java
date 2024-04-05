@@ -85,4 +85,7 @@ public class SparkWriteOptions {
   public static final String COMPRESSION_CODEC = "compression-codec";
   public static final String COMPRESSION_LEVEL = "compression-level";
   public static final String COMPRESSION_STRATEGY = "compression-strategy";
+
+  // Overrides the delete granularity
+  public static final String DELETE_GRANULARITY = "delete-granularity";
 }

@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.source.enumerator;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
@@ -28,6 +29,7 @@ import org.apache.flink.api.connector.source.SplitEnumeratorContext;
 import org.apache.iceberg.flink.source.ScanContext;
 import org.apache.iceberg.flink.source.assigner.SplitAssigner;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
+import org.apache.iceberg.flink.util.ElapsedTimeGauge;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -58,6 +60,8 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
   /** Count the consecutive failures and throw exception if the max allowed failres are reached */
   private transient int consecutiveFailures = 0;
 
+  private final ElapsedTimeGauge elapsedSecondsSinceLastSplitDiscovery;
+
   public ContinuousIcebergEnumerator(
       SplitEnumeratorContext<IcebergSourceSplit> enumeratorContext,
       SplitAssigner assigner,
@@ -72,9 +76,14 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
     this.splitPlanner = splitPlanner;
     this.enumeratorPosition = new AtomicReference<>();
     this.enumerationHistory = new EnumerationHistory(ENUMERATION_SPLIT_COUNT_HISTORY_SIZE);
+    this.elapsedSecondsSinceLastSplitDiscovery = new ElapsedTimeGauge(TimeUnit.SECONDS);
+    this.enumeratorContext
+        .metricGroup()
+        .gauge("elapsedSecondsSinceLastSplitDiscovery", elapsedSecondsSinceLastSplitDiscovery);
 
     if (enumState != null) {
       this.enumeratorPosition.set(enumState.lastEnumeratedPosition());
+      this.enumerationHistory.restore(enumState.enumerationSplitCountHistory());
     }
   }
 
@@ -139,6 +148,7 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
             enumeratorPosition.get(),
             result.fromPosition());
       } else {
+        elapsedSecondsSinceLastSplitDiscovery.refreshLastRecordedTime();
         // Sometimes, enumeration may yield no splits for a few reasons.
         // - upstream paused or delayed streaming writes to the Iceberg table.
         // - enumeration frequency is higher than the upstream write frequency.

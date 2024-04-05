@@ -42,6 +42,7 @@ import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -643,5 +644,16 @@ public class SparkWriteConf {
         .sessionConf(SparkSQLProperties.COMPRESSION_STRATEGY)
         .tableProperty(DELETE_ORC_COMPRESSION_STRATEGY)
         .parseOptional();
+  }
+
+  public DeleteGranularity deleteGranularity() {
+    String valueAsString =
+        confParser
+            .stringConf()
+            .option(SparkWriteOptions.DELETE_GRANULARITY)
+            .tableProperty(TableProperties.DELETE_GRANULARITY)
+            .defaultValue(TableProperties.DELETE_GRANULARITY_DEFAULT)
+            .parse();
+    return DeleteGranularity.fromString(valueAsString);
   }
 }

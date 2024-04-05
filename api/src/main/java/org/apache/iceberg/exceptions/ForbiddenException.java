@@ -21,14 +21,14 @@ package org.apache.iceberg.exceptions;
 import com.google.errorprone.annotations.FormatMethod;
 
 /** Exception thrown on HTTP 403 Forbidden - Failed authorization checks. */
-public class ForbiddenException extends RuntimeException implements CleanableFailure {
+public class ForbiddenException extends RESTException implements CleanableFailure {
   @FormatMethod
   public ForbiddenException(String message, Object... args) {
-    super(String.format(message, args));
+    super(message, args);
   }
 
   @FormatMethod
   public ForbiddenException(Throwable cause, String message, Object... args) {
-    super(String.format(message, args), cause);
+    super(cause, message, args);
   }
 }

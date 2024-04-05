@@ -68,6 +68,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.hadoop.ConfigProperties;
@@ -79,6 +80,8 @@ import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 public class HiveTableTest extends HiveTableBaseTest {
   static final String NON_DEFAULT_DATABASE = "nondefault";
@@ -334,7 +337,8 @@ public class HiveTableTest extends HiveTableBaseTest {
 
     // create a hive table
     String hiveTableName = "test_hive_table";
-    org.apache.hadoop.hive.metastore.api.Table hiveTable = createHiveTable(hiveTableName);
+    org.apache.hadoop.hive.metastore.api.Table hiveTable =
+        createHiveTable(hiveTableName, TableType.EXTERNAL_TABLE);
     HIVE_METASTORE_EXTENSION.metastoreClient().createTable(hiveTable);
 
     catalog.setListAllTables(false);
@@ -349,8 +353,43 @@ public class HiveTableTest extends HiveTableBaseTest {
     HIVE_METASTORE_EXTENSION.metastoreClient().dropTable(DB_NAME, hiveTableName);
   }
 
-  private org.apache.hadoop.hive.metastore.api.Table createHiveTable(String hiveTableName)
-      throws IOException {
+  @ParameterizedTest
+  @EnumSource(
+      value = TableType.class,
+      names = {"EXTERNAL_TABLE", "VIRTUAL_VIEW", "MANAGED_TABLE"})
+  public void testHiveTableAndIcebergTableWithSameName(TableType tableType)
+      throws TException, IOException {
+
+    assertThat(catalog.listTables(TABLE_IDENTIFIER.namespace()))
+        .hasSize(1)
+        .containsExactly(TABLE_IDENTIFIER);
+
+    // create a hive table with a defined table type.
+    String hiveTableName = "test_hive_table";
+    TableIdentifier identifier = TableIdentifier.of(DB_NAME, hiveTableName);
+    HIVE_METASTORE_EXTENSION
+        .metastoreClient()
+        .createTable(createHiveTable(hiveTableName, tableType));
+
+    catalog.setListAllTables(true);
+    assertThat(catalog.listTables(TABLE_IDENTIFIER.namespace()))
+        .hasSize(2)
+        .containsExactly(TABLE_IDENTIFIER, identifier);
+    catalog.setListAllTables(false); // reset to default.
+
+    // create an iceberg table with the same name
+    assertThatThrownBy(() -> catalog.createTable(identifier, schema, PartitionSpec.unpartitioned()))
+        .isInstanceOf(NoSuchIcebergTableException.class)
+        .hasMessageStartingWith(String.format("Not an iceberg table: hive.%s", identifier));
+
+    assertThat(catalog.tableExists(identifier)).isFalse();
+
+    assertThat(catalog.tableExists(TABLE_IDENTIFIER)).isTrue();
+    HIVE_METASTORE_EXTENSION.metastoreClient().dropTable(DB_NAME, hiveTableName);
+  }
+
+  private org.apache.hadoop.hive.metastore.api.Table createHiveTable(
+      String hiveTableName, TableType type) throws IOException {
     Map<String, String> parameters = Maps.newHashMap();
     parameters.put(
         serdeConstants.SERIALIZATION_CLASS, "org.apache.hadoop.hive.serde2.thrift.test.IntString");
@@ -387,7 +426,7 @@ public class HiveTableTest extends HiveTableBaseTest {
             Maps.newHashMap(),
             "viewOriginalText",
             "viewExpandedText",
-            TableType.EXTERNAL_TABLE.name());
+            type.name());
     return hiveTable;
   }
 

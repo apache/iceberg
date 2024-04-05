@@ -37,24 +37,24 @@ import org.junit.jupiter.params.provider.MethodSource;
 public class TestContentFileParser {
   @Test
   public void testNullArguments() throws Exception {
-    Assertions.assertThatThrownBy(() -> ContentFileParser.toJson(null, TableTestBase.SPEC))
+    Assertions.assertThatThrownBy(() -> ContentFileParser.toJson(null, TestBase.SPEC))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid content file: null");
 
-    Assertions.assertThatThrownBy(() -> ContentFileParser.toJson(TableTestBase.FILE_A, null))
+    Assertions.assertThatThrownBy(() -> ContentFileParser.toJson(TestBase.FILE_A, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid partition spec: null");
 
     Assertions.assertThatThrownBy(
-            () -> ContentFileParser.toJson(TableTestBase.FILE_A, TableTestBase.SPEC, null))
+            () -> ContentFileParser.toJson(TestBase.FILE_A, TestBase.SPEC, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid JSON generator: null");
 
-    Assertions.assertThatThrownBy(() -> ContentFileParser.fromJson(null, TableTestBase.SPEC))
+    Assertions.assertThatThrownBy(() -> ContentFileParser.fromJson(null, TestBase.SPEC))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid JSON node for content file: null");
 
-    String jsonStr = ContentFileParser.toJson(TableTestBase.FILE_A, TableTestBase.SPEC);
+    String jsonStr = ContentFileParser.toJson(TestBase.FILE_A, TestBase.SPEC);
     JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
     Assertions.assertThatThrownBy(() -> ContentFileParser.fromJson(jsonNode, null))
         .isInstanceOf(IllegalArgumentException.class)
@@ -96,13 +96,13 @@ public class TestContentFileParser {
             dataFileWithAllOptional(PartitionSpec.unpartitioned()),
             dataFileJsonWithAllOptional(PartitionSpec.unpartitioned())),
         Arguments.of(
-            TableTestBase.SPEC,
-            dataFileWithRequiredOnly(TableTestBase.SPEC),
-            dataFileJsonWithRequiredOnly(TableTestBase.SPEC)),
+            TestBase.SPEC,
+            dataFileWithRequiredOnly(TestBase.SPEC),
+            dataFileJsonWithRequiredOnly(TestBase.SPEC)),
         Arguments.of(
-            TableTestBase.SPEC,
-            dataFileWithAllOptional(TableTestBase.SPEC),
-            dataFileJsonWithAllOptional(TableTestBase.SPEC)));
+            TestBase.SPEC,
+            dataFileWithAllOptional(TestBase.SPEC),
+            dataFileJsonWithAllOptional(TestBase.SPEC)));
   }
 
   private static DataFile dataFileWithRequiredOnly(PartitionSpec spec) {
@@ -182,7 +182,7 @@ public class TestContentFileParser {
             .withSplitOffsets(Arrays.asList(128L, 256L))
             .withEncryptionKeyMetadata(ByteBuffer.wrap(new byte[16]))
             .withSortOrder(
-                SortOrder.builderFor(TableTestBase.SCHEMA)
+                SortOrder.builderFor(TestBase.SCHEMA)
                     .withOrderId(1)
                     .sortBy("id", SortDirection.ASC, NullOrder.NULLS_FIRST)
                     .build());
@@ -206,13 +206,13 @@ public class TestContentFileParser {
             deleteFileWithAllOptional(PartitionSpec.unpartitioned()),
             deleteFileJsonWithAllOptional(PartitionSpec.unpartitioned())),
         Arguments.of(
-            TableTestBase.SPEC,
-            deleteFileWithRequiredOnly(TableTestBase.SPEC),
-            deleteFileJsonWithRequiredOnly(TableTestBase.SPEC)),
+            TestBase.SPEC,
+            deleteFileWithRequiredOnly(TestBase.SPEC),
+            deleteFileJsonWithRequiredOnly(TestBase.SPEC)),
         Arguments.of(
-            TableTestBase.SPEC,
-            deleteFileWithAllOptional(TableTestBase.SPEC),
-            deleteFileJsonWithAllOptional(TableTestBase.SPEC)));
+            TestBase.SPEC,
+            deleteFileWithAllOptional(TestBase.SPEC),
+            deleteFileJsonWithAllOptional(TestBase.SPEC)));
   }
 
   private static DeleteFile deleteFileWithRequiredOnly(PartitionSpec spec) {

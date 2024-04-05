@@ -59,6 +59,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
+import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
@@ -178,11 +179,16 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     OAuthTokenResponse authResponse;
     String credential = props.get(OAuth2Properties.CREDENTIAL);
     String scope = props.getOrDefault(OAuth2Properties.SCOPE, OAuth2Properties.CATALOG_SCOPE);
+    Map<String, String> optionalOAuthParams = OAuth2Util.buildOptionalParam(props);
+    String oauth2ServerUri =
+        props.getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens());
     try (RESTClient initClient = clientBuilder.apply(props)) {
       Map<String, String> initHeaders =
           RESTUtil.merge(configHeaders(props), OAuth2Util.authHeaders(initToken));
       if (credential != null && !credential.isEmpty()) {
-        authResponse = OAuth2Util.fetchToken(initClient, initHeaders, credential, scope);
+        authResponse =
+            OAuth2Util.fetchToken(
+                initClient, initHeaders, credential, scope, oauth2ServerUri, optionalOAuthParams);
         Map<String, String> authHeaders =
             RESTUtil.merge(initHeaders, OAuth2Util.authHeaders(authResponse.token()));
         config = fetchConfig(initClient, authHeaders, props);
@@ -209,7 +215,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     this.paths = ResourcePaths.forCatalogProperties(mergedProps);
 
     String token = mergedProps.get(OAuth2Properties.TOKEN);
-    this.catalogAuth = new AuthSession(baseHeaders, null, null, credential, scope);
+    this.catalogAuth =
+        new AuthSession(
+            baseHeaders, null, null, credential, scope, oauth2ServerUri, optionalOAuthParams);
     if (authResponse != null) {
       this.catalogAuth =
           AuthSession.fromTokenResponse(
@@ -594,7 +602,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           });
 
       try {
-        if (service.awaitTermination(1, TimeUnit.MINUTES)) {
+        if (!service.awaitTermination(1, TimeUnit.MINUTES)) {
           LOG.warn("Timed out waiting for refresh executor to terminate");
         }
       } catch (InterruptedException e) {
@@ -714,8 +722,15 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     @Override
     public Transaction replaceTransaction() {
-      if (viewExists(context, ident)) {
-        throw new AlreadyExistsException("View with same name already exists: %s", ident);
+      try {
+        if (viewExists(context, ident)) {
+          throw new AlreadyExistsException("View with same name already exists: %s", ident);
+        }
+      } catch (RESTException | UnsupportedOperationException e) {
+        // don't fail if the server doesn't support views, which could be due to:
+        // 1. server or backing catalog doesn't support views
+        // 2. newer client talks to an older server that doesn't support views
+        LOG.debug("Failed to check whether view {} exists", ident, e);
       }
 
       LoadTableResponse response = loadInternal(context, ident, snapshotMode);
@@ -1047,12 +1062,22 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   public View loadView(SessionContext context, TableIdentifier identifier) {
     checkViewIdentifierIsValid(identifier);
 
-    LoadViewResponse response =
-        client.get(
-            paths.view(identifier),
-            LoadViewResponse.class,
-            headers(context),
-            ErrorHandlers.viewErrorHandler());
+    LoadViewResponse response;
+    try {
+      response =
+          client.get(
+              paths.view(identifier),
+              LoadViewResponse.class,
+              headers(context),
+              ErrorHandlers.viewErrorHandler());
+    } catch (UnsupportedOperationException | RESTException e) {
+      // Normally, copying an exception message is a bad practice but engines may show just the
+      // message and suppress the exception cause when the view does not exist. Since 401 and 403
+      // responses can trigger this case, including the message increases the chances that the "Not
+      // authorized" or "Forbidden" message is preserved and shown.
+      throw new NoSuchViewException(
+          e, "Unable to load view %s.%s: %s", name(), identifier, e.getMessage());
+    }
 
     AuthSession session = tableSession(response.config(), session(context));
     ViewMetadata metadata = response.metadata();

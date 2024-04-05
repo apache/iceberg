@@ -21,9 +21,22 @@ if (jdkVersion != '8' && jdkVersion != '11' && jdkVersion != '17') {
   throw new GradleException("The JMH benchmarks must be run with JDK 8 or JDK 11 or JDK 17")
 }
 
+def flinkVersions = (System.getProperty("flinkVersions") != null ? System.getProperty("flinkVersions") : System.getProperty("defaultFlinkVersions")).split(",")
 def sparkVersions = (System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")).split(",")
 def scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
 def jmhProjects = [project(":iceberg-core"), project(":iceberg-data")]
+
+if (flinkVersions.contains("1.16")) {
+  jmhProjects.add(project(":iceberg-flink:iceberg-flink-1.16"))
+}
+
+if (flinkVersions.contains("1.17")) {
+  jmhProjects.add(project(":iceberg-flink:iceberg-flink-1.17"))
+}
+
+if (flinkVersions.contains("1.18")) {
+  jmhProjects.add(project(":iceberg-flink:iceberg-flink-1.18"))
+}
 
 if (sparkVersions.contains("3.3")) {
   jmhProjects.add(project(":iceberg-spark:iceberg-spark-3.3_${scalaVersion}"))

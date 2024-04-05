@@ -28,8 +28,19 @@ on:
   pull_request:
     paths-ignore:
     - '.github/ISSUE_TEMPLATE/**'
+    - '.github/workflows/api-binary-compatibility.yml'
+    - '.github/workflows/delta-conversion-ci.yml'
     - '.github/workflows/flink-ci.yml'
     - '.github/workflows/hive-ci.yml'
+    - '.github/workflows/java-ci.yml'
+    - '.github/workflows/jmh-benchmarks-ci.yml'
+    - '.github/workflows/labeler.yml'
+    - '.github/workflows/licence-check.yml'
+    - '.github/workflows/open-api.yml'
+    - '.github/workflows/publish-snapshot.yml'
+    - '.github/workflows/recurring-jmh-benchmarks.yml'
+    - '.github/workflows/site-ci.yml'
+    - '.github/workflows/stale.yml'
     - '.gitignore'
     - '.asf.yml'
     - 'dev/**'
@@ -68,13 +79,16 @@ jobs:
         with:
           distribution: zulu
           java-version: ${{ matrix.jvm }}
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: ${{ runner.os }}-gradle-
+      - uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: false
       - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
       - run: ./gradlew -DsparkVersions=${{ matrix.spark }} -DscalaVersion=2.12 -DhiveVersions= -DflinkVersions= :iceberg-spark:iceberg-spark-${{ matrix.spark }}_2.12:check :iceberg-spark:iceberg-spark-extensions-${{ matrix.spark }}_2.12:check :iceberg-spark:iceberg-spark-runtime-${{ matrix.spark }}_2.12:check -Pquick=true -x javadoc
       - uses: actions/upload-artifact@v4
@@ -98,13 +112,16 @@ jobs:
         with:
           distribution: zulu
           java-version: ${{ matrix.jvm }}
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: ${{ runner.os }}-gradle-
+      - uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: false
       - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
       - run: ./gradlew -DsparkVersions=${{ matrix.spark }} -DscalaVersion=2.13 -DhiveVersions= -DflinkVersions= :iceberg-spark:iceberg-spark-${{ matrix.spark }}_2.13:check :iceberg-spark:iceberg-spark-extensions-${{ matrix.spark }}_2.13:check :iceberg-spark:iceberg-spark-runtime-${{ matrix.spark }}_2.13:check -Pquick=true -x javadoc
       - uses: actions/upload-artifact@v4
@@ -128,13 +145,16 @@ jobs:
         with:
           distribution: zulu
           java-version: 17
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: ${{ runner.os }}-gradle-
+      - uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: false
       - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
       - run: ./gradlew -DsparkVersions=${{ matrix.spark }} -DscalaVersion=${{ matrix.scala-version }} -DhiveVersions= -DflinkVersions= :iceberg-spark:iceberg-spark-${{ matrix.spark }}_${{ matrix.scala-version }}:check :iceberg-spark:iceberg-spark-extensions-${{ matrix.spark }}_${{ matrix.scala-version }}:check :iceberg-spark:iceberg-spark-runtime-${{ matrix.spark }}_${{ matrix.scala-version }}:check -Pquick=true -x javadoc
       - uses: actions/upload-artifact@v4

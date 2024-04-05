@@ -18,7 +18,7 @@
 
 set -e
 
-REMOTE="iceberg_docs"
+export REMOTE="iceberg_docs"
 
 # Ensures the presence of a specified remote repository for documentation.
 # If the remote doesn't exist, it adds it using the provided URL.
@@ -33,7 +33,6 @@ create_or_update_docs_remote () {
   # Fetch updates from the remote repository
   git fetch "${REMOTE}"
 }
-
 
 # Pulls updates from a specified branch of a remote repository.
 # Arguments:
@@ -84,6 +83,26 @@ assert_not_empty () {
     # Exit with an error code if no argument is provided
     exit 1  
   fi
+}
+
+# Creates a 'nightly' version of the documentation that points to the current versioned docs
+# located at the root-level `/docs` directory.
+create_nightly () {
+  echo " --> create nightly"
+
+  # Remove any existing 'nightly' directory and recreate it
+  rm -rf docs/docs/nightly/
+  mkdir docs/docs/nightly/
+
+  # Create symbolic links and copy configuration files for the 'nightly' documentation
+  ln -s "../../../../docs/docs/" docs/docs/nightly/docs
+  cp "../docs/mkdocs.yml" docs/docs/nightly/
+
+  cd docs/docs/
+
+  # Update version information within the 'nightly' documentation
+  update_version "nightly"  
+  cd -
 }
 
 # Finds and retrieves the latest version of the documentation based on the directory structure.
@@ -178,8 +197,6 @@ pull_versioned_docs () {
   # Ensure the remote repository for documentation exists and is up-to-date
   create_or_update_docs_remote  
 
-  rm -r docs/docs
-
   # Add local worktrees for documentation and javadoc from the remote repository
   git worktree add -f docs/docs "${REMOTE}/docs"
   git worktree add -f docs/javadoc "${REMOTE}/javadoc"
@@ -192,6 +209,9 @@ pull_versioned_docs () {
   
   # Create the 'latest' version of documentation
   create_latest "${latest_version}"  
+
+  # Create the 'nightly' version of documentation
+  create_nightly  
 }
 
 # Cleans up artifacts and temporary files generated during documentation management.
@@ -201,16 +221,15 @@ clean () {
   # Temporarily disable script exit on errors to ensure cleanup continues
   set +e 
 
-  # Remove 'latest' directories and related Git worktrees
+  # Remove temp directories and related Git worktrees
   rm -rf docs/docs/latest &> /dev/null
+  rm -rf docs/docs/nightly &> /dev/null
+
   git worktree remove docs/docs &> /dev/null
   git worktree remove docs/javadoc &> /dev/null
 
-  git restore docs/docs
-
-  # Remove any additional temporary artifacts (e.g., 'site/' directory)
-  rm -rf site/ &> /dev/null
+  # Remove any remaining artifacts
+  rm -rf docs/javadoc docs/docs docs/.asf.yaml site/
 
   set -e # Re-enable script exit on errors
 }
-

@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.UUID;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.NestedField;
@@ -59,6 +60,9 @@ public class Event implements IndexedRecord {
   }
 
   public Event(String groupId, Payload payload) {
+    Preconditions.checkNotNull(groupId, "Group ID cannot be null");
+    Preconditions.checkNotNull(payload, "Payload cannot be null");
+
     this.id = UUID.randomUUID();
     this.type = payload.type();
     this.timestamp = OffsetDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.MICROS);

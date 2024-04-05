@@ -17,8 +17,6 @@
 
 INHERIT: ./nav.yml
 
-copyright: |
-  Apache Iceberg, Iceberg, Apache, the Apache feather logo, and the Apache Iceberg project logo are</br>either registered trademarks or trademarks of The Apache Software Foundation. Copyright &copy; 2023</br>The Apache Software Foundation, Licensed under the <a href="https://www.apache.org/licenses/">Apache License, Version 2.0</a>.</br></br>
 site_name: Apache Iceberg
 
 theme:
@@ -51,6 +49,7 @@ plugins:
   - search
   - macros
   - monorepo
+  - privacy
   - offline:
       enabled: !ENV [OFFLINE, false]
 
@@ -68,6 +67,7 @@ markdown_extensions:
   - pymdownx.tabbed:
       alternate_style: true 
   - pymdownx.mark
+  - pymdownx.tilde
   - attr_list
   - pymdownx.emoji:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
@@ -78,7 +78,8 @@ markdown_extensions:
       permalink: 🔗
 
 extra:
-  icebergVersion: '1.4.3'
+  icebergVersion: '1.5.0'
+  nessieVersion: '0.77.1'
   social:
     - icon: fontawesome/regular/comments
       link: 'https://iceberg.apache.org/community/'
@@ -92,6 +93,9 @@ extra:
     - icon: fontawesome/brands/slack
       link: 'https://join.slack.com/t/apache-iceberg/shared_invite/zt-287g3akar-K9Oe_En5j1UL7Y_Ikpai3A'
       title: slack
+
+exclude_docs: |
+  !.asf.yaml
 
 extra_css:
   - assets/stylesheets/extra.css

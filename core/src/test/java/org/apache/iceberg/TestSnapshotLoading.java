@@ -20,9 +20,11 @@ package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -31,22 +33,17 @@ import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.SerializableSupplier;
-import org.assertj.core.api.Assumptions;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
-@RunWith(Parameterized.class)
-public class TestSnapshotLoading extends TableTestBase {
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
-  }
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestSnapshotLoading extends TestBase {
 
-  public TestSnapshotLoading(int formatVersion) {
-    super(formatVersion);
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1, 2);
   }
 
   private Snapshot currentSnapshot;
@@ -56,7 +53,7 @@ public class TestSnapshotLoading extends TableTestBase {
 
   private SerializableSupplier<List<Snapshot>> snapshotsSupplierMock;
 
-  @Before
+  @BeforeEach
   public void before() {
     table.newFastAppend().appendFile(FILE_A).commit();
     table.newFastAppend().appendFile(FILE_B).commit();
@@ -87,7 +84,7 @@ public class TestSnapshotLoading extends TableTestBase {
             .build();
   }
 
-  @Test
+  @TestTemplate
   public void testSnapshotsAreLoadedOnce() {
     latestTableMetadata.snapshots();
     latestTableMetadata.snapshots();
@@ -99,7 +96,7 @@ public class TestSnapshotLoading extends TableTestBase {
         .containsExactlyElementsOf(originalTableMetadata.snapshots());
   }
 
-  @Test
+  @TestTemplate
   public void testCurrentAndMainSnapshotDoesNotLoad() {
     latestTableMetadata.currentSnapshot();
     latestTableMetadata.snapshot(latestTableMetadata.ref(SnapshotRef.MAIN_BRANCH).snapshotId());
@@ -107,7 +104,7 @@ public class TestSnapshotLoading extends TableTestBase {
     verify(snapshotsSupplierMock, times(0)).get();
   }
 
-  @Test
+  @TestTemplate
   public void testUnloadedSnapshotLoadsOnce() {
     Snapshot unloadedSnapshot =
         allSnapshots.stream().filter(s -> !s.equals(currentSnapshot)).findFirst().get();
@@ -118,7 +115,7 @@ public class TestSnapshotLoading extends TableTestBase {
     verify(snapshotsSupplierMock, times(1)).get();
   }
 
-  @Test
+  @TestTemplate
   public void testCurrentTableScanDoesNotLoad() {
     latestTableMetadata.currentSnapshot();
 
@@ -130,9 +127,9 @@ public class TestSnapshotLoading extends TableTestBase {
     verify(snapshotsSupplierMock, times(0)).get();
   }
 
-  @Test
+  @TestTemplate
   public void testFutureSnapshotsAreRemoved() {
-    Assumptions.assumeThat(formatVersion)
+    assumeThat(formatVersion)
         .as("Future snapshots are only removed for V2 tables")
         .isGreaterThan(1);
 
@@ -152,7 +149,7 @@ public class TestSnapshotLoading extends TableTestBase {
         .containsExactlyInAnyOrderElementsOf(originalTableMetadata.snapshots());
   }
 
-  @Test
+  @TestTemplate
   public void testRemovedCurrentSnapshotFails() {
     List<Snapshot> snapshotsMissingCurrent =
         allSnapshots.stream()
@@ -174,7 +171,7 @@ public class TestSnapshotLoading extends TableTestBase {
         .hasMessage("Invalid table metadata: Cannot find current version");
   }
 
-  @Test
+  @TestTemplate
   public void testRemovedRefSnapshotFails() {
     Snapshot referencedSnapshot =
         allSnapshots.stream().filter(Predicate.isEqual(currentSnapshot).negate()).findFirst().get();
@@ -194,7 +191,7 @@ public class TestSnapshotLoading extends TableTestBase {
         .hasMessageEndingWith("does not exist in the existing snapshots list");
   }
 
-  @Test
+  @TestTemplate
   public void testBuildingNewMetadataTriggersSnapshotLoad() {
     TableMetadata newTableMetadata =
         TableMetadata.buildFrom(latestTableMetadata).removeRef(SnapshotRef.MAIN_BRANCH).build();

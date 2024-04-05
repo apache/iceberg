@@ -54,8 +54,6 @@ import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
-import org.apache.iceberg.util.Tasks;
-import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.connector.read.InputPartition;
@@ -155,25 +153,27 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
     List<CombinedScanTask> combinedScanTasks =
         Lists.newArrayList(
             TableScanUtil.planTasks(splitTasks, splitSize, splitLookback, splitOpenFileCost));
+    String[][] locations = computePreferredLocations(combinedScanTasks);
 
     InputPartition[] partitions = new InputPartition[combinedScanTasks.size()];
 
-    Tasks.range(partitions.length)
-        .stopOnFailure()
-        .executeWith(localityPreferred ? ThreadPools.getWorkerPool() : null)
-        .run(
-            index ->
-                partitions[index] =
-                    new SparkInputPartition(
-                        EMPTY_GROUPING_KEY_TYPE,
-                        combinedScanTasks.get(index),
-                        tableBroadcast,
-                        branch,
-                        expectedSchema,
-                        caseSensitive,
-                        localityPreferred));
+    for (int index = 0; index < combinedScanTasks.size(); index++) {
+      partitions[index] =
+          new SparkInputPartition(
+              EMPTY_GROUPING_KEY_TYPE,
+              combinedScanTasks.get(index),
+              tableBroadcast,
+              branch,
+              expectedSchema,
+              caseSensitive,
+              locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE);
+    }
 
     return partitions;
+  }
+
+  private String[][] computePreferredLocations(List<CombinedScanTask> taskGroups) {
+    return localityPreferred ? SparkPlanningUtil.fetchBlockLocations(table.io(), taskGroups) : null;
   }
 
   @Override
@@ -393,8 +393,15 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
 
       // if everything was OK and we consumed complete snapshot then move to next snapshot
       if (shouldContinueReading) {
+        Snapshot nextValid = nextValidSnapshot(curSnapshot);
+        if (nextValid == null) {
+          // nextValide implies all the remaining snapshots should be skipped.
+          shouldContinueReading = false;
+          break;
+        }
+        // we found the next available snapshot, continue from there.
+        curSnapshot = nextValid;
         startPosOfSnapOffset = -1;
-        curSnapshot = SnapshotUtil.snapshotAfter(table, curSnapshot.snapshotId());
         // if anyhow we are moving to next snapshot we should only scan addedFiles
         scanAllFiles = false;
       }
@@ -405,6 +412,27 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
 
     // if no new data arrived, then return null.
     return latestStreamingOffset.equals(startingOffset) ? null : latestStreamingOffset;
+  }
+
+  /**
+   * Get the next snapshot skiping over rewrite and delete snapshots.
+   *
+   * @param curSnapshot the current snapshot
+   * @return the next valid snapshot (not a rewrite or delete snapshot), returns null if all
+   *     remaining snapshots should be skipped.
+   */
+  private Snapshot nextValidSnapshot(Snapshot curSnapshot) {
+    Snapshot nextSnapshot = SnapshotUtil.snapshotAfter(table, curSnapshot.snapshotId());
+    // skip over rewrite and delete snapshots
+    while (!shouldProcess(nextSnapshot)) {
+      LOG.debug("Skipping snapshot: {} of table {}", nextSnapshot.snapshotId(), table.name());
+      // if the currentSnapShot was also the mostRecentSnapshot then break
+      if (nextSnapshot.snapshotId() == table.currentSnapshot().snapshotId()) {
+        return null;
+      }
+      nextSnapshot = SnapshotUtil.snapshotAfter(table, nextSnapshot.snapshotId());
+    }
+    return nextSnapshot;
   }
 
   private long addedFilesCount(Snapshot snapshot) {
