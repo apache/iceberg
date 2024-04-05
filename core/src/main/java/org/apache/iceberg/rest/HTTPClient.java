@@ -446,11 +446,10 @@ public class HTTPClient implements RESTClient {
     return instance;
   }
 
-  static HttpClientConnectionManager configureConnectionManager(
-      Map<String, String> properties, ConnectionConfig connectionConfig) {
+  static HttpClientConnectionManager configureConnectionManager(Map<String, String> properties) {
     PoolingHttpClientConnectionManagerBuilder connectionManagerBuilder =
         PoolingHttpClientConnectionManagerBuilder.create();
-
+    ConnectionConfig connectionConfig = configureConnectionConfig(properties);
     if (connectionConfig != null) {
       connectionManagerBuilder.setDefaultConnectionConfig(connectionConfig);
     }
@@ -466,22 +465,23 @@ public class HTTPClient implements RESTClient {
 
   @VisibleForTesting
   static ConnectionConfig configureConnectionConfig(Map<String, String> properties) {
-    Long connectionTimeout =
+    Long connectionTimeoutMillis =
         PropertyUtil.propertyAsNullableLong(properties, REST_CONNECTION_TIMEOUT_MS);
-    Integer socketTimeout = PropertyUtil.propertyAsNullableInt(properties, REST_SOCKET_TIMEOUT_MS);
+    Integer socketTimeoutMillis =
+        PropertyUtil.propertyAsNullableInt(properties, REST_SOCKET_TIMEOUT_MS);
 
-    if (connectionTimeout == null && socketTimeout == null) {
+    if (connectionTimeoutMillis == null && socketTimeoutMillis == null) {
       return null;
     }
 
     ConnectionConfig.Builder connConfigBuilder = ConnectionConfig.custom();
 
-    if (connectionTimeout != null) {
-      connConfigBuilder.setConnectTimeout(connectionTimeout, TimeUnit.MILLISECONDS);
+    if (connectionTimeoutMillis != null) {
+      connConfigBuilder.setConnectTimeout(connectionTimeoutMillis, TimeUnit.MILLISECONDS);
     }
 
-    if (socketTimeout != null) {
-      connConfigBuilder.setSocketTimeout(socketTimeout, TimeUnit.MILLISECONDS);
+    if (socketTimeoutMillis != null) {
+      connConfigBuilder.setSocketTimeout(socketTimeoutMillis, TimeUnit.MILLISECONDS);
     }
 
     return connConfigBuilder.build();
@@ -538,7 +538,7 @@ public class HTTPClient implements RESTClient {
           mapper,
           interceptor,
           properties,
-          configureConnectionManager(properties, configureConnectionConfig(properties)));
+          configureConnectionManager(properties));
     }
   }
 

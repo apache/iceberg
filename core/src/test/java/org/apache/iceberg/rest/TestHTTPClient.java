@@ -137,7 +137,7 @@ public class TestHTTPClient {
   }
 
   @Test
-  public void testHttpClientGetConnectionConfig() {
+  public void testSocketAndConnectionTimeoutSet() {
     long connectionTimeoutMs = 10L;
     int socketTimeoutMs = 10;
     Map<String, String> properties =
@@ -152,7 +152,7 @@ public class TestHTTPClient {
   }
 
   @Test
-  public void testHttpClientWithSocketTimeout() throws IOException {
+  public void testSocketTimeout() throws IOException {
     long socketTimeoutMs = 2000L;
     Map<String, String> properties =
         ImmutableMap.of(HTTPClient.REST_SOCKET_TIMEOUT_MS, String.valueOf(socketTimeoutMs));
@@ -179,14 +179,22 @@ public class TestHTTPClient {
   }
 
   @Test
-  public void testHttpClientInvalidConnectionTimeout() {
-    // We expect a Runtime exception
-    String connectionTimeoutMsStr = "invalidMs";
-    Map<String, String> properties =
-        ImmutableMap.of(HTTPClient.REST_CONNECTION_TIMEOUT_MS, connectionTimeoutMsStr);
+  public void testInvalidConnectionTimeout() {
+    testInvalidTimeouts(HTTPClient.REST_CONNECTION_TIMEOUT_MS);
+  }
+
+  @Test
+  public void testInvalidSocketTimeout() {
+    testInvalidTimeouts(HTTPClient.REST_SOCKET_TIMEOUT_MS);
+  }
+
+  private void testInvalidTimeouts(String timeoutMsType) {
+    String timeoutMsStr = "invalidMs";
+    Map<String, String> properties = ImmutableMap.of(timeoutMsType, timeoutMsStr);
 
     Assertions.assertThatThrownBy(() -> HTTPClient.builder(properties).uri(URI).build())
-        .isInstanceOf(RuntimeException.class);
+        .isInstanceOf(NumberFormatException.class)
+        .hasMessage("For input string: \"invalidMs\"");
   }
 
   public static void testHttpMethodOnSuccess(HttpMethod method) throws JsonProcessingException {
