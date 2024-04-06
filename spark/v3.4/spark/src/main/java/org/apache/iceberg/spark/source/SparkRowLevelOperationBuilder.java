@@ -20,21 +20,17 @@ package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL_DEFAULT;
-import static org.apache.iceberg.TableProperties.DELETE_MODE;
-import static org.apache.iceberg.TableProperties.DELETE_MODE_DEFAULT;
 import static org.apache.iceberg.TableProperties.MERGE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.MERGE_ISOLATION_LEVEL_DEFAULT;
-import static org.apache.iceberg.TableProperties.MERGE_MODE;
-import static org.apache.iceberg.TableProperties.MERGE_MODE_DEFAULT;
 import static org.apache.iceberg.TableProperties.UPDATE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.UPDATE_ISOLATION_LEVEL_DEFAULT;
-import static org.apache.iceberg.TableProperties.UPDATE_MODE;
-import static org.apache.iceberg.TableProperties.UPDATE_MODE_DEFAULT;
 
 import java.util.Map;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.write.RowLevelOperation;
 import org.apache.spark.sql.connector.write.RowLevelOperation.Command;
@@ -56,7 +52,7 @@ class SparkRowLevelOperationBuilder implements RowLevelOperationBuilder {
     this.table = table;
     this.branch = branch;
     this.info = info;
-    this.mode = mode(table.properties(), info.command());
+    this.mode = mode(new SparkWriteConf(spark, table, branch, ImmutableMap.of()), info.command());
     this.isolationLevel = isolationLevel(table.properties(), info.command());
   }
 
@@ -72,18 +68,18 @@ class SparkRowLevelOperationBuilder implements RowLevelOperationBuilder {
     }
   }
 
-  private RowLevelOperationMode mode(Map<String, String> properties, Command command) {
+  private RowLevelOperationMode mode(SparkWriteConf conf, Command command) {
     String modeName;
 
     switch (command) {
       case DELETE:
-        modeName = properties.getOrDefault(DELETE_MODE, DELETE_MODE_DEFAULT);
+        modeName = conf.writeDeleteMode();
         break;
       case UPDATE:
-        modeName = properties.getOrDefault(UPDATE_MODE, UPDATE_MODE_DEFAULT);
+        modeName = conf.writeUpdateMode();
         break;
       case MERGE:
-        modeName = properties.getOrDefault(MERGE_MODE, MERGE_MODE_DEFAULT);
+        modeName = conf.writeMergeMode();
         break;
       default:
         throw new IllegalArgumentException("Unsupported command: " + command);
