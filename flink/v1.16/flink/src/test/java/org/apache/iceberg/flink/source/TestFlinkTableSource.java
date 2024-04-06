@@ -601,7 +601,108 @@ public class TestFlinkTableSource extends FlinkTestBase {
   }
 
   @Test
-  public void testSqlParseNaN() {
-    // todo add some test case to test NaN
+  public void testFilterNaN() {
+    final String tableName = "test_table_nan";
+    try {
+      sql(
+          "CREATE TABLE %s (id INT, data VARCHAR,d DOUBLE, f FLOAT) WITH ('write.format.default'='%s')",
+          tableName, format.name());
+      sql(
+          "INSERT INTO %s VALUES (1,'iceberg',10, 1.1),(2,'b',20,2.2),(3,CAST(NULL AS VARCHAR),30,3.3),(4,'d',CAST('NaN' AS DOUBLE),4.4)",
+          tableName);
+
+      String sqlNaNDoubleEqual =
+          String.format("SELECT * FROM %s  WHERE d = CAST('NaN' AS DOUBLE)  ", tableName);
+      List<Row> resultDoubleEqual = sql(sqlNaNDoubleEqual);
+      Assert.assertEquals("Should have 0 records", 0, resultDoubleEqual.size());
+
+      String sqlNaNDoubleNotEqual =
+          String.format("SELECT * FROM %s  WHERE d <> CAST('NaN' AS DOUBLE)  ", tableName);
+      List<Row> resultDoubleNotEqual = sql(sqlNaNDoubleNotEqual);
+      List<Row> expectedDouble =
+          Lists.newArrayList(
+              Row.of(1, "iceberg", 10.0d, 1.1f),
+              Row.of(2, "b", 20.0d, 2.2f),
+              Row.of(3, null, 30.0d, 3.3f),
+              Row.of(4, "d", Double.NaN, 4.4f));
+      Assert.assertEquals("Should have 4 records", 4, resultDoubleNotEqual.size());
+      Assertions.assertThat(resultDoubleNotEqual).containsAnyElementsOf(expectedDouble);
+
+      String sqlNaNDoubleGT =
+          String.format("SELECT * FROM %s  WHERE d > CAST('NaN' AS DOUBLE)  ", tableName);
+      AssertHelpers.assertThrows(
+          "Cannot create expression literal '>' from NaN",
+          IllegalArgumentException.class,
+          () -> {
+            return sql(sqlNaNDoubleGT);
+          });
+
+      String sqlNaNDoubleLT =
+          String.format("SELECT * FROM %s WHERE d < CAST('NaN' AS DOUBLE)  ", tableName);
+      AssertHelpers.assertThrows(
+          "Cannot create expression literal '<' from NaN",
+          IllegalArgumentException.class,
+          () -> {
+            return sql(sqlNaNDoubleLT);
+          });
+
+      String sqlNaNDoubleGTE =
+          String.format("SELECT * FROM %s WHERE d >= CAST('NaN' AS DOUBLE) ", tableName);
+      AssertHelpers.assertThrows(
+          "Cannot create expression literal '>=' from NaN",
+          IllegalArgumentException.class,
+          () -> sql(sqlNaNDoubleGTE));
+
+      String sqlNaNDoubleLTE =
+          String.format("SELECT * FROM %s WHERE d <= CAST('NaN' AS DOUBLE) ", tableName);
+      AssertHelpers.assertThrows(
+          "Cannot create expression literal '<=' from NaN",
+          IllegalArgumentException.class,
+          () -> sql(sqlNaNDoubleLTE));
+
+      String sqlParseErrorEqual =
+          String.format("SELECT * FROM %s WHERE f = CAST('NaN' AS FLOAT) ", tableName);
+      AssertHelpers.assertThrows(
+          "The FLOAT NaN is not supported  yet.",
+          NumberFormatException.class,
+          () -> sql(sqlParseErrorEqual));
+
+      String sqlParseErrorNotEqual =
+          String.format("SELECT * FROM %s WHERE f <> CAST('NaN' AS FLOAT) ", tableName);
+      AssertHelpers.assertThrows(
+          "The FLOAT NaN is not supported yet. ",
+          NumberFormatException.class,
+          () -> sql(sqlParseErrorNotEqual));
+
+      String sqlParseErrorGT =
+          String.format("SELECT * FROM %s WHERE f > CAST('NaN' AS FLOAT) ", tableName);
+      AssertHelpers.assertThrows(
+          "The FLOAT NaN is not supported yet.",
+          NumberFormatException.class,
+          () -> sql(sqlParseErrorGT));
+
+      String sqlParseErrorLT =
+          String.format("SELECT * FROM %s WHERE f < CAST('NaN' AS FLOAT) ", tableName);
+      AssertHelpers.assertThrows(
+          "The FLOAT NaN is not supported yet.",
+          NumberFormatException.class,
+          () -> sql(sqlParseErrorLT));
+
+      String sqlParseErrorGTE =
+          String.format("SELECT * FROM %s WHERE f >= CAST('NaN' AS FLOAT) ", tableName);
+      AssertHelpers.assertThrows(
+          "The FLOAT NaN is not supported yet.",
+          NumberFormatException.class,
+          () -> sql(sqlParseErrorGTE));
+
+      String sqlParseErrorLTE =
+          String.format("SELECT * FROM %s WHERE f <= CAST('NaN' AS FLOAT) ", tableName);
+      AssertHelpers.assertThrows(
+          "The FLOAT NaN is not supported yet.",
+          NumberFormatException.class,
+          () -> sql(sqlParseErrorLTE));
+    } finally {
+      sql("DROP TABLE IF EXISTS %s.%s", DATABASE_NAME, tableName);
+    }
   }
 }
