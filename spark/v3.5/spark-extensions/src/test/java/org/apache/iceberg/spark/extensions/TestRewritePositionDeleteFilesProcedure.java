@@ -20,18 +20,23 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.SnapshotSummary.ADDED_FILE_SIZE_PROP;
 import static org.apache.iceberg.SnapshotSummary.REMOVED_FILE_SIZE_PROP;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.*;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.source.SimpleRecord;
+import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.RowFactory;
+import org.apache.spark.sql.types.DataTypes;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -220,6 +225,87 @@ public class TestRewritePositionDeleteFilesProcedure extends ExtensionsTestBase 
                     catalogName, tableIdent))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot convert Spark filter");
+  }
+
+  @TestTemplate
+  public void testRewriteForBigTables() throws Exception {
+    final String dbTable = "big_mor_table";
+    final int numColumns = 1010;
+
+    // Creating column names
+    List<String> columnNames = new ArrayList<>();
+    for (int i = 1; i <= numColumns; i++) {
+      columnNames.add("col" + i);
+    }
+
+    // Create 5 rows
+    List<Row> data = new ArrayList<>();
+    for (int i = 1; i <= 5; i++) {
+      Object[] row = new Object[numColumns];
+      row[0] = 1;
+      for (int j = 1; j < numColumns; j++) {
+        row[j] = i;
+      }
+      data.add(RowFactory.create(row));
+    }
+
+    // Creating DataFrame
+    Dataset<Row> dfWithRow =
+        spark.createDataFrame(
+            data,
+            DataTypes.createStructType(
+                columnNames.stream()
+                    .map(name -> DataTypes.createStructField(name, DataTypes.IntegerType, true))
+                    .collect(Collectors.toList())));
+
+    dfWithRow.createOrReplaceTempView("table_input");
+
+    // Creating table using Iceberg
+    String createTableSql =
+        String.format(
+            "CREATE TABLE %s "
+                + "USING iceberg "
+                + "PARTITIONED BY (col1) "
+                + "TBLPROPERTIES ( "
+                + "'format-version'='2', "
+                + "'write.delete.mode'='merge-on-read', "
+                + "'write.update.mode'='merge-on-read', "
+                + "'write.merge.mode'='merge-on-read', "
+                + "'write.distribution-mode'='hash', "
+                + "'write.delete.distribution-mode'='hash', "
+                + "'write.update.distribution-mode'='hash', "
+                + "'write.merge.distribution-mode'='hash' "
+                + ") "
+                + "AS SELECT * FROM table_input",
+            tableName);
+
+    spark.sql(createTableSql);
+
+    // Merge operations
+    for (int i = 1; i <= 2; i++) {
+      String mergeSql =
+          String.format(
+              "MERGE INTO %s t "
+                  + "USING (SELECT * FROM table_input WHERE col2 = %d) s "
+                  + "ON t.col2 = s.col2 "
+                  + "WHEN MATCHED THEN UPDATE SET * "
+                  + "WHEN NOT MATCHED THEN INSERT *",
+              tableName, i);
+
+      spark.sql(mergeSql);
+    }
+
+    assertThatCode(() -> sql("UPDATE %s SET col2 = 6 WHERE col2 =1", tableName))
+        .doesNotThrowAnyException();
+
+    assertThatCode(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_position_delete_files("
+                        + "table => '%s',"
+                        + "options => map('rewrite-all', 'true'))",
+                    catalogName, tableName))
+        .doesNotThrowAnyException();
   }
 
   private Map<String, String> snapshotSummary() {
