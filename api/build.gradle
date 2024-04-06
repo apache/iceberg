@@ -1,0 +1,52 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+test {
+    useJUnitPlatform()
+}
+
+dependencies {
+    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    compileOnly "com.google.errorprone:error_prone_annotations"
+    compileOnly "com.google.code.findbugs:jsr305"
+    annotationProcessor "org.immutables:value"
+    compileOnly "org.immutables:value"
+    testImplementation "org.apache.avro:avro"
+    testImplementation "com.esotericsoftware:kryo"
+}
+
+tasks.processTestResources.dependsOn rootProject.tasks.buildInfo
+
+// Workaround to prevent:
+// Task ':iceberg-api:processTestResources' uses this output of task
+// ':spotlessInternalRegisterDependencies' without declaring an explicit or implicit dependency.
+// This can lead to incorrect results being produced, depending on what order the tasks are executed.
+rootProject.tasks.configureEach { rootTask ->
+    if (rootTask.name == 'spotlessInternalRegisterDependencies') {
+        tasks.processTestResources.dependsOn rootTask
+    }
+}
+
+sourceSets {
+    test {
+        resources {
+            srcDir "${rootDir}/build"
+        }
+    }
+}
