@@ -24,7 +24,6 @@ import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Binder;
@@ -125,23 +124,13 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
-    public Expression and(Supplier<Expression> left, Supplier<Expression> right) {
-      Expression leftResult = left.get();
-      if (leftResult == ROWS_CANNOT_MATCH) {
-        return leftResult;
-      }
-
-      return Expressions.and(leftResult, right.get());
+    public Expression and(Expression leftResult, Expression rightResult) {
+      return Expressions.and(leftResult, rightResult);
     }
 
     @Override
-    public Expression or(Supplier<Expression> left, Supplier<Expression> right) {
-      Expression leftResult = left.get();
-      if (leftResult == ROWS_ALL_MATCH) {
-        return leftResult;
-      }
-
-      return Expressions.or(leftResult, right.get());
+    public Expression or(Expression leftResult, Expression rightResult) {
+      return Expressions.or(leftResult, rightResult);
     }
 
     @Override

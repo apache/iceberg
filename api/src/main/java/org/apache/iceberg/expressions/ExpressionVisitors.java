@@ -27,12 +27,6 @@ public class ExpressionVisitors {
 
   private ExpressionVisitors() {}
 
-  public interface SupportsLazyEvaluation<R> {
-    R and(Supplier<R> left, Supplier<R> right);
-
-    R or(Supplier<R> left, Supplier<R> right);
-  }
-
   public abstract static class ExpressionVisitor<R> {
     public R alwaysTrue() {
       return null;
@@ -369,20 +363,11 @@ public class ExpressionVisitors {
           return visitor.not(visit(not.child(), visitor));
         case AND:
           And and = (And) expr;
-          if (visitor instanceof SupportsLazyEvaluation) {
-            return ((SupportsLazyEvaluation<R>) visitor)
-                .and(() -> visit(and.left(), visitor), () -> visit(and.right(), visitor));
-          } else {
-            return visitor.and(visit(and.left(), visitor), visit(and.right(), visitor));
-          }
+          return visitor.and(visit(and.left(), visitor), visit(and.right(), visitor));
         case OR:
           Or or = (Or) expr;
-          if (visitor instanceof SupportsLazyEvaluation) {
-            return ((SupportsLazyEvaluation<R>) visitor)
-                .or(() -> visit(or.left(), visitor), () -> visit(or.right(), visitor));
-          } else {
-            return visitor.or(visit(or.left(), visitor), visit(or.right(), visitor));
-          }
+          return visitor.or(visit(or.left(), visitor), visit(or.right(), visitor));
+
         default:
           throw new UnsupportedOperationException("Unknown operation: " + expr.op());
       }
@@ -619,8 +604,7 @@ public class ExpressionVisitors {
     }
   }
 
-  public abstract static class FindsResidualVisitor extends BoundExpressionVisitor<Expression>
-      implements SupportsLazyEvaluation<Expression> {
+  public abstract static class FindsResidualVisitor extends BoundExpressionVisitor<Expression> {
     protected static final Expression ROWS_CANNOT_MATCH = Expressions.alwaysFalse();
     protected static final Expression ROWS_ALL_MATCH = Expressions.alwaysTrue();
     protected static final Expression ROWS_MIGHT_MATCH = null;
