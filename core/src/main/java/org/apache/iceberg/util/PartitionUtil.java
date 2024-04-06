@@ -83,6 +83,9 @@ public class PartitionUtil {
         Object converted =
             convertConstant.apply(
                 partitionFields.get(pos).type(), partitionData.get(pos, Object.class));
+        if (converted == null) {
+          continue;
+        }
         idToConstant.put(field.sourceId(), converted);
       }
     }
