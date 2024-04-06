@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.aws.lakeformation;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -38,10 +40,9 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.awaitility.Awaitility;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
@@ -125,7 +126,7 @@ public class LakeFormationTestBase {
   static LakeFormationClient lakeformation;
   static GlueClient glue;
 
-  @BeforeClass
+  @BeforeAll
   public static void beforeClass() throws Exception {
     lfRegisterPathRoleName = LF_REGISTER_PATH_ROLE_PREFIX + UUID.randomUUID().toString();
     lfPrivilegedRoleName = LF_PRIVILEGED_ROLE_PREFIX + UUID.randomUUID().toString();
@@ -256,7 +257,7 @@ public class LakeFormationTestBase {
     registerResource(testBucketPath);
   }
 
-  @AfterClass
+  @AfterAll
   public static void afterClass() {
     GetDataLakeSettingsResponse getDataLakeSettingsResponse =
         lakeformation.getDataLakeSettings(GetDataLakeSettingsRequest.builder().build());
@@ -367,7 +368,7 @@ public class LakeFormationTestBase {
         .atMost(Duration.ofSeconds(10))
         .untilAsserted(
             () ->
-                Assertions.assertThat(
+                assertThat(
                         iam.getRolePolicy(
                             GetRolePolicyRequest.builder()
                                 .roleName(roleName)
@@ -438,7 +439,7 @@ public class LakeFormationTestBase {
           .ignoreExceptions()
           .untilAsserted(
               () ->
-                  Assertions.assertThat(
+                  assertThat(
                           lakeformation
                               .describeResource(
                                   DescribeResourceRequest.builder().resourceArn(arn).build())
