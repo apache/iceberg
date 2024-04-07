@@ -21,12 +21,12 @@ dependencies {
     implementation project(':iceberg-core')
     implementation project(':iceberg-common')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-    compileOnly 'com.emc.ecs:object-client-bundle'
+    compileOnly libs.object.client.bundle
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
-    testImplementation "javax.xml.bind:jaxb-api"
-    testImplementation "javax.activation:activation"
-    testImplementation "org.glassfish.jaxb:jaxb-runtime"
+    testImplementation libs.jaxb.api
+    testImplementation libs.activation
+    testImplementation libs.jaxb.runtime
 }
 
 test {

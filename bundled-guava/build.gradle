@@ -22,7 +22,7 @@ apply plugin: 'com.github.johnrengelman.shadow'
 tasks.jar.dependsOn tasks.shadowJar
 
 dependencies {
-    compileOnly('com.google.guava:guava') {
+    compileOnly(libs.guava.guava) {
         exclude group: 'com.google.code.findbugs'
         // may be LGPL - use ALv2 findbugs-annotations instead
         exclude group: 'com.google.errorprone'
@@ -54,3 +54,4 @@ shadowJar {
 jar {
     archiveClassifier.set('empty')
 }
+

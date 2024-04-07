@@ -23,18 +23,19 @@ dependencies {
     implementation project(':iceberg-core')
     implementation project(':iceberg-common')
 
-    implementation("org.apache.parquet:parquet-avro") {
+    implementation(libs.parquet.avro) {
         exclude group: 'org.apache.avro', module: 'avro'
         // already shaded by Parquet
         exclude group: 'it.unimi.dsi'
         exclude group: 'org.codehaus.jackson'
     }
 
-    compileOnly "org.apache.avro:avro"
-    compileOnly("org.apache.hadoop:hadoop-client") {
+    compileOnly libs.avro.avro
+    compileOnly(libs.hadoop2.client) {
         exclude group: 'org.apache.avro', module: 'avro'
     }
 
+    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
 }
 

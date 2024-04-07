@@ -21,33 +21,34 @@ dependencies {
     api project(':iceberg-api')
     implementation project(':iceberg-common')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-    annotationProcessor "org.immutables:value"
-    compileOnly "org.immutables:value"
+    annotationProcessor libs.immutables.value
+    compileOnly libs.immutables.value
 
-    implementation("org.apache.avro:avro") {
+    implementation(libs.avro.avro) {
         exclude group: 'org.tukaani' // xz compression is not supported
     }
 
-    implementation 'io.airlift:aircompressor'
-    implementation 'org.apache.httpcomponents.client5:httpclient5'
-    implementation "com.fasterxml.jackson.core:jackson-databind"
+    implementation libs.aircompressor
+    implementation libs.httpcomponents.httpclient5
+    implementation platform(libs.jackson.bom)
     implementation "com.fasterxml.jackson.core:jackson-core"
-    implementation "com.github.ben-manes.caffeine:caffeine"
-    implementation "org.roaringbitmap:RoaringBitmap"
-    compileOnly("org.apache.hadoop:hadoop-client") {
+    implementation "com.fasterxml.jackson.core:jackson-databind"
+    implementation libs.caffeine
+    implementation libs.roaringbitmap
+    compileOnly(libs.hadoop2.client) {
         exclude group: 'org.apache.avro', module: 'avro'
         exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
 
-    testImplementation "org.eclipse.jetty:jetty-servlet"
-    testImplementation "org.eclipse.jetty:jetty-server"
-    testImplementation 'org.mock-server:mockserver-netty'
-    testImplementation 'org.mock-server:mockserver-client-java'
-    testImplementation "org.xerial:sqlite-jdbc"
+    testImplementation libs.jetty.servlet
+    testImplementation libs.jetty.server
+    testImplementation libs.mockserver.netty
+    testImplementation libs.mockserver.client.java
+    testImplementation libs.sqlite.jdbc
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
-    testImplementation "com.esotericsoftware:kryo"
-    testImplementation "com.google.guava:guava-testlib"
-    testImplementation 'org.awaitility:awaitility'
+    testImplementation libs.esotericsoftware.kryo
+    testImplementation libs.guava.testlib
+    testImplementation libs.awaitility
 }
 
 test {

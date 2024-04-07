@@ -41,27 +41,30 @@ dependencies {
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-    implementation "org.projectnessie.nessie:nessie-client"
+    implementation(libs.nessie.client) {
+        exclude group: 'com.fasterxml.jackson'
+    }
+    implementation platform(libs.jackson.bom)
     implementation "com.fasterxml.jackson.core:jackson-databind"
     implementation "com.fasterxml.jackson.core:jackson-core"
 
-    compileOnly "org.apache.hadoop:hadoop-common"
+    compileOnly libs.hadoop2.common
     // Only there to prevent "warning: unknown enum constant SchemaType.OBJECT" compile messages
-    compileOnly "org.eclipse.microprofile.openapi:microprofile-openapi-api:3.1.1"
+    compileOnly libs.microprofile.openapi.api
 
     if (JavaVersion.current().isJava11Compatible()) {
-        testImplementation "org.projectnessie.nessie:nessie-jaxrs-testextension"
-        testImplementation "org.projectnessie.nessie:nessie-versioned-storage-inmemory"
-        testImplementation "org.projectnessie.nessie:nessie-versioned-storage-testextension"
+        testImplementation libs.nessie.jaxrs.testextension
+        testImplementation libs.nessie.versioned.storage.inmemory.tests
+        testImplementation libs.nessie.versioned.storage.testextension
         // Need to "pull in" el-api explicitly :(
-        testImplementation "jakarta.el:jakarta.el-api"
+        testImplementation libs.jakarta.el.api
 
-        testImplementation "org.apache.avro:avro"
+        testImplementation libs.avro.avro
 
         testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
         testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
 
         // Only there to prevent "warning: unknown enum constant SchemaType.OBJECT" compile messages
-        testCompileOnly "org.eclipse.microprofile.openapi:microprofile-openapi-api:3.1.1"
+        testCompileOnly libs.microprofile.openapi.api
     }
 }

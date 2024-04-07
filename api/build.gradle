@@ -17,18 +17,13 @@
  * under the License.
  */
 
-test {
-    useJUnitPlatform()
-}
-
 dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-    compileOnly "com.google.errorprone:error_prone_annotations"
-    compileOnly "com.google.code.findbugs:jsr305"
-    annotationProcessor "org.immutables:value"
-    compileOnly "org.immutables:value"
-    testImplementation "org.apache.avro:avro"
-    testImplementation "com.esotericsoftware:kryo"
+    compileOnly libs.errorprone.annotations
+    compileOnly libs.findbugs.jsr305
+    testImplementation libs.avro.avro
+    testImplementation libs.esotericsoftware.kryo
+    testImplementation libs.awaitility
 }
 
 tasks.processTestResources.dependsOn rootProject.tasks.buildInfo
@@ -49,4 +44,8 @@ sourceSets {
             srcDir "${rootDir}/build"
         }
     }
+}
+
+test {
+    useJUnitPlatform()
 }

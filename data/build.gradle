@@ -23,13 +23,13 @@ dependencies {
     implementation project(':iceberg-core')
     compileOnly project(':iceberg-parquet')
     compileOnly project(':iceberg-orc')
-    compileOnly("org.apache.hadoop:hadoop-common") {
+    compileOnly(libs.hadoop2.common) {
         exclude group: 'commons-beanutils'
         exclude group: 'org.apache.avro', module: 'avro'
         exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
 
-    implementation("org.apache.orc:orc-core::nohive") {
+    implementation("${libs.orc.core.get().module}:${libs.versions.orc.get()}:nohive") {
         exclude group: 'org.apache.hadoop'
         exclude group: 'commons-lang'
         // These artifacts are shaded and included in the orc-core fat jar
@@ -37,16 +37,16 @@ dependencies {
         exclude group: 'org.apache.hive', module: 'hive-storage-api'
     }
 
-    implementation("org.apache.parquet:parquet-avro") {
+    implementation(libs.parquet.avro) {
         exclude group: 'org.apache.avro', module: 'avro'
         // already shaded by Parquet
         exclude group: 'it.unimi.dsi'
         exclude group: 'org.codehaus.jackson'
     }
 
-    compileOnly "org.apache.avro:avro"
+    compileOnly libs.avro.avro
 
-    testImplementation("org.apache.hadoop:hadoop-client") {
+    testImplementation(libs.hadoop2.client) {
         exclude group: 'org.apache.avro', module: 'avro'
         exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
@@ -56,6 +56,8 @@ dependencies {
 }
 
 test {
+    useJUnitPlatform()
     // Only for TestSplitScan as of Gradle 5.0+
     maxHeapSize '1500m'
 }
+

@@ -21,12 +21,13 @@ dependencies {
     implementation project(':iceberg-core')
     implementation project(':iceberg-common')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    implementation platform(libs.jackson.bom)
     implementation "com.fasterxml.jackson.core:jackson-databind"
     implementation "com.fasterxml.jackson.core:jackson-core"
 
-    runtimeOnly("net.snowflake:snowflake-jdbc")
+    runtimeOnly libs.snowflake.jdbc
 
-    testImplementation 'org.mockito:mockito-junit-jupiter'
+    testImplementation libs.mockito.junit.jupiter
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
 }
 

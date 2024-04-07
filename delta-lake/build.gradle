@@ -32,25 +32,26 @@ dependencies {
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
     implementation project(':iceberg-parquet')
+    implementation platform(libs.jackson.bom)
     implementation "com.fasterxml.jackson.core:jackson-databind"
-    annotationProcessor "org.immutables:value"
-    compileOnly "org.immutables:value"
+    annotationProcessor libs.immutables.value
+    compileOnly libs.immutables.value
 
-    compileOnly "io.delta:delta-standalone_${scalaVersion}"
+    compileOnly "io.delta:delta-standalone_${scalaVersion}:${libs.versions.delta.standalone.get()}"
 
-    compileOnly("org.apache.hadoop:hadoop-common") {
+    compileOnly(libs.hadoop2.common) {
         exclude group: 'org.apache.avro', module: 'avro'
         exclude group: 'org.slf4j', module: 'slf4j-log4j12'
         exclude group: 'javax.servlet', module: 'servlet-api'
         exclude group: 'com.google.code.gson', module: 'gson'
     }
 
-    // The newest version of delta-core uses Spark 3.3.*. Since its only for test, we do
+    // The newest version of delta-core uses Spark 3.5.*. Since its only for test, we do
     // not need to include older version of delta-core
-    if (sparkVersions.contains("3.3")) {
-        integrationImplementation "io.delta:delta-core_${scalaVersion}"
-        integrationImplementation project(path: ":iceberg-spark:iceberg-spark-3.3_${scalaVersion}")
-        integrationImplementation("org.apache.hadoop:hadoop-minicluster") {
+    if (sparkVersions.contains("3.5")) {
+        integrationImplementation "io.delta:delta-spark_${scalaVersion}:${libs.versions.delta.spark.get()}"
+        integrationImplementation project(path: ":iceberg-spark:iceberg-spark-3.5_${scalaVersion}")
+        integrationImplementation(libs.hadoop2.minicluster) {
             exclude group: 'org.apache.avro', module: 'avro'
             // to make sure netty libs only come from project(':iceberg-arrow')
             exclude group: 'io.netty', module: 'netty-buffer'
@@ -58,7 +59,7 @@ dependencies {
         }
         integrationImplementation project(path: ':iceberg-hive-metastore')
         integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
-        integrationImplementation("org.apache.spark:spark-hive_${scalaVersion}:3.3.2") {
+        integrationImplementation("org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark.hive35.get()}") {
             exclude group: 'org.apache.avro', module: 'avro'
             exclude group: 'org.apache.arrow'
             exclude group: 'org.apache.parquet'
@@ -68,26 +69,6 @@ dependencies {
             exclude group: 'org.roaringbitmap'
         }
     }
-}
-
-// The newest version of delta-core uses Spark 3.3.*. The integration test should only be built
-// if iceberg-spark-3.3 is available
-if (sparkVersions.contains("3.3")) {
-    sourceSets {
-        integration {
-            java.srcDir "$projectDir/src/integration/java"
-            resources.srcDir "$projectDir/src/integration/resources"
-            compileClasspath += main.output + test.output
-            runtimeClasspath += main.output + test.output
-        }
-    }
-
-    task integrationTest(type: Test) {
-        testClassesDirs = sourceSets.integration.output.classesDirs
-        classpath = sourceSets.integration.runtimeClasspath
-        jvmArgs += project.property('extraJvmArgs')
-    }
-    check.dependsOn integrationTest
 }
 
 // use integration test since we can take advantages of spark 3.3 to read datafiles of delta lake table

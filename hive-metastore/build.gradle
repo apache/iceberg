@@ -22,14 +22,14 @@ dependencies {
     implementation project(':iceberg-core')
     api project(':iceberg-api')
     implementation project(':iceberg-common')
-    annotationProcessor "org.immutables:value"
-    compileOnly "org.immutables:value"
+    annotationProcessor libs.immutables.value
+    compileOnly libs.immutables.value
 
-    implementation "com.github.ben-manes.caffeine:caffeine"
+    implementation libs.caffeine
 
-    compileOnly "org.apache.avro:avro"
+    compileOnly libs.avro.avro
 
-    compileOnly("org.apache.hive:hive-metastore") {
+    compileOnly(libs.hive2.metastore) {
         exclude group: 'org.apache.avro', module: 'avro'
         exclude group: 'org.slf4j', module: 'slf4j-log4j12'
         exclude group: 'org.pentaho' // missing dependency
@@ -49,7 +49,7 @@ dependencies {
     // that's really old. We use the core classifier to be able to override our guava
     // version. Luckily, hive-exec seems to work okay so far with this version of guava
     // See: https://github.com/apache/hive/blob/master/ql/pom.xml#L911 for more context.
-    testImplementation("org.apache.hive:hive-exec::core") {
+    testImplementation("${libs.hive2.exec.get().module}:${libs.hive2.exec.get().getVersion()}:core") {
         exclude group: 'org.apache.avro', module: 'avro'
         exclude group: 'org.slf4j', module: 'slf4j-log4j12'
         exclude group: 'org.pentaho' // missing dependency
@@ -61,7 +61,7 @@ dependencies {
         exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
 
-    testImplementation("org.apache.hive:hive-metastore") {
+    testImplementation(libs.hive2.metastore) {
         exclude group: 'org.apache.avro', module: 'avro'
         exclude group: 'org.slf4j', module: 'slf4j-log4j12'
         exclude group: 'org.pentaho' // missing dependency
@@ -77,12 +77,14 @@ dependencies {
         exclude group: 'com.zaxxer', module: 'HikariCP'
     }
 
-    compileOnly("org.apache.hadoop:hadoop-client") {
+    compileOnly(libs.hadoop2.client) {
         exclude group: 'org.apache.avro', module: 'avro'
         exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+    testImplementation libs.awaitility
 }
 
 test {
