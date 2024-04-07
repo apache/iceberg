@@ -51,19 +51,19 @@ via Spark SQL.
 
 Assume snapshots are compressed to a single day before this command executes.
 
-1. Create a tag on the snapshot occurring at the end of the first week, that will expire a month after it is created. You do this by setting the tag retention to be 30 days, or an average month. Run this command for each of the following weekend tag.
+1. Create a tag on the snapshot occurring at the end of the first week, that will expire a month after it is created. You do this by setting the tag retention to be 30 days, or an average month. Run this command for each weekend to keep a weekly Snapshot.
 ```sql
 -- Create a tag for the first end of week snapshot. Retain the snapshot for a month
 ALTER TABLE prod.db.table CREATE TAG `EOW-01` AS OF VERSION 7 RETAIN 30 DAYS;
 ```
 
-2. Create a tag on the snapshot occurring at the end of the first month, that will expire three months after it is created. You do this by setting the tag retention to be 180 days, or an average 3 months. Run this command for each of the following month tag.
+2. Create a tag on the snapshot occurring at the end of the first month, that will expire three months after it is created. You do this by setting the tag retention to be 180 days, or an average 3 months. Run this command for each month to keep a monthly Snapshot.
 ```sql
 -- Create a tag for the first end of month snapshot. Retain the snapshot for 6 months
 ALTER TABLE prod.db.table CREATE TAG `EOM-01` AS OF VERSION 30 RETAIN 180 DAYS;
 ```
 
-3. Create a tag on the snapshot for a year, that will retain forever. You do this by tagging the annual snapshot. The default retention for branches and tags is forever.
+3. Create a tag on the snapshot for a year, that will retain forever. You do this by tagging the annual snapshot. The default retention for branches and tags is forever. Run this command for each year to keep a yearly Snapshot.
 ```sql
 -- Create a tag for the end of the year and retain it forever.
 ALTER TABLE prod.db.table CREATE TAG `EOY-2023` AS OF VERSION 365;
