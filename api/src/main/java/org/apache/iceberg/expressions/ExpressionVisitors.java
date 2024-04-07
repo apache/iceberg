@@ -367,7 +367,6 @@ public class ExpressionVisitors {
         case OR:
           Or or = (Or) expr;
           return visitor.or(visit(or.left(), visitor), visit(or.right(), visitor));
-
         default:
           throw new UnsupportedOperationException("Unknown operation: " + expr.op());
       }
