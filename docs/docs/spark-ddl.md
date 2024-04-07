@@ -478,10 +478,11 @@ Note that although the identifier is removed, the column will still exist in the
 #### `ALTER TABLE ... CREATE BRANCH`
 
 Branches can be created via the `CREATE BRANCH` statement with the following options:
+
 * Do not fail if the branch already exists with `IF NOT EXISTS`
 * Update the branch if it already exists with `CREATE OR REPLACE`
-* Create at a snapshot
-* Create with retention
+* Create a branch at a specific snapshot
+* Create a branch with a specified retention period
 
 ```sql
 -- CREATE audit-branch at current snapshot with default retention.
@@ -499,17 +500,18 @@ AS OF VERSION 1234
 
 -- CREATE audit-branch at snapshot 1234, retain audit-branch for 31 days, and retain the latest 31 days. The latest 3 snapshot snapshots, and 2 days worth of snapshots. 
 ALTER TABLE prod.db.sample CREATE BRANCH `audit-branch`
-AS OF VERSION 1234 RETAIN 30 DAYS 
+AS OF VERSION 1234 RETAIN 31 DAYS 
 WITH SNAPSHOT RETENTION 3 SNAPSHOTS 2 DAYS
 ```
 
 #### `ALTER TABLE ... CREATE TAG`
 
 Tags can be created via the `CREATE TAG` statement with the following options:
+
 * Do not fail if the tag already exists with `IF NOT EXISTS`
 * Update the tag if it already exists with `CREATE OR REPLACE`
-* Create at a snapshot
-* Create with retention
+* Create a tag at a specific snapshot
+* Create a tag with a specified retention period
 
 ```sql
 -- CREATE historical-tag at current snapshot with default retention.
