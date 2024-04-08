@@ -18,8 +18,8 @@
  */
 package org.apache.iceberg.aws.lakeformation;
 
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assertions.fail;
 
 import java.time.Duration;
 import java.util.Map;
@@ -162,11 +162,9 @@ public class TestLakeFormationAwsClientFactory {
     Namespace allowedNamespace =
         Namespace.of("allowed_" + UUID.randomUUID().toString().replace("-", ""));
     try {
-      glueCatalog.createNamespace(allowedNamespace);
+      assertThatNoException().isThrownBy(() -> glueCatalog.createNamespace(allowedNamespace));
     } catch (GlueException e) {
       LOG.error("fail to create Glue database", e);
-
-      fail("create namespace should succeed");
     } finally {
       glueCatalog.dropNamespace(allowedNamespace);
       try {
