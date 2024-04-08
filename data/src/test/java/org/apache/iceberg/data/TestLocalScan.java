@@ -81,7 +81,6 @@ public class TestLocalScan {
   }
 
   @TempDir public File temp;
-
   private String sharedTableLocation = null;
   private Table sharedTable = null;
 
@@ -204,7 +203,7 @@ public class TestLocalScan {
   @BeforeEach
   public void createTables() throws IOException {
     File location = temp;
-    org.junit.jupiter.api.Assertions.assertTrue(location.delete());
+    Assertions.assertThat(location.delete()).isTrue();
     this.sharedTableLocation = location.toString();
     this.sharedTable =
         TABLES.create(
@@ -271,7 +270,7 @@ public class TestLocalScan {
     List<Record> expected = RandomGenericData.generate(SCHEMA, 1000, 435691832918L);
 
     FileFormat fileFormat = FileFormat.fromString(fileExt.toString());
-    File location = new File(temp, String.valueOf(FileFormat.fromString(fileExt.toString())));
+    File location = new File(temp, fileFormat.name());
     //    org.junit.jupiter.api.Assertions.assertTrue(location.delete());
     Table table =
         TABLES.create(
@@ -308,10 +307,12 @@ public class TestLocalScan {
     append.commit();
 
     Set<Record> records = Sets.newHashSet(IcebergGenerics.read(table).build());
-    org.junit.jupiter.api.Assertions.assertEquals(
-        expected.size(), records.size(), "Should produce correct number of records");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        Sets.newHashSet(expected), records, "Random record set should match");
+    Assertions.assertThat(expected)
+        .hasSize(records.size())
+        .as("Should produce correct number of records");
+    Assertions.assertThat(records)
+        .isEqualTo(Sets.newHashSet(expected))
+        .as("Random record set should match");
   }
 
   @Test
@@ -324,34 +325,33 @@ public class TestLocalScan {
     expected.addAll(file3FirstSnapshotRecords);
 
     Set<Record> records = Sets.newHashSet(results);
-    org.junit.jupiter.api.Assertions.assertEquals(
-        expected.size(), records.size(), "Should produce correct number of records");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        Sets.newHashSet(expected), records, "Random record set should match");
+    Assertions.assertThat(expected)
+        .hasSize(records.size())
+        .as("Should produce correct number of records");
+    Assertions.assertThat(records)
+        .isEqualTo(Sets.newHashSet(expected))
+        .as("Random record set should match");
   }
 
   @Test
   public void testFilter() {
     Iterable<Record> result = IcebergGenerics.read(sharedTable).where(lessThan("id", 3)).build();
 
-    org.junit.jupiter.api.Assertions.assertEquals(
-        Sets.newHashSet(file1FirstSnapshotRecords),
-        Sets.newHashSet(result),
-        "Records should match file 1");
-
+    Assertions.assertThat(Sets.newHashSet(file1FirstSnapshotRecords))
+        .isEqualTo(Sets.newHashSet(result))
+        .as("Records should match file 1");
     result = IcebergGenerics.read(sharedTable).where(lessThan("iD", 3)).caseInsensitive().build();
 
-    org.junit.jupiter.api.Assertions.assertEquals(
-        Sets.newHashSet(file1FirstSnapshotRecords),
-        Sets.newHashSet(result),
-        "Records should match file 1");
+    Assertions.assertThat(Sets.newHashSet(file1FirstSnapshotRecords))
+        .isEqualTo(Sets.newHashSet(result))
+        .as("Records should match file 1");
 
     result = IcebergGenerics.read(sharedTable).where(lessThanOrEqual("id", 1)).build();
 
-    org.junit.jupiter.api.Assertions.assertEquals(
-        Sets.newHashSet(filter(file1FirstSnapshotRecords, r -> (Long) r.getField("id") <= 1)),
-        Sets.newHashSet(result),
-        "Records should match file 1 without id 2");
+    Assertions.assertThat(
+            Sets.newHashSet(filter(file1FirstSnapshotRecords, r -> (Long) r.getField("id") <= 1)))
+        .isEqualTo(Sets.newHashSet(result))
+        .as("Records should match file 1 without id 2");
   }
 
   @Test
@@ -374,10 +374,10 @@ public class TestLocalScan {
             org.junit.jupiter.api.Assertions.assertEquals(
                 1, record.size(), "Record should have one projected field"));
 
-    org.junit.jupiter.api.Assertions.assertEquals(
-        expected,
-        Sets.newHashSet(transform(results, record -> (Long) record.getField("id"))),
-        "Should project only id columns");
+    Assertions.assertThat(
+            Sets.newHashSet(transform(results, record -> (Long) record.getField("id"))))
+        .isEqualTo(expected)
+        .as("Should project only id columns");
   }
 
   @Test
@@ -391,7 +391,7 @@ public class TestLocalScan {
     expected.addAll(file3FirstSnapshotRecords);
 
     results.forEach(record -> expected.remove(record));
-    org.junit.jupiter.api.Assertions.assertTrue(expected.isEmpty());
+    Assertions.assertThat(expected.isEmpty()).isTrue();
 
     // Test with projected schema
     Schema schema = new Schema(required(1, "id", Types.LongType.get()));
@@ -424,8 +424,8 @@ public class TestLocalScan {
         GenericRecord.create(schema)
             .copy(ImmutableMap.of("id", 2L, "data", "falafel", "_spec_id", 0, "_pos", 2L));
     expectedRecord.setField("_partition", null);
-    org.junit.jupiter.api.Assertions.assertEquals(expectedRecord, iterator.next());
-    org.junit.jupiter.api.Assertions.assertFalse(iterator.hasNext());
+    Assertions.assertThat(iterator.next()).isEqualTo(expectedRecord);
+    Assertions.assertThat(iterator.hasNext()).isFalse();
   }
 
   @Test
@@ -451,10 +451,10 @@ public class TestLocalScan {
             org.junit.jupiter.api.Assertions.assertEquals(
                 2, record.size(), "Record should have two projected fields"));
 
-    org.junit.jupiter.api.Assertions.assertEquals(
-        expected,
-        Sets.newHashSet(transform(results, record -> record.getField("data").toString())),
-        "Should project correct rows");
+    Assertions.assertThat(
+            Sets.newHashSet(transform(results, record -> record.getField("data").toString())))
+        .as("Should project correct rows")
+        .isEqualTo(expected);
   }
 
   @ParameterizedTest(name = "format = {0}")
@@ -472,12 +472,14 @@ public class TestLocalScan {
     expected.addAll(file3SecondSnapshotRecords);
 
     Set<Record> records = Sets.newHashSet(results);
-    org.junit.jupiter.api.Assertions.assertEquals(
-        expected.size(), records.size(), "Should produce correct number of records");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        Sets.newHashSet(expected), records, "Record set should match");
-    org.junit.jupiter.api.Assertions.assertNotNull(Iterables.get(records, 0).getField("id"));
-    org.junit.jupiter.api.Assertions.assertNotNull(Iterables.get(records, 0).getField("data"));
+    Assertions.assertThat(records.size())
+        .isEqualTo(expected.size())
+        .as("Should produce correct number of records");
+    Assertions.assertThat(records)
+        .isEqualTo(Sets.newHashSet(expected))
+        .as("Record set should match");
+    Assertions.assertThat(Iterables.get(records, 0).getField("id")).isNotNull();
+    Assertions.assertThat(Iterables.get(records, 0).getField("data")).isNotNull();
   }
 
   @ParameterizedTest(name = "format = {0}")
@@ -495,12 +497,14 @@ public class TestLocalScan {
     expected.addAll(file3ThirdSnapshotRecords);
 
     Set<Record> records = Sets.newHashSet(results);
-    org.junit.jupiter.api.Assertions.assertEquals(
-        expected.size(), records.size(), "Should produce correct number of records");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        Sets.newHashSet(expected), records, "Record set should match");
-    org.junit.jupiter.api.Assertions.assertNotNull(Iterables.get(records, 0).getField("id"));
-    org.junit.jupiter.api.Assertions.assertNotNull(Iterables.get(records, 0).getField("data"));
+    Assertions.assertThat(records.size())
+        .isEqualTo(expected.size())
+        .as("Should produce correct number of records");
+    Assertions.assertThat(records)
+        .isEqualTo(Sets.newHashSet(expected))
+        .as("Record set should match");
+    Assertions.assertThat(Iterables.get(records, 0).getField("id")).isNotNull();
+    Assertions.assertThat(Iterables.get(records, 0).getField("data")).isNotNull();
   }
 
   @ParameterizedTest(name = "format = {0}")
@@ -520,12 +524,14 @@ public class TestLocalScan {
     expected.addAll(file3ThirdSnapshotRecords);
 
     Set<Record> records = Sets.newHashSet(results);
-    org.junit.jupiter.api.Assertions.assertEquals(
-        expected.size(), records.size(), "Should produce correct number of records");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        Sets.newHashSet(expected), records, "Record set should match");
-    org.junit.jupiter.api.Assertions.assertNotNull(Iterables.get(records, 0).getField("id"));
-    org.junit.jupiter.api.Assertions.assertNotNull(Iterables.get(records, 0).getField("data"));
+    Assertions.assertThat(records.size())
+        .isEqualTo(expected.size())
+        .as("Should produce correct number of records");
+    Assertions.assertThat(records)
+        .isEqualTo(Sets.newHashSet(expected))
+        .as("Record set should match");
+    Assertions.assertThat(Iterables.get(records, 0).getField("id")).isNotNull();
+    Assertions.assertThat(Iterables.get(records, 0).getField("data")).isNotNull();
   }
 
   @ParameterizedTest(name = "format = {0}")
@@ -546,12 +552,14 @@ public class TestLocalScan {
     expected.addAll(file3ThirdSnapshotRecords);
 
     Set<Record> records = Sets.newHashSet(results);
-    org.junit.jupiter.api.Assertions.assertEquals(
-        expected.size(), records.size(), "Should produce correct number of records");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        Sets.newHashSet(expected), records, "Should produce correct number of records");
-    org.junit.jupiter.api.Assertions.assertNotNull(Iterables.get(records, 0).getField("id"));
-    org.junit.jupiter.api.Assertions.assertNotNull(Iterables.get(records, 0).getField("data"));
+    Assertions.assertThat(records.size())
+        .isEqualTo(expected.size())
+        .as("Should produce correct number of records");
+    Assertions.assertThat(records)
+        .isEqualTo(Sets.newHashSet(expected))
+        .as("Should produce correct number of records");
+    Assertions.assertThat(Iterables.get(records, 0).getField("id")).isNotNull();
+    Assertions.assertThat(Iterables.get(records, 0).getField("data")).isNotNull();
   }
 
   @Test
@@ -642,10 +650,10 @@ public class TestLocalScan {
               .where(equal("time", r.getField("time").toString()))
               .build();
 
-      org.junit.jupiter.api.Assertions.assertTrue(filterResult.iterator().hasNext());
+      Assertions.assertThat(filterResult.iterator().hasNext()).isTrue();
       Record readRecord = filterResult.iterator().next();
-      org.junit.jupiter.api.Assertions.assertEquals(
-          r.getField("timestamp_with_zone"), readRecord.getField("timestamp_with_zone"));
+      Assertions.assertThat(readRecord.getField("timestamp_with_zone"))
+          .isEqualTo(r.getField("timestamp_with_zone"));
     }
   }
 

@@ -19,7 +19,6 @@
 package org.apache.iceberg.data;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.junit.jupiter.api.Assertions.*;
 
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
@@ -35,7 +34,7 @@ public class TestGenericRecord {
     GenericRecord record = GenericRecord.create(schema);
     record.set(0, null);
 
-    assertNull(record.get(0, type.typeId().javaClass()));
+    Assertions.assertThat(record.get(0, type.typeId().javaClass())).isNull();
   }
 
   @Test
@@ -45,7 +44,7 @@ public class TestGenericRecord {
     GenericRecord record = GenericRecord.create(schema);
     record.set(0, 10L);
 
-    assertEquals(10L, record.get(0, type.typeId().javaClass()));
+    Assertions.assertThat(record.get(0, type.typeId().javaClass())).isEqualTo(10L);
   }
 
   @Test

@@ -44,7 +44,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.Pair;
-import org.junit.Assert;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -57,7 +57,7 @@ public class TestDataFileIndexStatsFilters {
           Types.NestedField.optional(2, "data", Types.StringType.get()),
           Types.NestedField.required(3, "category", Types.StringType.get()));
 
-  @TempDir public File temp;
+  @TempDir protected File temp;
 
   private Table table;
   private List<Record> records = null;
@@ -84,7 +84,14 @@ public class TestDataFileIndexStatsFilters {
     records.add(record.copy("id", 7, "data", "g", "category", "odd"));
     records.add(record.copy("id", 8, "data", null, "category", "even"));
 
-    this.dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.getPath()), records);
+    this.oddRecords =
+        records.stream()
+            .filter(rec -> rec.getField("category").equals("odd"))
+            .collect(Collectors.toList());
+    this.evenRecords =
+        records.stream()
+            .filter(rec -> rec.getField("category").equals("even"))
+            .collect(Collectors.toList());
 
     this.dataFileWithoutNulls =
         FileHelpers.writeDataFile(
@@ -128,9 +135,11 @@ public class TestDataFileIndexStatsFilters {
       tasks = Lists.newArrayList(tasksIterable);
     }
 
-    Assert.assertEquals("Should produce one task", 1, tasks.size());
+    Assertions.assertThat(1).isEqualTo(tasks.size()).as("Should produce one task");
     FileScanTask task = tasks.get(0);
-    Assert.assertEquals("Should have one delete file, file_path matches", 1, task.deletes().size());
+    Assertions.assertThat(task.deletes().size())
+        .isEqualTo(1)
+        .as("Should have one delete file, file_path matches");
   }
 
   @Test
@@ -154,10 +163,11 @@ public class TestDataFileIndexStatsFilters {
       tasks = Lists.newArrayList(tasksIterable);
     }
 
-    Assert.assertEquals("Should produce one task", 1, tasks.size());
+    Assertions.assertThat(tasks.size()).isEqualTo(1).as("Should produce one task");
     FileScanTask task = tasks.get(0);
-    Assert.assertEquals(
-        "Should not have delete file, filtered by file_path stats", 0, task.deletes().size());
+    Assertions.assertThat(task.deletes().size())
+        .isEqualTo(0)
+        .as("Should not have delete file, filtered by file_path stats");
   }
 
   @Test
@@ -179,10 +189,11 @@ public class TestDataFileIndexStatsFilters {
       tasks = Lists.newArrayList(tasksIterable);
     }
 
-    Assert.assertEquals("Should produce one task", 1, tasks.size());
+    Assertions.assertThat(1).isEqualTo(tasks.size()).as("Should produce one task");
     FileScanTask task = tasks.get(0);
-    Assert.assertEquals(
-        "Should have one delete file, data contains a matching value", 1, task.deletes().size());
+    Assertions.assertThat(task.deletes().size())
+        .isEqualTo(1)
+        .as("Should have one delete file, data contains a matching value");
   }
 
   @Test
@@ -206,10 +217,11 @@ public class TestDataFileIndexStatsFilters {
       tasks = Lists.newArrayList(tasksIterable);
     }
 
-    Assert.assertEquals("Should produce one task", 1, tasks.size());
+    Assertions.assertThat(tasks.size()).isEqualTo(1).as("Should produce one task");
     FileScanTask task = tasks.get(0);
-    Assert.assertEquals(
-        "Should not have delete file, filtered by data column stats", 0, task.deletes().size());
+    Assertions.assertThat(task.deletes().size())
+        .isEqualTo(0)
+        .as("Should not have delete file, filtered by data column stats");
   }
 
   @Test
@@ -231,10 +243,11 @@ public class TestDataFileIndexStatsFilters {
       tasks = Lists.newArrayList(tasksIterable);
     }
 
-    Assert.assertEquals("Should produce one task", 1, tasks.size());
+    Assertions.assertThat(tasks.size()).isEqualTo(1).as("Should produce one task");
     FileScanTask task = tasks.get(0);
-    Assert.assertEquals(
-        "Should have delete file, data contains a null value", 1, task.deletes().size());
+    Assertions.assertThat(task.deletes().size())
+        .isEqualTo(1)
+        .as("Should have delete file, data contains a null value");
   }
 
   @Test
@@ -259,10 +272,11 @@ public class TestDataFileIndexStatsFilters {
       tasks = Lists.newArrayList(tasksIterable);
     }
 
-    Assert.assertEquals("Should produce one task", 1, tasks.size());
+    Assertions.assertThat(tasks.size()).isEqualTo(1).as("Should produce one task");
     FileScanTask task = tasks.get(0);
-    Assert.assertEquals(
-        "Should have no delete files, data contains no null values", 0, task.deletes().size());
+    Assertions.assertThat(task.deletes().size())
+        .isEqualTo(0)
+        .as("Should have no delete files, data contains no null values");
   }
 
   @Test
@@ -287,10 +301,11 @@ public class TestDataFileIndexStatsFilters {
       tasks = Lists.newArrayList(tasksIterable);
     }
 
-    Assert.assertEquals("Should produce one task", 1, tasks.size());
+    Assertions.assertThat(tasks.size()).isEqualTo(1).as("Should produce one task");
     FileScanTask task = tasks.get(0);
-    Assert.assertEquals(
-        "Should have no delete files, data contains no null values", 0, task.deletes().size());
+    Assertions.assertThat(task.deletes().size())
+        .isEqualTo(0)
+        .as("Should have no delete files, data contains no null values");
   }
 
   @Test
@@ -318,10 +333,11 @@ public class TestDataFileIndexStatsFilters {
       tasks = Lists.newArrayList(tasksIterable);
     }
 
-    Assert.assertEquals("Should produce one task", 1, tasks.size());
+    Assertions.assertThat(tasks.size()).isEqualTo(1).as("Should produce one task");
     FileScanTask task = tasks.get(0);
-    Assert.assertEquals(
-        "Should have one delete file, data and deletes have null values", 1, task.deletes().size());
+    Assertions.assertThat(task.deletes().size())
+        .isEqualTo(1)
+        .as("Should have one delete file, data and deletes have null values");
   }
 
   @Test

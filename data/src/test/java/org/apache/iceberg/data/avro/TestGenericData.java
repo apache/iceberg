@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.data.avro;
 
-import com.google.common.collect.Lists;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
@@ -31,7 +30,8 @@ import org.apache.iceberg.data.DataTestHelpers;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.FileAppender;
-import org.junit.Assert;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.assertj.core.api.Assertions;
 
 public class TestGenericData extends DataTest {
   @Override
@@ -39,7 +39,7 @@ public class TestGenericData extends DataTest {
     List<Record> expected = RandomGenericData.generate(schema, 100, 0L);
 
     File testFile = temp;
-    Assert.assertTrue("Delete should succeed", testFile.delete());
+    Assertions.assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     try (FileAppender<Record> writer =
         Avro.write(Files.localOutput(testFile))

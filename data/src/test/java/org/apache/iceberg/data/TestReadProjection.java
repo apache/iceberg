@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.data;
 
+import static org.assertj.core.api.Assertions.offset;
+
 import java.io.File;
 import java.io.IOException;
 import java.time.OffsetDateTime;
@@ -39,8 +41,6 @@ public abstract class TestReadProjection {
   protected abstract Record writeAndRead(
       String desc, Schema writeSchema, Schema readSchema, Record record) throws IOException;
 
-  // @Rule public TemporaryFolder temp = new TemporaryFolder();
-
   @TempDir public File temp;
 
   @Test
@@ -56,12 +56,13 @@ public abstract class TestReadProjection {
 
     Record projected = writeAndRead("full_projection", schema, schema, record);
 
-    org.junit.jupiter.api.Assertions.assertEquals(
-        34L, (long) projected.getField("id"), "Should contain the correct id value");
+    Assertions.assertThat(34L)
+        .isEqualTo((long) projected.getField("id"))
+        .as("Should contain the correct id value");
 
     int cmp =
         Comparators.charSequences().compare("test", (CharSequence) projected.getField("data"));
-    org.junit.jupiter.api.Assertions.assertTrue(cmp == 0, "Should contain the correct data value");
+    Assertions.assertThat(cmp == 0).isTrue().as("Should contain the correct data value");
   }
 
   @Test
@@ -77,21 +78,21 @@ public abstract class TestReadProjection {
 
     Record full = writeAndRead("special_chars", schema, schema, record);
 
-    org.junit.jupiter.api.Assertions.assertEquals(
-        34L, (long) full.getField("user id"), "Should contain the correct id value");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        0,
-        Comparators.charSequences().compare("test", (CharSequence) full.getField("data%0")),
-        "Should contain the correct data value");
+    Assertions.assertThat((long) full.getField("user id"))
+        .isEqualTo(34L)
+        .describedAs("Should contain the correct id value");
+    Assertions.assertThat((CharSequence) full.getField("data%0"))
+        .isEqualTo("test")
+        .describedAs("Should contain the correct data value");
 
     Record projected = writeAndRead("special_characters", schema, schema.select("data%0"), record);
 
-    org.junit.jupiter.api.Assertions.assertNull(
-        projected.getField("user id"), "Should not contain id value");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        0,
-        Comparators.charSequences().compare("test", (CharSequence) projected.getField("data%0")),
-        "Should contain the correct data value");
+    Assertions.assertThat(projected.getField("user id")).as("Should not contain id value").isNull();
+    Assertions.assertThat(
+            Comparators.charSequences()
+                .compare("test", (CharSequence) projected.getField("data%0")))
+        .isEqualTo(0)
+        .as("Should contain the correct data value");
   }
 
   @Test
@@ -112,10 +113,10 @@ public abstract class TestReadProjection {
 
     Record projected = writeAndRead("full_projection", schema, reordered, record);
 
-    org.junit.jupiter.api.Assertions.assertEquals(
-        "Should contain the correct 0 value", "test", projected.get(0).toString());
-    org.junit.jupiter.api.Assertions.assertEquals(
-        34L, projected.get(1), "Should contain the correct 1 value");
+    Assertions.assertThat(projected.get(0).toString())
+        .isEqualTo("test")
+        .as("Should contain the correct 0 value");
+    Assertions.assertThat(projected.get(1)).isEqualTo(34L).as("Should contain the correct 1 value");
   }
 
   @Test
@@ -137,12 +138,11 @@ public abstract class TestReadProjection {
 
     Record projected = writeAndRead("full_projection", schema, reordered, record);
 
-    org.junit.jupiter.api.Assertions.assertNull(
-        projected.get(0), "Should contain the correct 0 value");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        "Should contain the correct 1 value", "test", projected.get(1).toString());
-    org.junit.jupiter.api.Assertions.assertNull(
-        projected.get(2), "Should contain the correct 2 value");
+    Assertions.assertThat(projected.get(0)).as("Should contain the correct 0 value").isNull();
+    Assertions.assertThat(projected.get(1).toString())
+        .isEqualTo("test")
+        .describedAs("Should contain the correct 1 value");
+    Assertions.assertThat(projected.get(2)).as("Should contain the correct 2 value").isNull();
   }
 
   @Test
@@ -167,22 +167,30 @@ public abstract class TestReadProjection {
 
     Record projected =
         writeAndRead("rename_and_add_column_projection", schema, renamedAdded, record);
-    org.junit.jupiter.api.Assertions.assertEquals(
-        projected.get(0), 100L, "Should contain the correct value in column 1");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        projected.getField("a"), 100L, "Should contain the correct value in column a");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        projected.get(1), 200L, "Should contain the correct value in column 2");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        projected.getField("b"), 200L, "Should contain the correct value in column b");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        projected.get(2), 300L, "Should contain the correct value in column 3");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        projected.getField("c"), 300L, "Should contain the correct value in column c");
-    org.junit.jupiter.api.Assertions.assertNull(
-        projected.get(3), "Should contain empty value on new column 4");
-    org.junit.jupiter.api.Assertions.assertNull(
-        projected.getField("d"), "Should contain the correct value in column d");
+    Assertions.assertThat(projected.get(0))
+        .isEqualTo(100L)
+        .describedAs("Should contain the correct value in column 1");
+    Assertions.assertThat(projected.getField("a"))
+        .isEqualTo(100L)
+        .describedAs("Should contain the correct value in column a");
+    Assertions.assertThat(projected.get(1))
+        .isEqualTo(200L)
+        .describedAs("Should contain the correct value in column 2");
+    Assertions.assertThat(projected.getField("b"))
+        .isEqualTo(200L)
+        .describedAs("Should contain the correct value in column b");
+    Assertions.assertThat(projected.get(2))
+        .isEqualTo(300L)
+        .describedAs("Should contain the correct value in column 3");
+    Assertions.assertThat(projected.getField("c"))
+        .isEqualTo(300L)
+        .describedAs("Should contain the correct value in column c");
+    Assertions.assertThat(projected.get(3))
+        .describedAs("Should contain empty value on new column 4")
+        .isNull();
+    Assertions.assertThat(projected.getField("d"))
+        .describedAs("Should contain the correct value in column d")
+        .isNull();
   }
 
   @Test
@@ -198,7 +206,7 @@ public abstract class TestReadProjection {
 
     Record projected = writeAndRead("empty_projection", schema, schema.select(), record);
 
-    org.junit.jupiter.api.Assertions.assertNotNull(projected, "Should read a non-null record");
+    Assertions.assertThat(projected).describedAs("Should read a non-null record").isNotNull();
     // this is expected because there are no values
     Assertions.assertThatThrownBy(() -> projected.get(0))
         .isInstanceOf(ArrayIndexOutOfBoundsException.class);
@@ -220,18 +228,17 @@ public abstract class TestReadProjection {
     Schema idOnly = new Schema(Types.NestedField.required(0, "id", Types.LongType.get()));
 
     Record projected = writeAndRead("basic_projection_id", writeSchema, idOnly, record);
-    org.junit.jupiter.api.Assertions.assertNull(
-        projected.getField("data"), "Should not project data");
-    org.junit.jupiter.api.Assertions.assertEquals(34L, (long) projected.getField("id"));
+    Assertions.assertThat(projected.getField("data")).as("Should not project data").isNull();
+    Assertions.assertThat((long) projected.getField("id")).isEqualTo(34L);
 
     Schema dataOnly = new Schema(Types.NestedField.optional(1, "data", Types.StringType.get()));
 
     projected = writeAndRead("basic_projection_data", writeSchema, dataOnly, record);
 
-    org.junit.jupiter.api.Assertions.assertNull(projected.getField("id"), "Should not project id");
+    Assertions.assertThat(projected.getField("id")).as("Should not project id").isNull();
     int cmp =
         Comparators.charSequences().compare("test", (CharSequence) projected.getField("data"));
-    org.junit.jupiter.api.Assertions.assertTrue(cmp == 0, "Should contain the correct data value");
+    Assertions.assertThat(cmp == 0).isTrue().as("Should contain the correct data value");
   }
 
   @Test
@@ -252,12 +259,12 @@ public abstract class TestReadProjection {
 
     Record projected = writeAndRead("project_and_rename", writeSchema, readSchema, record);
 
-    org.junit.jupiter.api.Assertions.assertEquals(
-        34L, (long) projected.getField("id"), "Should contain the correct id value");
+    Assertions.assertThat((long) projected.getField("id"))
+        .isEqualTo(34L)
+        .as("Should contain the correct id value");
     int cmp =
         Comparators.charSequences().compare("test", (CharSequence) projected.getField("renamed"));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        cmp == 0, "Should contain the correct data/renamed value");
+    Assertions.assertThat(cmp == 0).isTrue().as("Should contain the correct data/renamed value");
   }
 
   @Test
@@ -283,9 +290,10 @@ public abstract class TestReadProjection {
 
     Record projected = writeAndRead("id_only", writeSchema, idOnly, record);
     Record projectedLocation = (Record) projected.getField("location");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        34L, (long) projected.getField("id"), "Should contain the correct id value");
-    org.junit.jupiter.api.Assertions.assertNull(projectedLocation, "Should not project location");
+    Assertions.assertThat((long) projected.getField("id"))
+        .isEqualTo(34L)
+        .as("Should contain the correct id value");
+    Assertions.assertThat(projectedLocation).as("Should not project location").isNull();
 
     Schema latOnly =
         new Schema(
@@ -296,17 +304,14 @@ public abstract class TestReadProjection {
 
     projected = writeAndRead("latitude_only", writeSchema, latOnly, record);
     projectedLocation = (Record) projected.getField("location");
-    org.junit.jupiter.api.Assertions.assertNull(projected.getField("id"), "Should not project id");
-    org.junit.jupiter.api.Assertions.assertNotNull(
-        projected.getField("location"), "Should project location");
-    org.junit.jupiter.api.Assertions.assertNull(
-        projectedLocation.getField("long"), "Should not project longitude");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        52.995143f,
-        (float) projectedLocation.getField("lat"),
-        0.000001f,
-        "Should project latitude");
-
+    Assertions.assertThat(projected.getField("id")).as("Should not project id").isNull();
+    Assertions.assertThat(projected.getField("location")).isNotNull().as("Should project location");
+    Assertions.assertThat(projectedLocation.getField("long"))
+        .as("Should not project longitude")
+        .isNull();
+    Assertions.assertThat((float) projectedLocation.getField("lat"))
+        .isEqualTo(52.995143f, offset(0.000001f))
+        .as("Should project latitude");
     Schema longOnly =
         new Schema(
             Types.NestedField.optional(
@@ -316,33 +321,26 @@ public abstract class TestReadProjection {
 
     projected = writeAndRead("longitude_only", writeSchema, longOnly, record);
     projectedLocation = (Record) projected.getField("location");
-    org.junit.jupiter.api.Assertions.assertNull(projected.getField("id"), "Should not project id");
-    org.junit.jupiter.api.Assertions.assertNotNull(
-        projected.getField("location"), "Should project location");
-    org.junit.jupiter.api.Assertions.assertNull(
-        projectedLocation.getField("lat"), "Should not project latitutde");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        -1.539054f,
-        (float) projectedLocation.getField("long"),
-        0.000001f,
-        "Should project longitude");
+    Assertions.assertThat(projected.getField("id")).as("Should not project id").isNull();
+    Assertions.assertThat(projected.getField("location")).isNotNull().as("Should project location");
+    Assertions.assertThat(projectedLocation.getField("lat"))
+        .as("Should not project latitude")
+        .isNull();
+    Assertions.assertThat((float) projectedLocation.getField("long"))
+        .isEqualTo(-1.539054f, offset(0.000001f))
+        .as("Should project longitude");
 
     Schema locationOnly = writeSchema.select("location");
     projected = writeAndRead("location_only", writeSchema, locationOnly, record);
     projectedLocation = (Record) projected.getField("location");
-    org.junit.jupiter.api.Assertions.assertNull(projected.getField("id"), "Should not project id");
-    org.junit.jupiter.api.Assertions.assertNotNull(
-        projected.getField("location"), "Should project location");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        52.995143f,
-        (float) projectedLocation.getField("lat"),
-        0.000001f,
-        "Should project latitude");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        -1.539054f,
-        (float) projectedLocation.getField("long"),
-        0.000001f,
-        "Should project longitude");
+    Assertions.assertThat(projected.getField("id")).as("Should not project id").isNull();
+    Assertions.assertThat(projected.getField("location")).isNotNull().as("Should project location");
+    Assertions.assertThat((float) projectedLocation.getField("lat"))
+        .isEqualTo(52.995143f, offset(0.000001f))
+        .as("Should project latitude");
+    Assertions.assertThat((float) projectedLocation.getField("long"))
+        .isEqualTo(-1.539054f, offset(0.000001f))
+        .as("Should project longitude");
   }
 
   @Test
@@ -364,34 +362,32 @@ public abstract class TestReadProjection {
     Schema idOnly = new Schema(Types.NestedField.required(0, "id", Types.LongType.get()));
 
     Record projected = writeAndRead("id_only", writeSchema, idOnly, record);
-    org.junit.jupiter.api.Assertions.assertEquals(
-        34L, (long) projected.getField("id"), "Should contain the correct id value");
-    org.junit.jupiter.api.Assertions.assertNull(
-        projected.getField("properties"), "Should not project properties map");
+    Assertions.assertThat((long) projected.getField("id"))
+        .isEqualTo(34L)
+        .as("Should contain the correct id value");
+    Assertions.assertThat(projected.getField("properties"))
+        .as("Should not project properties map")
+        .isNull();
 
     Schema keyOnly = writeSchema.select("properties.key");
     projected = writeAndRead("key_only", writeSchema, keyOnly, record);
-    org.junit.jupiter.api.Assertions.assertNull(projected.getField("id"), "Should not project id");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        properties,
-        toStringMap((Map) projected.getField("properties")),
-        "Should project entire map");
+    Assertions.assertThat(projected.getField("id")).as("Should not project id").isNull();
+    Assertions.assertThat(toStringMap((Map) projected.getField("properties")))
+        .isEqualTo(properties)
+        .as("Should project entire map");
 
     Schema valueOnly = writeSchema.select("properties.value");
     projected = writeAndRead("value_only", writeSchema, valueOnly, record);
-    org.junit.jupiter.api.Assertions.assertNull(projected.getField("id"), "Should not project id");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        properties,
-        toStringMap((Map) projected.getField("properties")),
-        "Should project entire map");
-
+    Assertions.assertThat(projected.getField("id")).as("Should not project id").isNull();
+    Assertions.assertThat(toStringMap((Map) projected.getField("properties")))
+        .isEqualTo(properties)
+        .as("Should project entire map");
     Schema mapOnly = writeSchema.select("properties");
     projected = writeAndRead("map_only", writeSchema, mapOnly, record);
-    org.junit.jupiter.api.Assertions.assertNull(projected.getField("id"), "Should not project id");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        properties,
-        toStringMap((Map) projected.getField("properties")),
-        "Should project entire map");
+    Assertions.assertThat(projected.getField("id")).as("Should not project id").isNull();
+    Assertions.assertThat(toStringMap((Map) projected.getField("properties")))
+        .isEqualTo(properties)
+        .as("Should project entire map");
   }
 
   private Map<String, ?> toStringMap(Map<?, ?> map) {
@@ -439,56 +435,59 @@ public abstract class TestReadProjection {
     Schema idOnly = new Schema(Types.NestedField.required(0, "id", Types.LongType.get()));
 
     Record projected = writeAndRead("id_only", writeSchema, idOnly, record);
-    org.junit.jupiter.api.Assertions.assertEquals(
-        34L, (long) projected.getField("id"), "Should contain the correct id value");
-    org.junit.jupiter.api.Assertions.assertNull(
-        projected.getField("locations"), "Should not project locations map");
+    Assertions.assertThat((long) projected.getField("id"))
+        .isEqualTo(34L)
+        .as("Should contain the correct id value");
+    Assertions.assertThat(projected.getField("locations"))
+        .as("Should not project locations map")
+        .isNull();
 
     projected = writeAndRead("all_locations", writeSchema, writeSchema.select("locations"), record);
-    org.junit.jupiter.api.Assertions.assertNull(projected.getField("id"), "Should not project id");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        record.getField("locations"),
-        toStringMap((Map) projected.getField("locations")),
-        "Should project locations map");
+    Assertions.assertThat(projected.getField("id")).as("Should not project id").isNull();
+    Assertions.assertThat(toStringMap((Map) projected.getField("locations")))
+        .isEqualTo(record.getField("locations"))
+        .as("Should project locations map");
 
     projected = writeAndRead("lat_only", writeSchema, writeSchema.select("locations.lat"), record);
-    org.junit.jupiter.api.Assertions.assertNull(projected.getField("id"), "Should not project id");
+    Assertions.assertThat(projected.getField("id")).as("Should not project id").isNull();
     Map<String, ?> locations = toStringMap((Map) projected.getField("locations"));
-    org.junit.jupiter.api.Assertions.assertNotNull(locations, "Should project locations map");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        Sets.newHashSet("L1", "L2"), locations.keySet(), "Should contain L1 and L2");
+    Assertions.assertThat(locations).isNotNull().as("Should project locations map");
+    Assertions.assertThat(locations.keySet())
+        .isEqualTo(Sets.newHashSet("L1", "L2"))
+        .as("Should contain L1 and L2");
     Record projectedL1 = (Record) locations.get("L1");
-    org.junit.jupiter.api.Assertions.assertNotNull(projectedL1, "L1 should not be null");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        53.992811f, (float) projectedL1.getField("lat"), 0.000001, "L1 should contain lat");
-    org.junit.jupiter.api.Assertions.assertNull(
-        projectedL1.getField("long"), "L1 should not contain long");
-    Record projectedL2 = (Record) locations.get("L2");
-    org.junit.jupiter.api.Assertions.assertNotNull(projectedL2, "L2 should not be null");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        52.995143f, (float) projectedL2.getField("lat"), 0.000001, "L2 should contain lat");
-    org.junit.jupiter.api.Assertions.assertNull(
-        projectedL2.getField("long"), "L2 should not contain long");
+    Assertions.assertThat(projectedL1).isNotNull().as("L1 should not be null");
+    Assertions.assertThat((float) projectedL1.getField("lat"))
+        .isEqualTo(53.992811f, offset(0.000001f))
+        .as("L1 should contain lat");
+    Assertions.assertThat(projectedL1.getField("long")).as("L1 should not contain long").isNull();
 
+    Record projectedL2 = (Record) locations.get("L2");
+    Assertions.assertThat(projectedL2).isNotNull().as("L2 should not be null");
+    Assertions.assertThat((float) projectedL2.getField("lat"))
+        .isEqualTo(52.995143f, offset(0.000001f))
+        .as("L2 should contain lat");
+    Assertions.assertThat(projectedL2.getField("long")).as("L2 should not contain long").isNull();
     projected =
         writeAndRead("long_only", writeSchema, writeSchema.select("locations.long"), record);
-    org.junit.jupiter.api.Assertions.assertNull(projected.getField("id"), "Should not project id");
+    Assertions.assertThat(projected.getField("id")).as("Should not project id").isNull();
     locations = toStringMap((Map) projected.getField("locations"));
-    org.junit.jupiter.api.Assertions.assertNotNull(locations, "Should project locations map");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        Sets.newHashSet("L1", "L2"), locations.keySet(), "Should contain L1 and L2");
+    Assertions.assertThat(locations).isNotNull().as("Should project locations map");
+    Assertions.assertThat(locations.keySet())
+        .isEqualTo(Sets.newHashSet("L1", "L2"))
+        .as("Should contain L1 and L2");
     projectedL1 = (Record) locations.get("L1");
-    org.junit.jupiter.api.Assertions.assertNotNull(projectedL1, "L1 should not be null");
-    org.junit.jupiter.api.Assertions.assertNull(
-        projectedL1.getField("lat"), "L1 should not contain lat");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        -1.542616f, (float) projectedL1.getField("long"), 0.000001, "L1 should contain long");
+    Assertions.assertThat(projectedL1).isNotNull().as("L1 should not be null");
+    Assertions.assertThat(projectedL1.getField("lat")).as("L1 should not contain lat").isNull();
+    Assertions.assertThat((float) projectedL1.getField("long"))
+        .isEqualTo(-1.542616f, offset(0.000001f))
+        .as("L1 should contain long");
     projectedL2 = (Record) locations.get("L2");
-    org.junit.jupiter.api.Assertions.assertNotNull(projectedL2, "L2 should not be null");
-    org.junit.jupiter.api.Assertions.assertNull(
-        projectedL2.getField("lat"), "L2 should not contain lat");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        -1.539054f, (float) projectedL2.getField("long"), 0.000001, "L2 should contain long");
+    Assertions.assertThat(projectedL2).isNotNull().as("L2 should not be null");
+    Assertions.assertThat(projectedL2.getField("lat")).as("L2 should not contain lat").isNull();
+    Assertions.assertThat((float) projectedL2.getField("long"))
+        .isEqualTo(-1.539054f, offset(0.000001f))
+        .as("L2 should contain long");
 
     Schema latitiudeRenamed =
         new Schema(
@@ -503,33 +502,32 @@ public abstract class TestReadProjection {
                         Types.NestedField.required(1, "latitude", Types.FloatType.get())))));
 
     projected = writeAndRead("latitude_renamed", writeSchema, latitiudeRenamed, record);
-    org.junit.jupiter.api.Assertions.assertNull(projected.getField("id"), "Should not project id");
+    Assertions.assertThat(projected.getField("id")).as("Should not project id").isNull();
     locations = toStringMap((Map) projected.getField("locations"));
-    org.junit.jupiter.api.Assertions.assertNotNull(locations, "Should project locations map");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        Sets.newHashSet("L1", "L2"), locations.keySet(), "Should contain L1 and L2");
+    Assertions.assertThat(locations).isNotNull().as("Should project locations map");
+    Assertions.assertThat(locations.keySet())
+        .isEqualTo(Sets.newHashSet("L1", "L2"))
+        .as("Should contain L1 and L2");
+
     projectedL1 = (Record) locations.get("L1");
-    org.junit.jupiter.api.Assertions.assertNotNull(projectedL1, "L1 should not be null");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        53.992811f,
-        (float) projectedL1.getField("latitude"),
-        0.000001,
-        "L1 should contain latitude");
-    org.junit.jupiter.api.Assertions.assertNull(
-        projectedL1.getField("lat"), "L1 should not contain lat");
-    org.junit.jupiter.api.Assertions.assertNull(
-        projectedL1.getField("long"), "L1 should not contain long");
+    Assertions.assertThat(projectedL1).isNotNull().as("L1 should not be null");
+
+    // Fix field name inconsistency: Use "latitude" as used in the assertion message
+    Assertions.assertThat((float) projectedL1.getField("latitude"))
+        .isEqualTo(53.992811f, offset(0.000001f))
+        .as("L1 should contain latitude");
+    Assertions.assertThat(projectedL1.getField("lat")).as("L1 should not contain lat").isNull();
+    Assertions.assertThat(projectedL1.getField("long")).as("L1 should not contain long").isNull();
+
     projectedL2 = (Record) locations.get("L2");
-    org.junit.jupiter.api.Assertions.assertNotNull(projectedL2, "L2 should not be null");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        52.995143f,
-        (float) projectedL2.getField("latitude"),
-        0.000001,
-        "L2 should contain latitude");
-    org.junit.jupiter.api.Assertions.assertNull(
-        projectedL2.getField("lat"), "L2 should not contain lat");
-    org.junit.jupiter.api.Assertions.assertNull(
-        projectedL2.getField("long"), "L2 should not contain long");
+    Assertions.assertThat(projectedL2).isNotNull().as("L2 should not be null");
+
+    // Fix field name inconsistency
+    Assertions.assertThat((float) projectedL2.getField("latitude"))
+        .isEqualTo(52.995143f, offset(0.000001f))
+        .as("L2 should contain latitude");
+    Assertions.assertThat(projectedL2.getField("lat")).as("L2 should not contain lat").isNull();
+    Assertions.assertThat(projectedL2.getField("long")).as("L2 should not contain long").isNull();
   }
 
   @Test
@@ -549,22 +547,26 @@ public abstract class TestReadProjection {
     Schema idOnly = new Schema(Types.NestedField.required(0, "id", Types.LongType.get()));
 
     Record projected = writeAndRead("id_only", writeSchema, idOnly, record);
-    org.junit.jupiter.api.Assertions.assertEquals(
-        34L, (long) projected.getField("id"), "Should contain the correct id value");
-    org.junit.jupiter.api.Assertions.assertNull(
-        projected.getField("values"), "Should not project values list");
+    Assertions.assertThat((long) projected.getField("id"))
+        .isEqualTo(34L)
+        .as("Should contain the correct id value");
+    Assertions.assertThat(projected.getField("values"))
+        .as("Should not project values list")
+        .isNull();
 
     Schema elementOnly = writeSchema.select("values.element");
     projected = writeAndRead("element_only", writeSchema, elementOnly, record);
-    org.junit.jupiter.api.Assertions.assertNull(projected.getField("id"), "Should not project id");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        values, projected.getField("values"), "Should project entire list");
+    Assertions.assertThat(projected.getField("id")).as("Should not project id").isNull();
+    Assertions.assertThat(projected.getField("values"))
+        .isEqualTo(values)
+        .as("Should project entire list");
 
     Schema listOnly = writeSchema.select("values");
     projected = writeAndRead("list_only", writeSchema, listOnly, record);
-    org.junit.jupiter.api.Assertions.assertNull(projected.getField("id"), "Should not project id");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        values, projected.getField("values"), "Should project entire list");
+    Assertions.assertThat(projected.getField("id")).as("Should not project id").isNull();
+    Assertions.assertThat(projected.getField("values"))
+        .isEqualTo(values)
+        .as("Should project entire list");
   }
 
   @Test
@@ -599,46 +601,48 @@ public abstract class TestReadProjection {
     Schema idOnly = new Schema(Types.NestedField.required(0, "id", Types.LongType.get()));
 
     Record projected = writeAndRead("id_only", writeSchema, idOnly, record);
-    org.junit.jupiter.api.Assertions.assertEquals(
-        34L, (long) projected.getField("id"), "Should contain the correct id value");
-    org.junit.jupiter.api.Assertions.assertNull(
-        projected.getField("points"), "Should not project points list");
+    Assertions.assertThat((long) projected.getField("id"))
+        .isEqualTo(34L)
+        .as("Should contain the correct id value");
+    Assertions.assertThat(projected.getField("points"))
+        .as("Should not project points list")
+        .isNull();
 
     projected = writeAndRead("all_points", writeSchema, writeSchema.select("points"), record);
-    org.junit.jupiter.api.Assertions.assertNull(projected.getField("id"), "Should not project id");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        record.getField("points"), projected.getField("points"), "Should project points list");
+    Assertions.assertThat(projected.getField("id")).as("Should not project id").isNull();
+    Assertions.assertThat(projected.getField("points"))
+        .isEqualTo(record.getField("points"))
+        .as("Should project points list");
 
     projected = writeAndRead("x_only", writeSchema, writeSchema.select("points.x"), record);
-    org.junit.jupiter.api.Assertions.assertNull(projected.getField("id"), "Should not project id");
-    org.junit.jupiter.api.Assertions.assertNotNull(
-        projected.getField("points"), "Should project points list");
+    Assertions.assertThat(projected.getField("id")).as("Should not project id").isNull();
+    Assertions.assertThat(projected.getField("points"))
+        .isNotNull()
+        .as("Should project points list");
     List<Record> points = (List<Record>) projected.getField("points");
-    org.junit.jupiter.api.Assertions.assertEquals(2, points.size(), "Should read 2 points");
+    Assertions.assertThat(points).hasSize(2).as("Should read 2 points");
     Record projectedP1 = points.get(0);
-    org.junit.jupiter.api.Assertions.assertEquals(
-        1, (int) projectedP1.getField("x"), "Should project x");
-    org.junit.jupiter.api.Assertions.assertNull(projectedP1.getField("y"), "Should not project y");
+    Assertions.assertThat((int) projectedP1.getField("x")).isEqualTo(1).as("Should project x");
+    Assertions.assertThat(projectedP1.getField("y")).as("Should not project y").isNull();
     Record projectedP2 = points.get(1);
-    org.junit.jupiter.api.Assertions.assertEquals(
-        3, (int) projectedP2.getField("x"), "Should project x");
-    org.junit.jupiter.api.Assertions.assertNull(projectedP2.getField("y"), "Should not project y");
+    Assertions.assertThat((int) projectedP2.getField("x")).isEqualTo(3).as("Should project x");
+    Assertions.assertThat(projectedP2.getField("y")).as("Should not project y").isNull();
 
     projected = writeAndRead("y_only", writeSchema, writeSchema.select("points.y"), record);
-    org.junit.jupiter.api.Assertions.assertNull(projected.getField("id"), "Should not project id");
-    org.junit.jupiter.api.Assertions.assertNotNull(
-        projected.getField("points"), "Should project points list");
-    points = (List<Record>) projected.getField("points");
-    org.junit.jupiter.api.Assertions.assertEquals(2, points.size(), "Should read 2 points");
-    projectedP1 = points.get(0);
-    org.junit.jupiter.api.Assertions.assertNull(projectedP1.getField("x"), "Should not project x");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        2, (int) projectedP1.getField("y"), "Should project y");
-    projectedP2 = points.get(1);
-    org.junit.jupiter.api.Assertions.assertNull(projectedP2.getField("x"), "Should not project x");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        null, projectedP2.getField("y"), "Should project null y");
+    Assertions.assertThat(projected.getField("id")).as("Should not project id").isNull();
+    Assertions.assertThat(projected.getField("points"))
+        .isNotNull()
+        .as("Should project points list");
 
+    points = (List<Record>) projected.getField("points");
+    Assertions.assertThat(points).hasSize(2).as("Should read 2 points");
+    projectedP1 = points.get(0);
+    Assertions.assertThat(projectedP1.getField("x")).as("Should not project x").isNull();
+    Assertions.assertThat((int) projectedP1.getField("y")).isEqualTo(2).as("Should project y");
+
+    projectedP2 = points.get(1);
+    Assertions.assertThat(projectedP2.getField("x")).as("Should not project x").isNull();
+    Assertions.assertThat(projectedP2.getField("y")).as("Should project null y").isNull();
     Schema yRenamed =
         new Schema(
             Types.NestedField.optional(
@@ -650,21 +654,20 @@ public abstract class TestReadProjection {
                         Types.NestedField.optional(18, "z", Types.IntegerType.get())))));
 
     projected = writeAndRead("y_renamed", writeSchema, yRenamed, record);
-    org.junit.jupiter.api.Assertions.assertNull(projected.getField("id"), "Should not project id");
-    org.junit.jupiter.api.Assertions.assertNotNull(
-        projected.getField("points"), "Should project points list");
+    Assertions.assertThat(projected.getField("id")).as("Should not project id").isNull();
+    Assertions.assertThat(projected.getField("points"))
+        .isNotNull()
+        .as("Should project points list");
     points = (List<Record>) projected.getField("points");
-    org.junit.jupiter.api.Assertions.assertEquals(2, points.size(), "Should read 2 points");
+    Assertions.assertThat(points).hasSize(2).as("Should read 2 points");
     projectedP1 = points.get(0);
-    org.junit.jupiter.api.Assertions.assertNull(projectedP1.getField("x"), "Should not project x");
-    org.junit.jupiter.api.Assertions.assertNull(projectedP1.getField("y"), "Should not project y");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        2, (int) projectedP1.getField("z"), "Should project z");
+    Assertions.assertThat(projectedP1.getField("x")).as("Should not project x").isNull();
+    Assertions.assertThat(projectedP1.getField("y")).as("Should not project y").isNull();
+    Assertions.assertThat((int) projectedP1.getField("z")).isEqualTo(2).as("Should project z");
     projectedP2 = points.get(1);
-    org.junit.jupiter.api.Assertions.assertNull(projectedP2.getField("x"), "Should not project x");
-    org.junit.jupiter.api.Assertions.assertNull(projectedP2.getField("y"), "Should not project y");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        null, projectedP2.getField("z"), "Should project null z");
+    Assertions.assertThat(projectedP2.getField("x")).as("Should not project x").isNull();
+    Assertions.assertThat(projectedP2.getField("y")).as("Should not project y").isNull();
+    Assertions.assertThat(projectedP2.getField("z")).as("Should project null z").isNull();
   }
 
   @Test
@@ -689,21 +692,29 @@ public abstract class TestReadProjection {
 
     Record projected =
         writeAndRead("add_fields_with_required_children_projection", schema, addedFields, record);
-    org.junit.jupiter.api.Assertions.assertEquals(
-        projected.get(0), 100L, "Should contain the correct value in column 1");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        projected.getField("a"), 100L, "Should contain the correct value in column a");
-    org.junit.jupiter.api.Assertions.assertNull(
-        projected.get(1), "Should contain empty value in new column 2");
-    org.junit.jupiter.api.Assertions.assertNull(
-        projected.getField("b"), "Should contain empty value in column b");
-    org.junit.jupiter.api.Assertions.assertNull(
-        projected.get(2), "Should contain empty value in new column 4");
-    org.junit.jupiter.api.Assertions.assertNull(
-        projected.getField("d"), "Should contain empty value in column d");
-    org.junit.jupiter.api.Assertions.assertNull(
-        projected.get(3), "Should contain empty value in new column 6");
-    org.junit.jupiter.api.Assertions.assertNull(
-        projected.getField("e"), "Should contain empty value in column e");
+    Assertions.assertThat(projected.get(0))
+        .isEqualTo(100L)
+        .as("Should contain the correct value in column 1");
+    Assertions.assertThat((long) projected.getField("a"))
+        .isEqualTo(100L)
+        .as("Should contain the correct value in column a");
+    Assertions.assertThat(projected.get(1))
+        .as("Should contain empty value in new column 2")
+        .isNull();
+    Assertions.assertThat(projected.getField("b"))
+        .as("Should contain empty value in column b")
+        .isNull();
+    Assertions.assertThat(projected.get(2))
+        .as("Should contain empty value in new column 4")
+        .isNull();
+    Assertions.assertThat(projected.getField("d"))
+        .as("Should contain empty value in column d")
+        .isNull();
+    Assertions.assertThat(projected.get(3))
+        .as("Should contain empty value in new column 6")
+        .isNull();
+    Assertions.assertThat(projected.getField("e"))
+        .as("Should contain empty value in column e")
+        .isNull();
   }
 }

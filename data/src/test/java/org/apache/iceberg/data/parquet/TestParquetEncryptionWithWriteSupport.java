@@ -48,7 +48,7 @@ import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.crypto.FileEncryptionProperties;
 import org.apache.parquet.crypto.ParquetCryptoRuntimeException;
 import org.apache.parquet.hadoop.ParquetWriter;
-import org.junit.Assert;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestParquetEncryptionWithWriteSupport extends DataTest {
@@ -60,7 +60,7 @@ public class TestParquetEncryptionWithWriteSupport extends DataTest {
     List<Record> expected = RandomGenericData.generate(schema, 100, 0L);
 
     File testFile = temp;
-    Assert.assertTrue("Delete should succeed", testFile.delete());
+    Assertions.assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     SecureRandom rand = new SecureRandom();
     rand.nextBytes(fileDek.array());
@@ -76,16 +76,17 @@ public class TestParquetEncryptionWithWriteSupport extends DataTest {
       appender.addAll(expected);
     }
 
-    Assert.assertThrows(
-        "Decrypted without keys",
-        ParquetCryptoRuntimeException.class,
-        () ->
-            Parquet.read(localInput(testFile))
-                .project(schema)
-                .createReaderFunc(
-                    fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
-                .build()
-                .iterator());
+    Assertions.assertThatExceptionOfType(ParquetCryptoRuntimeException.class)
+        .isThrownBy(
+            () ->
+                Parquet.read(localInput(testFile))
+                    .project(schema)
+                    .createReaderFunc(
+                        fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
+                    .build()
+                    .iterator())
+        .havingCause()
+        .withMessage("Decrypted without keys");
 
     List<Record> rows;
     try (CloseableIterable<Record> reader =
@@ -130,7 +131,7 @@ public class TestParquetEncryptionWithWriteSupport extends DataTest {
     org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
 
     File testFile = temp;
-    Assert.assertTrue(testFile.delete());
+    Assertions.assertThat(testFile.delete()).isTrue();
 
     SecureRandom rand = new SecureRandom();
     rand.nextBytes(fileDek.array());
@@ -169,12 +170,13 @@ public class TestParquetEncryptionWithWriteSupport extends DataTest {
             .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
             .build()) {
       CloseableIterator it = reader.iterator();
-      Assert.assertTrue("Should have at least one row", it.hasNext());
+      Assertions.assertThat(it.hasNext()).as("Should have at least one row").isTrue();
       while (it.hasNext()) {
         GenericRecord actualRecord = (GenericRecord) it.next();
-        Assert.assertEquals(actualRecord.get(0, ArrayList.class).get(0), expectedBinary);
-        Assert.assertEquals(actualRecord.get(1, ByteBuffer.class), expectedBinary);
-        Assert.assertFalse("Should not have more than one row", it.hasNext());
+        Assertions.assertThat(actualRecord.get(0, ArrayList.class).get(0))
+            .isEqualTo(expectedBinary);
+        Assertions.assertThat(actualRecord.get(1, ByteBuffer.class)).isEqualTo(expectedBinary);
+        Assertions.assertThat(it.hasNext()).as("Should not have more than one row").isFalse();
       }
     }
   }

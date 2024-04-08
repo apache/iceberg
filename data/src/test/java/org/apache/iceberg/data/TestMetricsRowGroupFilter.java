@@ -187,7 +187,7 @@ public class TestMetricsRowGroupFilter {
 
   public void createOrcInputFile() throws IOException {
     // this.orcFile = temp;
-    org.junit.jupiter.api.Assertions.assertTrue(orcFile.delete());
+    Assertions.assertThat(orcFile.delete()).isTrue();
 
     OutputFile outFile = Files.localOutput(orcFile);
     try (FileAppender<GenericRecord> appender =
@@ -226,8 +226,9 @@ public class TestMetricsRowGroupFilter {
     try (Reader reader =
         OrcFile.createReader(
             new Path(inFile.location()), OrcFile.readerOptions(new Configuration()))) {
-      org.junit.jupiter.api.Assertions.assertEquals(
-          1, reader.getStripes().size(), "Should create only one stripe");
+      Assertions.assertThat(reader.getStripes().size())
+          .isEqualTo(1)
+          .describedAs("Should create only one stripe");
     }
 
     orcFile.deleteOnExit();
@@ -235,7 +236,7 @@ public class TestMetricsRowGroupFilter {
 
   private void createParquetInputFile() throws IOException {
     File parquetFile = temp;
-    org.junit.jupiter.api.Assertions.assertTrue(parquetFile.delete());
+    Assertions.assertThat(parquetFile.delete()).isTrue();
 
     // build struct field schema
     org.apache.avro.Schema structSchema = AvroSchemaUtil.convert(_structFieldType);
@@ -271,8 +272,9 @@ public class TestMetricsRowGroupFilter {
 
     InputFile inFile = Files.localInput(parquetFile);
     try (ParquetFileReader reader = ParquetFileReader.open(parquetInputFile(inFile))) {
-      org.junit.jupiter.api.Assertions.assertEquals(
-          1, reader.getRowGroups().size(), "Should create only one row group");
+      Assertions.assertThat(reader.getRowGroups().size())
+          .isEqualTo(1)
+          .as("Should create only one row group");
       rowGroupMetadata = reader.getRowGroups().get(0);
       parquetSchema = reader.getFileMetaData().getSchema();
     }
@@ -285,110 +287,121 @@ public class TestMetricsRowGroupFilter {
     boolean shouldRead;
 
     shouldRead = shouldRead(notNull("all_nulls"));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should skip: no non-null value in all null column");
+    Assertions.assertThat(shouldRead)
+        .isFalse()
+        .as("Should skip: no non-null value in all null column");
 
     shouldRead = shouldRead(notNull("some_nulls"));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should read: column with some nulls contains a non-null value");
+    Assertions.assertThat(shouldRead)
+        .isFalse()
+        .as("Should read: column with some nulls contains a non-null value");
 
     shouldRead = shouldRead(notNull("no_nulls"));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should read: non-null column contains a non-null value");
+    Assertions.assertThat(shouldRead)
+        .isFalse()
+        .as("Should read: non-null column contains a non-null value");
 
     shouldRead = shouldRead(notNull("map_not_null"));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should read: map type is not skipped");
+    Assertions.assertThat(shouldRead).isFalse().as("Should read: map type is not skipped");
 
     shouldRead = shouldRead(notNull("struct_not_null"));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should read: struct type is not skipped");
+    Assertions.assertThat(shouldRead).isFalse().as("Should read: struct type is not skipped");
   }
 
   @Test
   public void testNoNulls() {
     boolean shouldRead = shouldRead(isNull("all_nulls"));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: at least one null value in all null column");
+    Assertions.assertThat(shouldRead)
+        .isFalse()
+        .as("Should read: at least one null value in all null column");
 
     shouldRead = shouldRead(isNull("some_nulls"));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: column with some nulls contains a null value");
+    Assertions.assertThat(shouldRead)
+        .as("Should read: column with some nulls contains a null value");
 
     shouldRead = shouldRead(isNull("no_nulls"));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should skip: non-null column contains no null values");
+    Assertions.assertThat(shouldRead)
+        .isFalse()
+        .as("Should skip: non-null column contains no null values");
 
     shouldRead = shouldRead(isNull("map_not_null"));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: map type is not skipped");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: map type is not skipped");
 
     shouldRead = shouldRead(isNull("struct_not_null"));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: struct type is not skipped");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: struct type is not skipped");
   }
 
   @Test
   public void testFloatWithNan() {
     // NaN's should break Parquet's Min/Max stats we should be reading in all cases
     boolean shouldRead = shouldRead(greaterThan("some_nans", 1.0));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead);
+    Assertions.assertThat(shouldRead).isTrue();
 
     shouldRead = shouldRead(greaterThanOrEqual("some_nans", 1.0));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead);
+    Assertions.assertThat(shouldRead).isTrue();
 
     shouldRead = shouldRead(lessThan("some_nans", 3.0));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead);
+    Assertions.assertThat(shouldRead).isTrue();
 
     shouldRead = shouldRead(lessThanOrEqual("some_nans", 1.0));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead);
+    Assertions.assertThat(shouldRead).isTrue();
 
     shouldRead = shouldRead(equal("some_nans", 2.0));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead);
+    Assertions.assertThat(shouldRead).isTrue();
   }
 
   @Test
   public void testDoubleWithNan() {
     boolean shouldRead = shouldRead(greaterThan("some_double_nans", 1.0));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: column with some nans contains target value");
+    Assertions.assertThat(shouldRead)
+        .isTrue()
+        .as("Should read: column with some nans contains target value");
 
     shouldRead = shouldRead(greaterThanOrEqual("some_double_nans", 1.0));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: column with some nans contains the target value");
+    Assertions.assertThat(shouldRead)
+        .isTrue()
+        .as("Should read: column with some nans contains the target value");
 
     shouldRead = shouldRead(lessThan("some_double_nans", 3.0));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: column with some nans contains target value");
+    Assertions.assertThat(shouldRead)
+        .isTrue()
+        .as("Should read: column with some nans contains target value");
 
     shouldRead = shouldRead(lessThanOrEqual("some_double_nans", 1.0));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: column with some nans contains target value");
+    Assertions.assertThat(shouldRead)
+        .isTrue()
+        .as("Should read: column with some nans contains target value");
 
     shouldRead = shouldRead(equal("some_double_nans", 2.0));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: column with some nans contains target value");
+    Assertions.assertThat(shouldRead)
+        .isTrue()
+        .as("Should read: column with some nans contains target value");
   }
 
   @ParameterizedTest(name = "format = {0}")
   @MethodSource("data")
   public void testIsNaN(Object format) {
     boolean shouldRead = shouldRead(isNaN("all_nans"));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: NaN counts are not tracked in Parquet metrics");
+    Assertions.assertThat(shouldRead)
+        .isTrue()
+        .as("Should read: NaN counts are not tracked in Parquet metrics");
 
     shouldRead = shouldRead(isNaN("some_nans"));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: NaN counts are not tracked in Parquet metrics");
+    Assertions.assertThat(shouldRead)
+        .isTrue()
+        .as("Should read: NaN counts are not tracked in Parquet metrics");
 
     shouldRead = shouldRead(isNaN("no_nans"));
     switch (FileFormat.fromString(format.toString())) {
       case ORC:
-        org.junit.jupiter.api.Assertions.assertFalse(
-            shouldRead, "Should read 0 rows due to the ORC filter push-down feature");
+        Assertions.assertThat(shouldRead)
+            .isFalse()
+            .as("Should read 0 rows due to the ORC filter push-down feature");
         break;
       case PARQUET:
-        org.junit.jupiter.api.Assertions.assertTrue(
-            shouldRead, "Should read: NaN counts are not tracked in Parquet metrics");
+        Assertions.assertThat(shouldRead)
+            .isTrue()
+            .as("Should read: NaN counts are not tracked in Parquet metrics");
         break;
       default:
         throw new UnsupportedOperationException(
@@ -396,38 +409,45 @@ public class TestMetricsRowGroupFilter {
     }
 
     shouldRead = shouldRead(isNaN("all_nulls"));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should skip: all null column will not contain nan value");
+    Assertions.assertThat(shouldRead)
+        .isFalse()
+        .as("Should skip: all null column will not contain nan value");
   }
 
   @Test
   public void testNotNaN() {
     boolean shouldRead = shouldRead(notNaN("all_nans"));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: NaN counts are not tracked in Parquet metrics");
+    Assertions.assertThat(shouldRead)
+        .isTrue()
+        .as("Should read: NaN counts are not tracked in Parquet metrics");
 
     shouldRead = shouldRead(notNaN("some_nans"));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: NaN counts are not tracked in Parquet metrics");
+    Assertions.assertThat(shouldRead)
+        .isTrue()
+        .as("Should read: NaN counts are not tracked in Parquet metrics");
 
     shouldRead = shouldRead(notNaN("no_nans"));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: NaN counts are not tracked in Parquet metrics");
+    Assertions.assertThat(shouldRead)
+        .isTrue()
+        .as("Should read: NaN counts are not tracked in Parquet metrics");
 
     shouldRead = shouldRead(notNaN("all_nulls"));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: NaN counts are not tracked in Parquet metrics");
+    Assertions.assertThat(shouldRead)
+        .isTrue()
+        .as("Should read: NaN counts are not tracked in Parquet metrics");
   }
 
   @Test
   public void testRequiredColumn() {
     boolean shouldRead = shouldRead(notNull("required"));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: required columns are always non-null");
+    Assertions.assertThat(shouldRead)
+        .isTrue()
+        .as("Should read: required columns are always non-null");
 
     shouldRead = shouldRead(isNull("required"));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should skip: required columns are always non-null");
+    Assertions.assertThat(shouldRead)
+        .isFalse()
+        .as("Should skip: required columns are always non-null");
   }
 
   @Test
@@ -441,9 +461,10 @@ public class TestMetricsRowGroupFilter {
   @ParameterizedTest(name = "format = {0}")
   @MethodSource("data")
   public void testColumnNotInFile(Object format) {
-    org.junit.jupiter.api.Assumptions.assumeFalse(
-        FileFormat.fromString(format.toString()) == FileFormat.ORC,
-        "If a column is not in file, ORC does NOT try to apply predicates assuming null values for the column");
+    Assumptions.assumeThat(FileFormat.fromString(format.toString()) == FileFormat.ORC)
+        .isFalse()
+        .as(
+            "If a column is not in file, ORC does NOT try to apply predicates assuming null values for the column");
     Expression[] cannotMatch =
         new Expression[] {
           lessThan("not_in_file", 1.0f), lessThanOrEqual("not_in_file", 1.0f),
@@ -453,24 +474,25 @@ public class TestMetricsRowGroupFilter {
 
     for (Expression expr : cannotMatch) {
       boolean shouldRead = shouldRead(expr);
-      org.junit.jupiter.api.Assertions.assertFalse(
-          shouldRead, "Should skip when column is not in file (all nulls): " + expr);
+      Assertions.assertThat(shouldRead)
+          .isFalse()
+          .as("Should skip when column is not in file (all nulls): " + expr);
     }
 
     Expression[] canMatch = new Expression[] {isNull("not_in_file"), notEqual("not_in_file", 1.0f)};
 
     for (Expression expr : canMatch) {
       boolean shouldRead = shouldRead(expr);
-      org.junit.jupiter.api.Assertions.assertTrue(
-          shouldRead, "Should read when column is not in file (all nulls): " + expr);
+      Assertions.assertThat(shouldRead)
+          .isTrue()
+          .as("Should read when column is not in file (all nulls): " + expr);
     }
   }
 
   @ParameterizedTest(name = "format = {0}")
   @MethodSource("data")
   public void testMissingStatsParquet(Object format) {
-    org.junit.jupiter.api.Assumptions.assumeTrue(
-        FileFormat.fromString(format.toString()) == FileFormat.PARQUET);
+    Assumptions.assumeThat(FileFormat.fromString(format.toString()) == FileFormat.PARQUET).isTrue();
     Expression[] exprs =
         new Expression[] {
           lessThan("no_stats_parquet", "a"),
@@ -487,16 +509,14 @@ public class TestMetricsRowGroupFilter {
 
     for (Expression expr : exprs) {
       boolean shouldRead = shouldRead(expr);
-      org.junit.jupiter.api.Assertions.assertTrue(
-          shouldRead, "Should read when missing stats for expr: " + expr);
+      Assertions.assertThat(shouldRead).as("Should read when missing stats for expr: " + expr);
     }
   }
 
   @ParameterizedTest(name = "format = {0}")
   @MethodSource("data")
   public void testZeroRecordFileParquet(Object format) {
-    org.junit.jupiter.api.Assumptions.assumeTrue(
-        FileFormat.fromString(format.toString()) == FileFormat.PARQUET);
+    Assumptions.assumeThat(FileFormat.fromString(format.toString()) == FileFormat.PARQUET).isTrue();
     BlockMetaData emptyBlock = new BlockMetaData();
     emptyBlock.setRowCount(0);
 
@@ -514,8 +534,7 @@ public class TestMetricsRowGroupFilter {
 
     for (Expression expr : exprs) {
       boolean shouldRead = shouldReadParquet(expr, true, parquetSchema, emptyBlock);
-      org.junit.jupiter.api.Assertions.assertFalse(
-          shouldRead, "Should never read 0-record file: " + expr);
+      Assertions.assertThat(shouldRead).isFalse().as("Should never read 0-record file: " + expr);
     }
   }
 
@@ -523,10 +542,10 @@ public class TestMetricsRowGroupFilter {
   public void testNot() {
     // this test case must use a real predicate, not alwaysTrue(), or binding will simplify it out
     boolean shouldRead = shouldRead(not(lessThan("id", INT_MIN_VALUE - 25)));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: not(false)");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: not(false)");
 
     shouldRead = shouldRead(not(greaterThan("id", INT_MIN_VALUE - 25)));
-    org.junit.jupiter.api.Assertions.assertFalse(shouldRead, "Should skip: not(true)");
+    Assertions.assertThat(shouldRead).isFalse().as("Should skip: not(true)");
   }
 
   @Test
@@ -535,17 +554,17 @@ public class TestMetricsRowGroupFilter {
     boolean shouldRead =
         shouldRead(
             and(lessThan("id", INT_MIN_VALUE - 25), greaterThanOrEqual("id", INT_MIN_VALUE - 30)));
-    org.junit.jupiter.api.Assertions.assertFalse(shouldRead, "Should skip: and(false, true)");
+    Assertions.assertThat(shouldRead).isFalse().as("Should skip: and(false, true)");
 
     shouldRead =
         shouldRead(
             and(lessThan("id", INT_MIN_VALUE - 25), greaterThanOrEqual("id", INT_MAX_VALUE + 1)));
-    org.junit.jupiter.api.Assertions.assertFalse(shouldRead, "Should skip: and(false, false)");
+    Assertions.assertThat(shouldRead).isFalse().as("Should skip: and(false, false)");
 
     shouldRead =
         shouldRead(
             and(greaterThan("id", INT_MIN_VALUE - 25), lessThanOrEqual("id", INT_MIN_VALUE)));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: and(true, true)");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: and(true, true)");
   }
 
   @Test
@@ -554,289 +573,290 @@ public class TestMetricsRowGroupFilter {
     boolean shouldRead =
         shouldRead(
             or(lessThan("id", INT_MIN_VALUE - 25), greaterThanOrEqual("id", INT_MAX_VALUE + 1)));
-    org.junit.jupiter.api.Assertions.assertFalse(shouldRead, "Should skip: or(false, false)");
+    Assertions.assertThat(shouldRead).isTrue().as("Should skip: or(false, false)");
 
     shouldRead =
         shouldRead(
             or(lessThan("id", INT_MIN_VALUE - 25), greaterThanOrEqual("id", INT_MAX_VALUE - 19)));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: or(false, true)");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: or(false, true)");
   }
 
   @Test
   public void testIntegerLt() {
     boolean shouldRead = shouldRead(lessThan("id", INT_MIN_VALUE - 25));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: id range below lower bound (5 < 30)");
+    Assertions.assertThat(shouldRead)
+        .isFalse()
+        .as("Should not read: id range below lower bound (5 < 30)");
 
     shouldRead = shouldRead(lessThan("id", INT_MIN_VALUE));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: id range below lower bound (30 is not < 30)");
+    Assertions.assertThat(shouldRead)
+        .isFalse()
+        .as("Should not read: id range below lower bound (30 is not < 30)");
 
     shouldRead = shouldRead(lessThan("id", INT_MIN_VALUE + 1));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: one possible id");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: one possible id");
 
     shouldRead = shouldRead(lessThan("id", INT_MAX_VALUE));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: may possible ids");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: may possible ids");
   }
 
   @Test
   public void testIntegerLtEq() {
     boolean shouldRead = shouldRead(lessThanOrEqual("id", INT_MIN_VALUE - 25));
-    org.junit.jupiter.api.Assertions.assertFalse(shouldRead, "Should read: one possible id");
+    Assertions.assertThat(shouldRead).isFalse().as("Should read: one possible id");
 
     shouldRead = shouldRead(lessThanOrEqual("id", INT_MIN_VALUE - 1));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: id range below lower bound (29 < 30)");
+    Assertions.assertThat(shouldRead)
+        .isFalse()
+        .as("Should not read: id range below lower bound (29 < 30)");
 
     shouldRead = shouldRead(lessThanOrEqual("id", INT_MIN_VALUE));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: one possible id");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: one possible id");
 
     shouldRead = shouldRead(lessThanOrEqual("id", INT_MAX_VALUE));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: many possible ids");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: many possible ids");
   }
 
   @Test
   public void testIntegerGt() {
     boolean shouldRead = shouldRead(greaterThan("id", INT_MAX_VALUE + 6));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: id range above upper bound (85 < 79)");
+    Assertions.assertThat(shouldRead)
+        .isFalse()
+        .as("Should not read: id range above upper bound (85 < 79)");
 
     shouldRead = shouldRead(greaterThan("id", INT_MAX_VALUE));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: id range above upper bound (79 is not > 79)");
+    Assertions.assertThat(shouldRead)
+        .isFalse()
+        .as("Should not read: id range above upper bound (79 is not > 79)");
 
     shouldRead = shouldRead(greaterThan("id", INT_MAX_VALUE - 1));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: one possible id");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: one possible id");
 
     shouldRead = shouldRead(greaterThan("id", INT_MAX_VALUE - 4));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: may possible ids");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: may possible ids");
   }
 
   @Test
   public void testIntegerGtEq() {
     boolean shouldRead = shouldRead(greaterThanOrEqual("id", INT_MAX_VALUE + 6));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: id range above upper bound (85 < 79)");
+    Assertions.assertThat(shouldRead)
+        .isFalse()
+        .as("Should not read: id range above upper bound (85 < 79)");
 
     shouldRead = shouldRead(greaterThanOrEqual("id", INT_MAX_VALUE + 1));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: id range above upper bound (80 > 79)");
+    Assertions.assertThat(shouldRead)
+        .isFalse()
+        .as("Should not read: id range above upper bound (80 > 79)");
 
     shouldRead = shouldRead(greaterThanOrEqual("id", INT_MAX_VALUE));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: one possible id");
+    Assertions.assertThat(shouldRead).isFalse().as("Should read: one possible id");
 
     shouldRead = shouldRead(greaterThanOrEqual("id", INT_MAX_VALUE - 4));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: may possible ids");
+    Assertions.assertThat(shouldRead).isFalse().as("Should read: may possible ids");
   }
 
   @Test
   public void testIntegerEq() {
     boolean shouldRead = shouldRead(equal("id", INT_MIN_VALUE - 25));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: id below lower bound");
+    Assertions.assertThat(shouldRead).isFalse().as("Should not read: id below lower bound");
 
     shouldRead = shouldRead(equal("id", INT_MIN_VALUE - 1));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: id below lower bound");
+    Assertions.assertThat(shouldRead).isTrue().as("Should not read: id below lower bound");
 
     shouldRead = shouldRead(equal("id", INT_MIN_VALUE));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: id equal to lower bound");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: id equal to lower bound");
 
     shouldRead = shouldRead(equal("id", INT_MAX_VALUE - 4));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: id between lower and upper bounds");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: id between lower and upper bounds");
 
     shouldRead = shouldRead(equal("id", INT_MAX_VALUE));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: id equal to upper bound");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: id equal to upper bound");
 
     shouldRead = shouldRead(equal("id", INT_MAX_VALUE + 1));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: id above upper bound");
+    Assertions.assertThat(shouldRead).isFalse().as("Should not read: id above upper bound");
 
     shouldRead = shouldRead(equal("id", INT_MAX_VALUE + 6));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: id above upper bound");
+    Assertions.assertThat(shouldRead).isFalse().as("Should not read: id above upper bound");
   }
 
   @Test
   public void testIntegerNotEq() {
     boolean shouldRead = shouldRead(notEqual("id", INT_MIN_VALUE - 25));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: id below lower bound");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: id below lower bound");
 
     shouldRead = shouldRead(notEqual("id", INT_MIN_VALUE - 1));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: id below lower bound");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: id below lower bound");
 
     shouldRead = shouldRead(notEqual("id", INT_MIN_VALUE));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: id equal to lower bound");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: id equal to lower bound");
 
     shouldRead = shouldRead(notEqual("id", INT_MAX_VALUE - 4));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: id between lower and upper bounds");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: id between lower and upper bounds");
 
     shouldRead = shouldRead(notEqual("id", INT_MAX_VALUE));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: id equal to upper bound");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: id equal to upper bound");
 
     shouldRead = shouldRead(notEqual("id", INT_MAX_VALUE + 1));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: id above upper bound");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: id above upper bound");
 
     shouldRead = shouldRead(notEqual("id", INT_MAX_VALUE + 6));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: id above upper bound");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: id above upper bound");
   }
 
   @Test
   public void testIntegerNotEqRewritten() {
     boolean shouldRead = shouldRead(not(equal("id", INT_MIN_VALUE - 25)));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: id below lower bound");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: id below lower bound");
 
     shouldRead = shouldRead(not(equal("id", INT_MIN_VALUE - 1)));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: id below lower bound");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: id below lower bound");
 
     shouldRead = shouldRead(not(equal("id", INT_MIN_VALUE)));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: id equal to lower bound");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: id equal to lower bound");
 
     shouldRead = shouldRead(not(equal("id", INT_MAX_VALUE - 4)));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: id between lower and upper bounds");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: id between lower and upper bounds");
 
     shouldRead = shouldRead(not(equal("id", INT_MAX_VALUE)));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: id equal to upper bound");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: id equal to upper bound");
 
     shouldRead = shouldRead(not(equal("id", INT_MAX_VALUE + 1)));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: id above upper bound");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: id above upper bound");
 
     shouldRead = shouldRead(not(equal("id", INT_MAX_VALUE + 6)));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: id above upper bound");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: id above upper bound");
   }
 
   @Test
   public void testStructFieldLt() {
     boolean shouldRead = shouldRead(lessThan("struct_not_null.int_field", INT_MIN_VALUE - 25));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: id range below lower bound (5 < 30)");
+    Assertions.assertThat(shouldRead)
+        .isFalse()
+        .as("Should not read: id range below lower bound (5 < 30)");
 
     shouldRead = shouldRead(lessThan("struct_not_null.int_field", INT_MIN_VALUE));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: id range below lower bound (30 is not < 30)");
+    Assertions.assertThat(shouldRead)
+        .isFalse()
+        .as("Should not read: id range below lower bound (30 is not < 30)");
 
     shouldRead = shouldRead(lessThan("struct_not_null.int_field", INT_MIN_VALUE + 1));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: one possible id");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: one possible id");
 
     shouldRead = shouldRead(lessThan("struct_not_null.int_field", INT_MAX_VALUE));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: may possible ids");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: may possible ids");
   }
 
   @Test
   public void testStructFieldLtEq() {
     boolean shouldRead =
         shouldRead(lessThanOrEqual("struct_not_null.int_field", INT_MIN_VALUE - 25));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: id range below lower bound (5 < 30)");
+    Assertions.assertThat(shouldRead)
+        .isFalse()
+        .as("Should not read: id range below lower bound (5 < 30)");
 
     shouldRead = shouldRead(lessThanOrEqual("struct_not_null.int_field", INT_MIN_VALUE - 1));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: id range below lower bound (29 < 30)");
+    Assertions.assertThat(shouldRead)
+        .isFalse()
+        .as("Should not read: id range below lower bound (29 < 30)");
 
     shouldRead = shouldRead(lessThanOrEqual("struct_not_null.int_field", INT_MIN_VALUE));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: one possible id");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: one possible id");
 
     shouldRead = shouldRead(lessThanOrEqual("struct_not_null.int_field", INT_MAX_VALUE));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: many possible ids");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: many possible ids");
   }
 
   @Test
   public void testStructFieldGt() {
     boolean shouldRead = shouldRead(greaterThan("struct_not_null.int_field", INT_MAX_VALUE + 6));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: id range above upper bound (85 < 79)");
+    Assertions.assertThat(shouldRead)
+        .isFalse()
+        .as("Should not read: id range above upper bound (85 < 79)");
 
     shouldRead = shouldRead(greaterThan("struct_not_null.int_field", INT_MAX_VALUE));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: id range above upper bound (79 is not > 79)");
+    Assertions.assertThat(shouldRead)
+        .isFalse()
+        .as("Should not read: id range above upper bound (79 is not > 79)");
 
     shouldRead = shouldRead(greaterThan("struct_not_null.int_field", INT_MAX_VALUE - 1));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: one possible id");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: one possible id");
 
     shouldRead = shouldRead(greaterThan("struct_not_null.int_field", INT_MAX_VALUE - 4));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: may possible ids");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: may possible ids");
   }
 
   @Test
   public void testStructFieldGtEq() {
     boolean shouldRead =
         shouldRead(greaterThanOrEqual("struct_not_null.int_field", INT_MAX_VALUE + 6));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: id range above upper bound (85 < 79)");
+    Assertions.assertThat(shouldRead)
+        .isFalse()
+        .as("Should not read: id range above upper bound (85 < 79)");
 
     shouldRead = shouldRead(greaterThanOrEqual("struct_not_null.int_field", INT_MAX_VALUE + 1));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: id range above upper bound (80 > 79)");
+    Assertions.assertThat(shouldRead)
+        .isFalse()
+        .as("Should not read: id range above upper bound (80 > 79)");
 
     shouldRead = shouldRead(greaterThanOrEqual("struct_not_null.int_field", INT_MAX_VALUE));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: one possible id");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: one possible id");
 
     shouldRead = shouldRead(greaterThanOrEqual("struct_not_null.int_field", INT_MAX_VALUE - 4));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: may possible ids");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: may possible ids");
   }
 
   @Test
   public void testStructFieldEq() {
     boolean shouldRead = shouldRead(equal("struct_not_null.int_field", INT_MIN_VALUE - 25));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: id below lower bound");
+    Assertions.assertThat(shouldRead).isFalse().as("Should not read: id below lower bound");
 
     shouldRead = shouldRead(equal("struct_not_null.int_field", INT_MIN_VALUE - 1));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: id below lower bound");
+    Assertions.assertThat(shouldRead).isFalse().as("Should not read: id below lower bound");
 
     shouldRead = shouldRead(equal("struct_not_null.int_field", INT_MIN_VALUE));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: id equal to lower bound");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: id equal to lower bound");
 
     shouldRead = shouldRead(equal("struct_not_null.int_field", INT_MAX_VALUE - 4));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: id between lower and upper bounds");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: id between lower and upper bounds");
 
     shouldRead = shouldRead(equal("struct_not_null.int_field", INT_MAX_VALUE));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: id equal to upper bound");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: id equal to upper bound");
 
     shouldRead = shouldRead(equal("struct_not_null.int_field", INT_MAX_VALUE + 1));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: id above upper bound");
+    Assertions.assertThat(shouldRead).isFalse().as("Should not read: id above upper bound");
 
     shouldRead = shouldRead(equal("struct_not_null.int_field", INT_MAX_VALUE + 6));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: id above upper bound");
+    Assertions.assertThat(shouldRead).isFalse().as("Should not read: id above upper bound");
   }
 
   @Test
   public void testStructFieldNotEq() {
     boolean shouldRead = shouldRead(notEqual("struct_not_null.int_field", INT_MIN_VALUE - 25));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: id below lower bound");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: id below lower bound");
 
     shouldRead = shouldRead(notEqual("struct_not_null.int_field", INT_MIN_VALUE - 1));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: id below lower bound");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: id below lower bound");
 
     shouldRead = shouldRead(notEqual("struct_not_null.int_field", INT_MIN_VALUE));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: id equal to lower bound");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: id equal to lower bound");
 
     shouldRead = shouldRead(notEqual("struct_not_null.int_field", INT_MAX_VALUE - 4));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: id between lower and upper bounds");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: id between lower and upper bounds");
 
     shouldRead = shouldRead(notEqual("struct_not_null.int_field", INT_MAX_VALUE));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: id equal to upper bound");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: id equal to upper bound");
 
     shouldRead = shouldRead(notEqual("id", INT_MAX_VALUE + 1));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: id above upper bound");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: id above upper bound");
 
     shouldRead = shouldRead(notEqual("struct_not_null.int_field", INT_MAX_VALUE + 6));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: id above upper bound");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: id above upper bound");
   }
 
   @Test
   public void testCaseInsensitive() {
     boolean shouldRead = shouldRead(equal("ID", INT_MIN_VALUE - 25), false);
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: id below lower bound");
+    Assertions.assertThat(shouldRead).isFalse().as("Should not read: id below lower bound");
   }
 
   @ParameterizedTest(name = "format = {0}")
@@ -846,35 +866,31 @@ public class TestMetricsRowGroupFilter {
         FileFormat.fromString(format.toString()) == FileFormat.ORC,
         "ORC row group filter does not support StringStartsWith");
     boolean shouldRead = shouldRead(startsWith("str", "1"));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: range matches");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: range matches");
 
     shouldRead = shouldRead(startsWith("str", "0st"));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: range matches");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: range matches");
 
     shouldRead = shouldRead(startsWith("str", "1str1"));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: range matches");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: range matches");
 
     shouldRead = shouldRead(startsWith("str", "1str1_xgd"));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: range matches");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: range matches");
 
     shouldRead = shouldRead(startsWith("str", "2str"));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: range matches");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: range matches");
 
     shouldRead = shouldRead(startsWith("str", "9xstr"));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: range doesn't match");
+    Assertions.assertThat(shouldRead).isFalse().as("Should not read: range doesn't match");
 
     shouldRead = shouldRead(startsWith("str", "0S"));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: range doesn't match");
+    Assertions.assertThat(shouldRead).isFalse().as("Should not read: range doesn't match");
 
     shouldRead = shouldRead(startsWith("str", "x"));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: range doesn't match");
+    Assertions.assertThat(shouldRead).isFalse().as("Should not read: range doesn't match");
 
     shouldRead = shouldRead(startsWith("str", "9str9aaa"));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: range doesn't match");
+    Assertions.assertThat(shouldRead).isFalse().as("Should not read: range doesn't match");
   }
 
   @ParameterizedTest(name = "format = {0}")
@@ -884,134 +900,142 @@ public class TestMetricsRowGroupFilter {
         FileFormat.fromString(format.toString()) == FileFormat.ORC,
         "ORC row group filter does not support StringStartsWith");
     boolean shouldRead = shouldRead(notStartsWith("str", "1"));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: range matches");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: range matches");
 
     shouldRead = shouldRead(notStartsWith("str", "0st"));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: range matches");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: range matches");
 
     shouldRead = shouldRead(notStartsWith("str", "1str1"));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: range matches");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: range matches");
 
     shouldRead = shouldRead(notStartsWith("str", "1str1_xgd"));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: range matches");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: range matches");
 
     shouldRead = shouldRead(notStartsWith("str", "2str"));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: range matches");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: range matches");
 
     shouldRead = shouldRead(notStartsWith("str", "9xstr"));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: range matches");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: range matches");
 
     shouldRead = shouldRead(notStartsWith("required", "r"));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: range doesn't match");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: range matches");
 
     shouldRead = shouldRead(notStartsWith("required", "requ"));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: range matches");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: range matches");
 
     shouldRead = shouldRead(notStartsWith("some_nulls", "ssome"));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: range matches");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: range matches");
 
     shouldRead = shouldRead(notStartsWith("some_nulls", "som"));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: range matches");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: range matches");
   }
 
   @Test
   public void testIntegerIn() {
     boolean shouldRead = shouldRead(in("id", INT_MIN_VALUE - 25, INT_MIN_VALUE - 24));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: id below lower bound (5 < 30, 6 < 30)");
+    Assertions.assertThat(shouldRead)
+        .isFalse()
+        .as("Should not read: id below lower bound (5 < 30, 6 < 30)");
 
     shouldRead = shouldRead(in("id", INT_MIN_VALUE - 2, INT_MIN_VALUE - 1));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: id below lower bound (28 < 30, 29 < 30)");
+    Assertions.assertThat(shouldRead)
+        .isFalse()
+        .as("Should not read: id below lower bound (28 < 30, 29 < 30)");
 
     shouldRead = shouldRead(in("id", INT_MIN_VALUE - 1, INT_MIN_VALUE));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: id equal to lower bound (30 == 30)");
+    Assertions.assertThat(shouldRead)
+        .isTrue()
+        .as("Should read: id equal to lower bound (30 == 30)");
 
     shouldRead = shouldRead(in("id", INT_MAX_VALUE - 4, INT_MAX_VALUE - 3));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: id between lower and upper bounds (30 < 75 < 79, 30 < 76 < 79)");
+    Assertions.assertThat(shouldRead)
+        .isTrue()
+        .as("Should read: id between lower and upper bounds (30 < 75 < 79, 30 < 76 < 79)");
 
     shouldRead = shouldRead(in("id", INT_MAX_VALUE, INT_MAX_VALUE + 1));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: id equal to upper bound (79 == 79)");
+    Assertions.assertThat(shouldRead)
+        .isTrue()
+        .as("Should read: id equal to upper bound (79 == 79)");
 
     shouldRead = shouldRead(in("id", INT_MAX_VALUE + 1, INT_MAX_VALUE + 2));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: id above upper bound (80 > 79, 81 > 79)");
+    Assertions.assertThat(shouldRead)
+        .isFalse()
+        .as("Should not read: id above upper bound (80 > 79, 81 > 79)");
 
     shouldRead = shouldRead(in("id", INT_MAX_VALUE + 6, INT_MAX_VALUE + 7));
-    org.junit.jupiter.api.Assertions.assertFalse(
-        shouldRead, "Should not read: id above upper bound (85 > 79, 86 > 79)");
+    Assertions.assertThat(shouldRead)
+        .isFalse()
+        .as("Should not read: id above upper bound (85 > 79, 86 > 79)");
 
     shouldRead = shouldRead(in("all_nulls", 1, 2));
-    org.junit.jupiter.api.Assertions.assertFalse(shouldRead, "Should skip: in on all nulls column");
+    Assertions.assertThat(shouldRead).isFalse().as("Should skip: in on all nulls column");
 
     shouldRead = shouldRead(in("some_nulls", "aaa", "some"));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: in on some nulls column");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: in on some nulls column");
 
     shouldRead = shouldRead(in("no_nulls", "aaa", ""));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read: in on no nulls column");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: in on no nulls column");
   }
 
   @ParameterizedTest(name = "format = {0}")
   @MethodSource("data")
   public void testIntegerNotIn(Object format) {
     boolean shouldRead = shouldRead(notIn("id", INT_MIN_VALUE - 25, INT_MIN_VALUE - 24));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: id below lower bound (5 < 30, 6 < 30)");
+    Assertions.assertThat(shouldRead)
+        .isTrue()
+        .as("Should read: id below lower bound (5 < 30, 6 < 30)");
 
     shouldRead = shouldRead(notIn("id", INT_MIN_VALUE - 2, INT_MIN_VALUE - 1));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: id below lower bound (28 < 30, 29 < 30)");
+    Assertions.assertThat(shouldRead)
+        .isTrue()
+        .as("Should read: id below lower bound (28 < 30, 29 < 30)");
 
     shouldRead = shouldRead(notIn("id", INT_MIN_VALUE - 1, INT_MIN_VALUE));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: id equal to lower bound (30 == 30)");
+    Assertions.assertThat(shouldRead)
+        .isTrue()
+        .as("Should read: id equal to lower bound (30 == 30)");
 
     shouldRead = shouldRead(notIn("id", INT_MAX_VALUE - 4, INT_MAX_VALUE - 3));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: id between lower and upper bounds (30 < 75 < 79, 30 < 76 < 79)");
+    Assertions.assertThat(shouldRead)
+        .isTrue()
+        .as("Should read: id between lower and upper bounds (30 < 75 < 79, 30 < 76 < 79)");
 
     shouldRead = shouldRead(notIn("id", INT_MAX_VALUE, INT_MAX_VALUE + 1));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: id equal to upper bound (79 == 79)");
+    Assertions.assertThat(shouldRead)
+        .isTrue()
+        .as("Should read: id equal to upper bound (79 == 79)");
 
     shouldRead = shouldRead(notIn("id", INT_MAX_VALUE + 1, INT_MAX_VALUE + 2));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: id above upper bound (80 > 79, 81 > 79)");
+    Assertions.assertThat(shouldRead)
+        .isTrue()
+        .as("Should read: id above upper bound (80 > 79, 81 > 79)");
 
     shouldRead = shouldRead(notIn("id", INT_MAX_VALUE + 6, INT_MAX_VALUE + 7));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: id above upper bound (85 > 79, 86 > 79)");
+    Assertions.assertThat(shouldRead)
+        .isTrue()
+        .as("Should read: id above upper bound (85 > 79, 86 > 79)");
 
     shouldRead = shouldRead(notIn("all_nulls", 1, 2));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: notIn on all nulls column");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: notIn on all nulls column");
 
     shouldRead = shouldRead(notIn("some_nulls", "aaa", "some"));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: notIn on some nulls column");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: notIn on some nulls column");
 
     shouldRead = shouldRead(notIn("no_nulls", "aaa", ""));
     if (FileFormat.fromString(format.toString()) == FileFormat.PARQUET) {
       // no_nulls column has all values == "", so notIn("no_nulls", "") should always be false and
       // so should be skipped
       // However, the metrics evaluator in Parquets always reads row group for a notIn filter
-      org.junit.jupiter.api.Assertions.assertTrue(
-          shouldRead, "Should read: notIn on no nulls column");
+      Assertions.assertThat(shouldRead).isTrue().as("Should read: notIn on no nulls column");
     } else {
-      org.junit.jupiter.api.Assertions.assertFalse(
-          shouldRead, "Should skip: notIn on no nulls column");
+      Assertions.assertThat(shouldRead).isFalse().as("Should skip: notIn on no nulls column");
     }
   }
 
   @Test
   public void testSomeNullsNotEq() {
     boolean shouldRead = shouldRead(notEqual("some_nulls", "some"));
-    org.junit.jupiter.api.Assertions.assertTrue(
-        shouldRead, "Should read: notEqual on some nulls column");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read: notEqual on some nulls column");
   }
 
   @ParameterizedTest(name = "format = {0}")
@@ -1021,7 +1045,7 @@ public class TestMetricsRowGroupFilter {
         FileFormat.fromString(format.toString()) == FileFormat.PARQUET);
 
     boolean shouldRead = shouldRead(in("id", 1, 2));
-    org.junit.jupiter.api.Assertions.assertFalse(shouldRead, "Should not read if IN is evaluated");
+    Assertions.assertThat(shouldRead).isFalse().as("Should not read if IN is evaluated");
 
     List<Integer> ids = Lists.newArrayListWithExpectedSize(400);
     for (int id = -400; id <= 0; id++) {
@@ -1029,7 +1053,7 @@ public class TestMetricsRowGroupFilter {
     }
 
     shouldRead = shouldRead(in("id", ids));
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should read if IN is not evaluated");
+    Assertions.assertThat(shouldRead).isTrue().as("Should read if IN is not evaluated");
   }
 
   @ParameterizedTest(name = "format = {0}")
@@ -1041,7 +1065,7 @@ public class TestMetricsRowGroupFilter {
     boolean shouldRead =
         new ParquetMetricsRowGroupFilter(promotedSchema, equal("id", INT_MIN_VALUE + 1), true)
             .shouldRead(parquetSchema, rowGroupMetadata);
-    org.junit.jupiter.api.Assertions.assertTrue(shouldRead, "Should succeed with promoted schema");
+    Assertions.assertThat(shouldRead).isTrue().as("Should succeed with promoted schema");
   }
 
   @ParameterizedTest(name = "format = {0}")

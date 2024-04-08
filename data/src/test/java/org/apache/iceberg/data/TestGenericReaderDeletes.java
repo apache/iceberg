@@ -39,7 +39,7 @@ public class TestGenericReaderDeletes extends DeleteReadTests {
   @Override
   protected Table createTable(String name, Schema schema, PartitionSpec spec) throws IOException {
 
-    File tableDir = Files.createTempDirectory(temp.toPath(), "junit").toFile();
+    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
     assertThat(tableDir.delete()).isTrue();
 
     return TestTables.create(tableDir, name, schema, spec, 2);

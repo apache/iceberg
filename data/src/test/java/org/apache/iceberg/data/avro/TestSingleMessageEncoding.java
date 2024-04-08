@@ -86,10 +86,12 @@ public class TestSingleMessageEncoding {
 
     Record copy = decoder.decode(encoder.encode(V2_RECORDS.get(0)));
 
-    org.junit.jupiter.api.Assertions.assertTrue(
-        copy != V2_RECORDS.get(0), "Copy should not be the same object");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        V2_RECORDS.get(0), copy, "Record should be identical after round-trip");
+    Assertions.assertThat(copy != V2_RECORDS.get(0))
+        .as("Copy should not be the same object")
+        .isTrue();
+    Assertions.assertThat(V2_RECORDS.get(0))
+        .as("Record should be identical after round-trip")
+        .isEqualTo(copy);
   }
 
   @Test
@@ -123,7 +125,7 @@ public class TestSingleMessageEncoding {
       decodedUsingV2.add(v2Decoder.decode(buffer));
     }
 
-    org.junit.jupiter.api.Assertions.assertEquals(allAsV2, decodedUsingV2);
+    Assertions.assertThat(allAsV2).isEqualTo(decodedUsingV2);
   }
 
   @Test
@@ -148,7 +150,7 @@ public class TestSingleMessageEncoding {
 
     Record record = v2Decoder.decode(v1Buffer);
 
-    org.junit.jupiter.api.Assertions.assertEquals(v2Record(6L, "m-6", null), record);
+    Assertions.assertThat(v2Record(6L, "m-6", null)).isEqualTo(record);
   }
 
   @Test
@@ -163,7 +165,7 @@ public class TestSingleMessageEncoding {
 
     Record record = v2Decoder.decode(v1Buffer);
 
-    org.junit.jupiter.api.Assertions.assertEquals(v2Record(4L, "m-4", null), record);
+    Assertions.assertThat(v2Record(4L, "m-4", null)).isEqualTo(record);
   }
 
   @Test
@@ -176,11 +178,12 @@ public class TestSingleMessageEncoding {
     ByteBuffer b0 = encoder.encode(V1_RECORDS.get(0));
     ByteBuffer b1 = encoder.encode(V1_RECORDS.get(1));
 
-    org.junit.jupiter.api.Assertions.assertEquals(b0.array(), b1.array());
+    Assertions.assertThat(b0.array()).isEqualTo(b1.array());
 
     MessageDecoder<Record> decoder = new IcebergDecoder<>(SCHEMA_V1);
-    org.junit.jupiter.api.Assertions.assertEquals(
-        V1_RECORDS.get(1), decoder.decode(b0), "Buffer was reused, decode(b0) should be record 1");
+    Assertions.assertThat(V1_RECORDS.get(1))
+        .as("Buffer was reused, decode(b0) should be record 1")
+        .isEqualTo(decoder.decode(b0));
   }
 
   @Test
@@ -190,12 +193,13 @@ public class TestSingleMessageEncoding {
     ByteBuffer b0 = encoder.encode(V1_RECORDS.get(0));
     ByteBuffer b1 = encoder.encode(V1_RECORDS.get(1));
 
-    org.junit.jupiter.api.Assertions.assertNotEquals(b0.array(), b1.array());
+    Assertions.assertThat(b0.array()).isNotEqualTo(b1.array());
 
     MessageDecoder<Record> decoder = new IcebergDecoder<>(SCHEMA_V1);
     // bytes are not changed by reusing the encoder
-    org.junit.jupiter.api.Assertions.assertEquals(
-        V1_RECORDS.get(0), decoder.decode(b0), "Buffer was copied, decode(b0) should be record 0");
+    Assertions.assertThat(V1_RECORDS.get(0))
+        .as("Buffer was copied, decode(b0) should be record 0")
+        .isEqualTo(decoder.decode(b0));
   }
 
   @Test

@@ -73,7 +73,7 @@ import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.io.DelegatingSeekableInputStream;
 import org.apache.parquet.schema.MessageType;
-import org.junit.jupiter.api.Assertions;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -192,7 +192,7 @@ public class TestMetricsRowGroupFilterTypes {
 
   public void createOrcInputFile(List<Record> records) throws IOException {
     if (ORC_FILE.exists()) {
-      Assertions.assertTrue(ORC_FILE.delete());
+      Assertions.assertThat(ORC_FILE.delete()).isTrue();
     }
 
     OutputFile outFile = Files.localOutput(ORC_FILE);
@@ -208,7 +208,9 @@ public class TestMetricsRowGroupFilterTypes {
     try (Reader reader =
         OrcFile.createReader(
             new Path(inFile.location()), OrcFile.readerOptions(new Configuration()))) {
-      Assertions.assertEquals(1, reader.getStripes().size(), "Should create only one stripe");
+      Assertions.assertThat(1)
+          .isEqualTo(reader.getStripes().size())
+          .as("Should create only one stripe");
     }
 
     ORC_FILE.deleteOnExit();
@@ -216,7 +218,7 @@ public class TestMetricsRowGroupFilterTypes {
 
   public void createParquetInputFile(List<Record> records) throws IOException {
     if (PARQUET_FILE.exists()) {
-      Assertions.assertTrue(PARQUET_FILE.delete());
+      Assertions.assertThat(PARQUET_FILE.delete()).isTrue();
     }
 
     OutputFile outFile = Files.localOutput(PARQUET_FILE);
@@ -230,7 +232,9 @@ public class TestMetricsRowGroupFilterTypes {
 
     InputFile inFile = Files.localInput(PARQUET_FILE);
     try (ParquetFileReader reader = ParquetFileReader.open(parquetInputFile(inFile))) {
-      Assertions.assertEquals(1, reader.getRowGroups().size(), "Should create only one row group");
+      Assertions.assertThat(1)
+          .isEqualTo(reader.getRowGroups().size())
+          .as("Should create only one row group");
       rowGroupMetadata = reader.getRowGroups().get(0);
       parquetSchema = reader.getFileMetaData().getSchema();
     }
@@ -294,10 +298,14 @@ public class TestMetricsRowGroupFilterTypes {
   @MethodSource("data")
   public void testEq(String format, String column, Object readValue, Object skipValue) {
     boolean shouldRead = shouldRead(readValue, column);
-    Assertions.assertTrue(shouldRead, "Should read: value is in the row group: " + readValue);
+    Assertions.assertThat(shouldRead)
+        .isTrue()
+        .as("Should read: value is in the row group: " + readValue);
 
     shouldRead = shouldRead(skipValue, column);
-    Assertions.assertFalse(shouldRead, "Should skip: value is not in the row group: " + skipValue);
+    Assertions.assertThat(shouldRead)
+        .isFalse()
+        .as("Should skip: value is not in the row group: " + skipValue);
   }
 
   private boolean shouldRead(Object value, String column) {
