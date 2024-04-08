@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.aws.lakeformation;
 
+import static org.assertj.core.api.Assertions.assertThatNoException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
@@ -29,16 +32,14 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.assertj.core.api.Assertions;
 import org.awaitility.Awaitility;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.glue.model.AccessDeniedException;
-import software.amazon.awssdk.services.glue.model.GlueException;
 import software.amazon.awssdk.services.iam.IamClient;
 import software.amazon.awssdk.services.iam.model.CreateRoleRequest;
 import software.amazon.awssdk.services.iam.model.CreateRoleResponse;
@@ -59,7 +60,7 @@ public class TestLakeFormationAwsClientFactory {
   private Map<String, String> assumeRoleProperties;
   private String policyName;
 
-  @Before
+  @BeforeEach
   public void before() {
     roleName = UUID.randomUUID().toString();
     iam =
@@ -97,7 +98,7 @@ public class TestLakeFormationAwsClientFactory {
     policyName = UUID.randomUUID().toString();
   }
 
-  @After
+  @AfterEach
   public void after() {
     iam.deleteRolePolicy(
         DeleteRolePolicyRequest.builder().roleName(roleName).policyName(policyName).build());
@@ -150,10 +151,8 @@ public class TestLakeFormationAwsClientFactory {
     Namespace deniedNamespace =
         Namespace.of("denied_" + UUID.randomUUID().toString().replace("-", ""));
     try {
-      glueCatalog.createNamespace(deniedNamespace);
-      Assert.fail("Access to Glue should be denied");
-    } catch (GlueException e) {
-      Assert.assertEquals(AccessDeniedException.class, e.getClass());
+      assertThatThrownBy(() -> glueCatalog.createNamespace(deniedNamespace))
+          .isInstanceOf(AccessDeniedException.class);
     } catch (AssertionError e) {
       glueCatalog.dropNamespace(deniedNamespace);
       throw e;
@@ -162,10 +161,7 @@ public class TestLakeFormationAwsClientFactory {
     Namespace allowedNamespace =
         Namespace.of("allowed_" + UUID.randomUUID().toString().replace("-", ""));
     try {
-      glueCatalog.createNamespace(allowedNamespace);
-    } catch (GlueException e) {
-      LOG.error("fail to create Glue database", e);
-      Assert.fail("create namespace should succeed");
+      assertThatNoException().isThrownBy(() -> glueCatalog.createNamespace(allowedNamespace));
     } finally {
       glueCatalog.dropNamespace(allowedNamespace);
       try {

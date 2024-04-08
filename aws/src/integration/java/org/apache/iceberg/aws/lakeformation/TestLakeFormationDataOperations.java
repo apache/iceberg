@@ -18,16 +18,17 @@
  */
 package org.apache.iceberg.aws.lakeformation;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ForbiddenException;
-import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.services.glue.model.AccessDeniedException;
 import software.amazon.awssdk.services.lakeformation.model.Permission;
 import software.amazon.awssdk.services.s3.model.S3Exception;
@@ -37,7 +38,7 @@ public class TestLakeFormationDataOperations extends LakeFormationTestBase {
   private static String testDbName;
   private static String testTableName;
 
-  @Before
+  @BeforeEach
   public void before() {
     testDbName = getRandomDbName();
     testTableName = getRandomTableName();
@@ -45,7 +46,7 @@ public class TestLakeFormationDataOperations extends LakeFormationTestBase {
     lfRegisterPathRoleCreateTable(testDbName, testTableName);
   }
 
-  @After
+  @AfterEach
   public void after() {
     lfRegisterPathRoleDeleteTable(testDbName, testTableName);
     lfRegisterPathRoleDeleteDb(testDbName);
@@ -53,7 +54,7 @@ public class TestLakeFormationDataOperations extends LakeFormationTestBase {
 
   @Test
   public void testLoadTableWithNoTableAccess() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 glueCatalogPrivilegedRole.loadTable(
                     TableIdentifier.of(Namespace.of(testDbName), testTableName)))
@@ -81,7 +82,7 @@ public class TestLakeFormationDataOperations extends LakeFormationTestBase {
             .withFileSizeInBytes(10)
             .withRecordCount(1)
             .build();
-    Assertions.assertThatThrownBy(() -> table.newAppend().appendFile(dataFile).commit())
+    assertThatThrownBy(() -> table.newAppend().appendFile(dataFile).commit())
         .as("attempt to insert to a table without INSERT permission should fail")
         .isInstanceOf(S3Exception.class)
         .hasMessageContaining("Access Denied");
@@ -117,7 +118,7 @@ public class TestLakeFormationDataOperations extends LakeFormationTestBase {
             .withFileSizeInBytes(10)
             .withRecordCount(1)
             .build();
-    Assertions.assertThatThrownBy(() -> table.newDelete().deleteFile(dataFile).commit())
+    assertThatThrownBy(() -> table.newDelete().deleteFile(dataFile).commit())
         .as("attempt to delete without DATA_LOCATION_ACCESS permission should fail")
         .isInstanceOf(ForbiddenException.class)
         .hasMessageContaining("Glue cannot access the requested resources");

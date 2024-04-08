@@ -18,11 +18,12 @@
  */
 package org.apache.iceberg.aws;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.Map;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.assertj.core.api.Assertions;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
@@ -39,7 +40,7 @@ public class TestDefaultAwsClientFactory {
     properties.put(AwsProperties.GLUE_CATALOG_ENDPOINT, "https://unknown:1234");
     AwsClientFactory factory = AwsClientFactories.from(properties);
     GlueClient glueClient = factory.glue();
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> glueClient.getDatabase(GetDatabaseRequest.builder().name("TEST").build()))
         .cause()
         .isInstanceOf(SdkClientException.class)
@@ -52,7 +53,7 @@ public class TestDefaultAwsClientFactory {
     properties.put(S3FileIOProperties.ENDPOINT, "https://unknown:1234");
     AwsClientFactory factory = AwsClientFactories.from(properties);
     S3Client s3Client = factory.s3();
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 s3Client.getObject(GetObjectRequest.builder().bucket("bucket").key("key").build()))
         .cause()
@@ -67,7 +68,7 @@ public class TestDefaultAwsClientFactory {
     properties.put(S3FileIOProperties.SECRET_ACCESS_KEY, "unknown");
     AwsClientFactory factory = AwsClientFactories.from(properties);
     S3Client s3Client = factory.s3();
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 s3Client.getObject(
                     GetObjectRequest.builder()
@@ -84,7 +85,7 @@ public class TestDefaultAwsClientFactory {
     properties.put(AwsProperties.DYNAMODB_ENDPOINT, "https://unknown:1234");
     AwsClientFactory factory = AwsClientFactories.from(properties);
     DynamoDbClient dynamoDbClient = factory.dynamo();
-    Assertions.assertThatThrownBy(dynamoDbClient::listTables)
+    assertThatThrownBy(dynamoDbClient::listTables)
         .cause()
         .isInstanceOf(SdkClientException.class)
         .hasMessageContaining("Unable to execute HTTP request: unknown");

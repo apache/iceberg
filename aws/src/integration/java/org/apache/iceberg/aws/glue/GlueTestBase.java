@@ -34,8 +34,8 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.glue.GlueClient;
@@ -75,7 +75,7 @@ public class GlueTestBase {
 
   static final String testBucketPath = "s3://" + testBucketName + "/" + testPathPrefix;
 
-  @BeforeClass
+  @BeforeAll
   public static void beforeClass() {
     glueCatalog = new GlueCatalog();
     AwsProperties awsProperties = new AwsProperties();
@@ -103,7 +103,7 @@ public class GlueTestBase {
         ImmutableMap.of());
   }
 
-  @AfterClass
+  @AfterAll
   public static void afterClass() {
     AwsIntegTestUtil.cleanGlueCatalog(glue, namespaces);
     AwsIntegTestUtil.cleanS3Bucket(s3, testBucketName, testPathPrefix);
