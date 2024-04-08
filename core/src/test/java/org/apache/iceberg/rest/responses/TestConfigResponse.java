@@ -145,15 +145,16 @@ public class TestConfigResponse extends RequestResponseTestBase<ConfigResponse> 
     String jsonDefaultsHasWrongType =
         "{\"defaults\":[\"warehouse\",\"s3://bucket/warehouse\"],\"overrides\":{\"clients\":\"5\"}}";
     Assertions.assertThatThrownBy(() -> deserialize(jsonDefaultsHasWrongType))
-        .isInstanceOf(JsonProcessingException.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
-            "Cannot deserialize value of type `java.util.LinkedHashMap<java.lang.String,java.lang.String>`");
+            "Cannot parse string map from non-object value: defaults: [\"warehouse\",\"s3://bucket/warehouse\"]");
 
     String jsonOverridesHasWrongType =
         "{\"defaults\":{\"warehouse\":\"s3://bucket/warehouse\"},\"overrides\":\"clients\"}";
     Assertions.assertThatThrownBy(() -> deserialize(jsonOverridesHasWrongType))
-        .isInstanceOf(JsonProcessingException.class)
-        .hasMessageContaining("Cannot construct instance of `java.util.LinkedHashMap`");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Cannot parse string map from non-object value: overrides: \"clients\"");
 
     Assertions.assertThatThrownBy(() -> deserialize(null))
         .isInstanceOf(IllegalArgumentException.class)

@@ -23,6 +23,7 @@ import static org.apache.iceberg.SortDirection.ASC;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 
 import java.io.File;
 import java.io.IOException;
@@ -41,6 +42,7 @@ import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DataFile;
@@ -51,6 +53,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
@@ -79,6 +82,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import org.sqlite.SQLiteDataSource;
 
 public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
@@ -968,6 +973,46 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     // counter of custom metrics reporter should have been increased
     // 1x for commit metrics / 1x for scan metrics
     Assertions.assertThat(CustomMetricsReporter.COUNTER.get()).isEqualTo(2);
+  }
+
+  @Test
+  public void testCommitExceptionWithoutMessage() {
+    TableIdentifier tableIdent = TableIdentifier.of("db", "tbl");
+    BaseTable table = (BaseTable) catalog.buildTable(tableIdent, SCHEMA).create();
+    TableOperations ops = table.operations();
+    TableMetadata metadataV1 = ops.current();
+
+    table.updateSchema().addColumn("n", Types.IntegerType.get()).commit();
+    ops.refresh();
+
+    try (MockedStatic<JdbcUtil> mockedStatic = Mockito.mockStatic(JdbcUtil.class)) {
+      mockedStatic
+          .when(() -> JdbcUtil.loadTable(any(), any(), any(), any()))
+          .thenThrow(new SQLException());
+      assertThatThrownBy(() -> ops.commit(ops.current(), metadataV1))
+          .isInstanceOf(UncheckedSQLException.class)
+          .hasMessageStartingWith("Unknown failure");
+    }
+  }
+
+  @Test
+  public void testCommitExceptionWithMessage() {
+    TableIdentifier tableIdent = TableIdentifier.of("db", "tbl");
+    BaseTable table = (BaseTable) catalog.buildTable(tableIdent, SCHEMA).create();
+    TableOperations ops = table.operations();
+    TableMetadata metadataV1 = ops.current();
+
+    table.updateSchema().addColumn("n", Types.IntegerType.get()).commit();
+    ops.refresh();
+
+    try (MockedStatic<JdbcUtil> mockedStatic = Mockito.mockStatic(JdbcUtil.class)) {
+      mockedStatic
+          .when(() -> JdbcUtil.loadTable(any(), any(), any(), any()))
+          .thenThrow(new SQLException("constraint failed"));
+      assertThatThrownBy(() -> ops.commit(ops.current(), metadataV1))
+          .isInstanceOf(AlreadyExistsException.class)
+          .hasMessageStartingWith("Table already exists: " + tableIdent);
+    }
   }
 
   public static class CustomMetricsReporter implements MetricsReporter {
