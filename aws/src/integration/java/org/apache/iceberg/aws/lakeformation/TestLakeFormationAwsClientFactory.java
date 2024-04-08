@@ -40,7 +40,6 @@ import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.glue.model.AccessDeniedException;
-import software.amazon.awssdk.services.glue.model.GlueException;
 import software.amazon.awssdk.services.iam.IamClient;
 import software.amazon.awssdk.services.iam.model.CreateRoleRequest;
 import software.amazon.awssdk.services.iam.model.CreateRoleResponse;
@@ -163,8 +162,6 @@ public class TestLakeFormationAwsClientFactory {
         Namespace.of("allowed_" + UUID.randomUUID().toString().replace("-", ""));
     try {
       assertThatNoException().isThrownBy(() -> glueCatalog.createNamespace(allowedNamespace));
-    } catch (GlueException e) {
-      LOG.error("fail to create Glue database", e);
     } finally {
       glueCatalog.dropNamespace(allowedNamespace);
       try {
