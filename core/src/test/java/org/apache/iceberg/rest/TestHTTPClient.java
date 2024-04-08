@@ -50,6 +50,8 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockserver.integration.ClientAndServer;
 import org.mockserver.model.HttpRequest;
 import org.mockserver.model.HttpResponse;
@@ -178,17 +180,9 @@ public class TestHTTPClient {
     }
   }
 
-  @Test
-  public void testInvalidConnectionTimeout() {
-    testInvalidTimeouts(HTTPClient.REST_CONNECTION_TIMEOUT_MS);
-  }
-
-  @Test
-  public void testInvalidSocketTimeout() {
-    testInvalidTimeouts(HTTPClient.REST_SOCKET_TIMEOUT_MS);
-  }
-
-  private void testInvalidTimeouts(String timeoutMsType) {
+  @ParameterizedTest
+  @ValueSource(strings = {HTTPClient.REST_CONNECTION_TIMEOUT_MS, HTTPClient.REST_SOCKET_TIMEOUT_MS})
+  public void testInvalidTimeout(String timeoutMsType) {
     String timeoutMsStr = "invalidMs";
     Map<String, String> properties = ImmutableMap.of(timeoutMsType, timeoutMsStr);
 
