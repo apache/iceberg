@@ -18,16 +18,21 @@
  */
 package org.apache.iceberg.rest;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.RESTCatalogAdapter.HTTPMethod;
@@ -39,7 +44,9 @@ import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.Mockito;
 
 public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
   private static final ObjectMapper MAPPER = RESTObjectMapper.mapper();
@@ -142,6 +149,39 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
       httpServer.stop();
       httpServer.join();
     }
+  }
+
+  @Test
+  public void testPaginationForListViews() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize("test", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "10"));
+
+    int numberOfItems = 100;
+    String namespaceName = "newdb";
+    String tableName = "newtable";
+    String viewName = "newview";
+
+    TableIdentifier tableIdentifier = TableIdentifier.of(namespaceName, tableName);
+
+    // create intial namespace and table
+    catalog().createNamespace(tableIdentifier.namespace());
+    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+
+    // create several views under namespace, based off a table for listing and verify
+    for (int i = 0; i < numberOfItems; i++) {
+      TableIdentifier viewIndentifier = TableIdentifier.of(namespaceName, viewName + i);
+      catalog
+          .buildView(viewIndentifier)
+          .withSchema(SCHEMA)
+          .withDefaultNamespace(viewIndentifier.namespace())
+          .withQuery("spark", "select * from " + namespaceName + "." + tableName)
+          .create();
+    }
+
+    List<TableIdentifier> views = catalog.listViews(Namespace.of(namespaceName));
+    assertThat(views.size()).isEqualTo(numberOfItems);
   }
 
   @Override

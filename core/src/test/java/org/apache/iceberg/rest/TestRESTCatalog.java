@@ -2331,14 +2331,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testPaginationForListApis() {
+  public void testPaginationForListNameSpaces() {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
     catalog.initialize("test", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "10"));
     int numberOfItems = 100;
     String namespaceName = "newdb";
-    String tableName = "newtable";
 
     // create several namespaces for listing and verify
     for (int i = 0; i < numberOfItems; i++) {
@@ -2346,15 +2345,29 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       Namespace NS = Namespace.of(nameSpaceName);
       catalog.createNamespace(NS);
     }
+
     List<Namespace> results = catalog.listNamespaces();
     assertThat(results.size()).isEqualTo(numberOfItems);
+  }
 
-    // create several tables under initial namespace for listing and verify
+  @Test
+  public void testPaginationForListTables() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize("test", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "10"));
+    int numberOfItems = 100;
+    String namespaceName = "newdb";
+    String tableName = "newtable";
+    catalog.createNamespace(NS);
+
+    // create several tables under namespace for listing and verify
     for (int i = 0; i < numberOfItems; i++) {
-      TableIdentifier tableIdentifier = TableIdentifier.of(namespaceName + "0", tableName + i);
+      TableIdentifier tableIdentifier = TableIdentifier.of(namespaceName, tableName + i);
       catalog.createTable(tableIdentifier, SCHEMA);
     }
-    List<TableIdentifier> tables = catalog.listTables(Namespace.of(namespaceName + "0"));
+
+    List<TableIdentifier> tables = catalog.listTables(Namespace.of(namespaceName));
     assertThat(tables.size()).isEqualTo(numberOfItems);
   }
 

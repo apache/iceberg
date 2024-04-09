@@ -84,18 +84,24 @@ public class TestListNamespacesResponse extends RequestResponseTestBase<ListName
   }
 
   @Test
-  public void testWithNullPaginationToken() {
+  public void testWithNullPaginationToken() throws JsonProcessingException {
+    String jsonWithNullPageToken =
+        "{\"namespaces\":[[\"accounting\"],[\"tax\"]],\"next-page-token\":null}";
     ListNamespacesResponse response =
         ListNamespacesResponse.builder().addAll(NAMESPACES).nextPageToken(null).build();
+    assertRoundTripSerializesEquallyFrom(jsonWithNullPageToken, response);
     Assertions.assertThat(response.nextPageToken()).isNull();
     Assertions.assertThat(response.namespaces()).isEqualTo(NAMESPACES);
   }
 
   @Test
-  public void testWithPaginationToken() {
-    String pageToken = "YnVybiBhZnRlciByZWFkaW5nIC0gYWxzbyBoYW5rIGFuZCByYXVsIDQgZXZlcgo=";
+  public void testWithPaginationToken() throws JsonProcessingException {
+    String pageToken = "token";
+    String jsonWithPageToken =
+        "{\"namespaces\":[[\"accounting\"],[\"tax\"]],\"next-page-token\":\"token\"}";
     ListNamespacesResponse response =
         ListNamespacesResponse.builder().addAll(NAMESPACES).nextPageToken(pageToken).build();
+    assertRoundTripSerializesEquallyFrom(jsonWithPageToken, response);
     Assertions.assertThat(response.nextPageToken()).isNotNull();
     Assertions.assertThat(response.namespaces()).isEqualTo(NAMESPACES);
   }
