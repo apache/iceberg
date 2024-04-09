@@ -231,6 +231,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
 
     this.restPageSize = mergedProps.get(REST_PAGE_SIZE);
+    if (restPageSize != null) {
+      Preconditions.checkArgument(
+          Integer.parseInt(restPageSize) > 0,
+          "Invalid value for pageSize, must be a positive integer");
+    }
     this.io = newFileIO(SessionContext.createEmpty(), mergedProps);
 
     this.fileIOCloser = newFileIOCloser();
@@ -282,22 +287,13 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   public List<TableIdentifier> listTables(SessionContext context, Namespace ns) {
     checkNamespaceIsValid(ns);
     Map<String, String> queryParams = Maps.newHashMap();
-    if (restPageSize == null) {
-      ListTablesResponse response =
-          client.get(
-              paths.tables(ns),
-              queryParams,
-              ListTablesResponse.class,
-              headers(context),
-              ErrorHandlers.namespaceErrorHandler());
-      return response.identifiers();
-    }
-
-    List<TableIdentifier> identifiers = Lists.newArrayList();
+    List<TableIdentifier> tables = Lists.newArrayList();
     String pageToken = "";
-    queryParams.put("pageSize", restPageSize);
-    while (pageToken != null) {
+    if (restPageSize != null) {
       queryParams.put("pageToken", pageToken);
+      queryParams.put("pageSize", restPageSize);
+    }
+    do {
       ListTablesResponse response =
           client.get(
               paths.tables(ns),
@@ -306,9 +302,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               headers(context),
               ErrorHandlers.namespaceErrorHandler());
       pageToken = response.nextPageToken();
-      identifiers.addAll(response.identifiers());
-    }
-    return identifiers;
+      tables.addAll(response.identifiers());
+    } while (pageToken != null);
+
+    return tables;
   }
 
   @Override
@@ -521,22 +518,13 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     if (!namespace.isEmpty()) {
       queryParams.put("parent", RESTUtil.NAMESPACE_JOINER.join(namespace.levels()));
     }
-    if (restPageSize == null) {
-      ListNamespacesResponse response =
-          client.get(
-              paths.namespaces(),
-              queryParams,
-              ListNamespacesResponse.class,
-              headers(context),
-              ErrorHandlers.namespaceErrorHandler());
-      return response.namespaces();
-    }
-
     List<Namespace> namespaces = Lists.newArrayList();
     String pageToken = "";
-    queryParams.put("pageSize", restPageSize);
-    while (pageToken != null) {
+    if (restPageSize != null) {
       queryParams.put("pageToken", pageToken);
+      queryParams.put("pageSize", restPageSize);
+    }
+    do {
       ListNamespacesResponse response =
           client.get(
               paths.namespaces(),
@@ -546,7 +534,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               ErrorHandlers.namespaceErrorHandler());
       pageToken = response.nextPageToken();
       namespaces.addAll(response.namespaces());
-    }
+    } while (pageToken != null);
+
     return namespaces;
   }
 
@@ -1087,22 +1076,13 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   public List<TableIdentifier> listViews(SessionContext context, Namespace namespace) {
     checkNamespaceIsValid(namespace);
     Map<String, String> queryParams = Maps.newHashMap();
-    if (restPageSize == null) {
-      ListTablesResponse response =
-          client.get(
-              paths.views(namespace),
-              queryParams,
-              ListTablesResponse.class,
-              headers(context),
-              ErrorHandlers.namespaceErrorHandler());
-      return response.identifiers();
-    }
-
     List<TableIdentifier> views = Lists.newArrayList();
     String pageToken = "";
-    queryParams.put("pageSize", restPageSize);
-    while (pageToken != null) {
+    if (restPageSize != null) {
       queryParams.put("pageToken", pageToken);
+      queryParams.put("pageSize", restPageSize);
+    }
+    do {
       ListTablesResponse response =
           client.get(
               paths.views(namespace),
@@ -1112,7 +1092,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               ErrorHandlers.namespaceErrorHandler());
       pageToken = response.nextPageToken();
       views.addAll(response.identifiers());
-    }
+    } while (pageToken != null);
+
     return views;
   }
 

@@ -32,6 +32,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -2327,6 +2328,34 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     assertThat(schema2.findField("data")).isNull();
     assertThat(schema2.findField("new-column")).isNull();
     assertThat(schema2.columns()).hasSize(1);
+  }
+
+  @Test
+  public void testPaginationForListApis() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize("test", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "10"));
+    int numberOfItems = 100;
+    String namespaceName = "newdb";
+    String tableName = "newtable";
+
+    // create several namespaces for listing and verify
+    for (int i = 0; i < numberOfItems; i++) {
+      String nameSpaceName = namespaceName + i;
+      Namespace NS = Namespace.of(nameSpaceName);
+      catalog.createNamespace(NS);
+    }
+    List<Namespace> results = catalog.listNamespaces();
+    assertThat(results.size()).isEqualTo(numberOfItems);
+
+    // create several tables under initial namespace for listing and verify
+    for (int i = 0; i < numberOfItems; i++) {
+      TableIdentifier tableIdentifier = TableIdentifier.of(namespaceName + "0", tableName + i);
+      catalog.createTable(tableIdentifier, SCHEMA);
+    }
+    List<TableIdentifier> tables = catalog.listTables(Namespace.of(namespaceName + "0"));
+    assertThat(tables.size()).isEqualTo(numberOfItems);
   }
 
   @Test
