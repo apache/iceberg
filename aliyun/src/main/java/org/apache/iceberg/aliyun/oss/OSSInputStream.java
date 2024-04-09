@@ -20,7 +20,6 @@ package org.apache.iceberg.aliyun.oss;
 
 import com.aliyun.oss.OSS;
 import com.aliyun.oss.model.GetObjectRequest;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
