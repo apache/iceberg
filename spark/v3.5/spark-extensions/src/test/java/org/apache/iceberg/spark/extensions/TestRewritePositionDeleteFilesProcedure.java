@@ -25,6 +25,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -220,6 +222,26 @@ public class TestRewritePositionDeleteFilesProcedure extends ExtensionsTestBase 
                     catalogName, tableIdent))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot convert Spark filter");
+  }
+
+  @TestTemplate
+  public void testRewriteSummary() throws Exception {
+    createTable();
+    sql("DELETE FROM %s WHERE id=1", tableName);
+
+    sql(
+        "CALL %s.system.rewrite_position_delete_files("
+            + "table => '%s',"
+            + "options => map("
+            + "'rewrite-all','true'))",
+        catalogName, tableIdent);
+
+    Map<String, String> summary = snapshotSummary();
+    assertThat(summary)
+        .containsKey(CatalogProperties.APP_ID)
+        .containsEntry(EnvironmentContext.ENGINE_NAME, "spark")
+        .hasEntrySatisfying(
+            EnvironmentContext.ENGINE_VERSION, v -> assertThat(v).startsWith("3.5"));
   }
 
   private Map<String, String> snapshotSummary() {

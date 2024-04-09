@@ -352,6 +352,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         SnapshotSummary.ADDED_EQ_DELETES_PROP,
         SnapshotSummary.REMOVED_EQ_DELETES_PROP);
 
+    builder.putAll(EnvironmentContext.get());
     return builder.build();
   }
 
