@@ -430,6 +430,12 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   }
 
   @Override
+  public void setRowGroupInfo(
+      PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {
+    setRowGroupInfo(pageStore, metadata);
+  }
+
+  @Override
   public void setRowGroupInfo(PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {
     ColumnChunkMetaData chunkMetaData = metadata.get(ColumnPath.get(columnDescriptor.getPath()));
     this.dictionary =
@@ -469,6 +475,10 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     public VectorHolder read(VectorHolder reuse, int numValsToRead) {
       return VectorHolder.dummyHolder(numValsToRead);
     }
+
+    @Override
+    public void setRowGroupInfo(
+        PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {}
 
     @Override
     public void setRowGroupInfo(
@@ -539,6 +549,12 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public void setRowGroupInfo(
+        PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {
+      setRowGroupInfo(pageStore, metadata);
+    }
+
+    @Override
+    public void setRowGroupInfo(
         PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {
       this.rowStart = source.getRowIndexOffset().orElse(0L);
     }
@@ -583,6 +599,10 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public void setRowGroupInfo(
+        PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {}
+
+    @Override
+    public void setRowGroupInfo(
         PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {}
 
     @Override
@@ -607,6 +627,10 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     public VectorHolder read(VectorHolder reuse, int numValsToRead) {
       return VectorHolder.deletedVectorHolder(numValsToRead);
     }
+
+    @Override
+    public void setRowGroupInfo(
+        PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {}
 
     @Override
     public void setRowGroupInfo(
