@@ -25,6 +25,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.TableProperties;
@@ -879,6 +881,21 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
                     catalogName, tableIdent))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot convert Spark filter");
+  }
+
+  @TestTemplate
+  public void testRewriteDataFilesSummary() {
+    createTable();
+    // create 10 files under non-partitioned table
+    insertData(10);
+    sql("CALL %s.system.rewrite_data_files(table => '%s')", catalogName, tableIdent);
+
+    Map<String, String> summary = snapshotSummary();
+    assertThat(summary)
+        .containsKey(CatalogProperties.APP_ID)
+        .containsEntry(EnvironmentContext.ENGINE_NAME, "spark")
+        .hasEntrySatisfying(
+            EnvironmentContext.ENGINE_VERSION, v -> assertThat(v).startsWith("3.5"));
   }
 
   private void createTable() {
