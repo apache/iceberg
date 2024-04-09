@@ -110,7 +110,6 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
     private final long end;
     private final InputFile file;
 
-
     AvroRangeIterator(FileReader<D> reader, InputFile file, long start, long end) {
       this.reader = reader;
       this.file = file;
@@ -119,7 +118,8 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
       try {
         reader.sync(start);
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to find sync past position %d at file: %s", start, file);
+        throw new RuntimeIOException(
+            e, "Failed to find sync past position %d at file: %s", start, file);
       }
     }
 
