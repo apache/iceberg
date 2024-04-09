@@ -431,8 +431,8 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
   @Override
   public void setRowGroupInfo(
-      PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {
-    setRowGroupInfo(pageStore, metadata);
+      PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {
+    setRowGroupInfo(source, metadata);
   }
 
   @Override
@@ -478,7 +478,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public void setRowGroupInfo(
-        PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {}
+        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {}
 
     @Override
     public void setRowGroupInfo(
@@ -549,8 +549,8 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public void setRowGroupInfo(
-        PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {
-      setRowGroupInfo(pageStore, metadata);
+        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {
+      setRowGroupInfo(source, metadata);
     }
 
     @Override
@@ -599,7 +599,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public void setRowGroupInfo(
-        PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {}
+        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {}
 
     @Override
     public void setRowGroupInfo(
@@ -630,7 +630,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public void setRowGroupInfo(
-        PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {}
+        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {}
 
     @Override
     public void setRowGroupInfo(
