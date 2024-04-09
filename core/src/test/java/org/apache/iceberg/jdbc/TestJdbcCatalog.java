@@ -31,6 +31,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
@@ -239,6 +240,17 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
         .create();
 
     assertThat(jdbcCatalog.listViews(Namespace.of("namespace1"))).hasSize(1).containsExactly(view);
+
+    TableIdentifier tableThree = TableIdentifier.of("namespace2", "table3");
+    jdbcCatalog.createTable(tableThree, SCHEMA);
+    assertThat(jdbcCatalog.tableExists(tableThree)).isTrue();
+
+    // testing append datafile to check commit, it should not throw an exception
+    jdbcCatalog.loadTable(tableOne).newAppend().appendFile(FILE_A).commit();
+    jdbcCatalog.loadTable(tableTwo).newAppend().appendFile(FILE_B).commit();
+
+    assertThat(jdbcCatalog.tableExists(tableOne)).isTrue();
+    assertThat(jdbcCatalog.tableExists(tableTwo)).isTrue();
   }
 
   @ParameterizedTest
@@ -1024,7 +1036,49 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     }
   }
 
+  private String createMetadataLocationViaJdbcCatalog(TableIdentifier identifier)
+      throws SQLException {
+    // temporary connection just to actually create a concrete metadata location
+    String jdbcUrl = null;
+    try {
+      java.nio.file.Path dbFile = Files.createTempFile("temp", "metadata");
+      jdbcUrl = "jdbc:sqlite:" + dbFile.toAbsolutePath();
+    } catch (IOException e) {
+      throw new SQLException("Error while creating temp data", e);
+    }
+
+    Map<String, String> properties = Maps.newHashMap();
+
+    properties.put(CatalogProperties.URI, jdbcUrl);
+
+    warehouseLocation = this.tableDir.toAbsolutePath().toString();
+    properties.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation);
+    properties.put("type", "jdbc");
+
+    JdbcCatalog jdbcCatalog =
+        (JdbcCatalog) CatalogUtil.buildIcebergCatalog("TEMP", properties, conf);
+    jdbcCatalog.buildTable(identifier, SCHEMA).create();
+
+    SQLiteDataSource dataSource = new SQLiteDataSource();
+    dataSource.setUrl(jdbcUrl);
+
+    try (Connection connection = dataSource.getConnection()) {
+      ResultSet result =
+          connection
+              .prepareStatement("SELECT * FROM " + JdbcUtil.CATALOG_TABLE_VIEW_NAME)
+              .executeQuery();
+      result.next();
+      return result.getString(JdbcTableOperations.METADATA_LOCATION_PROP);
+    }
+  }
+
   private void initLegacySchema(String jdbcUrl) throws SQLException {
+    TableIdentifier table1 = TableIdentifier.of(Namespace.of("namespace1"), "table1");
+    TableIdentifier table2 = TableIdentifier.of(Namespace.of("namespace2"), "table2");
+
+    String table1MetadataLocation = createMetadataLocationViaJdbcCatalog(table1);
+    String table2MetadataLocation = createMetadataLocationViaJdbcCatalog(table2);
+
     SQLiteDataSource dataSource = new SQLiteDataSource();
     dataSource.setUrl(jdbcUrl);
 
@@ -1045,7 +1099,9 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
                   + JdbcTableOperations.METADATA_LOCATION_PROP
                   + ","
                   + JdbcTableOperations.PREVIOUS_METADATA_LOCATION_PROP
-                  + ") VALUES('TEST','namespace1','table1',null,null)")
+                  + ") VALUES('TEST','namespace1','table1','"
+                  + table1MetadataLocation
+                  + "',null)")
           .execute();
       connection
           .prepareStatement(
@@ -1061,7 +1117,9 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
                   + JdbcTableOperations.METADATA_LOCATION_PROP
                   + ","
                   + JdbcTableOperations.PREVIOUS_METADATA_LOCATION_PROP
-                  + ") VALUES('TEST','namespace2','table2',null,null)")
+                  + ") VALUES('TEST','namespace2','table2','"
+                  + table2MetadataLocation
+                  + "',null)")
           .execute();
     }
   }
