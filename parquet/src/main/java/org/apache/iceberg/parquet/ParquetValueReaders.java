@@ -757,7 +757,7 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore, long rowPosition) {
+    public final void setPageSource(PageReadStore pageStore, long rowPosition) {
       setPageSource(pageStore);
     }
 
