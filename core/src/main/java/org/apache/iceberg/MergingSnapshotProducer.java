@@ -41,6 +41,7 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Predicate;
+import org.apache.iceberg.relocated.com.google.common.base.Predicates;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -464,7 +465,10 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       return;
     }
 
-    DeleteFileIndex deletes = addedDeleteFiles(base, startingSnapshotId, dataFilter, null, parent);
+    Predicate<Snapshot> snapshotFilter =
+        ignoreEqualityDeletes ? this::canHaveConflictingPosDeletes : Predicates.alwaysTrue();
+    DeleteFileIndex deletes =
+        addedDeleteFiles(base, startingSnapshotId, dataFilter, null, parent, snapshotFilter);
 
     long startingSequenceNumber = startingSequenceNumber(base, startingSnapshotId);
     for (DataFile dataFile : dataFiles) {
@@ -483,6 +487,24 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             "Cannot commit, found new delete for replaced data file: %s",
             dataFile);
       }
+    }
+  }
+
+  private boolean canHaveConflictingPosDeletes(Snapshot snapshot) {
+    switch (snapshot.operation()) {
+      case DataOperations.APPEND:
+      case DataOperations.REPLACE:
+      case DataOperations.DELETE:
+        return false;
+      case DataOperations.OVERWRITE:
+        boolean noPosDeleteApplyToPreviousData =
+            Boolean.parseBoolean(
+                snapshot
+                    .summary()
+                    .getOrDefault(SnapshotSummary.NO_POS_DELETE_APPLY_TO_PREVIOUS_DATA, "false"));
+        return !noPosDeleteApplyToPreviousData;
+      default:
+        return true;
     }
   }
 
@@ -540,6 +562,27 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       Expression dataFilter,
       PartitionSet partitionSet,
       Snapshot parent) {
+    return addedDeleteFiles(
+        base, startingSnapshotId, dataFilter, partitionSet, parent, Predicates.alwaysTrue());
+  }
+
+  /**
+   * Returns matching delete files have been added to the table since a starting snapshot.
+   *
+   * @param base table metadata to validate
+   * @param startingSnapshotId id of the snapshot current at the start of the operation
+   * @param dataFilter an expression used to find delete files
+   * @param partitionSet a partition set used to find delete files
+   * @param parent parent snapshot of the branch
+   * @param snapshotFilter include a snapshot only if it matches the filter
+   */
+  private DeleteFileIndex addedDeleteFiles(
+      TableMetadata base,
+      Long startingSnapshotId,
+      Expression dataFilter,
+      PartitionSet partitionSet,
+      Snapshot parent,
+      Predicate<Snapshot> snapshotFilter) {
     // if there is no current table state, return empty delete file index
     if (parent == null || base.formatVersion() < 2) {
       return DeleteFileIndex.builderFor(ops.io(), ImmutableList.of())
@@ -553,7 +596,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             startingSnapshotId,
             VALIDATE_ADDED_DELETE_FILES_OPERATIONS,
             ManifestContent.DELETES,
-            parent);
+            parent,
+            snapshotFilter);
     List<ManifestFile> deleteManifests = history.first();
 
     long startingSequenceNumber = startingSequenceNumber(base, startingSnapshotId);
@@ -763,12 +807,24 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       Set<String> matchingOperations,
       ManifestContent content,
       Snapshot parent) {
+    return validationHistory(
+        base, startingSnapshotId, matchingOperations, content, parent, Predicates.alwaysTrue());
+  }
+
+  private Pair<List<ManifestFile>, Set<Long>> validationHistory(
+      TableMetadata base,
+      Long startingSnapshotId,
+      Set<String> matchingOperations,
+      ManifestContent content,
+      Snapshot parent,
+      Predicate<Snapshot> snapshotFilter) {
     List<ManifestFile> manifests = Lists.newArrayList();
     Set<Long> newSnapshots = Sets.newHashSet();
 
     Snapshot lastSnapshot = null;
     Iterable<Snapshot> snapshots =
         SnapshotUtil.ancestorsBetween(parent.snapshotId(), startingSnapshotId, base::snapshot);
+    snapshots = Iterables.filter(snapshots, snapshotFilter);
     for (Snapshot currentSnapshot : snapshots) {
       lastSnapshot = currentSnapshot;
 
