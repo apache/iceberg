@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.functions;
 import org.apache.iceberg.IcebergBuild;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.functions.BoundFunction;
-import org.apache.spark.sql.connector.catalog.functions.ScalarFunction;
 import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
@@ -55,7 +54,7 @@ public class IcebergVersionFunction implements UnboundFunction {
 
   // Implementing class cannot be private, otherwise Spark is unable to access the static invoke
   // function during code-gen and calling the function fails
-  static class IcebergVersionFunctionImpl implements ScalarFunction<UTF8String> {
+  static class IcebergVersionFunctionImpl extends BaseScalarFunction<UTF8String> {
     private static final UTF8String VERSION = UTF8String.fromString(IcebergBuild.version());
 
     // magic function used in code-gen. must be named `invoke`.
