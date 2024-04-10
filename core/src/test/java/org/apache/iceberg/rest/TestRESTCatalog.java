@@ -2342,8 +2342,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // create several namespaces for listing and verify
     for (int i = 0; i < numberOfItems; i++) {
       String nameSpaceName = namespaceName + i;
-      Namespace NS = Namespace.of(nameSpaceName);
-      catalog.createNamespace(NS);
+      catalog.createNamespace(Namespace.of(nameSpaceName));
     }
 
     List<Namespace> results = catalog.listNamespaces();
