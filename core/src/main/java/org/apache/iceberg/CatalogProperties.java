@@ -79,6 +79,17 @@ public class CatalogProperties {
   public static final boolean IO_MANIFEST_CACHE_ENABLED_DEFAULT = false;
 
   /**
+   * Overrides the default {@link org.apache.iceberg.io.ContentCacheManager} implementation.
+   *
+   * <p>The supplied {@link org.apache.iceberg.io.ContentCacheManager} must have a static method named {@code create}
+   * which takes in a map representing the catalog properties.
+   */
+  public static final String IO_MANIFEST_CACHE_CONTENT_CACHE_MANAGER_IMPL = "io.manifest.cache.content-caches-impl";
+
+  public static final String IO_MANIFEST_CACHE_CONTENT_CACHE_MANAGER_IMPL_DEFAULT =
+          "org.apache.iceberg.io.InMemoryContentCacheManager";
+
+  /**
    * Controls the maximum duration for which an entry stays in the manifest cache.
    *
    * <p>Must be a non-negative value. Following are specific behaviors of this config:

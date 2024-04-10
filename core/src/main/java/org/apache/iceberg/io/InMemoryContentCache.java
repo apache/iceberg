@@ -38,20 +38,17 @@ import org.slf4j.LoggerFactory;
 /**
  * Class that provides file-content caching during reading.
  *
- * <p>The file-content caching is initiated by calling {@link ContentCache#tryCache(InputFile)}.
+ * <p>The file-content caching is initiated by calling {@link InMemoryContentCache#tryCache(InputFile)}.
  * Given a FileIO, a file location string, and file length that is within allowed limit,
- * ContentCache will return a {@link CachingInputFile} that is backed by the cache. Calling {@link
+ * DefaultContentCache will return a {@link CachingInputFile} that is backed by the cache. Calling {@link
  * CachingInputFile#newStream()} will return a {@link ByteBufferInputStream} backed by list of
  * {@link ByteBuffer} from the cache if such file-content exist in the cache. If the file-content
  * does not exist in the cache yet, a regular InputFile will be instantiated, read-ahead, and loaded
  * into the cache before returning ByteBufferInputStream. The regular InputFile is also used as a
  * fallback if cache loading fail.
- *
- * @deprecated will be removed in 1.8; use {@link InMemoryContentCache} instead
  */
-@Deprecated
-public class ContentCache implements FileIOContentCache {
-  private static final Logger LOG = LoggerFactory.getLogger(ContentCache.class);
+public class InMemoryContentCache implements FileIOContentCache {
+  private static final Logger LOG = LoggerFactory.getLogger(InMemoryContentCache.class);
   private static final int BUFFER_CHUNK_SIZE = 4 * 1024 * 1024; // 4MB
 
   private final long expireAfterAccessMs;
@@ -70,7 +67,7 @@ public class ContentCache implements FileIOContentCache {
    * @param maxContentLength controls the maximum length of file to be considered for caching. Must
    *     be greater than 0.
    */
-  public ContentCache(long expireAfterAccessMs, long maxTotalBytes, long maxContentLength) {
+  public InMemoryContentCache(long expireAfterAccessMs, long maxTotalBytes, long maxContentLength) {
     ValidationException.check(expireAfterAccessMs >= 0, "expireAfterAccessMs is less than 0");
     ValidationException.check(maxTotalBytes > 0, "maxTotalBytes is equal or less than 0");
     ValidationException.check(maxContentLength > 0, "maxContentLength is equal or less than 0");
@@ -161,7 +158,11 @@ public class ContentCache implements FileIOContentCache {
         .toString();
   }
 
-  private static class FileContent {
+  /** @deprecated will be removed in 1.7; use {@link FileContent} instead. */
+  @Deprecated
+  private static class CacheEntry {}
+
+  private static class FileContent extends CacheEntry {
     private final long length;
     private final List<ByteBuffer> buffers;
 
@@ -172,7 +173,7 @@ public class ContentCache implements FileIOContentCache {
   }
 
   /**
-   * A subclass of {@link InputFile} that is backed by a {@link ContentCache}.
+   * A subclass of {@link InputFile} that is backed by a {@link InMemoryContentCache}.
    *
    * <p>Calling {@link CachingInputFile#newStream()} will return a {@link ByteBufferInputStream}
    * backed by list of {@link ByteBuffer} from the cache if such file-content exist in the cache. If
@@ -181,10 +182,10 @@ public class ContentCache implements FileIOContentCache {
    * InputFile is also used as a fallback if cache loading fail.
    */
   private static class CachingInputFile implements InputFile {
-    private final ContentCache contentCache;
+    private final InMemoryContentCache contentCache;
     private final InputFile input;
 
-    private CachingInputFile(ContentCache cache, InputFile input) {
+    private CachingInputFile(InMemoryContentCache cache, InputFile input) {
       this.contentCache = cache;
       this.input = input;
     }

@@ -16,10 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg;
-
-import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.assertj.core.api.Assertions.assertThat;
+package org.apache.iceberg.io;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.google.common.testing.GcFinalization;
@@ -32,16 +29,30 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.SystemConfigs;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TableScan;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopFileIO;
-import org.apache.iceberg.io.ContentCache;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PropertyUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+
+import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 public class TestManifestCaching {
 
@@ -65,8 +76,10 @@ public class TestManifestCaching {
             CatalogProperties.IO_MANIFEST_CACHE_ENABLED,
             "true");
     Table table = createTable(properties);
-    ContentCache cache = ManifestFiles.contentCache(table.io());
-    assertThat(cache.estimatedCacheSize()).isEqualTo(0);
+    FileIOContentCache cache = getContentCacheManager(table.io()).contentCache(table.io());
+    assertThat(cache).isInstanceOf(InMemoryContentCache.class);
+    InMemoryContentCache defaultCache = (InMemoryContentCache) cache;
+    assertThat(defaultCache.estimatedCacheSize()).isEqualTo(0);
 
     int numFiles = 4;
     List<DataFile> files16Mb = newFiles(numFiles, 16 * 1024 * 1024);
@@ -76,23 +89,23 @@ public class TestManifestCaching {
     TableScan scan1 =
         table.newScan().option(TableProperties.SPLIT_SIZE, String.valueOf(8 * 1024 * 1024));
     assertThat(scan1.planTasks()).hasSize(numFiles * 2);
-    assertThat(cache.estimatedCacheSize())
+    assertThat(defaultCache.estimatedCacheSize())
         .as("All manifest files should be cached")
         .isEqualTo(numFiles);
-    assertThat(cache.stats().loadCount())
+    assertThat(defaultCache.stats().loadCount())
         .as("All manifest files should be recently loaded")
         .isEqualTo(numFiles);
-    long missCount = cache.stats().missCount();
+    long missCount = defaultCache.stats().missCount();
 
     // planFiles and verify that cache size still the same
     TableScan scan2 = table.newScan();
     assertThat(scan2.planFiles()).hasSize(numFiles);
-    assertThat(cache.estimatedCacheSize()).isEqualTo(numFiles);
-    assertThat(cache.stats().missCount())
+    assertThat(defaultCache.estimatedCacheSize()).isEqualTo(numFiles);
+    assertThat(defaultCache.stats().missCount())
         .as("All manifest file reads should hit cache")
         .isEqualTo(missCount);
 
-    ManifestFiles.dropCache(table.io());
+    getContentCacheManager(table.io()).dropCache(table.io());
   }
 
   @Test
@@ -111,16 +124,18 @@ public class TestManifestCaching {
 
     // We should never hit cache.
     TableScan scan = table.newScan();
-    ContentCache cache = ManifestFiles.contentCache(scan.table().io());
-    assertThat(cache.maxContentLength()).isEqualTo(1);
-    assertThat(cache.maxTotalBytes()).isEqualTo(1);
+    FileIOContentCache cache = getContentCacheManager(scan.table().io()).contentCache(scan.table().io());
+    assertThat(cache).isInstanceOf(InMemoryContentCache.class);
+    InMemoryContentCache defaultCache = (InMemoryContentCache) cache;
+    assertThat(defaultCache.maxContentLength()).isEqualTo(1);
+    assertThat(defaultCache.maxTotalBytes()).isEqualTo(1);
     assertThat(scan.planFiles()).hasSize(numFiles);
-    assertThat(cache.estimatedCacheSize()).isEqualTo(0);
-    assertThat(cache.stats().loadCount())
+    assertThat(defaultCache.estimatedCacheSize()).isEqualTo(0);
+    assertThat(defaultCache.stats().loadCount())
         .as("File should not be loaded through cache")
         .isEqualTo(0);
-    assertThat(cache.stats().requestCount()).as("Cache should not serve file").isEqualTo(0);
-    ManifestFiles.dropCache(scan.table().io());
+    assertThat(defaultCache.stats().requestCount()).as("Cache should not serve file").isEqualTo(0);
+    getContentCacheManager(scan.table().io()).dropCache(scan.table().io());
   }
 
   @Test
@@ -141,14 +156,14 @@ public class TestManifestCaching {
             CatalogProperties.IO_MANIFEST_CACHE_MAX_CONTENT_LENGTH, "1");
     Table table2 = createTable(properties2);
 
-    ContentCache cache1 = ManifestFiles.contentCache(table1.io());
-    ContentCache cache2 = ManifestFiles.contentCache(table2.io());
-    ContentCache cache3 = ManifestFiles.contentCache(table2.io());
+    FileIOContentCache cache1 = getContentCacheManager(table1.io()).contentCache(table1.io());
+    FileIOContentCache cache2 = getContentCacheManager(table2.io()).contentCache(table2.io());
+    FileIOContentCache cache3 = getContentCacheManager(table2.io()).contentCache(table2.io());
     assertThat(cache2).isNotSameAs(cache1);
     assertThat(cache3).isSameAs(cache2);
 
-    ManifestFiles.dropCache(table1.io());
-    ManifestFiles.dropCache(table2.io());
+    getContentCacheManager(table1.io()).dropCache(table1.io());
+    getContentCacheManager(table2.io()).dropCache(table2.io());
   }
 
   @Test
@@ -161,24 +176,24 @@ public class TestManifestCaching {
             "true");
     Table table = createTable(properties);
 
-    ContentCache cache1 = ManifestFiles.contentCache(table.io());
-    ManifestFiles.dropCache(table.io());
+    FileIOContentCache cache1 = getContentCacheManager(table.io()).contentCache(table.io());
+    getContentCacheManager(table.io()).dropCache(table.io());
 
-    ContentCache cache2 = ManifestFiles.contentCache(table.io());
+    FileIOContentCache cache2 = getContentCacheManager(table.io()).contentCache(table.io());
     assertThat(cache2).isNotSameAs(cache1);
-    ManifestFiles.dropCache(table.io());
+    getContentCacheManager(table.io()).dropCache(table.io());
   }
 
   @Test
   public void testWeakFileIOReferenceCleanUp() {
-    Cache<FileIO, ContentCache> manifestCache =
-        ManifestFiles.newManifestCacheBuilder().executor(Runnable::run).build();
+    Cache<FileIO, InMemoryContentCache> manifestCache =
+        InMemoryContentCacheManager.newManifestCacheBuilder().executor(Runnable::run).build();
     int maxIO = SystemConfigs.IO_MANIFEST_CACHE_MAX_FILEIO.defaultValue();
     FileIO firstIO = null;
-    ContentCache firstCache = null;
+    InMemoryContentCache firstCache = null;
     for (int i = 0; i < maxIO - 1; i++) {
       FileIO io = cacheEnabledHadoopFileIO();
-      ContentCache cache = contentCache(manifestCache, io);
+      InMemoryContentCache cache = contentCache(manifestCache, io);
       if (i == 0) {
         firstIO = io;
         firstCache = cache;
@@ -187,7 +202,7 @@ public class TestManifestCaching {
 
     // Insert the last FileIO and trigger GC + cleanup.
     FileIO lastIO = cacheEnabledHadoopFileIO();
-    ContentCache lastCache = contentCache(manifestCache, lastIO);
+    InMemoryContentCache lastCache = contentCache(manifestCache, lastIO);
     GcFinalization.awaitDone(
         () -> {
           manifestCache.cleanUp();
@@ -195,27 +210,64 @@ public class TestManifestCaching {
         });
 
     // Verify that manifestCache evicts all FileIO except the firstIO and lastIO.
-    ContentCache cache1 = contentCache(manifestCache, firstIO);
-    ContentCache cacheN = contentCache(manifestCache, lastIO);
+    InMemoryContentCache cache1 = contentCache(manifestCache, firstIO);
+    InMemoryContentCache cacheN = contentCache(manifestCache, lastIO);
     assertThat(cache1).isSameAs(firstCache);
     assertThat(cacheN).isSameAs(lastCache);
     assertThat(manifestCache.stats().loadCount()).isEqualTo(maxIO);
     assertThat(manifestCache.stats().evictionCount()).isEqualTo(maxIO - 2);
   }
+  @Test
+  public void testCustomContentCacheManager() throws Exception {
+    Map<String, String> properties =
+            ImmutableMap.of(
+                    CatalogProperties.FILE_IO_IMPL,
+                    HadoopFileIO.class.getName(),
+                    CatalogProperties.IO_MANIFEST_CACHE_ENABLED,
+                    "true",
+                    CatalogProperties.IO_MANIFEST_CACHE_CONTENT_CACHE_MANAGER_IMPL,
+                    TestingContentCacheManager.class.getName());
+    Table table = createTable(properties);
+    ContentCacheManager cacheManager = getContentCacheManager(table.io());
+    assertThat(cacheManager).isInstanceOf(TestingContentCacheManager.class);
+  }
+  private static ContentCacheManager getContentCacheManager(FileIO io) throws Exception {
+    Map<String, String> properties = io.properties();
+
+    assertThat(properties).containsKey(CatalogProperties.IO_MANIFEST_CACHE_ENABLED);
+
+    boolean enabled = PropertyUtil.propertyAsBoolean(
+            properties,
+            CatalogProperties.IO_MANIFEST_CACHE_ENABLED,
+            false);
+    assertThat(enabled)
+            .as(String.format("Expected catalog property %s to be true", CatalogProperties.IO_MANIFEST_CACHE_ENABLED))
+            .isTrue();
+
+    String impl = PropertyUtil.propertyAsString(
+            io.properties(),
+            CatalogProperties.IO_MANIFEST_CACHE_CONTENT_CACHE_MANAGER_IMPL,
+            CatalogProperties.IO_MANIFEST_CACHE_CONTENT_CACHE_MANAGER_IMPL_DEFAULT);
+    Object invoked = DynMethods.builder("create")
+            .impl(impl, Map.class)
+            .buildStaticChecked()
+            .invoke(properties);
+    return (ContentCacheManager) invoked;
+  }
 
   /**
-   * Helper to get existing or insert new {@link ContentCache} into the given manifestCache.
+   * Helper to get existing or insert new {@link InMemoryContentCache} into the given manifestCache.
    *
-   * @return an existing or new {@link ContentCache} associated with given io.
+   * @return an existing or new {@link InMemoryContentCache} associated with given io.
    */
-  private static ContentCache contentCache(Cache<FileIO, ContentCache> manifestCache, FileIO io) {
+  private static InMemoryContentCache contentCache(Cache<FileIO, InMemoryContentCache> manifestCache, FileIO io) {
     return manifestCache.get(
         io,
         fileIO ->
-            new ContentCache(
-                ManifestFiles.cacheDurationMs(fileIO),
-                ManifestFiles.cacheTotalBytes(fileIO),
-                ManifestFiles.cacheMaxContentLength(fileIO)));
+            new InMemoryContentCache(
+                InMemoryContentCacheManager.cacheDurationMs(fileIO),
+                InMemoryContentCacheManager.cacheTotalBytes(fileIO),
+                InMemoryContentCacheManager.cacheMaxContentLength(fileIO)));
   }
 
   private FileIO cacheEnabledHadoopFileIO() {
@@ -292,5 +344,21 @@ public class TestManifestCaching {
     }
 
     return builder.build();
+  }
+
+  public static class TestingContentCacheManager implements ContentCacheManager {
+    public static TestingContentCacheManager create(Map<String, String> properties) {
+      return new TestingContentCacheManager();
+    }
+
+    @Override
+    public FileIOContentCache contentCache(FileIO io) {
+      throw new UnsupportedOperationException("Not implemented");
+    }
+
+    @Override
+    public void dropCache(FileIO fileIO) {
+      throw new UnsupportedOperationException("Not implemented");
+    }
   }
 }

@@ -18,33 +18,28 @@
  */
 package org.apache.iceberg;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.ManifestReader.FileType;
 import org.apache.iceberg.avro.AvroEncoderUtil;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.ContentCache;
+import org.apache.iceberg.io.ContentCacheManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class ManifestFiles {
   private ManifestFiles() {}
-
-  private static final Logger LOG = LoggerFactory.getLogger(ManifestFiles.class);
 
   private static final org.apache.avro.Schema MANIFEST_AVRO_SCHEMA =
       AvroSchemaUtil.convert(
@@ -55,35 +50,14 @@ public class ManifestFiles {
               ManifestFile.PARTITION_SUMMARY_TYPE,
               GenericPartitionFieldSummary.class.getName()));
 
-  @VisibleForTesting
-  static Caffeine<Object, Object> newManifestCacheBuilder() {
-    int maxSize = SystemConfigs.IO_MANIFEST_CACHE_MAX_FILEIO.value();
-    return Caffeine.newBuilder()
-        .weakKeys()
-        .softValues()
-        .maximumSize(maxSize)
-        .removalListener(
-            (io, contentCache, cause) ->
-                LOG.debug("Evicted {} from FileIO-level cache ({})", io, cause))
-        .recordStats();
-  }
-
-  private static final Cache<FileIO, ContentCache> CONTENT_CACHES =
-      newManifestCacheBuilder().build();
-
-  @VisibleForTesting
-  static ContentCache contentCache(FileIO io) {
-    return CONTENT_CACHES.get(
-        io,
-        fileIO ->
-            new ContentCache(
-                cacheDurationMs(fileIO), cacheTotalBytes(fileIO), cacheMaxContentLength(fileIO)));
-  }
+  private static final Map<String, ContentCacheManager> CONTENT_CACHES_MAP = Maps.newConcurrentMap();
 
   /** Drop manifest file cache object for a FileIO if exists. */
   public static void dropCache(FileIO fileIO) {
-    CONTENT_CACHES.invalidate(fileIO);
-    CONTENT_CACHES.cleanUp();
+    String fileIoClassName = fileIO.getClass().getName();
+    if (CONTENT_CACHES_MAP.containsKey(fileIoClassName)) {
+      CONTENT_CACHES_MAP.get(fileIoClassName).dropCache(fileIO);
+    }
   }
 
   /**
@@ -387,7 +361,7 @@ public class ManifestFiles {
   private static InputFile newInputFile(FileIO io, ManifestFile manifest) {
     InputFile input = io.newInputFile(manifest);
     if (cachingEnabled(io)) {
-      return contentCache(io).tryCache(input);
+      return getContentCacheManager(io).contentCache(io).tryCache(input);
     }
 
     return input;
@@ -404,24 +378,31 @@ public class ManifestFiles {
     }
   }
 
-  static long cacheDurationMs(FileIO io) {
-    return PropertyUtil.propertyAsLong(
-        io.properties(),
-        CatalogProperties.IO_MANIFEST_CACHE_EXPIRATION_INTERVAL_MS,
-        CatalogProperties.IO_MANIFEST_CACHE_EXPIRATION_INTERVAL_MS_DEFAULT);
+  private static ContentCacheManager getContentCacheManager(FileIO io) {
+    Map<String, String> properties = io.properties();
+    String contentCacheManagerClassName = PropertyUtil.propertyAsString(
+            properties,
+            CatalogProperties.IO_MANIFEST_CACHE_CONTENT_CACHE_MANAGER_IMPL,
+            CatalogProperties.IO_MANIFEST_CACHE_CONTENT_CACHE_MANAGER_IMPL_DEFAULT);
+    return CONTENT_CACHES_MAP.computeIfAbsent(
+            contentCacheManagerClassName,
+            className -> createContentCacheManager(properties, className));
   }
 
-  static long cacheTotalBytes(FileIO io) {
-    return PropertyUtil.propertyAsLong(
-        io.properties(),
-        CatalogProperties.IO_MANIFEST_CACHE_MAX_TOTAL_BYTES,
-        CatalogProperties.IO_MANIFEST_CACHE_MAX_TOTAL_BYTES_DEFAULT);
-  }
-
-  static long cacheMaxContentLength(FileIO io) {
-    return PropertyUtil.propertyAsLong(
-        io.properties(),
-        CatalogProperties.IO_MANIFEST_CACHE_MAX_CONTENT_LENGTH,
-        CatalogProperties.IO_MANIFEST_CACHE_MAX_CONTENT_LENGTH_DEFAULT);
+  private static ContentCacheManager createContentCacheManager(Map<String, String> properties, String className) {
+    try {
+      Object caches = DynMethods.builder("create")
+              .impl(className, Map.class)
+              .buildStaticChecked()
+              .invoke(properties);
+      return (ContentCacheManager) caches;
+    } catch (NoSuchMethodException e) {
+      throw new IllegalArgumentException(
+            String.format(
+                    "Cannot create an instance of %s, it does not contain a static 'create(Map<String, String>)' " +
+                            "method",
+                    className),
+            e);
+    }
   }
 }
