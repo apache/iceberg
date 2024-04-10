@@ -136,12 +136,11 @@ public class TestHTTPClient {
   @Test
   public void testProxyServer() throws IOException {
     int proxyPort = 1070;
-    String proxyHostName = "localhost";
     try (ClientAndServer proxyServer = startClientAndServer(proxyPort);
         RESTClient clientWithProxy =
             HTTPClient.builder(ImmutableMap.of())
                 .uri(URI)
-                .withProxy(proxyHostName, proxyPort)
+                .withProxy("localhost", proxyPort)
                 .build()) {
       String path = "v1/config";
 
@@ -159,16 +158,12 @@ public class TestHTTPClient {
   }
 
   @Test
-  public void testProxyCredentialProviderWithoutProxyServerFailsBuild() throws IOException {
-    int proxyPort = 1070;
-    String proxyHostName = "localhost";
-    String authorizedUsername = "test-username";
-    String authorizedPassword = "test-password";
-    HttpHost proxy = new HttpHost(proxyHostName, proxyPort);
+  public void testProxyCredentialProviderWithoutProxyServer() {
+    HttpHost proxy = new HttpHost("localhost", 1070);
     BasicCredentialsProvider credentialsProvider = new BasicCredentialsProvider();
     credentialsProvider.setCredentials(
         new AuthScope(proxy),
-        new UsernamePasswordCredentials(authorizedUsername, authorizedPassword.toCharArray()));
+        new UsernamePasswordCredentials("test-username", "test-password".toCharArray()));
     Assertions.assertThatThrownBy(
             () -> {
               HTTPClient.builder(ImmutableMap.of())
@@ -178,6 +173,16 @@ public class TestHTTPClient {
             })
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid http client proxy for proxy credentials provider: null");
+  }
+
+  @Test
+  public void testProxyServerWithNullHostname() {
+    Assertions.assertThatThrownBy(
+            () -> {
+              HTTPClient.builder(ImmutableMap.of()).uri(URI).withProxy(null, 1070).build();
+            })
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid hostname for http client proxy: null");
   }
 
   @Test
