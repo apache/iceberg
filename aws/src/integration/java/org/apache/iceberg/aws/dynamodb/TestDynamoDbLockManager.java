@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.aws.dynamodb;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -29,12 +32,10 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.assertj.core.api.Assertions;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
@@ -56,27 +57,27 @@ public class TestDynamoDbLockManager {
   private String entityId;
   private String ownerId;
 
-  @BeforeClass
+  @BeforeAll
   public static void beforeClass() {
     lockTableName = genTableName();
     dynamo = AwsClientFactories.defaultFactory().dynamo();
   }
 
-  @Before
+  @BeforeEach
   public void before() {
     lockManager = new DynamoDbLockManager(dynamo, lockTableName);
     entityId = UUID.randomUUID().toString();
     ownerId = UUID.randomUUID().toString();
   }
 
-  @AfterClass
+  @AfterAll
   public static void afterClass() {
     dynamo.deleteTable(DeleteTableRequest.builder().tableName(lockTableName).build());
   }
 
   @Test
   public void testTableCreation() {
-    Assert.assertTrue(lockManager.tableExists(lockTableName));
+    assertThat(lockManager.tableExists(lockTableName)).isTrue();
   }
 
   @Test
@@ -86,11 +87,15 @@ public class TestDynamoDbLockManager {
     key.put("entityId", AttributeValue.builder().s(entityId).build());
     GetItemResponse response =
         dynamo.getItem(GetItemRequest.builder().tableName(lockTableName).key(key).build());
-    Assert.assertTrue("should have item in dynamo after acquire", response.hasItem());
-    Assert.assertEquals(entityId, response.item().get("entityId").s());
-    Assert.assertEquals(ownerId, response.item().get("ownerId").s());
-    Assert.assertNotNull(response.item().get("version"));
-    Assert.assertNotNull(response.item().get("leaseDurationMs"));
+    assertThat(response.hasItem()).as("should have item in dynamo after acquire").isTrue();
+    assertThat(response.item())
+        .hasEntrySatisfying(
+            "entityId", attributeValue -> assertThat(attributeValue.s()).isEqualTo(entityId))
+        .hasEntrySatisfying(
+            "ownerId", attributeValue -> assertThat(attributeValue.s()).isEqualTo(ownerId))
+        .hasEntrySatisfying("version", attributeValue -> assertThat(attributeValue).isNotNull())
+        .hasEntrySatisfying(
+            "leaseDurationMs", attributeValue -> assertThat(attributeValue).isNotNull());
   }
 
   @Test
@@ -114,29 +119,26 @@ public class TestDynamoDbLockManager {
                             })
                         .collect(Collectors.toList()))
             .get();
-    Assert.assertEquals(
-        "should have only 1 process succeeded in acquisition",
-        1,
-        results.stream().filter(s -> s).count());
+    assertThat(results).as("should have only 1 process succeeded in acquisition").hasSize(1);
   }
 
   @Test
   public void testReleaseAndAcquire() {
-    Assert.assertTrue(lockManager.acquire(entityId, ownerId));
-    Assert.assertTrue(lockManager.release(entityId, ownerId));
-    Assert.assertTrue(lockManager.acquire(entityId, ownerId));
+    assertThat(lockManager.acquire(entityId, ownerId)).isTrue();
+    assertThat(lockManager.release(entityId, ownerId)).isTrue();
+    assertThat(lockManager.acquire(entityId, ownerId)).isTrue();
   }
 
   @Test
   public void testReleaseWithWrongOwner() {
-    Assert.assertTrue(lockManager.acquire(entityId, ownerId));
-    Assert.assertFalse(lockManager.release(entityId, UUID.randomUUID().toString()));
+    assertThat(lockManager.acquire(entityId, ownerId)).isTrue();
+    assertThat(lockManager.release(entityId, UUID.randomUUID().toString())).isFalse();
   }
 
   @Test
   @SuppressWarnings({"DangerousCompletableFutureUsage", "FutureReturnValueIgnored"})
   public void testAcquireSingleProcess() throws Exception {
-    Assert.assertTrue(lockManager.acquire(entityId, ownerId));
+    assertThat(lockManager.acquire(entityId, ownerId)).isTrue();
     String oldOwner = ownerId;
 
     CompletableFuture.supplyAsync(
@@ -146,14 +148,14 @@ public class TestDynamoDbLockManager {
           } catch (InterruptedException e) {
             throw new RuntimeException(e);
           }
-          Assert.assertTrue(lockManager.release(entityId, oldOwner));
+          assertThat(lockManager.release(entityId, oldOwner)).isTrue();
           return null;
         });
 
     ownerId = UUID.randomUUID().toString();
     long start = System.currentTimeMillis();
-    Assert.assertTrue(lockManager.acquire(entityId, ownerId));
-    Assert.assertTrue("should succeed after 5 seconds", System.currentTimeMillis() - start >= 5000);
+    assertThat(lockManager.acquire(entityId, ownerId)).isTrue();
+    assertThat(System.currentTimeMillis() - start).isGreaterThanOrEqualTo(5000);
   }
 
   @Test
@@ -181,18 +183,15 @@ public class TestDynamoDbLockManager {
                                 } catch (InterruptedException e) {
                                   throw new RuntimeException(e);
                                 }
-                                Assert.assertTrue(threadLocalLockManager.release(entityId, owner));
+                                assertThat(threadLocalLockManager.release(entityId, owner))
+                                    .isTrue();
                               }
                               return succeeded;
                             })
                         .collect(Collectors.toList()))
             .get();
-    Assert.assertEquals(
-        "all lock acquire should succeed sequentially",
-        16,
-        results.stream().filter(s -> s).count());
-    Assert.assertTrue(
-        "must take more than 16 seconds", System.currentTimeMillis() - start >= 16000);
+    assertThat(results).as("all lock acquire should succeed sequentially").hasSize(16);
+    assertThat(System.currentTimeMillis() - start).isGreaterThanOrEqualTo(16000);
   }
 
   @Test
@@ -217,8 +216,7 @@ public class TestDynamoDbLockManager {
                             })
                         .collect(Collectors.toList()))
             .get();
-    Assert.assertEquals(
-        "only 1 thread should have acquired the lock", 1, results.stream().filter(s -> s).count());
+    assertThat(results).as("only 1 thread should have acquired the lock").hasSize(1);
   }
 
   @Test
@@ -227,7 +225,7 @@ public class TestDynamoDbLockManager {
     Mockito.doThrow(ResourceNotFoundException.class)
         .when(dynamo2)
         .describeTable(Mockito.any(DescribeTableRequest.class));
-    Assertions.assertThatThrownBy(() -> new DynamoDbLockManager(dynamo2, lockTableName))
+    assertThatThrownBy(() -> new DynamoDbLockManager(dynamo2, lockTableName))
         .as("should fail to initialize the lock manager")
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("Cannot find Dynamo table");
