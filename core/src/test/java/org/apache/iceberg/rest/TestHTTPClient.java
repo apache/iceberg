@@ -176,19 +176,31 @@ public class TestHTTPClient {
 
       Assertions.assertThatThrownBy(() -> client.head(path, ImmutableMap.of(), (unused) -> {}))
           .cause()
-          .isInstanceOf(SocketTimeoutException.class);
+          .isInstanceOf(SocketTimeoutException.class)
+          .hasMessage("Read timed out");
     }
   }
 
   @ParameterizedTest
   @ValueSource(strings = {HTTPClient.REST_CONNECTION_TIMEOUT_MS, HTTPClient.REST_SOCKET_TIMEOUT_MS})
   public void testInvalidTimeout(String timeoutMsType) {
-    String timeoutMsStr = "invalidMs";
-    Map<String, String> properties = ImmutableMap.of(timeoutMsType, timeoutMsStr);
-
-    Assertions.assertThatThrownBy(() -> HTTPClient.builder(properties).uri(URI).build())
+    String invalidTimeoutMs = "invalidMs";
+    Assertions.assertThatThrownBy(
+            () ->
+                HTTPClient.builder(ImmutableMap.of(timeoutMsType, invalidTimeoutMs))
+                    .uri(URI)
+                    .build())
         .isInstanceOf(NumberFormatException.class)
-        .hasMessage("For input string: \"invalidMs\"");
+        .hasMessage(String.format("For input string: \"%s\"", invalidTimeoutMs));
+
+    String invalidNegativeTimeoutMs = "-1";
+    Assertions.assertThatThrownBy(
+            () ->
+                HTTPClient.builder(ImmutableMap.of(timeoutMsType, invalidNegativeTimeoutMs))
+                    .uri(URI)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(String.format("duration must not be negative: %s", invalidNegativeTimeoutMs));
   }
 
   public static void testHttpMethodOnSuccess(HttpMethod method) throws JsonProcessingException {
