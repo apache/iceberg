@@ -60,6 +60,7 @@ public class PartitionSpec implements Serializable {
   private transient volatile ListMultimap<Integer, PartitionField> fieldsBySourceId = null;
   private transient volatile Class<?>[] lazyJavaClasses = null;
   private transient volatile StructType lazyPartitionType = null;
+  private transient volatile StructType lazyOriginalPartitionType = null;
   private transient volatile List<PartitionField> fieldList = null;
   private final int lastAssignedFieldId;
 
@@ -138,6 +139,31 @@ public class PartitionSpec implements Serializable {
     }
 
     return lazyPartitionType;
+  }
+
+  public StructType originalPartitionType() {
+    if (schema.idsToOriginal().size() == 0) {
+      return partitionType();
+    }
+    if (lazyOriginalPartitionType == null) {
+      synchronized (this) {
+        if (lazyOriginalPartitionType == null) {
+          List<Types.NestedField> structFields = Lists.newArrayListWithExpectedSize(fields.length);
+
+          for (PartitionField field : fields) {
+            Type sourceType = schema.findType(field.sourceId());
+            Type resultType = field.transform().getResultType(sourceType);
+            structFields.add(
+                Types.NestedField.optional(
+                    schema.idsToOriginal().get(field.fieldId()), field.name(), resultType));
+          }
+
+          this.lazyOriginalPartitionType = Types.StructType.of(structFields);
+        }
+      }
+    }
+
+    return lazyOriginalPartitionType;
   }
 
   public Class<?>[] javaClasses() {

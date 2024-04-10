@@ -114,7 +114,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
       this.spec = readPartitionSpec(file);
     }
 
-    this.fileSchema = new Schema(DataFile.getType(spec.partitionType()).fields());
+    this.fileSchema = new Schema(DataFile.getType(spec.originalPartitionType()).fields());
   }
 
   private <T extends ContentFile<T>> PartitionSpec readPartitionSpec(InputFile inputFile) {

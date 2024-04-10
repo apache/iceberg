@@ -1266,8 +1266,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     ScanTask task = tasks.get(0);
     assertThat(task).isInstanceOf(PositionDeletesScanTask.class);
 
-    Types.StructType partitionType =
-        PositionDeletesTable.partitionType(table.schema(), Partitioning.partitionType(table));
+    Types.StructType partitionType = positionDeletesTable.spec().partitionType();
     PositionDeletesScanTask posDeleteTask = (PositionDeletesScanTask) task;
 
     int filePartition = posDeleteTask.file().partition().get(0, Integer.class);
@@ -1334,8 +1333,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     ScanTask task = tasks.get(0);
     assertThat(task).isInstanceOf(PositionDeletesScanTask.class);
 
-    Types.StructType partitionType =
-        PositionDeletesTable.partitionType(table.schema(), Partitioning.partitionType(table));
+    Types.StructType partitionType = positionDeletesTable.spec().partitionType();
     PositionDeletesScanTask posDeleteTask = (PositionDeletesScanTask) task;
 
     // base table filter should only be used to evaluate partitions
@@ -1417,8 +1415,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     ScanTask task = tasks.get(0);
     assertThat(task).isInstanceOf(PositionDeletesScanTask.class);
 
-    Types.StructType partitionType =
-        PositionDeletesTable.partitionType(table.schema(), Partitioning.partitionType(table));
+    Types.StructType partitionType = positionDeletesTable.spec().partitionType();
     PositionDeletesScanTask posDeleteTask = (PositionDeletesScanTask) task;
 
     // base table filter should only be used to evaluate partitions
@@ -1429,7 +1426,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
         (StructLike)
             constantsMap(posDeleteTask, partitionType).get(MetadataColumns.PARTITION_COLUMN_ID);
     int taskPartition =
-        taskPartitionStruct.get(1, Integer.class); // new partition field in position 1
+        taskPartitionStruct.get(0, Integer.class); // new partition field in position 0
     assertThat(filePartition).as("Expected correct partition on task's file").isEqualTo(1);
     assertThat(taskPartition).as("Expected correct partition on task's column").isEqualTo(1);
 

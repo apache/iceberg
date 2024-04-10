@@ -68,22 +68,19 @@ public abstract class BaseMetadataTable extends BaseReadOnlyTable implements Ser
    * @return a spec used to rewrite the metadata table filters to partition filters using an
    *     inclusive projection
    */
-  static PartitionSpec transformSpec(
-      Schema metadataTableSchema, PartitionSpec spec, Map<Integer, Integer> fieldMap) {
+  static PartitionSpec transformSpec(Schema metadataTableSchema, PartitionSpec spec) {
     PartitionSpec.Builder builder =
         PartitionSpec.builderFor(metadataTableSchema)
             .withSpecId(spec.specId())
             .checkConflicts(false);
 
+    Map<Integer, Integer> reassignedFields = metadataTableSchema.idsToReassigned();
+
     for (PartitionField field : spec.fields()) {
-      int newFieldId = fieldMap.getOrDefault(field.fieldId(), field.fieldId());
+      int newFieldId = reassignedFields.getOrDefault(field.fieldId(), field.fieldId());
       builder.add(newFieldId, newFieldId, field.name(), Transforms.identity());
     }
     return builder.build();
-  }
-
-  static PartitionSpec transformSpec(Schema metadataTableSchema, PartitionSpec spec) {
-    return transformSpec(metadataTableSchema, spec, ImmutableMap.of());
   }
 
   /**
@@ -98,17 +95,10 @@ public abstract class BaseMetadataTable extends BaseReadOnlyTable implements Ser
    *     inclusive projection
    */
   static Map<Integer, PartitionSpec> transformSpecs(
-      Schema metadataTableSchema,
-      Map<Integer, PartitionSpec> specs,
-      Map<Integer, Integer> fieldMap) {
-    return specs.values().stream()
-        .map(spec -> transformSpec(metadataTableSchema, spec, fieldMap))
-        .collect(Collectors.toMap(PartitionSpec::specId, spec -> spec));
-  }
-
-  static Map<Integer, PartitionSpec> transformSpecs(
       Schema metadataTableSchema, Map<Integer, PartitionSpec> specs) {
-    return transformSpecs(metadataTableSchema, specs, ImmutableMap.of());
+    return specs.values().stream()
+        .map(spec -> transformSpec(metadataTableSchema, spec))
+        .collect(Collectors.toMap(PartitionSpec::specId, spec -> spec));
   }
 
   abstract MetadataTableType metadataTableType();

@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -34,6 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableBiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.primitives.Ints;
 import org.apache.iceberg.types.Type;
@@ -65,6 +67,8 @@ public class Schema implements Serializable {
   private transient Map<Integer, Accessor<StructLike>> idToAccessor = null;
   private transient Map<Integer, String> idToName = null;
   private transient Set<Integer> identifierFieldIdSet = null;
+  private transient Map<Integer, Integer> idsToReassigned;
+  private transient Map<Integer, Integer> idsToOriginal;
 
   public Schema(List<NestedField> columns, Map<String, Integer> aliases) {
     this(columns, aliases, ImmutableSet.of());
@@ -83,12 +87,25 @@ public class Schema implements Serializable {
     this(DEFAULT_SCHEMA_ID, columns, identifierFieldIds);
   }
 
+  public Schema(
+      List<NestedField> columns, Set<Integer> identifierFieldIds, Set<Integer> metadataFieldIds) {
+    this(DEFAULT_SCHEMA_ID, columns, identifierFieldIds, metadataFieldIds);
+  }
+
   public Schema(int schemaId, List<NestedField> columns) {
     this(schemaId, columns, ImmutableSet.of());
   }
 
   public Schema(int schemaId, List<NestedField> columns, Set<Integer> identifierFieldIds) {
-    this(schemaId, columns, null, identifierFieldIds);
+    this(schemaId, columns, null, identifierFieldIds, ImmutableSet.of());
+  }
+
+  public Schema(
+      int schemaId,
+      List<NestedField> columns,
+      Set<Integer> identifierFieldIds,
+      Set<Integer> metadataFieldIds) {
+    this(schemaId, columns, null, identifierFieldIds, metadataFieldIds);
   }
 
   public Schema(
@@ -96,8 +113,22 @@ public class Schema implements Serializable {
       List<NestedField> columns,
       Map<String, Integer> aliases,
       Set<Integer> identifierFieldIds) {
+    this(schemaId, columns, aliases, identifierFieldIds, ImmutableSet.of());
+  }
+
+  public Schema(
+      int schemaId,
+      List<NestedField> columns,
+      Map<String, Integer> aliases,
+      Set<Integer> identifierFieldIds,
+      Set<Integer> metadataFieldIds) {
     this.schemaId = schemaId;
-    this.struct = StructType.of(columns);
+
+    this.idsToOriginal = Maps.newHashMap();
+    this.idsToReassigned = Maps.newHashMap();
+    List<NestedField> finalColumns = reassignMetadataFieldIds(columns, metadataFieldIds);
+
+    this.struct = StructType.of(finalColumns);
     this.aliasToId = aliases != null ? ImmutableBiMap.copyOf(aliases) : null;
 
     // validate IdentifierField
@@ -506,5 +537,50 @@ public class Schema implements Serializable {
             struct.fields().stream()
                 .map(this::identifierFieldToString)
                 .collect(Collectors.toList())));
+  }
+
+  /**
+   * All ids of metadata fields are reassigned.
+   *
+   * @return map of original to reassigned field ids of metadata fields
+   */
+  public Map<Integer, Integer> idsToReassigned() {
+    return idsToReassigned != null ? idsToReassigned : Maps.newHashMap();
+  }
+
+  /**
+   * All ids of metadata fields are reassigned.
+   *
+   * @return map of reassigned to original field ids of metadata fields
+   */
+  public Map<Integer, Integer> idsToOriginal() {
+    return idsToOriginal != null ? idsToOriginal : Maps.newHashMap();
+  }
+
+  private List<NestedField> reassignMetadataFieldIds(
+      List<NestedField> columns, Set<Integer> metadataFieldIds) {
+    Set<Integer> usedIds =
+        Sets.newHashSet(
+            Sets.difference(TypeUtil.indexById(StructType.of(columns)).keySet(), metadataFieldIds));
+    AtomicInteger nextId = new AtomicInteger();
+
+    Type res =
+        TypeUtil.assignIds(
+            StructType.of(columns),
+            id -> {
+              if (metadataFieldIds.contains(id)) {
+                int candidate = nextId.get();
+                while (usedIds.contains(candidate)) {
+                  candidate = nextId.incrementAndGet();
+                }
+                usedIds.add(candidate);
+                idsToReassigned.put(id, candidate);
+                idsToOriginal.put(candidate, id);
+                return candidate;
+              } else {
+                return id;
+              }
+            });
+    return res.asStructType().fields();
   }
 }
