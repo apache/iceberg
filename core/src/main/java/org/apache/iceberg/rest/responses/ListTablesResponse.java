@@ -69,7 +69,7 @@ public class ListTablesResponse implements RESTResponse {
 
   public static class Builder {
     private final ImmutableList.Builder<TableIdentifier> identifiers = ImmutableList.builder();
-    private String nextPageToken = null;
+    private String nextPageToken;
 
     private Builder() {}
 

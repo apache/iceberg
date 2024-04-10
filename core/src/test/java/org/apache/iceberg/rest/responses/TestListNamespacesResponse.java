@@ -108,7 +108,7 @@ public class TestListNamespacesResponse extends RequestResponseTestBase<ListName
 
   @Override
   public String[] allFieldsFromSpec() {
-    return new String[] {"namespaces"};
+    return new String[] {"namespaces", "next-page-token"};
   }
 
   @Override

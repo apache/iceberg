@@ -2359,7 +2359,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     int numberOfItems = 100;
     String namespaceName = "newdb";
     String tableName = "newtable";
-    catalog.createNamespace(NS);
+    catalog.createNamespace(Namespace.of(namespaceName));
 
     // create several tables under namespace for listing and verify
     for (int i = 0; i < numberOfItems; i++) {

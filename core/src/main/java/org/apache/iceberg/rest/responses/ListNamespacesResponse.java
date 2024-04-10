@@ -68,7 +68,7 @@ public class ListNamespacesResponse implements RESTResponse {
 
   public static class Builder {
     private final ImmutableList.Builder<Namespace> namespaces = ImmutableList.builder();
-    private String nextPageToken = null;
+    private String nextPageToken;
 
     private Builder() {}
 

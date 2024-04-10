@@ -165,7 +165,7 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
 
     TableIdentifier tableIdentifier = TableIdentifier.of(namespaceName, tableName);
 
-    // create intial namespace and table
+    // create initial namespace and table
     catalog().createNamespace(tableIdentifier.namespace());
     tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
 
