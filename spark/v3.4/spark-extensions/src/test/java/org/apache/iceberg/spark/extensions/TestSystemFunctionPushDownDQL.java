@@ -40,6 +40,7 @@ import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.timestampStr
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.source.PlanUtils;
@@ -54,6 +55,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runners.Parameterized;
+import scala.PartialFunction;
+import scala.collection.JavaConverters;
 
 public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
   public TestSystemFunctionPushDownDQL(
@@ -262,6 +265,52 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
   public void testTruncateFunctionOnPartitionedTable() {
     createPartitionedTable(spark, tableName, "truncate(4, data)");
     testTruncateFunction(true);
+  }
+
+  @Test
+  public void testBucketStringFunctionMergeOnMoRPartitionedTable() {
+    testBucketStringFunctionJoinOnPartitionedTable("mor");
+  }
+
+  @Test
+  public void testBucketStringFunctionMergeOnCoWPartitionedTable() {
+    testBucketStringFunctionJoinOnPartitionedTable("cow");
+  }
+
+  private void testBucketStringFunctionJoinOnPartitionedTable(String mergeMode) {
+    int target = 1;
+    createPartitionedTable(spark, tableName, "bucket(5, data)");
+    if (mergeMode.equals("mor")) {
+      spark.sql(
+          String.format(
+              "ALTER TABLE %s  SET TBLPROPERTIES ('write.merge.mode'='merge-on-read')", tableName));
+    }
+    String query =
+        String.format(
+            "SELECT * FROM %s s1 FULL OUTER JOIN %s s2 ON s1.data = s2.data and system.bucket(5, s1.data) = %d",
+            tableName, tableName, target);
+    Dataset<Row> df = spark.sql(query);
+
+    LogicalPlan plan = df.queryExecution().optimizedPlan();
+    Stream<Expression> expressions = JavaConverters.asJavaCollection(plan.expressions()).stream();
+    Stream<StaticInvoke> numOfStaticInvokes =
+        expressions.flatMap(
+            e ->
+                JavaConverters.asJavaCollection(
+                    e.<StaticInvoke>collect(
+                        new PartialFunction<Expression, StaticInvoke>() {
+                          @Override
+                          public boolean isDefinedAt(Expression x) {
+                            return x instanceof StaticInvoke;
+                          }
+
+                          @Override
+                          public StaticInvoke apply(Expression v1) {
+                            return (StaticInvoke) v1;
+                          }
+                        }))
+                    .stream());
+    Assertions.assertThat(numOfStaticInvokes.count()).isZero();
   }
 
   private void testTruncateFunction(boolean partitioned) {
