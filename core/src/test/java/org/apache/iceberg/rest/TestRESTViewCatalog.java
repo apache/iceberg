@@ -163,11 +163,8 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     String tableName = "newtable";
     String viewName = "newview";
 
-    TableIdentifier tableIdentifier = TableIdentifier.of(namespaceName, tableName);
-
-    // create initial namespace and table
-    catalog().createNamespace(tableIdentifier.namespace());
-    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    // create initial namespace
+    catalog().createNamespace(Namespace.of(namespaceName));
 
     // create several views under namespace, based off a table for listing and verify
     for (int i = 0; i < numberOfItems; i++) {
@@ -181,7 +178,7 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     }
 
     List<TableIdentifier> views = catalog.listViews(Namespace.of(namespaceName));
-    assertThat(views.size()).isEqualTo(numberOfItems);
+    assertThat(views).hasSize(numberOfItems);
   }
 
   @Override

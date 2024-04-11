@@ -34,7 +34,7 @@ public class TestListNamespacesResponse extends RequestResponseTestBase<ListName
 
   @Test
   public void testRoundTripSerDe() throws JsonProcessingException {
-    String fullJson = "{\"namespaces\":[[\"accounting\"],[\"tax\"]],\"next-page-token\":null}";
+    String fullJson = "{\"namespaces\":[[\"accounting\"],[\"tax\"]]}";
     ListNamespacesResponse fullValue = ListNamespacesResponse.builder().addAll(NAMESPACES).build();
     assertRoundTripSerializesEquallyFrom(fullJson, fullValue);
 

@@ -2331,7 +2331,18 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testPaginationForListNameSpaces() {
+  public void testInvalidRestPageSize() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog =
+            new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () -> catalog.initialize("test", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "-1")))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Invalid value for pageSize, must be a positive integer");
+  }
+
+  @Test
+  public void testPaginationForListNamespaces() {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
@@ -2346,7 +2357,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     }
 
     List<Namespace> results = catalog.listNamespaces();
-    assertThat(results.size()).isEqualTo(numberOfItems);
+    assertThat(results).hasSize(numberOfItems);
   }
 
   @Test
@@ -2367,7 +2378,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     }
 
     List<TableIdentifier> tables = catalog.listTables(Namespace.of(namespaceName));
-    assertThat(tables.size()).isEqualTo(numberOfItems);
+    assertThat(tables).hasSize(numberOfItems);
   }
 
   @Test

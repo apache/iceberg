@@ -68,7 +68,7 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
-  private static final Namespace NS = Namespace.of("newdb");
+  protected static final Namespace NS = Namespace.of("newdb");
   protected static final TableIdentifier TABLE = TableIdentifier.of(NS, "table");
   protected static final TableIdentifier RENAMED_TABLE = TableIdentifier.of(NS, "table_renamed");
 

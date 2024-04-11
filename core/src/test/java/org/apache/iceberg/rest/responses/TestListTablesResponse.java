@@ -36,7 +36,7 @@ public class TestListTablesResponse extends RequestResponseTestBase<ListTablesRe
   @Test
   public void testRoundTripSerDe() throws JsonProcessingException {
     String fullJson =
-        "{\"identifiers\":[{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid\"},\"next-page-token\":null]}";
+        "{\"identifiers\":[{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid\"}]}";
     assertRoundTripSerializesEquallyFrom(
         fullJson, ListTablesResponse.builder().addAll(IDENTIFIERS).build());
 

@@ -290,10 +290,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     List<TableIdentifier> tables = Lists.newArrayList();
     String pageToken = "";
     if (restPageSize != null) {
-      queryParams.put("pageToken", pageToken);
       queryParams.put("pageSize", restPageSize);
     }
     do {
+      queryParams.put("pageToken", pageToken);
       ListTablesResponse response =
           client.get(
               paths.tables(ns),
@@ -521,10 +521,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     List<Namespace> namespaces = Lists.newArrayList();
     String pageToken = "";
     if (restPageSize != null) {
-      queryParams.put("pageToken", pageToken);
       queryParams.put("pageSize", restPageSize);
     }
     do {
+      queryParams.put("pageToken", pageToken);
       ListNamespacesResponse response =
           client.get(
               paths.namespaces(),
@@ -1079,10 +1079,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     List<TableIdentifier> views = Lists.newArrayList();
     String pageToken = "";
     if (restPageSize != null) {
-      queryParams.put("pageToken", pageToken);
       queryParams.put("pageSize", restPageSize);
     }
     do {
+      queryParams.put("pageToken", pageToken);
       ListTablesResponse response =
           client.get(
               paths.views(namespace),
