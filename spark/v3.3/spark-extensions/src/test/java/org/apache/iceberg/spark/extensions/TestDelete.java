@@ -18,13 +18,16 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.apache.iceberg.DataOperations.DELETE;
 import static org.apache.iceberg.RowLevelOperationMode.COPY_ON_WRITE;
+import static org.apache.iceberg.SnapshotSummary.ADD_POS_DELETE_FILES_PROP;
 import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.DELETE_MODE;
 import static org.apache.iceberg.TableProperties.DELETE_MODE_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.apache.spark.sql.functions.lit;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.Arrays;
@@ -332,6 +335,38 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         "Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware"), row(null, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
+  }
+
+  @Test
+  public void deleteSingleRecordProducesDeleteOperation() {
+    sql(
+        "CREATE TABLE %s USING iceberg AS SELECT 'personA' as name UNION SELECT 'personB' as name UNION SELECT 'personC' as name",
+        tableName);
+    initTable();
+
+    sql("DELETE FROM %s WHERE name = 'personA'", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(table.snapshots()).hasSize(2);
+
+    Snapshot currentSnapshot = table.currentSnapshot();
+
+    if (Boolean.parseBoolean(spark.conf().get(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key()))) {
+      if (mode(table) == COPY_ON_WRITE) {
+        // this is an OverwriteFiles when AQE is enabled
+        validateCopyOnWrite(currentSnapshot, "1", "1", "1");
+      } else {
+        // this is a RowDelta that produces a delete instead of overwrite when AQE is enabled
+        validateMergeOnRead(currentSnapshot, "1", "1", null);
+        validateProperty(currentSnapshot, ADD_POS_DELETE_FILES_PROP, "1");
+      }
+    } else {
+      // this is a StreamingDelete when AQE is disabled
+      validateSnapshot(currentSnapshot, DELETE, "1", "1", null, null);
+    }
+
+    assertThat(sql("SELECT * FROM %s", tableName))
+        .containsExactlyInAnyOrder(row("personB"), row("personC"));
   }
 
   @Test
