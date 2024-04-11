@@ -95,7 +95,7 @@ public class HTTPClient implements RESTClient {
   private HTTPClient(
       String uri,
       HttpHost proxy,
-      CredentialsProvider credsProvider,
+      CredentialsProvider proxyCredsProvider,
       Map<String, String> baseHeaders,
       ObjectMapper objectMapper,
       HttpRequestInterceptor requestInterceptor,
@@ -123,8 +123,8 @@ public class HTTPClient implements RESTClient {
     clientBuilder.setRetryStrategy(new ExponentialHttpRequestRetryStrategy(maxRetries));
 
     if (proxy != null) {
-      if (credsProvider != null) {
-        clientBuilder.setDefaultCredentialsProvider(credsProvider);
+      if (proxyCredsProvider != null) {
+        clientBuilder.setDefaultCredentialsProvider(proxyCredsProvider);
       }
 
       clientBuilder.setProxy(proxy);
