@@ -45,6 +45,7 @@ import org.slf4j.LoggerFactory;
  */
 public class CachingCatalog implements Catalog {
   private static final Logger LOG = LoggerFactory.getLogger(CachingCatalog.class);
+  private static final MetadataTableType[] METADATA_TABLE_TYPE_VALUES = MetadataTableType.values();
 
   public static Catalog wrap(Catalog catalog) {
     return wrap(catalog, CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS_OFF);
@@ -197,7 +198,7 @@ public class CachingCatalog implements Catalog {
   private Iterable<TableIdentifier> metadataTableIdentifiers(TableIdentifier ident) {
     ImmutableList.Builder<TableIdentifier> builder = ImmutableList.builder();
 
-    for (MetadataTableType type : MetadataTableType.values()) {
+    for (MetadataTableType type : METADATA_TABLE_TYPE_VALUES) {
       // metadata table resolution is case insensitive right now
       builder.add(TableIdentifier.parse(ident + "." + type.name()));
       builder.add(TableIdentifier.parse(ident + "." + type.name().toLowerCase(Locale.ROOT)));
