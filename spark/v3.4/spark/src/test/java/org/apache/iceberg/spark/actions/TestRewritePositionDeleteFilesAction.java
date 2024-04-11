@@ -623,7 +623,7 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
   @Test
   public void testRewriteManyColumns() throws Exception {
     List<Types.NestedField> fields =
-        Lists.newArrayList(Types.NestedField.required(0, "id", Types.LongType.get()));
+        Lists.newArrayList(Types.NestedField.optional(0, "id", Types.LongType.get()));
     List<Types.NestedField> additionalCols =
         IntStream.range(1, 1010)
             .mapToObj(i -> Types.NestedField.optional(i, "c" + i, Types.StringType.get()))
