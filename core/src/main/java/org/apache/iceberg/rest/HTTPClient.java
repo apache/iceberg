@@ -26,10 +26,12 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequest;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
+import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
@@ -79,6 +81,11 @@ public class HTTPClient implements RESTClient {
   private static final String REST_MAX_CONNECTIONS_PER_ROUTE = "rest.client.connections-per-route";
   private static final int REST_MAX_CONNECTIONS_PER_ROUTE_DEFAULT = 100;
 
+  @VisibleForTesting
+  static final String REST_CONNECTION_TIMEOUT_MS = "rest.client.connection-timeout-ms";
+
+  @VisibleForTesting static final String REST_SOCKET_TIMEOUT_MS = "rest.client.socket-timeout-ms";
+
   private final String uri;
   private final CloseableHttpClient httpClient;
   private final ObjectMapper mapper;
@@ -88,22 +95,13 @@ public class HTTPClient implements RESTClient {
       Map<String, String> baseHeaders,
       ObjectMapper objectMapper,
       HttpRequestInterceptor requestInterceptor,
-      Map<String, String> properties) {
+      Map<String, String> properties,
+      HttpClientConnectionManager connectionManager) {
     this.uri = uri;
     this.mapper = objectMapper;
 
     HttpClientBuilder clientBuilder = HttpClients.custom();
 
-    HttpClientConnectionManager connectionManager =
-        PoolingHttpClientConnectionManagerBuilder.create()
-            .useSystemProperties()
-            .setMaxConnTotal(Integer.getInteger(REST_MAX_CONNECTIONS, REST_MAX_CONNECTIONS_DEFAULT))
-            .setMaxConnPerRoute(
-                PropertyUtil.propertyAsInt(
-                    properties,
-                    REST_MAX_CONNECTIONS_PER_ROUTE,
-                    REST_MAX_CONNECTIONS_PER_ROUTE_DEFAULT))
-            .build();
     clientBuilder.setConnectionManager(connectionManager);
 
     if (baseHeaders != null) {
@@ -448,6 +446,47 @@ public class HTTPClient implements RESTClient {
     return instance;
   }
 
+  static HttpClientConnectionManager configureConnectionManager(Map<String, String> properties) {
+    PoolingHttpClientConnectionManagerBuilder connectionManagerBuilder =
+        PoolingHttpClientConnectionManagerBuilder.create();
+    ConnectionConfig connectionConfig = configureConnectionConfig(properties);
+    if (connectionConfig != null) {
+      connectionManagerBuilder.setDefaultConnectionConfig(connectionConfig);
+    }
+
+    return connectionManagerBuilder
+        .useSystemProperties()
+        .setMaxConnTotal(Integer.getInteger(REST_MAX_CONNECTIONS, REST_MAX_CONNECTIONS_DEFAULT))
+        .setMaxConnPerRoute(
+            PropertyUtil.propertyAsInt(
+                properties, REST_MAX_CONNECTIONS_PER_ROUTE, REST_MAX_CONNECTIONS_PER_ROUTE_DEFAULT))
+        .build();
+  }
+
+  @VisibleForTesting
+  static ConnectionConfig configureConnectionConfig(Map<String, String> properties) {
+    Long connectionTimeoutMillis =
+        PropertyUtil.propertyAsNullableLong(properties, REST_CONNECTION_TIMEOUT_MS);
+    Integer socketTimeoutMillis =
+        PropertyUtil.propertyAsNullableInt(properties, REST_SOCKET_TIMEOUT_MS);
+
+    if (connectionTimeoutMillis == null && socketTimeoutMillis == null) {
+      return null;
+    }
+
+    ConnectionConfig.Builder connConfigBuilder = ConnectionConfig.custom();
+
+    if (connectionTimeoutMillis != null) {
+      connConfigBuilder.setConnectTimeout(connectionTimeoutMillis, TimeUnit.MILLISECONDS);
+    }
+
+    if (socketTimeoutMillis != null) {
+      connConfigBuilder.setSocketTimeout(socketTimeoutMillis, TimeUnit.MILLISECONDS);
+    }
+
+    return connConfigBuilder.build();
+  }
+
   public static Builder builder(Map<String, String> properties) {
     return new Builder(properties);
   }
@@ -493,7 +532,13 @@ public class HTTPClient implements RESTClient {
         interceptor = loadInterceptorDynamically(SIGV4_REQUEST_INTERCEPTOR_IMPL, properties);
       }
 
-      return new HTTPClient(uri, baseHeaders, mapper, interceptor, properties);
+      return new HTTPClient(
+          uri,
+          baseHeaders,
+          mapper,
+          interceptor,
+          properties,
+          configureConnectionManager(properties));
     }
   }
 
