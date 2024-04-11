@@ -170,6 +170,7 @@ paths:
         sending a token exchange request (3). The request's "subject" token should be the expiring
         token. This request should use the subject token in the "Authorization" header.
       requestBody:
+        required: true
         content:
           application/x-www-form-urlencoded:
             schema:
@@ -248,6 +249,7 @@ paths:
         The server might also add properties, such as `last_modified_time` etc.
       operationId: createNamespace
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -396,6 +398,7 @@ paths:
 
         Server implementations are not required to support namespace properties.
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -499,6 +502,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/data-access'
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -551,6 +555,7 @@ paths:
 
       operationId: registerTable
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -680,6 +685,7 @@ paths:
         initialization, like AddSchemaUpdate and SetCurrentSchemaUpdate. The `assert-create` requirement is
         used to ensure that the table was not created concurrently.
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -1111,6 +1117,7 @@ paths:
         Create a view in the given namespace.
       operationId: createView
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -1209,6 +1216,7 @@ paths:
       description:
         Commit updates to a view.
       requestBody:
+        required: true
         content:
           application/json:
             schema:
