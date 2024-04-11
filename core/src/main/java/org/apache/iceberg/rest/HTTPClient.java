@@ -527,10 +527,10 @@ public class HTTPClient implements RESTClient {
       return this;
     }
 
-    public Builder withProxyCredentialsProvider(CredentialsProvider proxyCredentialsProvider) {
+    public Builder withProxyCredentialsProvider(CredentialsProvider credentialsProvider) {
       Preconditions.checkNotNull(
-          proxyCredentialsProvider, "Invalid credentials provider for http client proxy: null");
-      this.proxyCredentialsProvider = proxyCredentialsProvider;
+          credentialsProvider, "Invalid credentials provider for http client proxy: null");
+      this.proxyCredentialsProvider = credentialsProvider;
       return this;
     }
 
@@ -559,7 +559,7 @@ public class HTTPClient implements RESTClient {
         interceptor = loadInterceptorDynamically(SIGV4_REQUEST_INTERCEPTOR_IMPL, properties);
       }
 
-      if (proxyCredentialsProvider != null) {
+      if (this.proxyCredentialsProvider != null) {
         Preconditions.checkNotNull(
             proxy, "Invalid http client proxy for proxy credentials provider: null");
       }
