@@ -20,6 +20,7 @@ package org.apache.iceberg.hive;
 
 import static java.util.Collections.emptySet;
 
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -45,10 +46,13 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.view.BaseViewOperations;
+import org.apache.iceberg.view.SQLViewRepresentation;
 import org.apache.iceberg.view.ViewMetadata;
+import org.apache.iceberg.view.ViewRepresentation;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -146,12 +150,7 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
         updateHiveView = true;
         LOG.debug("Committing existing view: {}", fullName);
       } else {
-        tbl =
-            newHmsTable(
-                PropertyUtil.propertyAsString(
-                    metadata.properties(),
-                    HiveCatalog.HMS_TABLE_OWNER,
-                    HiveHadoopUtil.currentUser()));
+        tbl = newHMSView(metadata);
         LOG.debug("Committing new view: {}", fullName);
       }
 
@@ -309,6 +308,45 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
 
   private static boolean hiveLockEnabled(Configuration conf) {
     return conf.getBoolean(ConfigProperties.LOCK_HIVE_ENABLED, true);
+  }
+
+  private Table newHMSView(ViewMetadata metadata) {
+    final long currentTimeMillis = System.currentTimeMillis();
+    String hmsTableOwner =
+        PropertyUtil.propertyAsString(
+            metadata.properties(), HiveCatalog.HMS_TABLE_OWNER, HiveHadoopUtil.currentUser());
+    Preconditions.checkNotNull(hmsTableOwner, "'hmsOwner' parameter can't be null");
+    String sqlQuery = sqlFor(metadata);
+
+    return new Table(
+        table(),
+        database(),
+        hmsTableOwner,
+        (int) currentTimeMillis / 1000,
+        (int) currentTimeMillis / 1000,
+        Integer.MAX_VALUE,
+        null,
+        Collections.emptyList(),
+        Maps.newHashMap(),
+        sqlQuery,
+        sqlQuery,
+        tableType().name());
+  }
+
+  private String sqlFor(ViewMetadata metadata) {
+    SQLViewRepresentation closest = null;
+    for (ViewRepresentation representation : metadata.currentVersion().representations()) {
+      if (representation instanceof SQLViewRepresentation) {
+        SQLViewRepresentation sqlViewRepresentation = (SQLViewRepresentation) representation;
+        if (sqlViewRepresentation.dialect().equalsIgnoreCase("hive")) {
+          return sqlViewRepresentation.sql();
+        } else if (closest == null) {
+          closest = sqlViewRepresentation;
+        }
+      }
+    }
+
+    return closest == null ? null : closest.sql();
   }
 
   @VisibleForTesting
