@@ -37,10 +37,15 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import org.apache.hc.client5.http.auth.AuthScope;
+import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
 import org.apache.hc.client5.http.config.ConnectionConfig;
+import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
 import org.apache.hc.core5.http.EntityDetails;
 import org.apache.hc.core5.http.HttpException;
+import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpRequestInterceptor;
+import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -52,9 +57,11 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockserver.configuration.Configuration;
 import org.mockserver.integration.ClientAndServer;
 import org.mockserver.model.HttpRequest;
 import org.mockserver.model.HttpResponse;
+import org.mockserver.verify.VerificationTimes;
 
 /**
  * * Exercises the RESTClient interface, specifically over a mocked-server using the actual
@@ -124,6 +131,95 @@ public class TestHTTPClient {
   @Test
   public void testHeadFailure() throws JsonProcessingException {
     testHttpMethodOnFailure(HttpMethod.HEAD);
+  }
+
+  @Test
+  public void testProxyServer() throws IOException {
+    int proxyPort = 1070;
+    try (ClientAndServer proxyServer = startClientAndServer(proxyPort);
+        RESTClient clientWithProxy =
+            HTTPClient.builder(ImmutableMap.of())
+                .uri(URI)
+                .withProxy("localhost", proxyPort)
+                .build()) {
+      String path = "v1/config";
+      HttpRequest mockRequest =
+          request("/" + path).withMethod(HttpMethod.HEAD.name().toUpperCase(Locale.ROOT));
+      HttpResponse mockResponse = response().withStatusCode(200);
+      proxyServer.when(mockRequest).respond(mockResponse);
+      clientWithProxy.head(path, ImmutableMap.of(), (onError) -> {});
+      proxyServer.verify(mockRequest, VerificationTimes.exactly(1));
+    }
+  }
+
+  @Test
+  public void testProxyCredentialProviderWithoutProxyServer() {
+    Assertions.assertThatThrownBy(
+            () ->
+                HTTPClient.builder(ImmutableMap.of())
+                    .uri(URI)
+                    .withProxyCredentialsProvider(new BasicCredentialsProvider())
+                    .build())
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid http client proxy for proxy credentials provider: null");
+  }
+
+  @Test
+  public void testProxyServerWithNullHostname() {
+    Assertions.assertThatThrownBy(
+            () -> HTTPClient.builder(ImmutableMap.of()).uri(URI).withProxy(null, 1070).build())
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid hostname for http client proxy: null");
+  }
+
+  @Test
+  public void testProxyAuthenticationFailure() throws IOException {
+    int proxyPort = 1050;
+    String proxyHostName = "localhost";
+    String authorizedUsername = "test-username";
+    String authorizedPassword = "test-password";
+    String invalidPassword = "invalid-password";
+
+    HttpHost proxy = new HttpHost(proxyHostName, proxyPort);
+    BasicCredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+    credentialsProvider.setCredentials(
+        new AuthScope(proxy),
+        new UsernamePasswordCredentials(authorizedUsername, invalidPassword.toCharArray()));
+
+    try (ClientAndServer proxyServer =
+            startClientAndServer(
+                new Configuration()
+                    .proxyAuthenticationUsername(authorizedUsername)
+                    .proxyAuthenticationPassword(authorizedPassword),
+                proxyPort);
+        RESTClient clientWithProxy =
+            HTTPClient.builder(ImmutableMap.of())
+                .uri(URI)
+                .withProxy(proxyHostName, proxyPort)
+                .withProxyCredentialsProvider(credentialsProvider)
+                .build()) {
+
+      ErrorHandler onError =
+          new ErrorHandler() {
+            @Override
+            public ErrorResponse parseResponse(int code, String responseBody) {
+              return null;
+            }
+
+            @Override
+            public void accept(ErrorResponse errorResponse) {
+              throw new RuntimeException(errorResponse.message() + " - " + errorResponse.code());
+            }
+          };
+
+      Assertions.assertThatThrownBy(
+              () -> clientWithProxy.get("v1/config", Item.class, ImmutableMap.of(), onError))
+          .isInstanceOf(RuntimeException.class)
+          .hasMessage(
+              String.format(
+                  "%s - %s",
+                  "Proxy Authentication Required", HttpStatus.SC_PROXY_AUTHENTICATION_REQUIRED));
+    }
   }
 
   @Test
