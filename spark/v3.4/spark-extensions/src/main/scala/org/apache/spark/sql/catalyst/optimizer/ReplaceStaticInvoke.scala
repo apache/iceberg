@@ -22,12 +22,16 @@ import org.apache.iceberg.spark.functions.SparkFunctions
 import org.apache.spark.sql.catalyst.expressions.ApplyFunctionExpression
 import org.apache.spark.sql.catalyst.expressions.BinaryComparison
 import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.sql.catalyst.expressions.In
+import org.apache.spark.sql.catalyst.expressions.InSet
 import org.apache.spark.sql.catalyst.expressions.objects.StaticInvoke
 import org.apache.spark.sql.catalyst.plans.logical.Filter
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.trees.TreePattern.BINARY_COMPARISON
 import org.apache.spark.sql.catalyst.trees.TreePattern.FILTER
+import org.apache.spark.sql.catalyst.trees.TreePattern.IN
+import org.apache.spark.sql.catalyst.trees.TreePattern.INSET
 import org.apache.spark.sql.connector.catalog.functions.ScalarFunction
 import org.apache.spark.sql.types.StructField
 import org.apache.spark.sql.types.StructType
@@ -40,14 +44,23 @@ import org.apache.spark.sql.types.StructType
 object ReplaceStaticInvoke extends Rule[LogicalPlan] {
 
   override def apply(plan: LogicalPlan): LogicalPlan =
-    plan.transformWithPruning (_.containsAllPatterns(BINARY_COMPARISON, FILTER)) {
+    plan.transformWithPruning (_.containsPattern(FILTER)) {
       case filter @ Filter(condition, _) =>
-        val newCondition = condition.transformWithPruning(_.containsPattern(BINARY_COMPARISON)) {
+        val newCondition = condition.transformWithPruning(_.containsAnyPattern(BINARY_COMPARISON, IN, INSET)) {
           case c @ BinaryComparison(left: StaticInvoke, right) if canReplace(left) && right.foldable =>
             c.withNewChildren(Seq(replaceStaticInvoke(left), right))
 
           case c @ BinaryComparison(left, right: StaticInvoke) if canReplace(right) && left.foldable =>
             c.withNewChildren(Seq(left, replaceStaticInvoke(right)))
+
+          case in @ In(systemFunction: StaticInvoke, values)
+              if canReplace(systemFunction) && values.forall(_.foldable) =>
+            in.copy(value = replaceStaticInvoke(systemFunction))
+
+          case in @ InSet(systemFunction: StaticInvoke, _) if canReplace(systemFunction) =>
+            // InSet does not need the check on the values to be foldable
+            // because it contains only literals by definition
+            in.copy(child = replaceStaticInvoke(systemFunction))
         }
 
         if (newCondition fastEquals condition) {
