@@ -80,7 +80,7 @@ public class TestLocalScan {
     return Arrays.stream(new Object[][] {{"parquet"}, {"orc"}, {"avro"}});
   }
 
-  @TempDir public File temp;
+  @TempDir private File temp;
   private String sharedTableLocation = null;
   private Table sharedTable = null;
 
