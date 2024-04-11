@@ -31,10 +31,13 @@ import static org.mockserver.model.HttpResponse.response;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.net.SocketTimeoutException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.core5.http.EntityDetails;
 import org.apache.hc.core5.http.HttpException;
 import org.apache.hc.core5.http.HttpRequestInterceptor;
@@ -47,6 +50,8 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockserver.integration.ClientAndServer;
 import org.mockserver.model.HttpRequest;
 import org.mockserver.model.HttpResponse;
@@ -131,6 +136,71 @@ public class TestHTTPClient {
 
     assertThat(interceptor).isInstanceOf(TestHttpRequestInterceptor.class);
     assertThat(((TestHttpRequestInterceptor) interceptor).properties).isEqualTo(properties);
+  }
+
+  @Test
+  public void testSocketAndConnectionTimeoutSet() {
+    long connectionTimeoutMs = 10L;
+    int socketTimeoutMs = 10;
+    Map<String, String> properties =
+        ImmutableMap.of(
+            HTTPClient.REST_CONNECTION_TIMEOUT_MS, String.valueOf(connectionTimeoutMs),
+            HTTPClient.REST_SOCKET_TIMEOUT_MS, String.valueOf(socketTimeoutMs));
+
+    ConnectionConfig connectionConfig = HTTPClient.configureConnectionConfig(properties);
+    assertThat(connectionConfig).isNotNull();
+    assertThat(connectionConfig.getConnectTimeout().getDuration()).isEqualTo(connectionTimeoutMs);
+    assertThat(connectionConfig.getSocketTimeout().getDuration()).isEqualTo(socketTimeoutMs);
+  }
+
+  @Test
+  public void testSocketTimeout() throws IOException {
+    long socketTimeoutMs = 2000L;
+    Map<String, String> properties =
+        ImmutableMap.of(HTTPClient.REST_SOCKET_TIMEOUT_MS, String.valueOf(socketTimeoutMs));
+    String path = "socket/timeout/path";
+
+    try (HTTPClient client = HTTPClient.builder(properties).uri(URI).build()) {
+      HttpRequest mockRequest =
+          request()
+              .withPath("/" + path)
+              .withMethod(HttpMethod.HEAD.name().toUpperCase(Locale.ROOT));
+      // Setting a response delay of 5 seconds to simulate hitting the configured socket timeout of
+      // 2 seconds
+      HttpResponse mockResponse =
+          response()
+              .withStatusCode(200)
+              .withBody("Delayed response")
+              .withDelay(TimeUnit.MILLISECONDS, 5000);
+      mockServer.when(mockRequest).respond(mockResponse);
+
+      Assertions.assertThatThrownBy(() -> client.head(path, ImmutableMap.of(), (unused) -> {}))
+          .cause()
+          .isInstanceOf(SocketTimeoutException.class)
+          .hasMessage("Read timed out");
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {HTTPClient.REST_CONNECTION_TIMEOUT_MS, HTTPClient.REST_SOCKET_TIMEOUT_MS})
+  public void testInvalidTimeout(String timeoutMsType) {
+    String invalidTimeoutMs = "invalidMs";
+    Assertions.assertThatThrownBy(
+            () ->
+                HTTPClient.builder(ImmutableMap.of(timeoutMsType, invalidTimeoutMs))
+                    .uri(URI)
+                    .build())
+        .isInstanceOf(NumberFormatException.class)
+        .hasMessage(String.format("For input string: \"%s\"", invalidTimeoutMs));
+
+    String invalidNegativeTimeoutMs = "-1";
+    Assertions.assertThatThrownBy(
+            () ->
+                HTTPClient.builder(ImmutableMap.of(timeoutMsType, invalidNegativeTimeoutMs))
+                    .uri(URI)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(String.format("duration must not be negative: %s", invalidNegativeTimeoutMs));
   }
 
   public static void testHttpMethodOnSuccess(HttpMethod method) throws JsonProcessingException {
