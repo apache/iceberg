@@ -22,12 +22,20 @@ import org.apache.iceberg.spark.functions.SparkFunctions
 import org.apache.spark.sql.catalyst.expressions.ApplyFunctionExpression
 import org.apache.spark.sql.catalyst.expressions.BinaryComparison
 import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.sql.catalyst.expressions.In
+import org.apache.spark.sql.catalyst.expressions.InSet
 import org.apache.spark.sql.catalyst.expressions.objects.StaticInvoke
 import org.apache.spark.sql.catalyst.plans.logical.Filter
+import org.apache.spark.sql.catalyst.plans.logical.Join
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.trees.TreePattern.BINARY_COMPARISON
+import org.apache.spark.sql.catalyst.trees.TreePattern.COMMAND
 import org.apache.spark.sql.catalyst.trees.TreePattern.FILTER
+import org.apache.spark.sql.catalyst.trees.TreePattern.IN
+import org.apache.spark.sql.catalyst.trees.TreePattern.INSET
+import org.apache.spark.sql.catalyst.trees.TreePattern.JOIN
 import org.apache.spark.sql.connector.catalog.functions.ScalarFunction
 import org.apache.spark.sql.types.StructField
 import org.apache.spark.sql.types.StructType
@@ -40,21 +48,36 @@ import org.apache.spark.sql.types.StructType
 object ReplaceStaticInvoke extends Rule[LogicalPlan] {
 
   override def apply(plan: LogicalPlan): LogicalPlan =
-    plan.transformWithPruning (_.containsAllPatterns(BINARY_COMPARISON, FILTER)) {
-      case filter @ Filter(condition, _) =>
-        val newCondition = condition.transformWithPruning(_.containsPattern(BINARY_COMPARISON)) {
-          case c @ BinaryComparison(left: StaticInvoke, right) if canReplace(left) && right.foldable =>
-            c.withNewChildren(Seq(replaceStaticInvoke(left), right))
+    plan.transformWithPruning (_.containsAnyPattern(COMMAND, FILTER, JOIN)) {
+      case join @ Join(_, _, _, Some(cond), _) =>
+        replaceStaticInvoke(join, cond, newCond => join.copy(condition = Some(newCond)))
 
-          case c @ BinaryComparison(left, right: StaticInvoke) if canReplace(right) && left.foldable =>
-            c.withNewChildren(Seq(left, replaceStaticInvoke(right)))
-        }
+      case filter @ Filter(cond, _) =>
+        replaceStaticInvoke(filter, cond, newCond => filter.copy(condition = newCond))
+  }
 
-        if (newCondition fastEquals condition) {
-          filter
-        } else {
-          filter.copy(condition = newCondition)
-        }
+  private def replaceStaticInvoke[T <: LogicalPlan](
+      node: T,
+      condition: Expression,
+      copy: Expression => T): T = {
+    val newCondition = replaceStaticInvoke(condition)
+    if (newCondition fastEquals condition) node else copy(newCondition)
+  }
+
+  private def replaceStaticInvoke(condition: Expression): Expression = {
+    condition.transformWithPruning(_.containsAnyPattern(BINARY_COMPARISON, IN, INSET)) {
+      case in @ In(value: StaticInvoke, _) if canReplace(value) =>
+        in.copy(value = replaceStaticInvoke(value))
+
+      case in @ InSet(value: StaticInvoke, _) if canReplace(value) =>
+        in.copy(child = replaceStaticInvoke(value))
+
+      case c @ BinaryComparison(left: StaticInvoke, right) if canReplace(left) && right.foldable =>
+        c.withNewChildren(Seq(replaceStaticInvoke(left), right))
+
+      case c @ BinaryComparison(left, right: StaticInvoke) if canReplace(right) && left.foldable =>
+        c.withNewChildren(Seq(left, replaceStaticInvoke(right)))
+    }
   }
 
   private def replaceStaticInvoke(invoke: StaticInvoke): Expression = {
