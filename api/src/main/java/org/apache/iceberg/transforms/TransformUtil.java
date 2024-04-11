@@ -62,8 +62,8 @@ class TransformUtil {
     return ChronoUnit.MICROS.addTo(EPOCH, timestampMicros).toLocalDateTime().toString();
   }
 
-  static String humanTimestampNanoWithZone(Long timestampMicros) {
-    return ChronoUnit.NANOS.addTo(EPOCH, timestampMicros).toString();
+  static String humanTimestampNanoWithZone(Long timestampNanos) {
+    return ChronoUnit.NANOS.addTo(EPOCH, timestampNanos).toString();
   }
 
   static String humanTimestampNanoWithoutZone(Long timestampMicros) {

@@ -84,7 +84,10 @@ public interface SortOrderVisitor<T> {
         results.add(
             visitor.truncate(
                 sourceName, field.sourceId(), width, field.direction(), field.nullOrder()));
-      } else if ("year".equalsIgnoreCase(transform.toString())) {
+      } else if (transform == Dates.YEAR
+          || transform == Timestamps.YEAR_FROM_MICROS
+          || transform == Timestamps.YEAR_FROM_NANOS
+          || transform instanceof Years) {
         results.add(
             visitor.year(sourceName, field.sourceId(), field.direction(), field.nullOrder()));
       } else if ("month".equalsIgnoreCase(transform.toString())) {

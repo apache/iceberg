@@ -128,6 +128,11 @@ public class DateTimeUtil {
         OffsetDateTime.parse(timestampString, DateTimeFormatter.ISO_DATE_TIME));
   }
 
+  public static long isoTimestampToNanos(CharSequence timestamp) {
+    return ChronoUnit.NANOS.between(
+        EPOCH, OffsetDateTime.parse(timestamp, DateTimeFormatter.ISO_DATE_TIME));
+  }
+
   public static boolean isUTCTimestamptz(String timestampString) {
     OffsetDateTime offsetDateTime =
         OffsetDateTime.parse(timestampString, DateTimeFormatter.ISO_DATE_TIME);

@@ -575,7 +575,6 @@ public class ExpressionUtil {
     return "(date)";
   }
 
-  // TODO(epg): `now` is millisecond resolution; shouldn't this be too?
   private static String sanitizeTimestamp(long micros, long now) {
     String isPast = now > micros ? "ago" : "from-now";
     long diff = Math.abs(now - micros);
@@ -606,18 +605,18 @@ public class ExpressionUtil {
       if (DATE.matcher(value).matches()) {
         Literal<Integer> date = Literal.of(value).to(Types.DateType.get());
         return sanitizeDate(date.value(), today);
+      } else if (TIMESTAMPNS.matcher(value).matches()) {
+        Literal<Long> ts = Literal.of(value).to(Types.TimestampNanoType.withoutZone());
+        return sanitizeTimestamp(Math.floorDiv(ts.value(), 1000), now);
+      } else if (TIMESTAMPTZNS.matcher(value).matches()) {
+        Literal<Long> ts = Literal.of(value).to(Types.TimestampNanoType.withZone());
+        return sanitizeTimestamp(Math.floorDiv(ts.value(), 1000), now);
       } else if (TIMESTAMP.matcher(value).matches()) {
         Literal<Long> ts = Literal.of(value).to(Types.TimestampType.withoutZone());
         return sanitizeTimestamp(ts.value(), now);
       } else if (TIMESTAMPTZ.matcher(value).matches()) {
         Literal<Long> ts = Literal.of(value).to(Types.TimestampType.withZone());
         return sanitizeTimestamp(ts.value(), now);
-      } else if (TIMESTAMPNS.matcher(value).matches()) {
-        Literal<Long> ts = Literal.of(value).to(Types.TimestampNanoType.withoutZone());
-        return sanitizeTimestamp(ts.value() / 1000, now);
-      } else if (TIMESTAMPTZNS.matcher(value).matches()) {
-        Literal<Long> ts = Literal.of(value).to(Types.TimestampNanoType.withZone());
-        return sanitizeTimestamp(ts.value() / 1000, now);
       } else if (TIME.matcher(value).matches()) {
         return "(time)";
       } else {

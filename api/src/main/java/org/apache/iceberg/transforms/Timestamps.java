@@ -18,7 +18,10 @@
  */
 package org.apache.iceberg.transforms;
 
+import static org.apache.iceberg.types.Type.TypeID.TIMESTAMP;
+
 import com.google.errorprone.annotations.Immutable;
+import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Locale;
 import org.apache.iceberg.expressions.BoundPredicate;
@@ -34,14 +37,22 @@ import org.apache.iceberg.util.SerializableFunction;
 
 class Timestamps implements Transform<Long, Integer> {
 
-  static final Timestamps YEAR_FROM_MICROS = new Timestamps(ChronoUnit.MICROS, ChronoUnit.YEARS);
-  static final Timestamps MONTH_FROM_MICROS = new Timestamps(ChronoUnit.MICROS, ChronoUnit.MONTHS);
-  static final Timestamps DAY_FROM_MICROS = new Timestamps(ChronoUnit.MICROS, ChronoUnit.DAYS);
-  static final Timestamps HOUR_FROM_MICROS = new Timestamps(ChronoUnit.MICROS, ChronoUnit.HOURS);
-  static final Timestamps YEAR_FROM_NANOS = new Timestamps(ChronoUnit.NANOS, ChronoUnit.YEARS);
-  static final Timestamps MONTH_FROM_NANOS = new Timestamps(ChronoUnit.NANOS, ChronoUnit.MONTHS);
-  static final Timestamps DAY_FROM_NANOS = new Timestamps(ChronoUnit.NANOS, ChronoUnit.DAYS);
-  static final Timestamps HOUR_FROM_NANOS = new Timestamps(ChronoUnit.NANOS, ChronoUnit.HOURS);
+  static final Timestamps YEAR_FROM_MICROS =
+      new Timestamps(ChronoUnit.MICROS, ResultTypeUnit.YEARS, "year");
+  static final Timestamps MONTH_FROM_MICROS =
+      new Timestamps(ChronoUnit.MICROS, ResultTypeUnit.MONTHS, "month");
+  static final Timestamps DAY_FROM_MICROS =
+      new Timestamps(ChronoUnit.MICROS, ResultTypeUnit.DAYS, "day");
+  static final Timestamps HOUR_FROM_MICROS =
+      new Timestamps(ChronoUnit.MICROS, ResultTypeUnit.HOURS, "hour");
+  static final Timestamps YEAR_FROM_NANOS =
+      new Timestamps(ChronoUnit.NANOS, ResultTypeUnit.YEARS, "year");
+  static final Timestamps MONTH_FROM_NANOS =
+      new Timestamps(ChronoUnit.NANOS, ResultTypeUnit.MONTHS, "month");
+  static final Timestamps DAY_FROM_NANOS =
+      new Timestamps(ChronoUnit.NANOS, ResultTypeUnit.DAYS, "day");
+  static final Timestamps HOUR_FROM_NANOS =
+      new Timestamps(ChronoUnit.NANOS, ResultTypeUnit.HOURS, "hour");
 
   static Timestamps get(Types.TimestampType type, String resultTypeUnit) {
     switch (resultTypeUnit.toLowerCase(Locale.ENGLISH)) {
@@ -60,46 +71,50 @@ class Timestamps implements Transform<Long, Integer> {
   }
 
   static Timestamps get(Types.TimestampType type, ChronoUnit resultTypeUnit) {
-    switch (type.typeId()) {
-      case TIMESTAMP:
-        switch (resultTypeUnit) {
-          case YEARS:
-            return YEAR_FROM_MICROS;
-          case MONTHS:
-            return MONTH_FROM_MICROS;
-          case DAYS:
-            return DAY_FROM_MICROS;
-          case HOURS:
-            return HOUR_FROM_MICROS;
-        }
-        break;
-      case TIMESTAMP_NANO:
-        switch (resultTypeUnit) {
-          case YEARS:
-            return YEAR_FROM_NANOS;
-          case MONTHS:
-            return MONTH_FROM_NANOS;
-          case DAYS:
-            return DAY_FROM_NANOS;
-          case HOURS:
-            return HOUR_FROM_NANOS;
-        }
-        break;
-      default:
-        // `type` is out of range.
-        throw new UnsupportedOperationException("Unsupported timestamp unit: " + type);
+    if (type.typeId() != TIMESTAMP) {
+      throw new UnsupportedOperationException("Unsupported timestamp unit: " + type);
     }
-    // `resultTypeUnit` is out of range.
-    throw new IllegalArgumentException(
-        "Unsupported source/result type units: " + type + "->" + resultTypeUnit);
+    switch (resultTypeUnit) {
+      case YEARS:
+        return YEAR_FROM_MICROS;
+      case MONTHS:
+        return MONTH_FROM_MICROS;
+      case DAYS:
+        return DAY_FROM_MICROS;
+      case HOURS:
+        return HOUR_FROM_MICROS;
+      default:
+        throw new IllegalArgumentException(
+            "Unsupported source/result type units: " + type + "->" + resultTypeUnit);
+    }
+  }
+
+  enum ResultTypeUnit {
+    YEARS(ChronoUnit.YEARS),
+    MONTHS(ChronoUnit.MONTHS),
+    DAYS(ChronoUnit.DAYS),
+    HOURS(ChronoUnit.HOURS),
+    MICROS(ChronoUnit.MICROS),
+    NANOS(ChronoUnit.NANOS),
+    ;
+
+    private final ChronoUnit unit;
+
+    ResultTypeUnit(final ChronoUnit unit) {
+      this.unit = unit;
+    }
+
+    Duration getDuration() {
+      return unit.getDuration();
+    }
   }
 
   @Immutable
   static class Apply implements SerializableFunction<Long, Integer> {
     private final ChronoUnit sourceTypeUnit;
-    private final ChronoUnit resultTypeUnit;
+    private final ResultTypeUnit resultTypeUnit;
 
-    Apply(ChronoUnit sourceTypeUnit, ChronoUnit resultTypeUnit) {
+    Apply(ChronoUnit sourceTypeUnit, ResultTypeUnit resultTypeUnit) {
       this.sourceTypeUnit = sourceTypeUnit;
       this.resultTypeUnit = resultTypeUnit;
     }
@@ -126,7 +141,7 @@ class Timestamps implements Transform<Long, Integer> {
                   "Unsupported result type unit: " + resultTypeUnit);
           }
         case NANOS:
-          return DateTimeUtil.convertNanos(timestampUnits, resultTypeUnit);
+          return DateTimeUtil.convertNanos(timestampUnits, resultTypeUnit.unit);
         default:
           throw new UnsupportedOperationException(
               "Unsupported source type unit: " + sourceTypeUnit);
@@ -134,9 +149,11 @@ class Timestamps implements Transform<Long, Integer> {
     }
   }
 
+  private final String name;
   private final Apply apply;
 
-  Timestamps(ChronoUnit sourceTypeUnit, ChronoUnit resultTypeUnit) {
+  Timestamps(ChronoUnit sourceTypeUnit, ResultTypeUnit resultTypeUnit, String name) {
+    this.name = name;
     this.apply = new Apply(sourceTypeUnit, resultTypeUnit);
   }
 
@@ -153,18 +170,18 @@ class Timestamps implements Transform<Long, Integer> {
 
   @Override
   public boolean canTransform(Type type) {
-    return type.typeId() == Type.TypeID.TIMESTAMP || type.typeId() == Type.TypeID.TIMESTAMP_NANO;
+    return type.typeId() == TIMESTAMP || type.typeId() == Type.TypeID.TIMESTAMP_NANO;
   }
 
   @Override
   public Type getResultType(Type sourceType) {
-    if (apply.resultTypeUnit == ChronoUnit.DAYS) {
+    if (apply.resultTypeUnit == ResultTypeUnit.DAYS) {
       return Types.DateType.get();
     }
     return Types.IntegerType.get();
   }
 
-  public ChronoUnit getResultTypeUnit() {
+  ResultTypeUnit resultTypeUnit() {
     return apply.resultTypeUnit;
   }
 
@@ -180,8 +197,8 @@ class Timestamps implements Transform<Long, Integer> {
     }
 
     if (other instanceof Timestamps) {
-      // test the granularity, in hours. hour(ts) => 1 hour, day(ts) => 24 hours, and
-      // hour satisfies the order of day
+      // test the granularity, in hours. hour(ts) => 1 hour, day(ts) => 24 hours, and hour satisfies
+      // the order of day
       Timestamps otherTransform = (Timestamps) other;
       return apply.resultTypeUnit.getDuration().toHours()
           <= otherTransform.apply.resultTypeUnit.getDuration().toHours();
@@ -258,19 +275,7 @@ class Timestamps implements Transform<Long, Integer> {
 
   @Override
   public String toString() {
-    switch (apply.resultTypeUnit) {
-      case YEARS:
-        return "year";
-      case MONTHS:
-        return "month";
-      case DAYS:
-        return "day";
-      case HOURS:
-        return "hour";
-      default:
-        throw new UnsupportedOperationException(
-            "Unsupported result time unit: " + apply.resultTypeUnit);
-    }
+    return name;
   }
 
   @Override

@@ -19,7 +19,6 @@
 package org.apache.iceberg.transforms;
 
 import java.io.ObjectStreamException;
-import java.time.temporal.ChronoUnit;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -58,7 +57,7 @@ public class Days<T> extends TimeTransform<T> {
     }
 
     if (other instanceof Timestamps) {
-      ChronoUnit otherResultTypeUnit = ((Timestamps) other).getResultTypeUnit();
+      Timestamps.ResultTypeUnit otherResultTypeUnit = ((Timestamps) other).resultTypeUnit();
       switch (otherResultTypeUnit) {
         case MICROS:
           return Timestamps.DAY_FROM_MICROS.satisfiesOrderOf(other);

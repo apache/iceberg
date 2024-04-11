@@ -73,7 +73,7 @@ public class TestMiscLiteralConversions {
   }
 
   @Test
-  public void testTimestampWithNanoosecondsToDate() {
+  public void testTimestampWithNanosecondsToDate() {
     final Literal<Long> nanos =
         Literal.of("2017-08-18T14:21:01.919432755").to(Types.TimestampNanoType.withoutZone());
     final Literal<Integer> dateOfNanos = nanos.to(Types.DateType.get());
@@ -117,8 +117,8 @@ public class TestMiscLiteralConversions {
         Types.DoubleType.get(),
         Types.DateType.get(),
         Types.TimeType.get(),
-        Types.TimestampType.withoutZone(),
         Types.TimestampType.withZone(),
+        Types.TimestampType.withoutZone(),
         Types.TimestampNanoType.withoutZone(),
         Types.TimestampNanoType.withZone(),
         Types.DecimalType.of(9, 2),
@@ -134,8 +134,8 @@ public class TestMiscLiteralConversions {
         Literal.of(34),
         Types.BooleanType.get(),
         Types.TimeType.get(),
-        Types.TimestampType.withoutZone(),
         Types.TimestampType.withZone(),
+        Types.TimestampType.withoutZone(),
         Types.TimestampNanoType.withoutZone(),
         Types.TimestampNanoType.withZone(),
         Types.StringType.get(),
@@ -164,8 +164,8 @@ public class TestMiscLiteralConversions {
         Types.LongType.get(),
         Types.DateType.get(),
         Types.TimeType.get(),
-        Types.TimestampType.withoutZone(),
         Types.TimestampType.withZone(),
+        Types.TimestampType.withoutZone(),
         Types.TimestampNanoType.withoutZone(),
         Types.TimestampNanoType.withZone(),
         Types.StringType.get(),
@@ -183,8 +183,8 @@ public class TestMiscLiteralConversions {
         Types.LongType.get(),
         Types.DateType.get(),
         Types.TimeType.get(),
-        Types.TimestampType.withoutZone(),
         Types.TimestampType.withZone(),
+        Types.TimestampType.withoutZone(),
         Types.TimestampNanoType.withoutZone(),
         Types.TimestampNanoType.withZone(),
         Types.StringType.get(),
@@ -203,8 +203,8 @@ public class TestMiscLiteralConversions {
         Types.FloatType.get(),
         Types.DoubleType.get(),
         Types.TimeType.get(),
-        Types.TimestampType.withoutZone(),
         Types.TimestampType.withZone(),
+        Types.TimestampType.withoutZone(),
         Types.TimestampNanoType.withoutZone(),
         Types.TimestampNanoType.withZone(),
         Types.DecimalType.of(9, 4),
@@ -224,8 +224,8 @@ public class TestMiscLiteralConversions {
         Types.FloatType.get(),
         Types.DoubleType.get(),
         Types.DateType.get(),
-        Types.TimestampType.withoutZone(),
         Types.TimestampType.withZone(),
+        Types.TimestampType.withoutZone(),
         Types.TimestampNanoType.withoutZone(),
         Types.TimestampNanoType.withZone(),
         Types.DecimalType.of(9, 4),
@@ -358,8 +358,8 @@ public class TestMiscLiteralConversions {
         Types.DoubleType.get(),
         Types.DateType.get(),
         Types.TimeType.get(),
-        Types.TimestampType.withoutZone(),
         Types.TimestampType.withZone(),
+        Types.TimestampType.withoutZone(),
         Types.TimestampNanoType.withoutZone(),
         Types.TimestampNanoType.withZone(),
         Types.DecimalType.of(9, 2),

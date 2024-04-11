@@ -550,10 +550,7 @@ class Literals {
 
         case TIMESTAMP_NANO:
           if (((Types.TimestampNanoType) type).shouldAdjustToUTC()) {
-            long timestampNanos =
-                ChronoUnit.NANOS.between(
-                    EPOCH, OffsetDateTime.parse(value(), DateTimeFormatter.ISO_DATE_TIME));
-            return (Literal<T>) new TimestampNanoLiteral(timestampNanos);
+            return (Literal<T>) new TimestampNanoLiteral(DateTimeUtil.isoTimestampToNanos(value()));
           } else {
             long timestampNanos =
                 ChronoUnit.NANOS.between(
