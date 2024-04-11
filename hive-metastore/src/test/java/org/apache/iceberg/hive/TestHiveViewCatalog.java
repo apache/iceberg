@@ -161,6 +161,33 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
     assertThat(catalog.listViews(ns)).containsExactly(identifier).hasSize(1);
   }
 
+  @Test
+  public void testViewWithHiveParameters() throws TException, IOException {
+    String dbName = "hivedb";
+    Namespace ns = Namespace.of(dbName);
+    TableIdentifier identifier = TableIdentifier.of(ns, "test_iceberg_view");
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(identifier.namespace());
+    }
+
+    assertThat(catalog.viewExists(identifier)).isFalse();
+    String tableQuery = "select * from hivedb.tbl";
+
+    catalog
+        .buildView(identifier)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(ns)
+        .withQuery("hive", tableQuery)
+        .create();
+    assertThat(catalog.viewExists(identifier)).isTrue();
+
+    Table hiveTable =
+        HIVE_METASTORE_EXTENSION.metastoreClient().getTable(dbName, identifier.name());
+    assertThat(hiveTable.getViewOriginalText()).isEqualTo(tableQuery);
+    assertThat(hiveTable.getViewExpandedText()).isEqualTo(tableQuery);
+  }
+
   private Table createHiveView(String hiveViewName, String dbName, String location) {
     Map<String, String> parameters = Maps.newHashMap();
     parameters.put(
