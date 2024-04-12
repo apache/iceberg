@@ -39,7 +39,7 @@ public class IcebergSourceSplitSerializer implements SimpleVersionedSerializer<I
 
   @Override
   public byte[] serialize(IcebergSourceSplit split) throws IOException {
-    return split.serializeV2();
+    return split.serializeV3();
   }
 
   @Override
