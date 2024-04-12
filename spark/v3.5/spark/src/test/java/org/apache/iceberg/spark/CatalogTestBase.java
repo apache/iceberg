@@ -18,11 +18,9 @@
  */
 package org.apache.iceberg.spark;
 
-import java.nio.file.Path;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public abstract class CatalogTestBase extends TestBaseWithCatalog {
@@ -48,6 +46,4 @@ public abstract class CatalogTestBase extends TestBaseWithCatalog {
       }
     };
   }
-
-  @TempDir protected Path temp;
 }
