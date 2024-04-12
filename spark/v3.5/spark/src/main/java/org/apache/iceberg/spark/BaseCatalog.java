@@ -36,16 +36,10 @@ abstract class BaseCatalog
         SupportsNamespaces,
         HasIcebergCatalog,
         SupportsFunctions {
-  /**
-   * Controls whether to mark all the fields as nullable when executing CREATE/REPLACE TABLE ... AS
-   * SELECT ... and creating the table. If false, fields' nullability will be preserved when
-   * creating the table.
-   */
-  private static final String TABLE_CREATE_NULLABLE_QUERY_SCHEMA = "use-nullable-query-schema";
+  private static final String USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS = "use-nullable-query-schema";
+  private static final boolean USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS_DEFAULT = true;
 
-  private static final boolean TABLE_CREATE_NULLABLE_QUERY_SCHEMA_DEFAULT = true;
-
-  private boolean useNullableQuerySchema = TABLE_CREATE_NULLABLE_QUERY_SCHEMA_DEFAULT;
+  private boolean useNullableQuerySchema = USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS_DEFAULT;
 
   @Override
   public Procedure loadProcedure(Identifier ident) throws NoSuchProcedureException {
@@ -83,8 +77,8 @@ abstract class BaseCatalog
     this.useNullableQuerySchema =
         PropertyUtil.propertyAsBoolean(
             options,
-            TABLE_CREATE_NULLABLE_QUERY_SCHEMA,
-            TABLE_CREATE_NULLABLE_QUERY_SCHEMA_DEFAULT);
+            USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS,
+            USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS_DEFAULT);
   }
 
   @Override

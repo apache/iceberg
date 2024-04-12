@@ -20,6 +20,7 @@ package org.apache.iceberg.spark;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.concurrent.ThreadLocalRandom;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Catalog;
@@ -37,6 +38,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 
 public class TestSparkCatalogOperations extends CatalogTestBase {
+  private static boolean useNullableQuerySchema = ThreadLocalRandom.current().nextBoolean();
 
   @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
   protected static Object[][] parameters() {
@@ -47,13 +49,18 @@ public class TestSparkCatalogOperations extends CatalogTestBase {
         ImmutableMap.of(
             "type", "hive",
             "default-namespace", "default",
-            "use-nullable-query-schema", "false")
+            "use-nullable-query-schema", Boolean.toString(useNullableQuerySchema))
       },
       {
         SparkCatalogConfig.HADOOP.catalogName(),
         SparkCatalogConfig.HADOOP.implementation(),
         ImmutableMap.of(
-            "type", "hadoop", "cache-enabled", "false", "use-nullable-query-schema", "false")
+            "type",
+            "hadoop",
+            "cache-enabled",
+            "false",
+            "use-nullable-query-schema",
+            Boolean.toString(useNullableQuerySchema))
       },
       {
         SparkCatalogConfig.SPARK.catalogName(),
@@ -68,7 +75,7 @@ public class TestSparkCatalogOperations extends CatalogTestBase {
             "cache-enabled",
             "false", // Spark will delete tables using v1, leaving the cache out of sync
             "use-nullable-query-schema",
-            "false"),
+            Boolean.toString(useNullableQuerySchema)),
       }
     };
   }
@@ -139,7 +146,9 @@ public class TestSparkCatalogOperations extends CatalogTestBase {
 
     Schema expectedSchema =
         new Schema(
-            Types.NestedField.required(1, "id", Types.LongType.get()),
+            useNullableQuerySchema
+                ? Types.NestedField.optional(1, "id", Types.LongType.get())
+                : Types.NestedField.required(1, "id", Types.LongType.get()),
             Types.NestedField.optional(2, "data", Types.StringType.get()));
 
     assertThat(ctasTable.schema().asStruct())
@@ -163,7 +172,9 @@ public class TestSparkCatalogOperations extends CatalogTestBase {
 
     Schema expectedSchema =
         new Schema(
-            Types.NestedField.required(1, "id", Types.LongType.get()),
+            useNullableQuerySchema
+                ? Types.NestedField.optional(1, "id", Types.LongType.get())
+                : Types.NestedField.required(1, "id", Types.LongType.get()),
             Types.NestedField.optional(2, "data", Types.StringType.get()));
 
     assertThat(rtasTable.schema().asStruct())
