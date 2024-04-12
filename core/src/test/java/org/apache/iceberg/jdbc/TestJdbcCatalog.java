@@ -34,6 +34,7 @@ import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLNonTransientConnectionException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -206,6 +207,60 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     jdbcCatalog.initialize("test_jdbc_catalog", properties);
 
     assertThat(catalogTablesExist(jdbcUrl)).isTrue();
+  }
+
+  @Test
+  public void testRetryingErrorCodesProperty() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.toAbsolutePath().toString());
+    properties.put(CatalogProperties.URI, "jdbc:sqlite:file::memory:?icebergDB");
+    properties.put(JdbcUtil.RETRYABLE_STATUS_CODES, "57000,57P03,57P04");
+    JdbcCatalog jdbcCatalog = new JdbcCatalog();
+    jdbcCatalog.setConf(conf);
+    jdbcCatalog.initialize("test_catalog_with_retryable_status_codes", properties);
+    JdbcClientPool jdbcClientPool = jdbcCatalog.connectionPool();
+    List<SQLException> expectedRetryableExceptions =
+        Lists.newArrayList(
+            new SQLException("operator_intervention", "57000"),
+            new SQLException("cannot_connect_now", "57P03"),
+            new SQLException("database_dropped", "57P04"));
+    JdbcClientPool.COMMON_RETRYABLE_CONNECTION_SQL_STATES.forEach(
+        code -> expectedRetryableExceptions.add(new SQLException("some failure", code)));
+
+    expectedRetryableExceptions.forEach(
+        exception -> {
+          assertThat(jdbcClientPool.isConnectionException(exception))
+              .as(String.format("%s status should be retryable", exception.getSQLState()))
+              .isTrue();
+        });
+
+    // Test the same retryable status codes but with spaces in the configuration
+    properties.put(JdbcUtil.RETRYABLE_STATUS_CODES, "57000, 57P03, 57P04");
+    jdbcCatalog.initialize("test_catalog_with_retryable_status_codes_with_spaces", properties);
+    JdbcClientPool updatedClientPool = jdbcCatalog.connectionPool();
+    expectedRetryableExceptions.forEach(
+        exception -> {
+          assertThat(updatedClientPool.isConnectionException(exception))
+              .as(String.format("%s status should be retryable", exception.getSQLState()))
+              .isTrue();
+        });
+  }
+
+  @Test
+  public void testSqlNonTransientExceptionNotRetryable() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.toAbsolutePath().toString());
+    properties.put(CatalogProperties.URI, "jdbc:sqlite:file::memory:?icebergDB");
+    properties.put(JdbcUtil.RETRYABLE_STATUS_CODES, "57000,57P03,57P04");
+    JdbcCatalog jdbcCatalog = new JdbcCatalog();
+    jdbcCatalog.setConf(conf);
+    jdbcCatalog.initialize("test_catalog_with_retryable_status_codes", properties);
+    JdbcClientPool jdbcClientPool = jdbcCatalog.connectionPool();
+    Assertions.assertThat(
+            jdbcClientPool.isConnectionException(
+                new SQLNonTransientConnectionException("Failed to authenticate")))
+        .as("SQL Non Transient exception is not retryable")
+        .isFalse();
   }
 
   @Test
