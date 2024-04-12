@@ -33,8 +33,8 @@ import org.apache.flink.core.memory.DataOutputSerializer;
 public class SerializerHelper implements Serializable {
 
   /**
-   * Similar to {@link DataOutputSerializer#writeUTF(String)}. The size is only limited by the
-   * maximum java array size of the buffer.
+   * Similar to {@link DataOutputSerializer#writeUTF(String)}. Except this supports larger payloads
+   * which is up to max integer value.
    *
    * @param out the output stream to write the string to.
    * @param str the string value to be written.
@@ -67,6 +67,20 @@ public class SerializerHelper implements Serializable {
     writeUTFBytes(out, str, (int) utflen);
   }
 
+  /**
+   * Similar to {@link DataInputDeserializer#readUTF()}. Except this supports larger payloads which
+   * is up to max integer value.
+   *
+   * @param in the input stream to read the string from.
+   * @return the string value read from the input stream.
+   * @throws IOException if an I/O error occurs when reading from the input stream.
+   * @deprecated This method is deprecated because there will be a method within the {@link
+   *     DataInputDeserializer} already which does the same thing, so use that one instead once that
+   *     is released on Flink version 1.20.
+   *     <p>See * <a href="https://issues.apache.org/jira/browse/FLINK-34228">FLINK-34228</a> * <a
+   *     href="https://github.com/apache/flink/pull/24191">https://github.com/apache/flink/pull/24191</a>
+   */
+  @Deprecated
   public static String readLongUTF(DataInputDeserializer in) throws IOException {
     int utflen = in.readInt();
     byte[] bytearr = new byte[utflen];
