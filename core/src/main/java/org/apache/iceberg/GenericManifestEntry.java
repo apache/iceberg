@@ -26,6 +26,7 @@ import org.apache.iceberg.types.Types;
 
 class GenericManifestEntry<F extends ContentFile<F>>
     implements ManifestEntry<F>, IndexedRecord, SpecificData.SchemaConstructable, StructLike {
+  private static final Status[] STATUS_VALUES = Status.values();
   private final org.apache.avro.Schema schema;
   private Status status = Status.EXISTING;
   private Long snapshotId = null;
@@ -151,7 +152,7 @@ class GenericManifestEntry<F extends ContentFile<F>>
   public void put(int i, Object v) {
     switch (i) {
       case 0:
-        this.status = Status.values()[(Integer) v];
+        this.status = STATUS_VALUES[(Integer) v];
         return;
       case 1:
         this.snapshotId = (Long) v;

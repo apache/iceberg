@@ -45,6 +45,7 @@ abstract class BaseFile<F>
         StructLike,
         SpecificData.SchemaConstructable,
         Serializable {
+  private static final FileContent[] FILE_CONTENT_VALUES = FileContent.values();
   static final Types.StructType EMPTY_STRUCT_TYPE = Types.StructType.of();
   static final PartitionData EMPTY_PARTITION_DATA =
       new PartitionData(EMPTY_STRUCT_TYPE) {
@@ -268,7 +269,7 @@ abstract class BaseFile<F>
     }
     switch (pos) {
       case 0:
-        this.content = value != null ? FileContent.values()[(Integer) value] : FileContent.DATA;
+        this.content = value != null ? FILE_CONTENT_VALUES[(Integer) value] : FileContent.DATA;
         return;
       case 1:
         // always coerce to String for Serializable

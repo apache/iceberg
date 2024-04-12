@@ -32,6 +32,8 @@ public enum FileFormat {
   private final String ext;
   private final boolean splittable;
 
+  private static final FileFormat[] VALUES = values();
+
   FileFormat(String ext, boolean splittable) {
     this.ext = "." + ext;
     this.splittable = splittable;
@@ -55,7 +57,7 @@ public enum FileFormat {
   }
 
   public static FileFormat fromFileName(CharSequence filename) {
-    for (FileFormat format : FileFormat.values()) {
+    for (FileFormat format : VALUES) {
       int extStart = filename.length() - format.ext.length();
       if (Comparators.charSequences()
               .compare(format.ext, filename.subSequence(extStart, filename.length()))

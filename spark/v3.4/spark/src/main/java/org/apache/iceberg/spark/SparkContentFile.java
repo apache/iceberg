@@ -35,6 +35,8 @@ import org.apache.spark.sql.types.StructType;
 
 public abstract class SparkContentFile<F> implements ContentFile<F> {
 
+  private static final FileContent[] FILE_CONTENT_VALUES = FileContent.values();
+
   private final int fileContentPosition;
   private final int filePathPosition;
   private final int fileFormatPosition;
@@ -126,7 +128,7 @@ public abstract class SparkContentFile<F> implements ContentFile<F> {
     if (wrapped.isNullAt(fileContentPosition)) {
       return null;
     }
-    return FileContent.values()[wrapped.getInt(fileContentPosition)];
+    return FILE_CONTENT_VALUES[wrapped.getInt(fileContentPosition)];
   }
 
   @Override
