@@ -54,7 +54,6 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
         return (B) new BucketInteger(numBuckets);
       case TIME:
       case TIMESTAMP:
-      case TIMESTAMP_NANO:
       case LONG:
         return (B) new BucketLong(numBuckets);
       case DECIMAL:
@@ -64,6 +63,8 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
       case FIXED:
       case BINARY:
         return (B) new BucketByteBuffer(numBuckets);
+      case TIMESTAMP_NANO:
+        return (B) new BucketTimestampNano(numBuckets);
       case UUID:
         return (B) new BucketUUID(numBuckets);
       default:
@@ -213,6 +214,20 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
     @Override
     protected int hash(Long value) {
       return BucketUtil.hash(value);
+    }
+  }
+
+  // In order to bucket TimestampNano the same as Timestamp, we divide these values by 1000.
+  private static class BucketTimestampNano extends Bucket<Long>
+      implements SerializableFunction<Long, Integer> {
+
+    private BucketTimestampNano(int numBuckets) {
+      super(numBuckets);
+    }
+
+    @Override
+    protected int hash(Long value) {
+      return BucketUtil.hash(Math.floorDiv(value, 1000));
     }
   }
 
