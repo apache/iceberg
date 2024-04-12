@@ -32,54 +32,39 @@ import org.apache.flink.core.memory.DataOutputSerializer;
  */
 public class SerializerHelper implements Serializable {
 
+  /**
+   * Similar to {@link DataOutputSerializer#writeUTF(String)}. The size is only limited by the
+   * maximum java array size of the buffer.
+   *
+   * @param out the output stream to write the string to.
+   * @param str the string value to be written.
+   * @deprecated This method is deprecated because there will be a method within the {@link
+   *     DataOutputSerializer} already which does the same thing, so use that one instead once that
+   *     is released on Flink version 1.20.
+   *     <p>See * <a href="https://issues.apache.org/jira/browse/FLINK-34228">FLINK-34228</a> * <a
+   *     href="https://github.com/apache/flink/pull/24191">https://github.com/apache/flink/pull/24191</a>
+   */
+  @Deprecated
   public static void writeLongUTF(DataOutputSerializer out, String str) throws IOException {
     int strlen = str.length();
-    int utflen = 0;
+    long utflen = 0;
     int c;
 
     /* use charAt instead of copying String to char array */
     for (int i = 0; i < strlen; i++) {
       c = str.charAt(i);
-      if ((c >= 0x0001) && (c <= 0x007F)) {
-        utflen++;
-      } else if (c > 0x07FF) {
-        utflen += 3;
-      } else {
-        utflen += 2;
+      utflen += getUTFBytesSize(c);
+
+      if (utflen > Integer.MAX_VALUE) {
+        throw new UTFDataFormatException("Encoded string reached maximum length: " + utflen);
       }
     }
-    out.writeInt(utflen);
-
-    int len = Math.max(1024, utflen);
-
-    byte[] bytearr = new byte[len];
-    int count = 0;
-
-    int i;
-    for (i = 0; i < strlen; i++) {
-      c = str.charAt(i);
-      if (!((c >= 0x0001) && (c <= 0x007F))) {
-        break;
-      }
-      bytearr[count++] = (byte) c;
+    if (utflen > Integer.MAX_VALUE - 4) {
+      throw new UTFDataFormatException("Encoded string is too long: " + utflen);
     }
 
-    for (; i < strlen; i++) {
-      c = str.charAt(i);
-      if ((c >= 0x0001) && (c <= 0x007F)) {
-        bytearr[count++] = (byte) c;
-
-      } else if (c > 0x07FF) {
-        bytearr[count++] = (byte) (0xE0 | ((c >> 12) & 0x0F));
-        bytearr[count++] = (byte) (0x80 | ((c >> 6) & 0x3F));
-        bytearr[count++] = (byte) (0x80 | (c & 0x3F));
-      } else {
-        bytearr[count++] = (byte) (0xC0 | ((c >> 6) & 0x1F));
-        bytearr[count++] = (byte) (0x80 | (c & 0x3F));
-      }
-    }
-
-    out.write(bytearr, 0, count);
+    out.writeInt((int) utflen);
+    writeUTFBytes(out, str, (int) utflen);
   }
 
   public static String readLongUTF(DataInputDeserializer in) throws IOException {
@@ -151,5 +136,51 @@ public class SerializerHelper implements Serializable {
     }
     // The number of chars produced may be less than utflen
     return new String(chararr, 0, chararrCount);
+  }
+
+  private static int getUTFBytesSize(int c) {
+    if ((c >= 0x0001) && (c <= 0x007F)) {
+      return 1;
+    } else if (c > 0x07FF) {
+      return 3;
+    } else {
+      return 2;
+    }
+  }
+
+  private static void writeUTFBytes(DataOutputSerializer out, String str, int utflen)
+      throws IOException {
+    int strlen = str.length();
+    int c;
+
+    int len = Math.max(1024, utflen);
+
+    byte[] bytearr = new byte[len];
+    int count = 0;
+
+    int i;
+    for (i = 0; i < strlen; i++) {
+      c = str.charAt(i);
+      if (!((c >= 0x0001) && (c <= 0x007F))) {
+        break;
+      }
+      bytearr[count++] = (byte) c;
+    }
+
+    for (; i < strlen; i++) {
+      c = str.charAt(i);
+      if ((c >= 0x0001) && (c <= 0x007F)) {
+        bytearr[count++] = (byte) c;
+      } else if (c > 0x07FF) {
+        bytearr[count++] = (byte) (0xE0 | ((c >> 12) & 0x0F));
+        bytearr[count++] = (byte) (0x80 | ((c >> 6) & 0x3F));
+        bytearr[count++] = (byte) (0x80 | (c & 0x3F));
+      } else {
+        bytearr[count++] = (byte) (0xC0 | ((c >> 6) & 0x1F));
+        bytearr[count++] = (byte) (0x80 | (c & 0x3F));
+      }
+    }
+
+    out.write(bytearr, 0, count);
   }
 }
