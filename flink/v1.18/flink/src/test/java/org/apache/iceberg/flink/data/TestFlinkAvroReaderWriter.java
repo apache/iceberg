@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink.data;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -44,8 +46,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestFlinkAvroReaderWriter extends DataTest {
 
@@ -74,8 +75,8 @@ public class TestFlinkAvroReaderWriter extends DataTest {
     RowType flinkSchema = FlinkSchemaUtil.convert(schema);
     List<RowData> expectedRows = Lists.newArrayList(RandomRowData.convert(schema, expectedRecords));
 
-    File recordsFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", recordsFile.delete());
+    File recordsFile = File.createTempFile("junit", null, temp.toFile());
+    assertThat(recordsFile.delete()).isTrue();
 
     // Write the expected records into AVRO file, then read them into RowData and assert with the
     // expected Record list.
@@ -95,14 +96,14 @@ public class TestFlinkAvroReaderWriter extends DataTest {
       Iterator<Record> expected = expectedRecords.iterator();
       Iterator<RowData> rows = reader.iterator();
       for (int i = 0; i < numRecord; i++) {
-        Assert.assertTrue("Should have expected number of records", rows.hasNext());
+        assertThat(rows.hasNext()).isTrue();
         TestHelpers.assertRowData(schema.asStruct(), flinkSchema, expected.next(), rows.next());
       }
-      Assert.assertFalse("Should not have extra records", rows.hasNext());
+      assertThat(rows.hasNext()).isFalse();
     }
 
-    File rowDataFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", rowDataFile.delete());
+    File rowDataFile = File.createTempFile("junit", null, temp.toFile());
+    assertThat(rowDataFile.delete()).isTrue();
 
     // Write the expected RowData into AVRO file, then read them into Record and assert with the
     // expected RowData list.
@@ -122,10 +123,10 @@ public class TestFlinkAvroReaderWriter extends DataTest {
       Iterator<RowData> expected = expectedRows.iterator();
       Iterator<Record> records = reader.iterator();
       for (int i = 0; i < numRecord; i += 1) {
-        Assert.assertTrue("Should have expected number of records", records.hasNext());
+        assertThat(records.hasNext()).isTrue();
         TestHelpers.assertRowData(schema.asStruct(), flinkSchema, records.next(), expected.next());
       }
-      Assert.assertFalse("Should not have extra records", records.hasNext());
+      assertThat(records.hasNext()).isFalse();
     }
   }
 
