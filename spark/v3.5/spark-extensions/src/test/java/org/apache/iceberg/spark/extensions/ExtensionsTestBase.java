@@ -28,6 +28,7 @@ import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.TestBase;
+import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.internal.SQLConf;
 import org.junit.jupiter.api.BeforeAll;
@@ -56,6 +57,8 @@ public abstract class ExtensionsTestBase extends CatalogTestBase {
                 SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), String.valueOf(RANDOM.nextBoolean()))
             .enableHiveSupport()
             .getOrCreate();
+
+    TestBase.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
 
     TestBase.catalog =
         (HiveCatalog)

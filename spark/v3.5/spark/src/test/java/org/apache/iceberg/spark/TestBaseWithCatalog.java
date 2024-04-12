@@ -73,7 +73,7 @@ public abstract class TestBaseWithCatalog extends TestBase {
     }
   }
 
-  @TempDir protected File temp;
+  @TempDir protected java.nio.file.Path temp;
 
   @Parameter(index = 0)
   protected String catalogName;

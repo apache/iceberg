@@ -410,13 +410,13 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
       deletes.add(delete.copy(col, value));
     }
 
-    OutputFile out = Files.localOutput(new File(temp, "eq-deletes-" + UUID.randomUUID()));
+    OutputFile out = Files.localOutput(new File(temp.toFile(), "eq-deletes-" + UUID.randomUUID()));
     return FileHelpers.writeDeleteFile(table, out, null, deletes, deleteSchema);
   }
 
   private Pair<DeleteFile, CharSequenceSet> writePosDeletes(
       Table table, List<Pair<CharSequence, Long>> deletes) throws IOException {
-    OutputFile out = Files.localOutput(new File(temp, "pos-deletes-" + UUID.randomUUID()));
+    OutputFile out = Files.localOutput(new File(temp.toFile(), "pos-deletes-" + UUID.randomUUID()));
     return FileHelpers.writeDeleteFile(table, out, null, deletes);
   }
 
