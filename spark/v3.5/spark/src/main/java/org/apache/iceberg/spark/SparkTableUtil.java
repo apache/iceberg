@@ -426,8 +426,14 @@ public class SparkTableUtil {
     }
 
     try {
-      PartitionSpec spec =
+      PartitionSpec derivedSpec =
           SparkSchemaUtil.specForTable(spark, sourceTableIdentWithDB.unquotedString());
+
+      PartitionSpec spec =
+          targetTable.specs().values().stream()
+              .filter(targetTableSpec -> targetTableSpec.compatibleWith(derivedSpec))
+              .findFirst()
+              .orElse(derivedSpec);
 
       if (Objects.equal(spec, PartitionSpec.unpartitioned())) {
         importUnpartitionedSparkTable(
