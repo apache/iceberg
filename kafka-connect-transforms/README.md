@@ -49,22 +49,22 @@ It will promote the `before` or `after` element fields to top level and add the 
 | cdc.target.pattern  | Pattern to use for setting the CDC target field value, default is `{db}.{table}`  |
 
 # JsonToMapTransform
-_(Experimental)_ 
+_(Experimental)_
 
-The `JsonToMapTransform` SMT parses Strings as Json object payloads to infer schemas.  The iceberg-kafka-connect 
-connector for schema-less data (e.g. the Map produced by the Kafka supplied JsonConverter) is to convert Maps into Iceberg 
-Structs.  This is fine when the JSON is well-structured, but when you have JSON objects with dynamically 
-changing keys, it will lead to an explosion of columns in the Iceberg table due to schema evolutions. 
+The `JsonToMapTransform` SMT parses Strings as Json object payloads to infer schemas.  The iceberg-kafka-connect
+connector for schema-less data (e.g. the Map produced by the Kafka supplied JsonConverter) is to convert Maps into Iceberg
+Structs.  This is fine when the JSON is well-structured, but when you have JSON objects with dynamically
+changing keys, it will lead to an explosion of columns in the Iceberg table due to schema evolutions.
 
-This SMT is useful in situations where the JSON is not well-structured, in order to get data into Iceberg where 
-it can be further processed by query engines into a more manageable form. It will convert nested objects to 
+This SMT is useful in situations where the JSON is not well-structured, in order to get data into Iceberg where
+it can be further processed by query engines into a more manageable form. It will convert nested objects to
 Maps and include Map type in the Schema.  The connector will respect the Schema and create Iceberg tables with Iceberg
-Map (String) columns for the JSON objects. 
+Map (String) columns for the JSON objects.
 
 Note:
 
 - You must use the `stringConverter` as the `value.converter` setting for your connector, not `jsonConverter`
-  - It expects JSON objects (`{...}`) in those strings. 
+  - It expects JSON objects (`{...}`) in those strings.
 - Message keys, tombstones, and headers are not transformed and are passed along as-is by the SMT
 
 ## Configuration
@@ -73,16 +73,16 @@ Note:
 |----------------------|------------------------------------------|
 | json.root | (false) Boolean value to start at root   |
 
-The `transforms.IDENTIFIER_HERE.json.root` is meant for the most inconsistent data.  It will construct a Struct with a single field 
-called `payload` with a Schema of `Map<String, String>`.  
+The `transforms.IDENTIFIER_HERE.json.root` is meant for the most inconsistent data.  It will construct a Struct with a single field
+called `payload` with a Schema of `Map<String, String>`.
 
 If `transforms.IDENTIFIER_HERE.json.root` is false (the default), it will construct a Struct with inferred schemas for primitive and
 array fields.  Nested objects become fields of type `Map<String, String>`.
 
-Keys with empty arrays and empty objects are filtered out from the final schema.  Arrays will be typed unless the 
+Keys with empty arrays and empty objects are filtered out from the final schema.  Arrays will be typed unless the
 json arrays have mixed types in which case they are converted to arrays of strings.
 
-Example json: 
+Example json:
 
 ```json
 {
@@ -121,3 +121,23 @@ SinkRecord.value (Struct):
  "array" ["1", "two", "3"] 
  "nested_object" Map ("some_key" : "["one", "two"]") 
 ```
+
+# KafkaMetadataTransform
+_(Experimental)_
+
+The `KafkaMetadata` injects `topic`, `partition`, `offset`, `timestamp` which are properties are the Kafka message.
+
+## Configuration
+
+| Property       | Description (default value)                                                       |
+|----------------|-----------------------------------------------------------------------------------|
+| field_name     | (_kafka_metadata) prefix for fields                                               | 
+| nested         | (false) if true, nests data on a struct else adds to top level as prefixed fields |
+| external_field | (none) appends a constant `key,value` to the metadata (e.g. cluster name)         | 
+
+If `nested` is on:
+
+`_kafka_metadata.topic`, `_kafka_metadata.partition`, `_kafka_metadata.offset`, `_kafka_metadata.timestamp`
+
+If `nested` is off:
+`_kafka_metdata_topic`, `_kafka_metadata_partition`, `_kafka_metadata_offset`, `_kafka_metadata_timestamp`
