@@ -58,7 +58,7 @@ public abstract class DataTest {
           required(116, "dec_38_10", Types.DecimalType.of(38, 10)), // maximum precision
           required(117, "time", Types.TimeType.get()));
 
-  @TempDir public Path temp;
+  @TempDir protected Path temp;
 
   @Test
   public void testSimpleStruct() throws IOException {

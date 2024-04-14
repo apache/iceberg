@@ -132,12 +132,12 @@ public class TestGenericData extends DataTest {
             .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
             .build()) {
       CloseableIterator it = reader.iterator();
-      assertThat(it.hasNext()).isTrue();
+      assertThat(it).hasNext();
       while (it.hasNext()) {
         GenericRecord actualRecord = (GenericRecord) it.next();
         assertThat(actualRecord.get(0, ArrayList.class)).first().isEqualTo(expectedBinary);
         assertThat(actualRecord.get(1, ByteBuffer.class)).isEqualTo(expectedBinary);
-        assertThat(it.hasNext()).isFalse();
+        assertThat(it).isExhausted();
       }
     }
   }

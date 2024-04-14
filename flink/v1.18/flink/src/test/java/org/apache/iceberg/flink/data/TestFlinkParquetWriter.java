@@ -67,10 +67,10 @@ public class TestFlinkParquetWriter extends DataTest {
       Iterator<Record> actual = reader.iterator();
       LogicalType rowType = FlinkSchemaUtil.convert(schema);
       for (int i = 0; i < NUM_RECORDS; i += 1) {
-        assertThat(actual.hasNext()).isTrue();
+        assertThat(actual).hasNext();
         TestHelpers.assertRowData(schema.asStruct(), rowType, actual.next(), expected.next());
       }
-      assertThat(actual.hasNext()).isFalse();
+      assertThat(actual).isExhausted();
     }
   }
 

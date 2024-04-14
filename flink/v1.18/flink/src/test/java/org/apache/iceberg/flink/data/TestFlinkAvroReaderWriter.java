@@ -96,10 +96,10 @@ public class TestFlinkAvroReaderWriter extends DataTest {
       Iterator<Record> expected = expectedRecords.iterator();
       Iterator<RowData> rows = reader.iterator();
       for (int i = 0; i < numRecord; i++) {
-        assertThat(rows.hasNext()).isTrue();
+        assertThat(rows).hasNext();
         TestHelpers.assertRowData(schema.asStruct(), flinkSchema, expected.next(), rows.next());
       }
-      assertThat(rows.hasNext()).isFalse();
+      assertThat(rows).isExhausted();
     }
 
     File rowDataFile = File.createTempFile("junit", null, temp.toFile());
@@ -123,10 +123,10 @@ public class TestFlinkAvroReaderWriter extends DataTest {
       Iterator<RowData> expected = expectedRows.iterator();
       Iterator<Record> records = reader.iterator();
       for (int i = 0; i < numRecord; i += 1) {
-        assertThat(records.hasNext()).isTrue();
+        assertThat(records).hasNext();
         TestHelpers.assertRowData(schema.asStruct(), flinkSchema, records.next(), expected.next());
       }
-      assertThat(records.hasNext()).isFalse();
+      assertThat(records).isExhausted();
     }
   }
 

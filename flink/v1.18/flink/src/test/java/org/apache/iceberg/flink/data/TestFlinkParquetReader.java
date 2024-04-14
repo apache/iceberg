@@ -90,11 +90,11 @@ public class TestFlinkParquetReader extends DataTest {
             .createReaderFunc(type -> FlinkParquetReaders.buildReader(schema, type))
             .build()) {
       Iterator<RowData> rows = reader.iterator();
-      assertThat(rows.hasNext()).isTrue();
+      assertThat(rows).hasNext();
       RowData rowData = rows.next();
       assertThat(rowData.getArray(0).getBinary(0)).isEqualTo(expectedByte);
       assertThat(rowData.getBinary(1)).isEqualTo(expectedByte);
-      assertThat(rows.hasNext()).isFalse();
+      assertThat(rows).isExhausted();
     }
   }
 
@@ -119,10 +119,10 @@ public class TestFlinkParquetReader extends DataTest {
       Iterator<RowData> rows = reader.iterator();
       LogicalType rowType = FlinkSchemaUtil.convert(schema);
       for (int i = 0; i < NUM_RECORDS; i += 1) {
-        assertThat(rows.hasNext()).isTrue();
+        assertThat(rows).hasNext();
         TestHelpers.assertRowData(schema.asStruct(), rowType, expected.next(), rows.next());
       }
-      assertThat(rows.hasNext()).isFalse();
+      assertThat(rows).isExhausted();
     }
   }
 

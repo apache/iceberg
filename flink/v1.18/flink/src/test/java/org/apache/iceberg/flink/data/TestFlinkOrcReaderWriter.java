@@ -70,10 +70,10 @@ public class TestFlinkOrcReaderWriter extends DataTest {
       Iterator<Record> expected = expectedRecords.iterator();
       Iterator<RowData> rows = reader.iterator();
       for (int i = 0; i < NUM_RECORDS; i++) {
-        assertThat(rows.hasNext()).isTrue();
+        assertThat(rows).hasNext();
         TestHelpers.assertRowData(schema.asStruct(), flinkSchema, expected.next(), rows.next());
       }
-      assertThat(rows.hasNext()).isFalse();
+      assertThat(rows).isExhausted();
     }
 
     File rowDataFile = File.createTempFile("junit", null, temp.toFile());
@@ -101,7 +101,7 @@ public class TestFlinkOrcReaderWriter extends DataTest {
         assertThat(records.hasNext()).isTrue();
         TestHelpers.assertRowData(schema.asStruct(), flinkSchema, records.next(), expected.next());
       }
-      assertThat(records.hasNext()).isFalse();
+      assertThat(records).isExhausted();
     }
   }
 }
