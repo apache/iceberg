@@ -59,9 +59,7 @@ public class SparkSchemaUtil {
    * @return a Schema for the table, if found
    */
   public static Schema schemaForTable(SparkSession spark, String name) {
-    StructType sparkType = spark.table(name).schema();
-    Type converted = SparkTypeVisitor.visit(sparkType, new SparkTypeToType(sparkType));
-    return new Schema(converted.asNestedType().asStructType().fields());
+    return convert(spark.table(name).schema());
   }
 
   /**
