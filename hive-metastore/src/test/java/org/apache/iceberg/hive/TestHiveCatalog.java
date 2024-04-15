@@ -73,7 +73,6 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -158,20 +157,14 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
 
   @Test
   public void testInvalidIdentifiersWithRename() {
-    TableIdentifier invalidFrom = TableIdentifier.of(Namespace.of("l1", "l2"), "view");
-    TableIdentifier validTo = TableIdentifier.of(Namespace.of("l1"), "renamedView");
-    assertThatThrownBy(() -> catalog.renameView(invalidFrom, validTo))
-        .isInstanceOf(NoSuchViewException.class)
-        .hasMessageContaining("Invalid identifier: " + invalidFrom);
+    TableIdentifier invalidFrom = TableIdentifier.of(Namespace.of("l1", "l2"), "table1");
+    TableIdentifier validTo = TableIdentifier.of(Namespace.of("l1"), "renamedTable");
     assertThatThrownBy(() -> catalog.renameTable(invalidFrom, validTo))
         .isInstanceOf(NoSuchTableException.class)
         .hasMessageContaining("Invalid identifier: " + invalidFrom);
 
-    TableIdentifier validFrom = TableIdentifier.of(Namespace.of("l1"), "view");
-    TableIdentifier invalidTo = TableIdentifier.of(Namespace.of("l1", "l2"), "view");
-    assertThatThrownBy(() -> catalog.renameView(validFrom, invalidTo))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Invalid identifier: " + invalidTo);
+    TableIdentifier validFrom = TableIdentifier.of(Namespace.of("l1"), "table1");
+    TableIdentifier invalidTo = TableIdentifier.of(Namespace.of("l1", "l2"), "renamedTable");
     assertThatThrownBy(() -> catalog.renameTable(validFrom, invalidTo))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Invalid identifier: " + invalidTo);
