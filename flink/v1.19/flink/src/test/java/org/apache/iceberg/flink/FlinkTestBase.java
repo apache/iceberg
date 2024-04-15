@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink;
 
+import static org.apache.iceberg.flink.FlinkCatalogFactory.DEFAULT_CATALOG_NAME;
+
 import java.util.List;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
@@ -125,5 +127,21 @@ public abstract class FlinkTestBase extends TestBaseUtils {
   protected void dropCatalog(String catalogName, boolean ifExists) {
     sql("USE CATALOG default_catalog");
     sql("DROP CATALOG %s %s", ifExists ? "IF EXISTS" : "", catalogName);
+  }
+
+  /**
+   * We can not drop currently used database after FLINK-33226, so we have make sure that we do not
+   * use the current database before dropping it. This method switches to the default database in
+   * the default catalog, and then it and drops the one requested.
+   *
+   * @param database The database to drop
+   * @param ifExists If we should use the 'IF EXISTS' when dropping the database
+   */
+  protected void dropDatabase(String database, boolean ifExists) {
+    String currentCatalog = getTableEnv().getCurrentCatalog();
+    sql("USE CATALOG %s", DEFAULT_CATALOG_NAME);
+    sql("USE %s", getTableEnv().listDatabases()[0]);
+    sql("USE CATALOG %s", currentCatalog);
+    sql("DROP DATABASE %s %s", ifExists ? "IF EXISTS" : "", database);
   }
 }

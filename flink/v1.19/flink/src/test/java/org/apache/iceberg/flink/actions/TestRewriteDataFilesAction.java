@@ -136,7 +136,7 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
     sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, TABLE_NAME_UNPARTITIONED);
     sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, TABLE_NAME_PARTITIONED);
     sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, TABLE_NAME_WITH_PK);
-    sql("DROP DATABASE IF EXISTS %s", flinkDatabase);
+    dropDatabase(flinkDatabase, true);
     super.clean();
   }
 

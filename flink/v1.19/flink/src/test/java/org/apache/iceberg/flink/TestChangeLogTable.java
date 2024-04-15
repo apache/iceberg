@@ -98,7 +98,7 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
   @Override
   public void clean() {
     sql("DROP TABLE IF EXISTS %s", TABLE_NAME);
-    sql("DROP DATABASE IF EXISTS %s", DATABASE_NAME);
+    dropDatabase(DATABASE_NAME, true);
     dropCatalog(CATALOG_NAME, true);
     BoundedTableFactory.clearDataSets();
   }
