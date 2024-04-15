@@ -41,7 +41,7 @@ public class TestFlinkCatalogDatabase extends CatalogTestBase {
   @Override
   public void clean() {
     sql("DROP TABLE IF EXISTS %s.tl", flinkDatabase);
-    sql("DROP DATABASE IF EXISTS %s", flinkDatabase);
+    dropDatabase(flinkDatabase, true);
     super.clean();
   }
 
@@ -61,7 +61,7 @@ public class TestFlinkCatalogDatabase extends CatalogTestBase {
         .as("Database should still exist")
         .isTrue();
 
-    sql("DROP DATABASE IF EXISTS %s", flinkDatabase);
+    dropDatabase(flinkDatabase, true);
     assertThat(validationNamespaceCatalog.namespaceExists(icebergNamespace))
         .as("Database should be dropped")
         .isFalse();
@@ -81,7 +81,7 @@ public class TestFlinkCatalogDatabase extends CatalogTestBase {
     assertThat(validationNamespaceCatalog.namespaceExists(icebergNamespace))
         .as("Namespace should exist")
         .isTrue();
-    sql("DROP DATABASE %s", flinkDatabase);
+    dropDatabase(flinkDatabase, true);
     assertThat(validationNamespaceCatalog.namespaceExists(icebergNamespace))
         .as("Namespace should have been dropped")
         .isFalse();
@@ -105,7 +105,7 @@ public class TestFlinkCatalogDatabase extends CatalogTestBase {
     assertThat(validationCatalog.tableExists(TableIdentifier.of(icebergNamespace, "tl")))
         .as("Table should exist")
         .isTrue();
-    Assertions.assertThatThrownBy(() -> sql("DROP DATABASE %s", flinkDatabase))
+    Assertions.assertThatThrownBy(() -> dropDatabase(flinkDatabase, true))
         .cause()
         .isInstanceOf(DatabaseNotEmptyException.class)
         .hasMessage(

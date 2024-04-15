@@ -97,7 +97,7 @@ public class TestFlinkHiveCatalog extends FlinkTestBase {
         "Should have a .crc file and a .parquet file", 2, Files.list(dataPath).count());
 
     sql("DROP TABLE test_table");
-    sql("DROP DATABASE test_db");
+    dropDatabase("test_db", false);
     dropCatalog("test_catalog", false);
   }
 }

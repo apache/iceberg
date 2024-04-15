@@ -74,7 +74,7 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
   public void cleanNamespaces() {
     sql("DROP TABLE IF EXISTS %s.tl", flinkDatabase);
     sql("DROP TABLE IF EXISTS %s.tl2", flinkDatabase);
-    sql("DROP DATABASE IF EXISTS %s", flinkDatabase);
+    dropDatabase(flinkDatabase, true);
     super.clean();
   }
 

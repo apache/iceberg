@@ -122,7 +122,7 @@ public class TestFlinkTableSink extends CatalogTestBase {
   @AfterEach
   public void clean() {
     sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, TABLE_NAME);
-    sql("DROP DATABASE IF EXISTS %s", flinkDatabase);
+    dropDatabase(flinkDatabase, true);
     BoundedTableFactory.clearDataSets();
     super.clean();
   }
