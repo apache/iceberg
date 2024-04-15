@@ -312,10 +312,12 @@ public class DynamoDbLockManager extends LockManagers.BaseLockManager {
   }
 
   @Override
-  public void close() {
+  public void close() throws Exception {
     dynamo.close();
     heartbeats.values().forEach(DynamoDbHeartbeat::cancel);
     heartbeats.clear();
+
+    super.close();
   }
 
   /**
