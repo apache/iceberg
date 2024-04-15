@@ -79,6 +79,7 @@ public class RewriteDataFilesSparkAction
           MAX_FILE_GROUP_SIZE_BYTES,
           PARTIAL_PROGRESS_ENABLED,
           PARTIAL_PROGRESS_MAX_COMMITS,
+          PARTIAL_PROGRESS_MAX_FAILED_COMMITS,
           TARGET_FILE_SIZE_BYTES,
           USE_STARTING_SEQUENCE_NUMBER,
           REWRITE_JOB_ORDER,
@@ -92,6 +93,7 @@ public class RewriteDataFilesSparkAction
   private Expression filter = Expressions.alwaysTrue();
   private int maxConcurrentFileGroupRewrites;
   private int maxCommits;
+  private int maxFailedCommits;
   private boolean partialProgressEnabled;
   private boolean useStartingSequenceNumber;
   private RewriteJobOrder rewriteJobOrder;
@@ -359,20 +361,31 @@ public class RewriteDataFilesSparkAction
 
     // stop commit service
     commitService.close();
-    List<RewriteFileGroup> commitResults = commitService.results();
-    if (commitResults.size() == 0) {
-      LOG.error(
-          "{} is true but no rewrite commits succeeded. Check the logs to determine why the individual "
-              + "commits failed. If this is persistent it may help to increase {} which will break the rewrite operation "
+
+    int failedCommits = maxCommits - commitService.succeededCommits();
+    if (failedCommits > 0 && failedCommits <= maxFailedCommits) {
+      LOG.warn(
+          "{} is true but {} rewrite commits failed. Check the logs to determine why the individual "
+              + "commits failed. If this is persistent it may help to increase {} which will split the rewrite operation "
               + "into smaller commits.",
           PARTIAL_PROGRESS_ENABLED,
+          failedCommits,
           PARTIAL_PROGRESS_MAX_COMMITS);
+    } else if (failedCommits > maxFailedCommits) {
+      String errorMessage =
+          String.format(
+              "%s is true but %d rewrite commits failed. This is more than the maximum allowed failures of %d. "
+                  + "Check the logs to determine why the individual commits failed. If this is persistent it may help to "
+                  + "increase %s which will split the rewrite operation into smaller commits.",
+              PARTIAL_PROGRESS_ENABLED,
+              failedCommits,
+              maxFailedCommits,
+              PARTIAL_PROGRESS_MAX_COMMITS);
+      throw new RuntimeException(errorMessage);
     }
 
-    List<FileGroupRewriteResult> rewriteResults =
-        commitResults.stream().map(RewriteFileGroup::asResult).collect(Collectors.toList());
     return ImmutableRewriteDataFiles.Result.builder()
-        .rewriteResults(rewriteResults)
+        .rewriteResults(toRewriteResults(commitService.results()))
         .rewriteFailures(rewriteFailures)
         .build();
   }
@@ -403,6 +416,10 @@ public class RewriteDataFilesSparkAction
     return new RewriteFileGroup(info, tasks);
   }
 
+  private Iterable<FileGroupRewriteResult> toRewriteResults(List<RewriteFileGroup> commitResults) {
+    return commitResults.stream().map(RewriteFileGroup::asResult).collect(Collectors.toList());
+  }
+
   void validateAndInitOptions() {
     Set<String> validOptions = Sets.newHashSet(rewriter.validOptions());
     validOptions.addAll(VALID_OPTIONS);
@@ -427,6 +444,9 @@ public class RewriteDataFilesSparkAction
     maxCommits =
         PropertyUtil.propertyAsInt(
             options(), PARTIAL_PROGRESS_MAX_COMMITS, PARTIAL_PROGRESS_MAX_COMMITS_DEFAULT);
+
+    maxFailedCommits =
+        PropertyUtil.propertyAsInt(options(), PARTIAL_PROGRESS_MAX_FAILED_COMMITS, maxCommits);
 
     partialProgressEnabled =
         PropertyUtil.propertyAsBoolean(
