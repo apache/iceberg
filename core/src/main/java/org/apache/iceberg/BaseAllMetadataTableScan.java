@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Locale;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.expressions.ExpressionUtil;
@@ -60,11 +61,12 @@ abstract class BaseAllMetadataTableScan extends BaseMetadataTableScan {
 
   @Override
   public CloseableIterable<FileScanTask> planFiles() {
+    String metadataTableName = table().name() + "." + tableType().name().toLowerCase(Locale.ROOT);
     LOG.info(
         "Scanning metadata table {} with filter {}.",
-        table(),
+        metadataTableName,
         ExpressionUtil.toSanitizedString(filter()));
-    Listeners.notifyAll(new ScanEvent(table().name(), 0L, filter(), schema()));
+    Listeners.notifyAll(new ScanEvent(metadataTableName, 0L, filter(), schema()));
 
     return doPlanFiles();
   }
