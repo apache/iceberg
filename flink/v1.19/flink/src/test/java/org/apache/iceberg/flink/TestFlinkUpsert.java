@@ -104,7 +104,7 @@ public class TestFlinkUpsert extends CatalogTestBase {
   @Override
   @AfterEach
   public void clean() {
-    sql("DROP DATABASE IF EXISTS %s", flinkDatabase);
+    dropDatabase(flinkDatabase, true);
     super.clean();
   }
 

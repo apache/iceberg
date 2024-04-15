@@ -95,7 +95,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
   @After
   public void clean() {
     sql("DROP TABLE IF EXISTS %s.%s", DATABASE_NAME, TABLE_NAME);
-    sql("DROP DATABASE IF EXISTS %s", DATABASE_NAME);
+    dropDatabase(DATABASE_NAME, true);
     dropCatalog(CATALOG_NAME, true);
   }
 

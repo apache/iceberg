@@ -76,7 +76,7 @@ public class TestFlinkCatalogTablePartitions extends CatalogTestBase {
   @AfterEach
   public void cleanNamespaces() {
     sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
-    sql("DROP DATABASE IF EXISTS %s", flinkDatabase);
+    dropDatabase(flinkDatabase, true);
     super.clean();
   }
 
