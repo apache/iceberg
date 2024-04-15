@@ -34,6 +34,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.UnknownTransform;
 import org.apache.iceberg.util.Pair;
+import org.apache.spark.SparkEnv;
+import org.apache.spark.scheduler.ExecutorCacheTaskLocation;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.expressions.BoundReference;
 import org.apache.spark.sql.catalyst.expressions.EqualTo;
@@ -43,7 +45,12 @@ import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.storage.BlockManager;
+import org.apache.spark.storage.BlockManagerId;
+import org.apache.spark.storage.BlockManagerMaster;
 import org.joda.time.DateTime;
+import scala.collection.JavaConverters;
+import scala.collection.Seq;
 
 public class SparkUtil {
   private static final String SPARK_CATALOG_CONF_PREFIX = "spark.sql.catalog";
@@ -237,5 +244,28 @@ public class SparkUtil {
 
   public static boolean caseSensitive(SparkSession spark) {
     return Boolean.parseBoolean(spark.conf().get("spark.sql.caseSensitive"));
+  }
+
+  public static List<String> executorLocations() {
+    BlockManager driverBlockManager = SparkEnv.get().blockManager();
+    List<BlockManagerId> executorBlockManagerIds = fetchPeers(driverBlockManager);
+    return executorBlockManagerIds.stream()
+        .map(SparkUtil::toExecutorLocation)
+        .sorted()
+        .collect(Collectors.toList());
+  }
+
+  private static List<BlockManagerId> fetchPeers(BlockManager blockManager) {
+    BlockManagerMaster master = blockManager.master();
+    BlockManagerId id = blockManager.blockManagerId();
+    return toJavaList(master.getPeers(id));
+  }
+
+  private static <T> List<T> toJavaList(Seq<T> seq) {
+    return JavaConverters.seqAsJavaListConverter(seq).asJava();
+  }
+
+  private static String toExecutorLocation(BlockManagerId id) {
+    return ExecutorCacheTaskLocation.apply(id.host(), id.executorId()).toString();
   }
 }

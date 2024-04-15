@@ -29,9 +29,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.Tasks;
-import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.connector.read.Batch;
@@ -49,6 +48,7 @@ class SparkBatch implements Batch {
   private final Schema expectedSchema;
   private final boolean caseSensitive;
   private final boolean localityEnabled;
+  private final boolean executorCacheLocalityEnabled;
   private final int scanHashCode;
   private final Broadcast<Table> tableBroadcast;
 
@@ -70,6 +70,7 @@ class SparkBatch implements Batch {
     this.expectedSchema = expectedSchema;
     this.caseSensitive = readConf.caseSensitive();
     this.localityEnabled = readConf.localityEnabled();
+    this.executorCacheLocalityEnabled = readConf.executorCacheLocalityEnabled();
     this.scanHashCode = scanHashCode;
     this.tableBroadcast = tableBroadcast;
   }
@@ -77,25 +78,37 @@ class SparkBatch implements Batch {
   @Override
   public InputPartition[] planInputPartitions() {
     String expectedSchemaString = SchemaParser.toJson(expectedSchema);
+    String[][] locations = computePreferredLocations();
 
     InputPartition[] partitions = new InputPartition[taskGroups.size()];
 
-    Tasks.range(partitions.length)
-        .stopOnFailure()
-        .executeWith(localityEnabled ? ThreadPools.getWorkerPool() : null)
-        .run(
-            index ->
-                partitions[index] =
-                    new SparkInputPartition(
-                        groupingKeyType,
-                        taskGroups.get(index),
-                        tableBroadcast,
-                        branch,
-                        expectedSchemaString,
-                        caseSensitive,
-                        localityEnabled));
+    for (int index = 0; index < taskGroups.size(); index++) {
+      partitions[index] =
+          new SparkInputPartition(
+              groupingKeyType,
+              taskGroups.get(index),
+              tableBroadcast,
+              branch,
+              expectedSchemaString,
+              caseSensitive,
+              locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE);
+    }
 
     return partitions;
+  }
+
+  private String[][] computePreferredLocations() {
+    if (localityEnabled) {
+      return SparkPlanningUtil.fetchBlockLocations(table.io(), taskGroups);
+
+    } else if (executorCacheLocalityEnabled) {
+      List<String> executorLocations = SparkUtil.executorLocations();
+      if (!executorLocations.isEmpty()) {
+        return SparkPlanningUtil.assignExecutors(taskGroups, executorLocations);
+      }
+    }
+
+    return null;
   }
 
   @Override

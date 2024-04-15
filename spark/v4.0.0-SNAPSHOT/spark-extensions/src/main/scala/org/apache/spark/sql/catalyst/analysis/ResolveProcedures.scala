@@ -61,15 +61,14 @@ case class ResolveProcedures(spark: SparkSession) extends Rule[LogicalPlan] with
     }
 
     if (duplicateParamNames.nonEmpty) {
-      throw new AnalysisException(s"Duplicate parameter names: ${duplicateParamNames.mkString("[", ",", "]")}",
-        Map.empty)
+      throw new AnalysisException(s"Duplicate parameter names: ${duplicateParamNames.mkString("[", ",", "]")}")
     }
 
     // optional params should be at the end
     params.sliding(2).foreach {
       case Seq(previousParam, currentParam) if !previousParam.required && currentParam.required =>
         throw new AnalysisException(
-          s"Optional parameters must be after required ones but $currentParam is after $previousParam", Map.empty)
+          s"Optional parameters must be after required ones but $currentParam is after $previousParam")
       case _ =>
     }
   }
@@ -90,8 +89,7 @@ case class ResolveProcedures(spark: SparkSession) extends Rule[LogicalPlan] with
     }
 
     if (missingParamNames.nonEmpty) {
-      throw new AnalysisException(s"Missing required parameters: ${missingParamNames.mkString("[", ",", "]")}",
-        Map.empty)
+      throw new AnalysisException(s"Missing required parameters: ${missingParamNames.mkString("[", ",", "]")}")
     }
 
     val argExprs = new Array[Expression](params.size)
@@ -121,7 +119,7 @@ case class ResolveProcedures(spark: SparkSession) extends Rule[LogicalPlan] with
     val containsPositionalArg = args.exists(_.isInstanceOf[PositionalArgument])
 
     if (containsNamedArg && containsPositionalArg) {
-      throw new AnalysisException("Named and positional arguments cannot be mixed", Map.empty)
+      throw new AnalysisException("Named and positional arguments cannot be mixed")
     }
 
     if (containsNamedArg) {
@@ -143,7 +141,7 @@ case class ResolveProcedures(spark: SparkSession) extends Rule[LogicalPlan] with
     }
 
     if (validationErrors.nonEmpty) {
-      throw new AnalysisException(s"Could not build name to arg map: ${validationErrors.mkString(", ")}", Map.empty)
+      throw new AnalysisException(s"Could not build name to arg map: ${validationErrors.mkString(", ")}")
     }
 
     namedArgs.map(arg => arg.name -> arg).toMap
@@ -154,7 +152,7 @@ case class ResolveProcedures(spark: SparkSession) extends Rule[LogicalPlan] with
       params: Seq[ProcedureParameter]): Map[String, CallArgument] = {
 
     if (args.size > params.size) {
-      throw new AnalysisException("Too many arguments for procedure", Map.empty)
+      throw new AnalysisException("Too many arguments for procedure")
     }
 
     args.zipWithIndex.map { case (arg, position) =>
@@ -186,7 +184,7 @@ case class ResolveProcedures(spark: SparkSession) extends Rule[LogicalPlan] with
       case procedureCatalog: ProcedureCatalog =>
         procedureCatalog
       case _ =>
-        throw new AnalysisException(s"Cannot use catalog ${plugin.name}: not a ProcedureCatalog", Map.empty)
+        throw new AnalysisException(s"Cannot use catalog ${plugin.name}: not a ProcedureCatalog")
     }
   }
 }

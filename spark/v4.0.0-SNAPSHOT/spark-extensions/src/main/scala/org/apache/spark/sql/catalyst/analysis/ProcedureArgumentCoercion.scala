@@ -37,7 +37,7 @@ object ProcedureArgumentCoercion extends Rule[LogicalPlan] {
 
         if (paramType != argType && !Cast.canUpCast(argType, paramType)) {
           throw new AnalysisException(
-            s"Wrong arg type for ${param.name}: cannot cast $argType to $paramType", Map.empty)
+            s"Wrong arg type for ${param.name}: cannot cast $argType to $paramType")
         }
 
         if (paramType != argType) {
