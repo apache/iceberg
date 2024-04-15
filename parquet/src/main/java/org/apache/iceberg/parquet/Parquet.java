@@ -27,6 +27,7 @@ import static org.apache.iceberg.TableProperties.DELETE_PARQUET_ROW_GROUP_CHECK_
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_MAX_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
@@ -284,6 +285,7 @@ public class Parquet {
       int rowGroupCheckMinRecordCount = context.rowGroupCheckMinRecordCount();
       int rowGroupCheckMaxRecordCount = context.rowGroupCheckMaxRecordCount();
       int bloomFilterMaxBytes = context.bloomFilterMaxBytes();
+      Map<String, String> columnBloomFilterFpp = context.columnBloomFilterFpp();
       Map<String, String> columnBloomFilterEnabled = context.columnBloomFilterEnabled();
       boolean dictionaryEnabled = context.dictionaryEnabled();
 
@@ -347,6 +349,12 @@ public class Parquet {
           propsBuilder.withBloomFilterEnabled(colPath, Boolean.valueOf(bloomEnabled));
         }
 
+        for (Map.Entry<String, String> entry : columnBloomFilterFpp.entrySet()) {
+          String colPath = entry.getKey();
+          String fpp = entry.getValue();
+          propsBuilder.withBloomFilterFPP(colPath, Double.parseDouble(fpp));
+        }
+
         ParquetProperties parquetProperties = propsBuilder.build();
 
         return new org.apache.iceberg.parquet.ParquetWriter<>(
@@ -384,6 +392,12 @@ public class Parquet {
           parquetWriteBuilder.withBloomFilterEnabled(colPath, Boolean.valueOf(bloomEnabled));
         }
 
+        for (Map.Entry<String, String> entry : columnBloomFilterFpp.entrySet()) {
+          String colPath = entry.getKey();
+          String fpp = entry.getValue();
+          parquetWriteBuilder.withBloomFilterFPP(colPath, Double.parseDouble(fpp));
+        }
+
         return new ParquetWriteAdapter<>(parquetWriteBuilder.build(), metricsConfig);
       }
     }
@@ -398,6 +412,7 @@ public class Parquet {
       private final int rowGroupCheckMinRecordCount;
       private final int rowGroupCheckMaxRecordCount;
       private final int bloomFilterMaxBytes;
+      private final Map<String, String> columnBloomFilterFpp;
       private final Map<String, String> columnBloomFilterEnabled;
       private final boolean dictionaryEnabled;
 
@@ -411,6 +426,7 @@ public class Parquet {
           int rowGroupCheckMinRecordCount,
           int rowGroupCheckMaxRecordCount,
           int bloomFilterMaxBytes,
+          Map<String, String> columnBloomFilterFpp,
           Map<String, String> columnBloomFilterEnabled,
           boolean dictionaryEnabled) {
         this.rowGroupSize = rowGroupSize;
@@ -422,6 +438,7 @@ public class Parquet {
         this.rowGroupCheckMinRecordCount = rowGroupCheckMinRecordCount;
         this.rowGroupCheckMaxRecordCount = rowGroupCheckMaxRecordCount;
         this.bloomFilterMaxBytes = bloomFilterMaxBytes;
+        this.columnBloomFilterFpp = columnBloomFilterFpp;
         this.columnBloomFilterEnabled = columnBloomFilterEnabled;
         this.dictionaryEnabled = dictionaryEnabled;
       }
@@ -476,7 +493,10 @@ public class Parquet {
         int bloomFilterMaxBytes =
             PropertyUtil.propertyAsInt(
                 config, PARQUET_BLOOM_FILTER_MAX_BYTES, PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT);
-        Preconditions.checkArgument(bloomFilterMaxBytes > 0, "bloom Filter Max Bytes must be > 0");
+        Preconditions.checkArgument(bloomFilterMaxBytes > 0, "Bloom Filter Max Bytes must be > 0");
+
+        Map<String, String> columnBloomFilterFpp =
+            PropertyUtil.propertiesWithPrefix(config, PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX);
 
         Map<String, String> columnBloomFilterEnabled =
             PropertyUtil.propertiesWithPrefix(config, PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX);
@@ -494,6 +514,7 @@ public class Parquet {
             rowGroupCheckMinRecordCount,
             rowGroupCheckMaxRecordCount,
             bloomFilterMaxBytes,
+            columnBloomFilterFpp,
             columnBloomFilterEnabled,
             dictionaryEnabled);
       }
@@ -562,6 +583,7 @@ public class Parquet {
             rowGroupCheckMaxRecordCount,
             PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT,
             ImmutableMap.of(),
+            ImmutableMap.of(),
             dictionaryEnabled);
       }
 
@@ -607,6 +629,10 @@ public class Parquet {
 
       int bloomFilterMaxBytes() {
         return bloomFilterMaxBytes;
+      }
+
+      Map<String, String> columnBloomFilterFpp() {
+        return columnBloomFilterFpp;
       }
 
       Map<String, String> columnBloomFilterEnabled() {
