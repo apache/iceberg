@@ -493,7 +493,7 @@ public class Parquet {
         int bloomFilterMaxBytes =
             PropertyUtil.propertyAsInt(
                 config, PARQUET_BLOOM_FILTER_MAX_BYTES, PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT);
-        Preconditions.checkArgument(bloomFilterMaxBytes > 0, "Bloom Filter Max Bytes must be > 0");
+        Preconditions.checkArgument(bloomFilterMaxBytes > 0, "bloom Filter Max Bytes must be > 0");
 
         Map<String, String> columnBloomFilterFpp =
             PropertyUtil.propertiesWithPrefix(config, PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX);
