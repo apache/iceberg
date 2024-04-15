@@ -20,7 +20,6 @@ package org.apache.iceberg.spark.source.broadcastvar;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
-
 import java.time.Duration;
 import java.util.List;
 import java.util.function.Function;
@@ -82,7 +81,7 @@ public class BroadcastHRUnboundPredWithTransform<S, T> extends UnboundPredicate<
 
   @Override
   public List<Literal<T>> literals() {
-      return new LiteralListWrapper<T>(idempotentializer.get(new Tuple<>(bcVar, this.transform)));
+    return new LiteralListWrapper<T>(idempotentializer.get(new Tuple<>(bcVar, this.transform)));
   }
 
   @Override
@@ -93,11 +92,7 @@ public class BroadcastHRUnboundPredWithTransform<S, T> extends UnboundPredicate<
 
   private Expression bindRangeInOperation(BoundTerm<T> boundTerm) {
     return new BoundBroadcastPredicateWithTransform<>(
-        op(),
-        boundTerm,
-        this.bcVar,
-        this.transform,
-        this.fixDate);
+        op(), boundTerm, this.bcVar, this.transform, this.fixDate);
   }
 
   @Override

@@ -27,9 +27,6 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class TestMetadataTableScansWithRangeIn extends MetadataTableScanTestBase {
-  public TestMetadataTableScansWithRangeIn(int formatVersion) {
-    super(formatVersion);
-  }
 
   private void preparePartitionedTable() {
     preparePartitionedTableData();

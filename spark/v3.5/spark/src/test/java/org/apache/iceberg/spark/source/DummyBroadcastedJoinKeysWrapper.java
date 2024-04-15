@@ -23,7 +23,6 @@ import java.io.ObjectInput;
 import java.io.ObjectOutput;
 import java.util.HashSet;
 import java.util.Set;
-import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.spark.sql.catalyst.bcvar.ArrayWrapper;
 import org.apache.spark.sql.catalyst.bcvar.BroadcastedJoinKeysWrapper;
 import org.apache.spark.sql.types.DataType;
@@ -38,12 +37,7 @@ public class DummyBroadcastedJoinKeysWrapper implements BroadcastedJoinKeysWrapp
   private long id;
 
   public DummyBroadcastedJoinKeysWrapper(
-      DataType keyDataType,
-      Object array,
-      long id,
-      int index,
-      int totalJoinKeys,
-      boolean is1D) {
+      DataType keyDataType, Object array, long id, int index, int totalJoinKeys, boolean is1D) {
     this.keyDataType = keyDataType;
     this.wrapper = ArrayWrapper.wrapArray(array, is1D, index);
     this.id = id;
@@ -76,7 +70,6 @@ public class DummyBroadcastedJoinKeysWrapper implements BroadcastedJoinKeysWrapp
   public int getKeyIndex() {
     return this.index;
   }
-
 
   @Override
   public int getTotalJoinKeys() {

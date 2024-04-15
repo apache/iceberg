@@ -166,7 +166,7 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
 
     testImplementation libs.avro.avro
     testImplementation libs.parquet.hadoop
-
+    testImplementation libs.awaitility
     // Required because we remove antlr plugin dependencies from the compile configuration, see note above
     runtimeOnly libs.antlr.runtime
     antlr libs.antlr.antlr4

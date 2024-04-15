@@ -66,12 +66,12 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
         allowExisting = allowExisting,
         replace = replace)
 
-    case ShowViews(UnresolvedNamespace(Seq()), pattern, output)
+    case ShowViews(UnresolvedNamespace(Seq(), _), pattern, output)
       if ViewUtil.isViewCatalog(catalogManager.currentCatalog) =>
       ShowIcebergViews(ResolvedNamespace(catalogManager.currentCatalog, catalogManager.currentNamespace),
         pattern, output)
 
-    case ShowViews(UnresolvedNamespace(CatalogAndNamespace(catalog, ns)), pattern, output)
+    case ShowViews(UnresolvedNamespace(CatalogAndNamespace(catalog, ns), _), pattern, output)
       if ViewUtil.isViewCatalog(catalog) =>
       ShowIcebergViews(ResolvedNamespace(catalog, ns), pattern, output)
 
@@ -126,7 +126,7 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
 
   private def invalidRefToTempObject(ident: ResolvedIdentifier, tempObjectNames: String, tempObjectType: String) = {
     new AnalysisException(String.format("Cannot create view %s.%s that references temporary %s: %s",
-      ident.catalog.name(), ident.identifier, tempObjectType, tempObjectNames))
+      ident.catalog.name(), ident.identifier, tempObjectType, tempObjectNames), Map.empty, None)
   }
 
   /**
@@ -167,7 +167,7 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
   private def collectTemporaryFunctions(child: LogicalPlan): Seq[String] = {
     val tempFunctions = new mutable.HashSet[String]()
     child.resolveExpressionsWithPruning(_.containsAnyPattern(UNRESOLVED_FUNCTION)) {
-      case f @ UnresolvedFunction(nameParts, _, _, _, _) if isTempFunction(nameParts) =>
+      case f @ UnresolvedFunction(nameParts, _, _, _, _, _) if isTempFunction(nameParts) =>
         tempFunctions += nameParts.head
         f
       case e: SubqueryExpression =>

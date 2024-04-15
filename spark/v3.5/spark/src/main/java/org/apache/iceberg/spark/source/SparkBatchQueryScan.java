@@ -200,7 +200,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
     Tuple<Expression, Expression> allFilterExprs = convertRuntimeFilters(predicates);
     // this may contain partition & non partition filters
     Expression broadcastVarTypeFilters = allFilterExprs.getElement1();
-   // non broadcast runtime filters are surely partition based
+    // non broadcast runtime filters are surely partition based
     // but of the broadcast type some may be partition based, we need to find out
     List<Expression> netNewBroadcastVarFilters = Collections.emptyList();
 

@@ -20,7 +20,6 @@ package org.apache.iceberg.spark.source.broadcastvar;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
-
 import java.time.Duration;
 import java.util.Collections;
 import java.util.NavigableSet;
@@ -47,7 +46,8 @@ public class BoundBroadcastPredicateWithTransform<S, T> extends BoundSetPredicat
 
   private final boolean fixDate;
 
-  private static final LoadingCache<Triple<BroadcastedJoinKeysWrapper, Function, Type>, NavigableSet>
+  private static final LoadingCache<
+          Triple<BroadcastedJoinKeysWrapper, Function, Type>, NavigableSet>
       idempotentializer =
           Caffeine.newBuilder()
               .expireAfterWrite(Duration.ofSeconds(BroadcastedJoinKeysWrapper.CACHE_EXPIRY))
@@ -61,8 +61,9 @@ public class BoundBroadcastPredicateWithTransform<S, T> extends BoundSetPredicat
                     // lets check the initialization here.
                     // TODO: figure out a better way to initialize
                     BroadcastVarReaper.checkInitialized();
-                    ArrayWrapper temp = BroadcastHRUnboundPredWithTransform.idempotentializer.
-                            get(new Tuple<>(bcjk, transform));
+                    ArrayWrapper temp =
+                        BroadcastHRUnboundPredWithTransform.idempotentializer.get(
+                            new Tuple<>(bcjk, transform));
                     return BoundBroadcastRangeInPredicate.createNavigableSet(temp, type);
                   });
 
@@ -92,14 +93,13 @@ public class BoundBroadcastPredicateWithTransform<S, T> extends BoundSetPredicat
 
   @Override
   public Set<T> literalSet() {
-      BroadcastHRUnboundPredWithTransform.fixDateFlag.set(this.fixDate);
-      try {
-        return  idempotentializer.get(new Triple<>(this.bcVar, this.transform, this.term().type()));
-      } finally {
-        BroadcastHRUnboundPredWithTransform.fixDateFlag.set(false);
-      }
+    BroadcastHRUnboundPredWithTransform.fixDateFlag.set(this.fixDate);
+    try {
+      return idempotentializer.get(new Triple<>(this.bcVar, this.transform, this.term().type()));
+    } finally {
+      BroadcastHRUnboundPredWithTransform.fixDateFlag.set(false);
+    }
   }
-
 
   @Override
   public boolean isEquivalentTo(Expression other) {

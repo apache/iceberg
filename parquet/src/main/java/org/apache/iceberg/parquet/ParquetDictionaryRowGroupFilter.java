@@ -515,8 +515,7 @@ public class ParquetDictionaryRowGroupFilter {
     }
   }
 
-  private static <T> Boolean anyMatch(
-      NavigableSet<T> firstSet, NavigableSet<T> secondSet) {
+  private static <T> Boolean anyMatch(NavigableSet<T> firstSet, NavigableSet<T> secondSet) {
     Iterator<T> firstIter = firstSet.iterator();
     Iterator<T> secondIter = secondSet.iterator();
     Comparator<? super T> comparator = firstSet.comparator();

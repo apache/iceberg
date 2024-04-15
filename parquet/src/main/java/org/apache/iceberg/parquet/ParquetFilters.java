@@ -113,6 +113,7 @@ class ParquetFilters {
       return pred.bind(schema.asStruct(), caseSensitive);
     }
 
+    @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity"})
     @Override
     public <T> FilterPredicate predicate(BoundPredicate<T> pred) {
       if (!(pred.term() instanceof BoundReference)) {
@@ -150,7 +151,7 @@ class ParquetFilters {
           Operators.IntColumn intCol = FilterApi.intColumn(path);
           if (op == Operation.RANGE_IN) {
             return FilterApi.userDefined(
-                intCol, new RangeInFilter((NavigableSet)litSet, ref.comparator()));
+                intCol, new RangeInFilter((NavigableSet) litSet, ref.comparator()));
           } else {
             return pred(op, intCol, getParquetPrimitive(lit));
           }
@@ -160,7 +161,7 @@ class ParquetFilters {
           Operators.LongColumn longCol = FilterApi.longColumn(path);
           if (op == Operation.RANGE_IN) {
             return FilterApi.userDefined(
-                longCol, new RangeInFilter((NavigableSet)litSet, ref.comparator()));
+                longCol, new RangeInFilter((NavigableSet) litSet, ref.comparator()));
           } else {
             return pred(op, longCol, getParquetPrimitive(lit));
           }
@@ -169,7 +170,7 @@ class ParquetFilters {
           Operators.FloatColumn floatCol = FilterApi.floatColumn(path);
           if (op == Operation.RANGE_IN) {
             return FilterApi.userDefined(
-                floatCol, new RangeInFilter((NavigableSet)litSet, ref.comparator()));
+                floatCol, new RangeInFilter((NavigableSet) litSet, ref.comparator()));
           } else {
             return pred(op, floatCol, getParquetPrimitive(lit));
           }
@@ -178,7 +179,7 @@ class ParquetFilters {
           Operators.DoubleColumn doubleCol = FilterApi.doubleColumn(path);
           if (op == Operation.RANGE_IN) {
             return FilterApi.userDefined(
-                doubleCol, new RangeInFilter((NavigableSet)litSet, ref.comparator()));
+                doubleCol, new RangeInFilter((NavigableSet) litSet, ref.comparator()));
           } else {
             return pred(op, doubleCol, getParquetPrimitive(lit));
           }
@@ -192,11 +193,12 @@ class ParquetFilters {
           if (op == Operation.RANGE_IN) {
             if (ref.type().typeId() == Type.TypeID.STRING) {
               return FilterApi.userDefined(
-                      binaryColumn, new RangeInFilter(convertStringSetToParquet(
-                              (Set<String>)litSet), ref.comparator()));
+                  binaryColumn,
+                  new RangeInFilter(
+                      convertStringSetToParquet((Set<String>) litSet), ref.comparator()));
             } else {
               return FilterApi.userDefined(
-                      binaryColumn, new RangeInFilter((NavigableSet)litSet, ref.comparator()));
+                  binaryColumn, new RangeInFilter((NavigableSet) litSet, ref.comparator()));
             }
 
           } else {
@@ -298,7 +300,7 @@ class ParquetFilters {
     } else {
       Iterator<C> iter = set.iterator();
       NavigableSet<C> tempSet = Sets.newTreeSet();
-      iter.forEachRemaining(x -> tempSet.add((C)Binary.fromString(x.toString())));
+      iter.forEachRemaining(x -> tempSet.add((C) Binary.fromString(x.toString())));
       return tempSet;
     }
   }

@@ -45,8 +45,8 @@ public class RangeInFilter<T extends Comparable<T>> extends UserDefinedPredicate
   public boolean canDrop(Statistics<T> statistics) {
     Supplier<T> lowerBoundsSupplier = statistics::getMin;
     Supplier<T> upperBoundsSupplier = statistics::getMax;
-    return !RangeInPredUtil.isInRange(lowerBoundsSupplier, upperBoundsSupplier, rangeSet, true,
-            this.comparator);
+    return !RangeInPredUtil.isInRange(
+        lowerBoundsSupplier, upperBoundsSupplier, rangeSet, true, this.comparator);
   }
 
   @Override

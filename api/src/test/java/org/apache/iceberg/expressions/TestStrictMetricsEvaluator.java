@@ -33,6 +33,7 @@ import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.or;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;

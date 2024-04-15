@@ -20,9 +20,7 @@ package org.apache.iceberg.spark.source.broadcastvar;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
-import java.lang.ref.WeakReference;
 import java.time.Duration;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -41,28 +39,27 @@ import org.apache.spark.sql.catalyst.bcvar.BroadcastedJoinKeysWrapper;
 
 public class BroadcastHRUnboundPredicate<T> extends UnboundPredicate<T>
     implements BroadcastVarPredicate {
-  private static final LoadingCache<BroadcastedJoinKeysWrapper, ArrayWrapper>
-      idempotentializer =
-          Caffeine.newBuilder()
-              .expireAfterWrite(Duration.ofSeconds(BroadcastedJoinKeysWrapper.CACHE_EXPIRY))
-              .maximumSize(BroadcastedJoinKeysWrapper.CACHE_SIZE)
-              .weakValues()
-              .build(
-                  bcj -> {
-                    // lets check the initialization here.
-                    // TODO: figure out a better way to initialize
-                    BroadcastVarReaper.checkInitialized();
-                    try {
-                      return bcj.getKeysArray();
-                    } finally {
-                      // We are not invalidating the cached data on driver as the cached array may
-                      // be
-                      // used multiple times in Transform
-                      if (!BroadcastVarReaper.isCreatedInDriver()) {
-                        bcj.invalidateSelf();
-                      }
-                    }
-                  });
+  private static final LoadingCache<BroadcastedJoinKeysWrapper, ArrayWrapper> idempotentializer =
+      Caffeine.newBuilder()
+          .expireAfterWrite(Duration.ofSeconds(BroadcastedJoinKeysWrapper.CACHE_EXPIRY))
+          .maximumSize(BroadcastedJoinKeysWrapper.CACHE_SIZE)
+          .weakValues()
+          .build(
+              bcj -> {
+                // lets check the initialization here.
+                // TODO: figure out a better way to initialize
+                BroadcastVarReaper.checkInitialized();
+                try {
+                  return bcj.getKeysArray();
+                } finally {
+                  // We are not invalidating the cached data on driver as the cached array may
+                  // be
+                  // used multiple times in Transform
+                  if (!BroadcastVarReaper.isCreatedInDriver()) {
+                    bcj.invalidateSelf();
+                  }
+                }
+              });
   private final BroadcastedJoinKeysWrapper bcVar;
 
   public BroadcastHRUnboundPredicate(
@@ -99,8 +96,6 @@ public class BroadcastHRUnboundPredicate<T> extends UnboundPredicate<T>
     BoundTerm<T> bound = (BoundTerm) ((UnboundTerm) this.term()).bind(struct, caseSensitive);
     return this.bindRangeInOperation(bound);
   }
-
-
 
   private Expression bindRangeInOperation(BoundTerm<T> boundTerm) {
     return new BoundBroadcastRangeInPredicate<>(op(), boundTerm, this.bcVar);

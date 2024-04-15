@@ -19,7 +19,6 @@
 package org.apache.iceberg.spark.source.broadcastvar.broadcastutils;
 
 import java.util.AbstractList;
-import java.util.List;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.Literals;
 import org.apache.spark.sql.catalyst.bcvar.ArrayWrapper;
@@ -28,7 +27,7 @@ public class LiteralListWrapper<T> extends AbstractList<Literal<T>> {
 
   private final ArrayWrapper<T> underlyingArray;
 
-  public LiteralListWrapper( ArrayWrapper<T> underlyingArray) {
+  public LiteralListWrapper(ArrayWrapper<T> underlyingArray) {
     this.underlyingArray = underlyingArray;
   }
 

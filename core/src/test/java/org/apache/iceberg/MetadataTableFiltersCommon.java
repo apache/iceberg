@@ -18,48 +18,45 @@
  */
 package org.apache.iceberg;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.StreamSupport;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
 import org.junit.Before;
-import org.junit.runners.Parameterized;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 public abstract class MetadataTableFiltersCommon extends TableTestBase {
 
   protected static final Set<MetadataTableType> aggFileTables =
-          Sets.newHashSet(
-                  MetadataTableType.ALL_DATA_FILES,
-                  MetadataTableType.ALL_DATA_FILES,
-                  MetadataTableType.ALL_FILES,
-                  MetadataTableType.ALL_ENTRIES);
+      Sets.newHashSet(
+          MetadataTableType.ALL_DATA_FILES,
+          MetadataTableType.ALL_DATA_FILES,
+          MetadataTableType.ALL_FILES,
+          MetadataTableType.ALL_ENTRIES);
 
   @Parameters(name = "formatVersion = {0}, table_type = {1}")
   public static List<Object> parameters() {
     return Arrays.asList(
-            new Object[] {1, MetadataTableType.DATA_FILES},
-            new Object[] {2, MetadataTableType.DATA_FILES},
-            new Object[] {2, MetadataTableType.DELETE_FILES},
-            new Object[] {1, MetadataTableType.FILES},
-            new Object[] {2, MetadataTableType.FILES},
-            new Object[] {1, MetadataTableType.ALL_DATA_FILES},
-            new Object[] {2, MetadataTableType.ALL_DATA_FILES},
-            new Object[] {2, MetadataTableType.ALL_DELETE_FILES},
-            new Object[] {1, MetadataTableType.ALL_FILES},
-            new Object[] {2, MetadataTableType.ALL_FILES},
-            new Object[] {1, MetadataTableType.ENTRIES},
-            new Object[] {2, MetadataTableType.ENTRIES},
-            new Object[] {1, MetadataTableType.ALL_ENTRIES},
-            new Object[] {2, MetadataTableType.ALL_ENTRIES});
+        new Object[] {1, MetadataTableType.DATA_FILES},
+        new Object[] {2, MetadataTableType.DATA_FILES},
+        new Object[] {2, MetadataTableType.DELETE_FILES},
+        new Object[] {1, MetadataTableType.FILES},
+        new Object[] {2, MetadataTableType.FILES},
+        new Object[] {1, MetadataTableType.ALL_DATA_FILES},
+        new Object[] {2, MetadataTableType.ALL_DATA_FILES},
+        new Object[] {2, MetadataTableType.ALL_DELETE_FILES},
+        new Object[] {1, MetadataTableType.ALL_FILES},
+        new Object[] {2, MetadataTableType.ALL_FILES},
+        new Object[] {1, MetadataTableType.ENTRIES},
+        new Object[] {2, MetadataTableType.ENTRIES},
+        new Object[] {1, MetadataTableType.ALL_ENTRIES},
+        new Object[] {2, MetadataTableType.ALL_ENTRIES});
   }
 
   @Parameter(index = 1)
@@ -109,13 +106,13 @@ public abstract class MetadataTableFiltersCommon extends TableTestBase {
       // Clear all files from current snapshot to test whether 'all' Files tables scans previous
       // files
       table
-              .newDelete()
-              .deleteFromRowFilter(Expressions.alwaysTrue())
-              .commit(); // Moves file entries to DELETED state
+          .newDelete()
+          .deleteFromRowFilter(Expressions.alwaysTrue())
+          .commit(); // Moves file entries to DELETED state
       table
-              .newDelete()
-              .deleteFromRowFilter(Expressions.alwaysTrue())
-              .commit(); // Removes all entries
+          .newDelete()
+          .deleteFromRowFilter(Expressions.alwaysTrue())
+          .commit(); // Removes all entries
       assertThat(table.currentSnapshot().allManifests(table.io())).isEmpty();
     }
   }
@@ -183,10 +180,11 @@ public abstract class MetadataTableFiltersCommon extends TableTestBase {
     }
   }
 
-  protected void validateFileScanTasks(CloseableIterable<FileScanTask> fileScanTasks, int partValue) {
+  protected void validateFileScanTasks(
+      CloseableIterable<FileScanTask> fileScanTasks, int partValue) {
     assertThat(fileScanTasks)
-            .as("File scan tasks do not include correct file")
-            .anyMatch(t -> manifestHasPartition(manifest(t), partValue));
+        .as("File scan tasks do not include correct file")
+        .anyMatch(t -> manifestHasPartition(manifest(t), partValue));
   }
 
   protected int expectedScanTaskCount(int partitions) {

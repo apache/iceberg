@@ -20,7 +20,6 @@ package org.apache.iceberg.spark.source.broadcastvar;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
-
 import java.time.Duration;
 import java.util.Collections;
 import java.util.Iterator;
@@ -62,32 +61,28 @@ public class BoundBroadcastRangeInPredicate<T> extends BoundSetPredicate<T>
                   });
 
   static <T> NavigableSet<T> createNavigableSet(ArrayWrapper<T> array, Type type) {
-      NavigableSet<T> tempSet = Sets.newTreeSet(Comparators.forType(type.asPrimitiveType()));
-      for(int i = 0; i < array.getLength(); ++i) {
-        tempSet.add((T)array.get(i));
-      }
-      return tempSet;
+    NavigableSet<T> tempSet = Sets.newTreeSet(Comparators.forType(type.asPrimitiveType()));
+    for (int i = 0; i < array.getLength(); ++i) {
+      tempSet.add((T) array.get(i));
+    }
+    return tempSet;
   }
 
   static <T> NavigableSet<T> createNavigableSet(List<T> list, Type type) {
     NavigableSet<T> tempSet = Sets.newTreeSet(Comparators.forType(type.asPrimitiveType()));
     Iterator<T> iter = list.iterator();
-    while(iter.hasNext()) {
+    while (iter.hasNext()) {
       tempSet.add(iter.next());
     }
     return tempSet;
   }
 
-
   public BoundBroadcastRangeInPredicate(
-      Operation op,
-      BoundTerm<T> term,
-      BroadcastedJoinKeysWrapper bcVar) {
+      Operation op, BoundTerm<T> term, BroadcastedJoinKeysWrapper bcVar) {
     super(op, term, Collections.emptySet());
     Preconditions.checkArgument(
         op == Operation.RANGE_IN, "%s predicate does not support a literal set", op);
     this.bcVar = bcVar;
-
   }
 
   @Override
@@ -102,7 +97,7 @@ public class BoundBroadcastRangeInPredicate<T> extends BoundSetPredicate<T>
 
   @Override
   public Set<T> literalSet() {
-   return (NavigableSet<T>)idempotentializer.get(new Tuple<>(this.bcVar, this.term().type()));
+    return (NavigableSet<T>) idempotentializer.get(new Tuple<>(this.bcVar, this.term().type()));
   }
 
   @Override
@@ -141,20 +136,17 @@ public class BoundBroadcastRangeInPredicate<T> extends BoundSetPredicate<T>
   }
 
   static void removeBroadcast(long id) {
-    Set<Tuple<BroadcastedJoinKeysWrapper, Type>> keySetBefore =
-        idempotentializer.asMap().keySet();
+    Set<Tuple<BroadcastedJoinKeysWrapper, Type>> keySetBefore = idempotentializer.asMap().keySet();
     int totalSizeBefore = keySetBefore.size();
     keySetBefore.stream()
         .filter(tuple -> tuple.getElement1().getBroadcastVarId() == id)
         .forEach(idempotentializer::invalidate);
-    Set<Tuple<BroadcastedJoinKeysWrapper, Type>> keySetAfter =
-        idempotentializer.asMap().keySet();
+    Set<Tuple<BroadcastedJoinKeysWrapper, Type>> keySetAfter = idempotentializer.asMap().keySet();
     int totalSizeAfter = keySetAfter.size();
     if (totalSizeBefore > totalSizeAfter) {
       // removed element
       // System.out.println("removed element");
     }
-
   }
 
   static void invalidateBroadcastCache() {

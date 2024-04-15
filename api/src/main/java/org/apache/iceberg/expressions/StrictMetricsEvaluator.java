@@ -474,7 +474,7 @@ public class StrictMetricsEvaluator {
         Supplier<T> upperBoundsSupplier =
             () -> Conversions.fromByteBuffer(field.type(), upperBounds.get(id));
         return RangeInPredUtil.isStrictlyInRange(
-                lowerBoundsSupplier, upperBoundsSupplier, literalSet, false, ref.comparator());
+            lowerBoundsSupplier, upperBoundsSupplier, literalSet, false, ref.comparator());
       }
       return ROWS_MIGHT_NOT_MATCH;
     }

@@ -19,14 +19,7 @@
 package org.apache.iceberg.spark.source.broadcastvar;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import org.apache.iceberg.expressions.Literal;
-import org.apache.iceberg.expressions.Literals;
-import org.apache.iceberg.spark.SparkFilters;
-import org.apache.iceberg.transforms.Transform;
 import org.apache.spark.sql.catalyst.bcvar.ArrayWrapper;
 import org.apache.spark.sql.catalyst.bcvar.BroadcastedJoinKeysWrapper;
 
@@ -36,24 +29,27 @@ public final class BroadcastUtil {
     throw new UnsupportedOperationException("Utility class instance cannot be constructed");
   }
 
-
- // TODO: Asif  verify that the data going into transform is of correct type
-    // and whether date fixing needs to be done or not
+  // TODO: Asif  verify that the data going into transform is of correct type
+  // and whether date fixing needs to be done or not
   public static <S, T> ArrayWrapper<T> evaluateLiteralWithTransform(
       BroadcastedJoinKeysWrapper bcVar, Function<S, T> transform, boolean fixDate) {
-      boolean is1D = bcVar.getTotalJoinKeys() == 1;
-      int index = bcVar.getKeyIndex();
+    boolean is1D = bcVar.getTotalJoinKeys() == 1;
+    int index = bcVar.getKeyIndex();
 
-     // There should not be any need to fix date as the data is coming from BHJ
-      Object[] arr = Arrays.stream((Object[])bcVar.getKeysArray().getBaseArray()).map(ele -> {
-            S value;
-            if (is1D) {
-                value = (S) ele;
-            } else {
-                value = (S) (((Object[]) ele)[index]);
-            }
-            return transform.apply(value);
-        }).toArray();
-      return (ArrayWrapper<T>) ArrayWrapper.wrapArray(arr, is1D, bcVar.getKeyIndex());
+    // There should not be any need to fix date as the data is coming from BHJ
+    Object[] arr =
+        Arrays.stream((Object[]) bcVar.getKeysArray().getBaseArray())
+            .map(
+                ele -> {
+                  S value;
+                  if (is1D) {
+                    value = (S) ele;
+                  } else {
+                    value = (S) (((Object[]) ele)[index]);
+                  }
+                  return transform.apply(value);
+                })
+            .toArray();
+    return (ArrayWrapper<T>) ArrayWrapper.wrapArray(arr, is1D, bcVar.getKeyIndex());
   }
 }

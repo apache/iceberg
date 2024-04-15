@@ -38,7 +38,7 @@ case class AlterV2ViewUnsetPropertiesExec(
   override protected def run(): Seq[InternalRow] = {
     if (!ifExists) {
       propertyKeys.filterNot(catalog.loadView(ident).properties.containsKey).foreach { property =>
-        throw new AnalysisException(s"Cannot remove property that is not set: '$property'")
+        throw new AnalysisException(s"Cannot remove property that is not set: '$property'", Map.empty, None)
       }
     }
 

@@ -55,14 +55,7 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
     this.branch = branch;
     this.expectedSchemaString = expectedSchemaString;
     this.caseSensitive = caseSensitive;
-    if (localityPreferred) {
-      Table table = tableBroadcast.value();
-      this.preferredLocations =
-          taskGroup.setIfNeededAndGetPreferredLocations(
-              () -> Util.blockLocations(table.io(), taskGroup));
-    } else {
-      this.preferredLocations = HadoopInputFile.NO_LOCATION_PREFERENCE;
-    }
+    this.preferredLocations = preferredLocations;
   }
 
   @Override

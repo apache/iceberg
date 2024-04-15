@@ -308,10 +308,10 @@ public class ExpressionUtil {
             pred.op(),
             unbind(pred.term()),
             (T) sanitize(bound.term().type(), bound.literal(), now, today));
-      }else if (pred.op() == Expression.Operation.RANGE_IN ) {
-       return ((UnBoundCreator<T>)pred).createUnboundPred(((BoundReference<T>)pred.term()).name());
-      }
-      else if (pred.isSetPredicate() ) {
+      } else if (pred.op() == Expression.Operation.RANGE_IN) {
+        return ((UnBoundCreator<T>) pred)
+            .createUnboundPred(((BoundReference<T>) pred.term()).name());
+      } else if (pred.isSetPredicate()) {
         BoundSetPredicate<T> bound = (BoundSetPredicate<T>) pred;
         Iterable<T> iter =
             () ->

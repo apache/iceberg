@@ -23,7 +23,6 @@ import static org.apache.iceberg.TableProperties.DATA_PLANNING_MODE;
 import static org.apache.iceberg.TableProperties.DELETE_PLANNING_MODE;
 import static org.apache.iceberg.TableProperties.PLANNING_MODE_DEFAULT;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -31,10 +30,8 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
 import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.ResidualEvaluator;
@@ -48,6 +45,8 @@ import org.apache.iceberg.util.TableScanUtil;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+// import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
 
 /**
  * An abstract class for batch data scans that can utilize cluster resources for planning.
@@ -206,7 +205,8 @@ abstract class BaseDistributedDataScan
         monitorPool.shutdown();
       }
     } else {
-      return this.filteredScanTasks = filterScanTasksUsingNewDataFilters(this.filteredScanTasks);
+      this.filteredScanTasks = filterScanTasksUsingNewDataFilters(this.filteredScanTasks);
+      return this.filteredScanTasks;
     }
   }
 
@@ -215,8 +215,8 @@ abstract class BaseDistributedDataScan
     Expression dataFilter = filter();
     if (dataFilter != null && dataFilter != Expressions.alwaysTrue()) {
       Map<Integer, ResidualEvaluator> residualCache = specCache(this::newResidualEvaluator);
-      InclusiveMetricsEvaluator metricsEvaluator = new InclusiveMetricsEvaluator(this.schema(),
-              dataFilter, this.isCaseSensitive());
+      /*  InclusiveMetricsEvaluator metricsEvaluator =
+      new InclusiveMetricsEvaluator(this.schema(), dataFilter, this.isCaseSensitive()); */
       Iterable<CloseableIterable<ScanTask>> filteredScanTasks =
           CloseableIterable.transform(
               fileScanTasks,
@@ -224,7 +224,8 @@ abstract class BaseDistributedDataScan
                 GenericDataFile gdf = (GenericDataFile) task.asFileScanTask().file();
                 if (true) {
                   BaseFileScanTask bcf = (BaseFileScanTask) task;
-                  ScanTask newTask = new BaseFileScanTask(gdf, residualCache.get(gdf.specId()), bcf);
+                  ScanTask newTask =
+                      new BaseFileScanTask(gdf, residualCache.get(gdf.specId()), bcf);
                   return CloseableIterable.withNoopClose(newTask);
                 } else {
                   return CloseableIterable.empty();
@@ -233,7 +234,7 @@ abstract class BaseDistributedDataScan
       if (this.planUsingExecutors) {
         return new ParallelIterable<>(filteredScanTasks, planExecutor());
       } else {
-        return  CloseableIterable.concat(filteredScanTasks);
+        return CloseableIterable.concat(filteredScanTasks);
       }
 
     } else {
