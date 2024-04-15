@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.flink;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public abstract class AvroGenericRecordConverterBase {
   protected abstract void testConverter(DataGenerator dataGenerator) throws Exception;

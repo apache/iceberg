@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.data;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -47,8 +48,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.hadoop.ParquetWriter;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestFlinkParquetReader extends DataTest {
   private static final int NUM_RECORDS = 100;
@@ -61,8 +61,8 @@ public class TestFlinkParquetReader extends DataTest {
             optional(2, "topbytes", Types.BinaryType.get()));
     org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
 
-    File testFile = temp.newFile();
-    Assert.assertTrue(testFile.delete());
+    File testFile = File.createTempFile("junit", null, temp.toFile());
+    assertThat(testFile.delete()).isTrue();
 
     ParquetWriter<GenericRecord> writer =
         AvroParquetWriter.<GenericRecord>builder(new Path(testFile.toURI()))
@@ -90,17 +90,17 @@ public class TestFlinkParquetReader extends DataTest {
             .createReaderFunc(type -> FlinkParquetReaders.buildReader(schema, type))
             .build()) {
       Iterator<RowData> rows = reader.iterator();
-      Assert.assertTrue("Should have at least one row", rows.hasNext());
+      assertThat(rows).hasNext();
       RowData rowData = rows.next();
-      Assert.assertArrayEquals(rowData.getArray(0).getBinary(0), expectedByte);
-      Assert.assertArrayEquals(rowData.getBinary(1), expectedByte);
-      Assert.assertFalse("Should not have more than one row", rows.hasNext());
+      assertThat(rowData.getArray(0).getBinary(0)).isEqualTo(expectedByte);
+      assertThat(rowData.getBinary(1)).isEqualTo(expectedByte);
+      assertThat(rows).isExhausted();
     }
   }
 
   private void writeAndValidate(Iterable<Record> iterable, Schema schema) throws IOException {
-    File testFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", testFile.delete());
+    File testFile = File.createTempFile("junit", null, temp.toFile());
+    assertThat(testFile.delete()).isTrue();
 
     try (FileAppender<Record> writer =
         Parquet.write(Files.localOutput(testFile))
@@ -119,10 +119,10 @@ public class TestFlinkParquetReader extends DataTest {
       Iterator<RowData> rows = reader.iterator();
       LogicalType rowType = FlinkSchemaUtil.convert(schema);
       for (int i = 0; i < NUM_RECORDS; i += 1) {
-        Assert.assertTrue("Should have expected number of rows", rows.hasNext());
+        assertThat(rows).hasNext();
         TestHelpers.assertRowData(schema.asStruct(), rowType, expected.next(), rows.next());
       }
-      Assert.assertFalse("Should not have extra rows", rows.hasNext());
+      assertThat(rows).isExhausted();
     }
   }
 
