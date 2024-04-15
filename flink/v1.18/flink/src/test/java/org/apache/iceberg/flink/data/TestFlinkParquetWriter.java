@@ -18,8 +18,11 @@
  */
 package org.apache.iceberg.flink.data;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Iterator;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.LogicalType;
@@ -34,18 +37,16 @@ import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestFlinkParquetWriter extends DataTest {
   private static final int NUM_RECORDS = 100;
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
   private void writeAndValidate(Iterable<RowData> iterable, Schema schema) throws IOException {
-    File testFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", testFile.delete());
+    File testFile = File.createTempFile("junit", null, temp.toFile());
+    assertThat(testFile.delete()).isTrue();
 
     LogicalType logicalType = FlinkSchemaUtil.convert(schema);
 
@@ -66,10 +67,10 @@ public class TestFlinkParquetWriter extends DataTest {
       Iterator<Record> actual = reader.iterator();
       LogicalType rowType = FlinkSchemaUtil.convert(schema);
       for (int i = 0; i < NUM_RECORDS; i += 1) {
-        Assert.assertTrue("Should have expected number of rows", actual.hasNext());
+        assertThat(actual).hasNext();
         TestHelpers.assertRowData(schema.asStruct(), rowType, actual.next(), expected.next());
       }
-      Assert.assertFalse("Should not have extra rows", actual.hasNext());
+      assertThat(actual).isExhausted();
     }
   }
 

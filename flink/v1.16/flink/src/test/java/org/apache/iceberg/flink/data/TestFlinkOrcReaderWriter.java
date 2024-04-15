@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink.data;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
@@ -37,7 +39,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.junit.Assert;
 
 public class TestFlinkOrcReaderWriter extends DataTest {
   private static final int NUM_RECORDS = 100;
@@ -48,8 +49,8 @@ public class TestFlinkOrcReaderWriter extends DataTest {
     List<Record> expectedRecords = RandomGenericData.generate(schema, NUM_RECORDS, 1990L);
     List<RowData> expectedRows = Lists.newArrayList(RandomRowData.convert(schema, expectedRecords));
 
-    File recordsFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", recordsFile.delete());
+    File recordsFile = File.createTempFile("junit", null, temp.toFile());
+    assertThat(recordsFile.delete()).isTrue();
 
     // Write the expected records into ORC file, then read them into RowData and assert with the
     // expected Record list.
@@ -69,14 +70,14 @@ public class TestFlinkOrcReaderWriter extends DataTest {
       Iterator<Record> expected = expectedRecords.iterator();
       Iterator<RowData> rows = reader.iterator();
       for (int i = 0; i < NUM_RECORDS; i++) {
-        Assert.assertTrue("Should have expected number of records", rows.hasNext());
+        assertThat(rows).hasNext();
         TestHelpers.assertRowData(schema.asStruct(), flinkSchema, expected.next(), rows.next());
       }
-      Assert.assertFalse("Should not have extra records", rows.hasNext());
+      assertThat(rows).isExhausted();
     }
 
-    File rowDataFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", rowDataFile.delete());
+    File rowDataFile = File.createTempFile("junit", null, temp.toFile());
+    assertThat(rowDataFile.delete()).isTrue();
 
     // Write the expected RowData into ORC file, then read them into Record and assert with the
     // expected RowData list.
@@ -97,10 +98,10 @@ public class TestFlinkOrcReaderWriter extends DataTest {
       Iterator<RowData> expected = expectedRows.iterator();
       Iterator<Record> records = reader.iterator();
       for (int i = 0; i < NUM_RECORDS; i += 1) {
-        Assert.assertTrue("Should have expected number of records", records.hasNext());
+        assertThat(records.hasNext()).isTrue();
         TestHelpers.assertRowData(schema.asStruct(), flinkSchema, records.next(), expected.next());
       }
-      Assert.assertFalse("Should not have extra records", records.hasNext());
+      assertThat(records).isExhausted();
     }
   }
 }

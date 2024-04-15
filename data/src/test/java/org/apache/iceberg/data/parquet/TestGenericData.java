@@ -19,6 +19,7 @@
 package org.apache.iceberg.data.parquet;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -44,16 +45,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.hadoop.ParquetWriter;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestGenericData extends DataTest {
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     List<Record> expected = RandomGenericData.generate(schema, 100, 0L);
 
-    File testFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", testFile.delete());
+    File testFile = File.createTempFile("junit", null, temp.toFile());
+    assertThat(testFile.delete()).isTrue();
 
     try (FileAppender<Record> appender =
         Parquet.write(Files.localOutput(testFile))
@@ -101,8 +101,8 @@ public class TestGenericData extends DataTest {
             optional(2, "topbytes", Types.BinaryType.get()));
     org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
 
-    File testFile = temp.newFile();
-    Assert.assertTrue(testFile.delete());
+    File testFile = File.createTempFile("junit", null, temp.toFile());
+    assertThat(testFile.delete()).isTrue();
 
     ParquetWriter<org.apache.avro.generic.GenericRecord> writer =
         AvroParquetWriter.<org.apache.avro.generic.GenericRecord>builder(new Path(testFile.toURI()))
@@ -132,12 +132,12 @@ public class TestGenericData extends DataTest {
             .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
             .build()) {
       CloseableIterator it = reader.iterator();
-      Assert.assertTrue("Should have at least one row", it.hasNext());
+      assertThat(it).hasNext();
       while (it.hasNext()) {
         GenericRecord actualRecord = (GenericRecord) it.next();
-        Assert.assertEquals(actualRecord.get(0, ArrayList.class).get(0), expectedBinary);
-        Assert.assertEquals(actualRecord.get(1, ByteBuffer.class), expectedBinary);
-        Assert.assertFalse("Should not have more than one row", it.hasNext());
+        assertThat(actualRecord.get(0, ArrayList.class)).first().isEqualTo(expectedBinary);
+        assertThat(actualRecord.get(1, ByteBuffer.class)).isEqualTo(expectedBinary);
+        assertThat(it).isExhausted();
       }
     }
   }
