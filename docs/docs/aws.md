@@ -33,7 +33,8 @@ or individual AWS client packages (Glue, S3, DynamoDB, KMS, STS) if you would li
 
 All the default AWS clients use the [Apache HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/apache-client)
 for HTTP connection management.
-This dependency is not part of the AWS SDK bundle and needs to be added separately.
+This dependency is included as a shaded library in the AWS SDK bundle JAR,
+but if if the individual client libraries are used, it needs to be added separately.
 To choose a different HTTP client library such as [URL Connection HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/url-connection-client),
 see the section [client customization](#aws-client-customization) for more details.
 
@@ -422,18 +423,13 @@ There is no redundant consistency wait and check which might negatively impact p
 
 Before `S3FileIO` was introduced, many Iceberg users choose to use `HadoopFileIO` to write data to S3 through the [S3A FileSystem](https://github.com/apache/hadoop/blob/trunk/hadoop-tools/hadoop-aws/src/main/java/org/apache/hadoop/fs/s3a/S3AFileSystem.java).
 As introduced in the previous sections, `S3FileIO` adopts the latest AWS clients and S3 features for optimized security and performance
- and is thus recommended for S3 use cases rather than the S3A FileSystem.
+and is thus recommended for S3 use cases rather than the S3A FileSystem.
 
 `S3FileIO` writes data with `s3://` URI scheme, but it is also compatible with schemes written by the S3A FileSystem.
 This means for any table manifests containing `s3a://` or `s3n://` file paths, `S3FileIO` is still able to read them.
 This feature allows people to easily switch from S3A to `S3FileIO`.
 
-If for any reason you have to use S3A, here are the instructions:
-
-1. To store data using S3A, specify the `warehouse` catalog property to be an S3A path, e.g. `s3a://my-bucket/my-warehouse` 
-2. For `HiveCatalog`, to also store metadata using S3A, specify the Hadoop config property `hive.metastore.warehouse.dir` to be an S3A path.
-3. Add [hadoop-aws](https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-aws) as a runtime dependency of your compute engine.
-4. Configure AWS settings based on [hadoop-aws documentation](https://hadoop.apache.org/docs/current/hadoop-aws/tools/hadoop-aws/index.html) (make sure you check the version, S3A configuration varies a lot based on the version you use).   
+If you do wish to use S3A, see the "Using the Hadoop S3A Connector" section below.
 
 ### S3 Write Checksum Verification
 
@@ -746,6 +742,90 @@ Users can use catalog properties to override the defaults. For example, to confi
 ```shell
 --conf spark.sql.catalog.my_catalog.http-client.apache.max-connections=5
 ```
+
+## Using the Hadoop S3A Connector
+
+The Apache Hadoop S3A Connector is an alternaive to S3FileIO. It:
+* Uses an AWS v2 client qualified across a broad set of applications, including Apache Spark, Apache Hive, Apache HBase and more.
+* Contains detection and recovery for S3 failures beyond that in the AWS SDK -recovery added "one support call at a time".
+* Supports scatter/gather IO "Vector IO" for high-performance Parquet reads.
+* Supports Amazon S3 Express One Zone storage, FIPS endpoints, Client-Side Encryption, S3 Access Points and S3 Access Grants, amongst other things
+* Supports OpenSSL as an optional TLS transport layer -for tangible performance improvements over the JDK implementation.
+* Includes [auditing via the S3 Server Logs](https://hadoop.apache.org/docs/current/hadoop-aws/tools/hadoop-aws/auditing.html), which can be used to answer important questions such as "who deleted all the files?" and "which job is triggering throttling?".
+* Collects [client-side statistics](https://apachecon.com/acasia2022/sessions/bigdata-1191.html) for identification of performance and connectivity issues.
+
+Note: it does not support S3 Dual Stack, S3 Acceleration or S3 Tags.
+
+To use the S3A Connector, here are the instructions:
+
+1. To store data using S3A, specify the `warehouse` catalog property to be an S3A path, e.g. `s3a://my-bucket/my-warehouse` 
+2. For `HiveCatalog` to also store metadata using S3A, specify the Hadoop config property `hive.metastore.warehouse.dir` to be an S3A path.
+3. Add [hadoop-aws](https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-aws) as a runtime dependency of your compute engine. The version of this module must be the exact same version as all other hadoop binaries on the classpath.
+4. For the latest features, bug fixes and best performance, use the latest versions of all hadoop and hadoop-aws libraries.
+5. Put a compatible version of the AWS SDK in the classpath.
+6. Configure AWS settings based on [hadoop-aws documentation](https://hadoop.apache.org/docs/current/hadoop-aws/tools/hadoop-aws/index.html).
+
+Getting the a compatible version of the AWS SDK on the classpath is a source of pain for all applications.
+The SDK a complicated library, with its own dependencies, some of which may be incompatible with the versions
+used by iceberg and spark.
+
+Avoiding classpath problems is why the `hadoop-aws` library declares a dependency on the SDK `bundle.jar` file,
+which includes all the AWS libraries and shaded dependencies.
+This avoids classpath conflict, but adds a library of many hundreds of Gigabytes to distributes and to Docker images.
+
+The alternative is individual library import. The `iceberg-aws` module does this, so provided the version of the
+library shipped with Iceberg is compatible with the specific Hadoop release, those libraries can be shared.
+
+The SDK version used must be as least as new as that shipped with the version of `hadoop-aws`, as can be
+determined by [mvn-repo](https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-aws)
+
+| Hadoop Version | Minimum AWS SDK Version          | Note                                                                 |
+|----------------|----------------------------------|----------------------------------------------------------------------|
+| 3.3.6          | 1.12.367 or later 1.12.x release | Not compatible with v2 SDK                                           |
+| 3.4.0          | 2.23.19                          | First release using V2 SDK.                                          |
+| 3.4.1          | 2.24.6                           |                                                                      |
+| 3.4.2          | 2.29.52                          | Last release using a version < 2.30.x. Supports S3 Analytics Streams |
+
+The 2.30.0 release is notable as the SDK is [incompatible with all third party stores](https://github.com/aws/aws-sdk-java-v2/discussions/5802),
+which have not implemented [Object Integrity Protection](https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html).
+This is why Hadoop 3.4.2 has fixed its version to [2.29.52](https://issues.apache.org/jira/browse/HADOOP-19485), Iceberg [reverted to that versiony](https://github.com/apache/iceberg/pull/12649) and
+Trinio has [mplemented workarounds](https://github.com/trinodb/trino/pull/24954)).
+
+Until a release of the S3A connector adds specific workarounds, or the SDK restores support for third-party systems,
+2.29.52 is the last version which can be used with third-party stores.
+
+### Maximizing Parquet and Iceberg Performance through the S3A Connector
+
+For best performance
+* The S3A connector should be configured for the Parquet and iceberg workloads.
+based on the recommedations of [Maximizing Performance when working with the S3A Connector](https://hadoop.apache.org/docs/stable/hadoop-aws/tools/hadoop-aws/performance.html).
+* Parquet should be configured to use the Vector IO API for parallelized data retrieval.
+
+The recommended settings are listed below:
+
+| Property                           | Recommended value              | Description                                                   |
+|------------------------------------|--------------------------------|---------------------------------------------------------------|
+| parquet.hadoop.vectored.io.enabled | true                           | Use Vector IO in Parquet Reads, where available               |
+| fs.s3a.vectored.read.min.seek.size | 128K                           | Threshold below which adjacent Vector IO ranges are coalesced |
+| fs.s3a.experimental.input.fadvise  | parquet,vector,random,adaptive | Preferred read policy when opening files.                     |
+
+```shell
+spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
+    --conf spark.sql.catalog.my_catalog.warehouse=s3a://my-bucket/my/key/prefix \
+    --conf spark.sql.catalog.my_catalog.type=glue \
+    --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.hadoop.HadoopFileIO \
+    --conf spark.sql.catalog.my_catalog.parquet.hadoop.vectored.io.enabled=true \
+    --conf spark.hadoop.fs.s3a.vectored.read.min.seek.size=128K \
+    --conf spark.hadoop.fs.s3a.experimental.input.fadvise=parquet,vector,random,adaptive
+```
+
+The property `fs.s3a.vectored.read.min.seek.size` sets the threshold below which adjacent requests are coalesced into single GET requests.
+This can compensate for S3 request latency by combining requests and discarding the data between them.
+The recommended value is based on the [Facebook Velox paper](https://research.facebook.com/publications/velox-metas-unified-execution-engine/)
+
+> IO reads for nearby columns are typically coalesced (merged) if the gap between them is small enough (currently about 20K for SSD and 500K for disaggregated storage), aiming to serve neighboring reads in as few IO reads as possible.
+
+If any problems are encountered, using the S3A connector, consult its [troubleshooting](https://hadoop.apache.org/docs/current/hadoop-aws/tools/hadoop-aws/troubleshooting_s3a.html) documents. 
 
 ## Run Iceberg on AWS
 
