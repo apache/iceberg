@@ -43,7 +43,7 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
 
   @Override
   protected String operation() {
-    if (!addsDataFiles() && addsDeleteFiles()) {
+    if (addsDeleteFiles() && !addsDataFiles()) {
       return DataOperations.DELETE;
     }
 
