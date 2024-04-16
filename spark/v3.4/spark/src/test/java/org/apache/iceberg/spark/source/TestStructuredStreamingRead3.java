@@ -30,8 +30,11 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -483,7 +486,15 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
             dataDeletes,
             deleteRowSchema);
 
-    table.newRowDelta().addDeletes(eqDeletes).commit();
+    DataFile dataFile =
+        DataFiles.builder(table.spec())
+            .withPath(temp.newFile().toString())
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .withFormat(FileFormat.PARQUET)
+            .build();
+
+    table.newRowDelta().addRows(dataFile).addDeletes(eqDeletes).commit();
 
     // check pre-condition - that the above Delete file write - actually resulted in snapshot of
     // type OVERWRITE

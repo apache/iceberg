@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.RowLevelOperationMode.COPY_ON_WRITE;
+import static org.apache.iceberg.SnapshotSummary.ADD_POS_DELETE_FILES_PROP;
 import static org.apache.iceberg.TableProperties.DELETE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.DELETE_MODE;
@@ -499,6 +500,31 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         "Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware"), row(null, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
+  }
+
+  @TestTemplate
+  public void deleteSingleRecordProducesDeleteOperation() throws NoSuchTableException {
+    createAndInitPartitionedTable();
+    append(tableName, new Employee(1, "eng"), new Employee(2, "eng"), new Employee(3, "eng"));
+
+    sql("DELETE FROM %s WHERE id = 2", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(table.snapshots()).hasSize(2);
+
+    Snapshot currentSnapshot = table.currentSnapshot();
+
+    if (mode(table) == COPY_ON_WRITE) {
+      // this is an OverwriteFiles and produces "overwrite"
+      validateCopyOnWrite(currentSnapshot, "1", "1", "1");
+    } else {
+      // this is a RowDelta that produces a "delete" instead of "overwrite"
+      validateMergeOnRead(currentSnapshot, "1", "1", null);
+      validateProperty(currentSnapshot, ADD_POS_DELETE_FILES_PROP, "1");
+    }
+
+    assertThat(sql("SELECT * FROM %s", tableName))
+        .containsExactlyInAnyOrder(row(1, "eng"), row(3, "eng"));
   }
 
   @TestTemplate

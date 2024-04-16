@@ -30,6 +30,7 @@ import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_HASH;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_NONE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_RANGE;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -255,8 +256,9 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
       String changedPartitionCount,
       String addedDeleteFiles,
       String addedDataFiles) {
+    String operation = null == addedDataFiles && null != addedDeleteFiles ? DELETE : OVERWRITE;
     validateSnapshot(
-        snapshot, OVERWRITE, changedPartitionCount, null, addedDeleteFiles, addedDataFiles);
+        snapshot, operation, changedPartitionCount, null, addedDeleteFiles, addedDataFiles);
   }
 
   protected void validateSnapshot(
@@ -286,9 +288,13 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
   }
 
   protected void validateProperty(Snapshot snapshot, String property, String expectedValue) {
-    String actual = snapshot.summary().get(property);
-    Assert.assertEquals(
-        "Snapshot property " + property + " has unexpected value.", expectedValue, actual);
+    if (null == expectedValue) {
+      assertThat(snapshot.summary()).doesNotContainKey(property);
+    } else {
+      assertThat(snapshot.summary())
+          .as("Snapshot property " + property + " has unexpected value.")
+          .containsEntry(property, expectedValue);
+    }
   }
 
   protected void sleep(long millis) {
