@@ -38,9 +38,7 @@ import java.util.UUID;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.Files;
-import org.apache.iceberg.Schema;
+import org.apache.iceberg.*;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
@@ -75,9 +73,12 @@ import org.apache.parquet.io.DelegatingSeekableInputStream;
 import org.apache.parquet.schema.MessageType;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestMetricsRowGroupFilterTypes {
   private static final Schema SCHEMA =
       new Schema(
@@ -161,33 +162,17 @@ public class TestMetricsRowGroupFilterTypes {
       record.setField("_fixed_decimal", new BigDecimal("99.99"));
       records.add(record);
     }
-    Arrays.stream(FileFormat.values())
-        .filter(
-            f -> {
-              return f.name().equalsIgnoreCase("orc") || f.name().equalsIgnoreCase("parquet");
-            })
-        .forEach(
-            format -> {
-              switch (format) {
-                case ORC:
-                  try {
-                    createOrcInputFile(records);
-                  } catch (IOException e) {
-                    throw new RuntimeException(e);
-                  }
-                  break;
-                case PARQUET:
-                  try {
-                    createParquetInputFile(records);
-                  } catch (IOException e) {
-                    throw new RuntimeException(e);
-                  }
-                  break;
-                default:
-                  throw new UnsupportedOperationException(
-                      "Row group filter types tests not supported for " + format);
-              }
-            });
+    switch (format) {
+      case ORC:
+        createOrcInputFile(records);
+        break;
+      case PARQUET:
+        createParquetInputFile(records);
+        break;
+      default:
+        throw new UnsupportedOperationException(
+            "Row group filter types tests not supported for " + format);
+    }
   }
 
   public void createOrcInputFile(List<Record> records) throws IOException {
@@ -242,61 +227,68 @@ public class TestMetricsRowGroupFilterTypes {
     PARQUET_FILE.deleteOnExit();
   }
 
-  private static Stream<Object[]> data() {
-    return Arrays.stream(
-        new Object[][] {
-          {"parquet", "boolean", false, true},
-          {"parquet", "int", 5, 55},
-          {"parquet", "long", 5_000_000_049L, 5_000L},
-          {"parquet", "float", 1.97f, 2.11f},
-          {"parquet", "double", 2.11d, 1.97d},
-          {"parquet", "date", "2018-06-29", "2018-05-03"},
-          {"parquet", "time", "10:02:34.000000", "10:02:34.000001"},
-          {"parquet", "timestamp", "2018-06-29T10:02:34.000000", "2018-06-29T15:02:34.000000"},
-          {
-            "parquet",
-            "timestamptz",
-            "2018-06-29T10:02:34.000000+00:00",
-            "2018-06-29T10:02:34.000000-07:00"
-          },
-          {"parquet", "string", "tapir", "monthly"},
-          // { "parquet", "uuid", uuid, UUID.randomUUID() }, // not supported yet
-          // {"parquet", "fixed", "abcd".getBytes(StandardCharsets.UTF_8), new byte[] {0, 1, 2, 3}},
-          // {"parquet", "binary", "xyz".getBytes(StandardCharsets.UTF_8), new byte[] {0, 1, 2, 3,
-          // 4, 5}},
-          {"parquet", "int_decimal", "77.77", "12.34"},
-          {"parquet", "long_decimal", "88.88", "12.34"},
-          {"parquet", "fixed_decimal", "99.99", "12.34"},
-          {"orc", "boolean", false, true},
-          {"orc", "int", 5, 55},
-          {"orc", "long", 5_000_000_049L, 5_000L},
-          {"orc", "float", 1.97f, 2.11f},
-          {"orc", "double", 2.11d, 1.97d},
-          {"orc", "date", "2018-06-29", "2018-05-03"},
-          {"orc", "time", "10:02:34.000000", "10:02:34.000001"},
-          {"orc", "timestamp", "2018-06-29T10:02:34.000000", "2018-06-29T15:02:34.000000"},
-          {
-            "orc",
-            "timestamptz",
-            "2018-06-29T10:02:34.000000+00:00",
-            "2018-06-29T10:02:34.000000-07:00"
-          },
-          {"orc", "string", "tapir", "monthly"},
-          // uuid, fixed and binary types not supported yet
-          // { "orc", "uuid", uuid, UUID.randomUUID() },
-          // { "orc", "fixed", "abcd".getBytes(StandardCharsets.UTF_8), new byte[] { 0, 1, 2, 3 } },
-          // { "orc", "binary", "xyz".getBytes(StandardCharsets.UTF_8), new byte[] { 0, 1, 2, 3, 4,
-          // 5 }
-          // },
-          {"orc", "int_decimal", "77.77", "12.34"},
-          {"orc", "long_decimal", "88.88", "12.34"},
-          {"orc", "fixed_decimal", "99.99", "12.34"},
-        });
+  private final FileFormat format;
+  private final String column;
+  private final Object readValue;
+  private final Object skipValue;
+
+  @Parameters(name = "format = {0} column = {1} readValue = {2} skipValue = {3}")
+  public static Object[][] parameters() {
+    return new Object[][] {
+      {"parquet", "boolean", false, true},
+      {"parquet", "int", 5, 55},
+      {"parquet", "long", 5_000_000_049L, 5_000L},
+      {"parquet", "float", 1.97f, 2.11f},
+      {"parquet", "double", 2.11d, 1.97d},
+      {"parquet", "date", "2018-06-29", "2018-05-03"},
+      {"parquet", "time", "10:02:34.000000", "10:02:34.000001"},
+      {"parquet", "timestamp", "2018-06-29T10:02:34.000000", "2018-06-29T15:02:34.000000"},
+      {
+        "parquet",
+        "timestamptz",
+        "2018-06-29T10:02:34.000000+00:00",
+        "2018-06-29T10:02:34.000000-07:00"
+      },
+      {"parquet", "string", "tapir", "monthly"},
+      // { "parquet", "uuid", uuid, UUID.randomUUID() }, // not supported yet
+      {"parquet", "fixed", "abcd".getBytes(StandardCharsets.UTF_8), new byte[] {0, 1, 2, 3}},
+      {"parquet", "binary", "xyz".getBytes(StandardCharsets.UTF_8), new byte[] {0, 1, 2, 3, 4, 5}},
+      {"parquet", "int_decimal", "77.77", "12.34"},
+      {"parquet", "long_decimal", "88.88", "12.34"},
+      {"parquet", "fixed_decimal", "99.99", "12.34"},
+      {"orc", "boolean", false, true},
+      {"orc", "int", 5, 55},
+      {"orc", "long", 5_000_000_049L, 5_000L},
+      {"orc", "float", 1.97f, 2.11f},
+      {"orc", "double", 2.11d, 1.97d},
+      {"orc", "date", "2018-06-29", "2018-05-03"},
+      {"orc", "time", "10:02:34.000000", "10:02:34.000001"},
+      {"orc", "timestamp", "2018-06-29T10:02:34.000000", "2018-06-29T15:02:34.000000"},
+      {
+        "orc", "timestamptz", "2018-06-29T10:02:34.000000+00:00", "2018-06-29T10:02:34.000000-07:00"
+      },
+      {"orc", "string", "tapir", "monthly"},
+      // uuid, fixed and binary types not supported yet
+      // { "orc", "uuid", uuid, UUID.randomUUID() },
+      // { "orc", "fixed", "abcd".getBytes(StandardCharsets.UTF_8), new byte[] { 0, 1, 2, 3 } },
+      // { "orc", "binary", "xyz".getBytes(StandardCharsets.UTF_8), new byte[] { 0, 1, 2, 3, 4, 5 }
+      // },
+      {"orc", "int_decimal", "77.77", "12.34"},
+      {"orc", "long_decimal", "88.88", "12.34"},
+      {"orc", "fixed_decimal", "99.99", "12.34"},
+    };
   }
 
-  @ParameterizedTest(name = "format = {0} column = {1} readValue = {2} skipValue = {3}")
-  @MethodSource("data")
-  public void testEq(String format, String column, Object readValue, Object skipValue) {
+  public TestMetricsRowGroupFilterTypes(
+      String format, String column, Object readValue, Object skipValue) {
+    this.format = FileFormat.fromString(format);
+    this.column = column;
+    this.readValue = readValue;
+    this.skipValue = skipValue;
+  }
+
+  @TestTemplate
+  public void testEq() {
     boolean shouldRead = shouldRead(readValue, column);
     Assertions.assertThat(shouldRead)
         .isTrue()

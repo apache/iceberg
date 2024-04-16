@@ -31,8 +31,9 @@ import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.StructType;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 public abstract class DataTest {
 
@@ -58,7 +59,7 @@ public abstract class DataTest {
           required(116, "dec_38_10", Types.DecimalType.of(38, 10)), // maximum precision
           required(117, "time", Types.TimeType.get()));
 
-  @TempDir protected File temp;
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   @Test
   public void testSimpleStruct() throws IOException {

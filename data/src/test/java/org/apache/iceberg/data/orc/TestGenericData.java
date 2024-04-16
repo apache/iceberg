@@ -49,8 +49,8 @@ import org.apache.orc.Writer;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
 import org.apache.orc.storage.ql.exec.vector.LongColumnVector;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
-import org.assertj.core.api.Assertions;
-import org.junit.jupiter.api.Test;
+import org.junit.Assert;
+import org.junit.Test;
 
 public class TestGenericData extends DataTest {
 
@@ -97,8 +97,8 @@ public class TestGenericData extends DataTest {
       record4.setField("tsTzCol", OffsetDateTime.parse("1935-05-16T17:10:34-08:00"));
       record4.setField("tsCol", LocalDateTime.parse("1935-05-01T00:01:00"));
 
-      File testFile = temp;
-      Assertions.assertThat(testFile.delete()).as("Delete should succeed").isTrue();
+      File testFile = temp.newFile();
+      Assert.assertTrue("Delete should succeed", testFile.delete());
 
       try (FileAppender<Record> writer =
           ORC.write(Files.localOutput(testFile))
@@ -123,22 +123,22 @@ public class TestGenericData extends DataTest {
         rows = Lists.newArrayList(reader);
       }
 
-      Assertions.assertThat(OffsetDateTime.parse("2017-01-17T01:10:34Z"))
-          .isEqualTo(rows.get(0).getField("tsTzCol"));
-      Assertions.assertThat(LocalDateTime.parse("1970-01-01T00:01:00"))
-          .isEqualTo(rows.get(0).getField("tsCol"));
-      Assertions.assertThat(OffsetDateTime.parse("2017-05-17T01:10:34Z"))
-          .isEqualTo(rows.get(1).getField("tsTzCol"));
-      Assertions.assertThat(LocalDateTime.parse("1970-05-01T00:01:00"))
-          .isEqualTo(rows.get(1).getField("tsCol"));
-      Assertions.assertThat(OffsetDateTime.parse("1935-01-17T01:10:34Z"))
-          .isEqualTo(rows.get(2).getField("tsTzCol"));
-      Assertions.assertThat(LocalDateTime.parse("1935-01-01T00:01:00"))
-          .isEqualTo(rows.get(2).getField("tsCol"));
-      Assertions.assertThat(OffsetDateTime.parse("1935-05-17T01:10:34Z"))
-          .isEqualTo(rows.get(3).getField("tsTzCol"));
-      Assertions.assertThat(LocalDateTime.parse("1935-05-01T00:01:00"))
-          .isEqualTo(rows.get(3).getField("tsCol"));
+      Assert.assertEquals(
+          OffsetDateTime.parse("2017-01-17T01:10:34Z"), rows.get(0).getField("tsTzCol"));
+      Assert.assertEquals(
+          LocalDateTime.parse("1970-01-01T00:01:00"), rows.get(0).getField("tsCol"));
+      Assert.assertEquals(
+          OffsetDateTime.parse("2017-05-17T01:10:34Z"), rows.get(1).getField("tsTzCol"));
+      Assert.assertEquals(
+          LocalDateTime.parse("1970-05-01T00:01:00"), rows.get(1).getField("tsCol"));
+      Assert.assertEquals(
+          OffsetDateTime.parse("1935-01-17T01:10:34Z"), rows.get(2).getField("tsTzCol"));
+      Assert.assertEquals(
+          LocalDateTime.parse("1935-01-01T00:01:00"), rows.get(2).getField("tsCol"));
+      Assert.assertEquals(
+          OffsetDateTime.parse("1935-05-17T01:10:34Z"), rows.get(3).getField("tsTzCol"));
+      Assert.assertEquals(
+          LocalDateTime.parse("1935-05-01T00:01:00"), rows.get(3).getField("tsCol"));
     } finally {
       TimeZone.setDefault(currentTz);
     }
@@ -146,8 +146,8 @@ public class TestGenericData extends DataTest {
 
   @Test
   public void writeAndValidateExternalData() throws IOException {
-    File testFile = temp;
-    Assertions.assertThat(testFile.delete()).as("Delete should succeed");
+    File testFile = temp.newFile();
+    Assert.assertTrue("Delete should succeed", testFile.delete());
 
     Configuration conf = new Configuration();
     TypeDescription writerSchema =
@@ -179,15 +179,15 @@ public class TestGenericData extends DataTest {
             .build()) {
       rows = Lists.newArrayList(reader);
     }
-    Assertions.assertThat(1).isEqualTo(rows.get(0).getField("a"));
-    Assertions.assertThat(123).isEqualTo(rows.get(0).getField("b"));
-    Assertions.assertThat("1").isEqualTo(rows.get(0).getField("c"));
-    Assertions.assertThat("123").isEqualTo(rows.get(0).getField("d"));
+    Assert.assertEquals(1, rows.get(0).getField("a"));
+    Assert.assertEquals(123, rows.get(0).getField("b"));
+    Assert.assertEquals("1", rows.get(0).getField("c"));
+    Assert.assertEquals("123", rows.get(0).getField("d"));
   }
 
   private void writeAndValidateRecords(Schema schema, List<Record> expected) throws IOException {
-    File testFile = temp;
-    Assertions.assertThat(testFile.delete()).as("Delete should succeed").isTrue();
+    File testFile = temp.newFile();
+    Assert.assertTrue("Delete should succeed", testFile.delete());
 
     try (FileAppender<Record> writer =
         ORC.write(Files.localOutput(testFile))

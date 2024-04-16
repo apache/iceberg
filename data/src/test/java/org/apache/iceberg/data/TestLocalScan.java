@@ -39,16 +39,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.AppendFiles;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DataFiles;
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.MetadataColumns;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.Tables;
+import org.apache.iceberg.*;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopTables;
@@ -64,10 +55,13 @@ import org.apache.iceberg.util.DateTimeUtil;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestLocalScan {
   private static final Schema SCHEMA =
       new Schema(
@@ -76,11 +70,14 @@ public class TestLocalScan {
   private static final Configuration CONF = new Configuration();
   private static final Tables TABLES = new HadoopTables(CONF);
 
-  private static Stream<Object[]> data() {
-    return Arrays.stream(new Object[][] {{"parquet"}, {"orc"}, {"avro"}});
+  @Parameters(name = "format = {0}")
+  public static Object parameters() {
+    return new Object[] {"parquet", "orc", "avro"};
   }
 
-  @TempDir private File temp;
+  @TempDir private File temp;                    
+
+  @Parameter private FileFormat format;
   private String sharedTableLocation = null;
   private Table sharedTable = null;
 
@@ -134,17 +131,13 @@ public class TestLocalScan {
           genericRecord.copy(ImmutableMap.of("id", 27L, "data", "overview")),
           genericRecord.copy(ImmutableMap.of("id", 28L, "data", "tender")));
 
-  private void overwriteExistingData(Object fileExt) throws IOException {
-    FileFormat fileFormat = FileFormat.fromString(fileExt.toString());
+  private void overwriteExistingData() throws IOException {
     DataFile file12 =
-        writeFile(
-            sharedTableLocation, fileFormat.addExtension("file-12"), file1SecondSnapshotRecords);
+        writeFile(sharedTableLocation, format.addExtension("file-12"), file1SecondSnapshotRecords);
     DataFile file22 =
-        writeFile(
-            sharedTableLocation, fileFormat.addExtension("file-22"), file2SecondSnapshotRecords);
+        writeFile(sharedTableLocation, format.addExtension("file-22"), file2SecondSnapshotRecords);
     DataFile file32 =
-        writeFile(
-            sharedTableLocation, fileFormat.addExtension("file-32"), file3SecondSnapshotRecords);
+        writeFile(sharedTableLocation, format.addExtension("file-32"), file3SecondSnapshotRecords);
 
     sharedTable
         .newOverwrite()
@@ -155,14 +148,11 @@ public class TestLocalScan {
         .commit();
 
     DataFile file13 =
-        writeFile(
-            sharedTableLocation, fileFormat.addExtension("file-13"), file1ThirdSnapshotRecords);
+        writeFile(sharedTableLocation, format.addExtension("file-13"), file1ThirdSnapshotRecords);
     DataFile file23 =
-        writeFile(
-            sharedTableLocation, fileFormat.addExtension("file-23"), file2ThirdSnapshotRecords);
+        writeFile(sharedTableLocation, format.addExtension("file-23"), file2ThirdSnapshotRecords);
     DataFile file33 =
-        writeFile(
-            sharedTableLocation, fileFormat.addExtension("file-33"), file3ThirdSnapshotRecords);
+        writeFile(sharedTableLocation, format.addExtension("file-33"), file3ThirdSnapshotRecords);
 
     sharedTable
         .newOverwrite()
@@ -173,29 +163,22 @@ public class TestLocalScan {
         .commit();
   }
 
-  private void appendData(Object fileExt) throws IOException {
-    FileFormat fileFormat = FileFormat.fromString(fileExt.toString());
+  private void appendData() throws IOException {
     DataFile file12 =
-        writeFile(
-            sharedTableLocation, fileFormat.addExtension("file-12"), file1SecondSnapshotRecords);
+        writeFile(sharedTableLocation, format.addExtension("file-12"), file1SecondSnapshotRecords);
     DataFile file22 =
-        writeFile(
-            sharedTableLocation, fileFormat.addExtension("file-22"), file2SecondSnapshotRecords);
+        writeFile(sharedTableLocation, format.addExtension("file-22"), file2SecondSnapshotRecords);
     DataFile file32 =
-        writeFile(
-            sharedTableLocation, fileFormat.addExtension("file-32"), file3SecondSnapshotRecords);
+        writeFile(sharedTableLocation, format.addExtension("file-32"), file3SecondSnapshotRecords);
 
     sharedTable.newFastAppend().appendFile(file12).appendFile(file22).appendFile(file32).commit();
 
     DataFile file13 =
-        writeFile(
-            sharedTableLocation, fileFormat.addExtension("file-13"), file1ThirdSnapshotRecords);
+        writeFile(sharedTableLocation, format.addExtension("file-13"), file1ThirdSnapshotRecords);
     DataFile file23 =
-        writeFile(
-            sharedTableLocation, fileFormat.addExtension("file-23"), file2ThirdSnapshotRecords);
+        writeFile(sharedTableLocation, format.addExtension("file-23"), file2ThirdSnapshotRecords);
     DataFile file33 =
-        writeFile(
-            sharedTableLocation, fileFormat.addExtension("file-33"), file3ThirdSnapshotRecords);
+        writeFile(sharedTableLocation, format.addExtension("file-33"), file3ThirdSnapshotRecords);
 
     sharedTable.newFastAppend().appendFile(file13).appendFile(file23).appendFile(file33).commit();
   }
@@ -209,74 +192,38 @@ public class TestLocalScan {
         TABLES.create(
             SCHEMA,
             PartitionSpec.unpartitioned(),
-            ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, temp.getName()),
+            ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()),
             sharedTableLocation);
 
     Record record = GenericRecord.create(SCHEMA);
 
-    String[] format = {"parquet", "orc", "avro"};
-    Arrays.stream(format)
-        .forEach(
-            str -> {
-              FileFormat fileFormat = FileFormat.fromString(str);
-              DataFile file1 = null;
-              try {
-                file1 =
-                    writeFile(
-                        sharedTableLocation,
-                        fileFormat.addExtension("file-1"),
-                        file1FirstSnapshotRecords);
-              } catch (IOException e) {
-                throw new RuntimeException(e);
-              }
-              Record nullData = record.copy();
-              nullData.setField("id", 11L);
-              nullData.setField("data", null);
+    DataFile file1 =
+        writeFile(sharedTableLocation, format.addExtension("file-1"), file1FirstSnapshotRecords);
 
-              DataFile file2 = null;
-              try {
-                file2 =
-                    writeFile(
-                        sharedTableLocation,
-                        fileFormat.addExtension("file-2"),
-                        file2FirstSnapshotRecords);
-              } catch (IOException e) {
-                throw new RuntimeException(e);
-              }
-              DataFile file3 = null;
-              try {
-                file3 =
-                    writeFile(
-                        sharedTableLocation,
-                        fileFormat.addExtension("file-3"),
-                        file3FirstSnapshotRecords);
-              } catch (IOException e) {
-                throw new RuntimeException(e);
-              }
+    Record nullData = record.copy();
+    nullData.setField("id", 11L);
+    nullData.setField("data", null);
 
-              // commit the test data
-              sharedTable
-                  .newAppend()
-                  .appendFile(file1)
-                  .appendFile(file2)
-                  .appendFile(file3)
-                  .commit();
-            });
+    DataFile file2 =
+        writeFile(sharedTableLocation, format.addExtension("file-2"), file2FirstSnapshotRecords);
+    DataFile file3 =
+        writeFile(sharedTableLocation, format.addExtension("file-3"), file3FirstSnapshotRecords);
+
+    // commit the test data
+    sharedTable.newAppend().appendFile(file1).appendFile(file2).appendFile(file3).commit();
   }
 
-  @ParameterizedTest(name = "format = {0}")
-  @MethodSource("data")
-  public void testRandomData(Object fileExt) throws IOException {
+  @TestTemplate
+  public void testRandomData() throws IOException {
     List<Record> expected = RandomGenericData.generate(SCHEMA, 1000, 435691832918L);
 
-    FileFormat fileFormat = FileFormat.fromString(fileExt.toString());
-    File location = new File(temp, fileFormat.name());
-    //    org.junit.jupiter.api.Assertions.assertTrue(location.delete());
+    File location = new File(temp, format.name());
+    Assertions.assertThat(location.delete()).isTrue();
     Table table =
         TABLES.create(
             SCHEMA,
             PartitionSpec.unpartitioned(),
-            ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, fileFormat.name()),
+            ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()),
             location.toString());
 
     AppendFiles append = table.newAppend();
@@ -285,7 +232,7 @@ public class TestLocalScan {
     int recordsPerFile = 200;
     Iterator<Record> iter = expected.iterator();
     while (iter.hasNext()) {
-      Path path = new Path(location.toString(), fileFormat.addExtension("file-" + fileNum));
+      Path path = new Path(location.toString(), format.addExtension("file-" + fileNum));
       int numRecords;
 
       List<Record> records = Lists.newArrayList();
@@ -293,7 +240,7 @@ public class TestLocalScan {
         records.add(iter.next());
       }
 
-      writeFile(location.toString(), fileFormat.addExtension("file-" + fileNum), records);
+      writeFile(location.toString(), format.addExtension("file-" + fileNum), records);
       DataFile file =
           DataFiles.builder(PartitionSpec.unpartitioned())
               .withRecordCount(numRecords)
@@ -315,7 +262,7 @@ public class TestLocalScan {
         .as("Random record set should match");
   }
 
-  @Test
+  @TestTemplate
   public void testFullScan() {
     Iterable<Record> results = IcebergGenerics.read(sharedTable).build();
 
@@ -333,7 +280,7 @@ public class TestLocalScan {
         .as("Random record set should match");
   }
 
-  @Test
+  @TestTemplate
   public void testFilter() {
     Iterable<Record> result = IcebergGenerics.read(sharedTable).where(lessThan("id", 3)).build();
 
@@ -354,7 +301,7 @@ public class TestLocalScan {
         .as("Records should match file 1 without id 2");
   }
 
-  @Test
+  @TestTemplate
   public void testProject() {
     verifyProjectIdColumn(IcebergGenerics.read(sharedTable).select("id").build());
     verifyProjectIdColumn(IcebergGenerics.read(sharedTable).select("iD").caseInsensitive().build());
@@ -370,9 +317,9 @@ public class TestLocalScan {
         Lists.transform(file3FirstSnapshotRecords, record -> (Long) record.getField("id")));
 
     results.forEach(
-        record ->
-            org.junit.jupiter.api.Assertions.assertEquals(
-                1, record.size(), "Record should have one projected field"));
+        record -> Assertions.assertThat(record.size()).as("Record should have one projected field")
+                .isEqualTo(1)
+               );
 
     Assertions.assertThat(
             Sets.newHashSet(transform(results, record -> (Long) record.getField("id"))))
@@ -380,7 +327,7 @@ public class TestLocalScan {
         .as("Should project only id columns");
   }
 
-  @Test
+  @TestTemplate
   public void testProjectWithSchema() {
     // Test with table schema
     Iterable<Record> results = IcebergGenerics.read(sharedTable).project(SCHEMA).build();
@@ -402,7 +349,7 @@ public class TestLocalScan {
     IcebergGenerics.read(sharedTable)
         .project(schema)
         .build()
-        .forEach(r -> org.junit.jupiter.api.Assertions.assertNull(r.get(0)));
+        .forEach(r -> Assertions.assertThat(r.get(0)).isNull());
 
     // Test with reading some metadata columns
     schema =
@@ -428,7 +375,7 @@ public class TestLocalScan {
     Assertions.assertThat(iterator.hasNext()).isFalse();
   }
 
-  @Test
+  @TestTemplate
   public void testProjectWithMissingFilterColumn() {
     Iterable<Record> results =
         IcebergGenerics.read(sharedTable)
@@ -447,9 +394,7 @@ public class TestLocalScan {
     }
 
     results.forEach(
-        record ->
-            org.junit.jupiter.api.Assertions.assertEquals(
-                2, record.size(), "Record should have two projected fields"));
+        record -> Assertions.assertThat(record.size()).as("Record should have two projected fields").isEqualTo(2));
 
     Assertions.assertThat(
             Sets.newHashSet(transform(results, record -> record.getField("data").toString())))
@@ -457,10 +402,9 @@ public class TestLocalScan {
         .isEqualTo(expected);
   }
 
-  @ParameterizedTest(name = "format = {0}")
-  @MethodSource("data")
-  public void testUseSnapshot(Object fileExt) throws IOException {
-    overwriteExistingData(fileExt);
+  @TestTemplate
+  public void testUseSnapshot() throws IOException {
+    overwriteExistingData();
     Iterable<Record> results =
         IcebergGenerics.read(sharedTable)
             .useSnapshot(/* first snapshot */ sharedTable.history().get(1).snapshotId())
@@ -482,10 +426,9 @@ public class TestLocalScan {
     Assertions.assertThat(Iterables.get(records, 0).getField("data")).isNotNull();
   }
 
-  @ParameterizedTest(name = "format = {0}")
-  @MethodSource("data")
-  public void testAsOfTime(Object fileExt) throws IOException {
-    overwriteExistingData(fileExt);
+  @TestTemplate
+  public void testAsOfTime() throws IOException {
+    overwriteExistingData();
     Iterable<Record> results =
         IcebergGenerics.read(sharedTable)
             .asOfTime(/* timestamp first snapshot */ sharedTable.history().get(2).timestampMillis())
@@ -507,10 +450,9 @@ public class TestLocalScan {
     Assertions.assertThat(Iterables.get(records, 0).getField("data")).isNotNull();
   }
 
-  @ParameterizedTest(name = "format = {0}")
-  @MethodSource("data")
-  public void testAppendsBetween(Object fileExt) throws IOException {
-    appendData(fileExt);
+  @TestTemplate
+  public void testAppendsBetween() throws IOException {
+    appendData();
     Iterable<Record> results =
         IcebergGenerics.read(sharedTable)
             .appendsBetween(
@@ -534,10 +476,9 @@ public class TestLocalScan {
     Assertions.assertThat(Iterables.get(records, 0).getField("data")).isNotNull();
   }
 
-  @ParameterizedTest(name = "format = {0}")
-  @MethodSource("data")
-  public void testAppendsAfter(Object fileExt) throws IOException {
-    appendData(fileExt);
+  @TestTemplate
+  public void testAppendsAfter() throws IOException {
+    appendData();
     Iterable<Record> results =
         IcebergGenerics.read(sharedTable)
             .appendsAfter(sharedTable.history().get(0).snapshotId())
@@ -562,7 +503,7 @@ public class TestLocalScan {
     Assertions.assertThat(Iterables.get(records, 0).getField("data")).isNotNull();
   }
 
-  @Test
+  @TestTemplate
   public void testUnknownSnapshotId() {
     Long minSnapshotId =
         sharedTable.history().stream().map(h -> h.snapshotId()).min(Long::compareTo).get();
@@ -575,7 +516,7 @@ public class TestLocalScan {
         .hasMessage("Cannot find snapshot with ID " + (minSnapshotId - 1));
   }
 
-  @Test
+  @TestTemplate
   public void testAsOfTimeOlderThanFirstSnapshot() {
     IcebergGenerics.ScanBuilder scanBuilder = IcebergGenerics.read(sharedTable);
     long timestamp = sharedTable.history().get(0).timestampMillis() - 1;
@@ -610,8 +551,7 @@ public class TestLocalScan {
         .build();
   }
 
-  @ParameterizedTest(name = "format = {0}")
-  @MethodSource("data")
+  @TestTemplate
   public void testFilterWithDateAndTimestamp(Object fileExt) throws IOException {
     FileFormat fileFormat = FileFormat.fromString(fileExt.toString());
     // TODO: Add multiple timestamp tests - there's an issue with ORC caching TZ in ThreadLocal, so
@@ -624,8 +564,8 @@ public class TestLocalScan {
             required(3, "date", Types.DateType.get()),
             required(4, "time", Types.TimeType.get()));
 
-    File tableLocation = new File(temp, "complex_filter_table");
-    // org.junit.jupiter.api.Assertions.assertTrue(tableLocation.delete());
+    File tableLocation = new File(temp,"complex_filter_table");
+    Assertions.assertThat(tableLocation.delete()).isTrue();
 
     Table table =
         TABLES.create(
@@ -636,8 +576,7 @@ public class TestLocalScan {
 
     List<Record> expected = RandomGenericData.generate(schema, 100, 435691832918L);
     DataFile file =
-        writeFile(
-            tableLocation.toString(), fileFormat.addExtension("record-file"), schema, expected);
+        writeFile(tableLocation.toString(), format.addExtension("record-file"), schema, expected);
     table.newFastAppend().appendFile(file).commit();
 
     for (Record r : expected) {
