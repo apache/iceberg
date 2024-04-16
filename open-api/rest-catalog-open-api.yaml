@@ -2252,6 +2252,7 @@ components:
           remove-statistics: '#/components/schemas/RemoveStatisticsUpdate'
           set-partition-statistics: '#/components/schemas/SetPartitionStatisticsUpdate'
           remove-partition-statistics: '#/components/schemas/RemovePartitionStatisticsUpdate'
+          append-data-files: '#/components/schemas/AppendDataFileUpdate'
       type: object
       required:
         - action
@@ -2554,6 +2555,21 @@ components:
           type: integer
           format: int64
 
+    AppendDataFileUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+      required:
+        - appended-data-files
+      properties:
+        action:
+          type: string
+          enum: [ "append-data-files" ]
+        appended-data-files:
+          type: array
+          items:
+            $ref: '#/components/schemas/DataFile'
+          description: List of serialized data files to be appended to a table
+
     TableUpdate:
       anyOf:
         - $ref: '#/components/schemas/AssignUUIDUpdate'
@@ -2573,6 +2589,7 @@ components:
         - $ref: '#/components/schemas/RemovePropertiesUpdate'
         - $ref: '#/components/schemas/SetStatisticsUpdate'
         - $ref: '#/components/schemas/RemoveStatisticsUpdate'
+        - $ref: '#/components/schemas/AppendDataFileUpdate'
 
     ViewUpdate:
       anyOf:

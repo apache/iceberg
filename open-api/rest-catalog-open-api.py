@@ -906,6 +906,15 @@ class SetStatisticsUpdate(BaseUpdate):
     statistics: StatisticsFile
 
 
+class AppendDataFileUpdate(BaseUpdate):
+    action: Optional[Literal['append-data-files']] = None
+    appended_data_files: List[DataFile] = Field(
+        ...,
+        alias='appended-data-files',
+        description='List of serialized data files to be appended to a table',
+    )
+
+
 class UnaryExpression(BaseModel):
     type: ExpressionType
     term: Term
@@ -1048,6 +1057,7 @@ class TableUpdate(BaseModel):
         RemovePropertiesUpdate,
         SetStatisticsUpdate,
         RemoveStatisticsUpdate,
+        AppendDataFileUpdate,
     ]
 
 
