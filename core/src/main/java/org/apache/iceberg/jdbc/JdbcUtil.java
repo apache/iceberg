@@ -54,7 +54,31 @@ final class JdbcUtil {
   static final String TABLE_RECORD_TYPE = "TABLE";
   static final String VIEW_RECORD_TYPE = "VIEW";
 
-  private static final String V1_DO_COMMIT_SQL =
+  private static final String V1_DO_COMMIT_TABLE_SQL =
+      "UPDATE "
+          + CATALOG_TABLE_VIEW_NAME
+          + " SET "
+          + JdbcTableOperations.METADATA_LOCATION_PROP
+          + " = ? , "
+          + JdbcTableOperations.PREVIOUS_METADATA_LOCATION_PROP
+          + " = ?"
+          + " WHERE "
+          + CATALOG_NAME
+          + " = ? AND "
+          + TABLE_NAMESPACE
+          + " = ? AND "
+          + TABLE_NAME
+          + " = ? AND "
+          + JdbcTableOperations.METADATA_LOCATION_PROP
+          + " = ? AND ("
+          + RECORD_TYPE
+          + " = '"
+          + TABLE_RECORD_TYPE
+          + "'"
+          + " OR "
+          + RECORD_TYPE
+          + " IS NULL)";
+  private static final String V1_DO_COMMIT_VIEW_SQL =
       "UPDATE "
           + CATALOG_TABLE_VIEW_NAME
           + " SET "
@@ -72,7 +96,10 @@ final class JdbcUtil {
           + JdbcTableOperations.METADATA_LOCATION_PROP
           + " = ? AND "
           + RECORD_TYPE
-          + " = ?";
+          + " = "
+          + "'"
+          + VIEW_RECORD_TYPE
+          + "'";
   private static final String V0_DO_COMMIT_SQL =
       "UPDATE "
           + CATALOG_TABLE_VIEW_NAME
@@ -504,7 +531,9 @@ final class JdbcUtil {
         conn -> {
           try (PreparedStatement sql =
               conn.prepareStatement(
-                  (schemaVersion == SchemaVersion.V1) ? V1_DO_COMMIT_SQL : V0_DO_COMMIT_SQL)) {
+                  (schemaVersion == SchemaVersion.V1)
+                      ? (isTable ? V1_DO_COMMIT_TABLE_SQL : V1_DO_COMMIT_VIEW_SQL)
+                      : V0_DO_COMMIT_SQL)) {
             // UPDATE
             sql.setString(1, newMetadataLocation);
             sql.setString(2, oldMetadataLocation);
@@ -513,9 +542,6 @@ final class JdbcUtil {
             sql.setString(4, namespaceToString(identifier.namespace()));
             sql.setString(5, identifier.name());
             sql.setString(6, oldMetadataLocation);
-            if (schemaVersion == SchemaVersion.V1) {
-              sql.setString(7, isTable ? TABLE_RECORD_TYPE : VIEW_RECORD_TYPE);
-            }
 
             return sql.executeUpdate();
           }
