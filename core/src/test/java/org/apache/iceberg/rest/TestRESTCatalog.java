@@ -79,6 +79,7 @@ import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
+import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.types.Types;
@@ -96,6 +97,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
@@ -1795,6 +1797,48 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(LoadTableResponse.class),
             eq(ImmutableMap.of("Authorization", "Bearer token-exchange-token:sub=" + token)),
             any());
+  }
+
+
+  @Test
+  public void testCatalogWithPagaintionTokenIssue() {
+    //TODO remove this test, Used to highlight issue with namespaces
+    String token =
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJleHAiOjE5OTk5OTk5OTk5fQ._3k92KJi2NTyTG6V1s2mzJ__GiQtL36DnzsZSkBdYPw";
+    Map<String, String> catalogHeaders = ImmutableMap.of("Authorization", "Bearer " + token);
+
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+
+    String credential = "catalog:12345";
+    Map<String, String> contextCredentials =
+            ImmutableMap.of("token", token, "credential", credential);
+    SessionCatalog.SessionContext context =
+            new SessionCatalog.SessionContext(
+                    UUID.randomUUID().toString(), "user", contextCredentials, ImmutableMap.of());
+
+    RESTCatalog catalog = new RESTCatalog(context, (config) -> adapter);
+    catalog.initialize("prod", ImmutableMap.of(CatalogProperties.URI, "ignored", "token", token));
+
+    Mockito.verify(adapter)
+            .execute(
+                    eq(HTTPMethod.GET),
+                    eq("v1/config"),
+                    any(),
+                    any(),
+                    eq(ConfigResponse.class),
+                    eq(catalogHeaders),
+                    any());
+
+    Mockito.verify(adapter)
+            .execute(
+                    eq(HTTPMethod.GET),
+                    eq("v1/namespaces"),
+                    any(),
+                    any(),
+                    eq(ListNamespacesResponse.class),
+                    eq(catalogHeaders),
+                    any());
+
   }
 
   @Test
