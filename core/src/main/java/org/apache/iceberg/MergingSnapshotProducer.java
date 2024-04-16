@@ -869,6 +869,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     List<ManifestFile> manifests = Lists.newArrayList();
     Iterables.addAll(manifests, mergeManager.mergeManifests(unmergedManifests));
     Iterables.addAll(manifests, deleteMergeManager.mergeManifests(unmergedDeleteManifests));
+    manifests.forEach(summaryBuilder::addedManifestStats);
 
     return manifests;
   }

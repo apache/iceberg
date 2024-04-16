@@ -190,6 +190,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     List<ManifestFile> apply = Lists.newArrayList();
     Iterables.addAll(apply, newManifestsWithMetadata);
     apply.addAll(keptManifests);
+    apply.forEach(summaryBuilder::addedManifestStats);
 
     return apply;
   }

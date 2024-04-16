@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.SnapshotSummary.TOTAL_DATA_MANIFEST_FILES;
+import static org.apache.iceberg.SnapshotSummary.TOTAL_DELETE_MANIFEST_FILES;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
@@ -40,10 +42,14 @@ public class TestSnapshot extends TestBase {
   public void testAppendFilesFromTable() {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
+    testManifestStats(table);
+
     // collect data files from deserialization
     Iterable<DataFile> filesToAdd = table.currentSnapshot().addedDataFiles(table.io());
 
     table.newDelete().deleteFile(FILE_A).deleteFile(FILE_B).commit();
+
+    testManifestStats(table);
 
     Snapshot oldSnapshot = table.currentSnapshot();
 
@@ -53,12 +59,17 @@ public class TestSnapshot extends TestBase {
     }
 
     Snapshot newSnapshot = fastAppend.apply();
+
+    testManifestStats(table);
+
     validateSnapshot(oldSnapshot, newSnapshot, FILE_A, FILE_B);
   }
 
   @TestTemplate
   public void testAppendFoundFiles() {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    testManifestStats(table);
 
     Iterable<DataFile> filesToAdd =
         FindFiles.in(table)
@@ -68,6 +79,8 @@ public class TestSnapshot extends TestBase {
 
     table.newDelete().deleteFile(FILE_A).deleteFile(FILE_B).commit();
 
+    testManifestStats(table);
+
     Snapshot oldSnapshot = table.currentSnapshot();
 
     AppendFiles fastAppend = table.newFastAppend();
@@ -76,6 +89,8 @@ public class TestSnapshot extends TestBase {
     }
 
     Snapshot newSnapshot = fastAppend.apply();
+
+    testManifestStats(table);
     validateSnapshot(oldSnapshot, newSnapshot, FILE_A, FILE_B);
   }
 
@@ -83,15 +98,23 @@ public class TestSnapshot extends TestBase {
   public void testCachedDataFiles() {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
+    testManifestStats(table);
+
     table.updateSpec().addField(Expressions.truncate("data", 2)).commit();
+
+    testManifestStats(table);
 
     DataFile secondSnapshotDataFile = newDataFile("data_bucket=8/data_trunc_2=aa");
 
     table.newFastAppend().appendFile(secondSnapshotDataFile).commit();
 
+    testManifestStats(table);
+
     DataFile thirdSnapshotDataFile = newDataFile("data_bucket=8/data_trunc_2=bb");
 
     table.newOverwrite().deleteFile(FILE_A).addFile(thirdSnapshotDataFile).commit();
+
+    testManifestStats(table);
 
     Snapshot thirdSnapshot = table.currentSnapshot();
 
@@ -118,7 +141,11 @@ public class TestSnapshot extends TestBase {
 
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
+    testManifestStats(table);
+
     table.updateSpec().addField(Expressions.truncate("data", 2)).commit();
+
+    testManifestStats(table);
 
     int specId = table.spec().specId();
 
@@ -131,6 +158,8 @@ public class TestSnapshot extends TestBase {
         .addDeletes(secondSnapshotDeleteFile)
         .commit();
 
+    testManifestStats(table);
+
     DeleteFile thirdSnapshotDeleteFile = newDeleteFile(specId, "data_bucket=8/data_trunc_2=aa");
 
     ImmutableSet<DeleteFile> replacedDeleteFiles = ImmutableSet.of(secondSnapshotDeleteFile);
@@ -140,6 +169,8 @@ public class TestSnapshot extends TestBase {
         .newRewrite()
         .rewriteFiles(ImmutableSet.of(), replacedDeleteFiles, ImmutableSet.of(), newDeleteFiles)
         .commit();
+
+    testManifestStats(table);
 
     Snapshot thirdSnapshot = table.currentSnapshot();
 
@@ -274,5 +305,14 @@ public class TestSnapshot extends TestBase {
     assertThat(addedDeleteFile.fileSequenceNumber().longValue())
         .as("File sequence number mismatch")
         .isEqualTo(expectedSequenceNumber);
+  }
+
+  public static void testManifestStats(Table table) {
+    assertThat(table.currentSnapshot().summary().get(TOTAL_DATA_MANIFEST_FILES))
+        .isEqualTo(String.valueOf(table.currentSnapshot().dataManifests(table.io()).size()));
+
+    int deletedManifestCount = table.currentSnapshot().deleteManifests(table.io()).size();
+    assertThat(table.currentSnapshot().summary().get(TOTAL_DELETE_MANIFEST_FILES))
+        .isEqualTo(deletedManifestCount == 0 ? null : String.valueOf(deletedManifestCount));
   }
 }

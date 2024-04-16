@@ -90,6 +90,29 @@ public class TestSnapshotSummary extends TestBase {
   }
 
   @TestTemplate
+  public void testManifestStatSummaryWithDeletes() {
+    if (formatVersion == 1) {
+      return;
+    }
+
+    // fast append
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Map<String, String> summary = table.currentSnapshot().summary();
+
+    assertThat(summary)
+        .containsEntry(SnapshotSummary.TOTAL_DATA_MANIFEST_FILES, "1")
+        .doesNotContainKey(SnapshotSummary.TOTAL_DELETE_MANIFEST_FILES);
+
+    table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A2_DELETES).commit();
+    table.refresh();
+    summary = table.currentSnapshot().summary();
+
+    assertThat(summary)
+        .containsEntry(SnapshotSummary.TOTAL_DATA_MANIFEST_FILES, "1")
+        .containsEntry(SnapshotSummary.TOTAL_DELETE_MANIFEST_FILES, "1");
+  }
+
+  @TestTemplate
   public void testIcebergVersionInSummary() {
     table.newFastAppend().appendFile(FILE_A).commit();
     Map<String, String> summary = table.currentSnapshot().summary();
