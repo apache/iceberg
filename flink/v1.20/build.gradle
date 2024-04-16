@@ -222,6 +222,10 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
       exclude group: 'org.apache.calcite'
       exclude group: 'org.apache.calcite.avatica'
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      exclude group: 'org.apache.hadoop', module: 'hadoop-yarn-server-common'
+      exclude group: 'org.apache.hadoop', module: 'hadoop-yarn-server-applicationhistoryservice'
+      exclude group: 'org.apache.hadoop', module: 'hadoop-yarn-server-resourcemanager'
+      exclude group: 'org.apache.hadoop', module: 'hadoop-yarn-server-web-proxy'
     }
   }
 
