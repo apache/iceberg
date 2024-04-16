@@ -36,11 +36,11 @@ public class TestListTablesResponse extends RequestResponseTestBase<ListTablesRe
   @Test
   public void testRoundTripSerDe() throws JsonProcessingException {
     String fullJson =
-        "{\"identifiers\":[{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid\"}]}";
+        "{\"identifiers\":[{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid\"}],\"next-page-token\":null}";
     assertRoundTripSerializesEquallyFrom(
         fullJson, ListTablesResponse.builder().addAll(IDENTIFIERS).build());
 
-    String emptyIdentifiers = "{\"identifiers\":[]}";
+    String emptyIdentifiers = "{\"identifiers\":[],\"next-page-token\":null}";
     assertRoundTripSerializesEquallyFrom(emptyIdentifiers, ListTablesResponse.builder().build());
   }
 
@@ -124,7 +124,7 @@ public class TestListTablesResponse extends RequestResponseTestBase<ListTablesRe
     ListTablesResponse response =
         ListTablesResponse.builder().addAll(IDENTIFIERS).nextPageToken(pageToken).build();
     assertRoundTripSerializesEquallyFrom(jsonWithPageToken, response);
-    Assertions.assertThat(response.nextPageToken()).isNotNull();
+    Assertions.assertThat(response.nextPageToken()).isEqualTo("token");
     Assertions.assertThat(response.identifiers()).isEqualTo(IDENTIFIERS);
   }
 

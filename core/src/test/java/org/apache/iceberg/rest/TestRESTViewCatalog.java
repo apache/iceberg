@@ -160,7 +160,6 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
 
     int numberOfItems = 100;
     String namespaceName = "newdb";
-    String tableName = "newtable";
     String viewName = "newview";
 
     // create initial namespace
@@ -173,7 +172,7 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
           .buildView(viewIndentifier)
           .withSchema(SCHEMA)
           .withDefaultNamespace(viewIndentifier.namespace())
-          .withQuery("spark", "select * from " + namespaceName + "." + tableName)
+          .withQuery("spark", "select * from ns.tbl")
           .create();
     }
 

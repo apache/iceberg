@@ -34,11 +34,11 @@ public class TestListNamespacesResponse extends RequestResponseTestBase<ListName
 
   @Test
   public void testRoundTripSerDe() throws JsonProcessingException {
-    String fullJson = "{\"namespaces\":[[\"accounting\"],[\"tax\"]]}";
+    String fullJson = "{\"namespaces\":[[\"accounting\"],[\"tax\"]],\"next-page-token\":null}";
     ListNamespacesResponse fullValue = ListNamespacesResponse.builder().addAll(NAMESPACES).build();
     assertRoundTripSerializesEquallyFrom(fullJson, fullValue);
 
-    String emptyNamespaces = "{\"namespaces\":[]}";
+    String emptyNamespaces = "{\"namespaces\":[],\"next-page-token\":null}";
     assertRoundTripSerializesEquallyFrom(emptyNamespaces, ListNamespacesResponse.builder().build());
   }
 
@@ -102,7 +102,7 @@ public class TestListNamespacesResponse extends RequestResponseTestBase<ListName
     ListNamespacesResponse response =
         ListNamespacesResponse.builder().addAll(NAMESPACES).nextPageToken(pageToken).build();
     assertRoundTripSerializesEquallyFrom(jsonWithPageToken, response);
-    Assertions.assertThat(response.nextPageToken()).isNotNull();
+    Assertions.assertThat(response.nextPageToken()).isEqualTo("token");
     Assertions.assertThat(response.namespaces()).isEqualTo(NAMESPACES);
   }
 

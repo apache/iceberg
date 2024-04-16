@@ -32,7 +32,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -97,7 +96,6 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
@@ -353,6 +351,40 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any(),
             eq(LoadTableResponse.class),
             eq(catalogHeaders),
+            any());
+  }
+
+  @Test
+  public void testCatalogWithPagination() {
+    Map<String, String> queryParams =
+        ImmutableMap.of("parent", "ns", "pageToken", "", "pageSize", "10");
+
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize("prod", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "10"));
+
+    catalog.createNamespace(Namespace.of("ns"));
+    Assertions.assertThat(catalog.listNamespaces(Namespace.of("ns"))).isNotNull();
+
+    Mockito.verify(adapter)
+        .execute(
+            eq(HTTPMethod.GET),
+            eq("v1/config"),
+            any(),
+            any(),
+            eq(ConfigResponse.class),
+            any(),
+            any());
+
+    Mockito.verify(adapter)
+        .execute(
+            eq(HTTPMethod.GET),
+            eq("v1/namespaces"),
+            eq(queryParams),
+            any(),
+            eq(ListNamespacesResponse.class),
+            any(),
             any());
   }
 
@@ -1799,48 +1831,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any());
   }
 
-
-  @Test
-  public void testCatalogWithPagaintionTokenIssue() {
-    //TODO remove this test, Used to highlight issue with namespaces
-    String token =
-            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJleHAiOjE5OTk5OTk5OTk5fQ._3k92KJi2NTyTG6V1s2mzJ__GiQtL36DnzsZSkBdYPw";
-    Map<String, String> catalogHeaders = ImmutableMap.of("Authorization", "Bearer " + token);
-
-    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
-
-    String credential = "catalog:12345";
-    Map<String, String> contextCredentials =
-            ImmutableMap.of("token", token, "credential", credential);
-    SessionCatalog.SessionContext context =
-            new SessionCatalog.SessionContext(
-                    UUID.randomUUID().toString(), "user", contextCredentials, ImmutableMap.of());
-
-    RESTCatalog catalog = new RESTCatalog(context, (config) -> adapter);
-    catalog.initialize("prod", ImmutableMap.of(CatalogProperties.URI, "ignored", "token", token));
-
-    Mockito.verify(adapter)
-            .execute(
-                    eq(HTTPMethod.GET),
-                    eq("v1/config"),
-                    any(),
-                    any(),
-                    eq(ConfigResponse.class),
-                    eq(catalogHeaders),
-                    any());
-
-    Mockito.verify(adapter)
-            .execute(
-                    eq(HTTPMethod.GET),
-                    eq("v1/namespaces"),
-                    any(),
-                    any(),
-                    eq(ListNamespacesResponse.class),
-                    eq(catalogHeaders),
-                    any());
-
-  }
-
   @Test
   public void testCatalogValidBearerTokenIsNotRefreshed() {
     // expires at epoch second = 19999999999
@@ -2378,11 +2368,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   public void testInvalidRestPageSize() {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog =
-            new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
-    org.assertj.core.api.Assertions.assertThatThrownBy(
-            () -> catalog.initialize("test", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "-1")))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessage("Invalid value for pageSize, must be a positive integer");
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    Assertions.assertThatThrownBy(
+            () ->
+                catalog.initialize(
+                    "test", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "-1")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid value for pageSize, must be a positive integer");
   }
 
   @Test
@@ -2400,8 +2392,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       catalog.createNamespace(Namespace.of(nameSpaceName));
     }
 
-    List<Namespace> results = catalog.listNamespaces();
-    assertThat(results).hasSize(numberOfItems);
+    assertThat(catalog.listNamespaces()).hasSize(numberOfItems);
   }
 
   @Test
@@ -2421,8 +2412,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       catalog.createTable(tableIdentifier, SCHEMA);
     }
 
-    List<TableIdentifier> tables = catalog.listTables(Namespace.of(namespaceName));
-    assertThat(tables).hasSize(numberOfItems);
+    assertThat(catalog.listTables(Namespace.of(namespaceName))).hasSize(numberOfItems);
   }
 
   @Test
