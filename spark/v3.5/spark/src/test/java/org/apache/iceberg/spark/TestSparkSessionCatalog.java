@@ -107,8 +107,9 @@ public class TestSparkSessionCatalog extends TestBase {
   @Test
   public void testDropHiveTable() throws NoSuchTableException {
     spark.sql("CREATE TABLE test_table (id INT)");
-    Identifier tableIdentifier = Identifier.of(new String[]{"default"}, "test_table");
-    SparkSessionCatalog catalog = (SparkSessionCatalog) spark.sessionState().catalogManager().currentCatalog();
+    Identifier tableIdentifier = Identifier.of(new String[] {"default"}, "test_table");
+    SparkSessionCatalog catalog =
+        (SparkSessionCatalog) spark.sessionState().catalogManager().currentCatalog();
     Table table = catalog.loadTable(tableIdentifier);
     assertThat(table).isInstanceOf(V1Table.class);
     File tableLocation = new File(((V1Table) table).catalogTable().storage().locationUri().get());
