@@ -207,6 +207,8 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
    */
   private int bulkDeleteFiles(Iterable<String> pathnames) {
 
+    LOG.debug("Using bulk delete operation to delete files");
+
     SetMultimap<String, Path> fsMap =
         Multimaps.newSetMultimap(Maps.newHashMap(), Sets::newHashSet);
     List<Future<List<Map.Entry<Path, String>>>> deletionTasks = Lists.newArrayList();
@@ -219,23 +221,29 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
       FileSystem fs = Util.getFs(p, hadoopConf.get());
       int pageSize = WrappedIO.bulkDeletePageSize(fs, p);
 
+      // the page size has been reached.
+      // for classic filesystems page size == 1 so this happens every time.
+      // hence: try and keep it efficient.
       if (fsMap.get(fsURI).size() == pageSize) {
-        HashSet<Path> keys = Sets.newHashSet(fsMap.get(fsURI));
-        deletionTasks.add(executorService().submit(() -> deleteBatch(fs, keys)));
+        LOG.debug("Queueing batch delete for filesystem {}: file count {}", fsURI, pageSize);
+        HashSet<Path> paths = Sets.newHashSet(fsMap.get(fsURI));
+        deletionTasks.add(executorService().submit(() ->
+            deleteBatch(fs, paths)));
         fsMap.removeAll(fsURI);
       }
     }
 
     // Delete the remainder
-    for (Map.Entry<String, Collection<Path>> bucketToObjectsEntry :
+    for (Map.Entry<String, Collection<Path>> pathsToDeleteByFileSystem :
         fsMap.asMap().entrySet()) {
-      String fsURI = bucketToObjectsEntry.getKey();
+      String fsURI = pathsToDeleteByFileSystem.getKey();
       Path p = new Path(fsURI);
       FileSystem fs = Util.getFs(p, hadoopConf.get());
 
-      Collection<Path> keys = bucketToObjectsEntry.getValue();
-      Future<List<Map.Entry<Path, String>> deletionTask =
-          executorService().submit(() -> deleteBatch(fs, keys));
+      Collection<Path> paths = pathsToDeleteByFileSystem.getValue();
+      Future<List<Map.Entry<Path, String>>> deletionTask =
+          executorService().submit(() ->
+              deleteBatch(fs, paths));
       deletionTasks.add(deletionTask);
     }
 
@@ -267,7 +275,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
    */
   private List<Map.Entry<Path, String>> deleteBatch(FileSystem fs, Collection<Path> paths) {
 
-    return WrappedOperations.bulkDelete(fs, new Path(fs.getUri()), paths);
+    return WrappedIO.bulkDelete(fs, new Path(fs.getUri()), paths);
   }
 
   private int deleteThreads() {
