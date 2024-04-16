@@ -22,6 +22,11 @@ import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.File;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.connector.catalog.Identifier;
+import org.apache.spark.sql.connector.catalog.Table;
+import org.apache.spark.sql.connector.catalog.V1Table;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -97,5 +102,20 @@ public class TestSparkSessionCatalog extends TestBase {
         .isEqualTo("XYZ");
 
     // TODO: fix loading Iceberg built-in functions in SessionCatalog
+  }
+
+  @Test
+  public void testDropHiveTable() throws NoSuchTableException {
+    spark.sql("CREATE TABLE test_table (id INT)");
+    Identifier tableIdentifier = Identifier.of(new String[]{"default"}, "test_table");
+    SparkSessionCatalog catalog = (SparkSessionCatalog) spark.sessionState().catalogManager().currentCatalog();
+    Table table = catalog.loadTable(tableIdentifier);
+    assertThat(table).isInstanceOf(V1Table.class);
+    File tableLocation = new File(((V1Table) table).catalogTable().storage().locationUri().get());
+    assertThat(tableLocation.exists()).isTrue();
+
+    // The table will be dropped by delegate session catalog, and table location will be deleted
+    catalog.dropTable(tableIdentifier);
+    assertThat(tableLocation.exists()).isFalse();
   }
 }
