@@ -21,15 +21,22 @@ package org.apache.iceberg.hadoop;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.URI;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.RemoteIterator;
+import org.apache.hadoop.io.wrappedio.WrappedIO;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.DelegateFileIO;
@@ -37,6 +44,11 @@ import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
+import org.apache.iceberg.relocated.com.google.common.collect.SetMultimap;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
@@ -166,21 +178,96 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   @Override
   public void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException {
     AtomicInteger failureCount = new AtomicInteger(0);
-    Tasks.foreach(pathsToDelete)
-        .executeWith(executorService())
-        .retry(DELETE_RETRY_ATTEMPTS)
-        .stopRetryOn(FileNotFoundException.class)
-        .suppressFailureWhenFinished()
-        .onFailure(
-            (f, e) -> {
-              LOG.error("Failure during bulk delete on file: {} ", f, e);
-              failureCount.incrementAndGet();
-            })
-        .run(this::deleteFile);
-
+    if (WrappedIO.isBulkDeleteAvailable()) {
+      failureCount.set(bulkDeleteFiles(pathsToDelete));
+    } else {
+      Tasks.foreach(pathsToDelete)
+          .executeWith(executorService())
+          .retry(DELETE_RETRY_ATTEMPTS)
+          .stopRetryOn(FileNotFoundException.class)
+          .suppressFailureWhenFinished()
+          .onFailure(
+              (f, e) -> {
+                LOG.error("Failure during bulk delete on file: {} ", f, e);
+                failureCount.incrementAndGet();
+              })
+          .run(this::deleteFile);
+    }
     if (failureCount.get() != 0) {
       throw new BulkDeletionFailureException(failureCount.get());
     }
+  }
+
+  /**
+   * Bulk delete files.
+   * This has to support a list spanning multiple filesystems, so we group the paths by filesystem
+   * of schema + host.
+   * @param pathnames paths to delete.
+   * @return count of failures.
+   */
+  private int bulkDeleteFiles(Iterable<String> pathnames) {
+
+    SetMultimap<String, Path> fsMap =
+        Multimaps.newSetMultimap(Maps.newHashMap(), Sets::newHashSet);
+    List<Future<List<Map.Entry<Path, String>>>> deletionTasks = Lists.newArrayList();
+    for (String path : pathnames) {
+      Path p = new Path(path);
+      final URI uri = p.toUri();
+      String fsURI = uri.getScheme() + "://" + uri.getHost() + "/";
+      fsMap.get(fsURI).add(p);
+
+      FileSystem fs = Util.getFs(p, hadoopConf.get());
+      int pageSize = WrappedIO.bulkDeletePageSize(fs, p);
+
+      if (fsMap.get(fsURI).size() == pageSize) {
+        HashSet<Path> keys = Sets.newHashSet(fsMap.get(fsURI));
+        deletionTasks.add(executorService().submit(() -> deleteBatch(fs, keys)));
+        fsMap.removeAll(fsURI);
+      }
+    }
+
+    // Delete the remainder
+    for (Map.Entry<String, Collection<Path>> bucketToObjectsEntry :
+        fsMap.asMap().entrySet()) {
+      String fsURI = bucketToObjectsEntry.getKey();
+      Path p = new Path(fsURI);
+      FileSystem fs = Util.getFs(p, hadoopConf.get());
+
+      Collection<Path> keys = bucketToObjectsEntry.getValue();
+      Future<List<Map.Entry<Path, String>> deletionTask =
+          executorService().submit(() -> deleteBatch(fs, keys));
+      deletionTasks.add(deletionTask);
+    }
+
+    int totalFailedDeletions = 0;
+
+    for (Future<List<Map.Entry<Path, String>>> deletionTask : deletionTasks) {
+      try {
+        List<Map.Entry<Path, String>> failedDeletions = deletionTask.get();
+        failedDeletions.forEach(entry -> LOG.warn("Failed to delete object at path {}: {}",
+            entry.getKey(), entry.getValue()));
+        totalFailedDeletions += failedDeletions.size();
+      } catch (ExecutionException e) {
+        LOG.warn("Caught unexpected exception during batch deletion: ", e.getCause());
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        deletionTasks.stream().filter(task -> !task.isDone()).forEach(task -> task.cancel(true));
+        throw new RuntimeException("Interrupted when waiting for deletions to complete", e);
+      }
+    }
+
+    return totalFailedDeletions;
+  }
+
+  /**
+   * Blocking batch delete.
+   * @param fs filesystem.
+   * @param paths paths to delete.
+   * @return the list of paths that couldn't be deleted.
+   */
+  private List<Map.Entry<Path, String>> deleteBatch(FileSystem fs, Collection<Path> paths) {
+
+    return WrappedOperations.bulkDelete(fs, new Path(fs.getUri()), paths);
   }
 
   private int deleteThreads() {

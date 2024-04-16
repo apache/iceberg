@@ -45,7 +45,7 @@ flink119 =  { strictly = "1.19.0"}
 google-libraries-bom = "26.28.0"
 guava = "33.2.1-jre"
 hadoop2 = "2.7.3"
-hadoop3-client = "3.3.6"
+hadoop3-client = "3.5.0"
 httpcomponents-httpclient5 = "5.3.1"
 hive2 = { strictly = "2.3.9"} # see rich version usage explanation above
 hive3 = "3.1.3"
