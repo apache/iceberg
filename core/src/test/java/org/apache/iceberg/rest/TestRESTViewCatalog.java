@@ -19,6 +19,9 @@
 package org.apache.iceberg.rest;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -36,7 +39,10 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.RESTCatalogAdapter.HTTPMethod;
+import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
+import org.apache.iceberg.rest.responses.ListTablesResponse;
+import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.view.ViewCatalogTests;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.gzip.GzipHandler;
@@ -175,9 +181,39 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
           .withQuery("spark", "select * from ns.tbl")
           .create();
     }
-
+    Map<String, String> queryParams = ImmutableMap.of("pageToken", "", "pageSize", "10");
     List<TableIdentifier> views = catalog.listViews(Namespace.of(namespaceName));
     assertThat(views).hasSize(numberOfItems);
+
+    Mockito.verify(adapter)
+        .execute(
+            eq(HTTPMethod.GET),
+            eq("v1/config"),
+            any(),
+            any(),
+            eq(ConfigResponse.class),
+            any(),
+            any());
+
+    Mockito.verify(adapter, times(numberOfItems))
+        .execute(
+            eq(HTTPMethod.POST),
+            eq(String.format("v1/namespaces/%s/views", namespaceName)),
+            any(),
+            any(),
+            eq(LoadViewResponse.class),
+            any(),
+            any());
+
+    Mockito.verify(adapter)
+        .execute(
+            eq(HTTPMethod.GET),
+            eq(String.format("v1/namespaces/%s/views", namespaceName)),
+            eq(queryParams),
+            any(),
+            eq(ListTablesResponse.class),
+            any(),
+            any());
   }
 
   @Override

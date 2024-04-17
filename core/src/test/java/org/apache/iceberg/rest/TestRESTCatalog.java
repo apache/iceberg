@@ -77,8 +77,10 @@ import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
+import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
+import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.types.Types;
@@ -351,40 +353,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any(),
             eq(LoadTableResponse.class),
             eq(catalogHeaders),
-            any());
-  }
-
-  @Test
-  public void testCatalogWithPagination() {
-    Map<String, String> queryParams =
-        ImmutableMap.of("parent", "ns", "pageToken", "", "pageSize", "10");
-
-    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
-    RESTCatalog catalog =
-        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
-    catalog.initialize("prod", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "10"));
-
-    catalog.createNamespace(Namespace.of("ns"));
-    Assertions.assertThat(catalog.listNamespaces(Namespace.of("ns"))).isNotNull();
-
-    Mockito.verify(adapter)
-        .execute(
-            eq(HTTPMethod.GET),
-            eq("v1/config"),
-            any(),
-            any(),
-            eq(ConfigResponse.class),
-            any(),
-            any());
-
-    Mockito.verify(adapter)
-        .execute(
-            eq(HTTPMethod.GET),
-            eq("v1/namespaces"),
-            eq(queryParams),
-            any(),
-            eq(ListNamespacesResponse.class),
-            any(),
             any());
   }
 
@@ -2379,12 +2347,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @Test
   public void testPaginationForListNamespaces() {
+
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
     catalog.initialize("test", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "10"));
     int numberOfItems = 100;
     String namespaceName = "newdb";
+    Map<String, String> queryParams = ImmutableMap.of("pageToken", "", "pageSize", "10");
 
     // create several namespaces for listing and verify
     for (int i = 0; i < numberOfItems; i++) {
@@ -2393,6 +2363,36 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     }
 
     assertThat(catalog.listNamespaces()).hasSize(numberOfItems);
+
+    Mockito.verify(adapter)
+        .execute(
+            eq(HTTPMethod.GET),
+            eq("v1/config"),
+            any(),
+            any(),
+            eq(ConfigResponse.class),
+            any(),
+            any());
+
+    Mockito.verify(adapter, times(numberOfItems))
+        .execute(
+            eq(HTTPMethod.POST),
+            eq("v1/namespaces"),
+            any(),
+            any(),
+            eq(CreateNamespaceResponse.class),
+            any(),
+            any());
+
+    Mockito.verify(adapter)
+        .execute(
+            eq(HTTPMethod.GET),
+            eq("v1/namespaces"),
+            eq(queryParams),
+            any(),
+            eq(ListNamespacesResponse.class),
+            any(),
+            any());
   }
 
   @Test
@@ -2404,6 +2404,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     int numberOfItems = 100;
     String namespaceName = "newdb";
     String tableName = "newtable";
+    Map<String, String> queryParams = ImmutableMap.of("pageToken", "", "pageSize", "10");
     catalog.createNamespace(Namespace.of(namespaceName));
 
     // create several tables under namespace for listing and verify
@@ -2413,6 +2414,36 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     }
 
     assertThat(catalog.listTables(Namespace.of(namespaceName))).hasSize(numberOfItems);
+
+    Mockito.verify(adapter)
+        .execute(
+            eq(HTTPMethod.GET),
+            eq("v1/config"),
+            any(),
+            any(),
+            eq(ConfigResponse.class),
+            any(),
+            any());
+
+    Mockito.verify(adapter, times(numberOfItems))
+        .execute(
+            eq(HTTPMethod.POST),
+            eq(String.format("v1/namespaces/%s/tables", namespaceName)),
+            any(),
+            any(),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+
+    Mockito.verify(adapter)
+        .execute(
+            eq(HTTPMethod.GET),
+            eq(String.format("v1/namespaces/%s/tables", namespaceName)),
+            eq(queryParams),
+            any(),
+            eq(ListTablesResponse.class),
+            any(),
+            any());
   }
 
   @Test
