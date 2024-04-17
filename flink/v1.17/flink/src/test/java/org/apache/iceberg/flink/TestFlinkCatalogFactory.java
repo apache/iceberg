@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.flink;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
@@ -26,15 +29,14 @@ import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.assertj.core.api.Assertions;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class TestFlinkCatalogFactory {
 
   private Map<String, String> props;
 
-  @Before
+  @BeforeEach
   public void before() {
     props = Maps.newHashMap();
     props.put("type", "iceberg");
@@ -51,7 +53,7 @@ public class TestFlinkCatalogFactory {
         FlinkCatalogFactory.createCatalogLoader(catalogName, props, new Configuration())
             .loadCatalog();
 
-    Assertions.assertThat(catalog).isNotNull().isInstanceOf(HiveCatalog.class);
+    assertThat(catalog).isNotNull().isInstanceOf(HiveCatalog.class);
   }
 
   @Test
@@ -64,7 +66,7 @@ public class TestFlinkCatalogFactory {
         FlinkCatalogFactory.createCatalogLoader(catalogName, props, new Configuration())
             .loadCatalog();
 
-    Assertions.assertThat(catalog).isNotNull().isInstanceOf(HadoopCatalog.class);
+    assertThat(catalog).isNotNull().isInstanceOf(HadoopCatalog.class);
   }
 
   @Test
@@ -76,7 +78,7 @@ public class TestFlinkCatalogFactory {
         FlinkCatalogFactory.createCatalogLoader(catalogName, props, new Configuration())
             .loadCatalog();
 
-    Assertions.assertThat(catalog).isNotNull().isInstanceOf(CustomHadoopCatalog.class);
+    assertThat(catalog).isNotNull().isInstanceOf(CustomHadoopCatalog.class);
   }
 
   @Test
@@ -86,7 +88,7 @@ public class TestFlinkCatalogFactory {
     props.put(
         FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, FlinkCatalogFactory.ICEBERG_CATALOG_TYPE_HIVE);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> FlinkCatalogFactory.createCatalogLoader(catalogName, props, new Configuration()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith(
@@ -98,7 +100,7 @@ public class TestFlinkCatalogFactory {
     String catalogName = "unknownCatalog";
     props.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "fooType");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> FlinkCatalogFactory.createCatalogLoader(catalogName, props, new Configuration()))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessageStartingWith("Unknown catalog-type: fooType");
