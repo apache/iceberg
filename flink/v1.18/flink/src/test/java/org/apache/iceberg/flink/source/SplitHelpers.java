@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.flink.source;
 
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,9 +51,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.ThreadPools;
 import org.junit.Assert;
 import org.junit.rules.TemporaryFolder;
-
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.spy;
 
 public class SplitHelpers {
 

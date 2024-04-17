@@ -155,7 +155,7 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
 
       for (FileScanTask fileScanTask : fileScanTasks) {
         String taskJson = FileScanTaskParser.toJson(fileScanTask);
-        writeLongUTF(out, taskJson, version);
+        writeTaskJson(out, taskJson, version);
       }
 
       serializedBytesCache = out.getCopyOfBuffer();
@@ -165,7 +165,7 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
     return serializedBytesCache;
   }
 
-  private static void writeLongUTF(DataOutputSerializer out, String taskJson, int version)
+  private static void writeTaskJson(DataOutputSerializer out, String taskJson, int version)
       throws IOException {
     switch (version) {
       case 2:
