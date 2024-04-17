@@ -35,7 +35,7 @@ class SerializerHelper implements Serializable {
    * Similar to {@link DataOutputSerializer#writeUTF(String)}. Except this supports larger payloads
    * which is up to max integer value.
    *
-   * <p>Note: This method is deprecated because there will be a method within the {@link
+   * <p>Note: This method can be removed when the method which does similar thing within the {@link
    * DataOutputSerializer} already which does the same thing, so use that one instead once that is
    * released on Flink version 1.20.
    *
@@ -72,11 +72,11 @@ class SerializerHelper implements Serializable {
    * Similar to {@link DataInputDeserializer#readUTF()}. Except this supports larger payloads which
    * is up to max integer value.
    *
-   * <p>This method is deprecated because there will be a method within the {@link *
-   * DataInputDeserializer} already which does the same thing, so use that one instead once that *
-   * is released on Flink version 1.20. *
+   * <p>Note: This method can be removed when the method which does similar thing within the {@link
+   * DataOutputSerializer} already which does the same thing, so use that one instead once that is
+   * released on Flink version 1.20.
    *
-   * <p>See * <a href="https://issues.apache.org/jira/browse/FLINK-34228">FLINK-34228</a> * <a *
+   * <p>See * <a href="https://issues.apache.org/jira/browse/FLINK-34228">FLINK-34228</a> * <a
    * href="https://github.com/apache/flink/pull/24191">https://github.com/apache/flink/pull/24191</a>
    *
    * @param in the input stream to read the string from.
