@@ -129,7 +129,7 @@ public class CatalogHandlers {
       results = catalog.listNamespaces(parent);
     }
 
-    int start = pageToken.equals(INTIAL_PAGE_TOKEN) ? 0 : Integer.parseInt(pageToken);
+    int start = INTIAL_PAGE_TOKEN.equals(pageToken) ? 0 : Integer.parseInt(pageToken);
     int end = start + Integer.parseInt(pageSize);
     subResults = results.subList(start, end);
     String nextToken = String.valueOf(end);
@@ -203,7 +203,7 @@ public class CatalogHandlers {
     List<TableIdentifier> results = catalog.listTables(namespace);
     List<TableIdentifier> subResults;
 
-    int start = pageToken.equals(INTIAL_PAGE_TOKEN) ? 0 : Integer.parseInt(pageToken);
+    int start = INTIAL_PAGE_TOKEN.equals(pageToken) ? 0 : Integer.parseInt(pageToken);
     int end = start + Integer.parseInt(pageSize);
     subResults = results.subList(start, end);
     String nextToken = String.valueOf(end);
@@ -443,7 +443,7 @@ public class CatalogHandlers {
     List<TableIdentifier> results = catalog.listViews(namespace);
     List<TableIdentifier> subResults;
 
-    int start = pageToken.equals(INTIAL_PAGE_TOKEN) ? 0 : Integer.parseInt(pageToken);
+    int start = INTIAL_PAGE_TOKEN.equals(pageToken) ? 0 : Integer.parseInt(pageToken);
     int end = start + Integer.parseInt(pageSize);
     subResults = results.subList(start, end);
     String nextToken = String.valueOf(end);

@@ -2387,7 +2387,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .execute(
             eq(HTTPMethod.GET),
             eq("v1/namespaces"),
-            any(),
+            eq(ImmutableMap.of("pageToken", "10", "pageSize", "10")),
             any(),
             eq(ListNamespacesResponse.class),
             any(),
@@ -2438,7 +2438,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .execute(
             eq(HTTPMethod.GET),
             eq(String.format("v1/namespaces/%s/tables", namespaceName)),
-            any(),
+            eq(ImmutableMap.of("pageToken", "10", "pageSize", "10")),
             any(),
             eq(ListTablesResponse.class),
             any(),

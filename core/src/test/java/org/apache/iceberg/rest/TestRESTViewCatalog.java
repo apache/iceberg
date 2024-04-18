@@ -209,7 +209,7 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
         .execute(
             eq(HTTPMethod.GET),
             eq(String.format("v1/namespaces/%s/views", namespaceName)),
-            any(),
+            eq(ImmutableMap.of("pageToken", "10", "pageSize", "10")),
             any(),
             eq(ListTablesResponse.class),
             any(),
