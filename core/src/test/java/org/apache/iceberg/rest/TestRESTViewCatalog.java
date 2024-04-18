@@ -164,7 +164,8 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
     catalog.initialize("test", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "10"));
 
-    int numberOfItems = 100;
+    int numberOfItems = 20;
+    int numberOfInvocations = 2;
     String namespaceName = "newdb";
     String viewName = "newview";
 
@@ -181,7 +182,6 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
           .withQuery("spark", "select * from ns.tbl")
           .create();
     }
-    Map<String, String> queryParams = ImmutableMap.of("pageToken", "", "pageSize", "10");
     List<TableIdentifier> views = catalog.listViews(Namespace.of(namespaceName));
     assertThat(views).hasSize(numberOfItems);
 
@@ -205,11 +205,11 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
             any(),
             any());
 
-    Mockito.verify(adapter)
+    Mockito.verify(adapter, times(numberOfInvocations))
         .execute(
             eq(HTTPMethod.GET),
             eq(String.format("v1/namespaces/%s/views", namespaceName)),
-            eq(queryParams),
+            any(),
             any(),
             eq(ListTablesResponse.class),
             any(),

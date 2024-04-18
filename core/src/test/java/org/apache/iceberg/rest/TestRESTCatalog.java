@@ -2347,14 +2347,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @Test
   public void testPaginationForListNamespaces() {
-
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
     catalog.initialize("test", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "10"));
-    int numberOfItems = 100;
+    int numberOfItems = 20;
+    int numberOfInvocations = 2;
     String namespaceName = "newdb";
-    Map<String, String> queryParams = ImmutableMap.of("pageToken", "", "pageSize", "10");
 
     // create several namespaces for listing and verify
     for (int i = 0; i < numberOfItems; i++) {
@@ -2384,11 +2383,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any(),
             any());
 
-    Mockito.verify(adapter)
+    Mockito.verify(adapter, times(numberOfInvocations))
         .execute(
             eq(HTTPMethod.GET),
             eq("v1/namespaces"),
-            eq(queryParams),
+            any(),
             any(),
             eq(ListNamespacesResponse.class),
             any(),
@@ -2401,10 +2400,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
     catalog.initialize("test", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "10"));
-    int numberOfItems = 100;
+    int numberOfItems = 20;
+    int numberOfInvocations = 2;
     String namespaceName = "newdb";
     String tableName = "newtable";
-    Map<String, String> queryParams = ImmutableMap.of("pageToken", "", "pageSize", "10");
     catalog.createNamespace(Namespace.of(namespaceName));
 
     // create several tables under namespace for listing and verify
@@ -2435,11 +2434,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any(),
             any());
 
-    Mockito.verify(adapter)
+    Mockito.verify(adapter, times(numberOfInvocations))
         .execute(
             eq(HTTPMethod.GET),
             eq(String.format("v1/namespaces/%s/tables", namespaceName)),
-            eq(queryParams),
+            any(),
             any(),
             eq(ListTablesResponse.class),
             any(),
