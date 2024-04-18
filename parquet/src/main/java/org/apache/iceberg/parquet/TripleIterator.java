@@ -129,4 +129,16 @@ interface TripleIterator<T> extends Iterator<T> {
    * @throws java.util.NoSuchElementException if there are no more elements
    */
   <N> N nextNull();
+
+  /**
+   * Returns true when some triples in this iterator might need to be skipped.
+   *
+   * @return whether this iterator needs synchronizing
+   */
+  default boolean needsSynchronizing() {
+    return false;
+  }
+
+  /** Skips triples to synchronize the row reading. */
+  default void synchronize() {}
 }

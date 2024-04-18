@@ -142,7 +142,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
 
       PageReadStore pages;
       try {
-        pages = reader.readNextRowGroup();
+        pages = reader.readNextFilteredRowGroup();
       } catch (IOException e) {
         throw new RuntimeIOException(e);
       }

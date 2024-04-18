@@ -158,7 +158,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
       }
       PageReadStore pages;
       try {
-        pages = reader.readNextRowGroup();
+        pages = reader.readNextFilteredRowGroup();
       } catch (IOException e) {
         throw new RuntimeIOException(e);
       }

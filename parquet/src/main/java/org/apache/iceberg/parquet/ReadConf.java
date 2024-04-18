@@ -116,15 +116,16 @@ class ReadConf<T> {
       }
     }
 
-    this.totalValues = computedTotalValues;
     if (readerFunc != null) {
       this.model = (ParquetValueReader<T>) readerFunc.apply(typeWithIds);
       this.vectorizedModel = null;
       this.columnChunkMetaDataForRowGroups = null;
+      this.totalValues = reader.getFilteredRecordCount();
     } else {
       this.model = null;
       this.vectorizedModel = (VectorizedReader<T>) batchedReaderFunc.apply(typeWithIds);
       this.columnChunkMetaDataForRowGroups = getColumnChunkMetadataForRowGroups();
+      this.totalValues = computedTotalValues;
     }
 
     this.reuseContainers = reuseContainers;
