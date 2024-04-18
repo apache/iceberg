@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.source;
 
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.ReaderType;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.read.InputPartition;
@@ -28,10 +29,12 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 class SparkColumnarReaderFactory implements PartitionReaderFactory {
   private final int batchSize;
+  private final ReaderType readType;
 
-  SparkColumnarReaderFactory(int batchSize) {
+  SparkColumnarReaderFactory(int batchSize, ReaderType readType) {
     Preconditions.checkArgument(batchSize > 1, "Batch size must be > 1");
     this.batchSize = batchSize;
+    this.readType = readType;
   }
 
   @Override
@@ -49,7 +52,9 @@ class SparkColumnarReaderFactory implements PartitionReaderFactory {
     SparkInputPartition partition = (SparkInputPartition) inputPartition;
 
     if (partition.allTasksOfType(FileScanTask.class)) {
-      return new BatchDataReader(partition, batchSize);
+      BatchDataReader batchDataReader = new BatchDataReader(partition, batchSize);
+      batchDataReader.setReadType(readType);
+      return batchDataReader;
 
     } else {
       throw new UnsupportedOperationException(

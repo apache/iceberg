@@ -18,16 +18,16 @@
  */
 package org.apache.iceberg.spark.data.vectorized.comet;
 
-import org.apache.comet.parquet.MetadataColumnReader;
-import org.apache.comet.parquet.Native;
+import org.apache.comet.parquet.ConstantColumnReader;
 import org.apache.iceberg.types.Types;
-import org.apache.parquet.column.ColumnDescriptor;
-import org.apache.spark.sql.types.DataTypes;
 
-public class CometIcebergPositionColumnReader extends CometIcebergColumnReader {
-  public CometIcebergPositionColumnReader(Types.NestedField field) {
+class CometConstantColumnReader<T> extends CometColumnReader {
+  private final T value;
+
+  CometConstantColumnReader(T value, Types.NestedField field) {
     super(field);
-    delegate = new PositionColumnReader(getDescriptor());
+    this.value = value;
+    delegate = new ConstantColumnReader(getSparkType(), getDescriptor(), value, false);
   }
 
   @Override
@@ -35,28 +35,5 @@ public class CometIcebergPositionColumnReader extends CometIcebergColumnReader {
     delegate.setBatchSize(batchSize);
     this.batchSize = batchSize;
     initialized = true;
-  }
-
-  private static class PositionColumnReader extends MetadataColumnReader {
-    /** The current position value of the column that are used to initialize this column reader. */
-    private long position;
-
-    PositionColumnReader(ColumnDescriptor descriptor) {
-      this(descriptor, 0L);
-    }
-
-    PositionColumnReader(ColumnDescriptor descriptor, long position) {
-      super(DataTypes.LongType, descriptor, false);
-      this.position = position;
-    }
-
-    @Override
-    public void readBatch(int total) {
-      Native.resetBatch(nativeHandle);
-      Native.setPosition(nativeHandle, position, total);
-      position += total;
-
-      super.readBatch(total);
-    }
   }
 }

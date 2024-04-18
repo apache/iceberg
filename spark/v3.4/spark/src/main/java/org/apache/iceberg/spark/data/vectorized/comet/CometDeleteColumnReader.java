@@ -27,13 +27,13 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 
-public class CometIcebergDeleteColumnReader<T> extends CometIcebergColumnReader {
-  public CometIcebergDeleteColumnReader(Types.NestedField field) {
+class CometDeleteColumnReader<T> extends CometColumnReader {
+  CometDeleteColumnReader(Types.NestedField field) {
     super(field);
     delegate = new ConstantColumnReader(getSparkType(), getDescriptor(), false, false);
   }
 
-  public CometIcebergDeleteColumnReader(boolean[] isDeleted) {
+  CometDeleteColumnReader(boolean[] isDeleted) {
     super(
         DataTypes.BooleanType,
         TypeUtil.convertToParquet(
