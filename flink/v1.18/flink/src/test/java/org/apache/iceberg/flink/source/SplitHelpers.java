@@ -23,7 +23,6 @@ import static org.mockito.Mockito.spy;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
@@ -160,11 +159,11 @@ public class SplitHelpers {
       TemporaryFolder temporaryFolder,
       int deleteFilesPerSplit)
       throws IOException {
-    List<IcebergSourceSplit> icebergSourceSplitsWithMockDeleteFiles = new ArrayList<>();
+    List<IcebergSourceSplit> icebergSourceSplitsWithMockDeleteFiles = Lists.newArrayList();
     for (IcebergSourceSplit split : icebergSourceSplits) {
       final CombinedScanTask combinedScanTask = spy(split.task());
 
-      final List<DeleteFile> deleteFiles = new ArrayList<>();
+      final List<DeleteFile> deleteFiles = Lists.newArrayList();
       final PartitionSpec spec =
           PartitionSpec.builderFor(TestFixtures.SCHEMA).withSpecId(0).build();
 
@@ -180,7 +179,7 @@ public class SplitHelpers {
         deleteFiles.add(deleteFile);
       }
 
-      List<FileScanTask> newFileScanTasks = new ArrayList<>();
+      List<FileScanTask> newFileScanTasks = Lists.newArrayList();
       for (FileScanTask task : combinedScanTask.tasks()) {
         String schemaString = SchemaParser.toJson(task.schema());
         String specString = PartitionSpecParser.toJson(task.spec());

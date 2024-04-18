@@ -31,6 +31,8 @@ import org.apache.flink.core.memory.DataOutputSerializer;
  */
 class SerializerHelper implements Serializable {
 
+  private SerializerHelper() {}
+
   /**
    * Similar to {@link DataOutputSerializer#writeUTF(String)}. Except this supports larger payloads
    * which is up to max integer value.
@@ -48,12 +50,12 @@ class SerializerHelper implements Serializable {
   public static void writeLongUTF(DataOutputSerializer out, String str) throws IOException {
     int strlen = str.length();
     long utflen = 0;
-    int c;
+    int ch;
 
     /* use charAt instead of copying String to char array */
     for (int i = 0; i < strlen; i++) {
-      c = str.charAt(i);
-      utflen += getUTFBytesSize(c);
+      ch = str.charAt(i);
+      utflen += getUTFBytesSize(ch);
 
       if (utflen > Integer.MAX_VALUE) {
         throw new UTFDataFormatException("Encoded string reached maximum length: " + utflen);
@@ -88,24 +90,26 @@ class SerializerHelper implements Serializable {
     byte[] bytearr = new byte[utflen];
     char[] chararr = new char[utflen];
 
-    int c, char2, char3;
+    int ch;
+    int char2;
+    int char3;
     int count = 0;
     int chararrCount = 0;
 
     in.readFully(bytearr, 0, utflen);
 
     while (count < utflen) {
-      c = (int) bytearr[count] & 0xff;
-      if (c > 127) {
+      ch = (int) bytearr[count] & 0xff;
+      if (ch > 127) {
         break;
       }
       count++;
-      chararr[chararrCount++] = (char) c;
+      chararr[chararrCount++] = (char) ch;
     }
 
     while (count < utflen) {
-      c = (int) bytearr[count] & 0xff;
-      switch (c >> 4) {
+      ch = (int) bytearr[count] & 0xff;
+      switch (ch >> 4) {
         case 0:
         case 1:
         case 2:
@@ -116,7 +120,7 @@ class SerializerHelper implements Serializable {
         case 7:
           /* 0xxxxxxx */
           count++;
-          chararr[chararrCount++] = (char) c;
+          chararr[chararrCount++] = (char) ch;
           break;
         case 12:
         case 13:
@@ -129,7 +133,7 @@ class SerializerHelper implements Serializable {
           if ((char2 & 0xC0) != 0x80) {
             throw new UTFDataFormatException("malformed input around byte " + count);
           }
-          chararr[chararrCount++] = (char) (((c & 0x1F) << 6) | (char2 & 0x3F));
+          chararr[chararrCount++] = (char) (((ch & 0x1F) << 6) | (char2 & 0x3F));
           break;
         case 14:
           /* 1110 xxxx 10xx xxxx 10xx xxxx */
@@ -143,7 +147,7 @@ class SerializerHelper implements Serializable {
             throw new UTFDataFormatException("malformed input around byte " + (count - 1));
           }
           chararr[chararrCount++] =
-              (char) (((c & 0x0F) << 12) | ((char2 & 0x3F) << 6) | (char3 & 0x3F));
+              (char) (((ch & 0x0F) << 12) | ((char2 & 0x3F) << 6) | (char3 & 0x3F));
           break;
         default:
           /* 10xx xxxx, 1111 xxxx */
@@ -154,10 +158,10 @@ class SerializerHelper implements Serializable {
     return new String(chararr, 0, chararrCount);
   }
 
-  private static int getUTFBytesSize(int c) {
-    if ((c >= 0x0001) && (c <= 0x007F)) {
+  private static int getUTFBytesSize(int ch) {
+    if ((ch >= 0x0001) && (ch <= 0x007F)) {
       return 1;
-    } else if (c > 0x07FF) {
+    } else if (ch > 0x07FF) {
       return 3;
     } else {
       return 2;
@@ -167,33 +171,33 @@ class SerializerHelper implements Serializable {
   private static void writeUTFBytes(DataOutputSerializer out, String str, int utflen)
       throws IOException {
     int strlen = str.length();
-    int c;
+    int ch;
 
     int len = Math.max(1024, utflen);
 
     byte[] bytearr = new byte[len];
     int count = 0;
 
-    int i;
-    for (i = 0; i < strlen; i++) {
-      c = str.charAt(i);
-      if (!((c >= 0x0001) && (c <= 0x007F))) {
+    int index;
+    for (index = 0; index < strlen; index++) {
+      ch = str.charAt(index);
+      if (!((ch >= 0x0001) && (ch <= 0x007F))) {
         break;
       }
-      bytearr[count++] = (byte) c;
+      bytearr[count++] = (byte) ch;
     }
 
-    for (; i < strlen; i++) {
-      c = str.charAt(i);
-      if ((c >= 0x0001) && (c <= 0x007F)) {
-        bytearr[count++] = (byte) c;
-      } else if (c > 0x07FF) {
-        bytearr[count++] = (byte) (0xE0 | ((c >> 12) & 0x0F));
-        bytearr[count++] = (byte) (0x80 | ((c >> 6) & 0x3F));
-        bytearr[count++] = (byte) (0x80 | (c & 0x3F));
+    for (; index < strlen; index++) {
+      ch = str.charAt(index);
+      if ((ch >= 0x0001) && (ch <= 0x007F)) {
+        bytearr[count++] = (byte) ch;
+      } else if (ch > 0x07FF) {
+        bytearr[count++] = (byte) (0xE0 | ((ch >> 12) & 0x0F));
+        bytearr[count++] = (byte) (0x80 | ((ch >> 6) & 0x3F));
+        bytearr[count++] = (byte) (0x80 | (ch & 0x3F));
       } else {
-        bytearr[count++] = (byte) (0xC0 | ((c >> 6) & 0x1F));
-        bytearr[count++] = (byte) (0x80 | (c & 0x3F));
+        bytearr[count++] = (byte) (0xC0 | ((ch >> 6) & 0x1F));
+        bytearr[count++] = (byte) (0x80 | (ch & 0x3F));
       }
     }
 
