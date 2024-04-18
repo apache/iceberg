@@ -43,6 +43,7 @@ project(":iceberg-kafka-connect:iceberg-kafka-connect") {
     implementation "com.fasterxml.jackson.core:jackson-core"
     implementation "com.fasterxml.jackson.core:jackson-databind"
     implementation libs.avro.avro
+    implementation libs.hadoop3.client
 
     compileOnly libs.kafka.clients
     compileOnly libs.kafka.connect.api
