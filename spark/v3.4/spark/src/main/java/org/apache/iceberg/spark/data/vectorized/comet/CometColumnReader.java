@@ -24,7 +24,6 @@ import org.apache.comet.parquet.AbstractColumnReader;
 import org.apache.comet.parquet.ColumnReader;
 import org.apache.comet.parquet.TypeUtil;
 import org.apache.comet.parquet.Utils;
-import org.apache.comet.vector.CometVector;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Types;
@@ -38,13 +37,13 @@ import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 
 /**
- * A Iceberg Parquet column reader backed by a Boson {@link ColumnReader}. This class should be used
- * together with {@link CometIcebergVector}.
+ * A Iceberg Parquet column reader backed by a Comet {@link ColumnReader}. This class should be used
+ * together with {@link CometVector}.
  *
  * <p>Example:
  *
  * <pre>
- *   BosonIcebergColumnReader reader = ...
+ *   CometColumnReader reader = ...
  *   reader.setBatchSize(batchSize);
  *
  *   while (hasMoreRowsToRead) {
@@ -55,7 +54,7 @@ import org.apache.spark.sql.types.StructField;
  *     }
  *
  *     int numRows = ...
- *     BosonIcebergVector vector = reader.read(null, numRows);
+ *     CometVector vector = reader.read(null, numRows);
  *
  *     // consume the vector
  *   }
@@ -63,29 +62,29 @@ import org.apache.spark.sql.types.StructField;
  *   reader.close();
  * </pre>
  */
-@SuppressWarnings("checkstyle:VisibilityModifier")
-public class CometIcebergColumnReader implements VectorizedReader<CometIcebergVector> {
+@SuppressWarnings({"checkstyle:VisibilityModifier", "ParameterAssignment"})
+class CometColumnReader implements VectorizedReader<CometVector> {
   public static final int DEFAULT_BATCH_SIZE = 5000;
 
   private final DataType sparkType;
   protected AbstractColumnReader delegate;
-  private final CometIcebergVector vector;
+  private final CometVector vector;
   private final ColumnDescriptor descriptor;
   protected boolean initialized = false;
   protected int batchSize = DEFAULT_BATCH_SIZE;
 
-  public CometIcebergColumnReader(DataType sparkType, ColumnDescriptor descriptor) {
+  CometColumnReader(DataType sparkType, ColumnDescriptor descriptor) {
     this.sparkType = sparkType;
     this.descriptor = descriptor;
-    this.vector = new CometIcebergVector(sparkType, false);
+    this.vector = new CometVector(sparkType, false);
   }
 
-  public CometIcebergColumnReader(Types.NestedField field) {
+  CometColumnReader(Types.NestedField field) {
     DataType dataType = SparkSchemaUtil.convert(field.type());
     StructField structField = new StructField(field.name(), dataType, false, Metadata.empty());
     this.sparkType = dataType;
     this.descriptor = TypeUtil.convertToParquet(structField);
-    this.vector = new CometIcebergVector(sparkType, false);
+    this.vector = new CometVector(sparkType, false);
   }
 
   public AbstractColumnReader getDelegate() {
@@ -107,10 +106,12 @@ public class CometIcebergColumnReader implements VectorizedReader<CometIcebergVe
   }
 
   @Override
-  public CometIcebergVector read(CometIcebergVector reuse, int numRows) {
+  public CometVector read(CometVector reuse, int numRows) {
     delegate.readBatch(numRows);
-    CometVector bv = delegate.currentBatch();
-    if (reuse == null) reuse = vector;
+    org.apache.comet.vector.CometVector bv = delegate.currentBatch();
+    if (reuse == null) {
+      reuse = vector;
+    }
     reuse.setDelegate(bv);
     return reuse;
   }
@@ -119,7 +120,7 @@ public class CometIcebergColumnReader implements VectorizedReader<CometIcebergVe
     return descriptor;
   }
 
-  public CometIcebergVector getVector() {
+  public CometVector getVector() {
     return vector;
   }
 
@@ -132,7 +133,7 @@ public class CometIcebergColumnReader implements VectorizedReader<CometIcebergVe
    * Set the page reader to be 'pageReader'.
    *
    * <p>NOTE: this should be called before reading a new Parquet column chunk, and after {@link
-   * CometIcebergColumnReader#reset} is called.
+   * CometColumnReader#reset} is called.
    */
   public void setPageReader(PageReader pageReader) throws IOException {
     reset();

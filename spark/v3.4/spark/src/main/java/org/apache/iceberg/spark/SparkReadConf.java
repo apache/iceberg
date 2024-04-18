@@ -22,6 +22,7 @@ import static org.apache.iceberg.PlanningMode.LOCAL;
 
 import java.util.Map;
 import org.apache.iceberg.PlanningMode;
+import org.apache.iceberg.ReaderType;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -351,6 +352,14 @@ public class SparkReadConf {
         .booleanConf()
         .sessionConf(SparkSQLProperties.EXECUTOR_CACHE_LOCALITY_ENABLED)
         .defaultValue(SparkSQLProperties.EXECUTOR_CACHE_LOCALITY_ENABLED_DEFAULT)
+        .parse();
+  }
+
+  public ReaderType getReaderType() {
+    return confParser
+        .readTypeConf()
+        .sessionConf(SparkSQLProperties.READER_TYPE)
+        .defaultValue(SparkSQLProperties.READER_TYPE_DEFAULT)
         .parse();
   }
 }

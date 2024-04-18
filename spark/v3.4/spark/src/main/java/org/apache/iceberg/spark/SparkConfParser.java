@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
+import org.apache.iceberg.ReaderType;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -67,6 +68,10 @@ class SparkConfParser {
 
   public DurationConfParser durationConf() {
     return new DurationConfParser();
+  }
+
+  public ReadTypeConfParser readTypeConf() {
+    return new ReadTypeConfParser();
   }
 
   class BooleanConfParser extends ConfParser<BooleanConfParser, Boolean> {
@@ -193,6 +198,40 @@ class SparkConfParser {
 
     private Duration toDuration(String time) {
       return Duration.ofSeconds(JavaUtils.timeStringAsSec(time));
+    }
+  }
+
+  class ReadTypeConfParser extends ConfParser<ReadTypeConfParser, ReaderType> {
+    private ReaderType defaultValue;
+
+    @Override
+    protected ReadTypeConfParser self() {
+      return this;
+    }
+
+    public ReadTypeConfParser defaultValue(ReaderType value) {
+      this.defaultValue = value;
+      return self();
+    }
+
+    public ReaderType parse() {
+      Preconditions.checkArgument(defaultValue != null, "Default value cannot be null");
+      return parse(this::toReaderType, defaultValue);
+    }
+
+    public ReaderType parseOptional() {
+      return parse(this::toReaderType, defaultValue);
+    }
+
+    private ReaderType toReaderType(String value) {
+      switch (value.toUpperCase()) {
+        case "ICEBERG":
+          return ReaderType.ICEBERG;
+        case "COMET":
+          return ReaderType.COMET;
+        default:
+          throw new IllegalArgumentException("Unsupported ReadType value: " + value);
+      }
     }
   }
 
