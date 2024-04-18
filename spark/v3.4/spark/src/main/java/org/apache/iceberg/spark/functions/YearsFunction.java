@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.functions;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.functions.BoundFunction;
-import org.apache.spark.sql.connector.catalog.functions.ScalarFunction;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.DateType;
@@ -61,7 +60,7 @@ public class YearsFunction extends UnaryUnboundFunction {
     return "years";
   }
 
-  private abstract static class BaseToYearsFunction implements ScalarFunction<Integer> {
+  private abstract static class BaseToYearsFunction extends BaseScalarFunction<Integer> {
     @Override
     public String name() {
       return "years";
