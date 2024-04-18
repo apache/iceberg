@@ -24,7 +24,7 @@ import org.apache.flink.core.io.SimpleVersionedSerializer;
 
 @Internal
 public class IcebergSourceSplitSerializer implements SimpleVersionedSerializer<IcebergSourceSplit> {
-  private static final int VERSION = 2;
+  private static final int VERSION = 3;
 
   private final boolean caseSensitive;
 
@@ -39,7 +39,7 @@ public class IcebergSourceSplitSerializer implements SimpleVersionedSerializer<I
 
   @Override
   public byte[] serialize(IcebergSourceSplit split) throws IOException {
-    return split.serializeV2();
+    return split.serializeV3();
   }
 
   @Override
@@ -49,6 +49,8 @@ public class IcebergSourceSplitSerializer implements SimpleVersionedSerializer<I
         return IcebergSourceSplit.deserializeV1(serialized);
       case 2:
         return IcebergSourceSplit.deserializeV2(serialized, caseSensitive);
+      case 3:
+        return IcebergSourceSplit.deserializeV3(serialized, caseSensitive);
       default:
         throw new IOException(
             String.format(
