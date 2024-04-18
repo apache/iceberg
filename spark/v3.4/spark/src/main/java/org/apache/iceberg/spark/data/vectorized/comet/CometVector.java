@@ -23,12 +23,8 @@ import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.UTF8String;
 
-/**
- * A Spark ColumnVector implementation backed by Arrow arrays. This is used by Iceberg's
- * vectorization through Comet
- */
 @SuppressWarnings("checkstyle:VisibilityModifier")
-public class CometIcebergVector extends CometDelegateVector {
+class CometVector extends CometDelegateVector {
 
   // the rowId mapping to skip deleted rows for all column vectors inside a batch
   // Here is an example:
@@ -39,7 +35,7 @@ public class CometIcebergVector extends CometDelegateVector {
   // [0,4,5,7,-,-,-,-] -- After applying equality deletes [Set Num records to 4]
   protected int[] rowIdMapping;
 
-  public CometIcebergVector(DataType type, boolean useDecimal128) {
+  CometVector(DataType type, boolean useDecimal128) {
     super(type, useDecimal128);
   }
 

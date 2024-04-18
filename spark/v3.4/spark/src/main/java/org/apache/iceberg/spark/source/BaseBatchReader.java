@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.ReaderType;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
@@ -39,6 +40,7 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBatch, T> {
   private final int batchSize;
+  private ReaderType readerType;
 
   BaseBatchReader(
       Table table,
@@ -49,6 +51,10 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       int batchSize) {
     super(table, taskGroup, tableSchema, expectedSchema, caseSensitive);
     this.batchSize = batchSize;
+  }
+
+  protected void setReadType(ReaderType type) {
+    this.readerType = type;
   }
 
   protected CloseableIterable<ColumnarBatch> newBatchIterable(
@@ -86,9 +92,15 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
         .project(requiredSchema)
         .split(start, length)
         .createBatchedReaderFunc(
-            fileSchema ->
-                VectorizedSparkParquetReaders.buildReader(
-                    requiredSchema, fileSchema, idToConstant, deleteFilter))
+            fileSchema -> {
+              if (this.readerType == ReaderType.COMET) {
+                return VectorizedSparkParquetReaders.buildCometReader(
+                    requiredSchema, fileSchema, idToConstant, deleteFilter);
+              } else {
+                return VectorizedSparkParquetReaders.buildReader(
+                    requiredSchema, fileSchema, idToConstant, deleteFilter);
+              }
+            })
         .recordsPerBatch(batchSize)
         .filter(residual)
         .caseSensitive(caseSensitive())

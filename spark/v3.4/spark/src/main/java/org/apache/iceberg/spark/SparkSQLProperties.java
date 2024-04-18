@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark;
 
 import java.time.Duration;
+import org.apache.iceberg.ReaderType;
 
 public class SparkSQLProperties {
 
@@ -26,6 +27,10 @@ public class SparkSQLProperties {
 
   // Controls whether vectorized reads are enabled
   public static final String VECTORIZATION_ENABLED = "spark.sql.iceberg.vectorization.enabled";
+
+  // Controls whether which reader to use for vectorization
+  public static final String READER_TYPE = "spark.sql.iceberg.parquet.reader-type";
+  public static final ReaderType READER_TYPE_DEFAULT = ReaderType.ICEBERG;
 
   // Controls whether reading/writing timestamps without timezones is allowed
   @Deprecated

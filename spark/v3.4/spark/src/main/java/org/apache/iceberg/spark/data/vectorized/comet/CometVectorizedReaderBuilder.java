@@ -39,8 +39,7 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.catalyst.InternalRow;
 
-public class CometIcebergVectorizedReaderBuilder
-    extends TypeWithSchemaVisitor<VectorizedReader<?>> {
+public class CometVectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedReader<?>> {
 
   private final MessageType parquetSchema;
   private final Schema icebergSchema;
@@ -48,7 +47,7 @@ public class CometIcebergVectorizedReaderBuilder
   private final Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory;
   private final DeleteFilter<InternalRow> deleteFilter;
 
-  public CometIcebergVectorizedReaderBuilder(
+  public CometVectorizedReaderBuilder(
       Schema expectedSchema,
       MessageType parquetSchema,
       Map<Integer, ?> idToConstant,
@@ -82,19 +81,18 @@ public class CometIcebergVectorizedReaderBuilder
       int id = field.fieldId();
       VectorizedReader<?> reader = readersById.get(id);
       if (idToConstant.containsKey(id)) {
-        CometIcebergConstantColumnReader constantReader =
-            new CometIcebergConstantColumnReader<>(idToConstant.get(id), field);
+        CometConstantColumnReader constantReader =
+            new CometConstantColumnReader<>(idToConstant.get(id), field);
         reorderedFields.add(constantReader);
       } else if (id == MetadataColumns.ROW_POSITION.fieldId()) {
-        reorderedFields.add(new CometIcebergPositionColumnReader(field));
+        reorderedFields.add(new CometPositionColumnReader(field));
       } else if (id == MetadataColumns.IS_DELETED.fieldId()) {
-        CometIcebergColumnReader deleteReader = new CometIcebergDeleteColumnReader<>(field);
+        CometColumnReader deleteReader = new CometDeleteColumnReader<>(field);
         reorderedFields.add(deleteReader);
       } else if (reader != null) {
         reorderedFields.add(reader);
       } else {
-        CometIcebergColumnReader constantReader =
-            new CometIcebergConstantColumnReader<>(null, field);
+        CometColumnReader constantReader = new CometConstantColumnReader<>(null, field);
         reorderedFields.add(constantReader);
       }
     }
@@ -104,7 +102,7 @@ public class CometIcebergVectorizedReaderBuilder
   protected VectorizedReader<?> vectorizedReader(List<VectorizedReader<?>> reorderedFields) {
     VectorizedReader<?> reader = readerFactory.apply(reorderedFields);
     if (deleteFilter != null) {
-      ((CometIcebergColumnarBatchReader) reader).setDeleteFilter(deleteFilter);
+      ((CometColumnarBatchReader) reader).setDeleteFilter(deleteFilter);
     }
     return reader;
   }
@@ -137,6 +135,6 @@ public class CometIcebergVectorizedReaderBuilder
       return null;
     }
 
-    return new CometIcebergColumnReader(SparkSchemaUtil.convert(icebergField.type()), desc);
+    return new CometColumnReader(SparkSchemaUtil.convert(icebergField.type()), desc);
   }
 }
