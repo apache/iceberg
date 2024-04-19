@@ -87,7 +87,7 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final int COMMIT_TIMEOUT_MS_DEFAULT = 30_000;
   private static final String COMMIT_THREADS_PROP = "iceberg.control.commit.threads";
   private static final String CONNECT_GROUP_ID_PROP = "iceberg.connect.group-id";
-  private static final String HADDOP_CONF_DIR_PROP = "iceberg.hadoop-conf-dir";
+  private static final String HADOOP_CONF_DIR_PROP = "iceberg.hadoop-conf-dir";
 
   private static final String NAME_PROP = "name";
   private static final String BOOTSTRAP_SERVERS_PROP = "bootstrap.servers";
@@ -216,11 +216,11 @@ public class IcebergSinkConfig extends AbstractConfig {
         Importance.MEDIUM,
         "Coordinator threads to use for table commits, default is (cores * 2)");
     configDef.define(
-        HADDOP_CONF_DIR_PROP,
+        HADOOP_CONF_DIR_PROP,
         ConfigDef.Type.STRING,
         null,
         Importance.MEDIUM,
-        "Coordinator threads to use for table commits, default is (cores * 2)");
+        "If specified, Hadoop config files in this directory will be loaded");
     return configDef;
   }
 
@@ -404,7 +404,7 @@ public class IcebergSinkConfig extends AbstractConfig {
   }
 
   public String hadoopConfDir() {
-    return getString(HADDOP_CONF_DIR_PROP);
+    return getString(HADOOP_CONF_DIR_PROP);
   }
 
   public boolean autoCreateEnabled() {
