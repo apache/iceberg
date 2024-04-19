@@ -164,19 +164,15 @@ class SchemaUtils {
             String transform = matcher.group(1);
             switch (transform) {
               case "year":
-              case "years":
                 specBuilder.year(matcher.group(2));
                 break;
               case "month":
-              case "months":
                 specBuilder.month(matcher.group(2));
                 break;
               case "day":
-              case "days":
                 specBuilder.day(matcher.group(2));
                 break;
               case "hour":
-              case "hours":
                 specBuilder.hour(matcher.group(2));
                 break;
               case "bucket":
