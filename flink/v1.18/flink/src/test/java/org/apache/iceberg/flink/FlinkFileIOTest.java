@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.flink;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -39,12 +42,11 @@ import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-public class FlinkFileIOTest {
+class FlinkFileIOTest {
   private final Random random = new Random(1);
 
   private FileSystem fs;
@@ -60,7 +62,7 @@ public class FlinkFileIOTest {
   }
 
   @Test
-  public void testListPrefix() {
+  void testListPrefix() {
     Path parent = new Path(tempDir.toURI());
 
     List<Integer> scaleSizes = Lists.newArrayList(1, 1000, 2500);
@@ -72,32 +74,30 @@ public class FlinkFileIOTest {
               Path scalePath = new Path(parent, Integer.toString(scale));
 
               createRandomFiles(scalePath, scale);
-              Assertions.assertThat(
+              assertThat(
                       Streams.stream(flinkFileIO.listPrefix(scalePath.toUri().toString())).count())
                   .isEqualTo((long) scale);
             });
 
     long totalFiles = scaleSizes.stream().mapToLong(Integer::longValue).sum();
-    Assertions.assertThat(Streams.stream(flinkFileIO.listPrefix(parent.toUri().toString())).count())
+    assertThat(Streams.stream(flinkFileIO.listPrefix(parent.toUri().toString())).count())
         .isEqualTo(totalFiles);
   }
 
   @Test
-  public void testFileExists() throws IOException {
+  void testFileExists() throws IOException {
     Path parent = new Path(tempDir.toURI());
     Path randomFilePath = new Path(parent, "random-file-" + UUID.randomUUID());
     fs.create(randomFilePath, FileSystem.WriteMode.OVERWRITE);
 
     // check existence of the created file
-    Assertions.assertThat(flinkFileIO.newInputFile(randomFilePath.toUri().toString()).exists())
-        .isTrue();
+    assertThat(flinkFileIO.newInputFile(randomFilePath.toUri().toString()).exists()).isTrue();
     fs.delete(randomFilePath, false);
-    Assertions.assertThat(flinkFileIO.newInputFile(randomFilePath.toUri().toString()).exists())
-        .isFalse();
+    assertThat(flinkFileIO.newInputFile(randomFilePath.toUri().toString()).exists()).isFalse();
   }
 
   @Test
-  public void testDeletePrefix() {
+  void testDeletePrefix() {
     Path parent = new Path(tempDir.toURI());
 
     List<Integer> scaleSizes = Lists.newArrayList(1, 1000, 2500);
@@ -112,41 +112,39 @@ public class FlinkFileIOTest {
               flinkFileIO.deletePrefix(scalePath.toUri().toString());
 
               // Hadoop filesystem will throw if the path does not exist
-              Assertions.assertThatThrownBy(
+              assertThatThrownBy(
                       () -> flinkFileIO.listPrefix(scalePath.toUri().toString()).iterator())
                   .isInstanceOf(UncheckedIOException.class)
-                  .hasMessageContaining("java.io.FileNotFoundException");
+                  .hasMessageContaining("Failed to list path recursively");
             });
 
     flinkFileIO.deletePrefix(parent.toUri().toString());
     // Hadoop filesystem will throw if the path does not exist
-    Assertions.assertThatThrownBy(
-            () -> flinkFileIO.listPrefix(parent.toUri().toString()).iterator())
+    assertThatThrownBy(() -> flinkFileIO.listPrefix(parent.toUri().toString()).iterator())
         .isInstanceOf(UncheckedIOException.class)
-        .hasMessageContaining("java.io.FileNotFoundException");
+        .hasMessageContaining("Failed to list path recursively");
   }
 
   @Test
-  public void testDeleteFiles() {
+  void testDeleteFiles() {
     Path parent = new Path(tempDir.toURI());
     List<Path> filesCreated = createRandomFiles(parent, 10);
     flinkFileIO.deleteFiles(filesCreated.stream().map(Path::toString).collect(Collectors.toList()));
     filesCreated.forEach(
-        file ->
-            Assertions.assertThat(flinkFileIO.newInputFile(file.toString()).exists()).isFalse());
+        file -> assertThat(flinkFileIO.newInputFile(file.toString()).exists()).isFalse());
   }
 
   @Test
-  public void testDeleteFilesErrorHandling() {
+  void testDeleteFilesErrorHandling() {
     List<String> filesCreated =
         random.ints(2).mapToObj(x -> "fakefsnotreal://file-" + x).collect(Collectors.toList());
-    Assertions.assertThatThrownBy(() -> flinkFileIO.deleteFiles(filesCreated))
+    assertThatThrownBy(() -> flinkFileIO.deleteFiles(filesCreated))
         .isInstanceOf(BulkDeletionFailureException.class)
         .hasMessage("Failed to delete 2 files");
   }
 
   @Test
-  public void testFlinkFileIOReadWrite() throws IOException {
+  void testFlinkFileIOReadWrite() throws IOException {
     FileIO testFlinkFileIO = new FlinkFileIO();
 
     Path parent = new Path(tempDir.toURI());
@@ -163,33 +161,31 @@ public class FlinkFileIOTest {
     InputFile inputFile = testFlinkFileIO.newInputFile(randomFilePath.getPath());
     try (SeekableInputStream inputStream = inputFile.newStream()) {
       byte[] actual = new byte[(int) inputFile.getLength()];
-      inputStream.read(actual);
-      Assertions.assertThat(actual).isEqualTo(expected);
+      assertThat(inputStream.read(actual)).isEqualTo(actual.length);
+      assertThat(actual).isEqualTo(expected);
     }
   }
 
   @Test
-  public void testFlinkFileIOKryoSerialization() throws IOException {
+  void testFlinkFileIOKryoSerialization() throws IOException {
     FileIO testFlinkFileIO = new FlinkFileIO();
 
     // Flink fileIO should be serializable when properties are passed as immutable map
     testFlinkFileIO.initialize(ImmutableMap.of("k1", "v1"));
     FileIO roundTripSerializedFileIO = TestHelpers.KryoHelpers.roundTripSerialize(testFlinkFileIO);
 
-    Assertions.assertThat(roundTripSerializedFileIO.properties())
-        .isEqualTo(testFlinkFileIO.properties());
+    assertThat(roundTripSerializedFileIO.properties()).isEqualTo(testFlinkFileIO.properties());
   }
 
   @Test
-  public void testFlinkFileIOJavaSerialization() throws IOException, ClassNotFoundException {
+  void testFlinkFileIOJavaSerialization() throws IOException, ClassNotFoundException {
     FileIO testFlinkFileIO = new FlinkFileIO();
 
     // Flink fileIO should be serializable when properties are passed as immutable map
     testFlinkFileIO.initialize(ImmutableMap.of("k1", "v1"));
     FileIO roundTripSerializedFileIO = TestHelpers.roundTripSerialize(testFlinkFileIO);
 
-    Assertions.assertThat(roundTripSerializedFileIO.properties())
-        .isEqualTo(testFlinkFileIO.properties());
+    assertThat(roundTripSerializedFileIO.properties()).isEqualTo(testFlinkFileIO.properties());
   }
 
   private List<Path> createRandomFiles(Path parent, int count) {

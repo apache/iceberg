@@ -86,7 +86,7 @@ public class FlinkFileIO implements FileIO, SupportsPrefixOperations, SupportsBu
     try {
       return listPrefix(prefixToList.getFileSystem(), prefixToList);
     } catch (IOException e) {
-      throw new UncheckedIOException(e);
+      throw new UncheckedIOException(String.format("Failed to listing prefix: %s", prefix), e);
     }
   }
 
@@ -97,7 +97,7 @@ public class FlinkFileIO implements FileIO, SupportsPrefixOperations, SupportsBu
     try {
       prefixToDelete.getFileSystem().delete(prefixToDelete, true /* recursive */);
     } catch (IOException e) {
-      throw new UncheckedIOException(e);
+      throw new UncheckedIOException(String.format("Failed to delete prefix: %s", prefix), e);
     }
   }
 
@@ -155,9 +155,10 @@ public class FlinkFileIO implements FileIO, SupportsPrefixOperations, SupportsBu
                               fileStatus.getModificationTime()));
                     }
                   })
-              .collect(Collectors.toSet()));
+              .collect(Collectors.toList()));
     } catch (IOException e) {
-      throw new UncheckedIOException(e);
+      throw new UncheckedIOException(
+          String.format("Failed to list path recursively: %s", fileName), e);
     }
   }
 
