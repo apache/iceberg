@@ -18,11 +18,14 @@
  */
 package org.apache.iceberg.connect.data;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -83,6 +86,8 @@ public class IcebergWriterFactory {
     org.apache.iceberg.Schema schema = new org.apache.iceberg.Schema(structType.fields());
     TableIdentifier identifier = TableIdentifier.parse(tableName);
 
+    createNamespaceIfNotExist(catalog, identifier.namespace());
+
     List<String> partitionBy = config.tableConfig(tableName).partitionBy();
     PartitionSpec spec;
     try {
@@ -111,5 +116,19 @@ public class IcebergWriterFactory {
               }
             });
     return result.get();
+  }
+
+  @VisibleForTesting
+  static void createNamespaceIfNotExist(Catalog catalog, Namespace identifierNamespace) {
+    String[] levels = identifierNamespace.levels();
+    for (int index = 0; index < levels.length; index++) {
+      Namespace namespace = Namespace.of(Arrays.copyOfRange(levels, 0, index + 1));
+      try {
+        ((SupportsNamespaces) catalog).createNamespace(namespace);
+      } catch (AlreadyExistsException ex) {
+        // Ignoring the error as forcefully creating the namespace even if it exists
+        // to avoid double namespaceExists() check.
+      }
+    }
   }
 }
