@@ -83,7 +83,7 @@ public class TestHiveIcebergWithHiveAutogatherEnable {
   @BeforeEach
   public void before() throws IOException {
     testTables = HiveIcebergStorageHandlerTestUtils.testTables(shell, testTableType, temp);
-    HiveIcebergStorageHandlerTestUtils.init(shell, testTables, temp, "mz");
+    HiveIcebergStorageHandlerTestUtils.init(shell, testTables, temp, "mr");
   }
 
   @AfterEach
@@ -102,9 +102,8 @@ public class TestHiveIcebergWithHiveAutogatherEnable {
         TableIdentifier.of("default", "customers_without_stats");
 
     // To validate the stats augother is disabled from Hive engine, the creation of iceberg table
-    // cannot have any
-    // records. Otherwise, the table parameters TOTAL_SIZE and NUM_FILES are added by Iceberg when
-    // inserting records.
+    // cannot have any records. Otherwise, the table parameters TOTAL_SIZE and NUM_FILES are
+    // added by Iceberg when inserting records.
     hiveStatsDisabledTestTables.createTable(
         shell,
         identifierWithoutStats.name(),
@@ -147,9 +146,8 @@ public class TestHiveIcebergWithHiveAutogatherEnable {
     TableIdentifier identifierWithStats = TableIdentifier.of("default", "customers_with_stats");
 
     // To validate the stats augother is enabled from Hive engine, the creation of iceberg table
-    // cannot have any
-    // records. Otherwise, the table parameters TOTAL_SIZE and NUM_FILES are added by Iceberg when
-    // inserting records.
+    // cannot have any records. Otherwise, the table parameters TOTAL_SIZE and NUM_FILES are
+    // added by Iceberg when inserting records.
     keepHiveStatsTestTables.createTable(
         shell,
         identifierWithStats.name(),
