@@ -78,6 +78,7 @@ import org.apache.iceberg.encryption.NativeEncryptionInputFile;
 import org.apache.iceberg.encryption.NativeEncryptionOutputFile;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.hadoop.HadoopDependency;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
@@ -1142,7 +1143,12 @@ public class Parquet {
 
       if (readerFunc != null || batchedReaderFunc != null) {
         ParquetReadOptions.Builder optionsBuilder;
-        if (file instanceof HadoopInputFile) {
+        if (!HadoopDependency.isHadoopCommonOnClasspath(Parquet.class.getClassLoader())) {
+          // when Hadoop isn't available, make sure to use the Airlift codec factory
+          optionsBuilder = ParquetReadOptions.builder();
+          // page size not used by decompressors
+          optionsBuilder.withCodecFactory(new AirliftCodecFactory());
+        } else if (file instanceof HadoopInputFile) {
           // remove read properties already set that may conflict with this read
           Configuration conf = new Configuration(((HadoopInputFile) file).getConf());
           for (String property : READ_PROPERTIES_TO_REMOVE) {

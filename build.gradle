@@ -792,6 +792,7 @@ project(':iceberg-parquet') {
     api project(':iceberg-api')
     implementation project(':iceberg-core')
     implementation project(':iceberg-common')
+    implementation 'io.airlift:aircompressor'
 
     implementation(libs.parquet.avro) {
       exclude group: 'org.apache.avro', module: 'avro'

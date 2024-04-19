@@ -69,7 +69,7 @@ public class FlinkConfigOptions {
   public static final ConfigOption<Boolean> TABLE_EXEC_ICEBERG_EXPOSE_SPLIT_LOCALITY_INFO =
       ConfigOptions.key("table.exec.iceberg.expose-split-locality-info")
           .booleanType()
-          .noDefaultValue()
+          .defaultValue(false)
           .withDescription(
               "Expose split host information to use Flink's locality aware split assigner.");
 

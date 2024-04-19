@@ -21,7 +21,7 @@ package org.apache.iceberg.flink;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.Serializable;
-import org.apache.hadoop.conf.Configuration;
+import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -54,7 +54,7 @@ public interface TableLoader extends Closeable, Serializable, Cloneable {
     return fromHadoopTable(location, FlinkCatalogFactory.clusterHadoopConf());
   }
 
-  static TableLoader fromHadoopTable(String location, Configuration hadoopConf) {
+  static TableLoader fromHadoopTable(String location, Object hadoopConf) {
     return new HadoopTableLoader(location, hadoopConf);
   }
 
@@ -67,8 +67,9 @@ public interface TableLoader extends Closeable, Serializable, Cloneable {
 
     private transient HadoopTables tables;
 
-    private HadoopTableLoader(String location, Configuration conf) {
+    private HadoopTableLoader(String location, Object conf) {
       this.location = location;
+      Preconditions.checkNotNull(conf, "Could not load HadoopConfiguration");
       this.hadoopConf = new SerializableConfiguration(conf);
     }
 
@@ -91,7 +92,7 @@ public interface TableLoader extends Closeable, Serializable, Cloneable {
     @Override
     @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
     public TableLoader clone() {
-      return new HadoopTableLoader(location, new Configuration(hadoopConf.get()));
+      return new HadoopTableLoader(location, hadoopConf.getClone());
     }
 
     @Override
