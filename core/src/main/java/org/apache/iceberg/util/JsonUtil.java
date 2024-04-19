@@ -36,6 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 
 public class JsonUtil {
@@ -204,6 +205,25 @@ public class JsonUtil {
       builder.put(field, getString(field, pNode));
     }
     return builder.build();
+  }
+
+  public static Map<String, String> getStringMapNullableValues(String property, JsonNode node) {
+    Preconditions.checkArgument(node.has(property), "Cannot parse missing map: %s", property);
+    JsonNode pNode = node.get(property);
+    Preconditions.checkArgument(
+        pNode != null && !pNode.isNull() && pNode.isObject(),
+        "Cannot parse string map from non-object value: %s: %s",
+        property,
+        pNode);
+
+    Map<String, String> map = Maps.newHashMap();
+    Iterator<String> fields = pNode.fieldNames();
+    while (fields.hasNext()) {
+      String field = fields.next();
+      map.put(field, getStringOrNull(field, pNode));
+    }
+
+    return map;
   }
 
   public static String[] getStringArray(JsonNode node) {

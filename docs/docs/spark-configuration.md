@@ -77,6 +77,7 @@ Both catalogs are configured using properties nested under the catalog name. Com
 | spark.sql.catalog._catalog-name_.cache.expiration-interval-ms | `30000` (30 seconds) | Duration after which cached catalog entries are expired; Only effective if `cache-enabled` is `true`. `-1` disables cache expiration and `0` disables caching entirely, irrespective of `cache-enabled`. Default is `30000` (30 seconds) |
 | spark.sql.catalog._catalog-name_.table-default._propertyKey_  |                               | Default Iceberg table property value for property key _propertyKey_, which will be set on tables created by this catalog if not overridden                                                                                               |
 | spark.sql.catalog._catalog-name_.table-override._propertyKey_ |                               | Enforced Iceberg table property value for property key _propertyKey_, which cannot be overridden by user                                                                                                                                 |
+| spark.sql.catalog._catalog-name_.use-nullable-query-schema | `true` or `false` | Whether to preserve fields' nullability when creating the table using CTAS and RTAS. If set to `true`, all fields will be marked as nullable. If set to `false`, fields' nullability will be preserved. The default value is `true`. Available in Spark 3.5 and above.   |
 
 Additional properties can be found in common [catalog configuration](configuration.md#catalog-properties).
 

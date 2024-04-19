@@ -25,6 +25,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.TableProperties;
@@ -257,6 +259,41 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
             row(1, "foo", null),
             row(1, "foo", null));
     assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s", tableName));
+  }
+
+  @TestTemplate
+  public void testRewriteDataFilesWithZOrderNullBinaryColumn() {
+    sql("CREATE TABLE %s (c1 int, c2 string, c3 binary) USING iceberg", tableName);
+
+    for (int i = 0; i < 5; i++) {
+      sql("INSERT INTO %s values (1, 'foo', null), (2, 'bar', null)", tableName);
+    }
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_data_files(table => '%s', "
+                + "strategy => 'sort', sort_order => 'zorder(c2,c3)')",
+            catalogName, tableIdent);
+
+    assertEquals(
+        "Action should rewrite 10 data files and add 1 data files",
+        row(10, 1),
+        Arrays.copyOf(output.get(0), 2));
+    assertThat(output.get(0)).hasSize(4);
+    assertThat(snapshotSummary())
+        .containsEntry(SnapshotSummary.REMOVED_FILE_SIZE_PROP, String.valueOf(output.get(0)[2]));
+    assertThat(sql("SELECT * FROM %s", tableName))
+        .containsExactly(
+            row(2, "bar", null),
+            row(2, "bar", null),
+            row(2, "bar", null),
+            row(2, "bar", null),
+            row(2, "bar", null),
+            row(1, "foo", null),
+            row(1, "foo", null),
+            row(1, "foo", null),
+            row(1, "foo", null),
+            row(1, "foo", null));
   }
 
   @TestTemplate
@@ -844,6 +881,21 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
                     catalogName, tableIdent))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot convert Spark filter");
+  }
+
+  @TestTemplate
+  public void testRewriteDataFilesSummary() {
+    createTable();
+    // create 10 files under non-partitioned table
+    insertData(10);
+    sql("CALL %s.system.rewrite_data_files(table => '%s')", catalogName, tableIdent);
+
+    Map<String, String> summary = snapshotSummary();
+    assertThat(summary)
+        .containsKey(CatalogProperties.APP_ID)
+        .containsEntry(EnvironmentContext.ENGINE_NAME, "spark")
+        .hasEntrySatisfying(
+            EnvironmentContext.ENGINE_VERSION, v -> assertThat(v).startsWith("3.5"));
   }
 
   private void createTable() {

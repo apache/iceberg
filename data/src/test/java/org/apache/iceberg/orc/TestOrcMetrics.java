@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.orc;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.Map;
@@ -26,6 +28,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestMetrics;
 import org.apache.iceberg.data.Record;
@@ -37,29 +40,18 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
-import org.junit.Assert;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 /** Test Metrics for ORC. */
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestOrcMetrics extends TestMetrics {
 
   static final ImmutableSet<Object> BINARY_TYPES =
       ImmutableSet.of(Type.TypeID.BINARY, Type.TypeID.FIXED, Type.TypeID.UUID);
 
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
-  }
-
-  public TestOrcMetrics(int formatVersion) {
-    super(formatVersion);
-  }
-
   @Override
   protected OutputFile createOutputFile() throws IOException {
-    File tmpFolder = temp.newFolder("orc");
+    File tmpFolder = java.nio.file.Files.createTempDirectory(temp, "orc").toFile();
     String filename = UUID.randomUUID().toString();
     return Files.localOutput(new File(tmpFolder, FileFormat.ORC.addExtension(filename)));
   }
@@ -119,12 +111,8 @@ public class TestOrcMetrics extends TestMetrics {
   protected <T> void assertBounds(
       int fieldId, Type type, T lowerBound, T upperBound, Metrics metrics) {
     if (isBinaryType(type)) {
-      Assert.assertFalse(
-          "ORC binary field should not have lower bounds.",
-          metrics.lowerBounds().containsKey(fieldId));
-      Assert.assertFalse(
-          "ORC binary field should not have upper bounds.",
-          metrics.upperBounds().containsKey(fieldId));
+      assertThat(metrics.lowerBounds()).doesNotContainKey(fieldId);
+      assertThat(metrics.upperBounds()).doesNotContainKey(fieldId);
       return;
     }
     super.assertBounds(fieldId, type, lowerBound, upperBound, metrics);

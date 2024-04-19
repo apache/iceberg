@@ -201,6 +201,10 @@ Note WAP branch and branch identifier cannot both be specified.
 Also, the branch must exist before performing the write. 
 The operation does **not** create the branch if it does not exist. 
 For more information on branches please refer to [branches](branching.md).
+
+!!! info
+    Note: When writing to a branch, the current schema of the table will be used for validation.
+
  
 ```sql
 -- INSERT (1,' a') (2, 'b') into the audit branch.

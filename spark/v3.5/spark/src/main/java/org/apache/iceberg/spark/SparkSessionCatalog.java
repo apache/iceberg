@@ -304,6 +304,8 @@ public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & Supp
 
   @Override
   public final void initialize(String name, CaseInsensitiveStringMap options) {
+    super.initialize(name, options);
+
     if (options.containsKey(CatalogUtil.ICEBERG_CATALOG_TYPE)
         && options
             .get(CatalogUtil.ICEBERG_CATALOG_TYPE)
