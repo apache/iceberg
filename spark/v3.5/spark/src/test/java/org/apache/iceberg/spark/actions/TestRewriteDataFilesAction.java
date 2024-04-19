@@ -395,9 +395,7 @@ public class TestRewriteDataFilesAction extends TestBase {
         basicRewrite(table)
             .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
             .filter(Expressions.equal("c1", 1))
-            .option(
-                RewriteDataFiles.REMOVE_DANGLING_DELETES,
-                RemoveDanglingDeletesMode.METADATA.modeName())
+            .option(RewriteDataFiles.REMOVE_DANGLING_DELETES, "true")
             .execute();
 
     List<Tuple2<Long, String>> afterRewrite = sequenceAndFilePathPair(table, "true");
@@ -455,9 +453,7 @@ public class TestRewriteDataFilesAction extends TestBase {
         actions()
             .rewriteDataFiles(table)
             .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
-            .option(
-                RewriteDataFiles.REMOVE_DANGLING_DELETES,
-                RemoveDanglingDeletesMode.METADATA.modeName())
+            .option(RewriteDataFiles.REMOVE_DANGLING_DELETES, "true")
             .execute();
 
     assertThat(rewriteResult)
@@ -512,8 +508,7 @@ public class TestRewriteDataFilesAction extends TestBase {
             .rewriteDataFiles(table)
             .filter(partitionFilter)
             .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
-            .option(
-                RewriteDataFiles.REMOVE_DANGLING_DELETES, RemoveDanglingDeletesMode.NONE.modeName())
+            .option(RewriteDataFiles.REMOVE_DANGLING_DELETES, "false")
             .execute();
     assertThat(firstRewrite)
         .extracting(
@@ -529,9 +524,7 @@ public class TestRewriteDataFilesAction extends TestBase {
             .rewriteDataFiles(table)
             .filter(partitionFilter)
             .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
-            .option(
-                RewriteDataFiles.REMOVE_DANGLING_DELETES,
-                RemoveDanglingDeletesMode.METADATA.modeName())
+            .option(RewriteDataFiles.REMOVE_DANGLING_DELETES, "true")
             .execute();
     assertThat(secondRewrite)
         .extracting(
@@ -584,8 +577,7 @@ public class TestRewriteDataFilesAction extends TestBase {
             .rewriteDataFiles(table)
             .filter(partitionFilter)
             .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
-            .option(
-                RewriteDataFiles.REMOVE_DANGLING_DELETES, RemoveDanglingDeletesMode.NONE.modeName())
+            .option(RewriteDataFiles.REMOVE_DANGLING_DELETES, "false")
             .execute();
 
     assertThat(firstRewrite)
@@ -602,9 +594,7 @@ public class TestRewriteDataFilesAction extends TestBase {
             .rewriteDataFiles(table)
             .filter(partitionFilter)
             .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
-            .option(
-                RewriteDataFiles.REMOVE_DANGLING_DELETES,
-                RemoveDanglingDeletesMode.METADATA.modeName())
+            .option(RewriteDataFiles.REMOVE_DANGLING_DELETES, "true")
             .execute();
 
     assertThat(secondRewrite)

@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import static org.apache.iceberg.actions.RewriteDataFiles.REMOVE_DANGLING_DELETES;
+import static org.apache.iceberg.actions.RewriteDataFiles.REMOVE_DANGLING_DELETES_DEFAULT;
 import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.min;
 
@@ -33,7 +35,6 @@ import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.RemoveDanglingDeletesMode;
 import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
@@ -72,7 +73,7 @@ class RemoveDanglingDeleteSparkAction
   private static final Logger LOG = LoggerFactory.getLogger(RewriteDataFilesSparkAction.class);
   private final Table table;
 
-  private RemoveDanglingDeletesMode removeDanglingDeletesMode = RemoveDanglingDeletesMode.NONE;
+  private boolean removeDanglingDeletes = REMOVE_DANGLING_DELETES_DEFAULT;
 
   protected RemoveDanglingDeleteSparkAction(SparkSession spark, Table table) {
     super(spark.cloneSession());
@@ -87,14 +88,11 @@ class RemoveDanglingDeleteSparkAction
   public List<DeleteFile> execute() {
     List<DeleteFile> result = Lists.newArrayList();
 
-    removeDanglingDeletesMode =
-        RemoveDanglingDeletesMode.fromName(
-            PropertyUtil.propertyAsString(
-                options(),
-                RewriteDataFiles.REMOVE_DANGLING_DELETES,
-                RewriteDataFiles.REMOVE_DANGLING_DELETES_DEFAULT));
+    removeDanglingDeletes =
+        PropertyUtil.propertyAsBoolean(
+            options(), REMOVE_DANGLING_DELETES, REMOVE_DANGLING_DELETES_DEFAULT);
 
-    if (RemoveDanglingDeletesMode.METADATA.equals(removeDanglingDeletesMode)) {
+    if (removeDanglingDeletes) {
       result.addAll(removeDanglingDeletes());
     }
     return result;

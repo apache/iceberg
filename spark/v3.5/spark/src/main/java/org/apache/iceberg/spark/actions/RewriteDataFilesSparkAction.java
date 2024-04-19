@@ -97,7 +97,7 @@ public class RewriteDataFilesSparkAction
   private int maxCommits;
   private int maxFailedCommits;
   private boolean partialProgressEnabled;
-  private RemoveDanglingDeletesMode removeDanglingDeletesMode;
+  private boolean removeDanglingDeletes;
   private boolean useStartingSequenceNumber;
   private RewriteJobOrder rewriteJobOrder;
   private FileRewriter<FileScanTask, DataFile> rewriter = null;
@@ -185,7 +185,7 @@ public class RewriteDataFilesSparkAction
       result = doExecute(ctx, groupStream, commitManager(startingSnapshotId));
     }
 
-    if (!RemoveDanglingDeletesMode.NONE.equals(removeDanglingDeletesMode)) {
+    if (removeDanglingDeletes) {
       RemoveDanglingDeleteSparkAction action =
           new RemoveDanglingDeleteSparkAction(spark(), table).options(options());
       result.removedDeleteFilesCount(action.execute().size());
@@ -466,10 +466,9 @@ public class RewriteDataFilesSparkAction
         PropertyUtil.propertyAsBoolean(
             options(), USE_STARTING_SEQUENCE_NUMBER, USE_STARTING_SEQUENCE_NUMBER_DEFAULT);
 
-    removeDanglingDeletesMode =
-        RemoveDanglingDeletesMode.fromName(
-            PropertyUtil.propertyAsString(
-                options(), REMOVE_DANGLING_DELETES, REMOVE_DANGLING_DELETES_DEFAULT));
+    removeDanglingDeletes =
+            PropertyUtil.propertyAsBoolean(
+                    options(), REMOVE_DANGLING_DELETES, REMOVE_DANGLING_DELETES_DEFAULT);
 
     rewriteJobOrder =
         RewriteJobOrder.fromName(

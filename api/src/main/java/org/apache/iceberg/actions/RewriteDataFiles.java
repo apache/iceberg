@@ -123,7 +123,7 @@ public interface RewriteDataFiles
    */
   String REMOVE_DANGLING_DELETES = "remove-dangling-deletes";
 
-  String REMOVE_DANGLING_DELETES_DEFAULT = RemoveDanglingDeletesMode.NONE.modeName();
+  boolean REMOVE_DANGLING_DELETES_DEFAULT = false;
 
   /**
    * Forces the rewrite job order based on the value.
