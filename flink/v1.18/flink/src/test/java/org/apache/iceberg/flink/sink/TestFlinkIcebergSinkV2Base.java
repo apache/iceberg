@@ -34,6 +34,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.source.BoundedTestSource;
@@ -96,7 +97,8 @@ public class TestFlinkIcebergSinkV2Base {
         true,
         elementsPerCheckpoint,
         expectedRecords,
-        branch);
+        branch,
+        DeleteGranularity.PARTITION);
   }
 
   protected void testChangeLogOnIdDataKey(String branch) throws Exception {
@@ -125,7 +127,8 @@ public class TestFlinkIcebergSinkV2Base {
         false,
         elementsPerCheckpoint,
         expectedRecords,
-        branch);
+        branch,
+        DeleteGranularity.PARTITION);
   }
 
   protected void testChangeLogOnSameKey(String branch) throws Exception {
@@ -153,7 +156,8 @@ public class TestFlinkIcebergSinkV2Base {
         false,
         elementsPerCheckpoint,
         expectedRecords,
-        branch);
+        branch,
+        DeleteGranularity.PARTITION);
   }
 
   protected void testChangeLogOnDataKey(String branch) throws Exception {
@@ -181,7 +185,8 @@ public class TestFlinkIcebergSinkV2Base {
         false,
         elementsPerCheckpoint,
         expectedRecords,
-        branch);
+        branch,
+        DeleteGranularity.PARTITION);
   }
 
   protected void testUpsertOnDataKey(String branch) throws Exception {
@@ -203,7 +208,8 @@ public class TestFlinkIcebergSinkV2Base {
         true,
         elementsPerCheckpoint,
         expectedRecords,
-        branch);
+        branch,
+        DeleteGranularity.PARTITION);
   }
 
   protected void testChangeLogOnIdKey(String branch) throws Exception {
@@ -239,7 +245,8 @@ public class TestFlinkIcebergSinkV2Base {
                       false,
                       elementsPerCheckpoint,
                       expectedRecords,
-                      branch))
+                      branch,
+                      DeleteGranularity.PARTITION))
           .isInstanceOf(IllegalStateException.class)
           .hasMessageStartingWith(
               "In 'hash' distribution mode with equality fields set, partition field")
@@ -252,7 +259,8 @@ public class TestFlinkIcebergSinkV2Base {
           false,
           elementsPerCheckpoint,
           expectedRecords,
-          branch);
+          branch,
+          DeleteGranularity.PARTITION);
     }
   }
 
@@ -276,7 +284,8 @@ public class TestFlinkIcebergSinkV2Base {
           true,
           elementsPerCheckpoint,
           expectedRecords,
-          branch);
+          branch,
+          DeleteGranularity.PARTITION);
     } else {
       Assertions.assertThatThrownBy(
               () ->
@@ -286,7 +295,8 @@ public class TestFlinkIcebergSinkV2Base {
                       true,
                       elementsPerCheckpoint,
                       expectedRecords,
-                      branch))
+                      branch,
+                      DeleteGranularity.PARTITION))
           .isInstanceOf(IllegalStateException.class)
           .hasMessageContaining("should be included in equality fields:");
     }
@@ -298,7 +308,8 @@ public class TestFlinkIcebergSinkV2Base {
       boolean insertAsUpsert,
       List<List<Row>> elementsPerCheckpoint,
       List<List<Record>> expectedRecordsPerCheckpoint,
-      String branch)
+      String branch,
+      DeleteGranularity deleteGranularity)
       throws Exception {
     DataStream<Row> dataStream =
         env.addSource(new BoundedTestSource<>(elementsPerCheckpoint), ROW_TYPE_INFO);
@@ -310,6 +321,7 @@ public class TestFlinkIcebergSinkV2Base {
         .equalityFieldColumns(equalityFieldColumns)
         .upsert(insertAsUpsert)
         .toBranch(branch)
+        .deleteGranularity(deleteGranularity)
         .append();
 
     // Execute the program.

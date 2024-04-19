@@ -29,7 +29,10 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
+import org.apache.iceberg.deletes.FileScopedPositionDeleteWriter;
+import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -109,10 +112,18 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     private final StructProjection structProjection;
     private RollingFileWriter dataWriter;
     private RollingEqDeleteWriter eqDeleteWriter;
-    private SortedPosDeleteWriter<T> posDeleteWriter;
+    private FileWriter<PositionDelete<T>, DeleteWriteResult> posDeleteWriter;
     private Map<StructLike, PathOffset> insertedRowMap;
 
     protected BaseEqualityDeltaWriter(StructLike partition, Schema schema, Schema deleteSchema) {
+      this(partition, schema, deleteSchema, DeleteGranularity.PARTITION);
+    }
+
+    protected BaseEqualityDeltaWriter(
+        StructLike partition,
+        Schema schema,
+        Schema deleteSchema,
+        DeleteGranularity deleteGranularity) {
       Preconditions.checkNotNull(schema, "Iceberg table schema cannot be null.");
       Preconditions.checkNotNull(deleteSchema, "Equality-delete schema cannot be null.");
       this.structProjection = StructProjection.create(schema, deleteSchema);
@@ -120,7 +131,11 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       this.dataWriter = new RollingFileWriter(partition);
       this.eqDeleteWriter = new RollingEqDeleteWriter(partition);
       this.posDeleteWriter =
-          new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, partition);
+          deleteGranularity.equals(DeleteGranularity.FILE)
+              ? new FileScopedPositionDeleteWriter<>(
+                  () ->
+                      new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, partition))
+              : new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, partition);
       this.insertedRowMap = StructLikeMap.create(deleteSchema.asStruct());
     }
 
@@ -140,7 +155,9 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       PathOffset previous = insertedRowMap.put(copiedKey, pathOffset);
       if (previous != null) {
         // TODO attach the previous row if has a positional-delete row schema in appender factory.
-        posDeleteWriter.delete(previous.path, previous.rowOffset, null);
+        PositionDelete<T> delete = PositionDelete.create();
+        delete.set(previous.path, previous.rowOffset, null);
+        posDeleteWriter.write(delete);
       }
 
       dataWriter.write(row);
@@ -156,7 +173,9 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
 
       if (previous != null) {
         // TODO attach the previous row if has a positional-delete row schema in appender factory.
-        posDeleteWriter.delete(previous.path, previous.rowOffset, null);
+        PositionDelete<T> delete = PositionDelete.create();
+        delete.set(previous.path, previous.rowOffset, null);
+        posDeleteWriter.write(delete);
         return true;
       }
 
@@ -217,8 +236,10 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
         if (posDeleteWriter != null) {
           try {
             // complete will call close
-            completedDeleteFiles.addAll(posDeleteWriter.complete());
-            referencedDataFiles.addAll(posDeleteWriter.referencedDataFiles());
+            posDeleteWriter.close();
+            DeleteWriteResult result = posDeleteWriter.result();
+            completedDeleteFiles.addAll(result.deleteFiles());
+            referencedDataFiles.addAll(result.referencedDataFiles());
           } finally {
             posDeleteWriter = null;
           }

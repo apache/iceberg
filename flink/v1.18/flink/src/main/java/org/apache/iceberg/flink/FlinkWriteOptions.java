@@ -60,6 +60,9 @@ public class FlinkWriteOptions {
   public static final ConfigOption<String> DISTRIBUTION_MODE =
       ConfigOptions.key("distribution-mode").stringType().noDefaultValue();
 
+  public static final ConfigOption<String> DELETE_GRANULARITY =
+      ConfigOptions.key("delete-granularity").stringType().noDefaultValue();
+
   // Branch to write to
   public static final ConfigOption<String> BRANCH =
       ConfigOptions.key("branch").stringType().defaultValue(SnapshotRef.MAIN_BRANCH);

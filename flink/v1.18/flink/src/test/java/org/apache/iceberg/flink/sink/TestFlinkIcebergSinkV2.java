@@ -18,16 +18,22 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import static org.assertj.core.api.Assumptions.assumeThat;
+
 import java.util.List;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.apache.flink.types.Row;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.flink.HadoopCatalogResource;
 import org.apache.iceberg.flink.MiniClusterResource;
 import org.apache.iceberg.flink.SimpleDataUtil;
@@ -173,7 +179,8 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
         true,
         elementsPerCheckpoint,
         expectedRecords,
-        SnapshotRef.MAIN_BRANCH);
+        SnapshotRef.MAIN_BRANCH,
+        DeleteGranularity.PARTITION);
   }
 
   @Test
@@ -232,5 +239,33 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
   @Test
   public void testUpsertOnIdDataKey() throws Exception {
     testUpsertOnIdDataKey(SnapshotRef.MAIN_BRANCH);
+  }
+
+  @Test
+  public void testDeleteStats() throws Exception {
+    assumeThat(format).isNotEqualTo(FileFormat.AVRO);
+
+    List<List<Row>> elementsPerCheckpoint =
+        ImmutableList.of(
+            // Checkpoint #1
+            ImmutableList.of(row("+I", 1, "aaa"), row("-D", 1, "aaa"), row("+I", 1, "aaa")));
+
+    List<List<Record>> expectedRecords = ImmutableList.of(ImmutableList.of(record(1, "aaa")));
+
+    testChangeLogs(
+        ImmutableList.of("id", "data"),
+        row -> Row.of(row.getField(ROW_ID_POS), row.getField(ROW_DATA_POS)),
+        false,
+        elementsPerCheckpoint,
+        expectedRecords,
+        "main",
+        DeleteGranularity.PARTITION);
+
+    DeleteFile deleteFile = table.currentSnapshot().addedDeleteFiles(table.io()).iterator().next();
+    String fromStat =
+        new String(
+            deleteFile.lowerBounds().get(MetadataColumns.DELETE_FILE_PATH.fieldId()).array());
+    DataFile dataFile = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
+    assumeThat(fromStat).isEqualTo(dataFile.path().toString());
   }
 }

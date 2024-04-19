@@ -36,6 +36,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.sink.RowDataTaskWriterFactory;
@@ -84,7 +85,8 @@ public class RowDataRewriter {
             format,
             table.properties(),
             null,
-            false);
+            false,
+            DeleteGranularity.FILE);
   }
 
   public List<DataFile> rewriteDataForTasks(

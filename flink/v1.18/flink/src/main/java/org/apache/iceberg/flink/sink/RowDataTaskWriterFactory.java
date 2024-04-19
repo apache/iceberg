@@ -28,6 +28,7 @@ import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.flink.RowDataWrapper;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
@@ -50,6 +51,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final FileFormat format;
   private final List<Integer> equalityFieldIds;
   private final boolean upsert;
+  private final DeleteGranularity deleteGranularity;
   private final FileAppenderFactory<RowData> appenderFactory;
 
   private transient OutputFileFactory outputFileFactory;
@@ -61,7 +63,8 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       FileFormat format,
       Map<String, String> writeProperties,
       List<Integer> equalityFieldIds,
-      boolean upsert) {
+      boolean upsert,
+      DeleteGranularity deleteGranularity) {
     this(
         () -> table,
         flinkSchema,
@@ -69,7 +72,8 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
         format,
         writeProperties,
         equalityFieldIds,
-        upsert);
+        upsert,
+        deleteGranularity);
   }
 
   public RowDataTaskWriterFactory(
@@ -79,7 +83,8 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       FileFormat format,
       Map<String, String> writeProperties,
       List<Integer> equalityFieldIds,
-      boolean upsert) {
+      boolean upsert,
+      DeleteGranularity deleteGranularity) {
     this.tableSupplier = tableSupplier;
 
     Table table;
@@ -97,6 +102,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     this.format = format;
     this.equalityFieldIds = equalityFieldIds;
     this.upsert = upsert;
+    this.deleteGranularity = deleteGranularity;
 
     if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {
       this.appenderFactory =
@@ -193,7 +199,8 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
             schema,
             flinkSchema,
             equalityFieldIds,
-            upsert);
+            upsert,
+            deleteGranularity);
       } else {
         return new PartitionedDeltaWriter(
             spec,
@@ -205,7 +212,8 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
             schema,
             flinkSchema,
             equalityFieldIds,
-            upsert);
+            upsert,
+            deleteGranularity);
       }
     }
   }
