@@ -2746,9 +2746,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   public void assertPreviousMetadataFileCount(Table table, int metadataFileCount) {
     TableOperations ops = ((BaseTable) table).operations();
-    Assertions.assertThat(ops.current().previousFiles().size())
+    Assertions.assertThat(ops.current().previousFiles())
         .as("Table should have correct number of previous metadata locations")
-        .isEqualTo(metadataFileCount);
+        .hasSize(metadataFileCount);
   }
 
   public void assertNoFiles(Table table) {
@@ -2766,9 +2766,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
               .map(FileScanTask::file)
               .map(DataFile::path)
               .collect(Collectors.toList());
-      Assertions.assertThat(paths.size())
+      Assertions.assertThat(paths)
           .as("Should contain expected number of data files")
-          .isEqualTo(files.length);
+          .hasSize(files.length);
       Assertions.assertThat(CharSequenceSet.of(paths))
           .as("Should contain correct file paths")
           .isEqualTo(CharSequenceSet.of(Iterables.transform(Arrays.asList(files), DataFile::path)));
