@@ -133,8 +133,6 @@ To use the Tez engine on Hive `3.1.2` or later, Tez needs to be upgraded to >= `
 To use the Tez engine on Hive `2.3.x`, you will need to manually build Tez from the `branch-0.9` branch due to a
 backwards incompatibility issue with Tez `0.10.1`.
 
-In both cases, you will also need to set the following property in the `tez-site.xml` configuration file: `tez.mrreader.config.update.properties=hive.io.file.readcolumn.names,hive.io.file.readcolumn.ids`.
-
 ## Catalog Management
 
 ### Global Hive catalog
