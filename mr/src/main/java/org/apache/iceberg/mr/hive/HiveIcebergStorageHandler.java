@@ -111,8 +111,13 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
   // @Override
   public void configureInputJobCredentials(TableDesc tableDesc, Map<String, String> secrets) {}
 
+  private void setCommonJobConf(JobConf jobConf) {
+    jobConf.set("tez.mrreader.config.update.properties", "hive.io.file.readcolumn.names,hive.io.file.readcolumn.ids");
+  }
+
   @Override
   public void configureJobConf(TableDesc tableDesc, JobConf jobConf) {
+    setCommonJobConf(jobConf);
     if (tableDesc != null
         && tableDesc.getProperties() != null
         && tableDesc.getProperties().get(WRITE_KEY) != null) {
