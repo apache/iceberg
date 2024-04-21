@@ -90,6 +90,15 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
     }
 
     @Override
+    public ColumnarBatch loadDataToColumnBatch() {
+      int numRowsUndeleted = initRowIdMapping();
+      ColumnVector[] arrowColumnVectors = readDataToColumnVectors();
+      ColumnarBatch newColumnarBatch =
+          initializeColumnBatchWithDeletions(arrowColumnVectors, numRowsUndeleted);
+      return newColumnarBatch;
+    }
+
+    @Override
     protected ColumnVector[] readDataToColumnVectors() {
       ColumnVector[] arrowColumnVectors = new ColumnVector[readers.length];
 
@@ -110,8 +119,5 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
       }
       return arrowColumnVectors;
     }
-
-    @Override
-    protected void readDeletedColumnIfNecessary(ColumnVector[] arrowColumnVectors) {}
   }
 }
