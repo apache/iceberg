@@ -224,14 +224,7 @@ class SparkConfParser {
     }
 
     private ReaderType toReaderType(String value) {
-      switch (value.toUpperCase()) {
-        case "ICEBERG":
-          return ReaderType.ICEBERG;
-        case "COMET":
-          return ReaderType.COMET;
-        default:
-          throw new IllegalArgumentException("Unsupported ReadType value: " + value);
-      }
+      return ReaderType.valueOf(value.toUpperCase());
     }
   }
 
