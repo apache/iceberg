@@ -26,6 +26,8 @@ import org.apache.iceberg.KryoHelpers;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.encryption.EncryptingFileIO;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkCatalog;
@@ -90,7 +92,13 @@ public class TestSparkCatalogHadoopOverrides extends CatalogTestBase {
   @TestTemplate
   public void testTableFromCatalogHasOverrides() throws Exception {
     Table table = getIcebergTableFromSparkCatalog();
-    Configuration conf = ((Configurable) table.io()).getConf();
+    FileIO io = table.io();
+
+    if (io instanceof EncryptingFileIO) {
+      io = ((EncryptingFileIO) io).sourceFileIO();
+    }
+
+    Configuration conf = ((Configurable) io).getConf();
     String actualCatalogOverride = conf.get(configToOverride, "/whammies");
     assertThat(actualCatalogOverride)
         .as(
@@ -101,7 +109,13 @@ public class TestSparkCatalogHadoopOverrides extends CatalogTestBase {
   @TestTemplate
   public void ensureRoundTripSerializedTableRetainsHadoopConfig() throws Exception {
     Table table = getIcebergTableFromSparkCatalog();
-    Configuration originalConf = ((Configurable) table.io()).getConf();
+    FileIO io = table.io();
+
+    if (io instanceof EncryptingFileIO) {
+      io = ((EncryptingFileIO) io).sourceFileIO();
+    }
+
+    Configuration originalConf = ((Configurable) io).getConf();
     String actualCatalogOverride = originalConf.get(configToOverride, "/whammies");
     assertThat(actualCatalogOverride)
         .as(
@@ -112,7 +126,13 @@ public class TestSparkCatalogHadoopOverrides extends CatalogTestBase {
     Table serializableTable = SerializableTableWithSize.copyOf(table);
     Table kryoSerializedTable =
         KryoHelpers.roundTripSerialize(SerializableTableWithSize.copyOf(table));
-    Configuration configFromKryoSerde = ((Configurable) kryoSerializedTable.io()).getConf();
+    io = kryoSerializedTable.io();
+
+    if (io instanceof EncryptingFileIO) {
+      io = ((EncryptingFileIO) io).sourceFileIO();
+    }
+
+    Configuration configFromKryoSerde = ((Configurable) io).getConf();
     String kryoSerializedCatalogOverride = configFromKryoSerde.get(configToOverride, "/whammies");
     assertThat(kryoSerializedCatalogOverride)
         .as(
@@ -121,7 +141,14 @@ public class TestSparkCatalogHadoopOverrides extends CatalogTestBase {
 
     // Do the same for Java based serde
     Table javaSerializedTable = TestHelpers.roundTripSerialize(serializableTable);
-    Configuration configFromJavaSerde = ((Configurable) javaSerializedTable.io()).getConf();
+    // Configuration configFromJavaSerde = ((Configurable) javaSerializedTable.io()).getConf();
+    io = javaSerializedTable.io();
+
+    if (io instanceof EncryptingFileIO) {
+      io = ((EncryptingFileIO) io).sourceFileIO();
+    }
+
+    Configuration configFromJavaSerde = ((Configurable) io).getConf();
     String javaSerializedCatalogOverride = configFromJavaSerde.get(configToOverride, "/whammies");
     assertThat(javaSerializedCatalogOverride)
         .as(

@@ -28,9 +28,11 @@ import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
@@ -71,6 +73,10 @@ public class EncryptingFileIO implements FileIO, Serializable {
     return em;
   }
 
+  public FileIO sourceFileIO() {
+    return io;
+  }
+
   @Override
   public InputFile newInputFile(String path) {
     return io.newInputFile(path);
@@ -109,14 +115,19 @@ public class EncryptingFileIO implements FileIO, Serializable {
     }
   }
 
-  public InputFile newDecryptingInputFile(String path, ByteBuffer buffer) {
-    return em.decrypt(wrap(io.newInputFile(path), buffer));
-  }
-
   public InputFile newDecryptingInputFile(String path, long length, ByteBuffer buffer) {
-    // TODO: is the length correct for the encrypted file? It may be the length of the plaintext
-    // stream
-    return em.decrypt(wrap(io.newInputFile(path, length), buffer));
+    Preconditions.checkArgument(
+        length > 0, "Cannot safely decrypt table metadata file because its size is not specified");
+
+    InputFile inputFile = io.newInputFile(path, length);
+
+    if (inputFile.getLength() != length) {
+      throw new RuntimeIOException(
+          "Cannot safely decrypt a file because its size was changed by FileIO %s from %s to %s",
+          io.getClass(), length, inputFile.getLength());
+    }
+
+    return em.decrypt(wrap(inputFile, buffer));
   }
 
   @Override
@@ -157,7 +168,7 @@ public class EncryptingFileIO implements FileIO, Serializable {
   }
 
   private static EncryptionKeyMetadata toKeyMetadata(ByteBuffer buffer) {
-    return buffer != null ? new SimpleKeyMetadata(buffer) : EmptyKeyMetadata.get();
+    return buffer != null ? new SimpleKeyMetadata(buffer) : EncryptionKeyMetadata.empty();
   }
 
   private static class SimpleEncryptedInputFile implements EncryptedInputFile {
@@ -196,24 +207,6 @@ public class EncryptingFileIO implements FileIO, Serializable {
     @Override
     public EncryptionKeyMetadata copy() {
       return new SimpleKeyMetadata(metadataBuffer.duplicate());
-    }
-  }
-
-  private static class EmptyKeyMetadata implements EncryptionKeyMetadata {
-    private static final EmptyKeyMetadata INSTANCE = new EmptyKeyMetadata();
-
-    private static EmptyKeyMetadata get() {
-      return INSTANCE;
-    }
-
-    @Override
-    public ByteBuffer buffer() {
-      return null;
-    }
-
-    @Override
-    public EncryptionKeyMetadata copy() {
-      return this;
     }
   }
 }

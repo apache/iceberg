@@ -18,12 +18,19 @@
  */
 package org.apache.iceberg;
 
+import java.nio.ByteBuffer;
+import java.util.Base64;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.EncryptionUtil;
+import org.apache.iceberg.encryption.NativeEncryptionKeyMetadata;
+import org.apache.iceberg.encryption.StandardEncryptionManager;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -46,14 +53,21 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
   public static final String TABLE_TYPE_PROP = "table_type";
   public static final String ICEBERG_TABLE_TYPE_VALUE = "iceberg";
   public static final String METADATA_LOCATION_PROP = "metadata_location";
+  public static final String METADATA_WRAPPED_KEY_PROP = "metadata_wrapped_key";
+  public static final String METADATA_SIZE_PROP = "metadata_size";
   public static final String PREVIOUS_METADATA_LOCATION_PROP = "previous_metadata_location";
+  public static final String PREVIOUS_METADATA_WRAPPED_KEY_PROP = "previous_metadata_wrapped_key";
+  public static final String PREVIOUS_METADATA_SIZE_PROP = "previous_metadata_size";
 
   private static final String METADATA_FOLDER_NAME = "metadata";
 
   private TableMetadata currentMetadata = null;
   private String currentMetadataLocation = null;
+  private MetadataFile currentMetadataFile = null;
   private boolean shouldRefresh = true;
   private int version = -1;
+  private String encryptionKeyId;
+  private int encryptionDekLength = -1;
 
   protected BaseMetastoreTableOperations() {}
 
@@ -65,6 +79,14 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
    */
   protected abstract String tableName();
 
+  protected String encryptionKeyIdFromProps() {
+    return encryptionKeyId;
+  }
+
+  protected int dekLength() {
+    return encryptionDekLength;
+  }
+
   @Override
   public TableMetadata current() {
     if (shouldRefresh) {
@@ -75,6 +97,10 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
 
   public String currentMetadataLocation() {
     return currentMetadataLocation;
+  }
+
+  public MetadataFile currentMetadataFile() {
+    return currentMetadataFile;
   }
 
   public int currentVersion() {
@@ -146,21 +172,92 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
   }
 
   protected String writeNewMetadataIfRequired(boolean newTable, TableMetadata metadata) {
+    return writeNewMetadataFileIfRequired(newTable, metadata).location();
+  }
+
+  protected MetadataFile writeNewMetadataFileIfRequired(boolean newTable, TableMetadata metadata) {
     return newTable && metadata.metadataFileLocation() != null
-        ? metadata.metadataFileLocation()
-        : writeNewMetadata(metadata, currentVersion() + 1);
+        ? new MetadataFile(metadata.metadataFileLocation(), null, -1L)
+        : writeNewMetadataFile(metadata, currentVersion() + 1);
   }
 
   protected String writeNewMetadata(TableMetadata metadata, int newVersion) {
+    return writeNewMetadataFile(metadata, newVersion).location();
+  }
+
+  protected MetadataFile writeNewMetadataFile(TableMetadata metadata, int newVersion) {
     String newTableMetadataFilePath = newTableMetadataFilePath(metadata, newVersion);
-    OutputFile newMetadataLocation = io().newOutputFile(newTableMetadataFilePath);
+
+    if (encryptionKeyId == null) {
+      encryptionKeyId = metadata.property(TableProperties.ENCRYPTION_TABLE_KEY, null);
+    }
+
+    OutputFile newMetadataFile;
+    String wrappedMetadataKey;
+
+    if (encryptionKeyId != null) {
+
+      if (encryptionDekLength < 0) {
+        String encryptionDekLenProp =
+            metadata.property(TableProperties.ENCRYPTION_DEK_LENGTH, null);
+        encryptionDekLength =
+            (encryptionDekLenProp == null)
+                ? TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT
+                : Integer.valueOf(encryptionDekLenProp);
+      }
+
+      FileIO io = io();
+      Preconditions.checkArgument(
+          io instanceof EncryptingFileIO,
+          "Cannot encrypt table metadata because the fileIO (%s) does not "
+              + "implement EncryptingFileIO",
+          io.getClass());
+      EncryptingFileIO encryptingIO = (EncryptingFileIO) io();
+      EncryptedOutputFile newEncryptedMetadataFile =
+          encryptingIO.newEncryptingOutputFile(newTableMetadataFilePath);
+
+      if (newEncryptedMetadataFile.keyMetadata() == null
+          || newEncryptedMetadataFile.keyMetadata().buffer() == null) {
+        throw new IllegalStateException("Null key metadata in encrypted table");
+      }
+
+      newMetadataFile = newEncryptedMetadataFile.encryptingOutputFile();
+      EncryptionManager encryptionManager = encryptingIO.encryptionManager();
+
+      Preconditions.checkArgument(
+          encryptionManager instanceof StandardEncryptionManager,
+          "Cannot encrypt table metadata because the encryption manager (%s) does not "
+              + "implement StandardEncryptionManager",
+          encryptionManager.getClass());
+      NativeEncryptionKeyMetadata keyMetadata =
+          (NativeEncryptionKeyMetadata) newEncryptedMetadataFile.keyMetadata();
+      ByteBuffer metadataEncryptionKey = keyMetadata.encryptionKey();
+      // Wrap (encrypt) metadata file key
+      ByteBuffer wrappedEncryptionKey =
+          ((StandardEncryptionManager) encryptionManager).wrapKey(metadataEncryptionKey);
+
+      ByteBuffer metadataAADPrefix = keyMetadata.aadPrefix();
+      wrappedMetadataKey =
+          Base64.getEncoder()
+              .encodeToString(
+                  EncryptionUtil.createKeyMetadata(wrappedEncryptionKey, metadataAADPrefix)
+                      .buffer()
+                      .array());
+    } else {
+      newMetadataFile = io().newOutputFile(newTableMetadataFilePath);
+      wrappedMetadataKey = null;
+    }
 
     // write the new metadata
     // use overwrite to avoid negative caching in S3. this is safe because the metadata location is
     // always unique because it includes a UUID.
-    TableMetadataParser.overwrite(metadata, newMetadataLocation);
+    long size = TableMetadataParser.overwrite(metadata, newMetadataFile);
 
-    return newMetadataLocation.location();
+    if (encryptionKeyId != null && size <= 0) {
+      throw new RuntimeException("Metadata file size is not recorded in an encrypted table");
+    }
+
+    return new MetadataFile(newMetadataFile.location(), wrappedMetadataKey, size);
   }
 
   protected void refreshFromMetadataLocation(String newLocation) {
@@ -168,6 +265,10 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
   }
 
   protected void refreshFromMetadataLocation(String newLocation, int numRetries) {
+    refreshFromMetadataLocation(newLocation, null, numRetries);
+  }
+
+  protected void refreshFromMetadataLocation(MetadataFile newLocation, int numRetries) {
     refreshFromMetadataLocation(newLocation, null, numRetries);
   }
 
@@ -181,16 +282,39 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
   }
 
   protected void refreshFromMetadataLocation(
+      MetadataFile newLocation, Predicate<Exception> shouldRetry, int numRetries) {
+    refreshFromMetadataLocation(
+        newLocation,
+        shouldRetry,
+        numRetries,
+        metadataFile -> TableMetadataParser.read(io(), metadataFile));
+  }
+
+  protected void refreshFromMetadataLocation(
       String newLocation,
       Predicate<Exception> shouldRetry,
       int numRetries,
       Function<String, TableMetadata> metadataLoader) {
+    MetadataFile metadataFile = new MetadataFile(newLocation, null, 0);
+
+    refreshFromMetadataLocation(
+        metadataFile,
+        shouldRetry,
+        numRetries,
+        metadataLocation -> metadataLoader.apply(metadataLocation.location()));
+  }
+
+  protected void refreshFromMetadataLocation(
+      MetadataFile newMetadataFile,
+      Predicate<Exception> shouldRetry,
+      int numRetries,
+      Function<MetadataFile, TableMetadata> metadataLoader) {
     // use null-safe equality check because new tables have a null metadata location
-    if (!Objects.equal(currentMetadataLocation, newLocation)) {
-      LOG.info("Refreshing table metadata from new version: {}", newLocation);
+    if (!Objects.equal(currentMetadataLocation, newMetadataFile.location())) {
+      LOG.info("Refreshing table metadata from new version: {}", newMetadataFile.location());
 
       AtomicReference<TableMetadata> newMetadata = new AtomicReference<>();
-      Tasks.foreach(newLocation)
+      Tasks.foreach(newMetadataFile)
           .retry(numRetries)
           .exponentialBackoff(100, 5000, 600000, 4.0 /* 100, 400, 1600, ... */)
           .throwFailureWhenFinished()
@@ -208,8 +332,9 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
       }
 
       this.currentMetadata = newMetadata.get();
-      this.currentMetadataLocation = newLocation;
-      this.version = parseVersion(newLocation);
+      this.currentMetadataLocation = newMetadataFile.location();
+      this.currentMetadataFile = newMetadataFile;
+      this.version = parseVersion(newMetadataFile.location());
     }
     this.shouldRefresh = false;
   }

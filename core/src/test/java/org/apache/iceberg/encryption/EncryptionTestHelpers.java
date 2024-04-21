@@ -31,11 +31,10 @@ public class EncryptionTestHelpers {
     Map<String, String> catalogProperties = Maps.newHashMap();
     catalogProperties.put(
         CatalogProperties.ENCRYPTION_KMS_IMPL, UnitestKMS.class.getCanonicalName());
-    Map<String, String> tableProperties = Maps.newHashMap();
-    tableProperties.put(TableProperties.ENCRYPTION_TABLE_KEY, UnitestKMS.MASTER_KEY_NAME1);
-    tableProperties.put(TableProperties.FORMAT_VERSION, "2");
 
     return EncryptionUtil.createEncryptionManager(
-        tableProperties, EncryptionUtil.createKmsClient(catalogProperties));
+        UnitestKMS.MASTER_KEY_NAME1,
+        TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT,
+        EncryptionUtil.createKmsClient(catalogProperties));
   }
 }

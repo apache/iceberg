@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.hadoop;
 
-import java.io.Closeable;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -44,8 +43,6 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.encryption.EncryptionUtil;
-import org.apache.iceberg.encryption.KeyManagementClient;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
@@ -56,6 +53,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -79,7 +77,7 @@ import org.slf4j.LoggerFactory;
  * <p>Note: The HadoopCatalog requires that the underlying file system supports atomic rename.
  */
 public class HadoopCatalog extends BaseMetastoreCatalog
-    implements Closeable, SupportsNamespaces, Configurable {
+    implements SupportsNamespaces, Configurable {
 
   private static final Logger LOG = LoggerFactory.getLogger(HadoopCatalog.class);
 
@@ -98,7 +96,6 @@ public class HadoopCatalog extends BaseMetastoreCatalog
   private LockManager lockManager;
   private boolean suppressPermissionError = false;
   private Map<String, String> catalogProperties;
-  private KeyManagementClient keyManagementClient;
 
   public HadoopCatalog() {}
 
@@ -107,28 +104,24 @@ public class HadoopCatalog extends BaseMetastoreCatalog
     this.catalogProperties = ImmutableMap.copyOf(properties);
     String inputWarehouseLocation = properties.get(CatalogProperties.WAREHOUSE_LOCATION);
     Preconditions.checkArgument(
-        inputWarehouseLocation != null && inputWarehouseLocation.length() > 0,
+        !Strings.isNullOrEmpty(inputWarehouseLocation),
         "Cannot initialize HadoopCatalog because warehousePath must not be null or empty");
 
     this.catalogName = name;
     this.warehouseLocation = LocationUtil.stripTrailingSlash(inputWarehouseLocation);
     this.fs = Util.getFs(new Path(warehouseLocation), conf);
 
-    String fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
-    this.fileIO =
-        fileIOImpl == null
-            ? new HadoopFileIO(conf)
-            : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
+    String fileIOImpl =
+        properties.getOrDefault(
+            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.hadoop.HadoopFileIO");
 
-    if (catalogProperties.containsKey(CatalogProperties.ENCRYPTION_KMS_TYPE)) {
-      this.keyManagementClient = EncryptionUtil.createKmsClient(properties);
-    }
+    this.fileIO = CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
 
     this.lockManager = LockManagers.from(properties);
 
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(lockManager);
-    closeableGroup.addCloseable(keyManagementClient);
+    closeableGroup.addCloseable(metricsReporter());
     closeableGroup.setSuppressCloseFailure(true);
 
     this.suppressPermissionError =
@@ -234,11 +227,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog
   @Override
   protected TableOperations newTableOps(TableIdentifier identifier) {
     return new HadoopTableOperations(
-        new Path(defaultWarehouseLocation(identifier)),
-        fileIO,
-        keyManagementClient,
-        conf,
-        lockManager);
+        new Path(defaultWarehouseLocation(identifier)), fileIO, conf, lockManager);
   }
 
   @Override
@@ -272,7 +261,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog
         if (purge) {
           // Since the data files and the metadata files may store in different locations,
           // so it has to call dropTableData to force delete the data file.
-          CatalogUtil.dropTableData(ops.io(), ops.encryption(), lastMetadata);
+          CatalogUtil.dropTableData(ops.io(), lastMetadata);
         }
         return fs.delete(tablePath, true /* recursive */);
       }

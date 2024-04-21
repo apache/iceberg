@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.sql;
 import static org.apache.iceberg.Files.localInput;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -30,6 +29,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.encryption.Ciphers;
@@ -39,72 +39,52 @@ import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkCatalogConfig;
-import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
 import org.apache.iceberg.types.Types;
-import org.junit.After;
 import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
 
-@RunWith(Parameterized.class)
-public class TestAvroTableEncryption extends SparkTestBaseWithCatalog {
+public class TestAvroTableEncryption extends CatalogTestBase {
 
-  private static Map<String, String> appendCatalogEncryptionConfigProperties(
-      Map<String, String> props) {
+  private static Map<String, String> appendCatalogEncryptionProperties(Map<String, String> props) {
     Map<String, String> newProps = Maps.newHashMap();
     newProps.putAll(props);
     newProps.put(CatalogProperties.ENCRYPTION_KMS_IMPL, UnitestKMS.class.getCanonicalName());
     return newProps;
   }
 
-  // these parameters are broken out to avoid changes that need to modify lots of test suites
-  @Parameterized.Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
-  public static Object[][] parameters() {
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
+  protected static Object[][] parameters() {
     return new Object[][] {
       {
         SparkCatalogConfig.HIVE.catalogName(),
         SparkCatalogConfig.HIVE.implementation(),
-        appendCatalogEncryptionConfigProperties(SparkCatalogConfig.HIVE.properties())
-      },
-      {
-        SparkCatalogConfig.HADOOP.catalogName(),
-        SparkCatalogConfig.HADOOP.implementation(),
-        appendCatalogEncryptionConfigProperties(SparkCatalogConfig.HADOOP.properties())
-      },
-      {
-        SparkCatalogConfig.SPARK.catalogName(),
-        SparkCatalogConfig.SPARK.implementation(),
-        appendCatalogEncryptionConfigProperties(SparkCatalogConfig.SPARK.properties())
+        appendCatalogEncryptionProperties(SparkCatalogConfig.HIVE.properties())
       }
     };
   }
 
-  public TestAvroTableEncryption(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @Before
-  public void createTables() throws IOException {
+  @BeforeEach
+  public void createTables() {
     sql(
         "CREATE TABLE %s (id bigint, data string, float float) USING iceberg "
             + "TBLPROPERTIES ( "
             + "'encryption.key-id'='%s' , "
-            + "'write.format.default'='AVRO' , "
-            + "'format-version'='2')",
+            + "'write.format.default'='AVRO')",
         tableName, UnitestKMS.MASTER_KEY_NAME1);
+
     sql("INSERT INTO %s VALUES (1, 'a', 1.0), (2, 'b', 2.0), (3, 'c', float('NaN'))", tableName);
   }
 
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testSelect() {
     List<Object[]> expected =
         ImmutableList.of(row(1L, "a", 1.0F), row(2L, "b", 2.0F), row(3L, "c", Float.NaN));
@@ -112,7 +92,7 @@ public class TestAvroTableEncryption extends SparkTestBaseWithCatalog {
     assertEquals("Should return all expected rows", expected, sql("SELECT * FROM %s", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testDirectDataFileRead() throws IOException {
     List<Object[]> dataFileTable =
         sql("SELECT file_path FROM %s.%s", tableName, MetadataTableType.ALL_DATA_FILES);
@@ -135,55 +115,6 @@ public class TestAvroTableEncryption extends SparkTestBaseWithCatalog {
       dataFileReader.close();
       Assert.assertArrayEquals(
           magic, Ciphers.GCM_STREAM_MAGIC_STRING.getBytes(StandardCharsets.UTF_8));
-    }
-  }
-
-  @Test
-  public void testManifestEncryption() throws IOException {
-    List<Object[]> manifestFileTable =
-        sql("SELECT path FROM %s.%s", tableName, MetadataTableType.MANIFESTS);
-
-    List<String> manifestFiles =
-        Streams.concat(manifestFileTable.stream())
-            .map(row -> (String) row[0])
-            .collect(Collectors.toList());
-
-    if (!(manifestFiles.size() > 0)) {
-      throw new RuntimeException("No manifest files found for table " + tableName);
-    }
-
-    String metadataFolderPath = null;
-    byte[] magic = new byte[4];
-
-    // Check encryption of manifest files
-    for (String manifestFilePath : manifestFiles) {
-      SeekableInputStream manifestFileReader = localInput(manifestFilePath).newStream();
-      manifestFileReader.read(magic);
-      manifestFileReader.close();
-      Assert.assertArrayEquals(
-          magic, Ciphers.GCM_STREAM_MAGIC_STRING.getBytes(StandardCharsets.UTF_8));
-
-      if (metadataFolderPath == null) {
-        metadataFolderPath = new File(manifestFilePath).getParent().replaceFirst("file:", "");
-      }
-    }
-
-    // Find metadata list files and check their encryption
-    File[] listOfMetadataFiles = new File(metadataFolderPath).listFiles();
-    boolean foundManifestListFile = false;
-    for (File metadataFile : listOfMetadataFiles) {
-      if (metadataFile.getName().startsWith("snap-")) {
-        foundManifestListFile = true;
-        SeekableInputStream manifestFileReader = localInput(metadataFile).newStream();
-        manifestFileReader.read(magic);
-        manifestFileReader.close();
-        Assert.assertArrayEquals(
-            magic, Ciphers.GCM_STREAM_MAGIC_STRING.getBytes(StandardCharsets.UTF_8));
-      }
-    }
-
-    if (!foundManifestListFile) {
-      throw new RuntimeException("No manifest list files found for table " + tableName);
     }
   }
 }

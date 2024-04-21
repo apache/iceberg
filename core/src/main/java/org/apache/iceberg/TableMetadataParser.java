@@ -25,7 +25,9 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.StringWriter;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -34,10 +36,16 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
+import org.apache.iceberg.encryption.EncryptingFileIO;
+import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.encryption.EncryptionUtil;
+import org.apache.iceberg.encryption.NativeEncryptionKeyMetadata;
+import org.apache.iceberg.encryption.StandardEncryptionManager;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -111,18 +119,19 @@ public class TableMetadataParser {
   static final String STATISTICS = "statistics";
   static final String PARTITION_STATISTICS = "partition-statistics";
 
-  public static void overwrite(TableMetadata metadata, OutputFile outputFile) {
-    internalWrite(metadata, outputFile, true);
+  public static long overwrite(TableMetadata metadata, OutputFile outputFile) {
+    return internalWrite(metadata, outputFile, true);
   }
 
-  public static void write(TableMetadata metadata, OutputFile outputFile) {
-    internalWrite(metadata, outputFile, false);
+  public static long write(TableMetadata metadata, OutputFile outputFile) {
+    return internalWrite(metadata, outputFile, false);
   }
 
-  public static void internalWrite(
+  public static long internalWrite(
       TableMetadata metadata, OutputFile outputFile, boolean overwrite) {
     boolean isGzip = Codec.fromFileName(outputFile.location()) == Codec.GZIP;
     OutputStream stream = overwrite ? outputFile.createOrOverwrite() : outputFile.create();
+
     try (OutputStream ou = isGzip ? new GZIPOutputStream(stream) : stream;
         OutputStreamWriter writer = new OutputStreamWriter(ou, StandardCharsets.UTF_8)) {
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
@@ -132,6 +141,17 @@ public class TableMetadataParser {
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to write json to file: %s", outputFile);
     }
+
+    // Get file length
+    if (stream instanceof PositionOutputStream) {
+      try {
+        return ((PositionOutputStream) stream).storedLength();
+      } catch (IOException e) {
+        throw new RuntimeIOException(e, "Failed to get json file length: %s", outputFile);
+      }
+    }
+
+    return -1L;
   }
 
   public static String getFileExtension(String codecName) {
@@ -271,6 +291,45 @@ public class TableMetadataParser {
 
   public static TableMetadata read(FileIO io, String path) {
     return read(io, io.newInputFile(path));
+  }
+
+  public static TableMetadata read(FileIO io, MetadataFile metadataFile) {
+    if (metadataFile.wrappedKeyMetadata() == null) {
+      return read(io, io.newInputFile(metadataFile.location()));
+    } else {
+      Preconditions.checkArgument(
+          io instanceof EncryptingFileIO,
+          "Cannot read table metadata (%s) because it is encrypted but the configured "
+              + "FileIO (%s) does not implement EncryptingFileIO",
+          io.getClass());
+      EncryptingFileIO encryptingFileIO = (EncryptingFileIO) io;
+
+      Preconditions.checkArgument(
+          encryptingFileIO.encryptionManager() instanceof StandardEncryptionManager,
+          "Cannot decrypt table metadata because the encryption manager (%s) does not "
+              + "implement StandardEncryptionManager",
+          encryptingFileIO.encryptionManager().getClass());
+
+      StandardEncryptionManager standardEncryptionManager =
+          (StandardEncryptionManager) encryptingFileIO.encryptionManager();
+
+      ByteBuffer keyMetadataBytes =
+          ByteBuffer.wrap(Base64.getDecoder().decode(metadataFile.wrappedKeyMetadata()));
+
+      // Unwrap (decrypt) metadata file key
+      NativeEncryptionKeyMetadata keyMetadata = EncryptionUtil.parseKeyMetadata(keyMetadataBytes);
+      ByteBuffer unwrappedManfestListKey =
+          standardEncryptionManager.unwrapKey(keyMetadata.encryptionKey());
+
+      EncryptionKeyMetadata unwrappedKeyMetadata =
+          EncryptionUtil.createKeyMetadata(unwrappedManfestListKey, keyMetadata.aadPrefix());
+
+      InputFile input =
+          encryptingFileIO.newDecryptingInputFile(
+              metadataFile.location(), metadataFile.size(), unwrappedKeyMetadata.buffer());
+
+      return read(io, input);
+    }
   }
 
   public static TableMetadata read(FileIO io, InputFile file) {

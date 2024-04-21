@@ -40,12 +40,14 @@ import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.iceberg.BaseMetastoreOperations;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.ClientPool;
+import org.apache.iceberg.MetadataFile;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SortOrderParser;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.EncryptionUtil;
 import org.apache.iceberg.encryption.KeyManagementClient;
@@ -113,8 +115,9 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
   private final FileIO fileIO;
   private final KeyManagementClient keyManagementClient;
   private final ClientPool<IMetaStoreClient, TException> metaClients;
-  private boolean fetchedTableKeyID = false;
-  private String tableEncryptionKeyID;
+
+  private EncryptionManager encryptionManager;
+  private EncryptingFileIO encryptingFileIO;
 
   /** Tests only */
   protected HiveTableOperations(
@@ -158,38 +161,69 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
 
   @Override
   public FileIO io() {
-    return fileIO;
+    if (encryptingFileIO != null) {
+      return encryptingFileIO;
+    }
+
+    encryptingFileIO = EncryptingFileIO.combine(fileIO, encryption());
+    return encryptingFileIO;
   }
 
   @Override
   public EncryptionManager encryption() {
+    if (encryptionManager != null) {
+      return encryptionManager;
+    }
+
     if (keyManagementClient == null) {
-      return PlaintextEncryptionManager.instance();
+      encryptionManager = PlaintextEncryptionManager.instance();
+      return encryptionManager;
     }
 
-    if (current() == null) {
-      throw new IllegalStateException("No table metadata");
+    String key = encryptionKeyIdFromProps(); // writing
+
+    if (key == null) {
+      key = encryptionKeyIdFromHms(); // reading
     }
 
-    if (current().formatVersion() < 2) {
-      if (current().properties().containsKey(ENCRYPTION_TABLE_KEY)) {
-        throw new IllegalStateException("Encryption is not supported in v1 tables");
-      }
+    encryptionManager =
+        EncryptionUtil.createEncryptionManager(key, dekLength(), keyManagementClient);
 
-      return PlaintextEncryptionManager.instance();
+    return encryptionManager;
+  }
+
+  private String encryptionKeyIdFromHms() {
+    String keyID;
+    try {
+      Table table = loadHmsTable();
+      keyID = table.getParameters().get(TableProperties.ENCRYPTION_TABLE_KEY);
+    } catch (TException e) {
+      String errMsg =
+          String.format("Failed to get table info from metastore %s.%s", database, tableName);
+      throw new RuntimeException(errMsg, e);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException("Interrupted during encryption key id retrieval", e);
     }
 
-    return EncryptionUtil.createEncryptionManager(current().properties(), keyManagementClient);
+    return keyID;
   }
 
   @Override
   protected void doRefresh() {
     String metadataLocation = null;
+    String metadataKey = null;
+    long metadataSize = -1L;
     try {
       Table table = metaClients.run(client -> client.getTable(database, tableName));
       HiveOperationsBase.validateTableIsIceberg(table, fullName);
 
       metadataLocation = table.getParameters().get(METADATA_LOCATION_PROP);
+      metadataKey = table.getParameters().get(METADATA_WRAPPED_KEY_PROP);
+      String metadataSizeString = table.getParameters().get(METADATA_SIZE_PROP);
+      if (metadataSizeString != null) {
+        metadataSize = Long.valueOf(metadataSizeString);
+      }
 
     } catch (NoSuchObjectException e) {
       if (currentMetadataLocation() != null) {
@@ -206,14 +240,16 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       throw new RuntimeException("Interrupted during refresh", e);
     }
 
-    refreshFromMetadataLocation(metadataLocation, metadataRefreshMaxRetries);
+    MetadataFile metadataFile = new MetadataFile(metadataLocation, metadataKey, metadataSize);
+
+    refreshFromMetadataLocation(metadataFile, metadataRefreshMaxRetries);
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
     boolean newTable = base == null;
-    String newMetadataLocation = writeNewMetadataIfRequired(newTable, metadata);
+    MetadataFile newMetadataFile = writeNewMetadataFileIfRequired(newTable, metadata);
     boolean hiveEngineEnabled = hiveEngineEnabled(metadata, conf);
     boolean keepHiveStats = conf.getBoolean(ConfigProperties.KEEP_HIVE_STATS, false);
 
@@ -277,7 +313,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
               .map(Snapshot::summary)
               .orElseGet(ImmutableMap::of);
       setHmsTableParameters(
-          newMetadataLocation, tbl, metadata, removedProps, hiveEngineEnabled, summary);
+          newMetadataFile, tbl, metadata, removedProps, hiveEngineEnabled, summary);
 
       if (!keepHiveStats) {
         tbl.getParameters().remove(StatsSetupConst.COLUMN_STATS_ACCURATE);
@@ -336,7 +372,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
             e);
         commitStatus =
             BaseMetastoreOperations.CommitStatus.valueOf(
-                checkCommitStatus(newMetadataLocation, metadata).name());
+                checkCommitStatus(newMetadataFile.location(), metadata).name());
         switch (commitStatus) {
           case SUCCESS:
             break;
@@ -358,15 +394,16 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       throw new CommitFailedException(e);
 
     } finally {
-      HiveOperationsBase.cleanupMetadataAndUnlock(io(), commitStatus, newMetadataLocation, lock);
+      HiveOperationsBase.cleanupMetadataAndUnlock(io(), commitStatus, newMetadataFile.location(), lock);
     }
 
     LOG.info(
-        "Committed to table {} with the new metadata location {}", fullName, newMetadataLocation);
+        "Committed to table {} with the new metadata location {}", fullName, newMetadataFile.location());
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private void setHmsTableParameters(
-      String newMetadataLocation,
+      MetadataFile newMetadataFile,
       Table tbl,
       TableMetadata metadata,
       Set<String> obsoleteProps,
@@ -393,10 +430,30 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     obsoleteProps.forEach(parameters::remove);
 
     parameters.put(TABLE_TYPE_PROP, ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ENGLISH));
-    parameters.put(METADATA_LOCATION_PROP, newMetadataLocation);
+    parameters.put(METADATA_LOCATION_PROP, newMetadataFile.location());
+
+    if (newMetadataFile.wrappedKeyMetadata() != null) {
+      parameters.put(METADATA_WRAPPED_KEY_PROP, newMetadataFile.wrappedKeyMetadata());
+    }
+
+    if (newMetadataFile.size() > 0) {
+      parameters.put(METADATA_SIZE_PROP, Long.toString(newMetadataFile.size()));
+    }
 
     if (currentMetadataLocation() != null && !currentMetadataLocation().isEmpty()) {
       parameters.put(PREVIOUS_METADATA_LOCATION_PROP, currentMetadataLocation());
+    }
+
+    if (currentMetadataFile() != null) {
+      if (currentMetadataFile().wrappedKeyMetadata() != null
+          && !currentMetadataFile().wrappedKeyMetadata().isEmpty()) {
+        parameters.put(
+            PREVIOUS_METADATA_WRAPPED_KEY_PROP, currentMetadataFile().wrappedKeyMetadata());
+      }
+
+      if (currentMetadataFile().size() > 0) {
+        parameters.put(PREVIOUS_METADATA_SIZE_PROP, Long.toString(currentMetadataFile().size()));
+      }
     }
 
     // If needed set the 'storage_handler' property to enable query from Hive

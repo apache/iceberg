@@ -30,80 +30,62 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.encryption.Ciphers;
 import org.apache.iceberg.encryption.UnitestKMS;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkCatalogConfig;
-import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.crypto.ParquetCryptoRuntimeException;
-import org.junit.After;
 import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
 
-@RunWith(Parameterized.class)
-public class TestTableEncryption extends SparkTestBaseWithCatalog {
+public class TestTableEncryption extends CatalogTestBase {
 
-  private static Map<String, String> appendCatalogEncryptionConfigProperties(
-      Map<String, String> props) {
+  private static Map<String, String> appendCatalogEncryptionProperties(Map<String, String> props) {
     Map<String, String> newProps = Maps.newHashMap();
     newProps.putAll(props);
     newProps.put(CatalogProperties.ENCRYPTION_KMS_IMPL, UnitestKMS.class.getCanonicalName());
     return newProps;
   }
 
-  // these parameters are broken out to avoid changes that need to modify lots of test suites
-  @Parameterized.Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
-  public static Object[][] parameters() {
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
+  protected static Object[][] parameters() {
     return new Object[][] {
       {
         SparkCatalogConfig.HIVE.catalogName(),
         SparkCatalogConfig.HIVE.implementation(),
-        appendCatalogEncryptionConfigProperties(SparkCatalogConfig.HIVE.properties())
-      },
-      {
-        SparkCatalogConfig.HADOOP.catalogName(),
-        SparkCatalogConfig.HADOOP.implementation(),
-        appendCatalogEncryptionConfigProperties(SparkCatalogConfig.HADOOP.properties())
-      },
-      {
-        SparkCatalogConfig.SPARK.catalogName(),
-        SparkCatalogConfig.SPARK.implementation(),
-        appendCatalogEncryptionConfigProperties(SparkCatalogConfig.SPARK.properties())
+        appendCatalogEncryptionProperties(SparkCatalogConfig.HIVE.properties())
       }
     };
   }
 
-  public TestTableEncryption(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @Before
-  public void createTables() throws IOException {
+  @BeforeEach
+  public void createTables() {
     sql(
         "CREATE TABLE %s (id bigint, data string, float float) USING iceberg "
             + "TBLPROPERTIES ( "
-            + "'encryption.key-id'='%s' , "
-            + "'format-version'='2')",
+            + "'encryption.key-id'='%s')",
         tableName, UnitestKMS.MASTER_KEY_NAME1);
+
     sql("INSERT INTO %s VALUES (1, 'a', 1.0), (2, 'b', 2.0), (3, 'c', float('NaN'))", tableName);
   }
 
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testSelect() {
     List<Object[]> expected =
         ImmutableList.of(row(1L, "a", 1.0F), row(2L, "b", 2.0F), row(3L, "c", Float.NaN));
@@ -111,7 +93,7 @@ public class TestTableEncryption extends SparkTestBaseWithCatalog {
     assertEquals("Should return all expected rows", expected, sql("SELECT * FROM %s", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testDirectDataFileRead() {
     List<Object[]> dataFileTable =
         sql("SELECT file_path FROM %s.%s", tableName, MetadataTableType.ALL_DATA_FILES);
@@ -135,7 +117,7 @@ public class TestTableEncryption extends SparkTestBaseWithCatalog {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testManifestEncryption() throws IOException {
     List<Object[]> manifestFileTable =
         sql("SELECT path FROM %s.%s", tableName, MetadataTableType.MANIFESTS);
@@ -150,37 +132,48 @@ public class TestTableEncryption extends SparkTestBaseWithCatalog {
     }
 
     String metadataFolderPath = null;
-    byte[] magic = new byte[4];
 
     // Check encryption of manifest files
     for (String manifestFilePath : manifestFiles) {
-      SeekableInputStream manifestFileReader = localInput(manifestFilePath).newStream();
-      manifestFileReader.read(magic);
-      manifestFileReader.close();
-      Assert.assertArrayEquals(
-          magic, Ciphers.GCM_STREAM_MAGIC_STRING.getBytes(StandardCharsets.UTF_8));
+      checkMetadataFileEncryption(localInput(manifestFilePath));
 
       if (metadataFolderPath == null) {
         metadataFolderPath = new File(manifestFilePath).getParent().replaceFirst("file:", "");
       }
     }
 
-    // Find metadata list files and check their encryption
+    // Find manifest list and metadata files; check their encryption
     File[] listOfMetadataFiles = new File(metadataFolderPath).listFiles();
     boolean foundManifestListFile = false;
+    boolean foundMetadataJson = false;
+
     for (File metadataFile : listOfMetadataFiles) {
       if (metadataFile.getName().startsWith("snap-")) {
         foundManifestListFile = true;
-        SeekableInputStream manifestFileReader = localInput(metadataFile).newStream();
-        manifestFileReader.read(magic);
-        manifestFileReader.close();
-        Assert.assertArrayEquals(
-            magic, Ciphers.GCM_STREAM_MAGIC_STRING.getBytes(StandardCharsets.UTF_8));
+        checkMetadataFileEncryption(localInput(metadataFile));
+      }
+
+      if (metadataFile.getName().endsWith("metadata.json")) {
+        foundMetadataJson = true;
+        checkMetadataFileEncryption(localInput(metadataFile));
       }
     }
 
     if (!foundManifestListFile) {
       throw new RuntimeException("No manifest list files found for table " + tableName);
     }
+
+    if (!foundMetadataJson) {
+      throw new RuntimeException("Metadata json file is not found for table " + tableName);
+    }
+  }
+
+  private void checkMetadataFileEncryption(InputFile file) throws IOException {
+    SeekableInputStream stream = file.newStream();
+    byte[] magic = new byte[4];
+    stream.read(magic);
+    stream.close();
+    Assert.assertArrayEquals(
+        magic, Ciphers.GCM_STREAM_MAGIC_STRING.getBytes(StandardCharsets.UTF_8));
   }
 }

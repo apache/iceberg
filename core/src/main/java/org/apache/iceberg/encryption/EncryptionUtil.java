@@ -18,13 +18,12 @@
  */
 package org.apache.iceberg.encryption;
 
+import java.nio.ByteBuffer;
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.util.PropertyUtil;
 
 public class EncryptionUtil {
 
@@ -71,30 +70,35 @@ public class EncryptionUtil {
   }
 
   public static EncryptionManager createEncryptionManager(
-      Map<String, String> tableProperties, KeyManagementClient kmsClient) {
+      String tableKeyId, int dekLength, KeyManagementClient kmsClient) {
     Preconditions.checkArgument(kmsClient != null, "Invalid KMS client: null");
-    String tableKeyId = tableProperties.get(TableProperties.ENCRYPTION_TABLE_KEY);
 
     if (null == tableKeyId) {
       // Unencrypted table
       return PlaintextEncryptionManager.instance();
     }
 
-    int dataKeyLength =
-        PropertyUtil.propertyAsInt(
-            tableProperties,
-            TableProperties.ENCRYPTION_DEK_LENGTH,
-            TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT);
-
     Preconditions.checkState(
-        dataKeyLength == 16 || dataKeyLength == 24 || dataKeyLength == 32,
+        dekLength == 16 || dekLength == 24 || dekLength == 32,
         "Invalid data key length: %s (must be 16, 24, or 32)",
-        dataKeyLength);
+        dekLength);
 
-    return new StandardEncryptionManager(tableKeyId, dataKeyLength, kmsClient);
+    return new StandardEncryptionManager(tableKeyId, dekLength, kmsClient);
   }
 
   public static EncryptedOutputFile plainAsEncryptedOutput(OutputFile encryptingOutputFile) {
     return new BaseEncryptedOutputFile(encryptingOutputFile, EncryptionKeyMetadata.empty());
+  }
+
+  public static EncryptionKeyMetadata createKeyMetadata(ByteBuffer key, ByteBuffer aadPrefix) {
+    Preconditions.checkState(
+        key.arrayOffset() == 0, "Invalid key array offset {}", key.arrayOffset());
+    Preconditions.checkState(
+        aadPrefix.arrayOffset() == 0, "Invalid aad array offset {}", aadPrefix.arrayOffset());
+    return new StandardKeyMetadata(key.array(), aadPrefix.array());
+  }
+
+  public static NativeEncryptionKeyMetadata parseKeyMetadata(ByteBuffer keyMetadataBytes) {
+    return StandardKeyMetadata.parse(keyMetadataBytes);
   }
 }

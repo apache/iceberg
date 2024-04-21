@@ -117,6 +117,10 @@ public class AesGcmOutputStream extends PositionOutputStream {
 
   @Override
   public void close() throws IOException {
+    if (isClosed) {
+      return;
+    }
+
     if (!isHeaderWritten) {
       writeHeader();
     }
