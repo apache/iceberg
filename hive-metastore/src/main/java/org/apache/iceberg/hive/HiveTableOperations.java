@@ -179,14 +179,14 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       return encryptionManager;
     }
 
-    String key = encryptionKeyIdFromProps(); // writing
+    String tableKeyID = encryptionKeyIdFromProps(); // writing
 
-    if (key == null) {
-      key = encryptionKeyIdFromHms(); // reading
+    if (tableKeyID == null) {
+      tableKeyID = encryptionKeyIdFromHms(); // reading
     }
 
     encryptionManager =
-        EncryptionUtil.createEncryptionManager(key, dekLength(), keyManagementClient);
+        EncryptionUtil.createEncryptionManager(tableKeyID, dekLength(), keyManagementClient);
 
     return encryptionManager;
   }
