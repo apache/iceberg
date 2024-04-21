@@ -120,6 +120,21 @@ public class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch>
     }
 
     @Override
+    public ColumnarBatch loadDataToColumnBatch() {
+      int numRowsUndeleted = initRowIdMapping();
+      ColumnVector[] arrowColumnVectors = readDataToColumnVectors();
+
+      ColumnarBatch newColumnarBatch =
+          initializeColumnBatchWithDeletions(arrowColumnVectors, numRowsUndeleted);
+
+      if (hasIsDeletedColumn) {
+        readDeletedColumnIfNecessary(arrowColumnVectors);
+      }
+
+      return newColumnarBatch;
+    }
+
+    @Override
     protected ColumnVector[] readDataToColumnVectors() {
       ColumnVector[] columnVectors = new ColumnVector[readers.length];
       // Fetch rows for all readers in the delegate
@@ -135,8 +150,7 @@ public class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch>
       return columnVectors;
     }
 
-    @Override
-    protected void readDeletedColumnIfNecessary(ColumnVector[] columnVectors) {
+    void readDeletedColumnIfNecessary(ColumnVector[] columnVectors) {
       for (int i = 0; i < readers.length; i++) {
         if (readers[i] instanceof CometDeleteColumnReader) {
           CometDeleteColumnReader deleteColumnReader = new CometDeleteColumnReader<>(isDeleted);

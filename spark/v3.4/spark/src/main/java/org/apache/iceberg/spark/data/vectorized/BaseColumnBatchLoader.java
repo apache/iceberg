@@ -56,11 +56,8 @@ public abstract class BaseColumnBatchLoader {
     }
   }
 
-  public ColumnarBatch loadDataToColumnBatch() {
-    int numRowsUndeleted = initRowIdMapping();
-
-    ColumnVector[] arrowColumnVectors = readDataToColumnVectors();
-
+  protected ColumnarBatch initializeColumnBatchWithDeletions(
+      ColumnVector[] arrowColumnVectors, int numRowsUndeleted) {
     ColumnarBatch newColumnarBatch = new ColumnarBatch(arrowColumnVectors);
     newColumnarBatch.setNumRows(numRowsUndeleted);
 
@@ -75,23 +72,26 @@ public abstract class BaseColumnBatchLoader {
       }
       newColumnarBatch.setNumRows(numRowsToRead);
     }
-
-    if (hasIsDeletedColumn) {
-      readDeletedColumnIfNecessary(arrowColumnVectors);
-    }
-
     return newColumnarBatch;
   }
 
+  /**
+   * This method iterates over each column reader and reads the current batch of data into the
+   * {@link ColumnVector}.
+   */
   protected abstract ColumnVector[] readDataToColumnVectors();
 
-  protected abstract void readDeletedColumnIfNecessary(ColumnVector[] arrowColumnVectors);
+  /**
+   * This method reads the current batch of data into the {@link ColumnVector}, and applies deletion
+   * logic, and loads data into a {@link ColumnarBatch}.
+   */
+  public abstract ColumnarBatch loadDataToColumnBatch();
 
   boolean hasEqDeletes() {
     return deletes != null && deletes.hasEqDeletes();
   }
 
-  int initRowIdMapping() {
+  protected int initRowIdMapping() {
     Pair<int[], Integer> posDeleteRowIdMapping = posDelRowIdMapping();
     if (posDeleteRowIdMapping != null) {
       rowIdMapping = posDeleteRowIdMapping.first();
