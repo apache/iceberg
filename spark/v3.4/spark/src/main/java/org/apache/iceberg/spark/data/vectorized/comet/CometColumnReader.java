@@ -152,8 +152,6 @@ class CometColumnReader implements VectorizedReader<CometVector> {
 
   @Override
   public void setBatchSize(int size) {
-    //    Preconditions.checkState(
-    //        !initialized, "'reset' shouldn't be called" + " before 'setBatchSize' is called");
     this.batchSize = size;
   }
 
