@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.hive;
 
-import static org.apache.iceberg.TableProperties.ENCRYPTION_TABLE_KEY;
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -394,11 +393,14 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       throw new CommitFailedException(e);
 
     } finally {
-      HiveOperationsBase.cleanupMetadataAndUnlock(io(), commitStatus, newMetadataFile.location(), lock);
+      HiveOperationsBase.cleanupMetadataAndUnlock(
+          io(), commitStatus, newMetadataFile.location(), lock);
     }
 
     LOG.info(
-        "Committed to table {} with the new metadata location {}", fullName, newMetadataFile.location());
+        "Committed to table {} with the new metadata location {}",
+        fullName,
+        newMetadataFile.location());
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")

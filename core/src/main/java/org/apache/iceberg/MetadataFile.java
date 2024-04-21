@@ -37,8 +37,8 @@ public class MetadataFile implements Serializable {
   }
 
   /**
-   * Key metadata for metadata file in encrypted table. If contains the file encryption key - this key cannot be open,
-   * must be wrapped (encrypted) with the table master key.
+   * Key metadata for metadata file in encrypted table. If contains the file encryption key - this
+   * key cannot be open, must be wrapped (encrypted) with the table master key.
    *
    * @return base64-encoded key metadata for the metadata file
    */
