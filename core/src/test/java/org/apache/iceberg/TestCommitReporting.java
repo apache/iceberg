@@ -102,7 +102,7 @@ public class TestCommitReporting extends TestBase {
 
     CommitReport report = reporter.lastCommitReport();
     assertThat(report).isNotNull();
-    assertThat(report.operation()).isEqualTo("overwrite");
+    assertThat(report.operation()).isEqualTo("delete");
     assertThat(report.snapshotId()).isEqualTo(1L);
     assertThat(report.sequenceNumber()).isEqualTo(1L);
     assertThat(report.tableName()).isEqualTo(tableName);

@@ -56,6 +56,18 @@ public class TestRowDelta extends V2TableTestBase {
   }
 
   @TestTemplate
+  public void addOnlyDeleteFilesProducesDeleteOperation() {
+    SnapshotUpdate<?> rowDelta =
+        table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_B_DELETES);
+
+    commit(table, rowDelta, branch);
+    Snapshot snap = latestSnapshot(table, branch);
+    assertThat(snap.sequenceNumber()).isEqualTo(1);
+    assertThat(snap.operation()).isEqualTo(DataOperations.DELETE);
+    assertThat(snap.deleteManifests(table.io())).hasSize(1);
+  }
+
+  @TestTemplate
   public void testAddDeleteFile() {
     SnapshotUpdate<?> rowDelta =
         table.newRowDelta().addRows(FILE_A).addDeletes(FILE_A_DELETES).addDeletes(FILE_B_DELETES);

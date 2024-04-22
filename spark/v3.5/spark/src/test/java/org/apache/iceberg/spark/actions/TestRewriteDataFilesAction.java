@@ -857,8 +857,8 @@ public class TestRewriteDataFilesAction extends TestBase {
     List<Object[]> postRewriteData = currentData();
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
 
-    // With 10 original groups and Max Commits of 3, we should have commits with 4, 4, and 2.
-    // removing 3 groups leaves us with only 2 new commits, 4 and 3
+    // With 10 original groups and max commits of 3, we have 4 groups per commit.
+    // Removing 3 groups, we are left with 4 groups and 3 groups in two commits.
     shouldHaveSnapshots(table, 3);
     shouldHaveNoOrphans(table);
     shouldHaveACleanCache(table);
@@ -894,7 +894,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     RewriteDataFiles.Result result = spyRewrite.execute();
 
-    // Commit 1: 4/4 + Commit 2 failed 0/4 + Commit 3: 2/2 == 6 out of 10 total groups comitted
+    // Commit 1: 4/4 + Commit 2 failed 0/4 + Commit 3: 2/2 == 6 out of 10 total groups committed
     assertThat(result.rewriteResults()).as("Should have 6 fileGroups").hasSize(6);
     assertThat(result.rewrittenBytesCount()).isGreaterThan(0L).isLessThan(dataSizeBefore);
 
@@ -904,6 +904,48 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
 
     // Only 2 new commits because we broke one
+    shouldHaveSnapshots(table, 3);
+    shouldHaveNoOrphans(table);
+    shouldHaveACleanCache(table);
+  }
+
+  @Test
+  public void testParallelPartialProgressWithMaxFailedCommits() {
+    Table table = createTable(20);
+    int fileSize = averageFileSize(table);
+
+    List<Object[]> originalData = currentData();
+
+    RewriteDataFilesSparkAction realRewrite =
+        basicRewrite(table)
+            .option(
+                RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 1000))
+            .option(RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_REWRITES, "3")
+            .option(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED, "true")
+            .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS, "3")
+            .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_FAILED_COMMITS, "0");
+
+    RewriteDataFilesSparkAction spyRewrite = Mockito.spy(realRewrite);
+
+    // Fail groups 1, 3, and 7 during rewrite
+    GroupInfoMatcher failGroup = new GroupInfoMatcher(1, 3, 7);
+    doThrow(new RuntimeException("Rewrite Failed"))
+        .when(spyRewrite)
+        .rewriteFiles(any(), argThat(failGroup));
+
+    assertThatThrownBy(() -> spyRewrite.execute())
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining(
+            "1 rewrite commits failed. This is more than the maximum allowed failures of 0");
+
+    table.refresh();
+
+    List<Object[]> postRewriteData = currentData();
+    assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
+
+    // With 10 original groups and max commits of 3, we have 4 groups per commit.
+    // Removing 3 groups, we are left with 4 groups and 3 groups in two commits.
+    // Adding max allowed failed commits doesn't change the number of successful commits.
     shouldHaveSnapshots(table, 3);
     shouldHaveNoOrphans(table);
     shouldHaveACleanCache(table);

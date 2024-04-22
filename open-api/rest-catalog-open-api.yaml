@@ -1386,8 +1386,8 @@ paths:
                 $ref: '#/components/examples/RenameViewSameNamespace'
         required: true
       responses:
-        200:
-          description: OK
+        204:
+          description: Success, no content
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
