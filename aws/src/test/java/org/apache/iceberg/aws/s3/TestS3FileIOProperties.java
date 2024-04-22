@@ -22,16 +22,18 @@ import java.net.URI;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.AwsClientProperties;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
@@ -459,13 +461,18 @@ public class TestS3FileIOProperties {
 
   @Test
   public void testApplySignerConfiguration() {
-    Map<String, String> properties = Maps.newHashMap();
-    properties.put(S3FileIOProperties.REMOTE_SIGNING_ENABLED, "true");
+    Map<String, String> properties =
+        ImmutableMap.of(
+            S3FileIOProperties.REMOTE_SIGNING_ENABLED,
+            "true",
+            CatalogProperties.URI,
+            "http://localhost:12345");
     S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
     S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);
     s3FileIOProperties.applySignerConfiguration(mockS3ClientBuilder);
 
-    Mockito.verify(mockS3ClientBuilder).overrideConfiguration(Mockito.any(Consumer.class));
+    Mockito.verify(mockS3ClientBuilder)
+        .overrideConfiguration(Mockito.any(ClientOverrideConfiguration.class));
   }
 
   @Test
@@ -486,6 +493,7 @@ public class TestS3FileIOProperties {
     S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);
     s3FileIOProperties.applyUserAgentConfigurations(mockS3ClientBuilder);
 
-    Mockito.verify(mockS3ClientBuilder).overrideConfiguration(Mockito.any(Consumer.class));
+    Mockito.verify(mockS3ClientBuilder)
+        .overrideConfiguration(Mockito.any(ClientOverrideConfiguration.class));
   }
 }
