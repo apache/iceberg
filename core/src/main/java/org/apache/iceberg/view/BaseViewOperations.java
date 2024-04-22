@@ -22,6 +22,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import org.apache.iceberg.BaseMetastoreOperations;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -35,7 +36,7 @@ import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public abstract class BaseViewOperations implements ViewOperations {
+public abstract class BaseViewOperations extends BaseMetastoreOperations implements ViewOperations {
   private static final Logger LOG = LoggerFactory.getLogger(BaseViewOperations.class);
 
   private static final String METADATA_FOLDER_NAME = "metadata";

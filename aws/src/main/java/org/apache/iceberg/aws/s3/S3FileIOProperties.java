@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.aws.AwsClientProperties;
 import org.apache.iceberg.aws.glue.GlueCatalog;
 import org.apache.iceberg.aws.s3.signer.S3V4RestSignerClient;
@@ -35,6 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
@@ -374,6 +376,14 @@ public class S3FileIOProperties implements Serializable {
   public static final String PRELOAD_CLIENT_ENABLED = "s3.preload-client-enabled";
 
   public static final boolean PRELOAD_CLIENT_ENABLED_DEFAULT = false;
+
+  /**
+   * User Agent Prefix set by the S3 client.
+   *
+   * <p>This allows developers to monitor which version of Iceberg they have deployed to a cluster
+   * (for example, through the S3 Access Logs, which contain the user agent field).
+   */
+  private static final String S3_FILE_IO_USER_AGENT = "s3fileio/" + EnvironmentContext.get();
 
   private String sseType;
   private String sseKey;
@@ -779,10 +789,15 @@ public class S3FileIOProperties implements Serializable {
    */
   public <T extends S3ClientBuilder> void applySignerConfiguration(T builder) {
     if (isRemoteSigningEnabled) {
+      ClientOverrideConfiguration.Builder configBuilder =
+          null != builder.overrideConfiguration()
+              ? builder.overrideConfiguration().toBuilder()
+              : ClientOverrideConfiguration.builder();
       builder.overrideConfiguration(
-          c ->
-              c.putAdvancedOption(
-                  SdkAdvancedClientOption.SIGNER, S3V4RestSignerClient.create(allProperties)));
+          configBuilder
+              .putAdvancedOption(
+                  SdkAdvancedClientOption.SIGNER, S3V4RestSignerClient.create(allProperties))
+              .build());
     }
   }
 
@@ -817,6 +832,17 @@ public class S3FileIOProperties implements Serializable {
               S3AccessGrantsPluginConfigurations.class.getName(), allProperties);
       s3AccessGrantsPluginConfigurations.configureS3ClientBuilder(builder);
     }
+  }
+
+  public <T extends S3ClientBuilder> void applyUserAgentConfigurations(T builder) {
+    ClientOverrideConfiguration.Builder configBuilder =
+        null != builder.overrideConfiguration()
+            ? builder.overrideConfiguration().toBuilder()
+            : ClientOverrideConfiguration.builder();
+    builder.overrideConfiguration(
+        configBuilder
+            .putAdvancedOption(SdkAdvancedClientOption.USER_AGENT_PREFIX, S3_FILE_IO_USER_AGENT)
+            .build());
   }
 
   /**

@@ -19,7 +19,11 @@
 package org.apache.iceberg;
 
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -32,24 +36,17 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public class TestSchemaAndMappingUpdate extends TableTestBase {
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestSchemaAndMappingUpdate extends TestBase {
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1, 2);
   }
 
-  public TestSchemaAndMappingUpdate(int formatVersion) {
-    super(formatVersion);
-  }
-
-  @Test
+  @TestTemplate
   public void testAddPrimitiveColumn() {
     NameMapping mapping = MappingUtil.create(table.schema());
     String mappingJson = NameMappingParser.toJson(mapping);
@@ -64,15 +61,12 @@ public class TestSchemaAndMappingUpdate extends TableTestBase {
     validateUnchanged(mapping, updated);
 
     MappedField newMapping = updated.find("count");
-    Assert.assertNotNull("Mapping for new column should be added", newMapping);
-    Assert.assertEquals(
-        "Mapping should use the assigned field ID",
-        (Integer) table.schema().findField("count").fieldId(),
-        updated.find("count").id());
-    Assert.assertNull("Should not contain a nested mapping", updated.find("count").nestedMapping());
+    assertThat(newMapping).isNotNull();
+    assertThat(updated.find("count").id()).isEqualTo(table.schema().findField("count").fieldId());
+    assertThat(updated.find("count").nestedMapping()).isNull();
   }
 
-  @Test
+  @TestTemplate
   public void testAddStructColumn() {
     NameMapping mapping = MappingUtil.create(table.schema());
     String mappingJson = NameMappingParser.toJson(mapping);
@@ -94,31 +88,22 @@ public class TestSchemaAndMappingUpdate extends TableTestBase {
     validateUnchanged(mapping, updated);
 
     MappedField newMapping = updated.find("location");
-    Assert.assertNotNull("Mapping for new column should be added", newMapping);
+    assertThat(newMapping).isNotNull();
 
-    Assert.assertEquals(
-        "Mapping should use the assigned field ID",
-        (Integer) table.schema().findField("location").fieldId(),
-        updated.find("location").id());
-    Assert.assertNotNull(
-        "Should contain a nested mapping", updated.find("location").nestedMapping());
+    assertThat(updated.find("location").id())
+        .isEqualTo(table.schema().findField("location").fieldId());
+    assertThat(updated.find("location").nestedMapping()).isNotNull();
 
-    Assert.assertEquals(
-        "Mapping should use the assigned field ID",
-        (Integer) table.schema().findField("location.lat").fieldId(),
-        updated.find("location.lat").id());
-    Assert.assertNull(
-        "Should not contain a nested mapping", updated.find("location.lat").nestedMapping());
+    assertThat(updated.find("location.lat").id())
+        .isEqualTo(table.schema().findField("location.lat").fieldId());
+    assertThat(updated.find("location.lat").nestedMapping()).isNull();
 
-    Assert.assertEquals(
-        "Mapping should use the assigned field ID",
-        (Integer) table.schema().findField("location.long").fieldId(),
-        updated.find("location.long").id());
-    Assert.assertNull(
-        "Should not contain a nested mapping", updated.find("location.long").nestedMapping());
+    assertThat(updated.find("location.long").id())
+        .isEqualTo(table.schema().findField("location.long").fieldId());
+    assertThat(updated.find("location.long").nestedMapping()).isNull();
   }
 
-  @Test
+  @TestTemplate
   public void testRenameColumn() {
     NameMapping mapping = MappingUtil.create(table.schema());
     String mappingJson = NameMappingParser.toJson(mapping);
@@ -137,14 +122,12 @@ public class TestSchemaAndMappingUpdate extends TableTestBase {
         updated);
 
     MappedField updatedMapping = updated.find(idColumnId);
-    Assert.assertNotNull("Mapping for id column should exist", updatedMapping);
-    Assert.assertEquals(
-        "Should add the new column name to the existing mapping",
-        MappedField.of(idColumnId, ImmutableList.of("id", "object_id")),
-        updatedMapping);
+    assertThat(updatedMapping)
+        .isNotNull()
+        .isEqualTo(MappedField.of(idColumnId, ImmutableList.of("id", "object_id")));
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteColumn() {
     NameMapping mapping = MappingUtil.create(table.schema());
     String mappingJson = NameMappingParser.toJson(mapping);
@@ -160,7 +143,7 @@ public class TestSchemaAndMappingUpdate extends TableTestBase {
     validateUnchanged(mapping, updated);
   }
 
-  @Test
+  @TestTemplate
   public void testModificationWithMetricsMetrics() {
     NameMapping mapping = MappingUtil.create(table.schema());
     String mappingJson = NameMappingParser.toJson(mapping);
@@ -171,7 +154,7 @@ public class TestSchemaAndMappingUpdate extends TableTestBase {
         .set("write.metadata.metrics.column.id", "full")
         .commit();
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 table
                     .updateProperties()
@@ -184,25 +167,19 @@ public class TestSchemaAndMappingUpdate extends TableTestBase {
 
     // Re-naming a column with metrics succeeds;
     table.updateSchema().renameColumn("id", "bloop").commit();
-    Assert.assertNotNull(
-        "Make sure the metrics config now has bloop",
-        table.properties().get(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "bloop"));
-    Assert.assertNull(
-        "Make sure the metrics config no longer has id",
-        table.properties().get(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "id"));
+    assertThat(table.properties())
+        .containsEntry(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "bloop", "full")
+        .doesNotContainKey(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "id");
 
     // Deleting a column with metrics succeeds
     table.updateSchema().deleteColumn("bloop").commit();
     // Make sure no more reference to bloop in the metrics config
-    Assert.assertNull(
-        "Make sure the metrics config no longer has id",
-        table.properties().get(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "id"));
-    Assert.assertNull(
-        "Make sure the metrics config no longer has bloop",
-        table.properties().get(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "bloop"));
+    assertThat(table.properties())
+        .doesNotContainKey(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "id")
+        .doesNotContainKey(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "bloop");
   }
 
-  @Test
+  @TestTemplate
   public void testModificationWithParquetBloomConfig() {
     table
         .updateProperties()
@@ -210,20 +187,17 @@ public class TestSchemaAndMappingUpdate extends TableTestBase {
         .commit();
 
     table.updateSchema().renameColumn("id", "ID").commit();
-    Assert.assertNotNull(
-        "Parquet bloom config for new column name ID should exists",
-        table.properties().get(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "ID"));
-    Assert.assertNull(
-        "Parquet bloom config for old column name id should not exists",
-        table.properties().get(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id"));
+    assertThat(table.properties())
+        .containsEntry(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "ID", "true")
+        .doesNotContainKey(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id");
 
     table.updateSchema().deleteColumn("ID").commit();
-    Assert.assertNull(
-        "Parquet bloom config for dropped column name ID should not exists",
-        table.properties().get(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "ID"));
+    assertThat(table.properties())
+        .doesNotContainKey(
+            table.properties().get(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "ID"));
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteAndAddColumnReassign() {
     NameMapping mapping = MappingUtil.create(table.schema());
     String mappingJson = NameMappingParser.toJson(mapping);
@@ -248,20 +222,18 @@ public class TestSchemaAndMappingUpdate extends TableTestBase {
         updated);
 
     MappedField newMapping = updated.find("id");
-    Assert.assertNotNull("Mapping for id column should exist", newMapping);
-    Assert.assertEquals(
-        "Mapping should use the new field ID", (Integer) idColumnId, newMapping.id());
-    Assert.assertNull("Should not contain a nested mapping", newMapping.nestedMapping());
+    assertThat(newMapping).isNotNull();
+    assertThat(newMapping.id()).isEqualTo(idColumnId);
+    assertThat(newMapping.nestedMapping()).isNull();
 
     MappedField updatedMapping = updated.find(startIdColumnId);
-    Assert.assertNotNull("Mapping for original id column should exist", updatedMapping);
-    Assert.assertEquals(
-        "Mapping should use the original field ID", (Integer) startIdColumnId, updatedMapping.id());
-    Assert.assertFalse("Should not use id as a name", updatedMapping.names().contains("id"));
-    Assert.assertNull("Should not contain a nested mapping", updatedMapping.nestedMapping());
+    assertThat(updatedMapping).isNotNull();
+    assertThat(updatedMapping.id()).isEqualTo(startIdColumnId);
+    assertThat(updatedMapping.names()).doesNotContain("id");
+    assertThat(updatedMapping.nestedMapping()).isNull();
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteAndRenameColumnReassign() {
     NameMapping mapping = MappingUtil.create(table.schema());
     String mappingJson = NameMappingParser.toJson(mapping);
@@ -286,22 +258,19 @@ public class TestSchemaAndMappingUpdate extends TableTestBase {
         updated);
 
     MappedField newMapping = updated.find("id");
-    Assert.assertNotNull("Mapping for id column should exist", newMapping);
-    Assert.assertEquals(
-        "Mapping should use the new field ID", (Integer) idColumnId, newMapping.id());
-    Assert.assertEquals(
-        "Should have both names", Sets.newHashSet("id", "data"), newMapping.names());
-    Assert.assertNull("Should not contain a nested mapping", newMapping.nestedMapping());
+    assertThat(newMapping).isNotNull();
+    assertThat(newMapping.id()).isEqualTo(idColumnId);
+    assertThat(newMapping.names()).containsExactly("data", "id");
+    assertThat(newMapping.nestedMapping()).isNull();
 
     MappedField updatedMapping = updated.find(startIdColumnId);
-    Assert.assertNotNull("Mapping for original id column should exist", updatedMapping);
-    Assert.assertEquals(
-        "Mapping should use the original field ID", (Integer) startIdColumnId, updatedMapping.id());
-    Assert.assertFalse("Should not use id as a name", updatedMapping.names().contains("id"));
-    Assert.assertNull("Should not contain a nested mapping", updatedMapping.nestedMapping());
+    assertThat(updatedMapping).isNotNull();
+    assertThat(updatedMapping.id()).isEqualTo(startIdColumnId);
+    assertThat(updatedMapping.names()).doesNotContain("id");
+    assertThat(updatedMapping.nestedMapping()).isNull();
   }
 
-  @Test
+  @TestTemplate
   public void testRenameAndAddColumnReassign() {
     NameMapping mapping = MappingUtil.create(table.schema());
     String mappingJson = NameMappingParser.toJson(mapping);
@@ -314,10 +283,7 @@ public class TestSchemaAndMappingUpdate extends TableTestBase {
 
     NameMapping afterRename =
         NameMappingParser.fromJson(table.properties().get(TableProperties.DEFAULT_NAME_MAPPING));
-    Assert.assertEquals(
-        "Renamed column should have both names",
-        Sets.newHashSet("id", "object_id"),
-        afterRename.find(startIdColumnId).names());
+    assertThat(afterRename.find(startIdColumnId).names()).containsExactly("id", "object_id");
 
     // add a new column with the renamed column's old name
     // also, rename the original column again to ensure its names are handled correctly
@@ -338,21 +304,18 @@ public class TestSchemaAndMappingUpdate extends TableTestBase {
         updated);
 
     MappedField newMapping = updated.find("id");
-    Assert.assertNotNull("Mapping for id column should exist", newMapping);
-    Assert.assertEquals(
-        "Mapping should use the new field ID", (Integer) idColumnId, newMapping.id());
-    Assert.assertNull("Should not contain a nested mapping", newMapping.nestedMapping());
+    assertThat(newMapping).isNotNull();
+    assertThat(newMapping.id()).isEqualTo(idColumnId);
+    assertThat(newMapping.nestedMapping()).isNull();
 
     MappedField updatedMapping = updated.find(startIdColumnId);
-    Assert.assertNotNull("Mapping for original id column should exist", updatedMapping);
-    Assert.assertEquals(
-        "Mapping should use the original field ID", (Integer) startIdColumnId, updatedMapping.id());
-    Assert.assertEquals(
-        "Should not use id as a name", Sets.newHashSet("object_id", "oid"), updatedMapping.names());
-    Assert.assertNull("Should not contain a nested mapping", updatedMapping.nestedMapping());
+    assertThat(updatedMapping).isNotNull();
+    assertThat(updatedMapping.id()).isEqualTo(startIdColumnId);
+    assertThat(updatedMapping.names()).containsExactly("oid", "object_id");
+    assertThat(updatedMapping.nestedMapping()).isNull();
   }
 
-  @Test
+  @TestTemplate
   public void testRenameAndRenameColumnReassign() {
     NameMapping mapping = MappingUtil.create(table.schema());
     String mappingJson = NameMappingParser.toJson(mapping);
@@ -365,10 +328,7 @@ public class TestSchemaAndMappingUpdate extends TableTestBase {
 
     NameMapping afterRename =
         NameMappingParser.fromJson(table.properties().get(TableProperties.DEFAULT_NAME_MAPPING));
-    Assert.assertEquals(
-        "Renamed column should have both names",
-        Sets.newHashSet("id", "object_id"),
-        afterRename.find(startIdColumnId).names());
+    assertThat(afterRename.find(startIdColumnId).names()).containsExactly("id", "object_id");
 
     // rename the data column to the renamed column's old name
     // also, rename the original column again to ensure its names are handled correctly
@@ -385,28 +345,23 @@ public class TestSchemaAndMappingUpdate extends TableTestBase {
         updated);
 
     MappedField newMapping = updated.find("id");
-    Assert.assertNotNull("Mapping for id column should exist", newMapping);
-    Assert.assertEquals(
-        "Renamed column should have both names", Sets.newHashSet("id", "data"), newMapping.names());
-    Assert.assertEquals(
-        "Mapping should use the new field ID", (Integer) idColumnId, newMapping.id());
-    Assert.assertNull("Should not contain a nested mapping", newMapping.nestedMapping());
+    assertThat(newMapping).isNotNull();
+    assertThat(newMapping.names()).containsExactly("data", "id");
+    assertThat(newMapping.id()).isEqualTo(idColumnId);
+    assertThat(newMapping.nestedMapping()).isNull();
 
     MappedField updatedMapping = updated.find(startIdColumnId);
-    Assert.assertNotNull("Mapping for original id column should exist", updatedMapping);
-    Assert.assertEquals(
-        "Mapping should use the original field ID", (Integer) startIdColumnId, updatedMapping.id());
-    Assert.assertEquals(
-        "Should not use id as a name", Sets.newHashSet("object_id", "oid"), updatedMapping.names());
-    Assert.assertNull("Should not contain a nested mapping", updatedMapping.nestedMapping());
+    assertThat(updatedMapping).isNotNull();
+    assertThat(updatedMapping.id()).isEqualTo(startIdColumnId);
+    assertThat(updatedMapping.names()).containsExactly("oid", "object_id");
+    assertThat(updatedMapping.nestedMapping()).isNull();
   }
 
   /** Asserts that the fields in the original mapping are unchanged in the updated mapping. */
   private void validateUnchanged(NameMapping original, NameMapping updated) {
     MappedFields updatedFields = updated.asMappedFields();
     for (MappedField field : original.asMappedFields().fields()) {
-      Assert.assertEquals(
-          "Existing fields should not change", field, updatedFields.field(field.id()));
+      assertThat(updatedFields.field(field.id())).isEqualTo(field);
     }
   }
 
@@ -414,8 +369,7 @@ public class TestSchemaAndMappingUpdate extends TableTestBase {
   private void validateUnchanged(Iterable<MappedField> fields, NameMapping updated) {
     MappedFields updatedFields = updated.asMappedFields();
     for (MappedField field : fields) {
-      Assert.assertEquals(
-          "Existing fields should not change", field, updatedFields.field(field.id()));
+      assertThat(updatedFields.field(field.id())).isEqualTo(field);
     }
   }
 }

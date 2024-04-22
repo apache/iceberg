@@ -18,10 +18,14 @@
  */
 package org.apache.iceberg.encryption;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Random;
@@ -29,15 +33,12 @@ import javax.crypto.AEADBadTagException;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.io.SeekableInputStream;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestGcmStreams {
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
   @Test
   public void testEmptyFile() throws IOException {
@@ -48,7 +49,7 @@ public class TestGcmStreams {
     random.nextBytes(aadPrefix);
     byte[] readBytes = new byte[1];
 
-    File testFile = temp.newFile();
+    File testFile = File.createTempFile("test", null, temp.toFile());
 
     AesGcmOutputFile encryptedFile =
         new AesGcmOutputFile(Files.localOutput(testFile), key, aadPrefix);
@@ -56,20 +57,20 @@ public class TestGcmStreams {
     encryptedStream.close();
 
     AesGcmInputFile decryptedFile = new AesGcmInputFile(Files.localInput(testFile), key, aadPrefix);
-    Assert.assertEquals("File size", 0, decryptedFile.getLength());
+    assertThat(decryptedFile.getLength()).isEqualTo(0);
 
     try (SeekableInputStream decryptedStream = decryptedFile.newStream()) {
-      Assert.assertEquals("Read empty stream", -1, decryptedStream.read(readBytes));
+      assertThat(decryptedStream.read(readBytes)).as("Read empty stream").isEqualTo(-1);
     }
 
     // check that the AAD is still verified, even for an empty file
     byte[] badAAD = Arrays.copyOf(aadPrefix, aadPrefix.length);
     badAAD[1] -= 1; // modify the AAD slightly
     AesGcmInputFile badAADFile = new AesGcmInputFile(Files.localInput(testFile), key, badAAD);
-    Assert.assertEquals("File size", 0, badAADFile.getLength());
+    assertThat(badAADFile.getLength()).isEqualTo(0);
 
     try (SeekableInputStream decryptedStream = badAADFile.newStream()) {
-      Assertions.assertThatThrownBy(() -> decryptedStream.read(readBytes))
+      assertThatThrownBy(() -> decryptedStream.read(readBytes))
           .isInstanceOf(RuntimeException.class)
           .hasCauseInstanceOf(AEADBadTagException.class)
           .hasMessageContaining("GCM tag check failed");
@@ -86,7 +87,7 @@ public class TestGcmStreams {
     byte[] content = new byte[Ciphers.PLAIN_BLOCK_SIZE / 2]; // half a block
     random.nextBytes(content);
 
-    File testFile = temp.newFile();
+    File testFile = File.createTempFile("test", null, temp.toFile());
 
     AesGcmOutputFile encryptedFile =
         new AesGcmOutputFile(Files.localOutput(testFile), key, aadPrefix);
@@ -96,27 +97,24 @@ public class TestGcmStreams {
 
     // verify the data can be read correctly with the right AAD
     AesGcmInputFile decryptedFile = new AesGcmInputFile(Files.localInput(testFile), key, aadPrefix);
-    Assert.assertEquals("File size", content.length, decryptedFile.getLength());
+    assertThat(decryptedFile.getLength()).isEqualTo(content.length);
 
     try (SeekableInputStream decryptedStream = decryptedFile.newStream()) {
       byte[] readContent = new byte[Ciphers.PLAIN_BLOCK_SIZE];
       int bytesRead = decryptedStream.read(readContent);
-      Assert.assertEquals("Bytes read should match bytes written", content.length, bytesRead);
-      Assert.assertEquals(
-          "Content should match",
-          ByteBuffer.wrap(content),
-          ByteBuffer.wrap(readContent, 0, bytesRead));
+      assertThat(bytesRead).as("Bytes read should match bytes written").isEqualTo(content.length);
+      assertThat(ByteBuffer.wrap(readContent, 0, bytesRead)).isEqualTo(ByteBuffer.wrap(content));
     }
 
     // test with the wrong AAD
     byte[] badAAD = Arrays.copyOf(aadPrefix, aadPrefix.length);
     badAAD[1] -= 1; // modify the AAD slightly
     AesGcmInputFile badAADFile = new AesGcmInputFile(Files.localInput(testFile), key, badAAD);
-    Assert.assertEquals("File size", content.length, badAADFile.getLength());
+    assertThat(badAADFile.getLength()).isEqualTo(content.length);
 
     try (SeekableInputStream decryptedStream = badAADFile.newStream()) {
       byte[] readContent = new byte[Ciphers.PLAIN_BLOCK_SIZE];
-      Assertions.assertThatThrownBy(() -> decryptedStream.read(readContent))
+      assertThatThrownBy(() -> decryptedStream.read(readContent))
           .isInstanceOf(RuntimeException.class)
           .hasCauseInstanceOf(AEADBadTagException.class)
           .hasMessageContaining("GCM tag check failed");
@@ -132,7 +130,7 @@ public class TestGcmStreams {
     // read with the correct AAD and verify the tag check fails
     try (SeekableInputStream decryptedStream = decryptedFile.newStream()) {
       byte[] readContent = new byte[Ciphers.PLAIN_BLOCK_SIZE];
-      Assertions.assertThatThrownBy(() -> decryptedStream.read(readContent))
+      assertThatThrownBy(() -> decryptedStream.read(readContent))
           .isInstanceOf(RuntimeException.class)
           .hasCauseInstanceOf(AEADBadTagException.class)
           .hasMessageContaining("GCM tag check failed");
@@ -149,7 +147,7 @@ public class TestGcmStreams {
     byte[] content = new byte[Ciphers.PLAIN_BLOCK_SIZE / 2]; // half a block
     random.nextBytes(content);
 
-    File testFile = temp.newFile();
+    File testFile = File.createTempFile("test", null, temp.toFile());
 
     AesGcmOutputFile encryptedFile =
         new AesGcmOutputFile(Files.localOutput(testFile), key, aadPrefix);
@@ -159,16 +157,13 @@ public class TestGcmStreams {
 
     // verify the data can be read correctly with the right AAD
     AesGcmInputFile decryptedFile = new AesGcmInputFile(Files.localInput(testFile), key, aadPrefix);
-    Assert.assertEquals("File size", content.length, decryptedFile.getLength());
+    assertThat(decryptedFile.getLength()).isEqualTo(content.length);
 
     try (SeekableInputStream decryptedStream = decryptedFile.newStream()) {
       byte[] readContent = new byte[Ciphers.PLAIN_BLOCK_SIZE];
       int bytesRead = decryptedStream.read(readContent);
-      Assert.assertEquals("Bytes read should match bytes written", content.length, bytesRead);
-      Assert.assertEquals(
-          "Content should match",
-          ByteBuffer.wrap(content),
-          ByteBuffer.wrap(readContent, 0, bytesRead));
+      assertThat(bytesRead).as("Bytes read should match bytes written").isEqualTo(content.length);
+      assertThat(ByteBuffer.wrap(readContent, 0, bytesRead)).isEqualTo(ByteBuffer.wrap(content));
     }
 
     // replace the first block's nonce
@@ -181,7 +176,7 @@ public class TestGcmStreams {
     // read with the correct AAD and verify the read fails
     try (SeekableInputStream decryptedStream = decryptedFile.newStream()) {
       byte[] readContent = new byte[Ciphers.PLAIN_BLOCK_SIZE];
-      Assertions.assertThatThrownBy(() -> decryptedStream.read(readContent))
+      assertThatThrownBy(() -> decryptedStream.read(readContent))
           .isInstanceOf(RuntimeException.class)
           .hasCauseInstanceOf(AEADBadTagException.class)
           .hasMessageContaining("GCM tag check failed");
@@ -198,7 +193,7 @@ public class TestGcmStreams {
     byte[] content = new byte[Ciphers.PLAIN_BLOCK_SIZE / 2]; // half a block
     random.nextBytes(content);
 
-    File testFile = temp.newFile();
+    File testFile = File.createTempFile("test", null, temp.toFile());
 
     AesGcmOutputFile encryptedFile =
         new AesGcmOutputFile(Files.localOutput(testFile), key, aadPrefix);
@@ -208,16 +203,13 @@ public class TestGcmStreams {
 
     // verify the data can be read correctly with the right AAD
     AesGcmInputFile decryptedFile = new AesGcmInputFile(Files.localInput(testFile), key, aadPrefix);
-    Assert.assertEquals("File size", content.length, decryptedFile.getLength());
+    assertThat(decryptedFile.getLength()).isEqualTo(content.length);
 
     try (SeekableInputStream decryptedStream = decryptedFile.newStream()) {
       byte[] readContent = new byte[Ciphers.PLAIN_BLOCK_SIZE];
       int bytesRead = decryptedStream.read(readContent);
-      Assert.assertEquals("Bytes read should match bytes written", content.length, bytesRead);
-      Assert.assertEquals(
-          "Content should match",
-          ByteBuffer.wrap(content),
-          ByteBuffer.wrap(readContent, 0, bytesRead));
+      assertThat(bytesRead).as("Bytes read should match bytes written").isEqualTo(content.length);
+      assertThat(ByteBuffer.wrap(readContent, 0, bytesRead)).isEqualTo(ByteBuffer.wrap(content));
     }
 
     // replace part of the first block's content
@@ -230,7 +222,7 @@ public class TestGcmStreams {
     // read with the correct AAD and verify the read fails
     try (SeekableInputStream decryptedStream = decryptedFile.newStream()) {
       byte[] readContent = new byte[Ciphers.PLAIN_BLOCK_SIZE];
-      Assertions.assertThatThrownBy(() -> decryptedStream.read(readContent))
+      assertThatThrownBy(() -> decryptedStream.read(readContent))
           .isInstanceOf(RuntimeException.class)
           .hasCauseInstanceOf(AEADBadTagException.class)
           .hasMessageContaining("GCM tag check failed");
@@ -260,7 +252,7 @@ public class TestGcmStreams {
         byte[] key = new byte[keyLength];
         random.nextBytes(key);
         random.nextBytes(aadPrefix);
-        File testFile = temp.newFile();
+        File testFile = File.createTempFile("test", null, temp.toFile());
 
         AesGcmOutputFile encryptedFile =
             new AesGcmOutputFile(Files.localOutput(testFile), key, aadPrefix);
@@ -277,17 +269,19 @@ public class TestGcmStreams {
           }
           encryptedStream.write(testFileContents, offset, chunkLen);
           offset += chunkLen;
-          Assert.assertEquals("Position", offset, encryptedStream.getPos());
+          assertThat(encryptedStream.getPos()).isEqualTo(offset);
           left -= chunkLen;
         }
 
         encryptedStream.close();
-        Assert.assertEquals("Final position in closed stream", offset, encryptedStream.getPos());
+        assertThat(encryptedStream.getPos())
+            .as("Final position in closed stream")
+            .isEqualTo(offset);
 
         AesGcmInputFile decryptedFile =
             new AesGcmInputFile(Files.localInput(testFile), key, aadPrefix);
         SeekableInputStream decryptedStream = decryptedFile.newStream();
-        Assert.assertEquals("File size", testFileSize, decryptedFile.getLength());
+        assertThat(decryptedFile.getLength()).isEqualTo(testFileSize);
 
         byte[] chunk = new byte[testFileSize];
 
@@ -303,26 +297,26 @@ public class TestGcmStreams {
 
           decryptedStream.seek(pos);
           int len = decryptedStream.read(chunk, 0, chunkLen);
-          Assert.assertEquals("Read length", len, chunkLen);
+          assertThat(chunkLen).isEqualTo(len);
           long pos2 = decryptedStream.getPos();
-          Assert.assertEquals("Position", pos + len, pos2);
+          assertThat(pos2).isEqualTo(pos + len);
 
           ByteBuffer bb1 = ByteBuffer.wrap(chunk, 0, chunkLen);
           ByteBuffer bb2 = ByteBuffer.wrap(testFileContents, pos, chunkLen);
-          Assert.assertEquals("Read contents", bb1, bb2);
+          assertThat(bb2).isEqualTo(bb1);
 
           // Test skip
           long toSkip = random.nextInt(testFileSize);
           long skipped = decryptedStream.skip(toSkip);
 
           if (pos2 + toSkip < testFileSize) {
-            Assert.assertEquals("Skipped", toSkip, skipped);
+            assertThat(skipped).isEqualTo(toSkip);
           } else {
-            Assert.assertEquals("Skipped", (testFileSize - pos2), skipped);
+            assertThat(skipped).isEqualTo(testFileSize - pos2);
           }
 
           int pos3 = (int) decryptedStream.getPos();
-          Assert.assertEquals("Position", pos2 + skipped, pos3);
+          assertThat(pos3).isEqualTo(pos2 + skipped);
 
           chunkLen = random.nextInt(testFileSize);
           left = testFileSize - pos3;
@@ -334,7 +328,7 @@ public class TestGcmStreams {
           decryptedStream.read(chunk, 0, chunkLen);
           bb1 = ByteBuffer.wrap(chunk, 0, chunkLen);
           bb2 = ByteBuffer.wrap(testFileContents, pos3, chunkLen);
-          Assert.assertEquals("Read contents", bb1, bb2);
+          assertThat(bb2).isEqualTo(bb1);
         }
 
         decryptedStream.close();
@@ -357,7 +351,7 @@ public class TestGcmStreams {
       byte[] aadPrefix = new byte[16];
       random.nextBytes(aadPrefix);
 
-      File testFile = temp.newFile();
+      File testFile = File.createTempFile("test", null, temp.toFile());
       AesGcmOutputFile encryptedFile =
           new AesGcmOutputFile(Files.localOutput(testFile), key, aadPrefix);
       PositionOutputStream encryptedStream = encryptedFile.createOrOverwrite();
@@ -374,17 +368,17 @@ public class TestGcmStreams {
 
         encryptedStream.write(testFileContents, offset, chunkLen);
         offset += chunkLen;
-        Assert.assertEquals("Position", offset, encryptedStream.getPos());
+        assertThat(encryptedStream.getPos()).isEqualTo(offset);
         left -= chunkLen;
       }
 
       encryptedStream.close();
-      Assert.assertEquals("Final position in closed stream", offset, encryptedStream.getPos());
+      assertThat(encryptedStream.getPos()).as("Final position in closed stream").isEqualTo(offset);
 
       AesGcmInputFile decryptedFile =
           new AesGcmInputFile(Files.localInput(testFile), key, aadPrefix);
       SeekableInputStream decryptedStream = decryptedFile.newStream();
-      Assert.assertEquals("File size", testFileSize, decryptedFile.getLength());
+      assertThat(decryptedFile.getLength()).isEqualTo(testFileSize);
 
       offset = 0;
       chunkLen = Ciphers.PLAIN_BLOCK_SIZE;
@@ -399,12 +393,12 @@ public class TestGcmStreams {
 
         decryptedStream.seek(offset);
         int len = decryptedStream.read(chunk, 0, chunkLen);
-        Assert.assertEquals("Read length", len, chunkLen);
-        Assert.assertEquals("Position", offset + len, decryptedStream.getPos());
+        assertThat(chunkLen).isEqualTo(len);
+        assertThat(decryptedStream.getPos()).isEqualTo(offset + len);
 
         ByteBuffer bb1 = ByteBuffer.wrap(chunk, 0, chunkLen);
         ByteBuffer bb2 = ByteBuffer.wrap(testFileContents, offset, chunkLen);
-        Assert.assertEquals("Read contents", bb1, bb2);
+        assertThat(bb2).isEqualTo(bb1);
 
         offset += len;
         left = testFileSize - offset;

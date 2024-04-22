@@ -20,19 +20,18 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.TestTemplate;
 
-public class TestV1ToV2RowDeltaDelete extends TableTestBase {
+public class TestV1ToV2RowDeltaDelete extends TestBase {
 
-  public TestV1ToV2RowDeltaDelete() {
-    super(1 /* table format version */);
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1);
   }
 
   static final DeleteFile FILE_A_POS_1 =
@@ -55,20 +54,18 @@ public class TestV1ToV2RowDeltaDelete extends TableTestBase {
 
   private void verifyManifestSequenceNumber(
       ManifestFile mf, long sequenceNum, long minSequenceNum) {
-    Assert.assertEquals(
-        "sequence number should be " + sequenceNum, mf.sequenceNumber(), sequenceNum);
-    Assert.assertEquals(
-        "min sequence number should be " + minSequenceNum, mf.minSequenceNumber(), minSequenceNum);
+    assertThat(sequenceNum).isEqualTo(mf.sequenceNumber());
+    assertThat(minSequenceNum).isEqualTo(mf.minSequenceNumber());
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionedTableWithPartitionEqDeletes() {
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).appendFile(FILE_C).commit();
 
     List<ManifestFile> dataManifests = table.currentSnapshot().dataManifests(table.io());
     List<ManifestFile> deleteManifests = table.currentSnapshot().deleteManifests(table.io());
-    Assert.assertEquals("Should have one data manifest file", 1, dataManifests.size());
-    Assert.assertEquals("Should have zero delete manifest file", 0, deleteManifests.size());
+    assertThat(dataManifests).hasSize(1);
+    assertThat(deleteManifests).isEmpty();
     ManifestFile dataManifest = dataManifests.get(0);
     verifyManifestSequenceNumber(dataManifest, 0, 0);
 
@@ -81,56 +78,51 @@ public class TestV1ToV2RowDeltaDelete extends TableTestBase {
 
     dataManifests = table.currentSnapshot().dataManifests(ops.io());
     deleteManifests = table.currentSnapshot().deleteManifests(ops.io());
-    Assert.assertEquals("Should have one data manifest file", 1, dataManifests.size());
-    Assert.assertEquals("Should have one delete manifest file", 1, deleteManifests.size());
-    Assert.assertEquals(dataManifest, dataManifests.get(0)); // data manifest not changed
+    assertThat(dataManifests).hasSize(1).first().isEqualTo(dataManifest);
+    assertThat(deleteManifests).hasSize(1);
     ManifestFile deleteManifest = deleteManifests.get(0);
     verifyManifestSequenceNumber(deleteManifest, 1, 1);
-    List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
-    Assert.assertEquals("Should have three task", 3, tasks.size());
-    Optional<FileScanTask> task =
-        tasks.stream().filter(t -> t.file().path().equals(FILE_A.path())).findFirst();
-    Assert.assertTrue(task.isPresent());
-    Assert.assertEquals("Should have one associated delete file", 1, task.get().deletes().size());
-    Assert.assertEquals(
-        "Should have only pos delete file", FILE_A_EQ_1.path(), task.get().deletes().get(0).path());
+    assertThat(table.newScan().planFiles())
+        .hasSize(3)
+        .filteredOn(fileScanTask -> fileScanTask.file().path().equals(FILE_A.path()))
+        .first()
+        .satisfies(
+            fileScanTask -> {
+              assertThat(fileScanTask.deletes()).hasSize(1);
+              assertThat(fileScanTask.deletes().get(0).path()).isEqualTo(FILE_A_EQ_1.path());
+            });
 
     // first commit after row-delta changes
     table.newDelete().deleteFile(FILE_B).commit();
 
     dataManifests = table.currentSnapshot().dataManifests(ops.io());
     deleteManifests = table.currentSnapshot().deleteManifests(ops.io());
-    Assert.assertEquals("Should have one data manifest file", 1, dataManifests.size());
-    Assert.assertEquals("Should have one delete manifest file", 1, deleteManifests.size());
+    assertThat(dataManifests).hasSize(1).first().isNotEqualTo(dataManifest);
+    assertThat(deleteManifests).hasSize(1).first().isEqualTo(deleteManifest);
     ManifestFile dataManifest2 = dataManifests.get(0);
     verifyManifestSequenceNumber(dataManifest2, 2, 0);
-    Assert.assertNotEquals(dataManifest, dataManifest2);
-    Assert.assertEquals(deleteManifest, deleteManifests.get(0)); // delete manifest not changed
-    tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
-    Assert.assertEquals("Should have two task", 2, tasks.size());
-    task = tasks.stream().filter(t -> t.file().path().equals(FILE_A.path())).findFirst();
-    Assert.assertTrue(task.isPresent());
-    Assert.assertEquals("Should have one associated delete file", 1, task.get().deletes().size());
+    assertThat(table.newScan().planFiles())
+        .hasSize(2)
+        .filteredOn(fileScanTask -> fileScanTask.file().path().equals(FILE_A.path()))
+        .first()
+        .satisfies(fileScanTask -> assertThat(fileScanTask.deletes()).hasSize(1));
 
     // second commit after row-delta changes
     table.newDelete().deleteFile(FILE_C).commit();
 
     dataManifests = table.currentSnapshot().dataManifests(ops.io());
     deleteManifests = table.currentSnapshot().deleteManifests(ops.io());
-    Assert.assertEquals("Should have one data manifest file", 1, dataManifests.size());
-    Assert.assertEquals("Should have one delete manifest file", 1, deleteManifests.size());
-    ManifestFile dataManifest3 = dataManifests.get(0);
-    verifyManifestSequenceNumber(dataManifest3, 3, 0);
-    Assert.assertNotEquals(dataManifest2, dataManifest3);
-    Assert.assertEquals(deleteManifest, deleteManifests.get(0)); // delete manifest not changed
-    tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
-    Assert.assertEquals("Should have one task", 1, tasks.size());
-    task = tasks.stream().filter(t -> t.file().path().equals(FILE_A.path())).findFirst();
-    Assert.assertTrue(task.isPresent());
-    Assert.assertEquals("Should have one associated delete file", 1, task.get().deletes().size());
+    assertThat(dataManifests).hasSize(1).first().isNotEqualTo(dataManifest2);
+    assertThat(deleteManifests).hasSize(1).first().isEqualTo(deleteManifest);
+    verifyManifestSequenceNumber(dataManifests.get(0), 3, 0);
+    assertThat(table.newScan().planFiles())
+        .hasSize(1)
+        .filteredOn(fileScanTask -> fileScanTask.file().path().equals(FILE_A.path()))
+        .first()
+        .satisfies(fileScanTask -> assertThat(fileScanTask.deletes()).hasSize(1));
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionedTableWithUnrelatedPartitionDeletes() {
     table.newAppend().appendFile(FILE_B).appendFile(FILE_C).appendFile(FILE_D).commit();
 
@@ -141,27 +133,29 @@ public class TestV1ToV2RowDeltaDelete extends TableTestBase {
 
     table.newRowDelta().addDeletes(FILE_A_POS_1).addDeletes(FILE_A_EQ_1).commit();
 
-    List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
-    Assert.assertEquals("Should have three task", 3, tasks.size());
-    Assert.assertEquals(
-        "Should have the correct data file path", FILE_B.path(), tasks.get(0).file().path());
-    Assert.assertEquals(
-        "Should have zero associated delete file", 0, tasks.get(0).deletes().size());
+    assertThat(table.newScan().planFiles())
+        .hasSize(3)
+        .first()
+        .satisfies(
+            fileScanTask -> {
+              assertThat(fileScanTask.file().path()).isEqualTo(FILE_B.path());
+              assertThat(fileScanTask.deletes()).isEmpty();
+            });
 
     table.newDelete().deleteFile(FILE_B).commit();
-    tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
-    Assert.assertEquals("Should have two task", 2, tasks.size());
-    Assert.assertEquals(
-        "Should have zero associated delete file", 0, tasks.get(0).deletes().size());
+    assertThat(table.newScan().planFiles())
+        .hasSize(2)
+        .first()
+        .satisfies(fileScanTask -> assertThat(fileScanTask.deletes()).isEmpty());
 
     table.newDelete().deleteFile(FILE_C).commit();
-    tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
-    Assert.assertEquals("Should have one task", 1, tasks.size());
-    Assert.assertEquals(
-        "Should have zero associated delete file", 0, tasks.get(0).deletes().size());
+    assertThat(table.newScan().planFiles())
+        .hasSize(1)
+        .first()
+        .satisfies(fileScanTask -> assertThat(fileScanTask.deletes()).isEmpty());
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionedTableWithExistingDeleteFile() {
     table.updateProperties().set(TableProperties.MANIFEST_MERGE_ENABLED, "false").commit();
 
@@ -182,30 +176,18 @@ public class TestV1ToV2RowDeltaDelete extends TableTestBase {
         .set(TableProperties.MANIFEST_MERGE_ENABLED, "true")
         .commit();
 
-    Assert.assertEquals(
-        "Should have two delete manifests",
-        2,
-        table.currentSnapshot().deleteManifests(table.io()).size());
+    assertThat(table.currentSnapshot().deleteManifests(table.io())).hasSize(2);
 
     // merge delete manifests
     table.newAppend().appendFile(FILE_B).commit();
 
-    Assert.assertEquals(
-        "Should have one delete manifest",
-        1,
-        table.currentSnapshot().deleteManifests(table.io()).size());
-    Assert.assertEquals(
-        "Should have zero added delete file",
-        0,
-        table.currentSnapshot().deleteManifests(table.io()).get(0).addedFilesCount().intValue());
-    Assert.assertEquals(
-        "Should have zero deleted delete file",
-        0,
-        table.currentSnapshot().deleteManifests(table.io()).get(0).deletedFilesCount().intValue());
-    Assert.assertEquals(
-        "Should have two existing delete files",
-        2,
-        table.currentSnapshot().deleteManifests(table.io()).get(0).existingFilesCount().intValue());
+    assertThat(table.currentSnapshot().deleteManifests(table.io())).hasSize(1);
+    assertThat(table.currentSnapshot().deleteManifests(table.io()).get(0).addedFilesCount())
+        .isEqualTo(0);
+    assertThat(table.currentSnapshot().deleteManifests(table.io()).get(0).deletedFilesCount())
+        .isEqualTo(0);
+    assertThat(table.currentSnapshot().deleteManifests(table.io()).get(0).existingFilesCount())
+        .isEqualTo(2);
 
     List<FileScanTask> tasks =
         Lists.newArrayList(
@@ -214,19 +196,16 @@ public class TestV1ToV2RowDeltaDelete extends TableTestBase {
                 .filter(equal(bucket("data", BUCKETS_NUMBER), 0))
                 .planFiles()
                 .iterator());
-    Assert.assertEquals("Should have one task", 1, tasks.size());
+    assertThat(tasks).hasSize(1);
 
     FileScanTask task = tasks.get(0);
-    Assert.assertEquals(
-        "Should have the correct data file path", FILE_A.path(), task.file().path());
-    Assert.assertEquals("Should have two associated delete files", 2, task.deletes().size());
-    Assert.assertEquals(
-        "Should have expected delete files",
-        Sets.newHashSet(FILE_A_EQ_1.path(), FILE_A_POS_1.path()),
-        Sets.newHashSet(Iterables.transform(task.deletes(), ContentFile::path)));
+    assertThat(task.file().path()).isEqualTo(FILE_A.path());
+    assertThat(task.deletes()).hasSize(2);
+    assertThat(task.deletes().get(0).path()).isEqualTo(FILE_A_EQ_1.path());
+    assertThat(task.deletes().get(1).path()).isEqualTo(FILE_A_POS_1.path());
   }
 
-  @Test
+  @TestTemplate
   public void testSequenceNumbersInUpgradedTables() {
     // add initial data
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();

@@ -41,6 +41,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
 import org.apache.iceberg.rest.RESTClient;
+import org.apache.iceberg.rest.ResourcePaths;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.auth.OAuth2Util.AuthSession;
@@ -109,6 +110,17 @@ public abstract class S3V4RestSignerClient
   @Value.Lazy
   public String credential() {
     return properties().get(OAuth2Properties.CREDENTIAL);
+  }
+
+  /** Token endpoint URI to fetch token from if the Rest Catalog is not the authorization server. */
+  @Value.Lazy
+  public String oauth2ServerUri() {
+    return properties().getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens());
+  }
+
+  @Value.Lazy
+  public Map<String, String> optionalOAuthParams() {
+    return OAuth2Util.buildOptionalParam(properties());
   }
 
   /** A Bearer token supplier which will be used for interaction with the server. */
@@ -199,7 +211,14 @@ public abstract class S3V4RestSignerClient
                       tokenRefreshExecutor(),
                       token,
                       expiresAtMillis(properties()),
-                      new AuthSession(ImmutableMap.of(), token, null, credential(), SCOPE)));
+                      new AuthSession(
+                          ImmutableMap.of(),
+                          token,
+                          null,
+                          credential(),
+                          SCOPE,
+                          oauth2ServerUri(),
+                          optionalOAuthParams())));
     }
 
     if (credentialProvided()) {
@@ -208,10 +227,23 @@ public abstract class S3V4RestSignerClient
               credential(),
               id -> {
                 AuthSession session =
-                    new AuthSession(ImmutableMap.of(), null, null, credential(), SCOPE);
+                    new AuthSession(
+                        ImmutableMap.of(),
+                        null,
+                        null,
+                        credential(),
+                        SCOPE,
+                        oauth2ServerUri(),
+                        optionalOAuthParams());
                 long startTimeMillis = System.currentTimeMillis();
                 OAuthTokenResponse authResponse =
-                    OAuth2Util.fetchToken(httpClient(), session.headers(), credential(), SCOPE);
+                    OAuth2Util.fetchToken(
+                        httpClient(),
+                        session.headers(),
+                        credential(),
+                        SCOPE,
+                        oauth2ServerUri(),
+                        optionalOAuthParams());
                 return AuthSession.fromTokenResponse(
                     httpClient(), tokenRefreshExecutor(), authResponse, startTimeMillis, session);
               });

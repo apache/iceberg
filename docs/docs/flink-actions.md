@@ -18,7 +18,7 @@ title: "Flink Actions"
  - limitations under the License.
  -->
 
-## Rewrite files action.
+## Rewrite files action
 
 Iceberg provides API to rewrite small files into large files by submitting Flink batch jobs. The behavior of this Flink action is the same as Spark's [rewriteDataFiles](maintenance.md#compact-data-files).
 

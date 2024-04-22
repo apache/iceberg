@@ -65,7 +65,7 @@ public interface SortOrderBuilder<R> {
   R asc(Term term, NullOrder nullOrder);
 
   /**
-   * Add a field to the sort by field name, ascending with nulls first.
+   * Add a field to the sort by field name, descending with nulls first.
    *
    * @param name a field name
    * @return this for method chaining
@@ -75,7 +75,7 @@ public interface SortOrderBuilder<R> {
   }
 
   /**
-   * Add a field to the sort by field name, ascending with the given null order.
+   * Add a field to the sort by field name, descending with the given null order.
    *
    * @param name a field name
    * @param nullOrder a null order (first or last)
@@ -86,7 +86,7 @@ public interface SortOrderBuilder<R> {
   }
 
   /**
-   * Add an expression term to the sort, ascending with nulls first.
+   * Add an expression term to the sort, descending with nulls first.
    *
    * @param term an expression term
    * @return this for method chaining
@@ -96,7 +96,7 @@ public interface SortOrderBuilder<R> {
   }
 
   /**
-   * Add an expression term to the sort, ascending with the given null order.
+   * Add an expression term to the sort, descending with the given null order.
    *
    * @param term an expression term
    * @param nullOrder a null order (first or last)

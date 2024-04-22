@@ -24,34 +24,32 @@ activation = "1.1.1"
 aliyun-sdk-oss = "3.10.2"
 antlr = "4.9.3"
 aircompressor = "0.26"
-arrow = "14.0.2"
+arrow = "15.0.2"
 avro = "1.11.3"
-assertj-core = "3.25.2"
-awaitility = "4.2.0"
-awssdk-bom = "2.23.17"
-azuresdk-bom = "1.2.20"
+assertj-core = "3.25.3"
+awaitility = "4.2.1"
+awssdk-bom = "2.25.35"
+azuresdk-bom = "1.2.22"
 awssdk-s3accessgrants = "2.0.0"
 caffeine = "2.9.3"
 calcite = "1.10.0"
 delta-standalone = "3.1.0"
 delta-spark = "3.1.0"
-esotericsoftware-kryo = "4.0.2"
-errorprone-annotations = "2.24.1"
+esotericsoftware-kryo = "4.0.3"
+errorprone-annotations = "2.26.1"
 findbugs-jsr305 = "3.0.2"
-flink116 = { strictly = "1.16.2"}
-flink117 = { strictly = "1.17.1"}
+flink117 = { strictly = "1.17.2"}
 flink118 =  { strictly = "1.18.1"}
+flink119 =  { strictly = "1.19.0"}
 google-libraries-bom = "26.28.0"
-guava = "33.0.0-jre"
+guava = "33.1.0-jre"
 hadoop2 = "2.7.3"
 hadoop3-client = "3.3.6"
 httpcomponents-httpclient5 = "5.3.1"
 hive2 = { strictly = "2.3.9"} # see rich version usage explanation above
 hive3 = "3.1.3"
-immutables-value = "2.10.0"
-jackson-annotations = "2.16.0"
+immutables-value = "2.10.1"
 jackson-bom = "2.14.2"
-jackson-dataformat-xml = "2.16.1"
 jackson211 = { strictly = "2.11.4"} # see rich version usage explanation above
 jackson212 = { strictly = "2.12.3"}
 jackson213 = { strictly = "2.13.4"}
@@ -59,34 +57,34 @@ jackson214 = { strictly = "2.14.2"}
 jackson215 = { strictly = "2.15.2"}
 jakarta-el-api = "3.0.3"
 jaxb-api = "2.3.1"
-jaxb-runtime = "2.3.3"
-jetty = "9.4.53.v20231009"
+jaxb-runtime = "2.3.9"
+jetty = "9.4.54.v20240208"
 junit = "5.10.1"
-kafka = "3.6.1"
+kafka = "3.7.0"
 kryo-shaded = "4.0.3"
 microprofile-openapi-api = "3.1.1"
 mockito = "4.11.0"
 mockserver = "5.15.0"
-nessie = "0.76.3"
-netty-buffer = "4.1.97.Final"
-netty-buffer-compat = "4.1.68.Final"
+nessie = "0.79.0"
+netty-buffer = "4.1.109.Final"
+netty-buffer-compat = "4.1.109.Final"
 object-client-bundle = "3.3.2"
-orc = "1.9.2"
+orc = "1.9.3"
 parquet = "1.13.1"
 pig = "0.17.0"
-roaringbitmap = "1.0.1"
+roaringbitmap = "1.0.6"
 s3mock-junit5 = "2.11.0"
 scala-collection-compat = "2.11.0"
 slf4j = "1.7.36"
-snowflake-jdbc = "3.14.5"
+snowflake-jdbc = "3.15.1"
 spark-hive33 = "3.3.4"
 spark-hive34 = "3.4.2"
-spark-hive35 = "3.5.0"
-spring-boot = "2.5.4"
-spring-web = "5.3.30"
-sqlite-jdbc = "3.45.1.0"
-testcontainers = "1.19.5"
-tez010 = "0.10.2"
+spark-hive35 = "3.5.1"
+spring-boot = "2.7.18"
+spring-web = "5.3.34"
+sqlite-jdbc = "3.45.2.0"
+testcontainers = "1.19.7"
+tez010 = "0.10.3"
 tez08 = { strictly = "0.8.4"}  # see rich version usage explanation above
 
 [libraries]
@@ -107,12 +105,6 @@ calcite-druid = { module = "org.apache.calcite:calcite-druid", version.ref = "ca
 delta-standalone = { module = "io.delta:delta-standalone_2.12", version.ref = "delta-standalone" }
 errorprone-annotations = { module = "com.google.errorprone:error_prone_annotations", version.ref = "errorprone-annotations" }
 findbugs-jsr305 = { module = "com.google.code.findbugs:jsr305", version.ref = "findbugs-jsr305" }
-flink116-avro = { module = "org.apache.flink:flink-avro", version.ref = "flink116" }
-flink116-connector-base = { module = "org.apache.flink:flink-connector-base", version.ref = "flink116" }
-flink116-connector-files = { module = "org.apache.flink:flink-connector-files", version.ref = "flink116" }
-flink116-metrics-dropwizard = { module = "org.apache.flink:flink-metrics-dropwizard", version.ref = "flink116" }
-flink116-streaming-java = { module = "org.apache.flink:flink-streaming-java", version.ref = "flink116" }
-flink116-table-api-java-bridge = { module = "org.apache.flink:flink-table-api-java-bridge", version.ref = "flink116" }
 flink117-avro = { module = "org.apache.flink:flink-avro", version.ref = "flink117" }
 flink117-connector-base = { module = "org.apache.flink:flink-connector-base", version.ref = "flink117" }
 flink117-connector-files = { module = "org.apache.flink:flink-connector-files", version.ref = "flink117" }
@@ -125,6 +117,12 @@ flink118-connector-files = { module = "org.apache.flink:flink-connector-files", 
 flink118-metrics-dropwizard = { module = "org.apache.flink:flink-metrics-dropwizard", version.ref = "flink118" }
 flink118-streaming-java = { module = "org.apache.flink:flink-streaming-java", version.ref = "flink118" }
 flink118-table-api-java-bridge = { module = "org.apache.flink:flink-table-api-java-bridge", version.ref = "flink118" }
+flink119-avro = { module = "org.apache.flink:flink-avro", version.ref = "flink119" }
+flink119-connector-base = { module = "org.apache.flink:flink-connector-base", version.ref = "flink119" }
+flink119-connector-files = { module = "org.apache.flink:flink-connector-files", version.ref = "flink119" }
+flink119-metrics-dropwizard = { module = "org.apache.flink:flink-metrics-dropwizard", version.ref = "flink119" }
+flink119-streaming-java = { module = "org.apache.flink:flink-streaming-java", version.ref = "flink119" }
+flink119-table-api-java-bridge = { module = "org.apache.flink:flink-table-api-java-bridge", version.ref = "flink119" }
 google-libraries-bom = { module = "com.google.cloud:libraries-bom", version.ref = "google-libraries-bom" }
 guava-guava = { module = "com.google.guava:guava", version.ref = "guava" }
 hadoop2-client = { module = "org.apache.hadoop:hadoop-client", version.ref = "hadoop2" }
@@ -177,11 +175,6 @@ assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertj-cor
 awaitility = { module = "org.awaitility:awaitility", version.ref = "awaitility" }
 delta-spark = { module = "io.delta:delta-spark_2.12", version.ref = "delta-spark" }
 esotericsoftware-kryo = { module = "com.esotericsoftware:kryo", version.ref = "esotericsoftware-kryo" }
-flink116-connector-test-utils = { module = "org.apache.flink:flink-connector-test-utils", version.ref = "flink116" }
-flink116-core = { module = "org.apache.flink:flink-core", version.ref = "flink116" }
-flink116-runtime = { module = "org.apache.flink:flink-runtime", version.ref = "flink116" }
-flink116-test-utils = { module = "org.apache.flink:flink-test-utils", version.ref = "flink116" }
-flink116-test-utilsjunit = { module = "org.apache.flink:flink-test-utils-junit", version.ref = "flink116" }
 flink117-connector-test-utils = { module = "org.apache.flink:flink-connector-test-utils", version.ref = "flink117" }
 flink117-core = { module = "org.apache.flink:flink-core", version.ref = "flink117" }
 flink117-runtime = { module = "org.apache.flink:flink-runtime", version.ref = "flink117" }
@@ -192,9 +185,12 @@ flink118-core = { module = "org.apache.flink:flink-core", version.ref = "flink11
 flink118-runtime = { module = "org.apache.flink:flink-runtime", version.ref = "flink118" }
 flink118-test-utils = { module = "org.apache.flink:flink-test-utils", version.ref = "flink118" }
 flink118-test-utilsjunit = { module = "org.apache.flink:flink-test-utils-junit", version.ref = "flink118" }
+flink119-connector-test-utils = { module = "org.apache.flink:flink-connector-test-utils", version.ref = "flink119" }
+flink119-core = { module = "org.apache.flink:flink-core", version.ref = "flink119" }
+flink119-runtime = { module = "org.apache.flink:flink-runtime", version.ref = "flink119" }
+flink119-test-utils = { module = "org.apache.flink:flink-test-utils", version.ref = "flink119" }
+flink119-test-utilsjunit = { module = "org.apache.flink:flink-test-utils-junit", version.ref = "flink119" }
 guava-testlib = { module = "com.google.guava:guava-testlib", version.ref = "guava" }
-jackson-annotations = { module = "com.fasterxml.jackson.core:jackson-annotations", version.ref = "jackson-annotations" }
-jackson-dataformat-xml = { module = "com.fasterxml.jackson.dataformat:jackson-dataformat-xml", version.ref = "jackson-dataformat-xml" }
 jakarta-el-api = { module = "jakarta.el:jakarta.el-api", version.ref = "jakarta-el-api" }
 jetty-server = { module = "org.eclipse.jetty:jetty-server", version.ref = "jetty" }
 jetty-servlet = { module = "org.eclipse.jetty:jetty-servlet", version.ref = "jetty" }
@@ -208,7 +204,7 @@ mockito-junit-jupiter = { module = "org.mockito:mockito-junit-jupiter", version.
 mockserver-client-java = { module = "org.mock-server:mockserver-client-java", version.ref = "mockserver" }
 mockserver-netty = { module = "org.mock-server:mockserver-netty", version.ref = "mockserver" }
 nessie-jaxrs-testextension = { module = "org.projectnessie.nessie:nessie-jaxrs-testextension", version.ref = "nessie" }
-nessie-versioned-storage-inmemory = { module = "org.projectnessie.nessie:nessie-versioned-storage-inmemory", version.ref = "nessie" }
+nessie-versioned-storage-inmemory-tests = { module = "org.projectnessie.nessie:nessie-versioned-storage-inmemory-tests", version.ref = "nessie" }
 nessie-versioned-storage-testextension = { module = "org.projectnessie.nessie:nessie-versioned-storage-testextension", version.ref = "nessie" }
 orc-tools = { module = "org.apache.orc:orc-tools", version.ref = "orc" }
 s3mock-junit5 = { module = "com.adobe.testing:s3mock-junit5", version.ref = "s3mock-junit5" }

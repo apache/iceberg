@@ -65,13 +65,13 @@ import org.apache.kafka.connect.data.Timestamp;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class SchemaUtils {
+class SchemaUtils {
 
   private static final Logger LOG = LoggerFactory.getLogger(SchemaUtils.class);
 
   private static final Pattern TRANSFORM_REGEX = Pattern.compile("(\\w+)\\((.+)\\)");
 
-  public static PrimitiveType needsDataTypeUpdate(Type currentIcebergType, Schema valueSchema) {
+  static PrimitiveType needsDataTypeUpdate(Type currentIcebergType, Schema valueSchema) {
     if (currentIcebergType.typeId() == TypeID.FLOAT && valueSchema.type() == Schema.Type.FLOAT64) {
       return DoubleType.get();
     }
@@ -81,7 +81,7 @@ public class SchemaUtils {
     return null;
   }
 
-  public static void applySchemaUpdates(Table table, SchemaUpdate.Consumer updates) {
+  static void applySchemaUpdates(Table table, SchemaUpdate.Consumer updates) {
     if (updates == null || updates.empty()) {
       // no updates to apply
       return;
@@ -150,7 +150,7 @@ public class SchemaUtils {
     return field.isOptional();
   }
 
-  public static PartitionSpec createPartitionSpec(
+  static PartitionSpec createPartitionSpec(
       org.apache.iceberg.Schema schema, List<String> partitionBy) {
     if (partitionBy.isEmpty()) {
       return PartitionSpec.unpartitioned();
@@ -209,11 +209,11 @@ public class SchemaUtils {
     return Pair.of(parts.get(0).trim(), Integer.parseInt(parts.get(1).trim()));
   }
 
-  public static Type toIcebergType(Schema valueSchema, IcebergSinkConfig config) {
+  static Type toIcebergType(Schema valueSchema, IcebergSinkConfig config) {
     return new SchemaGenerator(config).toIcebergType(valueSchema);
   }
 
-  public static Type inferIcebergType(Object value, IcebergSinkConfig config) {
+  static Type inferIcebergType(Object value, IcebergSinkConfig config) {
     return new SchemaGenerator(config).inferIcebergType(value);
   }
 
@@ -290,7 +290,7 @@ public class SchemaUtils {
     }
 
     @SuppressWarnings("checkstyle:CyclomaticComplexity")
-    public Type inferIcebergType(Object value) {
+    Type inferIcebergType(Object value) {
       if (value == null) {
         return null;
       } else if (value instanceof String) {

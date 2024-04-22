@@ -28,6 +28,8 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.GenericBlobMetadata;
 import org.apache.iceberg.GenericStatisticsFile;
 import org.apache.iceberg.ImmutableGenericPartitionStatisticsFile;
@@ -90,13 +92,7 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
         .as("should have 1 partition stats file")
         .containsExactly(partitionStatisticsFile.path());
 
-    FileIO fileIO = Mockito.mock(FileIO.class);
-    Mockito.when(fileIO.newInputFile(Mockito.anyString()))
-        .thenAnswer(invocation -> table.io().newInputFile(invocation.getArgument(0)));
-    Mockito.when(fileIO.newInputFile(Mockito.anyString(), Mockito.anyLong()))
-        .thenAnswer(
-            invocation ->
-                table.io().newInputFile(invocation.getArgument(0), invocation.getArgument(1)));
+    FileIO fileIO = createMockFileIO(table.io());
 
     CatalogUtil.dropTableData(fileIO, tableMetadata);
     ArgumentCaptor<String> argumentCaptor = ArgumentCaptor.forClass(String.class);
@@ -141,14 +137,7 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
     TableMetadata tableMetadata = readMetadataVersion(3);
     Set<Snapshot> snapshotSet = Sets.newHashSet(table.snapshots());
 
-    FileIO fileIO = Mockito.mock(FileIO.class);
-    Mockito.when(fileIO.newInputFile(Mockito.anyString()))
-        .thenAnswer(invocation -> table.io().newInputFile(invocation.getArgument(0)));
-    Mockito.when(fileIO.newInputFile(Mockito.anyString(), Mockito.anyLong()))
-        .thenAnswer(
-            invocation ->
-                table.io().newInputFile(invocation.getArgument(0), invocation.getArgument(1)));
-    Mockito.doThrow(new RuntimeException()).when(fileIO).deleteFile(ArgumentMatchers.anyString());
+    FileIO fileIO = createMockFileIO(table.io());
 
     CatalogUtil.dropTableData(fileIO, tableMetadata);
     Mockito.verify(
@@ -176,9 +165,7 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
     Assertions.assertThat(manifestListLocations).as("should have 2 manifest lists").hasSize(2);
     Assertions.assertThat(metadataLocations).as("should have 4 metadata locations").hasSize(4);
 
-    FileIO fileIO = Mockito.mock(FileIO.class);
-    Mockito.when(fileIO.newInputFile(Mockito.anyString()))
-        .thenAnswer(invocation -> table.io().newInputFile(invocation.getArgument(0)));
+    FileIO fileIO = createMockFileIO(table.io());
 
     CatalogUtil.dropTableData(fileIO, tableMetadata);
     ArgumentCaptor<String> argumentCaptor = ArgumentCaptor.forClass(String.class);
@@ -199,6 +186,25 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
     Assertions.assertThat(deletedPaths)
         .as("should contain all created metadata locations")
         .containsAll(metadataLocations);
+  }
+
+  private static FileIO createMockFileIO(FileIO wrapped) {
+    FileIO mockIO = Mockito.mock(FileIO.class);
+
+    Mockito.when(mockIO.newInputFile(Mockito.anyString()))
+        .thenAnswer(invocation -> wrapped.newInputFile((String) invocation.getArgument(0)));
+    Mockito.when(mockIO.newInputFile(Mockito.anyString(), Mockito.anyLong()))
+        .thenAnswer(
+            invocation ->
+                wrapped.newInputFile(invocation.getArgument(0), invocation.getArgument(1)));
+    Mockito.when(mockIO.newInputFile(Mockito.any(ManifestFile.class)))
+        .thenAnswer(invocation -> wrapped.newInputFile((ManifestFile) invocation.getArgument(0)));
+    Mockito.when(mockIO.newInputFile(Mockito.any(DataFile.class)))
+        .thenAnswer(invocation -> wrapped.newInputFile((DataFile) invocation.getArgument(0)));
+    Mockito.when(mockIO.newInputFile(Mockito.any(DeleteFile.class)))
+        .thenAnswer(invocation -> wrapped.newInputFile((DeleteFile) invocation.getArgument(0)));
+
+    return mockIO;
   }
 
   private static Set<String> manifestListLocations(Set<Snapshot> snapshotSet) {

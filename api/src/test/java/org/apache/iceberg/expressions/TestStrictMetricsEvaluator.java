@@ -592,7 +592,7 @@ public class TestStrictMetricsEvaluator {
     boolean shouldRead =
         new StrictMetricsEvaluator(SCHEMA, notIn("id", INT_MIN_VALUE - 25, INT_MIN_VALUE - 24))
             .eval(FILE);
-    assertThat(shouldRead).as("Should not match: all values !=5 and !=6").isTrue();
+    assertThat(shouldRead).as("Should match: all values !=5 and !=6").isTrue();
 
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, notIn("id", INT_MIN_VALUE - 1, INT_MIN_VALUE))

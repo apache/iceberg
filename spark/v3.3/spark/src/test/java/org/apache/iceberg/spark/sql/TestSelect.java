@@ -453,6 +453,12 @@ public class TestSelect extends SparkCatalogTestBase {
             () -> sql("SELECT * FROM %s.branch_b1 VERSION AS OF %s", tableName, snapshotId))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot do time-travel based on both table identifier and AS OF");
+
+    // using branch_b1 in the table identifier and TIMESTAMP AS OF
+    Assertions.assertThatThrownBy(
+            () -> sql("SELECT * FROM %s.branch_b1 TIMESTAMP AS OF now()", tableName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot do time-travel based on both table identifier and AS OF");
   }
 
   @Test

@@ -36,7 +36,7 @@ buildscript {
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.13.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
     classpath 'me.champeau.jmh:jmh-gradle-plugin:0.7.2'
-    classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.0'
+    classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.6'
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.5.0"
     classpath 'com.palantir.gradle.revapi:gradle-revapi:1.7.0'
     classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.4.1'
@@ -144,7 +144,7 @@ subprojects {
     revapi {
       oldGroup = project.group
       oldName = project.name
-      oldVersion = "1.4.0"
+      oldVersion = "1.5.0"
     }
 
     tasks.register('showDeprecationRulesOnRevApiFailure') {
@@ -440,7 +440,8 @@ project(':iceberg-aliyun') {
       exclude group: 'com.google.code.gson', module: 'gson'
     }
 
-    testImplementation libs.jackson.dataformat.xml
+    testImplementation platform(libs.jackson.bom)
+    testImplementation "com.fasterxml.jackson.dataformat:jackson-dataformat-xml"
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation libs.spring.web
     testImplementation(libs.spring.boot.starter.jetty) {
@@ -528,6 +529,7 @@ project(':iceberg-aws') {
   }
 
   task integrationTest(type: Test) {
+    useJUnitPlatform()
     testClassesDirs = sourceSets.integration.output.classesDirs
     classpath = sourceSets.integration.runtimeClasspath
     jvmArgs += project.property('extraJvmArgs')
@@ -919,7 +921,7 @@ project(':iceberg-nessie') {
 
     if (JavaVersion.current().isJava11Compatible()) {
       testImplementation libs.nessie.jaxrs.testextension
-      testImplementation libs.nessie.versioned.storage.inmemory
+      testImplementation libs.nessie.versioned.storage.inmemory.tests
       testImplementation libs.nessie.versioned.storage.testextension
       // Need to "pull in" el-api explicitly :(
       testImplementation libs.jakarta.el.api

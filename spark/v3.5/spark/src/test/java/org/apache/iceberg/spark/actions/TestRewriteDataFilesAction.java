@@ -55,6 +55,7 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.RowDelta;
@@ -108,6 +109,7 @@ import org.apache.iceberg.util.StructLikeMap;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.internal.SQLConf;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -855,8 +857,8 @@ public class TestRewriteDataFilesAction extends TestBase {
     List<Object[]> postRewriteData = currentData();
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
 
-    // With 10 original groups and Max Commits of 3, we should have commits with 4, 4, and 2.
-    // removing 3 groups leaves us with only 2 new commits, 4 and 3
+    // With 10 original groups and max commits of 3, we have 4 groups per commit.
+    // Removing 3 groups, we are left with 4 groups and 3 groups in two commits.
     shouldHaveSnapshots(table, 3);
     shouldHaveNoOrphans(table);
     shouldHaveACleanCache(table);
@@ -892,7 +894,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     RewriteDataFiles.Result result = spyRewrite.execute();
 
-    // Commit 1: 4/4 + Commit 2 failed 0/4 + Commit 3: 2/2 == 6 out of 10 total groups comitted
+    // Commit 1: 4/4 + Commit 2 failed 0/4 + Commit 3: 2/2 == 6 out of 10 total groups committed
     assertThat(result.rewriteResults()).as("Should have 6 fileGroups").hasSize(6);
     assertThat(result.rewrittenBytesCount()).isGreaterThan(0L).isLessThan(dataSizeBefore);
 
@@ -902,6 +904,48 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
 
     // Only 2 new commits because we broke one
+    shouldHaveSnapshots(table, 3);
+    shouldHaveNoOrphans(table);
+    shouldHaveACleanCache(table);
+  }
+
+  @Test
+  public void testParallelPartialProgressWithMaxFailedCommits() {
+    Table table = createTable(20);
+    int fileSize = averageFileSize(table);
+
+    List<Object[]> originalData = currentData();
+
+    RewriteDataFilesSparkAction realRewrite =
+        basicRewrite(table)
+            .option(
+                RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 1000))
+            .option(RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_REWRITES, "3")
+            .option(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED, "true")
+            .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS, "3")
+            .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_FAILED_COMMITS, "0");
+
+    RewriteDataFilesSparkAction spyRewrite = Mockito.spy(realRewrite);
+
+    // Fail groups 1, 3, and 7 during rewrite
+    GroupInfoMatcher failGroup = new GroupInfoMatcher(1, 3, 7);
+    doThrow(new RuntimeException("Rewrite Failed"))
+        .when(spyRewrite)
+        .rewriteFiles(any(), argThat(failGroup));
+
+    assertThatThrownBy(() -> spyRewrite.execute())
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining(
+            "1 rewrite commits failed. This is more than the maximum allowed failures of 0");
+
+    table.refresh();
+
+    List<Object[]> postRewriteData = currentData();
+    assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
+
+    // With 10 original groups and max commits of 3, we have 4 groups per commit.
+    // Removing 3 groups, we are left with 4 groups and 3 groups in two commits.
+    // Adding max allowed failed commits doesn't change the number of successful commits.
     shouldHaveSnapshots(table, 3);
     shouldHaveNoOrphans(table);
     shouldHaveACleanCache(table);
@@ -1461,6 +1505,130 @@ public class TestRewriteDataFilesAction extends TestBase {
           SnapshotSummary.CHANGED_PARTITION_COUNT_PROP
         };
     assertThat(table.currentSnapshot().summary()).containsKeys(commitMetricsKeys);
+  }
+
+  @Test
+  public void testBinPackRewriterWithSpecificUnparitionedOutputSpec() {
+    Table table = createTable(10);
+    shouldHaveFiles(table, 10);
+    int outputSpecId = table.spec().specId();
+    table.updateSpec().addField(Expressions.truncate("c2", 2)).commit();
+
+    long dataSizeBefore = testDataSize(table);
+    long count = currentData().size();
+
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .option(RewriteDataFiles.OUTPUT_SPEC_ID, String.valueOf(outputSpecId))
+            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .binPack()
+            .execute();
+
+    assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
+    assertThat(currentData().size()).isEqualTo(count);
+    shouldRewriteDataFilesWithPartitionSpec(table, outputSpecId);
+  }
+
+  @Test
+  public void testBinPackRewriterWithSpecificOutputSpec() {
+    Table table = createTable(10);
+    shouldHaveFiles(table, 10);
+    table.updateSpec().addField(Expressions.truncate("c2", 2)).commit();
+    int outputSpecId = table.spec().specId();
+    table.updateSpec().addField(Expressions.bucket("c3", 2)).commit();
+
+    long dataSizeBefore = testDataSize(table);
+    long count = currentData().size();
+
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .option(RewriteDataFiles.OUTPUT_SPEC_ID, String.valueOf(outputSpecId))
+            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .binPack()
+            .execute();
+
+    assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
+    assertThat(currentData().size()).isEqualTo(count);
+    shouldRewriteDataFilesWithPartitionSpec(table, outputSpecId);
+  }
+
+  @Test
+  public void testBinpackRewriteWithInvalidOutputSpecId() {
+    Table table = createTable(10);
+    shouldHaveFiles(table, 10);
+    Assertions.assertThatThrownBy(
+            () ->
+                actions()
+                    .rewriteDataFiles(table)
+                    .option(RewriteDataFiles.OUTPUT_SPEC_ID, String.valueOf(1234))
+                    .binPack()
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot use output spec id 1234 because the table does not contain a reference to this spec-id.");
+  }
+
+  @Test
+  public void testSortRewriterWithSpecificOutputSpecId() {
+    Table table = createTable(10);
+    shouldHaveFiles(table, 10);
+    table.updateSpec().addField(Expressions.truncate("c2", 2)).commit();
+    int outputSpecId = table.spec().specId();
+    table.updateSpec().addField(Expressions.bucket("c3", 2)).commit();
+
+    long dataSizeBefore = testDataSize(table);
+    long count = currentData().size();
+
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .option(RewriteDataFiles.OUTPUT_SPEC_ID, String.valueOf(outputSpecId))
+            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .sort(SortOrder.builderFor(table.schema()).asc("c2").asc("c3").build())
+            .execute();
+
+    assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
+    assertThat(currentData().size()).isEqualTo(count);
+    shouldRewriteDataFilesWithPartitionSpec(table, outputSpecId);
+  }
+
+  @Test
+  public void testZOrderRewriteWithSpecificOutputSpecId() {
+    Table table = createTable(10);
+    shouldHaveFiles(table, 10);
+    table.updateSpec().addField(Expressions.truncate("c2", 2)).commit();
+    int outputSpecId = table.spec().specId();
+    table.updateSpec().addField(Expressions.bucket("c3", 2)).commit();
+
+    long dataSizeBefore = testDataSize(table);
+    long count = currentData().size();
+
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .option(RewriteDataFiles.OUTPUT_SPEC_ID, String.valueOf(outputSpecId))
+            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .zOrder("c2", "c3")
+            .execute();
+
+    assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
+    assertThat(currentData().size()).isEqualTo(count);
+    shouldRewriteDataFilesWithPartitionSpec(table, outputSpecId);
+  }
+
+  protected void shouldRewriteDataFilesWithPartitionSpec(Table table, int outputSpecId) {
+    List<DataFile> rewrittenFiles = currentDataFiles(table);
+    assertThat(rewrittenFiles).allMatch(file -> file.specId() == outputSpecId);
+    assertThat(rewrittenFiles)
+        .allMatch(
+            file ->
+                ((PartitionData) file.partition())
+                    .getPartitionType()
+                    .equals(table.specs().get(outputSpecId).partitionType()));
+  }
+
+  protected List<DataFile> currentDataFiles(Table table) {
+    return Streams.stream(table.newScan().planFiles())
+        .map(FileScanTask::file)
+        .collect(Collectors.toList());
   }
 
   private Stream<RewriteFileGroup> toGroupStream(Table table, RewriteDataFilesSparkAction rewrite) {

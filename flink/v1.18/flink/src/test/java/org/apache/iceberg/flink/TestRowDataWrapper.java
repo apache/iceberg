@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.Iterator;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.RecordWrapperTest;
@@ -28,8 +30,6 @@ import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.data.RandomRowData;
 import org.apache.iceberg.util.StructLikeWrapper;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
 
 public class TestRowDataWrapper extends RecordWrapperTest {
 
@@ -49,12 +49,12 @@ public class TestRowDataWrapper extends RecordWrapperTest {
               return;
             }
 
-            Assertions.assertThat(actual).isNotNull();
-            Assertions.assertThat(expected).isNotNull();
+            assertThat(actual).isNotNull();
+            assertThat(expected).isNotNull();
 
             int expectedMilliseconds = (int) ((long) expected / 1000_000);
             int actualMilliseconds = (int) ((long) actual / 1000_000);
-            Assert.assertEquals(message, expectedMilliseconds, actualMilliseconds);
+            assertThat(actualMilliseconds).as(message).isEqualTo(expectedMilliseconds);
           }
         });
   }
@@ -75,8 +75,8 @@ public class TestRowDataWrapper extends RecordWrapperTest {
     StructLikeWrapper actualWrapper = StructLikeWrapper.forType(schema.asStruct());
     StructLikeWrapper expectedWrapper = StructLikeWrapper.forType(schema.asStruct());
     for (int i = 0; i < numRecords; i++) {
-      Assert.assertTrue("Should have more records", actual.hasNext());
-      Assert.assertTrue("Should have more RowData", expected.hasNext());
+      assertThat(actual).hasNext();
+      assertThat(expected).hasNext();
 
       StructLike recordStructLike = recordWrapper.wrap(actual.next());
       StructLike rowDataStructLike = rowDataWrapper.wrap(expected.next());
@@ -87,7 +87,7 @@ public class TestRowDataWrapper extends RecordWrapperTest {
           expectedWrapper.set(rowDataStructLike));
     }
 
-    Assert.assertFalse("Shouldn't have more record", actual.hasNext());
-    Assert.assertFalse("Shouldn't have more RowData", expected.hasNext());
+    assertThat(actual).isExhausted();
+    assertThat(expected).isExhausted();
   }
 }

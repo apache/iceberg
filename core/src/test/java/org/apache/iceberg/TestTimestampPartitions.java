@@ -20,27 +20,25 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.util.Arrays;
+import java.util.List;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public class TestTimestampPartitions extends TableTestBase {
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestTimestampPartitions extends TestBase {
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1, 2);
   }
 
-  public TestTimestampPartitions(int formatVersion) {
-    super(formatVersion);
-  }
-
-  @Test
+  @TestTemplate
   public void testPartitionAppend() throws IOException {
     Schema dateSchema =
         new Schema(
@@ -58,8 +56,8 @@ public class TestTimestampPartitions extends TableTestBase {
             .withPartitionPath("date=2018-06-08")
             .build();
 
-    File tableDir = temp.newFolder();
-    Assert.assertTrue(tableDir.delete());
+    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
+    assertThat(tableDir.delete()).isTrue();
 
     this.table =
         TestTables.create(
@@ -67,7 +65,7 @@ public class TestTimestampPartitions extends TableTestBase {
 
     table.newAppend().appendFile(dataFile).commit();
     long id = table.currentSnapshot().snapshotId();
-    Assert.assertEquals(table.currentSnapshot().allManifests(table.io()).size(), 1);
+    assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(1);
     validateManifestEntries(
         table.currentSnapshot().allManifests(table.io()).get(0),
         ids(id),

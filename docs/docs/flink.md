@@ -22,22 +22,22 @@ title: "Flink Getting Started"
 
 Apache Iceberg supports both [Apache Flink](https://flink.apache.org/)'s DataStream API and Table API. See the [Multi-Engine Support](../../multi-engine-support.md#apache-flink) page for the integration of Apache Flink.
 
-| Feature support                                             | Flink | Notes                                                                                  |
-| ----------------------------------------------------------- |-------|----------------------------------------------------------------------------------------|
-| [SQL create catalog](#creating-catalogs-and-using-catalogs) | ✔️    |                                                                                        |
-| [SQL create database](#create-database)                     | ✔️    |                                                                                        |
-| [SQL create table](#create-table)                           | ✔️    |                                                                                        |
-| [SQL create table like](#create-table-like)                 | ✔️    |                                                                                        |
-| [SQL alter table](#alter-table)                             | ✔️    | Only support altering table properties, column and partition changes are not supported |
-| [SQL drop_table](#drop-table)                               | ✔️    |                                                                                        |
-| [SQL select](#querying-with-sql)                            | ✔️    | Support both streaming and batch mode                                                  |
-| [SQL insert into](#insert-into)                             | ✔️ ️  | Support both streaming and batch mode                                                  |
-| [SQL insert overwrite](#insert-overwrite)                   | ✔️ ️  |                                                                                        |
-| [DataStream read](#reading-with-datastream)                 | ✔️ ️  |                                                                                        |
-| [DataStream append](#appending-data)                        | ✔️ ️  |                                                                                        |
-| [DataStream overwrite](#overwrite-data)                     | ✔️ ️  |                                                                                        |
-| [Metadata tables](#inspecting-tables)                       | ✔️    |                                                                                        |
-| [Rewrite files action](#rewrite-files-action)               | ✔️ ️  |                                                                                        |
+| Feature support                                          | Flink | Notes                                                                                  |
+| -------------------------------------------------------- |-------|----------------------------------------------------------------------------------------|
+| [SQL create catalog](flink-ddl.md#create-catalog) | ✔️    |                                                                                        |
+| [SQL create database](flink-ddl.md#create-database) | ✔️    |                                                                                        |
+| [SQL create table](flink-ddl.md#create-table)                        | ✔️    |                                                                                        |
+| [SQL create table like](flink-ddl.md#create-table-like)              | ✔️    |                                                                                        |
+| [SQL alter table](flink-ddl.md#alter-table)                          | ✔️    | Only support altering table properties, column and partition changes are not supported |
+| [SQL drop_table](flink-ddl.md#drop-table)                            | ✔️    |                                                                                        |
+| [SQL select](flink-queries.md#reading-with-sql)                         | ✔️    | Support both streaming and batch mode                                                  |
+| [SQL insert into](flink-writes.md#insert-into)                          | ✔️ ️  | Support both streaming and batch mode                                                  |
+| [SQL insert overwrite](flink-writes.md#insert-overwrite)                | ✔️ ️  |                                                                                        |
+| [DataStream read](flink-queries.md#reading-with-datastream)              | ✔️ ️  |                                                                                        |
+| [DataStream append](flink-writes.md#appending-data)                    | ✔️ ️  |                                                                                        |
+| [DataStream overwrite](flink-writes.md#overwrite-data)                 | ✔️ ️  |                                                                                        |
+| [Metadata tables](flink-queries.md#inspecting-tables)                    | ✔️    |                                                                                        |
+| [Rewrite files action](flink-actions.md#rewrite-files-action)           | ✔️ ️  |                                                                                        |
 
 ## Preparation when using Flink SQL Client
 
@@ -69,6 +69,7 @@ export HADOOP_CLASSPATH=`$HADOOP_HOME/bin/hadoop classpath`
 ./bin/start-cluster.sh
 ```
 
+<!-- markdown-link-check-disable-next-line -->
 Start the Flink SQL client. There is a separate `flink-runtime` module in the Iceberg project to generate a bundled jar, which could be loaded by Flink SQL client directly. To build the `flink-runtime` bundled jar manually, build the `iceberg` project, and it will generate the jar under `<iceberg-root-dir>/flink-runtime/build/libs`. Or download the `flink-runtime` jar from the [Apache repository](https://repo.maven.apache.org/maven2/org/apache/iceberg/iceberg-flink-runtime-1.16/{{ icebergVersion }}/).
 
 ```bash
