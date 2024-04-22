@@ -40,6 +40,12 @@ public class TestCharSequenceSet {
   }
 
   @Test
+  public void nullString() {
+    Assertions.assertThat(CharSequenceSet.of(Arrays.asList((String) null))).contains((String) null);
+    Assertions.assertThat(CharSequenceSet.empty()).doesNotContain((String) null);
+  }
+
+  @Test
   public void testRetainAll() {
     CharSequenceSet set = CharSequenceSet.of(ImmutableList.of("123", "456"));
 
