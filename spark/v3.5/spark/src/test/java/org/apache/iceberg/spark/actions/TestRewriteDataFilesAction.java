@@ -59,7 +59,6 @@ import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.RemoveDanglingDeletesMode;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Schema;
@@ -419,6 +418,66 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     shouldHaveSnapshots(table, 7);
     shouldHaveFiles(table, 5);
+  }
+
+  @Test
+  public void testRemoveDangledPositionalDeletesPartitionEvolution() {
+    Table table =
+        TABLES.create(
+            SCHEMA,
+            SPEC,
+            Collections.singletonMap(TableProperties.FORMAT_VERSION, "2"),
+            tableLocation);
+    Expression partitionFilter = Expressions.equal("c1", 1);
+
+    writeRecords(2, 2, 2);
+    List<DataFile> dataFilesBefore = TestHelpers.dataFiles(table, null);
+    debugDataSequenceNumberByPartition(table, "true");
+    System.out.println("data sequence =1");
+    // data seq = 1, 4 files, 2 partitions
+    shouldHaveFiles(table, 4);
+
+    // write position deletes sequence 2
+    table
+        .newRowDelta()
+        .addDeletes(writePosDeletesToFile(table, dataFilesBefore.get(3), 1).get(0))
+        .commit();
+    debugDataSequenceNumberByPartition(table, "true");
+    System.out.println("data sequence =2");
+
+    // partition evolution
+    table.updateSpec().addField(Expressions.ref("c3")).commit();
+
+    // write data c1=0, seq=3
+    writeRecords(1, 1, 1);
+    debugDataSequenceNumberByPartition(table, "true");
+    System.out.println("data sequence =3");
+    // data seq = 3, 5 (+1) files, 1 partitions
+    shouldHaveFiles(table, 5);
+    List<Object[]> expectedRecords = currentData();
+
+    Result firstRewrite =
+        actions()
+            .rewriteDataFiles(table)
+            .filter(partitionFilter)
+            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .option(RewriteDataFiles.REMOVE_DANGLING_DELETES, "true")
+            .execute();
+    debugDataSequenceNumberByPartition(table, "true");
+    System.out.println("data sequence =4");
+
+    assertThat(firstRewrite)
+        .extracting(
+            Result::addedDataFilesCount,
+            Result::rewrittenDataFilesCount,
+            Result::removedDeleteFilesCount)
+        .as("Should rewrite 2 data files into 1 without touch position delete file")
+        .containsExactly(1, 2, 1);
+    shouldHaveMinSequenceNumberInPartition(table, "data_file.partition.c1 == 1", 3);
+
+    shouldHaveSnapshots(table, 5);
+    assertThat(table.currentSnapshot().summary().get("total-position-deletes")).isEqualTo("0");
+    assertEquals("Rows must match", expectedRecords, currentData());
   }
 
   @Test
@@ -2299,6 +2358,10 @@ public class TestRewriteDataFilesAction extends TestBase {
         .sort("sequence_number", "data_file.file_path")
         .as(Encoders.tuple(Encoders.LONG(), Encoders.STRING()))
         .collectAsList();
+  }
+
+  private void debugDataSequenceNumberByPartition(Table table, String partitionFilter) {
+    sequenceAndFilePathPair(table, partitionFilter).forEach(System.out::println);
   }
 
   private SparkActions actions() {

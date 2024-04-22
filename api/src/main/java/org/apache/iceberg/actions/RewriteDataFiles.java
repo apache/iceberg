@@ -19,7 +19,6 @@
 package org.apache.iceberg.actions;
 
 import java.util.List;
-import org.apache.iceberg.RemoveDanglingDeletesMode;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
@@ -111,15 +110,10 @@ public interface RewriteDataFiles
    * Remove dangling delete files from the current snapshot after compaction. A delete file is
    * considered dangling if it does not apply to any non-expired data file.
    *
-   * <p>
+   * <p>Dangling delete files will be pruned from iceberg metadata. Pruning apply to both position
+   * delete and equality delete based on data sequence number
    *
-   * <ul>
-   *   <li>metadata: dangling delete files will be pruned from iceberg metadata. Pruning apply to
-   *       both position delete and equality delete files.
-   *   <li>none: pruning is disabled.
-   * </ul>
-   *
-   * <p>Defaults to none.
+   * <p>Defaults to true.
    */
   String REMOVE_DANGLING_DELETES = "remove-dangling-deletes";
 

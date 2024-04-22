@@ -53,6 +53,7 @@ import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -65,6 +66,7 @@ import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.Exp;
 import org.apache.spark.sql.catalyst.expressions.GenericRow;
 import org.apache.spark.sql.catalyst.expressions.SpecializedGetters;
 import org.apache.spark.sql.catalyst.util.ArrayData;
@@ -779,6 +781,16 @@ public class TestHelpers {
 
   public static List<DataFile> dataFiles(Table table, String branch) {
     TableScan scan = table.newScan();
+    if (branch != null) {
+      scan = scan.useRef(branch);
+    }
+
+    CloseableIterable<FileScanTask> tasks = scan.includeColumnStats().planFiles();
+    return Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
+  }
+
+  public static List<DataFile> dataFiles(Table table, String branch, Expression expr) {
+    TableScan scan = table.newScan().filter(expr);
     if (branch != null) {
       scan = scan.useRef(branch);
     }

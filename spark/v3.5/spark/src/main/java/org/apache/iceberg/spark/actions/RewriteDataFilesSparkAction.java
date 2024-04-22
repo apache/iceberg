@@ -33,8 +33,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.RemoveDanglingDeletesMode;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
@@ -186,9 +186,9 @@ public class RewriteDataFilesSparkAction
     }
 
     if (removeDanglingDeletes) {
-      RemoveDanglingDeleteSparkAction action =
-          new RemoveDanglingDeleteSparkAction(spark(), table).options(options());
-      result.removedDeleteFilesCount(action.execute().size());
+      RemoveDanglingDeletesSparkAction action = new RemoveDanglingDeletesSparkAction(spark(), table);
+      List<DeleteFile> removed = action.execute().removedDeleteFiles();
+      result.removedDeleteFilesCount(removed.size());
     }
     return result.build();
   }
@@ -467,8 +467,8 @@ public class RewriteDataFilesSparkAction
             options(), USE_STARTING_SEQUENCE_NUMBER, USE_STARTING_SEQUENCE_NUMBER_DEFAULT);
 
     removeDanglingDeletes =
-            PropertyUtil.propertyAsBoolean(
-                    options(), REMOVE_DANGLING_DELETES, REMOVE_DANGLING_DELETES_DEFAULT);
+        PropertyUtil.propertyAsBoolean(
+            options(), REMOVE_DANGLING_DELETES, REMOVE_DANGLING_DELETES_DEFAULT);
 
     rewriteJobOrder =
         RewriteJobOrder.fromName(
