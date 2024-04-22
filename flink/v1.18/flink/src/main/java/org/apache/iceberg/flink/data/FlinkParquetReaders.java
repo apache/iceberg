@@ -285,6 +285,7 @@ public class FlinkParquetReaders {
             return Optional.of(new MicrosToTimestampReader(desc));
           }
         }
+
         return LogicalTypeAnnotation.LogicalTypeAnnotationVisitor.super.visit(timestampLogicalType);
       }
 
@@ -301,6 +302,7 @@ public class FlinkParquetReaders {
         } else if (width <= 64) {
           return Optional.of(new ParquetValueReaders.UnboxedReader<>(desc));
         }
+
         return LogicalTypeAnnotation.LogicalTypeAnnotationVisitor.super.visit(intLogicalType);
       }
 
