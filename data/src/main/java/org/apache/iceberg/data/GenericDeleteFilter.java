@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.data;
 
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
@@ -48,5 +49,10 @@ public class GenericDeleteFilter extends DeleteFilter<Record> {
   @Override
   protected InputFile getInputFile(String location) {
     return io.newInputFile(location);
+  }
+
+  @Override
+  protected InputFile loadInputFile(DeleteFile deleteFile) {
+    return io.newInputFile(deleteFile);
   }
 }
