@@ -60,7 +60,7 @@ public abstract class TestFlinkSource extends TestFlinkScan {
   protected List<Row> runWithOptions(Map<String, String> options) throws Exception {
     FlinkSource.Builder builder = FlinkSource.forRowData();
     Optional.ofNullable(options.get("case-sensitive"))
-        .ifPresent(value -> builder.caseSensitive(Boolean.getBoolean(value)));
+        .ifPresent(value -> builder.caseSensitive(Boolean.parseBoolean(value)));
     Optional.ofNullable(options.get("snapshot-id"))
         .ifPresent(value -> builder.snapshotId(Long.parseLong(value)));
     Optional.ofNullable(options.get("tag")).ifPresent(value -> builder.tag(value));
