@@ -29,13 +29,13 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
+import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
@@ -45,14 +45,14 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PartitionUtil;
 
 class GenericReader implements Serializable {
-  private final FileIO io;
+  private final EncryptingFileIO io;
   private final Schema tableSchema;
   private final Schema projection;
   private final boolean caseSensitive;
   private final boolean reuseContainers;
 
   GenericReader(TableScan scan, boolean reuseContainers) {
-    this.io = scan.table().io();
+    this.io = EncryptingFileIO.combine(scan.table().io(), scan.table().encryption());
     this.tableSchema = scan.table().schema();
     this.projection = scan.schema();
     this.caseSensitive = scan.isCaseSensitive();
@@ -92,7 +92,7 @@ class GenericReader implements Serializable {
   }
 
   private CloseableIterable<Record> openFile(FileScanTask task, Schema fileProjection) {
-    InputFile input = io.newInputFile(task.file().path().toString());
+    InputFile input = io.newInputFile(task.file());
     Map<Integer, ?> partition =
         PartitionUtil.constantsMap(task, IdentityPartitionConverters::convertConstant);
 
