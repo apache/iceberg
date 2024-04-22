@@ -322,6 +322,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
                       .name(tableName)
                       .tableType(GLUE_EXTERNAL_TABLE_TYPE)
                       .parameters(parameters)
+                      .description(glueTable.description())
                       .build());
       // Use Optimistic locking with table version id while updating table
       if (!SET_VERSION_ID.isNoop() && lockManager == null) {
