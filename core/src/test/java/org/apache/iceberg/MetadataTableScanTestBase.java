@@ -59,6 +59,12 @@ public abstract class MetadataTableScanTestBase extends TestBase {
         .collect(Collectors.toSet());
   }
 
+  protected Set<String> actualManifestPaths(TableScan tableScan) {
+    return StreamSupport.stream(tableScan.planFiles().spliterator(), false)
+        .map(t -> t.file().path().toString())
+        .collect(Collectors.toSet());
+  }
+
   protected void validateTaskScanResiduals(TableScan scan, boolean ignoreResiduals)
       throws IOException {
     try (CloseableIterable<CombinedScanTask> tasks = scan.planTasks()) {

@@ -227,6 +227,168 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
+  public void testEntriesTableDateFileContentLt() {
+    preparePartitionedTable();
+
+    Table entriesTable = new ManifestEntriesTable(table);
+
+    Expression dataOnly = Expressions.lessThan("data_file.content", 1);
+    TableScan entriesTableScan = entriesTable.newScan().filter(dataOnly);
+    Set<String> expected =
+        table.currentSnapshot().dataManifests(table.io()).stream()
+            .map(ManifestFile::path)
+            .collect(Collectors.toSet());
+
+    assertThat(actualManifestPaths(entriesTableScan))
+        .as("Expected manifest filter by data file content does not match")
+        .isEqualTo(expected);
+  }
+
+  @TestTemplate
+  public void testEntriesTableDateFileContentLte() {
+    preparePartitionedTable();
+
+    Table entriesTable = new ManifestEntriesTable(table);
+
+    Expression dataOnly = Expressions.lessThanOrEqual("data_file.content", 0);
+    TableScan entriesTableScan = entriesTable.newScan().filter(dataOnly);
+    Set<String> expected =
+        table.currentSnapshot().dataManifests(table.io()).stream()
+            .map(ManifestFile::path)
+            .collect(Collectors.toSet());
+
+    assertThat(actualManifestPaths(entriesTableScan))
+        .as("Expected manifest filter by data file content does not match")
+        .isEqualTo(expected);
+  }
+
+  @TestTemplate
+  public void testEntriesTableDateFileContentGt() {
+    preparePartitionedTable();
+
+    Table entriesTable = new ManifestEntriesTable(table);
+
+    Expression dataOnly = Expressions.greaterThan("data_file.content", 0);
+    TableScan entriesTableScan = entriesTable.newScan().filter(dataOnly);
+    Set<String> expected =
+        table.currentSnapshot().deleteManifests(table.io()).stream()
+            .map(ManifestFile::path)
+            .collect(Collectors.toSet());
+
+    assertThat(actualManifestPaths(entriesTableScan))
+        .as("Expected manifest filter by data file content does not match")
+        .isEqualTo(expected);
+  }
+
+  @TestTemplate
+  public void testEntriesTableDateFileContentGte() {
+    preparePartitionedTable();
+
+    Table entriesTable = new ManifestEntriesTable(table);
+
+    Expression dataOnly = Expressions.greaterThanOrEqual("data_file.content", 1);
+    TableScan entriesTableScan = entriesTable.newScan().filter(dataOnly);
+    Set<String> expected =
+        table.currentSnapshot().deleteManifests(table.io()).stream()
+            .map(ManifestFile::path)
+            .collect(Collectors.toSet());
+
+    assertThat(actualManifestPaths(entriesTableScan))
+        .as("Expected manifest filter by data file content does not match")
+        .isEqualTo(expected);
+  }
+
+  @TestTemplate
+  public void testEntriesTableDateFileContentEq() {
+    preparePartitionedTable();
+
+    Table entriesTable = new ManifestEntriesTable(table);
+
+    Expression dataOnly = Expressions.equal("data_file.content", 0);
+    TableScan entriesTableScan = entriesTable.newScan().filter(dataOnly);
+    Set<String> expected =
+        table.currentSnapshot().dataManifests(table.io()).stream()
+            .map(ManifestFile::path)
+            .collect(Collectors.toSet());
+
+    assertThat(actualManifestPaths(entriesTableScan))
+        .as("Expected manifest filter by data file content does not match")
+        .isEqualTo(expected);
+  }
+
+  @TestTemplate
+  public void testEntriesTableDateFileContentNotEq() {
+    preparePartitionedTable();
+
+    Table entriesTable = new ManifestEntriesTable(table);
+
+    Expression dataOnly = Expressions.notEqual("data_file.content", 0);
+    TableScan entriesTableScan = entriesTable.newScan().filter(dataOnly);
+    Set<String> expected =
+        table.currentSnapshot().deleteManifests(table.io()).stream()
+            .map(ManifestFile::path)
+            .collect(Collectors.toSet());
+
+    assertThat(actualManifestPaths(entriesTableScan))
+        .as("Expected manifest filter by data file content does not match")
+        .isEqualTo(expected);
+  }
+
+  @TestTemplate
+  public void testEntriesTableDateFileContentIn() {
+    preparePartitionedTable();
+
+    Table entriesTable = new ManifestEntriesTable(table);
+
+    Expression dataOnly = Expressions.in("data_file.content", 1, 2);
+    TableScan entriesTableScan = entriesTable.newScan().filter(dataOnly);
+    Set<String> expected =
+        table.currentSnapshot().deleteManifests(table.io()).stream()
+            .map(ManifestFile::path)
+            .collect(Collectors.toSet());
+
+    assertThat(actualManifestPaths(entriesTableScan))
+        .as("Expected manifest filter by data file content does not match")
+        .isEqualTo(expected);
+  }
+
+  @TestTemplate
+  public void testEntriesTableDateFileContentNotIn() {
+    preparePartitionedTable();
+
+    Table entriesTable = new ManifestEntriesTable(table);
+
+    Expression notIn = Expressions.notIn("data_file.content", 1, 2);
+    TableScan entriesTableScan = entriesTable.newScan().filter(notIn);
+    Set<String> expected =
+        table.currentSnapshot().dataManifests(table.io()).stream()
+            .map(ManifestFile::path)
+            .collect(Collectors.toSet());
+
+    assertThat(actualManifestPaths(entriesTableScan))
+        .as("Expected manifest filter by data file content does not match")
+        .isEqualTo(expected);
+  }
+
+  @TestTemplate
+  public void testEntriesTableDateFileContentNot() {
+    preparePartitionedTable();
+
+    Table entriesTable = new ManifestEntriesTable(table);
+
+    Expression notData = Expressions.not(Expressions.equal("data_file.content", 0));
+    TableScan entriesTableScan = entriesTable.newScan().filter(notData);
+    Set<String> expected =
+        table.currentSnapshot().deleteManifests(table.io()).stream()
+            .map(ManifestFile::path)
+            .collect(Collectors.toSet());
+
+    assertThat(actualManifestPaths(entriesTableScan))
+        .as("Expected manifest filter by data file content does not match")
+        .isEqualTo(expected);
+  }
+
+  @TestTemplate
   public void testAllDataFilesTableHonorsIgnoreResiduals() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 

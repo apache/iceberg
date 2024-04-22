@@ -22,15 +22,21 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.apache.iceberg.expressions.Binder;
+import org.apache.iceberg.expressions.BoundReference;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
@@ -68,6 +74,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
     Expression rowFilter = context.rowFilter();
     boolean caseSensitive = context.caseSensitive();
     boolean ignoreResiduals = context.ignoreResiduals();
+    Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
 
     LoadingCache<Integer, ManifestEvaluator> evalCache =
         Caffeine.newBuilder()
@@ -77,14 +84,18 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
                   PartitionSpec transformedSpec = BaseFilesTable.transformSpec(tableSchema, spec);
                   return ManifestEvaluator.forRowFilter(rowFilter, transformedSpec, caseSensitive);
                 });
+    ManifestContentEvaluator manifestContentEvaluator =
+        new ManifestContentEvaluator(filter, tableSchema.asStruct(), caseSensitive);
 
     CloseableIterable<ManifestFile> filteredManifests =
         CloseableIterable.filter(
-            manifests, manifest -> evalCache.get(manifest.partitionSpecId()).eval(manifest));
+            manifests,
+            manifest ->
+                evalCache.get(manifest.partitionSpecId()).eval(manifest)
+                    && manifestContentEvaluator.eval(manifest));
 
     String schemaString = SchemaParser.toJson(projectedSchema);
     String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
-    Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
     ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
 
     return CloseableIterable.transform(
@@ -92,6 +103,188 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
         manifest ->
             new ManifestReadTask(
                 table, manifest, projectedSchema, schemaString, specString, residuals));
+  }
+
+  /**
+   * Evaluates an {@link Expression} on a {@link ManifestFile} to test whether a given data or
+   * delete manifests shall be included in the scan
+   */
+  private static class ManifestContentEvaluator {
+
+    private static final Set<Integer> DELETE_CONTENT_SET =
+        ImmutableSet.of(FileContent.EQUALITY_DELETES.id(), FileContent.POSITION_DELETES.id());
+    private final Expression boundExpr;
+
+    private ManifestContentEvaluator(
+        Expression expr, Types.StructType structType, boolean caseSensitive) {
+      Expression rewritten = Expressions.rewriteNot(expr);
+      this.boundExpr = Binder.bind(structType, rewritten, caseSensitive);
+    }
+
+    private boolean eval(ManifestFile manifest) {
+      return new ManifestEvalVisitor().eval(manifest);
+    }
+
+    private class ManifestEvalVisitor extends ExpressionVisitors.BoundExpressionVisitor<Boolean> {
+
+      private int manifestContentId;
+
+      private static final boolean ROWS_MIGHT_MATCH = true;
+      private static final boolean ROWS_CANNOT_MATCH = false;
+
+      private boolean eval(ManifestFile manifestFile) {
+        this.manifestContentId = manifestFile.content().id();
+        return ExpressionVisitors.visitEvaluator(boundExpr, this);
+      }
+
+      @Override
+      public Boolean alwaysTrue() {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      @Override
+      public Boolean alwaysFalse() {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      @Override
+      public Boolean not(Boolean result) {
+        return !result;
+      }
+
+      @Override
+      public Boolean and(Boolean leftResult, Boolean rightResult) {
+        return leftResult && rightResult;
+      }
+
+      @Override
+      public Boolean or(Boolean leftResult, Boolean rightResult) {
+        return leftResult || rightResult;
+      }
+
+      @Override
+      public <T> Boolean isNull(BoundReference<T> ref) {
+        if (isDateFileContent(ref)) {
+          return ROWS_CANNOT_MATCH; // date_file.content should not be null
+        } else {
+          return ROWS_MIGHT_MATCH;
+        }
+      }
+
+      @Override
+      public <T> Boolean notNull(BoundReference<T> ref) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      @Override
+      public <T> Boolean isNaN(BoundReference<T> ref) {
+        if (isDateFileContent(ref)) {
+          return ROWS_CANNOT_MATCH; // date_file.content should not be nan
+        } else {
+          return ROWS_MIGHT_MATCH;
+        }
+      }
+
+      @Override
+      public <T> Boolean notNaN(BoundReference<T> ref) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      @Override
+      public <T> Boolean lt(BoundReference<T> ref, Literal<T> lit) {
+        return compareDateFileContent(ref, lit, compareResult -> compareResult < 0);
+      }
+
+      @Override
+      public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
+        return compareDateFileContent(ref, lit, compareResult -> compareResult <= 0);
+      }
+
+      @Override
+      public <T> Boolean gt(BoundReference<T> ref, Literal<T> lit) {
+        return compareDateFileContent(ref, lit, compareResult -> compareResult > 0);
+      }
+
+      @Override
+      public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
+        return compareDateFileContent(ref, lit, compareResult -> compareResult >= 0);
+      }
+
+      @Override
+      public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
+        return compareDateFileContent(ref, lit, compareResult -> compareResult == 0);
+      }
+
+      @Override
+      public <T> Boolean notEq(BoundReference<T> ref, Literal<T> lit) {
+        return compareDateFileContent(ref, lit, compareResult -> compareResult != 0);
+      }
+
+      @Override
+      public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
+        if (isDateFileContent(ref)) {
+          if (!literalSet.contains(manifestContentId)) {
+            return ROWS_CANNOT_MATCH;
+          }
+        }
+        return ROWS_MIGHT_MATCH;
+      }
+
+      @Override
+      public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
+        if (isDateFileContent(ref)) {
+          if (literalSet.contains(manifestContentId)) {
+            return ROWS_CANNOT_MATCH;
+          }
+        }
+        return ROWS_MIGHT_MATCH;
+      }
+
+      @Override
+      public <T> Boolean startsWith(BoundReference<T> ref, Literal<T> lit) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      @Override
+      public <T> Boolean notStartsWith(BoundReference<T> ref, Literal<T> lit) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      /**
+       * Comparison of data file content and literal, using integer comparator.
+       *
+       * @param ref bound reference, comparison attempted only if reference is for date_file.content
+       * @param lit literal value to compare with date file content.
+       * @param desiredResult function to apply to int comparator result, returns true if result is
+       *     as expected.
+       * @return false if comparator does not achieve desired result, true otherwise
+       */
+      private <T> Boolean compareDateFileContent(
+          BoundReference<T> ref, Literal<T> lit, Function<Integer, Boolean> desiredResult) {
+        if (isDateFileContent(ref)) {
+          Literal<Integer> intLit = lit.to(Types.IntegerType.get());
+          int literalValueToCompare = toManifestContentId(intLit.value());
+          int cmp = intLit.comparator().compare(manifestContentId, literalValueToCompare);
+          if (!desiredResult.apply(cmp)) {
+            return ROWS_CANNOT_MATCH;
+          }
+        }
+        return ROWS_MIGHT_MATCH;
+      }
+
+      private <T> boolean isDateFileContent(BoundReference<T> ref) {
+        return ref.fieldId() == DataFile.CONTENT.fieldId();
+      }
+
+      /** Bridge the gap between {@link FileContent} and {@link ManifestContent} */
+      private int toManifestContentId(int dataFileContentId) {
+        if (DELETE_CONTENT_SET.contains(dataFileContentId)) {
+          return ManifestContent.DELETES.id();
+        } else {
+          return dataFileContentId;
+        }
+      }
+    }
   }
 
   static class ManifestReadTask extends BaseFileScanTask implements DataTask {
