@@ -237,6 +237,33 @@ public class TestS3FileIOProperties {
   }
 
   @Test
+  public void s3RemoteSigningEnabledWithUserAgent() {
+    String uri = "http://localhost:12345";
+    Map<String, String> properties =
+        ImmutableMap.of(
+            S3FileIOProperties.REMOTE_SIGNING_ENABLED, "true", CatalogProperties.URI, uri);
+    S3FileIOProperties s3Properties = new S3FileIOProperties(properties);
+    S3ClientBuilder builder = S3Client.builder();
+
+    s3Properties.applySignerConfiguration(builder);
+    s3Properties.applyUserAgentConfigurations(builder);
+
+    Optional<String> userAgent =
+        builder.overrideConfiguration().advancedOption(SdkAdvancedClientOption.USER_AGENT_PREFIX);
+    Assertions.assertThat(userAgent)
+        .isPresent()
+        .get()
+        .satisfies(x -> Assertions.assertThat(x).startsWith("s3fileio"));
+
+    Optional<Signer> signer =
+        builder.overrideConfiguration().advancedOption(SdkAdvancedClientOption.SIGNER);
+    Assertions.assertThat(signer).isPresent().get().isInstanceOf(S3V4RestSignerClient.class);
+    S3V4RestSignerClient signerClient = (S3V4RestSignerClient) signer.get();
+    Assertions.assertThat(signerClient.baseSignerUri()).isEqualTo(uri);
+    Assertions.assertThat(signerClient.properties()).isEqualTo(properties);
+  }
+
+  @Test
   public void testS3RemoteSigningDisabled() {
     Map<String, String> properties =
         ImmutableMap.of(S3FileIOProperties.REMOTE_SIGNING_ENABLED, "false");
