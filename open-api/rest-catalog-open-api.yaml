@@ -2995,7 +2995,7 @@ components:
         - filter
       properties:
         select:
-          description: A list of the selected column names
+          description: A list of the selected column names. If referencing a column with a nested field, ensure full name is joined by `.` such as `a.b`
           type: array
           items:
             type: string
