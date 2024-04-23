@@ -18,6 +18,10 @@
  */
 package org.apache.iceberg.flink.source;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -40,16 +44,19 @@ import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkConfigOptions;
+import org.apache.iceberg.flink.FlinkReadOptions;
 import org.apache.iceberg.flink.HadoopTableResource;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.sink.FlinkSink;
 import org.apache.iceberg.flink.source.assigner.SimpleSplitAssignerFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.awaitility.Awaitility;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
@@ -57,7 +64,7 @@ import org.junit.rules.TemporaryFolder;
 
 public class TestIcebergSourceFailover {
 
-  private static final int PARALLELISM = 4;
+  private static final int PARALLELISM = 2;
 
   @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
 
@@ -87,6 +94,10 @@ public class TestIcebergSourceFailover {
     return IcebergSource.forRowData()
         .tableLoader(sourceTableResource.tableLoader())
         .assignerFactory(new SimpleSplitAssignerFactory())
+        // Prevent combining splits
+        .set(
+            FlinkReadOptions.SPLIT_FILE_OPEN_COST,
+            Long.toString(TableProperties.SPLIT_SIZE_DEFAULT))
         .flinkConfig(config);
   }
 
@@ -125,8 +136,11 @@ public class TestIcebergSourceFailover {
     }
 
     StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+    Path checkpointDir = TEMPORARY_FOLDER.newFolder().toPath();
     env.setParallelism(PARALLELISM);
     env.setRestartStrategy(RestartStrategies.fixedDelayRestart(1, 0));
+    env.enableCheckpointing(10L);
+    env.getCheckpointConfig().setCheckpointStorage(checkpointDir.toUri());
 
     DataStream<RowData> stream =
         env.fromSource(
@@ -149,6 +163,15 @@ public class TestIcebergSourceFailover {
     JobClient jobClient = env.executeAsync("Bounded Iceberg Source Failover Test");
     JobID jobId = jobClient.getJobID();
 
+    Path jobCheckpointDir = checkpointDir.resolve(jobId.toString());
+    Awaitility.await("Wait for some checkpoints to complete")
+        .atMost(Duration.ofSeconds(5))
+        .untilAsserted(
+            () -> {
+              assertThat(Files.exists(jobCheckpointDir)).isTrue();
+              assertThat(Files.exists(jobCheckpointDir.resolve("chk-1"))).isTrue();
+              assertThat(Files.list(jobCheckpointDir.resolve("chk-1")).count()).isGreaterThan(0);
+            });
     RecordCounterToFail.waitToFail();
     triggerFailover(
         failoverType,
