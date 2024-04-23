@@ -2,6 +2,7 @@
 assertj-ver = "3.24.2"
 avro-ver = "1.11.1"
 awaitility-ver = "4.2.0"
+bson-ver = "4.11.0"
 hadoop-ver = "3.3.6"
 hive-ver = "2.3.9"
 http-client-ver = "5.2.1"
@@ -13,8 +14,10 @@ slf4j-ver = "1.7.36"
 testcontainers-ver = "1.17.6"
 
 
+
 [libraries]
 avro = { module = "org.apache.avro:avro", version.ref = "avro-ver" }
+bson = { module = "org.mongodb:bson", version.ref = "bson-ver"}
 hadoop-client = { module = "org.apache.hadoop:hadoop-client", version.ref = "hadoop-ver" }
 hadoop-common = { module = "org.apache.hadoop:hadoop-common", version.ref = "hadoop-ver" }
 hive-metastore = { module = "org.apache.hive:hive-metastore", version.ref = "hive-ver" }

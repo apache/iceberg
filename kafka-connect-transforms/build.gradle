@@ -1,5 +1,6 @@
 dependencies {
   implementation libs.iceberg.guava
+  implementation libs.bson
   implementation libs.slf4j
   compileOnly libs.bundles.kafka.connect
 

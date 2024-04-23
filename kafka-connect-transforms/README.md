@@ -141,3 +141,26 @@ If `nested` is on:
 
 If `nested` is off:
 `_kafka_metdata_topic`, `_kafka_metadata_partition`, `_kafka_metadata_offset`, `_kafka_metadata_timestamp`
+
+# MongoDebeziumTransform
+_(Experimental)_ 
+
+The `MongoDebeziumTransform` SMT transforms a Mongo Debezium formatted message with `before`/`after` BSON
+strings into `before`/`after` typed Structs that the `DebeziumTransform` SMT expects. 
+
+It does not (yet) support renaming columns if mongodb column is not supported by your underlying 
+catalog type.  
+
+## Configuration
+
+| Property            | Description                                      |
+|---------------------|--------------------------------------------------|
+| array_handling_mode  | `array` or `document` to set array handling mode |
+
+Value array (the default) will encode arrays as the array datatype. It is user’s responsibility to ensure that 
+all elements for a given array instance are of the same type. This option is a restricting one but offers 
+easy processing of arrays by downstream clients.
+
+Value document will convert the array into a struct of structs in the similar way as done by BSON serialization. 
+The main struct contains fields named _0, _1, _2 etc. where the name represents the index of the element in the array.
+Every element is then passed as the value for the given field.

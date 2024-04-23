@@ -32,4 +32,7 @@
 
     <!-- Referencing guava classes should be allowed in classes within bundled-guava module -->
     <suppress files="org.apache.iceberg.GuavaClasses" id="BanUnrelocatedGuavaClasses"/>
+
+    <!-- Ignore borrowed classes from debezium -->
+    <suppress files="[\\/]io.debezium.connector[\\/]" checks="."/>
 </suppressions>
