@@ -46,11 +46,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-class FlinkFileIOTest {
+class FlinkFileSystemFileIOTest {
   private final Random random = new Random(1);
 
   private FileSystem fs;
-  private FlinkFileIO flinkFileIO;
+  private FlinkFileSystemFileIO flinkFileSystemFileIO;
 
   @TempDir private File tempDir;
 
@@ -58,7 +58,7 @@ class FlinkFileIOTest {
   public void before() throws Exception {
     fs = FileSystem.getLocalFileSystem();
 
-    flinkFileIO = new FlinkFileIO();
+    flinkFileSystemFileIO = new FlinkFileSystemFileIO();
   }
 
   @Test
@@ -75,12 +75,13 @@ class FlinkFileIOTest {
 
               createRandomFiles(scalePath, scale);
               assertThat(
-                      Streams.stream(flinkFileIO.listPrefix(scalePath.toUri().toString())).count())
+                      Streams.stream(flinkFileSystemFileIO.listPrefix(scalePath.toUri().toString()))
+                          .count())
                   .isEqualTo((long) scale);
             });
 
     long totalFiles = scaleSizes.stream().mapToLong(Integer::longValue).sum();
-    assertThat(Streams.stream(flinkFileIO.listPrefix(parent.toUri().toString())).count())
+    assertThat(Streams.stream(flinkFileSystemFileIO.listPrefix(parent.toUri().toString())).count())
         .isEqualTo(totalFiles);
   }
 
@@ -91,9 +92,11 @@ class FlinkFileIOTest {
     fs.create(randomFilePath, FileSystem.WriteMode.OVERWRITE);
 
     // check existence of the created file
-    assertThat(flinkFileIO.newInputFile(randomFilePath.toUri().toString()).exists()).isTrue();
+    assertThat(flinkFileSystemFileIO.newInputFile(randomFilePath.toUri().toString()).exists())
+        .isTrue();
     fs.delete(randomFilePath, false);
-    assertThat(flinkFileIO.newInputFile(randomFilePath.toUri().toString()).exists()).isFalse();
+    assertThat(flinkFileSystemFileIO.newInputFile(randomFilePath.toUri().toString()).exists())
+        .isFalse();
   }
 
   @Test
@@ -109,18 +112,19 @@ class FlinkFileIOTest {
               Path scalePath = new Path(parent, Integer.toString(scale));
 
               createRandomFiles(scalePath, scale);
-              flinkFileIO.deletePrefix(scalePath.toUri().toString());
+              flinkFileSystemFileIO.deletePrefix(scalePath.toUri().toString());
 
               // Hadoop filesystem will throw if the path does not exist
               assertThatThrownBy(
-                      () -> flinkFileIO.listPrefix(scalePath.toUri().toString()).iterator())
+                      () ->
+                          flinkFileSystemFileIO.listPrefix(scalePath.toUri().toString()).iterator())
                   .isInstanceOf(UncheckedIOException.class)
                   .hasMessageContaining("Failed to list path recursively");
             });
 
-    flinkFileIO.deletePrefix(parent.toUri().toString());
+    flinkFileSystemFileIO.deletePrefix(parent.toUri().toString());
     // Hadoop filesystem will throw if the path does not exist
-    assertThatThrownBy(() -> flinkFileIO.listPrefix(parent.toUri().toString()).iterator())
+    assertThatThrownBy(() -> flinkFileSystemFileIO.listPrefix(parent.toUri().toString()).iterator())
         .isInstanceOf(UncheckedIOException.class)
         .hasMessageContaining("Failed to list path recursively");
   }
@@ -129,23 +133,24 @@ class FlinkFileIOTest {
   void testDeleteFiles() {
     Path parent = new Path(tempDir.toURI());
     List<Path> filesCreated = createRandomFiles(parent, 10);
-    flinkFileIO.deleteFiles(filesCreated.stream().map(Path::toString).collect(Collectors.toList()));
+    flinkFileSystemFileIO.deleteFiles(
+        filesCreated.stream().map(Path::toString).collect(Collectors.toList()));
     filesCreated.forEach(
-        file -> assertThat(flinkFileIO.newInputFile(file.toString()).exists()).isFalse());
+        file -> assertThat(flinkFileSystemFileIO.newInputFile(file.toString()).exists()).isFalse());
   }
 
   @Test
   void testDeleteFilesErrorHandling() {
     List<String> filesCreated =
         random.ints(2).mapToObj(x -> "fakefsnotreal://file-" + x).collect(Collectors.toList());
-    assertThatThrownBy(() -> flinkFileIO.deleteFiles(filesCreated))
+    assertThatThrownBy(() -> flinkFileSystemFileIO.deleteFiles(filesCreated))
         .isInstanceOf(BulkDeletionFailureException.class)
         .hasMessage("Failed to delete 2 files");
   }
 
   @Test
   void testFlinkFileIOReadWrite() throws IOException {
-    FileIO testFlinkFileIO = new FlinkFileIO();
+    FileIO testFlinkFileIO = new FlinkFileSystemFileIO();
 
     Path parent = new Path(tempDir.toURI());
     Path randomFilePath = new Path(parent, "random-file-" + UUID.randomUUID());
@@ -168,7 +173,7 @@ class FlinkFileIOTest {
 
   @Test
   void testFlinkFileIOKryoSerialization() throws IOException {
-    FileIO testFlinkFileIO = new FlinkFileIO();
+    FileIO testFlinkFileIO = new FlinkFileSystemFileIO();
 
     // Flink fileIO should be serializable when properties are passed as immutable map
     testFlinkFileIO.initialize(ImmutableMap.of("k1", "v1"));
@@ -179,7 +184,7 @@ class FlinkFileIOTest {
 
   @Test
   void testFlinkFileIOJavaSerialization() throws IOException, ClassNotFoundException {
-    FileIO testFlinkFileIO = new FlinkFileIO();
+    FileIO testFlinkFileIO = new FlinkFileSystemFileIO();
 
     // Flink fileIO should be serializable when properties are passed as immutable map
     testFlinkFileIO.initialize(ImmutableMap.of("k1", "v1"));

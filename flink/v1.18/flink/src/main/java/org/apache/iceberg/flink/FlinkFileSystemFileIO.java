@@ -45,10 +45,24 @@ import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class FlinkFileIO implements FileIO, SupportsPrefixOperations, SupportsBulkOperations {
-  private static final Logger LOG = LoggerFactory.getLogger(FlinkFileIO.class);
-  private static final String DELETE_FILE_PARALLELISM = "iceberg.hadoop.delete-file-parallelism";
-  private static final String DELETE_FILE_POOL_NAME = "iceberg-hadoopfileio-delete";
+/**
+ * This {@link FileIO} implementation should be used when the FileSystem behind the Iceberg tables
+ * is also used for other purposes in a Flink job, like checkpoints/savepoints. Setting
+ * FlinkFileSystemFileIO prevents duplicated FileSystem related configurations and allows the usage
+ * of features already provided by the Flink FileSystem plugins, like Delegation Tokens.
+ *
+ * <p>The FlinkFileSystemFileIO should be set during catalog creation using the {@link
+ * org.apache.iceberg.CatalogProperties#FILE_IO_IMPL} property.
+ *
+ * <p>The FlinkFileSystemFileIO never should be set using table properties, as other engines will
+ * not be able to use the table in this case.
+ */
+public class FlinkFileSystemFileIO
+    implements FileIO, SupportsPrefixOperations, SupportsBulkOperations {
+  private static final Logger LOG = LoggerFactory.getLogger(FlinkFileSystemFileIO.class);
+  private static final String DELETE_FILE_PARALLELISM =
+      "iceberg.flinkfilesystem.delete-file-parallelism";
+  private static final String DELETE_FILE_POOL_NAME = "iceberg-flinkfilesystem-delete";
   private static final int DELETE_RETRY_ATTEMPTS = 3;
   private static final int DEFAULT_DELETE_CORE_MULTIPLE = 4;
   private static volatile ExecutorService executorService;
@@ -164,7 +178,7 @@ public class FlinkFileIO implements FileIO, SupportsPrefixOperations, SupportsBu
 
   private ExecutorService executorService() {
     if (executorService == null) {
-      synchronized (FlinkFileIO.class) {
+      synchronized (FlinkFileSystemFileIO.class) {
         if (executorService == null) {
           executorService = ThreadPools.newWorkerPool(DELETE_FILE_POOL_NAME, deleteThreads());
         }
