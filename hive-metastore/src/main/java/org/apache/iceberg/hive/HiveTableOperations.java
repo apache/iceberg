@@ -235,6 +235,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
 
       if (!keepHiveStats) {
         tbl.getParameters().remove(StatsSetupConst.COLUMN_STATS_ACCURATE);
+        tbl.getParameters().put(StatsSetupConst.DO_NOT_UPDATE_STATS, StatsSetupConst.TRUE);
       }
 
       lock.ensureActive();

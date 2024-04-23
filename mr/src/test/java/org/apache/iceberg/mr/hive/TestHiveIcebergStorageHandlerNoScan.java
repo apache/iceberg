@@ -776,7 +776,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
 
     if (Catalogs.hiveCatalog(shell.getHiveConf(), tableProperties)) {
       assertThat(hmsParams)
-          .hasSize(14)
+          .hasSize(15)
           .containsEntry("custom_property", "initial_val")
           .containsEntry(InputFormatConfig.EXTERNAL_TABLE_PURGE, "TRUE")
           .containsEntry("EXTERNAL", "TRUE")
@@ -819,7 +819,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
 
     if (Catalogs.hiveCatalog(shell.getHiveConf(), tableProperties)) {
       assertThat(hmsParams)
-          .hasSize(17)
+          .hasSize(18)
           .containsEntry("new_prop_1", "true")
           .containsEntry("new_prop_2", "false")
           .containsEntry("custom_property", "new_val");
