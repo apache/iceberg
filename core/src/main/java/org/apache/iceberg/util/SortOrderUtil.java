@@ -20,7 +20,6 @@ package org.apache.iceberg.util;
 
 import java.util.Collections;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionField;
@@ -131,15 +130,14 @@ public class SortOrderUtil {
     return requiredClusteringFields;
   }
 
-  public static Set<String> orderPreservingSortedColumns(SortOrder sortOrder) {
+  public static Set<Integer> orderPreservingSortedColumns(SortOrder sortOrder) {
     if (sortOrder == null) {
       return Collections.emptySet();
     } else {
       return sortOrder.fields().stream()
           .filter(f -> f.transform().preservesOrder())
           .map(SortField::sourceId)
-          .map(sid -> sortOrder.schema().findColumnName(sid))
-          .filter(Objects::nonNull)
+          .filter(sid -> sortOrder.schema().findColumnName(sid) != null)
           .collect(Collectors.toSet());
     }
   }
