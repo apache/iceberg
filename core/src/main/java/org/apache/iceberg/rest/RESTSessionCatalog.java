@@ -32,6 +32,7 @@ import java.util.Set;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -93,6 +94,7 @@ import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.EnvironmentUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
@@ -1341,6 +1343,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       Preconditions.checkState(
           null != defaultNamespace, "Cannot create view without specifying a default namespace");
 
+      this.schema = TypeUtil.assignFreshIds(schema, new AtomicInteger(0)::incrementAndGet);
+
       ViewVersion viewVersion =
           ImmutableViewVersion.builder()
               .versionId(1)
@@ -1420,12 +1424,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           null != defaultNamespace, "Cannot replace view without specifying a default namespace");
 
       ViewMetadata metadata = response.metadata();
-
-      int maxVersionId =
-          metadata.versions().stream()
-              .map(ViewVersion::versionId)
-              .max(Integer::compareTo)
-              .orElseGet(metadata::currentVersionId);
+      int maxVersionId = ViewUtil.maxVersionId(metadata);
+      this.schema = ViewUtil.assignFreshIds(metadata, schema);
 
       ViewVersion viewVersion =
           ImmutableViewVersion.builder()
