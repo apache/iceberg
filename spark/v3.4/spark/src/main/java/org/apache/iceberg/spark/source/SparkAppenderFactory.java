@@ -168,7 +168,7 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
 
   @Override
   public FileAppender<InternalRow> newAppender(EncryptedOutputFile file, FileFormat fileFormat) {
-    MetricsConfig metricsConfig = MetricsConfig.fromProperties(properties);
+    MetricsConfig metricsConfig = MetricsConfig.fromProperties(writeSchema, properties);
     try {
       switch (fileFormat) {
         case PARQUET:

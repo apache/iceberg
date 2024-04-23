@@ -18,15 +18,19 @@
  */
 package org.apache.iceberg.spark;
 
+import static org.apache.iceberg.types.Types.NestedField.required;
+
 import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.KryoHelpers;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsModes;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
+import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
@@ -56,6 +60,12 @@ public class TestSparkTableUtil {
 
   @Test
   public void testMetricsConfigKryoSerialization() throws Exception {
+    Schema schema =
+        new Schema(
+            required(1, "col1", Types.StringType.get()),
+            required(2, "col2", Types.StringType.get()),
+            required(3, "col3", Types.StringType.get()));
+
     Map<String, String> metricsConfig =
         ImmutableMap.of(
             TableProperties.DEFAULT_WRITE_METRICS_MODE,
@@ -65,20 +75,24 @@ public class TestSparkTableUtil {
             TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col2",
             "truncate(16)");
 
-    MetricsConfig config = MetricsConfig.fromProperties(metricsConfig);
+    MetricsConfig config = MetricsConfig.fromProperties(schema, metricsConfig);
     MetricsConfig deserialized = KryoHelpers.roundTripSerialize(config);
 
+    Assert.assertEquals(MetricsModes.Full.get().toString(), deserialized.columnMode(1).toString());
     Assert.assertEquals(
-        MetricsModes.Full.get().toString(), deserialized.columnMode("col1").toString());
+        MetricsModes.Truncate.withLength(16).toString(), deserialized.columnMode(2).toString());
     Assert.assertEquals(
-        MetricsModes.Truncate.withLength(16).toString(),
-        deserialized.columnMode("col2").toString());
-    Assert.assertEquals(
-        MetricsModes.Counts.get().toString(), deserialized.columnMode("col3").toString());
+        MetricsModes.Counts.get().toString(), deserialized.columnMode(3).toString());
   }
 
   @Test
   public void testMetricsConfigJavaSerialization() throws Exception {
+    Schema schema =
+        new Schema(
+            required(1, "col1", Types.StringType.get()),
+            required(2, "col2", Types.StringType.get()),
+            required(3, "col3", Types.StringType.get()));
+
     Map<String, String> metricsConfig =
         ImmutableMap.of(
             TableProperties.DEFAULT_WRITE_METRICS_MODE,
@@ -88,15 +102,13 @@ public class TestSparkTableUtil {
             TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col2",
             "truncate(16)");
 
-    MetricsConfig config = MetricsConfig.fromProperties(metricsConfig);
+    MetricsConfig config = MetricsConfig.fromProperties(schema, metricsConfig);
     MetricsConfig deserialized = TestHelpers.roundTripSerialize(config);
 
+    Assert.assertEquals(MetricsModes.Full.get().toString(), deserialized.columnMode(1).toString());
     Assert.assertEquals(
-        MetricsModes.Full.get().toString(), deserialized.columnMode("col1").toString());
+        MetricsModes.Truncate.withLength(16).toString(), deserialized.columnMode(2).toString());
     Assert.assertEquals(
-        MetricsModes.Truncate.withLength(16).toString(),
-        deserialized.columnMode("col2").toString());
-    Assert.assertEquals(
-        MetricsModes.Counts.get().toString(), deserialized.columnMode("col3").toString());
+        MetricsModes.Counts.get().toString(), deserialized.columnMode(3).toString());
   }
 }
