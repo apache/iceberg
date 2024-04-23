@@ -155,6 +155,13 @@ public class ScanContext implements Serializable {
       Preconditions.checkArgument(
           tag == null,
           String.format("Cannot scan table using ref %s configured for streaming reader", tag));
+      Preconditions.checkArgument(
+          snapshotId == null, "Cannot set snapshot-id option for streaming reader");
+      Preconditions.checkArgument(
+          asOfTimestamp == null, "Cannot set as-of-timestamp option for streaming reader");
+      Preconditions.checkArgument(
+          endSnapshotId == null, "Cannot set end-snapshot-id option for streaming reader");
+      Preconditions.checkArgument(endTag == null, "Cannot set end-tag option for streaming reader");
     }
 
     Preconditions.checkArgument(
