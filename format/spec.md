@@ -128,7 +128,7 @@ Tables do not require rename, except for tables that use atomic rename to implem
 
 #### Writer requirements
 
-Some tables in this spec have columns that specify requirements for v1 and v2 tables. These requirements are intended for writers when adding metadata (including manifests files and manifest lists) files to a table with the given version.
+Some tables in this spec have columns that specify requirements for v1 and v2 tables. These requirements are intended for writers when adding metadata files (including manifests files and manifest lists) to a table with the given version.
 
 | Requirement | Write behavior |
 |-------------|----------------|
