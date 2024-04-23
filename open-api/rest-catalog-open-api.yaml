@@ -1425,6 +1425,116 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}/append:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/table'
+    post:
+      tags:
+        - Catalog API
+      summary: asynchronous commits of Data Files to a table
+      operationId: appendDataFiles
+      description:
+        This endpoint facilitates the asynchronous fine-grained metadata committing of data files to a specified table, 
+        enabling parallel data and batch commits. This API allows for data files to be posted and tracked without 
+        immediate commitment.
+        
+        The appended data files can later be committed in batches, managed through separate commit operations, 
+        ensuring the proper handling of high-volume commits.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppendDataFileRequest'
+      responses:
+        202:
+          $ref: '#/components/responses/AppendDataFileResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description:
+            Not Found - NoSuchTableException, table to load does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                TableToUpdateDoesNotExist:
+                  $ref: '#/components/examples/NoSuchTableError'
+        409:
+          description:
+            Conflict - CommitFailedException, one or more requirements failed. The client may retry.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        500:
+          description:
+            An unknown server-side problem occurred; the commit state is unknown.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              example: {
+                "error": {
+                  "message": "Internal Server Error",
+                  "type": "CommitStateUnknownException",
+                  "code": 500
+                }
+              }
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        502:
+          description:
+            A gateway or proxy received an invalid response from the upstream server; the commit state is unknown.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              example: {
+                "error": {
+                  "message": "Invalid response from the upstream server",
+                  "type": "CommitStateUnknownException",
+                  "code": 502
+                }
+              }
+        504:
+          description:
+            A server-side gateway timeout occurred; the commit state is unknown.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              example: {
+                "error": {
+                  "message": "Gateway timed out during commit",
+                  "type": "CommitStateUnknownException",
+                  "code": 504
+                }
+              }
+        5XX:
+          description:
+            A server-side problem that might not be addressable on the client.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              example: {
+                "error": {
+                  "message": "Bad Gateway",
+                  "type": "InternalServerError",
+                  "code": 502
+                }
+              }
+
 
 components:
   #######################################################
@@ -2252,7 +2362,6 @@ components:
           remove-statistics: '#/components/schemas/RemoveStatisticsUpdate'
           set-partition-statistics: '#/components/schemas/SetPartitionStatisticsUpdate'
           remove-partition-statistics: '#/components/schemas/RemovePartitionStatisticsUpdate'
-          append-data-files: '#/components/schemas/AppendDataFileUpdate'
       type: object
       required:
         - action
@@ -2555,21 +2664,6 @@ components:
           type: integer
           format: int64
 
-    AppendDataFileUpdate:
-      allOf:
-        - $ref: '#/components/schemas/BaseUpdate'
-      required:
-        - appended-data-files
-      properties:
-        action:
-          type: string
-          enum: [ "append-data-files" ]
-        appended-data-files:
-          type: array
-          items:
-            $ref: '#/components/schemas/DataFile'
-          description: List of serialized data files to be appended to a table
-
     TableUpdate:
       anyOf:
         - $ref: '#/components/schemas/AssignUUIDUpdate'
@@ -2589,7 +2683,6 @@ components:
         - $ref: '#/components/schemas/RemovePropertiesUpdate'
         - $ref: '#/components/schemas/SetStatisticsUpdate'
         - $ref: '#/components/schemas/RemoveStatisticsUpdate'
-        - $ref: '#/components/schemas/AppendDataFileUpdate'
 
     ViewUpdate:
       anyOf:
@@ -2909,6 +3002,37 @@ components:
           type: object
           additionalProperties:
             type: string
+
+    AppendDataFileRequest:
+      type: object
+      required:
+        - data-files
+      properties:
+        identifier:
+          allOf:
+            - $ref: '#/components/schemas/TableIdentifier'
+          description: Table identifier to update; must be present for CommitTransactionRequest
+        accept-delay-ms:
+          type: integer
+          format: int64
+          description: Acceptable delay in milliseconds for processing the append request.
+          example: 300000
+        data-files:
+          type: array
+          items:
+            $ref: '#/components/schemas/DataFile'
+          description: A list of serialized data files to append to the table metadata.
+
+    AppendDataFileResponse:
+      type:
+        object
+      properties:
+        location:
+          type: string
+          description:
+            URL to monitor the status of the append data file operation. This facilitates tracking the progress and
+            eventual commitment of the appended data.
+          example: /v1/{prefix}/namespaces/{namespace}/tables/{table}/status/{id}
 
     LoadViewResult:
       description: |
@@ -3920,6 +4044,14 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/CommitTableResponse'
+
+    AppendDataFileResponse:
+      description:
+        Response used when a AppendDataFile request accepted and is being processed asynchronously
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AppendDataFileResponse'
 
   #######################################
   # Common examples of different values #
