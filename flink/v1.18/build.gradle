@@ -29,6 +29,8 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     implementation project(':iceberg-core')
     api project(':iceberg-data')
     implementation project(':iceberg-orc')
+    implementation project(':iceberg-aws')
+    implementation project(':iceberg-aws-bundle')
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-hive-metastore')
 

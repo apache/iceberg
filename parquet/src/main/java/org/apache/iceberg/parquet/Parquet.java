@@ -159,10 +159,14 @@ public class Parquet {
 
     private WriteBuilder(OutputFile file) {
       this.file = file;
-      if (file instanceof HadoopOutputFile) {
+      if (HadoopDependency.isHadoopCommonOnClasspath(Parquet.class.getClassLoader())) {
+       if (file instanceof HadoopOutputFile) {
         this.conf = new Configuration(((HadoopOutputFile) file).getConf());
+        } else {
+          this.conf = new Configuration();
+        }
       } else {
-        this.conf = new Configuration();
+        this.conf = null;
       }
     }
 
@@ -327,8 +331,10 @@ public class Parquet {
         Preconditions.checkArgument(
             writeSupport == null, "Cannot write with both write support and Parquet value writer");
 
-        for (Map.Entry<String, String> entry : config.entrySet()) {
-          conf.set(entry.getKey(), entry.getValue());
+        if (HadoopDependency.isHadoopCommonOnClasspath(Parquet.class.getClassLoader())) {
+          for (Map.Entry<String, String> entry : config.entrySet()) {
+            conf.set(entry.getKey(), entry.getValue());
+          }
         }
 
         ParquetProperties.Builder propsBuilder =
