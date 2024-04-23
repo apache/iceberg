@@ -29,9 +29,9 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.deletes.ContinuousFileScopedPositionDeleteWriter;
 import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
-import org.apache.iceberg.deletes.FileScopedPositionDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -132,7 +132,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       this.eqDeleteWriter = new RollingEqDeleteWriter(partition);
       this.posDeleteWriter =
           deleteGranularity.equals(DeleteGranularity.FILE)
-              ? new FileScopedPositionDeleteWriter<>(
+              ? new ContinuousFileScopedPositionDeleteWriter<>(
                   () ->
                       new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, partition))
               : new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, partition);
@@ -155,12 +155,16 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       PathOffset previous = insertedRowMap.put(copiedKey, pathOffset);
       if (previous != null) {
         // TODO attach the previous row if has a positional-delete row schema in appender factory.
-        PositionDelete<T> delete = PositionDelete.create();
-        delete.set(previous.path, previous.rowOffset, null);
-        posDeleteWriter.write(delete);
+        writePosDelete(previous);
       }
 
       dataWriter.write(row);
+    }
+
+    private void writePosDelete(PathOffset pathOffset) {
+      PositionDelete<T> delete = PositionDelete.create();
+      delete.set(pathOffset.path, pathOffset.rowOffset, null);
+      posDeleteWriter.write(delete);
     }
 
     /**
@@ -173,9 +177,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
 
       if (previous != null) {
         // TODO attach the previous row if has a positional-delete row schema in appender factory.
-        PositionDelete<T> delete = PositionDelete.create();
-        delete.set(previous.path, previous.rowOffset, null);
-        posDeleteWriter.write(delete);
+        writePosDelete(previous);
         return true;
       }
 

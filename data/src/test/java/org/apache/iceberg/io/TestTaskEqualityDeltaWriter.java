@@ -439,12 +439,14 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
         createTaskWriter(eqDeleteFieldIds, eqDeleteRowSchema, granularity);
 
     Map<Integer, Record> expected = Maps.newHashMapWithExpectedSize(2000);
+    int expectedDeleteCount = 0;
     // Create enough records, so we have multiple files
     for (int i = 0; i < 2000; ++i) {
       Record record = createRecord(i, "aaa" + i);
       deltaWriter.write(record);
-      if (i % 5 == 10) {
+      if (i % 5 == 0) {
         deltaWriter.delete(record);
+        ++expectedDeleteCount;
       } else {
         expected.put(i, record);
       }
@@ -455,18 +457,23 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
       int id = i * 10 + 1;
       Record record = createRecord(id, "aaa" + id);
       deltaWriter.delete(record);
+      ++expectedDeleteCount;
       expected.remove(id);
     }
 
     WriteResult result = deltaWriter.complete();
+
+    // Should have 2 files, as BaseRollingWriter checks the size on every 1000 rows (ROWS_DIVISOR)
     assertThat(result.dataFiles()).as("Should have 2 data files.").hasSize(2);
     assertThat(result.deleteFiles())
         .as("Should have correct number of pos-delete files")
         .hasSize(granularity.equals(DeleteGranularity.FILE) ? 2 : 1);
+    assertThat(Arrays.stream(result.deleteFiles()).mapToLong(delete -> delete.recordCount()).sum())
+        .isEqualTo(expectedDeleteCount);
 
     commitTransaction(result);
     assertThat(actualRowSet("*"))
-        .as("Should have an expected record")
+        .as("Should have expected record")
         .isEqualTo(expectedRowSet(expected.values()));
   }
 
