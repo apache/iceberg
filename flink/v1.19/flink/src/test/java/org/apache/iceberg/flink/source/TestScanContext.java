@@ -30,7 +30,7 @@ class TestScanContext {
                     .streaming(true)
                     .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_ID)
                     .build())
-        .hasMessageContaining("Invalid starting snapshot id for")
+        .hasMessage("Invalid starting snapshot id for SPECIFIC_START_SNAPSHOT_ID strategy: null")
         .isInstanceOf(IllegalArgumentException.class);
 
     Assertions.assertThatThrownBy(
@@ -41,7 +41,8 @@ class TestScanContext {
                     .startSnapshotId(1L)
                     .startSnapshotTimestamp(1L)
                     .build())
-        .hasMessageContaining("Invalid starting snapshot timestamp for")
+        .hasMessage(
+            "Invalid starting snapshot timestamp for SPECIFIC_START_SNAPSHOT_ID strategy: not null")
         .isInstanceOf(IllegalArgumentException.class);
   }
 
@@ -53,7 +54,8 @@ class TestScanContext {
                     .streaming(true)
                     .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_TIMESTAMP)
                     .build())
-        .hasMessageContaining("Invalid starting snapshot timestamp for")
+        .hasMessage(
+            "Invalid starting snapshot timestamp for SPECIFIC_START_SNAPSHOT_TIMESTAMP strategy: null")
         .isInstanceOf(IllegalArgumentException.class);
 
     Assertions.assertThatThrownBy(
@@ -64,34 +66,34 @@ class TestScanContext {
                     .startSnapshotId(1L)
                     .startSnapshotTimestamp(1L)
                     .build())
-        .hasMessageContaining("Invalid starting snapshot id for")
+        .hasMessage(
+            "Invalid starting snapshot id for SPECIFIC_START_SNAPSHOT_ID strategy: not null")
         .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test
   void testStreaming() {
     Assertions.assertThatThrownBy(() -> ScanContext.builder().streaming(true).useTag("tag").build())
-        .hasMessageContaining("Cannot scan table using ref")
-        .hasMessageContaining("for streaming reader")
+        .hasMessage("Cannot scan table using ref tag configured for streaming reader")
         .isInstanceOf(IllegalArgumentException.class);
 
     Assertions.assertThatThrownBy(
             () -> ScanContext.builder().streaming(true).useSnapshotId(1L).build())
-        .hasMessageContaining("Cannot set snapshot-id option for streaming reader")
+        .hasMessage("Cannot set snapshot-id option for streaming reader")
         .isInstanceOf(IllegalArgumentException.class);
 
     Assertions.assertThatThrownBy(
             () -> ScanContext.builder().streaming(true).asOfTimestamp(1L).build())
-        .hasMessageContaining("Cannot set as-of-timestamp option for streaming reader")
+        .hasMessage("Cannot set as-of-timestamp option for streaming reader")
         .isInstanceOf(IllegalArgumentException.class);
 
     Assertions.assertThatThrownBy(
             () -> ScanContext.builder().streaming(true).endSnapshotId(1L).build())
-        .hasMessageContaining("Cannot set end-snapshot-id option for streaming reader")
+        .hasMessage("Cannot set end-snapshot-id option for streaming reader")
         .isInstanceOf(IllegalArgumentException.class);
 
     Assertions.assertThatThrownBy(() -> ScanContext.builder().streaming(true).endTag("tag").build())
-        .hasMessageContaining("Cannot set end-tag option for streaming reader")
+        .hasMessage("Cannot set end-tag option for streaming reader")
         .isInstanceOf(IllegalArgumentException.class);
   }
 
@@ -99,7 +101,7 @@ class TestScanContext {
   void testStartConflict() {
     Assertions.assertThatThrownBy(
             () -> ScanContext.builder().startTag("tag").startSnapshotId(1L).build())
-        .hasMessageContaining("START_SNAPSHOT_ID and START_TAG cannot both be set.")
+        .hasMessage("START_SNAPSHOT_ID and START_TAG cannot both be set.")
         .isInstanceOf(IllegalArgumentException.class);
   }
 
@@ -107,7 +109,7 @@ class TestScanContext {
   void testEndConflict() {
     Assertions.assertThatThrownBy(
             () -> ScanContext.builder().endTag("tag").endSnapshotId(1L).build())
-        .hasMessageContaining("END_SNAPSHOT_ID and END_TAG cannot both be set.")
+        .hasMessage("END_SNAPSHOT_ID and END_TAG cannot both be set.")
         .isInstanceOf(IllegalArgumentException.class);
   }
 
@@ -115,7 +117,7 @@ class TestScanContext {
   void testMaxAllowedPlanningFailures() {
     Assertions.assertThatThrownBy(
             () -> ScanContext.builder().maxAllowedPlanningFailures(-2).build())
-        .hasMessageContaining("annot set maxAllowedPlanningFailures to a negative number")
+        .hasMessage("Cannot set maxAllowedPlanningFailures to a negative number other than -1.")
         .isInstanceOf(IllegalArgumentException.class);
   }
 }
