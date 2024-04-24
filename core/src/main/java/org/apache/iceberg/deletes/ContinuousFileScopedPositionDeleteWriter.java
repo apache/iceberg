@@ -29,6 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.CharSequenceSet;
+import org.apache.iceberg.util.CharSequenceWrapper;
 
 /**
  * A position delete writer that produces a separate delete file for each referenced data file.
@@ -44,8 +45,7 @@ public class ContinuousFileScopedPositionDeleteWriter<T>
   private final List<DeleteFile> deleteFiles;
   private final CharSequenceSet referencedDataFiles;
 
-  private Map<String, FileWriter<PositionDelete<T>, DeleteWriteResult>> writers;
-  private CharSequence currentPath = null;
+  private final Map<CharSequenceWrapper, FileWriter<PositionDelete<T>, DeleteWriteResult>> writers;
   private boolean closed = false;
 
   public ContinuousFileScopedPositionDeleteWriter(
@@ -62,7 +62,7 @@ public class ContinuousFileScopedPositionDeleteWriter<T>
   }
 
   private FileWriter<PositionDelete<T>, DeleteWriteResult> writer(CharSequence path) {
-    return writers.computeIfAbsent(path.toString(), unused -> writerSupplier.get());
+    return writers.computeIfAbsent(CharSequenceWrapper.wrap(path), unused -> writerSupplier.get());
   }
 
   @Override
