@@ -202,6 +202,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
           enumContext, assigner, scanContext, splitPlanner, enumState);
     } else {
       if (enumState == null) {
+        // Only do scan planning if nothing is restored from checkpoint state
         List<IcebergSourceSplit> splits = planSplitsForBatch(planningThreadName());
         assigner.onDiscoveredSplits(splits);
       }
