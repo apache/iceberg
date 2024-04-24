@@ -23,6 +23,7 @@ import static org.apache.iceberg.SortDirection.ASC;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 
 import java.io.File;
 import java.io.IOException;
@@ -30,6 +31,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +43,7 @@ import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DataFile;
@@ -51,6 +54,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
@@ -79,6 +83,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import org.sqlite.SQLiteDataSource;
 
 public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
@@ -234,6 +240,17 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
         .create();
 
     assertThat(jdbcCatalog.listViews(Namespace.of("namespace1"))).hasSize(1).containsExactly(view);
+
+    TableIdentifier tableThree = TableIdentifier.of("namespace2", "table3");
+    jdbcCatalog.createTable(tableThree, SCHEMA);
+    assertThat(jdbcCatalog.tableExists(tableThree)).isTrue();
+
+    // testing append datafile to check commit, it should not throw an exception
+    jdbcCatalog.loadTable(tableOne).newAppend().appendFile(FILE_A).commit();
+    jdbcCatalog.loadTable(tableTwo).newAppend().appendFile(FILE_B).commit();
+
+    assertThat(jdbcCatalog.tableExists(tableOne)).isTrue();
+    assertThat(jdbcCatalog.tableExists(tableTwo)).isTrue();
   }
 
   @ParameterizedTest
@@ -970,6 +987,46 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     Assertions.assertThat(CustomMetricsReporter.COUNTER.get()).isEqualTo(2);
   }
 
+  @Test
+  public void testCommitExceptionWithoutMessage() {
+    TableIdentifier tableIdent = TableIdentifier.of("db", "tbl");
+    BaseTable table = (BaseTable) catalog.buildTable(tableIdent, SCHEMA).create();
+    TableOperations ops = table.operations();
+    TableMetadata metadataV1 = ops.current();
+
+    table.updateSchema().addColumn("n", Types.IntegerType.get()).commit();
+    ops.refresh();
+
+    try (MockedStatic<JdbcUtil> mockedStatic = Mockito.mockStatic(JdbcUtil.class)) {
+      mockedStatic
+          .when(() -> JdbcUtil.loadTable(any(), any(), any(), any()))
+          .thenThrow(new SQLException());
+      assertThatThrownBy(() -> ops.commit(ops.current(), metadataV1))
+          .isInstanceOf(UncheckedSQLException.class)
+          .hasMessageStartingWith("Unknown failure");
+    }
+  }
+
+  @Test
+  public void testCommitExceptionWithMessage() {
+    TableIdentifier tableIdent = TableIdentifier.of("db", "tbl");
+    BaseTable table = (BaseTable) catalog.buildTable(tableIdent, SCHEMA).create();
+    TableOperations ops = table.operations();
+    TableMetadata metadataV1 = ops.current();
+
+    table.updateSchema().addColumn("n", Types.IntegerType.get()).commit();
+    ops.refresh();
+
+    try (MockedStatic<JdbcUtil> mockedStatic = Mockito.mockStatic(JdbcUtil.class)) {
+      mockedStatic
+          .when(() -> JdbcUtil.loadTable(any(), any(), any(), any()))
+          .thenThrow(new SQLException("constraint failed"));
+      assertThatThrownBy(() -> ops.commit(ops.current(), metadataV1))
+          .isInstanceOf(AlreadyExistsException.class)
+          .hasMessageStartingWith("Table already exists: " + tableIdent);
+    }
+  }
+
   public static class CustomMetricsReporter implements MetricsReporter {
     static final AtomicInteger COUNTER = new AtomicInteger(0);
 
@@ -979,7 +1036,49 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     }
   }
 
+  private String createMetadataLocationViaJdbcCatalog(TableIdentifier identifier)
+      throws SQLException {
+    // temporary connection just to actually create a concrete metadata location
+    String jdbcUrl = null;
+    try {
+      java.nio.file.Path dbFile = Files.createTempFile("temp", "metadata");
+      jdbcUrl = "jdbc:sqlite:" + dbFile.toAbsolutePath();
+    } catch (IOException e) {
+      throw new SQLException("Error while creating temp data", e);
+    }
+
+    Map<String, String> properties = Maps.newHashMap();
+
+    properties.put(CatalogProperties.URI, jdbcUrl);
+
+    warehouseLocation = this.tableDir.toAbsolutePath().toString();
+    properties.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation);
+    properties.put("type", "jdbc");
+
+    JdbcCatalog jdbcCatalog =
+        (JdbcCatalog) CatalogUtil.buildIcebergCatalog("TEMP", properties, conf);
+    jdbcCatalog.buildTable(identifier, SCHEMA).create();
+
+    SQLiteDataSource dataSource = new SQLiteDataSource();
+    dataSource.setUrl(jdbcUrl);
+
+    try (Connection connection = dataSource.getConnection()) {
+      ResultSet result =
+          connection
+              .prepareStatement("SELECT * FROM " + JdbcUtil.CATALOG_TABLE_VIEW_NAME)
+              .executeQuery();
+      result.next();
+      return result.getString(JdbcTableOperations.METADATA_LOCATION_PROP);
+    }
+  }
+
   private void initLegacySchema(String jdbcUrl) throws SQLException {
+    TableIdentifier table1 = TableIdentifier.of(Namespace.of("namespace1"), "table1");
+    TableIdentifier table2 = TableIdentifier.of(Namespace.of("namespace2"), "table2");
+
+    String table1MetadataLocation = createMetadataLocationViaJdbcCatalog(table1);
+    String table2MetadataLocation = createMetadataLocationViaJdbcCatalog(table2);
+
     SQLiteDataSource dataSource = new SQLiteDataSource();
     dataSource.setUrl(jdbcUrl);
 
@@ -1000,7 +1099,9 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
                   + JdbcTableOperations.METADATA_LOCATION_PROP
                   + ","
                   + JdbcTableOperations.PREVIOUS_METADATA_LOCATION_PROP
-                  + ") VALUES('TEST','namespace1','table1',null,null)")
+                  + ") VALUES('TEST','namespace1','table1','"
+                  + table1MetadataLocation
+                  + "',null)")
           .execute();
       connection
           .prepareStatement(
@@ -1016,7 +1117,9 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
                   + JdbcTableOperations.METADATA_LOCATION_PROP
                   + ","
                   + JdbcTableOperations.PREVIOUS_METADATA_LOCATION_PROP
-                  + ") VALUES('TEST','namespace2','table2',null,null)")
+                  + ") VALUES('TEST','namespace2','table2','"
+                  + table2MetadataLocation
+                  + "',null)")
           .execute();
     }
   }

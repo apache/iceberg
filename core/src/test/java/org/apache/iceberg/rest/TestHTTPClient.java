@@ -31,13 +31,21 @@ import static org.mockserver.model.HttpResponse.response;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.net.SocketTimeoutException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import org.apache.hc.client5.http.auth.AuthScope;
+import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
+import org.apache.hc.client5.http.config.ConnectionConfig;
+import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
 import org.apache.hc.core5.http.EntityDetails;
 import org.apache.hc.core5.http.HttpException;
+import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpRequestInterceptor;
+import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -47,9 +55,13 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockserver.configuration.Configuration;
 import org.mockserver.integration.ClientAndServer;
 import org.mockserver.model.HttpRequest;
 import org.mockserver.model.HttpResponse;
+import org.mockserver.verify.VerificationTimes;
 
 /**
  * * Exercises the RESTClient interface, specifically over a mocked-server using the actual
@@ -122,6 +134,95 @@ public class TestHTTPClient {
   }
 
   @Test
+  public void testProxyServer() throws IOException {
+    int proxyPort = 1070;
+    try (ClientAndServer proxyServer = startClientAndServer(proxyPort);
+        RESTClient clientWithProxy =
+            HTTPClient.builder(ImmutableMap.of())
+                .uri(URI)
+                .withProxy("localhost", proxyPort)
+                .build()) {
+      String path = "v1/config";
+      HttpRequest mockRequest =
+          request("/" + path).withMethod(HttpMethod.HEAD.name().toUpperCase(Locale.ROOT));
+      HttpResponse mockResponse = response().withStatusCode(200);
+      proxyServer.when(mockRequest).respond(mockResponse);
+      clientWithProxy.head(path, ImmutableMap.of(), (onError) -> {});
+      proxyServer.verify(mockRequest, VerificationTimes.exactly(1));
+    }
+  }
+
+  @Test
+  public void testProxyCredentialProviderWithoutProxyServer() {
+    Assertions.assertThatThrownBy(
+            () ->
+                HTTPClient.builder(ImmutableMap.of())
+                    .uri(URI)
+                    .withProxyCredentialsProvider(new BasicCredentialsProvider())
+                    .build())
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid http client proxy for proxy credentials provider: null");
+  }
+
+  @Test
+  public void testProxyServerWithNullHostname() {
+    Assertions.assertThatThrownBy(
+            () -> HTTPClient.builder(ImmutableMap.of()).uri(URI).withProxy(null, 1070).build())
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid hostname for http client proxy: null");
+  }
+
+  @Test
+  public void testProxyAuthenticationFailure() throws IOException {
+    int proxyPort = 1050;
+    String proxyHostName = "localhost";
+    String authorizedUsername = "test-username";
+    String authorizedPassword = "test-password";
+    String invalidPassword = "invalid-password";
+
+    HttpHost proxy = new HttpHost(proxyHostName, proxyPort);
+    BasicCredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+    credentialsProvider.setCredentials(
+        new AuthScope(proxy),
+        new UsernamePasswordCredentials(authorizedUsername, invalidPassword.toCharArray()));
+
+    try (ClientAndServer proxyServer =
+            startClientAndServer(
+                new Configuration()
+                    .proxyAuthenticationUsername(authorizedUsername)
+                    .proxyAuthenticationPassword(authorizedPassword),
+                proxyPort);
+        RESTClient clientWithProxy =
+            HTTPClient.builder(ImmutableMap.of())
+                .uri(URI)
+                .withProxy(proxyHostName, proxyPort)
+                .withProxyCredentialsProvider(credentialsProvider)
+                .build()) {
+
+      ErrorHandler onError =
+          new ErrorHandler() {
+            @Override
+            public ErrorResponse parseResponse(int code, String responseBody) {
+              return null;
+            }
+
+            @Override
+            public void accept(ErrorResponse errorResponse) {
+              throw new RuntimeException(errorResponse.message() + " - " + errorResponse.code());
+            }
+          };
+
+      Assertions.assertThatThrownBy(
+              () -> clientWithProxy.get("v1/config", Item.class, ImmutableMap.of(), onError))
+          .isInstanceOf(RuntimeException.class)
+          .hasMessage(
+              String.format(
+                  "%s - %s",
+                  "Proxy Authentication Required", HttpStatus.SC_PROXY_AUTHENTICATION_REQUIRED));
+    }
+  }
+
+  @Test
   public void testDynamicHttpRequestInterceptorLoading() {
     Map<String, String> properties = ImmutableMap.of("key", "val");
 
@@ -131,6 +232,71 @@ public class TestHTTPClient {
 
     assertThat(interceptor).isInstanceOf(TestHttpRequestInterceptor.class);
     assertThat(((TestHttpRequestInterceptor) interceptor).properties).isEqualTo(properties);
+  }
+
+  @Test
+  public void testSocketAndConnectionTimeoutSet() {
+    long connectionTimeoutMs = 10L;
+    int socketTimeoutMs = 10;
+    Map<String, String> properties =
+        ImmutableMap.of(
+            HTTPClient.REST_CONNECTION_TIMEOUT_MS, String.valueOf(connectionTimeoutMs),
+            HTTPClient.REST_SOCKET_TIMEOUT_MS, String.valueOf(socketTimeoutMs));
+
+    ConnectionConfig connectionConfig = HTTPClient.configureConnectionConfig(properties);
+    assertThat(connectionConfig).isNotNull();
+    assertThat(connectionConfig.getConnectTimeout().getDuration()).isEqualTo(connectionTimeoutMs);
+    assertThat(connectionConfig.getSocketTimeout().getDuration()).isEqualTo(socketTimeoutMs);
+  }
+
+  @Test
+  public void testSocketTimeout() throws IOException {
+    long socketTimeoutMs = 2000L;
+    Map<String, String> properties =
+        ImmutableMap.of(HTTPClient.REST_SOCKET_TIMEOUT_MS, String.valueOf(socketTimeoutMs));
+    String path = "socket/timeout/path";
+
+    try (HTTPClient client = HTTPClient.builder(properties).uri(URI).build()) {
+      HttpRequest mockRequest =
+          request()
+              .withPath("/" + path)
+              .withMethod(HttpMethod.HEAD.name().toUpperCase(Locale.ROOT));
+      // Setting a response delay of 5 seconds to simulate hitting the configured socket timeout of
+      // 2 seconds
+      HttpResponse mockResponse =
+          response()
+              .withStatusCode(200)
+              .withBody("Delayed response")
+              .withDelay(TimeUnit.MILLISECONDS, 5000);
+      mockServer.when(mockRequest).respond(mockResponse);
+
+      Assertions.assertThatThrownBy(() -> client.head(path, ImmutableMap.of(), (unused) -> {}))
+          .cause()
+          .isInstanceOf(SocketTimeoutException.class)
+          .hasMessage("Read timed out");
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {HTTPClient.REST_CONNECTION_TIMEOUT_MS, HTTPClient.REST_SOCKET_TIMEOUT_MS})
+  public void testInvalidTimeout(String timeoutMsType) {
+    String invalidTimeoutMs = "invalidMs";
+    Assertions.assertThatThrownBy(
+            () ->
+                HTTPClient.builder(ImmutableMap.of(timeoutMsType, invalidTimeoutMs))
+                    .uri(URI)
+                    .build())
+        .isInstanceOf(NumberFormatException.class)
+        .hasMessage(String.format("For input string: \"%s\"", invalidTimeoutMs));
+
+    String invalidNegativeTimeoutMs = "-1";
+    Assertions.assertThatThrownBy(
+            () ->
+                HTTPClient.builder(ImmutableMap.of(timeoutMsType, invalidNegativeTimeoutMs))
+                    .uri(URI)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(String.format("duration must not be negative: %s", invalidNegativeTimeoutMs));
   }
 
   public static void testHttpMethodOnSuccess(HttpMethod method) throws JsonProcessingException {

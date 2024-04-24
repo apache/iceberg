@@ -705,7 +705,7 @@ public class SparkTableUtil {
     return PropertyUtil.propertyAsBoolean(
         table.properties(),
         TableProperties.WRITE_AUDIT_PUBLISH_ENABLED,
-        Boolean.getBoolean(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT));
+        Boolean.parseBoolean(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT));
   }
 
   /** Class representing a table partition. */

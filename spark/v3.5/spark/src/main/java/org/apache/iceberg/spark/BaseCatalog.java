@@ -21,12 +21,14 @@ package org.apache.iceberg.spark;
 import org.apache.iceberg.spark.procedures.SparkProcedures;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
 import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
 import org.apache.spark.sql.connector.iceberg.catalog.Procedure;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureCatalog;
+import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
 abstract class BaseCatalog
     implements StagingTableCatalog,
@@ -34,6 +36,10 @@ abstract class BaseCatalog
         SupportsNamespaces,
         HasIcebergCatalog,
         SupportsFunctions {
+  private static final String USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS = "use-nullable-query-schema";
+  private static final boolean USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS_DEFAULT = true;
+
+  private boolean useNullableQuerySchema = USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS_DEFAULT;
 
   @Override
   public Procedure loadProcedure(Identifier ident) throws NoSuchProcedureException {
@@ -64,6 +70,20 @@ abstract class BaseCatalog
   @Override
   public boolean isExistingNamespace(String[] namespace) {
     return namespaceExists(namespace);
+  }
+
+  @Override
+  public void initialize(String name, CaseInsensitiveStringMap options) {
+    this.useNullableQuerySchema =
+        PropertyUtil.propertyAsBoolean(
+            options,
+            USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS,
+            USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS_DEFAULT);
+  }
+
+  @Override
+  public boolean useNullableQuerySchema() {
+    return useNullableQuerySchema;
   }
 
   private static boolean isSystemNamespace(String[] namespace) {
