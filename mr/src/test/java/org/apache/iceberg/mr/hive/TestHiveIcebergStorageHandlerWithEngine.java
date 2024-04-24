@@ -1212,13 +1212,13 @@ public class TestHiveIcebergStorageHandlerWithEngine {
   public void testWriteWithDatePartition() {
     assumeThat(executionEngine).as("Tez write is not implemented yet").isEqualTo("mr");
 
-    Schema dateSchema = 
+    Schema dateSchema =
         new Schema(
             optional(1, "id", Types.LongType.get()),
             optional(2, "part_field", Types.DateType.get()));
 
     PartitionSpec spec = PartitionSpec.builderFor(dateSchema).identity("part_field").build();
-    List<Record> records = 
+    List<Record> records =
         TestHelper.RecordsBuilder.newInstance(dateSchema)
             .add(1L, LocalDate.of(2023, 1, 21))
             .add(2L, LocalDate.of(2023, 1, 22))
@@ -1237,12 +1237,12 @@ public class TestHiveIcebergStorageHandlerWithEngine {
   public void testWriteWithTimestampPartition() throws IOException {
     assumeThat(executionEngine).as("Tez write is not implemented yet").isEqualTo("mr");
 
-    Schema dateSchema = 
+    Schema dateSchema =
         new Schema(
             optional(1, "id", Types.LongType.get()),
             optional(2, "part_field", Types.TimestampType.withoutZone()));
     PartitionSpec spec = PartitionSpec.builderFor(dateSchema).identity("part_field").build();
-    List<Record> records = 
+    List<Record> records =
         TestHelper.RecordsBuilder.newInstance(dateSchema)
             .add(1L, LocalDateTime.of(2023, 1, 21, 21, 10, 10, 100000000))
             .add(2L, LocalDateTime.of(2023, 1, 21, 22, 10, 10, 200000000))
