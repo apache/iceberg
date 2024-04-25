@@ -191,7 +191,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
         if (newTable
             && tbl.getParameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP)
                 != null) {
-          if (tbl.getTableType().equalsIgnoreCase(TableType.VIRTUAL_VIEW.name())) {
+          if (TableType.VIRTUAL_VIEW.name().equalsIgnoreCase(tbl.getTableType())) {
             throw new AlreadyExistsException(
                 "View with same name already exists: %s.%s", database, tableName);
           }

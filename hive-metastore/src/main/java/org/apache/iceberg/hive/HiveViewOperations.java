@@ -33,7 +33,6 @@ import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.InvalidObjectException;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.Table;
-import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.ClientPool;
@@ -46,7 +45,6 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.view.BaseViewOperations;
@@ -76,13 +74,12 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
       FileIO fileIO,
       String catalogName,
       TableIdentifier viewIdentifier) {
-    String dbName = viewIdentifier.namespace().level(0);
     this.conf = conf;
     this.catalogName = catalogName;
     this.metaClients = metaClients;
     this.fileIO = fileIO;
     this.fullName = CatalogUtil.fullTableName(catalogName, viewIdentifier);
-    this.database = dbName;
+    this.database = viewIdentifier.namespace().level(0);
     this.viewName = viewIdentifier.name();
     this.maxHiveTablePropertySize =
         conf.getLong(HIVE_TABLE_PROPERTY_MAX_SIZE, HIVE_TABLE_PROPERTY_MAX_SIZE_DEFAULT);
@@ -140,7 +137,7 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
                 != null) {
           throw new AlreadyExistsException(
               "%s already exists: %s.%s",
-              tbl.getTableType().equalsIgnoreCase(TableType.VIRTUAL_VIEW.name())
+              TableType.VIRTUAL_VIEW.name().equalsIgnoreCase(tbl.getTableType())
                   ? ContentType.VIEW.value()
                   : ContentType.TABLE.value(),
               database,
@@ -205,11 +202,12 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
         throw e;
 
       } catch (Throwable e) {
-        if (e.getMessage()
-            .contains(
-                "The view has been modified. The parameter value for key '"
-                    + BaseMetastoreTableOperations.METADATA_LOCATION_PROP
-                    + "' is")) {
+        if (e.getMessage() != null
+            && e.getMessage()
+                .contains(
+                    "The view has been modified. The parameter value for key '"
+                        + BaseMetastoreTableOperations.METADATA_LOCATION_PROP
+                        + "' is")) {
           throw new CommitFailedException(
               e, "The view %s.%s has been modified concurrently", database, viewName);
         }
@@ -299,9 +297,6 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
           BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP, currentMetadataLocation());
     }
 
-    // If needed set the 'storage_handler' property to enable query from Hive
-    parameters.remove(hive_metastoreConstants.META_TABLE_STORAGE);
-
     setSchema(metadata.schema(), parameters);
     tbl.setParameters(parameters);
   }
@@ -315,7 +310,6 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
     String hmsTableOwner =
         PropertyUtil.propertyAsString(
             metadata.properties(), HiveCatalog.HMS_TABLE_OWNER, HiveHadoopUtil.currentUser());
-    Preconditions.checkNotNull(hmsTableOwner, "'hmsOwner' parameter can't be null");
     String sqlQuery = sqlFor(metadata);
 
     return new Table(
