@@ -135,8 +135,8 @@ public class GlueTestBase {
     return tableName;
   }
 
-  // Directly use Glue API to update table description
-  public static void updateDescription(String namespace, String tableName, String description) {
+  // Directly call Glue API to update table description
+  public static void updateTableDescription(String namespace, String tableName, String description) {
     GetTableResponse response =
         glue.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
     Table table = response.table();

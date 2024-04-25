@@ -183,7 +183,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
     // create table, refresh should update
     createTable(namespace, tableName);
     String description = "test description";
-    updateDescription(namespace, tableName, description);
+    updateTableDescription(namespace, tableName, description);
     current = ops.refresh();
     assertThat(current.schema()).asString().isEqualTo(schema.toString());
     assertThat(current.spec()).isEqualTo(partitionSpec);
