@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.apache.iceberg.DataOperations.DELETE;
 import static org.apache.iceberg.RowLevelOperationMode.COPY_ON_WRITE;
 import static org.apache.iceberg.SnapshotSummary.ADD_POS_DELETE_FILES_PROP;
 import static org.apache.iceberg.TableProperties.DELETE_DISTRIBUTION_MODE;
@@ -590,8 +591,10 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     Table table = validationCatalog.loadTable(tableIdent);
     assertThat(table.snapshots()).as("Should have 4 snapshots").hasSize(4);
 
-    // should be an overwrite since cannot be executed using a metadata operation
+    // should be a "delete" instead of an "overwrite" as only data files have been removed (COW) /
+    // delete files have been added (MOR)
     Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
+    assertThat(currentSnapshot.operation()).isEqualTo(DELETE);
     if (mode(table) == COPY_ON_WRITE) {
       validateCopyOnWrite(currentSnapshot, "1", "1", null);
     } else {

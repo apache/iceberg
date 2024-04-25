@@ -247,8 +247,9 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
       String changedPartitionCount,
       String deletedDataFiles,
       String addedDataFiles) {
+    String operation = null == addedDataFiles && null != deletedDataFiles ? DELETE : OVERWRITE;
     validateSnapshot(
-        snapshot, OVERWRITE, changedPartitionCount, deletedDataFiles, null, addedDataFiles);
+        snapshot, operation, changedPartitionCount, deletedDataFiles, null, addedDataFiles);
   }
 
   protected void validateMergeOnRead(

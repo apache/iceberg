@@ -576,8 +576,20 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     List<List<SimpleRecord>> dataAcrossSnapshots = TEST_DATA_MULTIPLE_SNAPSHOTS;
     appendDataAsMultipleSnapshots(dataAcrossSnapshots);
 
+    DataFile dataFile =
+        DataFiles.builder(table.spec())
+            .withPath(temp.newFile().toString())
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .withFormat(FileFormat.PARQUET)
+            .build();
+
     // this should create a snapshot with type overwrite.
-    table.newOverwrite().overwriteByRowFilter(Expressions.greaterThan("id", 4)).commit();
+    table
+        .newOverwrite()
+        .addFile(dataFile)
+        .overwriteByRowFilter(Expressions.greaterThan("id", 4))
+        .commit();
 
     // check pre-condition - that the above delete operation on table resulted in Snapshot of Type
     // OVERWRITE.
