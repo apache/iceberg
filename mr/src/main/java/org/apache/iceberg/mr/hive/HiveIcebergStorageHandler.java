@@ -19,7 +19,9 @@
 package org.apache.iceberg.mr.hive;
 
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import org.apache.hadoop.conf.Configuration;
@@ -45,7 +47,9 @@ import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.SerializationUtil;
 
 public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, HiveStorageHandler {
@@ -112,9 +116,18 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
   public void configureInputJobCredentials(TableDesc tableDesc, Map<String, String> secrets) {}
 
   private void setCommonJobConf(JobConf jobConf) {
-    jobConf.set(
-        "tez.mrreader.config.update.properties",
-        "hive.io.file.readcolumn.names,hive.io.file.readcolumn.ids");
+    String customValue = jobConf.get("tez.mrreader.config.update.properties", null);
+    String value;
+    if (null == customValue) {
+      value = "hive.io.file.readcolumn.names,hive.io.file.readcolumn.ids";
+    } else {
+      List<String> valueList = Arrays.asList(customValue.split(","));
+      valueList.add("hive.io.file.readcolumn.names");
+      valueList.add("hive.io.file.readcolumn.ids");
+      List<String> uniqueValues = Lists.newArrayList(Sets.newHashSet(valueList));
+      value = String.join(",", uniqueValues);
+    }
+    jobConf.set("tez.mrreader.config.update.properties", value);
   }
 
   @Override
