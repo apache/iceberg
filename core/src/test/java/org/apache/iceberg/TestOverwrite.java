@@ -101,8 +101,8 @@ public class TestOverwrite extends TestBase {
                   ImmutableMap.of(1, 5L, 2, 3L), // value count
                   ImmutableMap.of(1, 0L, 2, 2L), // null count
                   null,
-                  ImmutableMap.of(1, longToBuffer(5L)), // lower bounds
-                  ImmutableMap.of(1, longToBuffer(9L)) // upper bounds
+                  ImmutableMap.of(1, longToBuffer(10L)), // lower bounds
+                  ImmutableMap.of(1, longToBuffer(14L)) // upper bounds
                   ))
           .build();
 
@@ -136,6 +136,43 @@ public class TestOverwrite extends TestBase {
   }
 
   @TestTemplate
+  public void deleteDataFilesProducesDeleteOperation() {
+    commit(table, table.newOverwrite().deleteFile(FILE_A).deleteFile(FILE_B), branch);
+    assertThat(latestSnapshot(table, branch).operation()).isEqualTo(DataOperations.DELETE);
+  }
+
+  @TestTemplate
+  public void addAndDeleteDataFilesProducesOverwriteOperation() {
+    commit(table, table.newOverwrite().addFile(FILE_10_TO_14).deleteFile(FILE_B), branch);
+    assertThat(latestSnapshot(table, branch).operation()).isEqualTo(DataOperations.OVERWRITE);
+  }
+
+  @TestTemplate
+  public void overwriteByRowFilterProducesDeleteOperation() {
+    commit(table, table.newOverwrite().overwriteByRowFilter(equal("date", "2018-06-08")), branch);
+    assertThat(latestSnapshot(table, branch).operation()).isEqualTo(DataOperations.DELETE);
+  }
+
+  @TestTemplate
+  public void addAndOverwriteByRowFilterProducesOverwriteOperation() {
+    commit(
+        table,
+        table
+            .newOverwrite()
+            .addFile(FILE_10_TO_14)
+            .overwriteByRowFilter(equal("date", "2018-06-08")),
+        branch);
+
+    assertThat(latestSnapshot(table, branch).operation()).isEqualTo(DataOperations.OVERWRITE);
+  }
+
+  @TestTemplate
+  public void addFilesProducesAppendOperation() {
+    commit(table, table.newOverwrite().addFile(FILE_10_TO_14).addFile(FILE_5_TO_9), branch);
+    assertThat(latestSnapshot(table, branch).operation()).isEqualTo(DataOperations.APPEND);
+  }
+
+  @TestTemplate
   public void testOverwriteWithoutAppend() {
     TableMetadata base = TestTables.readMetadata(TABLE_NAME);
     long baseId = latestSnapshot(base, branch).snapshotId();
@@ -145,6 +182,7 @@ public class TestOverwrite extends TestBase {
     long overwriteId = latestSnapshot(table, branch).snapshotId();
 
     assertThat(overwriteId).isNotEqualTo(baseId);
+    assertThat(latestSnapshot(table, branch).operation()).isEqualTo(DataOperations.DELETE);
     assertThat(latestSnapshot(table, branch).allManifests(table.io())).hasSize(1);
 
     validateManifestEntries(
@@ -188,6 +226,7 @@ public class TestOverwrite extends TestBase {
 
     long overwriteId = latestSnapshot(table, branch).snapshotId();
 
+    assertThat(latestSnapshot(table, branch).operation()).isEqualTo(DataOperations.OVERWRITE);
     assertThat(overwriteId).isNotEqualTo(baseId);
     assertThat(latestSnapshot(table, branch).allManifests(table.io())).hasSize(2);
 
@@ -224,6 +263,7 @@ public class TestOverwrite extends TestBase {
 
     long overwriteId = latestSnapshot(table, branch).snapshotId();
 
+    assertThat(latestSnapshot(table, branch).operation()).isEqualTo(DataOperations.OVERWRITE);
     assertThat(overwriteId).isNotEqualTo(baseId);
     assertThat(latestSnapshot(table, branch).allManifests(table.io())).hasSize(1);
 
@@ -255,6 +295,7 @@ public class TestOverwrite extends TestBase {
         .hasMessageStartingWith("Cannot append file with rows that do not match filter");
 
     assertThat(latestSnapshot(table, branch).snapshotId()).isEqualTo(baseId);
+    assertThat(latestSnapshot(table, branch).operation()).isEqualTo(DataOperations.APPEND);
   }
 
   @TestTemplate
@@ -275,6 +316,7 @@ public class TestOverwrite extends TestBase {
         .hasMessageStartingWith("Cannot append file with rows that do not match filter");
 
     assertThat(latestSnapshot(base, branch).snapshotId()).isEqualTo(baseId);
+    assertThat(latestSnapshot(table, branch).operation()).isEqualTo(DataOperations.APPEND);
   }
 
   @TestTemplate
