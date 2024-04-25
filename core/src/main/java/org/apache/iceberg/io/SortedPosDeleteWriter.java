@@ -26,11 +26,10 @@ import java.util.Map;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.deletes.DeleteGranularity;
-import org.apache.iceberg.deletes.FileScopedPositionDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
@@ -41,6 +40,8 @@ class SortedPosDeleteWriter<T> implements FileWriter<PositionDelete<T>, DeleteWr
   private static final long DEFAULT_RECORDS_NUM_THRESHOLD = 100_000L;
 
   private final Map<CharSequenceWrapper, List<PosRow<T>>> posDeletes = Maps.newHashMap();
+  private final List<DeleteFile> completedFiles = Lists.newArrayList();
+  private final CharSequenceSet referencedDataFiles = CharSequenceSet.empty();
   private final CharSequenceWrapper wrapper = CharSequenceWrapper.wrap(null);
 
   private final FileAppenderFactory<T> appenderFactory;
@@ -48,9 +49,7 @@ class SortedPosDeleteWriter<T> implements FileWriter<PositionDelete<T>, DeleteWr
   private final FileFormat format;
   private final StructLike partition;
   private final long recordsNumThreshold;
-  private final DeleteGranularity deleteGranularity;
 
-  private DeleteWriteResult result;
   private int records = 0;
   private boolean closed = false;
   private Throwable failure;
@@ -60,44 +59,12 @@ class SortedPosDeleteWriter<T> implements FileWriter<PositionDelete<T>, DeleteWr
       OutputFileFactory fileFactory,
       FileFormat format,
       StructLike partition,
-      long recordsNumThreshold,
-      DeleteGranularity deleteGranularity) {
+      long recordsNumThreshold) {
     this.appenderFactory = appenderFactory;
     this.fileFactory = fileFactory;
     this.format = format;
     this.partition = partition;
     this.recordsNumThreshold = recordsNumThreshold;
-    this.deleteGranularity = deleteGranularity;
-  }
-
-  SortedPosDeleteWriter(
-      FileAppenderFactory<T> appenderFactory,
-      OutputFileFactory fileFactory,
-      FileFormat format,
-      StructLike partition,
-      long recordsNumThreshold) {
-    this(
-        appenderFactory,
-        fileFactory,
-        format,
-        partition,
-        recordsNumThreshold,
-        DeleteGranularity.PARTITION);
-  }
-
-  SortedPosDeleteWriter(
-      FileAppenderFactory<T> appenderFactory,
-      OutputFileFactory fileFactory,
-      FileFormat format,
-      StructLike partition,
-      DeleteGranularity deleteGranularity) {
-    this(
-        appenderFactory,
-        fileFactory,
-        format,
-        partition,
-        DEFAULT_RECORDS_NUM_THRESHOLD,
-        deleteGranularity);
   }
 
   SortedPosDeleteWriter(
@@ -105,13 +72,7 @@ class SortedPosDeleteWriter<T> implements FileWriter<PositionDelete<T>, DeleteWr
       OutputFileFactory fileFactory,
       FileFormat format,
       StructLike partition) {
-    this(
-        appenderFactory,
-        fileFactory,
-        format,
-        partition,
-        DEFAULT_RECORDS_NUM_THRESHOLD,
-        DeleteGranularity.PARTITION);
+    this(appenderFactory, fileFactory, format, partition, DEFAULT_RECORDS_NUM_THRESHOLD);
   }
 
   protected void setFailure(Throwable throwable) {
@@ -157,11 +118,11 @@ class SortedPosDeleteWriter<T> implements FileWriter<PositionDelete<T>, DeleteWr
 
     Preconditions.checkState(failure == null, "Cannot return results from failed writer", failure);
 
-    return result.deleteFiles();
+    return completedFiles;
   }
 
   public CharSequenceSet referencedDataFiles() {
-    return result.referencedDataFiles();
+    return referencedDataFiles;
   }
 
   @Override
@@ -175,21 +136,26 @@ class SortedPosDeleteWriter<T> implements FileWriter<PositionDelete<T>, DeleteWr
   @Override
   public DeleteWriteResult result() {
     Preconditions.checkState(closed, "Cannot get result from unclosed writer");
-    return result;
+    return new DeleteWriteResult(completedFiles, referencedDataFiles);
   }
 
   private void flushDeletes() {
     if (posDeletes.isEmpty()) {
-      result = new DeleteWriteResult(ImmutableList.of(), CharSequenceSet.empty());
       return;
     }
 
-    FileWriter<PositionDelete<T>, DeleteWriteResult> writer =
-        DeleteGranularity.FILE.equals(deleteGranularity)
-            ? new FileScopedPositionDeleteWriter<>(this::createWriter)
-            : createWriter();
+    // Create a new output file.
+    EncryptedOutputFile outputFile;
+    if (partition == null) {
+      outputFile = fileFactory.newOutputFile();
+    } else {
+      outputFile = fileFactory.newOutputFile(partition);
+    }
+
+    PositionDeleteWriter<T> writer =
+        appenderFactory.newPosDeleteWriter(outputFile, format, partition);
     PositionDelete<T> posDelete = PositionDelete.create();
-    try (FileWriter<PositionDelete<T>, DeleteWriteResult> closeableWriter = writer) {
+    try (PositionDeleteWriter<T> closeableWriter = writer) {
       // Sort all the paths.
       List<CharSequence> paths = Lists.newArrayListWithCapacity(posDeletes.keySet().size());
       for (CharSequenceWrapper charSequenceWrapper : posDeletes.keySet()) {
@@ -208,21 +174,20 @@ class SortedPosDeleteWriter<T> implements FileWriter<PositionDelete<T>, DeleteWr
     } catch (IOException e) {
       setFailure(e);
       throw new UncheckedIOException(
-          "Failed to write the sorted path/pos pairs to pos-delete file", e);
+          "Failed to write the sorted path/pos pairs to pos-delete file: "
+              + outputFile.encryptingOutputFile().location(),
+          e);
     }
 
     // Clear the buffered pos-deletions.
     posDeletes.clear();
     records = 0;
 
-    result = writer.result();
-  }
+    // Add the referenced data files.
+    referencedDataFiles.addAll(writer.referencedDataFiles());
 
-  private FileWriter<PositionDelete<T>, DeleteWriteResult> createWriter() {
-    return appenderFactory.newPosDeleteWriter(
-        partition == null ? fileFactory.newOutputFile() : fileFactory.newOutputFile(partition),
-        format,
-        partition);
+    // Add the completed delete files.
+    completedFiles.add(writer.toDeleteFile());
   }
 
   private static class PosRow<R> {
