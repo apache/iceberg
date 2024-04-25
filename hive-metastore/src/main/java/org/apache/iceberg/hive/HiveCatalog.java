@@ -284,17 +284,18 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
         LOG.warn("Failed to load view metadata for view: {}", identifier, e);
       }
 
-      if (lastViewMetadata == null) {
-        return false;
-      } else {
-        clients.run(
-            client -> {
-              client.dropTable(database, viewName, false, false);
-              return null;
-            });
-        return true;
+      clients.run(
+          client -> {
+            client.dropTable(database, viewName, false, false);
+            return null;
+          });
+
+      if (lastViewMetadata != null) {
+        CatalogUtil.dropViewMetadata(ops.io(), lastViewMetadata);
       }
 
+      LOG.info("Dropped view: {}", identifier);
+      return true;
     } catch (NoSuchObjectException e) {
       LOG.info("Skipping drop, view does not exist: {}", identifier, e);
       return false;
