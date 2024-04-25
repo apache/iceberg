@@ -26,6 +26,10 @@ public class JavaHashes {
   private JavaHashes() {}
 
   public static int hashCode(CharSequence str) {
+    if (null == str) {
+      return 0;
+    }
+
     int result = 177;
     for (int i = 0; i < str.length(); i += 1) {
       char ch = str.charAt(i);
