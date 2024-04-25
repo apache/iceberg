@@ -116,18 +116,19 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
   public void configureInputJobCredentials(TableDesc tableDesc, Map<String, String> secrets) {}
 
   private void setCommonJobConf(JobConf jobConf) {
-    String customValue = jobConf.get("tez.mrreader.config.update.properties", null);
+    String key = "tez.mrreader.config.update.properties";
+    String customValue = jobConf.get(key, null);
     String value;
-    if (null == customValue) {
+    if (null == customValue || customValue.trim().isEmpty()) {
       value = "hive.io.file.readcolumn.names,hive.io.file.readcolumn.ids";
     } else {
-      List<String> valueList = Arrays.asList(customValue.split(","));
+      List<String> valueList = Lists.newArrayList(customValue.split(","));
       valueList.add("hive.io.file.readcolumn.names");
       valueList.add("hive.io.file.readcolumn.ids");
       List<String> uniqueValues = Lists.newArrayList(Sets.newHashSet(valueList));
       value = String.join(",", uniqueValues);
     }
-    jobConf.set("tez.mrreader.config.update.properties", value);
+    jobConf.set(key, value);
   }
 
   @Override
