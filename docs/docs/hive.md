@@ -133,6 +133,7 @@ To use the Tez engine on Hive `3.1.2` or later, Tez needs to be upgraded to >= `
 To use the Tez engine on Hive `2.3.x`, you will need to manually build Tez from the `branch-0.9` branch due to a
 backwards incompatibility issue with Tez `0.10.1`.
 
+
 ## Catalog Management
 
 ### Global Hive catalog
