@@ -72,6 +72,23 @@ To add a dependency on Iceberg in Maven, add the following to your `pom.xml`:
 </dependencies>
 ```
 
+### 1.5.1 release
+Apache Iceberg 1.5.1 was released on April 25, 2024.
+
+The 1.5.1 patch release contains fixes for JDBC Catalog, fixing a FileIO regression 
+where an extra head request was performed when reading manifests and REST client retries
+for 5xx failures. The release also includes fixes for system function pushdown for CoW tables
+in Spark 3.4 and 3.5.
+
+* Core
+    - Fix FileIO regression where extra head request was performed when reading manifests ([\#10114](https://github.com/apache/iceberg/pull/10114))
+    - Mark 502 and 504 HTTP status codes as retryable in REST Client ([\#10113](https://github.com/apache/iceberg/pull/10113))
+    - Fix JDBC Catalog table commits when migrating from V0 to V1 schema ([\#10152](https://github.com/apache/iceberg/pull/10152))
+    - Fix JDBC Catalog namespaces SQL to use the proper escape character which generalizes to different database backends like Postgres and MySQL ([\#10167](https://github.com/apache/iceberg/pull/10167))
+* Spark
+    - Fix system function pushdown in CoW row level commands for Spark 3.5 ([\#9873](https://github.com/apache/iceberg/pull/9873))
+    - Fix system function pushdown in CoW row level commands for Spark 3.4 ([\#10119](https://github.com/apache/iceberg/pull/10119))
+
 ### 1.5.0 release
 
 Apache Iceberg 1.5.0 was released on March 11, 2024.
