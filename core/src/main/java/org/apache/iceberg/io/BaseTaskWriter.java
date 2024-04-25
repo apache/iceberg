@@ -29,7 +29,6 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.deletes.ContinuousFileScopedPositionDeleteWriter;
 import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
@@ -131,11 +130,8 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       this.dataWriter = new RollingFileWriter(partition);
       this.eqDeleteWriter = new RollingEqDeleteWriter(partition);
       this.posDeleteWriter =
-          deleteGranularity.equals(DeleteGranularity.FILE)
-              ? new ContinuousFileScopedPositionDeleteWriter<>(
-                  () ->
-                      new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, partition))
-              : new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, partition);
+          new SortedPosDeleteWriter<>(
+              appenderFactory, fileFactory, format, partition, deleteGranularity);
       this.insertedRowMap = StructLikeMap.create(deleteSchema.asStruct());
     }
 
