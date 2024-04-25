@@ -88,8 +88,9 @@ public class Transforms {
     try {
       switch (type.typeId()) {
         case TIMESTAMP:
-        case TIMESTAMP_NANO:
           return Timestamps.get((Types.TimestampType) type, transform);
+        case TIMESTAMP_NANO:
+          return Timestamps.get((Types.TimestampNanoType) type, transform);
         case DATE:
           return Dates.valueOf(transform.toUpperCase(Locale.ENGLISH));
       }

@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.transforms;
 
-import static org.apache.iceberg.types.Type.TypeID.TIMESTAMP;
-
 import com.google.errorprone.annotations.Immutable;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
@@ -70,8 +68,24 @@ class Timestamps implements Transform<Long, Integer> {
     }
   }
 
+  static Timestamps get(Types.TimestampNanoType type, String resultTypeUnit) {
+    switch (resultTypeUnit.toLowerCase(Locale.ENGLISH)) {
+      case "year":
+        return get(type, ChronoUnit.YEARS);
+      case "month":
+        return get(type, ChronoUnit.MONTHS);
+      case "day":
+        return get(type, ChronoUnit.DAYS);
+      case "hour":
+        return get(type, ChronoUnit.HOURS);
+      default:
+        throw new IllegalArgumentException(
+            "Unsupported source/result type units: " + type + "->" + resultTypeUnit);
+    }
+  }
+
   static Timestamps get(Types.TimestampType type, ChronoUnit resultTypeUnit) {
-    if (type.typeId() != TIMESTAMP) {
+    if (type.typeId() != Type.TypeID.TIMESTAMP) {
       throw new UnsupportedOperationException("Unsupported timestamp unit: " + type);
     }
     switch (resultTypeUnit) {
@@ -83,6 +97,25 @@ class Timestamps implements Transform<Long, Integer> {
         return DAY_FROM_MICROS;
       case HOURS:
         return HOUR_FROM_MICROS;
+      default:
+        throw new IllegalArgumentException(
+            "Unsupported source/result type units: " + type + "->" + resultTypeUnit);
+    }
+  }
+
+  static Timestamps get(Types.TimestampNanoType type, ChronoUnit resultTypeUnit) {
+    if (type.typeId() != Type.TypeID.TIMESTAMP_NANO) {
+      throw new UnsupportedOperationException("Unsupported timestamp unit: " + type);
+    }
+    switch (resultTypeUnit) {
+      case YEARS:
+        return YEAR_FROM_NANOS;
+      case MONTHS:
+        return MONTH_FROM_NANOS;
+      case DAYS:
+        return DAY_FROM_NANOS;
+      case HOURS:
+        return HOUR_FROM_NANOS;
       default:
         throw new IllegalArgumentException(
             "Unsupported source/result type units: " + type + "->" + resultTypeUnit);
@@ -170,7 +203,7 @@ class Timestamps implements Transform<Long, Integer> {
 
   @Override
   public boolean canTransform(Type type) {
-    return type.typeId() == TIMESTAMP || type.typeId() == Type.TypeID.TIMESTAMP_NANO;
+    return type.typeId() == Type.TypeID.TIMESTAMP || type.typeId() == Type.TypeID.TIMESTAMP_NANO;
   }
 
   @Override
