@@ -25,9 +25,16 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestCharSequenceMap {
+
+  @Test
+  public void nullString() {
+    Assertions.assertThat(CharSequenceMap.create()).doesNotContainKey((String) null);
+    Assertions.assertThat(CharSequenceMap.create()).doesNotContainValue((String) null);
+  }
 
   @Test
   public void testEmptyMap() {
