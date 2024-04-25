@@ -184,16 +184,16 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
 
     try {
       String database = namespace.level(0);
-      List<String> tableNames =
+      List<String> viewNames =
           clients.run(client -> client.getTables(database, "*", TableType.VIRTUAL_VIEW));
 
       // Retrieving the Table objects from HMS in batches to avoid OOM
       List<TableIdentifier> filteredTableIdentifiers = Lists.newArrayList();
-      Iterable<List<String>> tableNameSets = Iterables.partition(tableNames, 100);
+      Iterable<List<String>> viewNameSets = Iterables.partition(viewNames, 100);
 
-      for (List<String> tableNameSet : tableNameSets) {
+      for (List<String> viewNameSet : viewNameSets) {
         filteredTableIdentifiers.addAll(
-            listIcebergTables(tableNameSet, namespace, HiveOperationsBase.ICEBERG_VIEW_TYPE_VALUE));
+            listIcebergTables(viewNameSet, namespace, HiveOperationsBase.ICEBERG_VIEW_TYPE_VALUE));
       }
 
       return filteredTableIdentifiers;
@@ -275,13 +275,9 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     try {
       String database = identifier.namespace().level(0);
       String viewName = identifier.name();
-      Table table = clients.run(client -> client.getTable(database, viewName));
-      HiveOperationsBase.validateTableIsIcebergView(
-          table, CatalogUtil.fullTableName(name, identifier));
 
       HiveViewOperations ops = (HiveViewOperations) newViewOps(identifier);
       ViewMetadata lastViewMetadata = null;
-
       try {
         lastViewMetadata = ops.current();
       } catch (NotFoundException e) {
@@ -290,22 +286,22 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
 
       clients.run(
           client -> {
-            client.dropTable(database, viewName);
+            client.dropTable(database, viewName, false, false);
             return null;
           });
 
       if (lastViewMetadata != null) {
         CatalogUtil.dropViewMetadata(ops.io(), lastViewMetadata);
+        LOG.info("Dropped view: {}", identifier);
+        return true;
       }
 
-      LOG.info("Dropped view: {}", identifier);
-      return true;
-
+      return false;
     } catch (NoSuchObjectException e) {
       LOG.info("Skipping drop, view does not exist: {}", identifier, e);
       return false;
     } catch (TException e) {
-      throw new RuntimeException("Failed to drop " + identifier, e);
+      throw new RuntimeException("Failed to drop view " + identifier, e);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new RuntimeException("Interrupted in call to dropView", e);
@@ -318,7 +314,6 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
   }
 
   @Override
-  @SuppressWarnings("FormatStringAnnotation")
   public void renameView(TableIdentifier from, TableIdentifier to) {
     renameTableOrView(from, to, HiveOperationsBase.ContentType.VIEW);
   }

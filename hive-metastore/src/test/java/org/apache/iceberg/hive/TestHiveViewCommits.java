@@ -30,8 +30,10 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.Schema;
@@ -69,6 +71,7 @@ public class TestHiveViewCommits {
       HiveMetastoreExtension.builder().withDatabase(DB_NAME).build();
 
   private View view;
+  private Path viewLocation;
 
   private static HiveCatalog catalog;
 
@@ -94,10 +97,12 @@ public class TestHiveViewCommits {
             .withDefaultNamespace(ns)
             .withQuery("hive", "select * from ns.tbl")
             .create();
+    viewLocation = new Path(view.location());
   }
 
   @AfterEach
-  public void dropTestView() {
+  public void dropTestView() throws IOException {
+    viewLocation.getFileSystem(HIVE_METASTORE_EXTENSION.hiveConf()).delete(viewLocation, true);
     catalog.dropView(VIEW_IDENTIFIER);
   }
 
@@ -110,7 +115,7 @@ public class TestHiveViewCommits {
     view.updateProperties().set("k1", "v1").commit();
     ops.refresh();
     ViewMetadata metadataV2 = ops.current();
-    assertThat(ops.current().properties()).hasSize(1);
+    assertThat(ops.current().properties()).hasSize(1).containsEntry("k1", "v1");
 
     HiveViewOperations spyOps = spy(ops);
 
@@ -152,7 +157,7 @@ public class TestHiveViewCommits {
     view.updateProperties().set("k1", "v1").commit();
     ops.refresh();
     ViewMetadata metadataV2 = ops.current();
-    assertThat(ops.current().properties()).hasSize(1);
+    assertThat(ops.current().properties()).hasSize(1).containsEntry("k1", "v1");
 
     HiveViewOperations spyOps = spy(ops);
 
@@ -179,7 +184,7 @@ public class TestHiveViewCommits {
 
     view.updateProperties().set("k1", "v1").commit();
     ops.refresh();
-    assertThat(ops.current().properties()).hasSize(1);
+    assertThat(ops.current().properties()).hasSize(1).containsEntry("k1", "v1");
     ViewMetadata metadataV2 = ops.current();
 
     HiveViewOperations spyOps = spy(ops);
@@ -207,7 +212,7 @@ public class TestHiveViewCommits {
     view.updateProperties().set("k1", "v1").commit();
     ops.refresh();
     ViewMetadata metadataV2 = ops.current();
-    assertThat(ops.current().properties()).hasSize(1);
+    assertThat(ops.current().properties()).hasSize(1).containsEntry("k1", "v1");
 
     HiveViewOperations spyOps = spy(ops);
 
@@ -253,7 +258,7 @@ public class TestHiveViewCommits {
     view.updateProperties().set("k0", "v0").commit();
     ops.refresh();
     ViewMetadata metadataV2 = ops.current();
-    assertThat(ops.current().properties()).hasSize(1);
+    assertThat(ops.current().properties()).hasSize(1).containsEntry("k0", "v0");
 
     HiveViewOperations spyOps = spy(ops);
 
@@ -311,7 +316,7 @@ public class TestHiveViewCommits {
     view.updateProperties().set("k1", "v1").commit();
     ops.refresh();
     ViewMetadata metadataV2 = ops.current();
-    assertThat(ops.current().properties()).hasSize(1);
+    assertThat(ops.current().properties()).hasSize(1).containsEntry("k1", "v1");
 
     HiveViewOperations spyOps = spy(ops);
 
@@ -343,7 +348,7 @@ public class TestHiveViewCommits {
     view.updateProperties().set("k1", "v1").commit();
     ops.refresh();
     ViewMetadata metadataV2 = ops.current();
-    assertThat(ops.current().properties()).hasSize(1);
+    assertThat(ops.current().properties()).hasSize(1).containsEntry("k1", "v1");
 
     HiveViewOperations spyOps = spy(ops);
 
