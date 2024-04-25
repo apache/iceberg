@@ -1227,10 +1227,10 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     testTables.createTable(shell, "part_test", dateSchema, spec, FileFormat.PARQUET, records);
     List<Object[]> result = shell.executeStatement("SELECT * from part_test order by id");
 
-    assertThat(records.size()).isEqualTo(result.size());
-    assertThat("2023-01-21").isEqualTo(result.get(0)[1]);
-    assertThat("2023-01-22").isEqualTo(result.get(1)[1]);
-    assertThat("2022-01-21").isEqualTo(result.get(2)[1]);
+    assertThat(result).hasSameSizeAs(records);
+    assertThat(result.get(0)[1]).isEqualTo("2023-01-21");
+    assertThat(result.get(1)[1]).isEqualTo("2023-01-22");
+    assertThat(result.get(2)[1]).isEqualTo("2022-01-21");
   }
 
   @TestTemplate
@@ -1251,10 +1251,10 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     testTables.createTable(shell, "part_test", dateSchema, spec, FileFormat.PARQUET, records);
     List<Object[]> result = shell.executeStatement("SELECT * from part_test order by id");
 
-    assertThat(records.size()).isEqualTo(result.size());
-    assertThat("2023-01-21 21:10:10.1").isEqualTo(result.get(0)[1]);
-    assertThat("2023-01-21 22:10:10.2").isEqualTo(result.get(1)[1]);
-    assertThat("2023-01-22 21:10:10.3").isEqualTo(result.get(2)[1]);
+    assertThat(result).hasSameSizeAs(records);
+    assertThat(result.get(0)[1]).isEqualTo("2023-01-21 21:10:10.1");
+    assertThat(result.get(1)[1]).isEqualTo("2023-01-21 22:10:10.2");
+    assertThat(result.get(2)[1]).isEqualTo("2023-01-22 21:10:10.3");
   }
 
   /**
