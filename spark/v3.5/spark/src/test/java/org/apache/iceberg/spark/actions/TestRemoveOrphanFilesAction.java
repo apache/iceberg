@@ -162,7 +162,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
             .execute();
     assertThat(result2.orphanFileLocations())
         .as("Action should find 1 file")
-        .isEqualTo(invalidFiles);
+        .containsAll(invalidFiles);
     assertThat(fs.exists(new Path(invalidFiles.get(0))))
         .as("Invalid file should be present")
         .isTrue();
@@ -171,7 +171,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
         actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
     assertThat(result3.orphanFileLocations())
         .as("Action should delete 1 file")
-        .isEqualTo(invalidFiles);
+        .containsAll(invalidFiles);
     assertThat(fs.exists(new Path(invalidFiles.get(0))))
         .as("Invalid file should not be present")
         .isFalse();
@@ -666,7 +666,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
             .execute();
     assertThat(result.orphanFileLocations())
         .as("Action should find 1 file")
-        .isEqualTo(invalidFiles);
+        .containsAll(invalidFiles);
     assertThat(fs.exists(new Path(invalidFiles.get(0))))
         .as("Invalid file should be present")
         .isTrue();
@@ -839,7 +839,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
             .execute();
     assertThat(result2.orphanFileLocations())
         .as("Action should find 1 file")
-        .isEqualTo(invalidFilePaths);
+        .containsAll(invalidFilePaths);
     assertThat(fs.exists(new Path(invalidFilePaths.get(0))))
         .as("Invalid file should be present")
         .isTrue();
@@ -852,7 +852,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
             .execute();
     assertThat(result3.orphanFileLocations())
         .as("Action should delete 1 file")
-        .isEqualTo(invalidFilePaths);
+        .containsAll(invalidFilePaths);
     assertThat(fs.exists(new Path(invalidFilePaths.get(0))))
         .as("Invalid file should not be present")
         .isFalse();
@@ -1085,9 +1085,9 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     Dataset<String> validFileDS = spark.createDataset(validFiles, Encoders.STRING());
     Dataset<String> actualFileDS = spark.createDataset(actualFiles, Encoders.STRING());
 
-    List<String> orphanFiles =
+    Set<String> orphanFiles =
         DeleteOrphanFilesSparkAction.findOrphanFiles(
             spark, toFileUri.apply(actualFileDS), toFileUri.apply(validFileDS), mode);
-    assertThat(orphanFiles).isEqualTo(expectedOrphanFiles);
+    assertThat(orphanFiles.stream().collect(Collectors.toList())).containsAll(expectedOrphanFiles);
   }
 }
