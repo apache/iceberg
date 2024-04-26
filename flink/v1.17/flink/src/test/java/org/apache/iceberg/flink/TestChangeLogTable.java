@@ -74,10 +74,6 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
     return ImmutableList.of(new Object[] {true}, new Object[] {false});
   }
 
-  public TestChangeLogTable(boolean partitioned) {
-    this.partitioned = partitioned;
-  }
-
   @BeforeAll
   public static void createWarehouse() throws IOException {
     File warehouseFile = File.createTempFile("junit", null, temp.toFile());
