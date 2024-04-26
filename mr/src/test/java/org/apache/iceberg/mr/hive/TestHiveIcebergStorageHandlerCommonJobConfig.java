@@ -21,7 +21,15 @@ package org.apache.iceberg.mr.hive;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
+import java.util.Set;
+import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -32,7 +40,19 @@ public class TestHiveIcebergStorageHandlerCommonJobConfig {
   private static TestHiveShell shell;
   private static final String TEZ_MRREADER_CONFIG_UPDATE_PROPERTIES =
       "tez.mrreader.config.update.properties";
-  private static final String FAKE_CUSTOM_CONFIG_VALUE = "fake_custom_config_value";
+
+  @Parameter(index = 0)
+  private String fakeCustomConfigValue;
+
+  @Parameters(name = "fakeCustomConfigValue={0}")
+  public static Collection<Object[]> parameters() {
+    return ImmutableList.of(
+        new String[] {"fake_custom_config_value"},
+        new String[] {"fake_custom_config_value "},
+        new String[] {" fake_custom_config_value"},
+        new String[] {" fake_custom_config_value1 , fake_custom_config_value2 "},
+        new String[] {" fake_custom_config_value1 , fake_custom_config_value1 "});
+  }
 
   @BeforeEach
   public void before() throws IOException {
@@ -49,23 +69,30 @@ public class TestHiveIcebergStorageHandlerCommonJobConfig {
   public void testWithoutCustomConfigValue() {
     String configValue = shell.getHiveConf().get(TEZ_MRREADER_CONFIG_UPDATE_PROPERTIES, null);
     assertThat(configValue).isNot(null);
-    assertThat(configValue).contains("hive.io.file.readcolumn.names");
-    assertThat(configValue).contains("hive.io.file.readcolumn.ids");
-    assertThat(configValue).contains(",");
-    assertThat(configValue).doesNotEndWith(",");
-    assertThat(configValue).doesNotStartWith(",");
+    List<String> configValueList = Lists.newArrayList(configValue.split(","));
+    configValueList.sort(String::compareTo);
+    String sortedConfigValue = String.join(",", configValueList);
+    assertThat(sortedConfigValue)
+        .isEqualTo("hive.io.file.readcolumn.ids,hive.io.file.readcolumn.names");
   }
 
   @TestTemplate
   public void testWithCustomConfigValue() {
-    shell.setHiveConfValue(TEZ_MRREADER_CONFIG_UPDATE_PROPERTIES, FAKE_CUSTOM_CONFIG_VALUE);
+    shell.setHiveConfValue(TEZ_MRREADER_CONFIG_UPDATE_PROPERTIES, fakeCustomConfigValue);
     String configValue = shell.getHiveConf().get(TEZ_MRREADER_CONFIG_UPDATE_PROPERTIES, null);
     assertThat(configValue).isNot(null);
-    assertThat(configValue).contains("hive.io.file.readcolumn.names");
-    assertThat(configValue).contains("hive.io.file.readcolumn.ids");
-    assertThat(configValue).contains(FAKE_CUSTOM_CONFIG_VALUE);
-    assertThat(configValue).contains(",");
-    assertThat(configValue).doesNotEndWith(",");
-    assertThat(configValue).doesNotStartWith(",");
+    String[] configValues = configValue.trim().split(",");
+    Set<String> customValueSet = Sets.newHashSet();
+    Lists.newArrayList(configValues).forEach(e -> customValueSet.add(e.trim()));
+    List<String> configValueList = Lists.newArrayList(customValueSet);
+    configValueList.sort(String::compareTo);
+    String configValueString = String.format(",", configValueList);
+    Set<String> targetValueSet = Sets.newHashSet(customValueSet);
+    targetValueSet.add("hive.io.file.readcolumn.names");
+    targetValueSet.add("hive.io.file.readcolumn.ids");
+    List<String> targetValueList = Lists.newArrayList(targetValueSet);
+    targetValueList.sort(String::compareTo);
+    String targetValueString = String.format(",", targetValueList);
+    assertThat(configValueString).isEqualTo(targetValueString);
   }
 }

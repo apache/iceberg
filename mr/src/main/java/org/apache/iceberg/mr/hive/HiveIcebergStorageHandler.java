@@ -20,9 +20,9 @@ package org.apache.iceberg.mr.hive;
 
 import java.io.Serializable;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.HiveMetaHook;
 import org.apache.hadoop.hive.ql.metadata.HiveStorageHandler;
@@ -121,10 +121,9 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
     if (null == customValue || customValue.trim().isEmpty()) {
       value = "hive.io.file.readcolumn.names,hive.io.file.readcolumn.ids";
     } else {
-      List<String> valueList = Lists.newArrayList(customValue.split(","));
-      valueList.add("hive.io.file.readcolumn.names");
-      valueList.add("hive.io.file.readcolumn.ids");
-      List<String> uniqueValues = Lists.newArrayList(Sets.newHashSet(valueList));
+      Set<String> uniqueValues =
+          Sets.newHashSet("hive.io.file.readcolumn.names", "hive.io.file.readcolumn.ids");
+      Lists.newArrayList(customValue.trim().split(",")).forEach(e -> uniqueValues.add(e.trim()));
       value = String.join(",", uniqueValues);
     }
     jobConf.set(key, value);
