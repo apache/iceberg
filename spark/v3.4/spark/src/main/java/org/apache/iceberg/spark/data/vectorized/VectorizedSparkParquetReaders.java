@@ -53,37 +53,39 @@ public class VectorizedSparkParquetReaders {
 
   private VectorizedSparkParquetReaders() {}
 
-  public static VectorizedReader buildReader(
+  public static ColumnarBatchReader buildReader(
       Schema expectedSchema,
       MessageType fileSchema,
       Map<Integer, ?> idToConstant,
       DeleteFilter<InternalRow> deleteFilter) {
-    return TypeWithSchemaVisitor.visit(
-        expectedSchema.asStruct(),
-        fileSchema,
-        new ReaderBuilder(
-            expectedSchema,
+    return (ColumnarBatchReader)
+        TypeWithSchemaVisitor.visit(
+            expectedSchema.asStruct(),
             fileSchema,
-            NullCheckingForGet.NULL_CHECKING_ENABLED,
-            idToConstant,
-            ColumnarBatchReader::new,
-            deleteFilter));
+            new ReaderBuilder(
+                expectedSchema,
+                fileSchema,
+                NullCheckingForGet.NULL_CHECKING_ENABLED,
+                idToConstant,
+                ColumnarBatchReader::new,
+                deleteFilter));
   }
 
-  public static VectorizedReader buildCometReader(
+  public static CometColumnarBatchReader buildCometReader(
       Schema expectedSchema,
       MessageType fileSchema,
       Map<Integer, ?> idToConstant,
       DeleteFilter<InternalRow> deleteFilter) {
-    return TypeWithSchemaVisitor.visit(
-        expectedSchema.asStruct(),
-        fileSchema,
-        new CometVectorizedReaderBuilder(
-            expectedSchema,
+    return (CometColumnarBatchReader)
+        TypeWithSchemaVisitor.visit(
+            expectedSchema.asStruct(),
             fileSchema,
-            idToConstant,
-            readers -> new CometColumnarBatchReader(readers, expectedSchema),
-            deleteFilter));
+            new CometVectorizedReaderBuilder(
+                expectedSchema,
+                fileSchema,
+                idToConstant,
+                readers -> new CometColumnarBatchReader(readers, expectedSchema),
+                deleteFilter));
   }
 
   // enables unsafe memory access to avoid costly checks to see if index is within bounds
