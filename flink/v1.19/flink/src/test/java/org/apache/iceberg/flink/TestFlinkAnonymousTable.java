@@ -59,8 +59,7 @@ public class TestFlinkAnonymousTable extends TestBase {
         .atMost(3, TimeUnit.SECONDS)
         .untilAsserted(
             () ->
-                assertThat(
-                        warehouseDir.toPath().resolve("test_db").resolve("test").toFile())
+                assertThat(warehouseDir.toPath().resolve("test_db").resolve("test").toFile())
                     .exists());
   }
 }

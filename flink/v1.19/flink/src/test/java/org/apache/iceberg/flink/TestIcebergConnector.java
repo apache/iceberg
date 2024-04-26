@@ -54,7 +54,7 @@ public class TestIcebergConnector extends TestBase {
 
   private static final String TABLE_NAME = "test_table";
 
-  @TempDir private static Path WAREHOUSE;
+  @TempDir private static Path warehouse;
 
   @Parameter(index = 0)
   private String catalogName;
@@ -330,7 +330,7 @@ public class TestIcebergConnector extends TestBase {
   private static String createWarehouse() {
     try {
       return String.format(
-          "file://%s", Files.createTempDirectory(WAREHOUSE, "junit").toFile().getAbsolutePath());
+          "file://%s", Files.createTempDirectory(warehouse, "junit").toFile().getAbsolutePath());
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

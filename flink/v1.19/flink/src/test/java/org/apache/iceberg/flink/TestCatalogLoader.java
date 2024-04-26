@@ -96,9 +96,7 @@ public class TestCatalogLoader extends TestBase {
 
   private static void validateHadoopConf(Table table) {
     FileIO io = table.io();
-    assertThat(io)
-        .as("FileIO should be a HadoopFileIO")
-        .isInstanceOf(HadoopFileIO.class);
+    assertThat(io).as("FileIO should be a HadoopFileIO").isInstanceOf(HadoopFileIO.class);
     HadoopFileIO hadoopIO = (HadoopFileIO) io;
     assertThat(hadoopIO.conf()).contains(entry("my_key", "my_value"));
   }
