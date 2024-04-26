@@ -118,7 +118,7 @@ public class SortingPositionOnlyDeleteWriter<T>
 
   @SuppressWarnings("CollectionUndefinedEquality")
   private DeleteWriteResult writeDeletes(Collection<CharSequence> paths) throws IOException {
-    if (paths.size() == 0) {
+    if (paths.isEmpty()) {
       return new DeleteWriteResult(Lists.newArrayList(), CharSequenceSet.empty());
     }
 

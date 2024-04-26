@@ -110,6 +110,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   /** Base equality delta writer to write both insert records and equality-deletes. */
   protected abstract class BaseEqualityDeltaWriter implements Closeable {
     private final StructProjection structProjection;
+    private final PositionDelete<T> positionDelete;
     private RollingFileWriter dataWriter;
     private RollingEqDeleteWriter eqDeleteWriter;
     private FileWriter<PositionDelete<T>, DeleteWriteResult> posDeleteWriter;
@@ -127,18 +128,13 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       Preconditions.checkNotNull(schema, "Iceberg table schema cannot be null.");
       Preconditions.checkNotNull(deleteSchema, "Equality-delete schema cannot be null.");
       this.structProjection = StructProjection.create(schema, deleteSchema);
+      this.positionDelete = PositionDelete.create();
 
       this.dataWriter = new RollingFileWriter(partition);
       this.eqDeleteWriter = new RollingEqDeleteWriter(partition);
       this.posDeleteWriter =
           new SortingPositionOnlyDeleteWriter<>(
-              () ->
-                  appenderFactory.newPosDeleteWriter(
-                      partition == null
-                          ? fileFactory.newOutputFile()
-                          : fileFactory.newOutputFile(partition),
-                      format,
-                      partition),
+              () -> appenderFactory.newPosDeleteWriter(newOutputFile(partition), format, partition),
               deleteGranularity);
       this.insertedRowMap = StructLikeMap.create(deleteSchema.asStruct());
     }
@@ -165,10 +161,17 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       dataWriter.write(row);
     }
 
+    private EncryptedOutputFile newOutputFile(StructLike partition) {
+      if (spec.isUnpartitioned() || partition == null) {
+        return fileFactory.newOutputFile();
+      } else {
+        return fileFactory.newOutputFile(spec, partition);
+      }
+    }
+
     private void writePosDelete(PathOffset pathOffset) {
-      PositionDelete<T> delete = PositionDelete.create();
-      delete.set(pathOffset.path, pathOffset.rowOffset, null);
-      posDeleteWriter.write(delete);
+      positionDelete.set(pathOffset.path, pathOffset.rowOffset, null);
+      posDeleteWriter.write(positionDelete);
     }
 
     /**
