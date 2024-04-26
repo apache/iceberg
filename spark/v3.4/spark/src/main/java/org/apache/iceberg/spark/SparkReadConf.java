@@ -22,7 +22,6 @@ import static org.apache.iceberg.PlanningMode.LOCAL;
 
 import java.util.Map;
 import org.apache.iceberg.PlanningMode;
-import org.apache.iceberg.ReaderType;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -355,11 +354,11 @@ public class SparkReadConf {
         .parse();
   }
 
-  public ReaderType getReaderType() {
+  public ParquetReaderType parquetReaderType() {
     return confParser
-        .readTypeConf()
-        .sessionConf(SparkSQLProperties.READER_TYPE)
-        .defaultValue(SparkSQLProperties.READER_TYPE_DEFAULT)
+        .enumConf(ParquetReaderType::valueOf)
+        .sessionConf(SparkSQLProperties.PARQUET_READER_TYPE)
+        .defaultValue(SparkSQLProperties.PARQUET_READER_TYPE_DEFAULT)
         .parse();
   }
 }

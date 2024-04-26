@@ -101,7 +101,7 @@ class CometColumnReader implements VectorizedReader<CometVector> {
       delegate.close();
     }
 
-    delegate = Utils.getColumnReader(sparkType, descriptor, batchSize, false, false);
+    delegate = Utils.getColumnReader(sparkType, descriptor, batchSize, false, true);
     initialized = true;
   }
 

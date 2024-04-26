@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg;
+package org.apache.iceberg.spark;
 
-public enum ReaderType {
+public enum ParquetReaderType {
   ICEBERG,
   COMET
 }

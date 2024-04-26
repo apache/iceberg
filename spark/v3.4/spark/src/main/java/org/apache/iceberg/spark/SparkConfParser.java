@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
-import org.apache.iceberg.ReaderType;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -70,8 +69,8 @@ class SparkConfParser {
     return new DurationConfParser();
   }
 
-  public ReadTypeConfParser readTypeConf() {
-    return new ReadTypeConfParser();
+  public <T extends Enum<T>> EnumConfParser<T> enumConf(Function<String, T> func) {
+    return new EnumConfParser<>(func);
   }
 
   class BooleanConfParser extends ConfParser<BooleanConfParser, Boolean> {
@@ -201,30 +200,31 @@ class SparkConfParser {
     }
   }
 
-  class ReadTypeConfParser extends ConfParser<ReadTypeConfParser, ReaderType> {
-    private ReaderType defaultValue;
+  class EnumConfParser<T> extends ConfParser<EnumConfParser<T>, T> {
+    private final Function<String, T> toEnum;
+    private T defaultValue;
+
+    EnumConfParser(Function<String, T> toEnum) {
+      this.toEnum = toEnum;
+    }
 
     @Override
-    protected ReadTypeConfParser self() {
+    protected EnumConfParser<T> self() {
       return this;
     }
 
-    public ReadTypeConfParser defaultValue(ReaderType value) {
+    public EnumConfParser<T> defaultValue(T value) {
       this.defaultValue = value;
       return self();
     }
 
-    public ReaderType parse() {
+    public T parse() {
       Preconditions.checkArgument(defaultValue != null, "Default value cannot be null");
-      return parse(this::toReaderType, defaultValue);
+      return parse(toEnum, defaultValue);
     }
 
-    public ReaderType parseOptional() {
-      return parse(this::toReaderType, defaultValue);
-    }
-
-    private ReaderType toReaderType(String value) {
-      return ReaderType.valueOf(value.toUpperCase());
+    public T parseOptional() {
+      return parse(toEnum, defaultValue);
     }
   }
 
