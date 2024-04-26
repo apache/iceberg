@@ -137,12 +137,11 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     private void advance() {
       while (shouldSkip[nextRowGroup]) {
         nextRowGroup += 1;
-        reader.skipNextRowGroup();
       }
 
       PageReadStore pages;
       try {
-        pages = reader.readNextFilteredRowGroup();
+        pages = reader.readFilteredRowGroup(nextRowGroup);
       } catch (IOException e) {
         throw new RuntimeIOException(e);
       }

@@ -27,6 +27,8 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.PrimitiveIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -187,11 +189,16 @@ public class ParquetValueReaders {
   static class PositionReader implements ParquetValueReader<Long> {
     private long rowOffset = -1;
     private long rowGroupStart;
+    private PrimitiveIterator.OfLong rowIndexes;
 
     @Override
     public Long read(Long reuse) {
-      rowOffset = rowOffset + 1;
-      return rowGroupStart + rowOffset;
+      if (rowIndexes != null) {
+        return rowIndexes.nextLong();
+      } else {
+        rowOffset = rowOffset + 1;
+        return rowGroupStart + rowOffset;
+      }
     }
 
     @Override
@@ -213,6 +220,10 @@ public class ParquetValueReaders {
     public void setPageSource(PageReadStore pageStore) {
       this.rowGroupStart = pageStore.getRowIndexOffset().orElse(0L);
       this.rowOffset = -1;
+      Optional<PrimitiveIterator.OfLong> optionalRowIndexes = pageStore.getRowIndexes();
+      if (optionalRowIndexes.isPresent()) {
+        this.rowIndexes = optionalRowIndexes.get();
+      }
     }
   }
 

@@ -120,7 +120,11 @@ class ReadConf<T> {
       this.model = (ParquetValueReader<T>) readerFunc.apply(typeWithIds);
       this.vectorizedModel = null;
       this.columnChunkMetaDataForRowGroups = null;
-      this.totalValues = reader.getFilteredRecordCount();
+      if (options.useRecordFilter()) {
+        this.totalValues = reader.getFilteredRecordCount();
+      } else {
+        this.totalValues = computedTotalValues;
+      }
     } else {
       this.model = null;
       this.vectorizedModel = (VectorizedReader<T>) batchedReaderFunc.apply(typeWithIds);

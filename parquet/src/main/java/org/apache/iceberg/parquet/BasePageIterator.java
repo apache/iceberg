@@ -71,6 +71,10 @@ public abstract class BasePageIterator {
     this.hasNext = false;
   }
 
+  protected void skip(int numValuesToSkip) {
+    throw new UnsupportedOperationException();
+  }
+
   protected abstract void initDataReader(
       Encoding dataEncoding, ByteBufferInputStream in, int valueCount);
 

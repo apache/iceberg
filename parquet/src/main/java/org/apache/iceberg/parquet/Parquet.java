@@ -105,6 +105,7 @@ import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.column.ParquetProperties.WriterVersion;
 import org.apache.parquet.crypto.FileDecryptionProperties;
 import org.apache.parquet.crypto.FileEncryptionProperties;
+import org.apache.parquet.filter2.compat.FilterCompat;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetFileWriter;
 import org.apache.parquet.hadoop.ParquetOutputFormat;
@@ -114,9 +115,13 @@ import org.apache.parquet.hadoop.api.ReadSupport;
 import org.apache.parquet.hadoop.api.WriteSupport;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.schema.MessageType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class Parquet {
   private Parquet() {}
+
+  private static final Logger LOG = LoggerFactory.getLogger(Parquet.class);
 
   private static final Collection<String> READ_PROPERTIES_TO_REMOVE =
       Sets.newHashSet(
@@ -1167,13 +1172,25 @@ public class Parquet {
 
         // TODO: for now, apply filter only for non-vectorized read
         if (filter != null && batchedReaderFunc == null) {
-          Schema fileSchema = getSchemaFromFile(fileDecryptionProperties);
-          optionsBuilder.useRecordFilter();
-          optionsBuilder.withRecordFilter(
-              ParquetFilters.convert(fileSchema, filter, caseSensitive));
+          MessageType type = getSchemaFromFile(fileDecryptionProperties);
+          Schema fileSchema = ParquetSchemaUtil.convert(type);
+          try {
+            FilterCompat.Filter convertedFilter =
+                ParquetFilters.convert(type, fileSchema, filter, caseSensitive);
+            optionsBuilder.useRecordFilter();
+            optionsBuilder.withRecordFilter(convertedFilter);
+          } catch (Exception e) {
+            // no record filter to use
+            optionsBuilder.useRecordFilter(false);
+            LOG.warn("ReadBuilder: filter conversion threw exception", e);
+          }
         }
 
         ParquetReadOptions options = optionsBuilder.build();
+        LOG.info(
+            "ReadBuilder: options: useRecordFilter: {}, recordFilter: {}",
+            options.useRecordFilter(),
+            options.getRecordFilter());
 
         NameMapping mapping;
         if (nameMapping != null) {
@@ -1226,7 +1243,8 @@ public class Parquet {
       if (filter != null) {
         // TODO: should not need to get the schema to push down before opening the file.
         // Parquet should allow setting a filter inside its read support
-        Schema fileSchema = getSchemaFromFile(fileDecryptionProperties);
+        MessageType type = getSchemaFromFile(fileDecryptionProperties);
+        Schema fileSchema = ParquetSchemaUtil.convert(type);
         builder
             .useStatsFilter()
             .useDictionaryFilter()
@@ -1261,7 +1279,7 @@ public class Parquet {
       return new ParquetIterable<>(builder);
     }
 
-    private Schema getSchemaFromFile(FileDecryptionProperties fileDecryptionProperties) {
+    private MessageType getSchemaFromFile(FileDecryptionProperties fileDecryptionProperties) {
       ParquetReadOptions decryptOptions =
           ParquetReadOptions.builder().withDecryption(fileDecryptionProperties).build();
       MessageType type;
@@ -1272,7 +1290,7 @@ public class Parquet {
         throw new RuntimeIOException(e);
       }
 
-      return ParquetSchemaUtil.convert(type);
+      return type;
     }
   }
 
