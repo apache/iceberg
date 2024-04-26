@@ -38,7 +38,7 @@ public abstract class DataTest {
 
   protected abstract void writeAndValidate(Schema schema) throws IOException;
 
-  private static final StructType SUPPORTED_PRIMITIVES =
+  protected static final StructType SUPPORTED_PRIMITIVES =
       StructType.of(
           required(100, "id", LongType.get()),
           optional(101, "data", Types.StringType.get()),
