@@ -57,18 +57,24 @@ public class Accessors {
 
   private static class PositionAccessor implements Accessor<StructLike> {
     private final int position;
+    private final String name;
     private final Type type;
     private final Class<?> javaClass;
 
-    PositionAccessor(int pos, Type type) {
+    PositionAccessor(int pos, String name, Type type) {
       this.position = pos;
+      this.name = name;
       this.type = type;
       this.javaClass = type.typeId().javaClass();
     }
 
     @Override
     public Object get(StructLike row) {
-      return row.get(position, javaClass);
+      Object result = row.get(position, javaClass);
+      if (result == null) {
+        result = row.get(name, javaClass);
+      }
+      return result;
     }
 
     @Override
@@ -183,8 +189,8 @@ public class Accessors {
     }
   }
 
-  private static Accessor<StructLike> newAccessor(int pos, Type type) {
-    return new PositionAccessor(pos, type);
+  private static Accessor<StructLike> newAccessor(int pos, String name, Type type) {
+    return new PositionAccessor(pos, name, type);
   }
 
   private static Accessor<StructLike> newAccessor(
@@ -226,7 +232,7 @@ public class Accessors {
         }
 
         // Add an accessor for this field as an Object (may or may not be primitive).
-        accessors.put(field.fieldId(), newAccessor(i, field.type()));
+        accessors.put(field.fieldId(), newAccessor(i, field.name(), field.type()));
       }
 
       return accessors;

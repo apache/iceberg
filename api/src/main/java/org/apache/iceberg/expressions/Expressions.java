@@ -324,4 +324,8 @@ public class Expressions {
   public static <T> UnboundAggregate<T> min(String name) {
     return new UnboundAggregate<>(Operation.MIN, ref(name));
   }
+
+  public static <T> UnboundAggregate<T> countDistinct(String name) {
+    return new UnboundAggregate<>(Operation.COUNT_DISTINCT, ref(name));
+  }
 }

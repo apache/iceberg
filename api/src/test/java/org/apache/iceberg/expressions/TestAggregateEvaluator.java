@@ -106,7 +106,7 @@ public class TestAggregateEvaluator {
     AggregateEvaluator aggregateEvaluator = AggregateEvaluator.create(SCHEMA, list);
 
     for (DataFile dataFile : dataFiles) {
-      aggregateEvaluator.update(dataFile);
+      aggregateEvaluator.update(dataFile, dataFile.partition());
     }
 
     assertThat(aggregateEvaluator.allAggregatorsValid()).isTrue();
@@ -126,7 +126,7 @@ public class TestAggregateEvaluator {
     AggregateEvaluator aggregateEvaluator = AggregateEvaluator.create(SCHEMA, list);
 
     for (DataFile dataFile : dataFiles) {
-      aggregateEvaluator.update(dataFile);
+      aggregateEvaluator.update(dataFile, dataFile.partition());
     }
 
     assertThat(aggregateEvaluator.allAggregatorsValid()).isTrue();
@@ -145,7 +145,7 @@ public class TestAggregateEvaluator {
             Expressions.min("some_nulls"));
     AggregateEvaluator aggregateEvaluator = AggregateEvaluator.create(SCHEMA, list);
     for (DataFile dataFile : dataFiles) {
-      aggregateEvaluator.update(dataFile);
+      aggregateEvaluator.update(dataFile, dataFile.partition());
     }
 
     assertThat(aggregateEvaluator.allAggregatorsValid()).isFalse();
@@ -164,7 +164,7 @@ public class TestAggregateEvaluator {
             Expressions.min("no_stats"));
     AggregateEvaluator aggregateEvaluator = AggregateEvaluator.create(SCHEMA, list);
     for (DataFile dataFile : dataFiles) {
-      aggregateEvaluator.update(dataFile);
+      aggregateEvaluator.update(dataFile, dataFile.partition());
     }
 
     assertThat(aggregateEvaluator.allAggregatorsValid()).isFalse();

@@ -56,7 +56,7 @@ public class ExpressionVisitors {
       return null;
     }
 
-    public <T, C> R aggregate(BoundAggregate<T, C> agg) {
+    public <T, C> R aggregate(BoundAggregate<T, C, ?> agg) {
       throw new UnsupportedOperationException("Cannot visit aggregate expression");
     }
 
@@ -348,7 +348,7 @@ public class ExpressionVisitors {
       }
     } else if (expr instanceof Aggregate) {
       if (expr instanceof BoundAggregate) {
-        return visitor.aggregate((BoundAggregate<?, ?>) expr);
+        return visitor.aggregate((BoundAggregate<?, ?, ?>) expr);
       } else {
         return visitor.aggregate((UnboundAggregate<?>) expr);
       }

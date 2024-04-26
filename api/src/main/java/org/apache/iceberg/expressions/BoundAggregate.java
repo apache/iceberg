@@ -24,7 +24,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bound<C> {
+public class BoundAggregate<T, C, R> extends Aggregate<BoundTerm<T>> implements Bound<C> {
 
   protected BoundAggregate(Operation op, BoundTerm<T> term) {
     super(op, term);
@@ -34,6 +34,14 @@ public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bou
   public C eval(StructLike struct) {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " does not implement eval(StructLike)");
+  }
+
+  public C eval(DataFile file, StructLike struct) {
+    C value = eval(file);
+    if (value == null) {
+      value = eval(struct);
+    }
+    return value;
   }
 
   C eval(DataFile file) {
@@ -46,7 +54,17 @@ public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bou
         this.getClass().getName() + " does not implement hasValue(DataFile)");
   }
 
-  Aggregator<C> newAggregator() {
+  boolean hasColumnValue(DataFile file) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement hasColumnValue(DataFile)");
+  }
+
+  boolean isIdentityPartitionColumn(StructLike struct) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement hasColumnValue(DataFile)");
+  }
+
+  Aggregator<R> newAggregator() {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " does not implement newAggregator()");
   }
@@ -59,6 +77,8 @@ public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bou
   public Type type() {
     if (op() == Operation.COUNT || op() == Operation.COUNT_STAR) {
       return Types.LongType.get();
+    } else if (op() == Operation.COUNT_DISTINCT) {
+      return Types.IntegerType.get();
     } else {
       return term().type();
     }
@@ -78,6 +98,8 @@ public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bou
         return "count(*)";
       case COUNT:
         return "count(" + ExpressionUtil.describe(term()) + ")";
+      case COUNT_DISTINCT:
+        return "count(distinct" + ExpressionUtil.describe(term()) + ")";
       case MAX:
         return "max(" + ExpressionUtil.describe(term()) + ")";
       case MIN:
@@ -109,23 +131,51 @@ public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bou
     R result();
 
     boolean isValid();
+
+    /**
+     * To update the aggregate with either Datafile or StructLike. Partition column's stats isn't
+     * included in Datafile and the StructLike will be used.
+     *
+     * @param file Datafile of the partition
+     * @param struct StructLike of the partition
+     */
+    void update(DataFile file, StructLike struct);
+
+    /** Set the aggregate to be invalid. */
+    void setInvalid();
+
+    /**
+     * Returns whether the stats for the aggregate's column in included in Datafile.
+     *
+     * @param file Datafile of the partition
+     * @return whether the stats for the aggregate's column in included in Datafile
+     */
+    boolean hasColumnStats(DataFile file);
+
+    /**
+     * Returns whether the aggregate's column is an identity partition column.
+     *
+     * @param struct StructLike of the partition
+     * @return whether the aggregate's column is an identity partition column
+     */
+    boolean isIdentityPartitionColumn(StructLike struct);
   }
 
-  abstract static class NullSafeAggregator<T, R> implements Aggregator<R> {
-    private final BoundAggregate<T, R> aggregate;
+  abstract static class NullSafeAggregator<T, V, R> implements Aggregator<R> {
+    private final BoundAggregate<T, V, R> aggregate;
     private boolean isValid = true;
 
-    NullSafeAggregator(BoundAggregate<T, R> aggregate) {
+    NullSafeAggregator(BoundAggregate<T, V, R> aggregate) {
       this.aggregate = aggregate;
     }
 
-    protected abstract void update(R value);
+    protected abstract void update(V value);
 
     protected abstract R current();
 
     @Override
     public void update(StructLike struct) {
-      R value = aggregate.eval(struct);
+      V value = aggregate.eval(struct);
       if (value != null) {
         update(value);
       }
@@ -137,10 +187,37 @@ public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bou
     }
 
     @Override
+    public void update(DataFile file, StructLike struct) {
+      if (isValid) {
+        V value = aggregate.eval(file, struct);
+        if (value == null && !isIdentityPartitionColumn(struct)) {
+          this.isValid = false;
+        } else {
+          update(value);
+        }
+      }
+    }
+
+    @Override
+    public boolean hasColumnStats(DataFile file) {
+      return aggregate.hasColumnValue(file);
+    }
+
+    @Override
+    public boolean isIdentityPartitionColumn(StructLike struct) {
+      return aggregate.isIdentityPartitionColumn(struct);
+    }
+
+    @Override
+    public void setInvalid() {
+      this.isValid = false;
+    }
+
+    @Override
     public void update(DataFile file) {
       if (isValid) {
         if (hasValue(file)) {
-          R value = aggregate.eval(file);
+          V value = aggregate.eval(file);
           if (value != null) {
             update(value);
           }

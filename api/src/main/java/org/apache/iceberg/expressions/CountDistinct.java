@@ -18,25 +18,42 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.util.Set;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 
-public class CountNonNull<T> extends CountAggregate<T> {
+public class CountDistinct<T> extends BoundAggregate<T, T, Integer> {
   private final int fieldId;
   private final String fieldName;
   private final Types.NestedField field;
 
-  protected CountNonNull(BoundTerm<T> term) {
-    super(Operation.COUNT, term);
+  protected CountDistinct(BoundTerm<T> term) {
+    super(Operation.COUNT_DISTINCT, term);
     this.field = term.ref().field();
     this.fieldId = field.fieldId();
     this.fieldName = field.name();
   }
 
   @Override
-  protected Long countFor(StructLike row) {
-    return term().eval(row) != null ? 1L : 0L;
+  public Aggregator<Integer> newAggregator() {
+    return new CountAggregator<>(this);
+  }
+
+  @Override
+  public T eval(DataFile file) {
+    // return null since data columns doesn't have distinct stats
+    return null;
+  }
+
+  @Override
+  public T eval(StructLike struct) {
+    return term().eval(struct);
+  }
+
+  protected T countFor(StructLike row) {
+    return term().eval(row);
   }
 
   @Override
@@ -46,7 +63,8 @@ public class CountNonNull<T> extends CountAggregate<T> {
 
   @Override
   protected boolean hasColumnValue(DataFile file) {
-    return file.valueCounts().containsKey(fieldId) && file.nullValueCounts().containsKey(fieldId);
+    // return false since data columns doesn't have distinct stats
+    return false;
   }
 
   @Override
@@ -54,28 +72,29 @@ public class CountNonNull<T> extends CountAggregate<T> {
     return struct.getPartitionNames().contains(String.valueOf(fieldName));
   }
 
-  @Override
-  protected Long countFor(DataFile file, StructLike row) {
-    Long value =
-        safeSubtract(
-            safeGet(file.valueCounts(), fieldId), safeGet(file.nullValueCounts(), fieldId, 0L));
-    if (value == null) {
-      value = term().eval(row) != null ? file.recordCount() : 0L;
-    }
-    return value;
+  protected T countFor(DataFile file, StructLike row) {
+    return countFor(row);
   }
 
-  @Override
-  protected Long countFor(DataFile file) {
-    return safeSubtract(
-        safeGet(file.valueCounts(), fieldId), safeGet(file.nullValueCounts(), fieldId, 0L));
-  }
+  private static class CountAggregator<T> extends NullSafeAggregator<T, T, Integer> {
+    private Set<T> distinctSet = Sets.newHashSet();
 
-  private Long safeSubtract(Long left, Long right) {
-    if (left != null && right != null) {
-      return left - right;
+    CountAggregator(BoundAggregate<T, T, Integer> aggregate) {
+      super(aggregate);
     }
 
-    return null;
+    @Override
+    protected void update(T value) {
+      if (value != null) {
+        distinctSet.add(value);
+      }
+    }
+
+    @Override
+    protected Integer current() {
+      // Set.size() returns Integer which maximizes at Integer.MAX_VALUE.
+      // Practically there cannot be this many partition files in a single iceberg table.
+      return distinctSet.size();
+    }
   }
 }

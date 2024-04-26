@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg;
 
+import java.util.Collections;
+import java.util.Set;
+
 /**
  * Interface for accessing data by position in a schema.
  *
@@ -29,4 +32,12 @@ public interface StructLike {
   <T> T get(int pos, Class<T> javaClass);
 
   <T> void set(int pos, T value);
+
+  default <T> T get(String name, Class<T> javaClass) {
+    return null;
+  }
+
+  default Set<String> getPartitionNames() {
+    return Collections.emptySet();
+  }
 }

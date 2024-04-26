@@ -47,6 +47,8 @@ public abstract class Aggregate<C extends Term> implements Expression {
         return "count(" + term() + ")";
       case COUNT_STAR:
         return "count(*)";
+      case COUNT_DISTINCT:
+        return "count(distinct" + term() + ")";
       case MAX:
         return "max(" + term() + ")";
       case MIN:

@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.BaseTable;
@@ -30,6 +31,7 @@ import org.apache.iceberg.IncrementalChangelogScan;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsModes;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -205,7 +207,7 @@ public class SparkScanBuilder
     }
 
     AggregateEvaluator aggregateEvaluator;
-    List<BoundAggregate<?, ?>> expressions =
+    List<BoundAggregate<?, ?, ?>> expressions =
         Lists.newArrayListWithExpectedSize(aggregation.aggregateExpressions().length);
 
     for (AggregateFunc aggregateFunc : aggregation.aggregateExpressions()) {
@@ -213,7 +215,7 @@ public class SparkScanBuilder
         Expression expr = SparkAggregates.convert(aggregateFunc);
         if (expr != null) {
           Expression bound = Binder.bind(schema.asStruct(), expr, caseSensitive);
-          expressions.add((BoundAggregate<?, ?>) bound);
+          expressions.add((BoundAggregate<?, ?, ?>) bound);
         } else {
           LOG.info(
               "Skipping aggregate pushdown: AggregateFunc {} can't be converted to iceberg expression",
@@ -250,7 +252,7 @@ public class SparkScanBuilder
           return false;
         }
 
-        aggregateEvaluator.update(task.file());
+        aggregateEvaluator.update(task.file(), task.file().partition());
       }
     } catch (IOException e) {
       LOG.info("Skipping aggregate pushdown: ", e);
@@ -309,10 +311,20 @@ public class SparkScanBuilder
     return snapshot;
   }
 
-  private boolean metricsModeSupportsAggregatePushDown(List<BoundAggregate<?, ?>> aggregates) {
+  private boolean metricsModeSupportsAggregatePushDown(List<BoundAggregate<?, ?, ?>> aggregates) {
     MetricsConfig config = MetricsConfig.forTable(table);
+    Set<String> identityColumnNames =
+        table.spec().fields().stream()
+            .filter(pf -> pf.transform().isIdentity())
+            .map(PartitionField::name)
+            .collect(Collectors.toSet());
+
     for (BoundAggregate aggregate : aggregates) {
       String colName = aggregate.columnName();
+      if (identityColumnNames.contains(colName)) {
+        continue;
+      }
+
       if (!colName.equals("*")) {
         MetricsModes.MetricsMode mode = config.columnMode(colName);
         if (mode instanceof MetricsModes.None) {
@@ -341,6 +353,33 @@ public class SparkScanBuilder
       }
     }
 
+    return true;
+  }
+
+  @Override
+  public boolean supportCompletePushDown(Aggregation aggregation) {
+    if (aggregation.groupByExpressions().length > 0) {
+      LOG.info("Skipping aggregate pushdown: group by aggregation push down is not supported");
+      return false;
+    }
+
+    for (AggregateFunc aggregateFunc : aggregation.aggregateExpressions()) {
+      try {
+        Expression expr = SparkAggregates.convert(aggregateFunc);
+        if (expr != null) {
+          if (expr.op() != Expression.Operation.MIN
+              && expr.op() != Expression.Operation.MAX
+              && expr.op() != Expression.Operation.COUNT
+              && expr.op() != Expression.Operation.COUNT_STAR
+              && expr.op() != Expression.Operation.COUNT_DISTINCT) {
+            return false;
+          }
+        }
+      } catch (IllegalArgumentException e) {
+        LOG.info("Skipping aggregate pushdown: Bind failed for AggregateFunc {}", aggregateFunc, e);
+        return false;
+      }
+    }
     return true;
   }
 

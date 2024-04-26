@@ -38,15 +38,15 @@ public class AggregateEvaluator {
     return create(schema.asStruct(), aggregates);
   }
 
-  public static AggregateEvaluator create(List<BoundAggregate<?, ?>> aggregates) {
+  public static AggregateEvaluator create(List<BoundAggregate<?, ?, ?>> aggregates) {
     return new AggregateEvaluator(aggregates);
   }
 
   private static AggregateEvaluator create(Types.StructType struct, List<Expression> aggregates) {
-    List<BoundAggregate<?, ?>> boundAggregates =
+    List<BoundAggregate<?, ?, ?>> boundAggregates =
         aggregates.stream()
             .map(expr -> Binder.bind(struct, expr))
-            .map(bound -> (BoundAggregate<?, ?>) bound)
+            .map(bound -> (BoundAggregate<?, ?, ?>) bound)
             .collect(Collectors.toList());
 
     return new AggregateEvaluator(boundAggregates);
@@ -54,14 +54,14 @@ public class AggregateEvaluator {
 
   private final List<Aggregator<?>> aggregators;
   private final Types.StructType resultType;
-  private final List<BoundAggregate<?, ?>> aggregates;
+  private final List<BoundAggregate<?, ?, ?>> aggregates;
 
-  private AggregateEvaluator(List<BoundAggregate<?, ?>> aggregates) {
+  private AggregateEvaluator(List<BoundAggregate<?, ?, ?>> aggregates) {
     ImmutableList.Builder<Aggregator<?>> aggregatorsBuilder = ImmutableList.builder();
     List<Types.NestedField> resultFields = Lists.newArrayList();
 
     for (int pos = 0; pos < aggregates.size(); pos += 1) {
-      BoundAggregate<?, ?> aggregate = aggregates.get(pos);
+      BoundAggregate<?, ?, ?> aggregate = aggregates.get(pos);
       aggregatorsBuilder.add(aggregate.newAggregator());
       resultFields.add(Types.NestedField.optional(pos, aggregate.describe(), aggregate.type()));
     }
@@ -83,6 +83,18 @@ public class AggregateEvaluator {
     }
   }
 
+  public void update(DataFile file, StructLike struct) {
+    for (Aggregator<?> aggregator : aggregators) {
+      if (aggregator.hasColumnStats(file)) {
+        aggregator.update(file);
+      } else if (aggregator.isIdentityPartitionColumn(struct)) {
+        aggregator.update(file, struct);
+      } else {
+        aggregator.setInvalid();
+      }
+    }
+  }
+
   public Types.StructType resultType() {
     return resultType;
   }
@@ -97,7 +109,7 @@ public class AggregateEvaluator {
     return new ArrayStructLike(results);
   }
 
-  public List<BoundAggregate<?, ?>> aggregates() {
+  public List<BoundAggregate<?, ?, ?>> aggregates() {
     return aggregates;
   }
 

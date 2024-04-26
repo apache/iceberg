@@ -20,6 +20,7 @@ package org.apache.iceberg.expressions;
 
 import java.util.Comparator;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type.PrimitiveType;
@@ -27,6 +28,7 @@ import org.apache.iceberg.types.Types;
 
 public class MaxAggregate<T> extends ValueAggregate<T> {
   private final int fieldId;
+  private final String fieldName;
   private final PrimitiveType type;
   private final Comparator<T> comparator;
 
@@ -34,6 +36,7 @@ public class MaxAggregate<T> extends ValueAggregate<T> {
     super(Operation.MAX, term);
     Types.NestedField field = term.ref().field();
     this.fieldId = field.fieldId();
+    this.fieldName = field.name();
     this.type = field.type().asPrimitiveType();
     this.comparator = Comparators.forType(type);
   }
@@ -52,6 +55,16 @@ public class MaxAggregate<T> extends ValueAggregate<T> {
   }
 
   @Override
+  protected boolean hasColumnValue(DataFile file) {
+    return file.valueCounts().containsKey(fieldId) && file.nullValueCounts().containsKey(fieldId);
+  }
+
+  @Override
+  protected boolean isIdentityPartitionColumn(StructLike struct) {
+    return struct.getPartitionNames().contains(String.valueOf(fieldName));
+  }
+
+  @Override
   protected Object evaluateRef(DataFile file) {
     return Conversions.fromByteBuffer(type, safeGet(file.upperBounds(), fieldId));
   }
@@ -61,7 +74,7 @@ public class MaxAggregate<T> extends ValueAggregate<T> {
     return new MaxAggregator<>(this, comparator);
   }
 
-  private static class MaxAggregator<T> extends NullSafeAggregator<T, T> {
+  private static class MaxAggregator<T> extends NullSafeAggregator<T, T, T> {
     private final Comparator<T> comparator;
     private T max = null;
 
@@ -72,6 +85,10 @@ public class MaxAggregate<T> extends ValueAggregate<T> {
 
     @Override
     protected void update(T value) {
+      if (value == null) {
+        return;
+      }
+
       if (max == null || comparator.compare(value, max) > 0) {
         this.max = value;
       }
