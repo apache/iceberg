@@ -86,6 +86,7 @@ sqlite-jdbc = "3.45.2.0"
 testcontainers = "1.19.7"
 tez010 = "0.10.3"
 tez08 = { strictly = "0.8.4"}  # see rich version usage explanation above
+tez09 = "0.9.2"
 
 [libraries]
 activation = { module = "javax.activation:activation", version.ref = "activation" }
@@ -217,3 +218,5 @@ tez010-dag = { module = "org.apache.tez:tez-dag", version.ref = "tez010" }
 tez010-mapreduce = { module = "org.apache.tez:tez-mapreduce", version.ref = "tez010" }
 tez08-dag = { module = "org.apache.tez:tez-dag", version.ref = "tez08" }
 tez08-mapreduce = { module = "org.apache.tez:tez-mapreduce", version.ref = "tez08" }
+tez09-dag = { module = "org.apache.tez:tez-dag", version.ref = "tez09" }
+tez09-mapreduce = { module = "org.apache.tez:tez-mapreduce", version.ref = "tez09" }
