@@ -221,11 +221,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     if (authResponse != null) {
       this.catalogAuth =
           AuthSession.fromTokenResponse(
-              client, tokenRefreshExecutor(), authResponse, startTimeMillis, catalogAuth);
+              client, tokenRefreshExecutor(name), authResponse, startTimeMillis, catalogAuth);
     } else if (token != null) {
       this.catalogAuth =
           AuthSession.fromAccessToken(
-              client, tokenRefreshExecutor(), token, expiresAtMillis(mergedProps), catalogAuth);
+              client, tokenRefreshExecutor(name), token, expiresAtMillis(mergedProps), catalogAuth);
     }
 
     this.io = newFileIO(SessionContext.createEmpty(), mergedProps);
@@ -558,7 +558,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     return !response.updated().isEmpty();
   }
 
-  private ScheduledExecutorService tokenRefreshExecutor() {
+  private ScheduledExecutorService tokenRefreshExecutor(String catalogName) {
     if (!keepTokenRefreshed) {
       return null;
     }
@@ -566,7 +566,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     if (refreshExecutor == null) {
       synchronized (this) {
         if (refreshExecutor == null) {
-          this.refreshExecutor = ThreadPools.newScheduledPool(name() + "-token-refresh", 1);
+          this.refreshExecutor = ThreadPools.newScheduledPool(catalogName + "-token-refresh", 1);
         }
       }
     }
@@ -930,7 +930,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             () ->
                 AuthSession.fromAccessToken(
                     client,
-                    tokenRefreshExecutor(),
+                    tokenRefreshExecutor(name()),
                     credentials.get(OAuth2Properties.TOKEN),
                     expiresAtMillis(properties),
                     parent));
@@ -943,7 +943,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             () ->
                 AuthSession.fromCredential(
                     client,
-                    tokenRefreshExecutor(),
+                    tokenRefreshExecutor(name()),
                     credentials.get(OAuth2Properties.CREDENTIAL),
                     parent));
       }
@@ -956,7 +956,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               () ->
                   AuthSession.fromTokenExchange(
                       client,
-                      tokenRefreshExecutor(),
+                      tokenRefreshExecutor(name()),
                       credentials.get(tokenType),
                       tokenType,
                       parent));
