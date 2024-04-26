@@ -42,7 +42,9 @@ public class IcebergTimestampWithZoneObjectInspector extends AbstractPrimitiveJa
 
   @Override
   public OffsetDateTime convert(Object o) {
-    return o == null ? null : OffsetDateTime.of(((Timestamp) o).toSqlTimestamp().toLocalDateTime(), ZoneOffset.UTC);
+    return o == null
+        ? null
+        : OffsetDateTime.of(((Timestamp) o).toSqlTimestamp().toLocalDateTime(), ZoneOffset.UTC);
   }
 
   @Override

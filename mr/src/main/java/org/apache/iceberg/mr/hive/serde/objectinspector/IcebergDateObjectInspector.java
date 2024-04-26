@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.mr.hive.serde.objectinspector;
 
-
 import java.time.LocalDate;
 import org.apache.hadoop.hive.common.type.Date;
 import org.apache.hadoop.hive.serde2.io.DateWritableV2;
