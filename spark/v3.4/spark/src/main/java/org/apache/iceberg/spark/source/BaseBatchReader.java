@@ -22,7 +22,6 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
-import org.apache.iceberg.ReaderType;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
@@ -33,6 +32,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.spark.ParquetReaderType;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
@@ -40,7 +40,7 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBatch, T> {
   private final int batchSize;
-  private ReaderType readerType;
+  private final ParquetReaderType parquetReaderType;
 
   BaseBatchReader(
       Table table,
@@ -48,13 +48,11 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       Schema tableSchema,
       Schema expectedSchema,
       boolean caseSensitive,
-      int batchSize) {
+      int batchSize,
+      ParquetReaderType parquetReaderType) {
     super(table, taskGroup, tableSchema, expectedSchema, caseSensitive);
     this.batchSize = batchSize;
-  }
-
-  protected void setReadType(ReaderType type) {
-    this.readerType = type;
+    this.parquetReaderType = parquetReaderType;
   }
 
   protected CloseableIterable<ColumnarBatch> newBatchIterable(
@@ -93,7 +91,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
         .split(start, length)
         .createBatchedReaderFunc(
             fileSchema -> {
-              if (this.readerType == ReaderType.COMET) {
+              if (parquetReaderType == ParquetReaderType.COMET) {
                 return VectorizedSparkParquetReaders.buildCometReader(
                     requiredSchema, fileSchema, idToConstant, deleteFilter);
               } else {
