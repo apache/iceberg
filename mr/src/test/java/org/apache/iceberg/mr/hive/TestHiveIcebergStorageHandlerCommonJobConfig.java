@@ -23,13 +23,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -68,31 +66,11 @@ public class TestHiveIcebergStorageHandlerCommonJobConfig {
   @TestTemplate
   public void testWithoutCustomConfigValue() {
     String configValue = shell.getHiveConf().get(TEZ_MRREADER_CONFIG_UPDATE_PROPERTIES, null);
-    assertThat(configValue).isNot(null);
+    assertThat(configValue).isNotNull();
     List<String> configValueList = Lists.newArrayList(configValue.split(","));
     configValueList.sort(String::compareTo);
     String sortedConfigValue = String.join(",", configValueList);
     assertThat(sortedConfigValue)
         .isEqualTo("hive.io.file.readcolumn.ids,hive.io.file.readcolumn.names");
-  }
-
-  @TestTemplate
-  public void testWithCustomConfigValue() {
-    shell.setHiveConfValue(TEZ_MRREADER_CONFIG_UPDATE_PROPERTIES, fakeCustomConfigValue);
-    String configValue = shell.getHiveConf().get(TEZ_MRREADER_CONFIG_UPDATE_PROPERTIES, null);
-    assertThat(configValue).isNot(null);
-    String[] configValues = configValue.trim().split(",");
-    Set<String> customValueSet = Sets.newHashSet();
-    Lists.newArrayList(configValues).forEach(e -> customValueSet.add(e.trim()));
-    List<String> configValueList = Lists.newArrayList(customValueSet);
-    configValueList.sort(String::compareTo);
-    String configValueString = String.format(",", configValueList);
-    Set<String> targetValueSet = Sets.newHashSet(customValueSet);
-    targetValueSet.add("hive.io.file.readcolumn.names");
-    targetValueSet.add("hive.io.file.readcolumn.ids");
-    List<String> targetValueList = Lists.newArrayList(targetValueSet);
-    targetValueList.sort(String::compareTo);
-    String targetValueString = String.format(",", targetValueList);
-    assertThat(configValueString).isEqualTo(targetValueString);
   }
 }
