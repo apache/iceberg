@@ -284,11 +284,7 @@ public class SimpleDataUtil {
   public static void assertTableRecords(Table table, List<Record> expected, Duration timeout) {
     Awaitility.await("expected list of records should be produced")
         .atMost(timeout)
-        .untilAsserted(
-            () -> {
-              equalsRecords(expected, tableRecords(table), table.schema());
-              assertRecordsEqual(expected, tableRecords(table), table.schema());
-            });
+        .untilAsserted(() -> assertRecordsEqual(expected, tableRecords(table), table.schema()));
   }
 
   public static void assertTableRecords(Table table, List<Record> expected) throws IOException {
