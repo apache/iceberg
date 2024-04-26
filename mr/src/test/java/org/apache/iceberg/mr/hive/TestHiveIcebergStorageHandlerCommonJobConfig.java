@@ -72,7 +72,7 @@ public class TestHiveIcebergStorageHandlerCommonJobConfig {
     testTables =
         HiveIcebergStorageHandlerTestUtils.testTables(
             shell, TestTables.TestTableType.HIVE_CATALOG, temp);
-    HiveIcebergStorageHandlerTestUtils.init(shell, testTables, temp, "mr");
+    HiveIcebergStorageHandlerTestUtils.init(shell, testTables, temp, "tez");
   }
 
   @AfterEach
