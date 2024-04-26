@@ -37,11 +37,11 @@ project(':iceberg-mr') {
     implementation project(':iceberg-orc')
     implementation project(':iceberg-parquet')
 
-    compileOnly(libs.hadoop2.client) {
+    compileOnly(libs.hadoop3.client) {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 
-    compileOnly("${libs.hive2.exec.get().module}:${libs.hive2.exec.get().getVersion()}:core") {
+    compileOnly("${libs.hive3.exec.get().module}:${libs.hive3.exec.get().getVersion()}:core") {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
       exclude group: 'com.google.guava'
       exclude group: 'com.google.protobuf', module: 'protobuf-java'
@@ -52,8 +52,8 @@ project(':iceberg-mr') {
       exclude group: 'org.pentaho' // missing dependency
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
-    compileOnly libs.hive2.metastore
-    compileOnly libs.hive2.serde
+    compileOnly libs.hive3.metastore
+    compileOnly libs.hive3.serde
 
     implementation libs.caffeine
 
@@ -70,7 +70,7 @@ project(':iceberg-mr') {
     testImplementation libs.kryo.shaded
     testImplementation platform(libs.jackson.bom)
     testImplementation "com.fasterxml.jackson.core:jackson-annotations"
-    testImplementation(libs.hive2.service) {
+    testImplementation(libs.hive3.service) {
       exclude group: 'org.apache.hive', module: 'hive-exec'
     }
     testImplementation libs.tez010.dag
