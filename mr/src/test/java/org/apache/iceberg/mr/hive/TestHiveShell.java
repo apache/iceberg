@@ -76,6 +76,15 @@ public class TestHiveShell {
     }
   }
 
+  public String getHiveSessionValue(String key, String defaultValue) {
+    Preconditions.checkState(session != null, "There is no open session for getting variables.");
+    try {
+      return session.getSessionConf().get(key, defaultValue);
+    } catch (Exception e) {
+      throw new RuntimeException("Unable to get Hive session variable: ", e);
+    }
+  }
+
   public void setHiveSessionValue(String key, boolean value) {
     setHiveSessionValue(key, Boolean.toString(value));
   }
