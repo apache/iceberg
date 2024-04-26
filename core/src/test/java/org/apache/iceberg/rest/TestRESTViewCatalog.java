@@ -164,7 +164,7 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
     catalog.initialize("test", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "10"));
 
-    int numberOfItems = 20;
+    int numberOfItems = 30;
     String namespaceName = "newdb";
     String viewName = "newview";
 
@@ -204,6 +204,7 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
             any(),
             any());
 
+    // verify initial request with empty pageToken
     Mockito.verify(adapter)
         .handleRequest(
             eq(RESTCatalogAdapter.Route.LIST_VIEWS),
@@ -211,10 +212,19 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
             any(),
             eq(ListTablesResponse.class));
 
+    // verify second request with update pageToken
     Mockito.verify(adapter)
         .handleRequest(
             eq(RESTCatalogAdapter.Route.LIST_VIEWS),
             eq(ImmutableMap.of("pageToken", "10", "pageSize", "10", "namespace", namespaceName)),
+            any(),
+            eq(ListTablesResponse.class));
+
+    // verify third request with update pageToken
+    Mockito.verify(adapter)
+        .handleRequest(
+            eq(RESTCatalogAdapter.Route.LIST_VIEWS),
+            eq(ImmutableMap.of("pageToken", "20", "pageSize", "10", "namespace", namespaceName)),
             any(),
             eq(ListTablesResponse.class));
   }

@@ -2333,7 +2333,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testInvalidRestPageSize() {
+  public void testInvalidPageSize() {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
@@ -2351,7 +2351,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
     catalog.initialize("test", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "10"));
-    int numberOfItems = 20;
+    int numberOfItems = 30;
     String namespaceName = "newdb";
 
     // create several namespaces for listing and verify
@@ -2397,6 +2397,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(ImmutableMap.of("pageToken", "10", "pageSize", "10")),
             any(),
             eq(ListNamespacesResponse.class));
+
+    // verify third request with update pageToken
+    Mockito.verify(adapter)
+        .handleRequest(
+            eq(RESTCatalogAdapter.Route.LIST_NAMESPACES),
+            eq(ImmutableMap.of("pageToken", "20", "pageSize", "10")),
+            any(),
+            eq(ListNamespacesResponse.class));
   }
 
   @Test
@@ -2405,7 +2413,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
     catalog.initialize("test", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "10"));
-    int numberOfItems = 20;
+    int numberOfItems = 30;
     String namespaceName = "newdb";
     String tableName = "newtable";
     catalog.createNamespace(Namespace.of(namespaceName));
@@ -2451,6 +2459,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .handleRequest(
             eq(RESTCatalogAdapter.Route.LIST_TABLES),
             eq(ImmutableMap.of("pageToken", "10", "pageSize", "10", "namespace", namespaceName)),
+            any(),
+            eq(ListTablesResponse.class));
+
+    // verify third request with update pageToken
+    Mockito.verify(adapter)
+        .handleRequest(
+            eq(RESTCatalogAdapter.Route.LIST_TABLES),
+            eq(ImmutableMap.of("pageToken", "20", "pageSize", "10", "namespace", namespaceName)),
             any(),
             eq(ListTablesResponse.class));
   }
