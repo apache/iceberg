@@ -18,13 +18,19 @@
  */
 package org.apache.iceberg.flink;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import org.apache.flink.types.Row;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
@@ -37,23 +43,22 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.StructLikeSet;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * In this test case, we mainly cover the impact of primary key selection, multiple operations
  * within a single transaction, and multiple operations between different txn on the correctness of
  * the data.
  */
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestChangeLogTable extends ChangeLogTableTestBase {
+  @TempDir private static Path temp;
   private static final Configuration CONF = new Configuration();
   private static final String SOURCE_TABLE = "default_catalog.default_database.source_change_logs";
 
@@ -62,25 +67,21 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
   private static final String TABLE_NAME = "test_table";
   private static String warehouse;
 
-  private final boolean partitioned;
+  @Parameter private boolean partitioned;
 
-  @Parameterized.Parameters(name = "PartitionedTable={0}")
+  @Parameters(name = "PartitionedTable={0}")
   public static Iterable<Object[]> parameters() {
     return ImmutableList.of(new Object[] {true}, new Object[] {false});
   }
 
-  public TestChangeLogTable(boolean partitioned) {
-    this.partitioned = partitioned;
-  }
-
-  @BeforeClass
+  @BeforeAll
   public static void createWarehouse() throws IOException {
-    File warehouseFile = TEMPORARY_FOLDER.newFolder();
-    Assert.assertTrue("The warehouse should be deleted", warehouseFile.delete());
+    File warehouseFile = File.createTempFile("junit", null, temp.toFile());
+    assertThat(warehouseFile.delete()).isTrue();
     warehouse = String.format("file:%s", warehouseFile);
   }
 
-  @Before
+  @BeforeEach
   public void before() {
     sql(
         "CREATE CATALOG %s WITH ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s')",
@@ -94,7 +95,7 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
     getTableEnv().getConfig().set("table.exec.sink.upsert-materialize", "NONE");
   }
 
-  @After
+  @AfterEach
   @Override
   public void clean() {
     sql("DROP TABLE IF EXISTS %s", TABLE_NAME);
@@ -103,7 +104,7 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
     BoundedTableFactory.clearDataSets();
   }
 
-  @Test
+  @TestTemplate
   public void testSqlChangeLogOnIdKey() throws Exception {
     List<List<Row>> inputRowsPerCheckpoint =
         ImmutableList.of(
@@ -135,7 +136,7 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
         TABLE_NAME, ImmutableList.of("id"), inputRowsPerCheckpoint, expectedRecordsPerCheckpoint);
   }
 
-  @Test
+  @TestTemplate
   public void testChangeLogOnDataKey() throws Exception {
     List<List<Row>> elementsPerCheckpoint =
         ImmutableList.of(
@@ -162,7 +163,7 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
     testSqlChangeLog(TABLE_NAME, ImmutableList.of("data"), elementsPerCheckpoint, expectedRecords);
   }
 
-  @Test
+  @TestTemplate
   public void testChangeLogOnIdDataKey() throws Exception {
     List<List<Row>> elementsPerCheckpoint =
         ImmutableList.of(
@@ -191,7 +192,7 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
         TABLE_NAME, ImmutableList.of("data", "id"), elementsPerCheckpoint, expectedRecords);
   }
 
-  @Test
+  @TestTemplate
   public void testPureInsertOnIdKey() throws Exception {
     List<List<Row>> elementsPerCheckpoint =
         ImmutableList.of(
@@ -249,10 +250,7 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
             + " WITH ('connector'='BoundedSource', 'data-id'='%s')",
         SOURCE_TABLE, dataId);
 
-    Assert.assertEquals(
-        "Should have the expected rows",
-        listJoin(inputRowsPerCheckpoint),
-        sql("SELECT * FROM %s", SOURCE_TABLE));
+    assertThat(sql("SELECT * FROM %s", SOURCE_TABLE)).isEqualTo(listJoin(inputRowsPerCheckpoint));
 
     Table table = createTable(tableName, key, partitioned);
     sql("INSERT INTO %s SELECT * FROM %s", tableName, SOURCE_TABLE);
@@ -260,23 +258,23 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
     table.refresh();
     List<Snapshot> snapshots = findValidSnapshots(table);
     int expectedSnapshotNum = expectedRecordsPerCheckpoint.size();
-    Assert.assertEquals(
-        "Should have the expected snapshot number", expectedSnapshotNum, snapshots.size());
+    assertThat(snapshots)
+        .as("Should have the expected snapshot number")
+        .hasSameSizeAs(expectedRecordsPerCheckpoint);
 
     for (int i = 0; i < expectedSnapshotNum; i++) {
       long snapshotId = snapshots.get(i).snapshotId();
       List<Row> expectedRows = expectedRecordsPerCheckpoint.get(i);
-      Assert.assertEquals(
-          "Should have the expected records for the checkpoint#" + i,
-          expectedRowSet(table, expectedRows),
-          actualRowSet(table, snapshotId));
+      assertThat(actualRowSet(table, snapshotId))
+          .as("Should have the expected records for the checkpoint#" + i)
+          .isEqualTo(expectedRowSet(table, expectedRows));
     }
 
     if (expectedSnapshotNum > 0) {
-      Assert.assertEquals(
-          "Should have the expected rows in the final table",
-          Sets.newHashSet(expectedRecordsPerCheckpoint.get(expectedSnapshotNum - 1)),
-          Sets.newHashSet(sql("SELECT * FROM %s", tableName)));
+      assertThat(sql("SELECT * FROM %s", tableName))
+          .as("Should have the expected rows in the final table")
+          .containsExactlyInAnyOrderElementsOf(
+              expectedRecordsPerCheckpoint.get(expectedSnapshotNum - 1));
     }
   }
 

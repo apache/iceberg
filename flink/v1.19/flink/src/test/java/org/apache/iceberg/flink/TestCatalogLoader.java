@@ -19,6 +19,8 @@
 package org.apache.iceberg.flink;
 
 import static org.apache.iceberg.CatalogProperties.URI;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.entry;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -37,33 +39,31 @@ import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
 /** Test for {@link CatalogLoader}. */
-public class TestCatalogLoader extends FlinkTestBase {
+public class TestCatalogLoader extends TestBase {
 
   private static File warehouse = null;
   private static final TableIdentifier IDENTIFIER = TableIdentifier.of("default", "my_table");
   private static final Schema SCHEMA =
       new Schema(Types.NestedField.required(1, "f1", Types.StringType.get()));
 
-  @BeforeClass
+  @BeforeAll
   public static void createWarehouse() throws IOException {
     warehouse = File.createTempFile("warehouse", null);
-    Assert.assertTrue(warehouse.delete());
+    assertThat(warehouse.delete()).isTrue();
     hiveConf.set("my_key", "my_value");
   }
 
-  @AfterClass
+  @AfterAll
   public static void dropWarehouse() throws IOException {
     if (warehouse != null && warehouse.exists()) {
       Path warehousePath = new Path(warehouse.getAbsolutePath());
       FileSystem fs = warehousePath.getFileSystem(hiveConf);
-      Assert.assertTrue("Failed to delete " + warehousePath, fs.delete(warehousePath, true));
+      assertThat(fs.delete(warehousePath, true)).as("Failed to delete " + warehousePath).isTrue();
     }
   }
 
@@ -96,11 +96,11 @@ public class TestCatalogLoader extends FlinkTestBase {
 
   private static void validateHadoopConf(Table table) {
     FileIO io = table.io();
-    Assertions.assertThat(io)
+    assertThat(io)
         .as("FileIO should be a HadoopFileIO")
         .isInstanceOf(HadoopFileIO.class);
     HadoopFileIO hadoopIO = (HadoopFileIO) io;
-    Assert.assertEquals("my_value", hadoopIO.conf().get("my_key"));
+    assertThat(hadoopIO.conf()).contains(entry("my_key", "my_value"));
   }
 
   @SuppressWarnings("unchecked")

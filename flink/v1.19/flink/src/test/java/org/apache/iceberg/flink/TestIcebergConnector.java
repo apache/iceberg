@@ -18,8 +18,13 @@
  */
 package org.apache.iceberg.flink;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
 import org.apache.flink.configuration.CoreOptions;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -32,33 +37,37 @@ import org.apache.flink.types.Row;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.thrift.TException;
-import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.ClassRule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
-public class TestIcebergConnector extends FlinkTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestIcebergConnector extends TestBase {
 
   private static final String TABLE_NAME = "test_table";
 
-  @ClassRule public static final TemporaryFolder WAREHOUSE = new TemporaryFolder();
+  @TempDir private static Path WAREHOUSE;
 
-  private final String catalogName;
-  private final Map<String, String> properties;
-  private final boolean isStreaming;
+  @Parameter(index = 0)
+  private String catalogName;
+
+  @Parameter(index = 1)
+  private Map<String, String> properties;
+
+  @Parameter(index = 2)
+  private boolean isStreaming;
+
   private volatile TableEnvironment tEnv;
 
-  @Parameterized.Parameters(name = "catalogName = {0}, properties = {1}, isStreaming={2}")
+  @Parameters(name = "catalogName = {0}, properties = {1}, isStreaming = {2}")
   public static Iterable<Object[]> parameters() {
     return Lists.newArrayList(
         // Create iceberg table in the hadoop catalog and default database.
@@ -161,13 +170,6 @@ public class TestIcebergConnector extends FlinkTestBase {
         });
   }
 
-  public TestIcebergConnector(
-      String catalogName, Map<String, String> properties, boolean isStreaming) {
-    this.catalogName = catalogName;
-    this.properties = properties;
-    this.isStreaming = isStreaming;
-  }
-
   @Override
   protected TableEnvironment getTableEnv() {
     if (tEnv == null) {
@@ -198,7 +200,7 @@ public class TestIcebergConnector extends FlinkTestBase {
     return tEnv;
   }
 
-  @After
+  @AfterEach
   public void after() throws TException {
     sql("DROP TABLE IF EXISTS %s", TABLE_NAME);
 
@@ -226,46 +228,39 @@ public class TestIcebergConnector extends FlinkTestBase {
     // Create table under the flink's current database.
     sql("CREATE TABLE %s (id BIGINT, data STRING) WITH %s", TABLE_NAME, toWithClause(tableProps));
     sql("INSERT INTO %s VALUES (1, 'AAA'), (2, 'BBB'), (3, 'CCC')", TABLE_NAME);
-    Assert.assertEquals(
-        "Should have expected rows",
-        Sets.newHashSet(Row.of(1L, "AAA"), Row.of(2L, "BBB"), Row.of(3L, "CCC")),
-        Sets.newHashSet(sql("SELECT * FROM %s", TABLE_NAME)));
+    assertThat(sql("SELECT * FROM %s", TABLE_NAME))
+        .containsExactlyInAnyOrder(Row.of(1L, "AAA"), Row.of(2L, "BBB"), Row.of(3L, "CCC"));
 
     FlinkCatalogFactory factory = new FlinkCatalogFactory();
     Catalog flinkCatalog = factory.createCatalog(catalogName, tableProps, new Configuration());
-    Assert.assertTrue(
-        "Should have created the expected database", flinkCatalog.databaseExists(databaseName()));
-    Assert.assertTrue(
-        "Should have created the expected table",
-        flinkCatalog.tableExists(new ObjectPath(databaseName(), tableName())));
+    assertThat(flinkCatalog.databaseExists(databaseName())).isTrue();
+    assertThat(flinkCatalog.tableExists(new ObjectPath(databaseName(), tableName()))).isTrue();
 
     // Drop and create it again.
     sql("DROP TABLE %s", TABLE_NAME);
     sql("CREATE TABLE %s (id BIGINT, data STRING) WITH %s", TABLE_NAME, toWithClause(tableProps));
-    Assert.assertEquals(
-        "Should have expected rows",
-        Sets.newHashSet(Row.of(1L, "AAA"), Row.of(2L, "BBB"), Row.of(3L, "CCC")),
-        Sets.newHashSet(sql("SELECT * FROM %s", TABLE_NAME)));
+    assertThat(sql("SELECT * FROM %s", TABLE_NAME))
+        .containsExactlyInAnyOrder(Row.of(1L, "AAA"), Row.of(2L, "BBB"), Row.of(3L, "CCC"));
   }
 
-  @Test
+  @TestTemplate
   public void testCreateTableUnderDefaultDatabase() {
     testCreateConnectorTable();
   }
 
-  @Test
+  @TestTemplate
   public void testCatalogDatabaseConflictWithFlinkDatabase() {
     sql("CREATE DATABASE IF NOT EXISTS `%s`", databaseName());
     sql("USE `%s`", databaseName());
     testCreateConnectorTable();
     // Ensure that the table was created under the specific database.
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> sql("CREATE TABLE `default_catalog`.`%s`.`%s`", databaseName(), TABLE_NAME))
         .isInstanceOf(org.apache.flink.table.api.TableException.class)
         .hasMessageStartingWith("Could not execute CreateTable in path");
   }
 
-  @Test
+  @TestTemplate
   public void testConnectorTableInIcebergCatalog() {
     // Create the catalog properties
     Map<String, String> catalogProps = Maps.newHashMap();
@@ -284,7 +279,7 @@ public class TestIcebergConnector extends FlinkTestBase {
     // Create a connector table in an iceberg catalog.
     sql("CREATE CATALOG `test_catalog` WITH %s", toWithClause(catalogProps));
     try {
-      Assertions.assertThatThrownBy(
+      assertThatThrownBy(
               () ->
                   sql(
                       "CREATE TABLE `test_catalog`.`%s`.`%s` (id BIGINT, data STRING) WITH %s",
@@ -334,7 +329,8 @@ public class TestIcebergConnector extends FlinkTestBase {
 
   private static String createWarehouse() {
     try {
-      return String.format("file://%s", WAREHOUSE.newFolder().getAbsolutePath());
+      return String.format(
+          "file://%s", Files.createTempDirectory(WAREHOUSE, "junit").toFile().getAbsolutePath());
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

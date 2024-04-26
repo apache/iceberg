@@ -18,22 +18,24 @@
  */
 package org.apache.iceberg.flink;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
+import java.nio.file.Files;
 import java.util.concurrent.TimeUnit;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.Schema;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.TableDescriptor;
 import org.apache.flink.table.api.TableEnvironment;
-import org.assertj.core.api.Assertions;
 import org.awaitility.Awaitility;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
-public class TestFlinkAnonymousTable extends FlinkTestBase {
+public class TestFlinkAnonymousTable extends TestBase {
 
   @Test
   public void testWriteAnonymousTable() throws Exception {
-    File warehouseDir = TEMPORARY_FOLDER.newFolder();
+    File warehouseDir = Files.createTempDirectory(temporaryDirectory, "junit").toFile();
     TableEnvironment tEnv = getTableEnv();
     Table table =
         tEnv.from(
@@ -57,7 +59,7 @@ public class TestFlinkAnonymousTable extends FlinkTestBase {
         .atMost(3, TimeUnit.SECONDS)
         .untilAsserted(
             () ->
-                Assertions.assertThat(
+                assertThat(
                         warehouseDir.toPath().resolve("test_db").resolve("test").toFile())
                     .exists());
   }
