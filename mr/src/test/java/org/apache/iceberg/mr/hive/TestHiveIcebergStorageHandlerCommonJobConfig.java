@@ -18,24 +18,20 @@
  */
 package org.apache.iceberg.mr.hive;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -52,9 +48,10 @@ public class TestHiveIcebergStorageHandlerCommonJobConfig {
 
   @TempDir private Path temp;
 
-  private void executeSql() throws IOException {
-    Schema emptySchema = new Schema(required(1, "empty", Types.StringType.get()));
-    testTables.createTable(shell, "empty", emptySchema, FileFormat.PARQUET, ImmutableList.of());
+  private void executeSql() {
+    shell.executeStatement(
+        "CREATE TABLE default.empty (column1 string, column2 string)"
+            + " STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler'");
     shell.executeStatement("SELECT * FROM default.empty");
   }
 
@@ -83,7 +80,7 @@ public class TestHiveIcebergStorageHandlerCommonJobConfig {
     shell.stop();
   }
 
-  @TestTemplate
+  @Test
   public void testWithoutCustomConfigValue() throws IOException {
     String configValue = shell.getHiveSessionValue(TEZ_MRREADER_CONFIG_UPDATE_PROPERTIES, null);
     assertThat(configValue).isNull();
