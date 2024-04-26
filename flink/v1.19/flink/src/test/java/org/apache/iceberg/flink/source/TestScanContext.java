@@ -24,100 +24,88 @@ import org.junit.jupiter.api.Test;
 class TestScanContext {
   @Test
   void testIncrementalFromSnapshotId() {
-    Assertions.assertThatThrownBy(
-            () ->
-                ScanContext.builder()
-                    .streaming(true)
-                    .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_ID)
-                    .build())
-        .hasMessage("Invalid starting snapshot id for SPECIFIC_START_SNAPSHOT_ID strategy: null")
-        .isInstanceOf(IllegalArgumentException.class);
+    ScanContext context =
+        ScanContext.builder()
+            .streaming(true)
+            .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_ID)
+            .build();
+    assertException(
+        context, "Invalid starting snapshot id for SPECIFIC_START_SNAPSHOT_ID strategy: null");
 
-    Assertions.assertThatThrownBy(
-            () ->
-                ScanContext.builder()
-                    .streaming(true)
-                    .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_ID)
-                    .startSnapshotId(1L)
-                    .startSnapshotTimestamp(1L)
-                    .build())
-        .hasMessage(
-            "Invalid starting snapshot timestamp for SPECIFIC_START_SNAPSHOT_ID strategy: not null")
-        .isInstanceOf(IllegalArgumentException.class);
+    context =
+        ScanContext.builder()
+            .streaming(true)
+            .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_ID)
+            .startSnapshotId(1L)
+            .startSnapshotTimestamp(1L)
+            .build();
+    assertException(
+        context,
+        "Invalid starting snapshot timestamp for SPECIFIC_START_SNAPSHOT_ID strategy: not null");
   }
 
   @Test
   void testIncrementalFromSnapshotTimestamp() {
-    Assertions.assertThatThrownBy(
-            () ->
-                ScanContext.builder()
-                    .streaming(true)
-                    .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_TIMESTAMP)
-                    .build())
-        .hasMessage(
-            "Invalid starting snapshot timestamp for SPECIFIC_START_SNAPSHOT_TIMESTAMP strategy: null")
-        .isInstanceOf(IllegalArgumentException.class);
+    ScanContext context =
+        ScanContext.builder()
+            .streaming(true)
+            .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_TIMESTAMP)
+            .build();
+    assertException(
+        context,
+        "Invalid starting snapshot timestamp for SPECIFIC_START_SNAPSHOT_TIMESTAMP strategy: null");
 
-    Assertions.assertThatThrownBy(
-            () ->
-                ScanContext.builder()
-                    .streaming(true)
-                    .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_TIMESTAMP)
-                    .startSnapshotId(1L)
-                    .startSnapshotTimestamp(1L)
-                    .build())
-        .hasMessage(
-            "Invalid starting snapshot id for SPECIFIC_START_SNAPSHOT_ID strategy: not null")
-        .isInstanceOf(IllegalArgumentException.class);
+    context =
+        ScanContext.builder()
+            .streaming(true)
+            .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_TIMESTAMP)
+            .startSnapshotId(1L)
+            .startSnapshotTimestamp(1L)
+            .build();
+    assertException(
+        context, "Invalid starting snapshot id for SPECIFIC_START_SNAPSHOT_ID strategy: not null");
   }
 
   @Test
   void testStreaming() {
-    Assertions.assertThatThrownBy(() -> ScanContext.builder().streaming(true).useTag("tag").build())
-        .hasMessage("Cannot scan table using ref tag configured for streaming reader")
-        .isInstanceOf(IllegalArgumentException.class);
+    ScanContext context = ScanContext.builder().streaming(true).useTag("tag").build();
+    assertException(context, "Cannot scan table using ref tag configured for streaming reader");
 
-    Assertions.assertThatThrownBy(
-            () -> ScanContext.builder().streaming(true).useSnapshotId(1L).build())
-        .hasMessage("Cannot set snapshot-id option for streaming reader")
-        .isInstanceOf(IllegalArgumentException.class);
+    context = ScanContext.builder().streaming(true).useSnapshotId(1L).build();
+    assertException(context, "Cannot set snapshot-id option for streaming reader");
 
-    Assertions.assertThatThrownBy(
-            () -> ScanContext.builder().streaming(true).asOfTimestamp(1L).build())
-        .hasMessage("Cannot set as-of-timestamp option for streaming reader")
-        .isInstanceOf(IllegalArgumentException.class);
+    context = ScanContext.builder().streaming(true).asOfTimestamp(1L).build();
+    assertException(context, "Cannot set as-of-timestamp option for streaming reader");
 
-    Assertions.assertThatThrownBy(
-            () -> ScanContext.builder().streaming(true).endSnapshotId(1L).build())
-        .hasMessage("Cannot set end-snapshot-id option for streaming reader")
-        .isInstanceOf(IllegalArgumentException.class);
+    context = ScanContext.builder().streaming(true).endSnapshotId(1L).build();
+    assertException(context, "Cannot set end-snapshot-id option for streaming reader");
 
-    Assertions.assertThatThrownBy(() -> ScanContext.builder().streaming(true).endTag("tag").build())
-        .hasMessage("Cannot set end-tag option for streaming reader")
-        .isInstanceOf(IllegalArgumentException.class);
+    context = ScanContext.builder().streaming(true).endTag("tag").build();
+    assertException(context, "Cannot set end-tag option for streaming reader");
   }
 
   @Test
   void testStartConflict() {
-    Assertions.assertThatThrownBy(
-            () -> ScanContext.builder().startTag("tag").startSnapshotId(1L).build())
-        .hasMessage("START_SNAPSHOT_ID and START_TAG cannot both be set.")
-        .isInstanceOf(IllegalArgumentException.class);
+    ScanContext context = ScanContext.builder().startTag("tag").startSnapshotId(1L).build();
+    assertException(context, "START_SNAPSHOT_ID and START_TAG cannot both be set.");
   }
 
   @Test
   void testEndConflict() {
-    Assertions.assertThatThrownBy(
-            () -> ScanContext.builder().endTag("tag").endSnapshotId(1L).build())
-        .hasMessage("END_SNAPSHOT_ID and END_TAG cannot both be set.")
-        .isInstanceOf(IllegalArgumentException.class);
+    ScanContext context = ScanContext.builder().endTag("tag").endSnapshotId(1L).build();
+    assertException(context, "END_SNAPSHOT_ID and END_TAG cannot both be set.");
   }
 
   @Test
   void testMaxAllowedPlanningFailures() {
-    Assertions.assertThatThrownBy(
-            () -> ScanContext.builder().maxAllowedPlanningFailures(-2).build())
-        .hasMessage("Cannot set maxAllowedPlanningFailures to a negative number other than -1.")
+    ScanContext context = ScanContext.builder().maxAllowedPlanningFailures(-2).build();
+    assertException(
+        context, "Cannot set maxAllowedPlanningFailures to a negative number other than -1.");
+  }
+
+  private void assertException(ScanContext context, String message) {
+    Assertions.assertThatThrownBy(() -> context.validate())
+        .hasMessage(message)
         .isInstanceOf(IllegalArgumentException.class);
   }
 }

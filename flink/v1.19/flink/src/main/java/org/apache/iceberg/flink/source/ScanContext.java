@@ -99,8 +99,7 @@ public class ScanContext implements Serializable {
       String branch,
       String tag,
       String startTag,
-      String endTag,
-      boolean skipValidate) {
+      String endTag) {
     this.caseSensitive = caseSensitive;
     this.snapshotId = snapshotId;
     this.tag = tag;
@@ -130,13 +129,9 @@ public class ScanContext implements Serializable {
     this.maxAllowedPlanningFailures = maxAllowedPlanningFailures;
     this.watermarkColumn = watermarkColumn;
     this.watermarkColumnTimeUnit = watermarkColumnTimeUnit;
-
-    if (!skipValidate) {
-      validate();
-    }
   }
 
-  private void validate() {
+  void validate() {
     if (isStreaming) {
       if (startingStrategy == StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_ID) {
         Preconditions.checkArgument(
@@ -320,7 +315,6 @@ public class ScanContext implements Serializable {
         .maxAllowedPlanningFailures(maxAllowedPlanningFailures)
         .watermarkColumn(watermarkColumn)
         .watermarkColumnTimeUnit(watermarkColumnTimeUnit)
-        .skipValidate()
         .build();
   }
 
@@ -352,7 +346,6 @@ public class ScanContext implements Serializable {
         .maxAllowedPlanningFailures(maxAllowedPlanningFailures)
         .watermarkColumn(watermarkColumn)
         .watermarkColumnTimeUnit(watermarkColumnTimeUnit)
-        .skipValidate()
         .build();
   }
 
@@ -396,7 +389,6 @@ public class ScanContext implements Serializable {
     private String watermarkColumn = FlinkReadOptions.WATERMARK_COLUMN_OPTION.defaultValue();
     private TimeUnit watermarkColumnTimeUnit =
         FlinkReadOptions.WATERMARK_COLUMN_TIME_UNIT_OPTION.defaultValue();
-    private boolean skipValidate = false;
 
     private Builder() {}
 
@@ -540,11 +532,6 @@ public class ScanContext implements Serializable {
       return this;
     }
 
-    public Builder skipValidate() {
-      this.skipValidate = true;
-      return this;
-    }
-
     public Builder resolveConfig(
         Table table, Map<String, String> readOptions, ReadableConfig readableConfig) {
       FlinkReadConf flinkReadConf = new FlinkReadConf(table, readOptions, readableConfig);
@@ -604,8 +591,7 @@ public class ScanContext implements Serializable {
           branch,
           tag,
           startTag,
-          endTag,
-          skipValidate);
+          endTag);
     }
   }
 }
