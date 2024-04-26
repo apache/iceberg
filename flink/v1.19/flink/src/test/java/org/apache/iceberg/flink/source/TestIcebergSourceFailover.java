@@ -64,6 +64,8 @@ import org.junit.rules.TemporaryFolder;
 
 public class TestIcebergSourceFailover {
 
+  // Parallelism higher than 1, but lower than the number of splits used by some of our tests
+  // The goal is to allow some splits to remain in the enumerator when restoring the state
   private static final int PARALLELISM = 2;
   private static final int DO_NOT_FAIL = Integer.MAX_VALUE;
 
