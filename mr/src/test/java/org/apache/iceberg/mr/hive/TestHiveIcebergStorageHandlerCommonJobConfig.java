@@ -22,6 +22,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 import org.apache.iceberg.FileFormat;
@@ -36,6 +37,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestHiveIcebergStorageHandlerCommonJobConfig {
@@ -47,6 +49,8 @@ public class TestHiveIcebergStorageHandlerCommonJobConfig {
   private String fakeCustomConfigValue;
 
   private TestTables testTables;
+
+  @TempDir private Path temp;
 
   private void executeSql() throws IOException {
     Schema emptySchema = new Schema(required(1, "empty", Types.StringType.get()));
@@ -67,6 +71,10 @@ public class TestHiveIcebergStorageHandlerCommonJobConfig {
   @BeforeEach
   public void before() throws IOException {
     shell = HiveIcebergStorageHandlerTestUtils.shell();
+    testTables =
+        HiveIcebergStorageHandlerTestUtils.testTables(
+            shell, TestTables.TestTableType.HIVE_CATALOG, temp);
+    HiveIcebergStorageHandlerTestUtils.init(shell, testTables, temp, "tez");
   }
 
   @AfterEach
