@@ -134,9 +134,7 @@ public class HiveIcebergInputFormat extends MapredIcebergInputFormat<Record>
     return true;
   }
 
-  // Override annotation commented out, since this interface method has been introduced only in Hive
-  // 3
-  // @Override
+  @Override
   public VectorizedSupport.Support[] getSupportedFeatures() {
     return new VectorizedSupport.Support[0];
   }

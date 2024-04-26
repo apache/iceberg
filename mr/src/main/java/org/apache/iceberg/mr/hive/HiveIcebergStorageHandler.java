@@ -109,9 +109,7 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
   @Override
   public void configureTableJobProperties(TableDesc tableDesc, Map<String, String> map) {}
 
-  // Override annotation commented out, since this interface method has been introduced only in Hive
-  // 3
-  // @Override
+  @Override
   public void configureInputJobCredentials(TableDesc tableDesc, Map<String, String> secrets) {}
 
   private void setCommonJobConf(JobConf jobConf) {
