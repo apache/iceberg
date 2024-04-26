@@ -94,7 +94,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
     assertThat(response.table().storageDescriptor().columns()).hasSameSizeAs(schema.columns());
     assertThat(response.table().partitionKeys()).hasSameSizeAs(partitionSpec.fields());
     assertThat(response.table().storageDescriptor().additionalLocations())
-        .isEqualTo(tableLocationProperties.values());
+        .containsExactlyInAnyOrderElementsOf(tableLocationProperties.values());
     // verify metadata file exists in S3
     String metaLocation =
         response.table().parameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);

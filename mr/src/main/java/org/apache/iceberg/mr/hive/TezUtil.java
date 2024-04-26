@@ -92,8 +92,8 @@ public class TezUtil {
    * Subclasses {@link org.apache.hadoop.mapred.TaskAttemptID}. It has two main purposes: 1. Provide
    * a way to append an optional vertex id to the Job ID. This is needed because there is a
    * discrepancy between how the attempt ID is constructed in the {@link
-   * org.apache.tez.mapreduce.output.MROutput} (with vertex ID appended to the end of the Job ID)
-   * and how it's available in the mapper (without vertex ID) which creates and caches the
+   * org.apache.tez.mapreduce.output} (with vertex ID appended to the end of the Job ID) and how
+   * it's available in the mapper (without vertex ID) which creates and caches the
    * HiveIcebergRecordWriter object. 2. Redefine the equals/hashcode provided by TaskAttemptID so
    * that task type (map or reduce) does not count, and therefore the mapper and reducer threads can
    * use the same attempt ID-based key to retrieve the cached HiveIcebergRecordWriter object.

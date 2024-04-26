@@ -18,9 +18,9 @@
  */
 package org.apache.iceberg.mr.hive.serde.objectinspector;
 
-import java.sql.Date;
 import java.time.LocalDate;
-import org.apache.hadoop.hive.serde2.io.DateWritable;
+import org.apache.hadoop.hive.common.type.Date;
+import org.apache.hadoop.hive.serde2.io.DateWritableV2;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.AbstractPrimitiveJavaObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.DateObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
@@ -41,12 +41,12 @@ public final class IcebergDateObjectInspector extends AbstractPrimitiveJavaObjec
 
   @Override
   public Date getPrimitiveJavaObject(Object o) {
-    return o == null ? null : Date.valueOf((LocalDate) o);
+    return o == null ? null : Date.valueOf(String.valueOf(o));
   }
 
   @Override
-  public DateWritable getPrimitiveWritableObject(Object o) {
-    return o == null ? null : new DateWritable(DateTimeUtil.daysFromDate((LocalDate) o));
+  public DateWritableV2 getPrimitiveWritableObject(Object o) {
+    return o == null ? null : new DateWritableV2(DateTimeUtil.daysFromDate((LocalDate) o));
   }
 
   @Override
@@ -56,7 +56,7 @@ public final class IcebergDateObjectInspector extends AbstractPrimitiveJavaObjec
     }
 
     if (o instanceof Date) {
-      return new Date(((Date) o).getTime());
+      return new Date((Date) o);
     } else if (o instanceof LocalDate) {
       return LocalDate.of(
           ((LocalDate) o).getYear(), ((LocalDate) o).getMonth(), ((LocalDate) o).getDayOfMonth());
@@ -67,6 +67,6 @@ public final class IcebergDateObjectInspector extends AbstractPrimitiveJavaObjec
 
   @Override
   public LocalDate convert(Object o) {
-    return o == null ? null : ((Date) o).toLocalDate();
+    return o == null ? null : (LocalDate) o;
   }
 }

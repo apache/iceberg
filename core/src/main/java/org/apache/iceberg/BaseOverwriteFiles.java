@@ -48,6 +48,14 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
 
   @Override
   protected String operation() {
+    if (deletesDataFiles() && !addsDataFiles()) {
+      return DataOperations.DELETE;
+    }
+
+    if (addsDataFiles() && !deletesDataFiles()) {
+      return DataOperations.APPEND;
+    }
+
     return DataOperations.OVERWRITE;
   }
 
