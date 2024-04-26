@@ -21,10 +21,13 @@ package org.apache.iceberg.mr.hive;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestHiveIcebergStorageHandlerCommonJobConfig {
   private static TestHiveShell shell;
   private static final String TEZ_MRREADER_CONFIG_UPDATE_PROPERTIES =
