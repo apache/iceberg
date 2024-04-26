@@ -73,8 +73,8 @@ project(':iceberg-mr') {
     testImplementation(libs.hive2.service) {
       exclude group: 'org.apache.hive', module: 'hive-exec'
     }
-    testImplementation libs.tez08.dag
-    testImplementation libs.tez08.mapreduce
+    testImplementation libs.tez010.dag
+    testImplementation libs.tez010.mapreduce
   }
 
   test {
