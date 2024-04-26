@@ -236,6 +236,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           Integer.parseInt(restPageSize) > 0,
           "Invalid value for pageSize, must be a positive integer");
     }
+
     this.io = newFileIO(SessionContext.createEmpty(), mergedProps);
 
     this.fileIOCloser = newFileIOCloser();
@@ -292,6 +293,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     if (restPageSize != null) {
       queryParams.put("pageSize", restPageSize);
     }
+
     do {
       queryParams.put("pageToken", pageToken);
       ListTablesResponse response =
@@ -523,6 +525,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     if (restPageSize != null) {
       queryParams.put("pageSize", restPageSize);
     }
+
     do {
       queryParams.put("pageToken", pageToken);
       ListNamespacesResponse response =
@@ -1081,6 +1084,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     if (restPageSize != null) {
       queryParams.put("pageSize", restPageSize);
     }
+
     do {
       queryParams.put("pageToken", pageToken);
       ListTablesResponse response =
