@@ -50,9 +50,10 @@ public class TestHiveIcebergStorageHandlerCommonJobConfig {
 
   private void executeSql() {
     shell.executeStatement(
-        "CREATE TABLE default.empty (column1 string, column2 string)"
+        "CREATE TABLE default.demo_table (column1 string, column2 string)"
             + " STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler'");
-    shell.executeStatement("SELECT * FROM default.empty");
+    shell.executeStatement("insert into table default.demo_table select '1', '2'");
+    shell.executeStatement("SELECT count(1) FROM default.demo_table limit 1");
   }
 
   @Parameters(name = "fakeCustomConfigValue={0}")
@@ -71,7 +72,7 @@ public class TestHiveIcebergStorageHandlerCommonJobConfig {
     testTables =
         HiveIcebergStorageHandlerTestUtils.testTables(
             shell, TestTables.TestTableType.HIVE_CATALOG, temp);
-    HiveIcebergStorageHandlerTestUtils.init(shell, testTables, temp, "tez");
+    HiveIcebergStorageHandlerTestUtils.init(shell, testTables, temp, "mr");
   }
 
   @AfterEach
