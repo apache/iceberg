@@ -55,22 +55,14 @@ public class TestHiveIcebergStorageHandlerCommonJobConfig {
 
   @TempDir private Path temp;
 
-  private void executeSql() throws IOException {
-    createAndAddRecords(
-        FileFormat.ORC,
-        TableIdentifier.of("default", "customers1"),
-        HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
-    shell.executeStatement("SELECT * FROM default.customers1 ORDER BY customer_id LIMIT 1");
-  }
-
   @Parameters(name = "fakeCustomConfigValue={0}")
   public static Collection<Object[]> parameters() {
     return ImmutableList.of(
-        new String[] {"fake_custom_config_value"},
-        new String[] {"fake_custom_config_value "},
-        new String[] {" fake_custom_config_value"},
-        new String[] {" fake_custom_config_value1 , fake_custom_config_value2 "},
-        new String[] {" fake_custom_config_value1 , fake_custom_config_value1 "});
+        new String[] {"fake_custom_config_value0"},
+        new String[] {"fake_custom_config_value1 "},
+        new String[] {" fake_custom_config_value2"},
+        new String[] {" fake_custom_config_value3 , fake_custom_config_value4 "},
+        new String[] {" fake_custom_config_value4 , fake_custom_config_value4 "});
   }
 
   @BeforeAll
@@ -87,7 +79,7 @@ public class TestHiveIcebergStorageHandlerCommonJobConfig {
   public void before() throws IOException {
     testTables =
         HiveIcebergStorageHandlerTestUtils.testTables(
-            shell, TestTables.TestTableType.HIVE_CATALOG, temp, "table1_catalog");
+            shell, TestTables.TestTableType.HIVE_CATALOG, temp);
     HiveIcebergStorageHandlerTestUtils.init(shell, testTables, temp, "tez");
   }
 
@@ -99,7 +91,14 @@ public class TestHiveIcebergStorageHandlerCommonJobConfig {
   @TestTemplate
   public void testWithoutCustomConfigValue() throws IOException {
     // execute sql to inject the config parameters
-    executeSql();
+    TableIdentifier identifier = TableIdentifier.of("default", "customers1");
+    testTables.createTableWithGeneratedRecords(
+        shell,
+        identifier.name(),
+        HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA,
+        FileFormat.ORC,
+        10);
+    shell.executeStatement("SELECT * FROM default.customers1 ORDER BY customer_id LIMIT 1");
     String configValue = shell.getHiveSessionValue(TEZ_MRREADER_CONFIG_UPDATE_PROPERTIES, null);
     assertThat(configValue).isNotNull();
     List<String> configValueList = Lists.newArrayList(configValue.split(","));
