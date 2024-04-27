@@ -24,9 +24,11 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.AfterEach;
@@ -48,11 +50,13 @@ public class TestHiveIcebergStorageHandlerCommonJobConfig {
 
   @TempDir private Path temp;
 
-  private void executeSql() {
-    shell.executeStatement(
-        "CREATE TABLE default.demo_table (column1 int, column2 int)"
-            + " STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler'");
-    shell.executeStatement("SELECT count(1) FROM default.demo_table limit 1");
+  private void executeSql() throws IOException {
+    TestHiveIcebergStorageHandlerWithMultipleCatalogs.createAndAddRecords(
+        testTables,
+        FileFormat.ORC,
+        TableIdentifier.of("default", "customers1"),
+        HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
+    shell.executeStatement("SELECT count(1) FROM default.customers1 limit 1");
   }
 
   @Parameters(name = "fakeCustomConfigValue={0}")
