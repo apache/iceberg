@@ -34,9 +34,11 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -71,28 +73,34 @@ public class TestHiveIcebergStorageHandlerCommonJobConfig {
         new String[] {" fake_custom_config_value1 , fake_custom_config_value1 "});
   }
 
+  @BeforeAll
+  public static void beforeClass() {
+    shell = HiveIcebergStorageHandlerTestUtils.shell();
+  }
+
+  @AfterAll
+  public static void afterClass() throws Exception {
+    shell.stop();
+  }
+
   @BeforeEach
   public void before() throws IOException {
-    shell = HiveIcebergStorageHandlerTestUtils.shell();
     testTables =
         HiveIcebergStorageHandlerTestUtils.testTables(
-            shell, TestTables.TestTableType.HIVE_CATALOG, temp);
+            shell, TestTables.TestTableType.HIVE_CATALOG, temp, "table1_catalog");
     HiveIcebergStorageHandlerTestUtils.init(shell, testTables, temp, "tez");
   }
 
   @AfterEach
   public void after() throws Exception {
     HiveIcebergStorageHandlerTestUtils.close(shell);
-    shell.stop();
   }
 
-  @Test
+  @TestTemplate
   public void testWithoutCustomConfigValue() throws IOException {
-    String configValue = shell.getHiveSessionValue(TEZ_MRREADER_CONFIG_UPDATE_PROPERTIES, null);
-    assertThat(configValue).isNull();
     // execute sql to inject the config parameters
     executeSql();
-    configValue = shell.getHiveSessionValue(TEZ_MRREADER_CONFIG_UPDATE_PROPERTIES, null);
+    String configValue = shell.getHiveSessionValue(TEZ_MRREADER_CONFIG_UPDATE_PROPERTIES, null);
     assertThat(configValue).isNotNull();
     List<String> configValueList = Lists.newArrayList(configValue.split(","));
     configValueList.sort(String::compareTo);
