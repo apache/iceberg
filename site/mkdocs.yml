@@ -17,6 +17,7 @@
 
 INHERIT: ./nav.yml
 
+site_url: !ENV [ICEBERG_SITE_URL, 'http://localhost:8000']
 site_name: Apache Iceberg
 
 theme:
@@ -47,6 +48,7 @@ theme:
 
 plugins:
   - search
+  - site-urls
   - macros
   - monorepo
   - privacy

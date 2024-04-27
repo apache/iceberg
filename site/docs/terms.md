@@ -36,11 +36,11 @@ Each manifest file in the manifest list is stored with information about its con
 
 A **manifest file** is a metadata file that lists a subset of data files that make up a snapshot.
 
-Each data file in a manifest is stored with a [partition tuple](#partition-tuple), column-level stats, and summary information used to prune splits during [scan planning](docs/latest/performance.md#scan-planning).
+Each data file in a manifest is stored with a [partition tuple](#partition-tuple), column-level stats, and summary information used to prune splits during [scan planning](site:docs/latest/performance/#scan-planning).
 
 ### Partition spec
 
-A **partition spec** is a description of how to [partition](docs/latest/partitioning.md) data in a table.
+A **partition spec** is a description of how to [partition](site:docs/latest/partitioning/) data in a table.
 
 A spec consists of a list of source columns and transforms. A transform produces a partition value from a source value. For example, `date(ts)` produces the date associated with a timestamp column named `ts`.
 
@@ -58,4 +58,4 @@ The **snapshot log** is a metadata log of how the table's current snapshot has c
 
 The log is a list of timestamp and ID pairs: when the current snapshot changed and the snapshot ID the current snapshot was changed to.
 
-The snapshot log is stored in [table metadata as `snapshot-log`](spec.md#table-metadata-fields).
+The snapshot log is stored in [table metadata as `snapshot-log`](site:spec/#table-metadata-fields).
