@@ -165,7 +165,7 @@ public class TestHiveIcebergStorageHandlerWithMultipleCatalogs {
         0);
   }
 
-  public static void createAndAddRecords(
+  private void createAndAddRecords(
       TestTables testTables,
       FileFormat fileFormat,
       TableIdentifier identifier,
