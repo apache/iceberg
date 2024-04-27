@@ -193,7 +193,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     return new IcebergRecordReader<>();
   }
 
-  public static final class IcebergRecordReader<T> extends RecordReader<Void, T> {
+  private static final class IcebergRecordReader<T> extends RecordReader<Void, T> {
 
     private static final String HIVE_VECTORIZED_READER_CLASS =
         "org.apache.iceberg.mr.hive.vector.HiveVectorizedReader";

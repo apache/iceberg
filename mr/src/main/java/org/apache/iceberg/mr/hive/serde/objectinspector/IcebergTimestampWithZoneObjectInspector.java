@@ -18,10 +18,10 @@
  */
 package org.apache.iceberg.mr.hive.serde.objectinspector;
 
+import java.sql.Timestamp;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import org.apache.hadoop.hive.common.type.Timestamp;
-import org.apache.hadoop.hive.serde2.io.TimestampWritableV2;
+import org.apache.hadoop.hive.serde2.io.TimestampWritable;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.AbstractPrimitiveJavaObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
@@ -42,27 +42,25 @@ public class IcebergTimestampWithZoneObjectInspector extends AbstractPrimitiveJa
 
   @Override
   public OffsetDateTime convert(Object o) {
-    return o == null
-        ? null
-        : OffsetDateTime.of(((Timestamp) o).toSqlTimestamp().toLocalDateTime(), ZoneOffset.UTC);
+    return o == null ? null : OffsetDateTime.ofInstant(((Timestamp) o).toInstant(), ZoneOffset.UTC);
   }
 
   @Override
   public Timestamp getPrimitiveJavaObject(Object o) {
-    return o == null ? null : Timestamp.ofEpochSecond(((OffsetDateTime) o).toEpochSecond());
+    return o == null ? null : Timestamp.from(((OffsetDateTime) o).toInstant());
   }
 
   @Override
-  public TimestampWritableV2 getPrimitiveWritableObject(Object o) {
+  public TimestampWritable getPrimitiveWritableObject(Object o) {
     Timestamp ts = getPrimitiveJavaObject(o);
-    return ts == null ? null : new TimestampWritableV2(ts);
+    return ts == null ? null : new TimestampWritable(ts);
   }
 
   @Override
   public Object copyObject(Object o) {
     if (o instanceof Timestamp) {
       Timestamp ts = (Timestamp) o;
-      Timestamp copy = new Timestamp(ts);
+      Timestamp copy = new Timestamp(ts.getTime());
       copy.setNanos(ts.getNanos());
       return copy;
     } else if (o instanceof OffsetDateTime) {
