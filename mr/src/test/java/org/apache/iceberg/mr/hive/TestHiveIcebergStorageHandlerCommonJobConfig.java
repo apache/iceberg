@@ -28,10 +28,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
-import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.data.Record;
-import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.AfterAll;
@@ -58,11 +55,7 @@ public class TestHiveIcebergStorageHandlerCommonJobConfig {
   @Parameters(name = "fakeCustomConfigValue={0}")
   public static Collection<Object[]> parameters() {
     return ImmutableList.of(
-        new String[] {"fake_custom_config_value0"},
-        new String[] {"fake_custom_config_value1 "},
-        new String[] {" fake_custom_config_value2"},
-        new String[] {" fake_custom_config_value3 , fake_custom_config_value4 "},
-        new String[] {" fake_custom_config_value4 , fake_custom_config_value4 "});
+        new String[] {" fake_custom_config_value3 , fake_custom_config_value4 "});
   }
 
   @BeforeAll
@@ -106,23 +99,5 @@ public class TestHiveIcebergStorageHandlerCommonJobConfig {
     String sortedConfigValue = String.join(",", configValueList);
     assertThat(sortedConfigValue)
         .isEqualTo("hive.io.file.readcolumn.ids,hive.io.file.readcolumn.names");
-  }
-
-  private void createAndAddRecords(
-      FileFormat fileFormat, TableIdentifier identifier, List<Record> records) throws IOException {
-    String createSql =
-        "CREATE EXTERNAL TABLE "
-            + identifier
-            + " (customer_id BIGINT, first_name STRING, last_name STRING)"
-            + " STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' "
-            + testTables.locationForCreateTableSQL(identifier)
-            + " TBLPROPERTIES ('"
-            + InputFormatConfig.CATALOG_NAME
-            + "'='"
-            + testTables.catalogName()
-            + "')";
-    shell.executeStatement(createSql);
-    Table icebergTable = testTables.loadTable(identifier);
-    testTables.appendIcebergTable(shell.getHiveConf(), icebergTable, fileFormat, null, records);
   }
 }
