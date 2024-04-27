@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.source;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import java.util.Collection;
@@ -471,6 +472,20 @@ public class TestIcebergSourceContinuous {
       resultMain = waitForResult(iter, 2);
       TestHelpers.assertRecords(resultMain, batchMain2, tableResource.table().schema());
     }
+  }
+
+  @Test
+  public void testValidation() {
+    assertThatThrownBy(
+            () ->
+                IcebergSource.forRowData()
+                    .tableLoader(tableResource.tableLoader())
+                    .assignerFactory(new SimpleSplitAssignerFactory())
+                    .streaming(true)
+                    .endTag("tag")
+                    .build())
+        .hasMessage("Cannot set end-tag option for streaming reader")
+        .isInstanceOf(IllegalArgumentException.class);
   }
 
   private DataStream<Row> createStream(ScanContext scanContext) throws Exception {

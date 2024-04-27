@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.flink.source;
 
+import static org.apache.iceberg.flink.SimpleDataUtil.SCHEMA;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -42,8 +45,25 @@ import org.apache.iceberg.flink.data.RowDataToRowMapper;
 import org.apache.iceberg.flink.source.assigner.SimpleSplitAssignerFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.junit.jupiter.api.TestTemplate;
 
 public class TestIcebergSourceBounded extends TestFlinkScan {
+  @TestTemplate
+  public void testValidation() {
+    catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, SCHEMA);
+
+    assertThatThrownBy(
+            () ->
+                IcebergSource.forRowData()
+                    .tableLoader(tableLoader())
+                    .assignerFactory(new SimpleSplitAssignerFactory())
+                    .streaming(false)
+                    .endTag("tag")
+                    .endSnapshotId(1L)
+                    .build())
+        .hasMessage("END_SNAPSHOT_ID and END_TAG cannot both be set.")
+        .isInstanceOf(IllegalArgumentException.class);
+  }
 
   @Override
   protected List<Row> runWithProjection(String... projected) throws Exception {
