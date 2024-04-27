@@ -55,7 +55,6 @@ public class TestHiveIcebergStorageHandlerCommonJobConfig {
 
   private void executeSql() throws IOException {
     createAndAddRecords(
-        testTables,
         FileFormat.ORC,
         TableIdentifier.of("default", "customers1"),
         HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
@@ -103,11 +102,7 @@ public class TestHiveIcebergStorageHandlerCommonJobConfig {
   }
 
   private void createAndAddRecords(
-      TestTables testTables,
-      FileFormat fileFormat,
-      TableIdentifier identifier,
-      List<Record> records)
-      throws IOException {
+      FileFormat fileFormat, TableIdentifier identifier, List<Record> records) throws IOException {
     String createSql =
         "CREATE EXTERNAL TABLE "
             + identifier
