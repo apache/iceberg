@@ -50,9 +50,9 @@ public class TestHiveIcebergStorageHandlerCommonJobConfig {
 
   private void executeSql() {
     shell.executeStatement(
-        "CREATE TABLE default.demo_table (column1 string, column2 string)"
+        "CREATE TABLE default.demo_table (column1 int, column2 int)"
             + " STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler'");
-    shell.executeStatement("insert into table default.demo_table select '1', '2'");
+    shell.executeStatement("insert into table default.demo_table select 1, 2");
     shell.executeStatement("SELECT count(1) FROM default.demo_table limit 1");
   }
 
