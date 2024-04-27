@@ -58,7 +58,7 @@ public class TestHiveIcebergStorageHandlerCommonJobConfig {
         FileFormat.ORC,
         TableIdentifier.of("default", "customers1"),
         HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
-    shell.executeStatement("SELECT count(1) FROM default.customers1 limit 1");
+    shell.executeStatement("SELECT * FROM default.customers1 ORDER BY customer_id LIMIT 1");
   }
 
   @Parameters(name = "fakeCustomConfigValue={0}")
