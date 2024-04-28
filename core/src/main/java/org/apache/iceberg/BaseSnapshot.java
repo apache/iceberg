@@ -23,6 +23,7 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
@@ -32,6 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 class BaseSnapshot implements Snapshot {
   private final long snapshotId;
@@ -46,8 +48,9 @@ class BaseSnapshot implements Snapshot {
 
   // lazily initialized
   private transient List<ManifestFile> allManifests = null;
-  private transient List<ManifestFile> dataManifests = null;
-  private transient List<ManifestFile> deleteManifests = null;
+  private transient Map<Long, List<ManifestFile>> dataManifests;
+  private transient Map<Long, List<ManifestFile>> deleteManifests;
+
   private transient List<DataFile> addedDataFiles = null;
   private transient List<DataFile> removedDataFiles = null;
   private transient List<DeleteFile> addedDeleteFiles = null;
@@ -147,14 +150,25 @@ class BaseSnapshot implements Snapshot {
     }
 
     if (dataManifests == null || deleteManifests == null) {
-      this.dataManifests =
-          ImmutableList.copyOf(
-              Iterables.filter(
-                  allManifests, manifest -> manifest.content() == ManifestContent.DATA));
-      this.deleteManifests =
-          ImmutableList.copyOf(
-              Iterables.filter(
-                  allManifests, manifest -> manifest.content() == ManifestContent.DELETES));
+      dataManifests = Maps.newHashMap();
+      deleteManifests = Maps.newHashMap();
+
+      for (ManifestFile dataManifest :
+          Iterables.filter(allManifests, manifest -> manifest.content() == ManifestContent.DATA)) {
+        List<ManifestFile> manifests =
+            dataManifests.getOrDefault(dataManifest.snapshotId(), Lists.newArrayList());
+        manifests.add(dataManifest);
+        dataManifests.put(dataManifest.snapshotId(), manifests);
+      }
+
+      for (ManifestFile deleteManifest :
+          Iterables.filter(
+              allManifests, manifest -> manifest.content() == ManifestContent.DELETES)) {
+        List<ManifestFile> manifests =
+            dataManifests.getOrDefault(deleteManifest.snapshotId(), Lists.newArrayList());
+        manifests.add(deleteManifest);
+        dataManifests.put(deleteManifest.snapshotId(), manifests);
+      }
     }
   }
 
@@ -171,7 +185,8 @@ class BaseSnapshot implements Snapshot {
     if (dataManifests == null) {
       cacheManifests(fileIO);
     }
-    return dataManifests;
+
+    return dataManifests.values().stream().flatMap(List::stream).collect(Collectors.toList());
   }
 
   @Override
@@ -179,7 +194,8 @@ class BaseSnapshot implements Snapshot {
     if (deleteManifests == null) {
       cacheManifests(fileIO);
     }
-    return deleteManifests;
+
+    return deleteManifests.values().stream().flatMap(List::stream).collect(Collectors.toList());
   }
 
   @Override
@@ -217,6 +233,24 @@ class BaseSnapshot implements Snapshot {
   @Override
   public String manifestListLocation() {
     return manifestListLocation;
+  }
+
+  @Override
+  public List<ManifestFile> dataManifests(FileIO fileIO, Long addedSnapshotId) {
+    if (dataManifests == null) {
+      cacheManifests(fileIO);
+    }
+
+    return dataManifests.get(addedSnapshotId);
+  }
+
+  @Override
+  public List<ManifestFile> deleteManifests(FileIO fileIO, Long addedSnapshotId) {
+    if (deleteManifests == null) {
+      cacheManifests(fileIO);
+    }
+
+    return deleteManifests.get(addedSnapshotId);
   }
 
   private void cacheDeleteFileChanges(FileIO fileIO) {

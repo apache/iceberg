@@ -775,17 +775,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       if (matchingOperations.contains(currentSnapshot.operation())) {
         newSnapshots.add(currentSnapshot.snapshotId());
         if (content == ManifestContent.DATA) {
-          for (ManifestFile manifest : currentSnapshot.dataManifests(ops.io())) {
-            if (manifest.snapshotId() == currentSnapshot.snapshotId()) {
-              manifests.add(manifest);
-            }
-          }
+          manifests.addAll(currentSnapshot.dataManifests(ops.io(), currentSnapshot.snapshotId()));
         } else {
-          for (ManifestFile manifest : currentSnapshot.deleteManifests(ops.io())) {
-            if (manifest.snapshotId() == currentSnapshot.snapshotId()) {
-              manifests.add(manifest);
-            }
-          }
+          manifests.addAll(currentSnapshot.deleteManifests(ops.io(), currentSnapshot.snapshotId()));
         }
       }
     }
