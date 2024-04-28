@@ -86,7 +86,6 @@ sqlite-jdbc = "3.45.2.0"
 testcontainers = "1.19.7"
 tez010 = "0.10.3"
 tez08 = { strictly = "0.8.4"}  # see rich version usage explanation above
-tez09 = "0.9.2"
 
 [libraries]
 activation = { module = "javax.activation:activation", version.ref = "activation" }
