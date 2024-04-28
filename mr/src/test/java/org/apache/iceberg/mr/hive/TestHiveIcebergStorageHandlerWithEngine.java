@@ -281,6 +281,21 @@ public class TestHiveIcebergStorageHandlerWithEngine {
   }
 
   @TestTemplate
+  public void testCommonJobConfig() throws IOException {
+    if (!(executionEngine.equalsIgnoreCase("tez")
+        && testTableType == TestTables.TestTableType.HIVE_CATALOG)) {
+      return;
+    }
+    testTables.createTable(shell, "orders", ORDER_SCHEMA, fileFormat, ORDER_RECORDS);
+    shell.executeStatement(
+        "SELECT o1.order_id, o1.customer_id, o1.total "
+            + "FROM default.orders o1 JOIN default.orders o2 ON o1.order_id = o2.order_id ORDER BY o1.order_id");
+    String configValue = shell.getHiveSessionValue("tez.mrreader.config.update.properties", null);
+    assertThat(configValue).isNotNull();
+    assertThat(configValue).isEqualTo("hive.io.file.readcolumn.names,hive.io.file.readcolumn.ids");
+  }
+
+  @TestTemplate
   public void testCBOWithSelfJoin() throws IOException {
     shell.setHiveSessionValue("hive.cbo.enable", true);
 
