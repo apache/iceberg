@@ -217,5 +217,3 @@ tez010-dag = { module = "org.apache.tez:tez-dag", version.ref = "tez010" }
 tez010-mapreduce = { module = "org.apache.tez:tez-mapreduce", version.ref = "tez010" }
 tez08-dag = { module = "org.apache.tez:tez-dag", version.ref = "tez08" }
 tez08-mapreduce = { module = "org.apache.tez:tez-mapreduce", version.ref = "tez08" }
-tez09-dag = { module = "org.apache.tez:tez-dag", version.ref = "tez09" }
-tez09-mapreduce = { module = "org.apache.tez:tez-mapreduce", version.ref = "tez09" }
