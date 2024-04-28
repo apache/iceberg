@@ -504,6 +504,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       }
 
       ScanContext context = contextBuilder.build();
+      context.validate();
       if (readerFunction == null) {
         if (table instanceof BaseMetadataTable) {
           MetaDataReaderFunction rowDataReaderFunction =
