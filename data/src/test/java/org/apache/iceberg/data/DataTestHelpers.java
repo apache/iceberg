@@ -94,7 +94,7 @@ public class DataTestHelpers {
             .as("Expected should be a byte[]")
             .isInstanceOf(byte[].class);
         Assertions.assertThat(expected).as("Actual should be a byte[]").isInstanceOf(byte[].class);
-        Assertions.assertThat((byte[]) actual).as("Array contents should be equal").isEqualTo( (byte[]) expected);
+        Assertions.assertThat(actual).isEqualTo(expected);
         break;
       case STRUCT:
         Assertions.assertThat(expected)
