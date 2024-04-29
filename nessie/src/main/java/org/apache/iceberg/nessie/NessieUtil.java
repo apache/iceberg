@@ -215,7 +215,7 @@ public final class NessieUtil {
         .build();
   }
 
-  static Optional<RuntimeException> handleExceptionsForCommits(
+  public static Optional<RuntimeException> handleExceptionsForCommits(
       Exception exception, String refName, Content.Type type) {
     if (exception instanceof NessieConflictException) {
       if (exception instanceof NessieReferenceConflictException) {
