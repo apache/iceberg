@@ -36,7 +36,7 @@ calcite = "1.10.0"
 delta-standalone = "3.1.0"
 delta-spark = "3.1.0"
 esotericsoftware-kryo = "4.0.3"
-errorprone-annotations = "2.26.1"
+errorprone-annotations = "2.27.0"
 findbugs-jsr305 = "3.0.2"
 flink117 = { strictly = "1.17.2"}
 flink118 =  { strictly = "1.18.1"}
