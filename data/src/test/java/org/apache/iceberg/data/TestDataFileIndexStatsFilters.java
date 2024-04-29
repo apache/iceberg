@@ -96,7 +96,7 @@ public class TestDataFileIndexStatsFilters {
     this.dataFileWithoutNulls =
         FileHelpers.writeDataFile(
             table,
-            Files.localOutput(temp),
+            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
             records.stream()
                 .filter(rec -> rec.getField("data") != null)
                 .collect(Collectors.toList()));
