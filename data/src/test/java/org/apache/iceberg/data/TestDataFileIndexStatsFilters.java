@@ -69,7 +69,7 @@ public class TestDataFileIndexStatsFilters {
 
   @BeforeEach
   public void createTableAndData() throws IOException {
-    File location = temp;
+    File location = Files.createTempDirectory(temp, "junit").toFile();
     this.table = TestTables.create(location, "test", SCHEMA, PartitionSpec.unpartitioned(), 2);
 
     this.records = Lists.newArrayList();
