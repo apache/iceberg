@@ -18,13 +18,16 @@
  */
 package org.apache.iceberg.flink.source;
 
+import static org.apache.iceberg.flink.SimpleDataUtil.SCHEMA;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.types.logical.RowType;
@@ -182,6 +185,23 @@ public class TestFlinkInputFormat extends TestFlinkSource {
     }
 
     TestHelpers.assertRows(result, expected);
+  }
+
+  @TestTemplate
+  public void testValidation() {
+    catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, SCHEMA);
+
+    assertThatThrownBy(
+            () ->
+                FlinkSource.forRowData()
+                    .env(StreamExecutionEnvironment.getExecutionEnvironment())
+                    .tableLoader(tableLoader())
+                    .streaming(false)
+                    .endTag("tag")
+                    .endSnapshotId(1L)
+                    .build())
+        .hasMessage("END_SNAPSHOT_ID and END_TAG cannot both be set.")
+        .isInstanceOf(IllegalArgumentException.class);
   }
 
   private List<Row> runFormat(FlinkInputFormat inputFormat) throws IOException {
