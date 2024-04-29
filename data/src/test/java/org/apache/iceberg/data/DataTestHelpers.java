@@ -42,8 +42,8 @@ public class DataTestHelpers {
   public static void assertEquals(Types.ListType list, List<?> expected, List<?> actual) {
     Type elementType = list.elementType();
 
-    Assertions.assertThat(expected.size())
-        .isEqualTo(actual.size())
+    Assertions.assertThat(actual)
+        .hasSameSizeAs(expected)
         .describedAs("List size should match");
 
     for (int i = 0; i < expected.size(); i += 1) {
@@ -57,8 +57,7 @@ public class DataTestHelpers {
   public static void assertEquals(Types.MapType map, Map<?, ?> expected, Map<?, ?> actual) {
     Type valueType = map.valueType();
 
-    org.junit.jupiter.api.Assertions.assertEquals(
-        expected.size(), actual.size(), "Map size should match");
+    Assertions.assertThat(actual).hasSameSizeAs(expected).as("Map size should match");
 
     for (Object expectedKey : expected.keySet()) {
       Object expectedValue = expected.get(expectedKey);
@@ -86,8 +85,7 @@ public class DataTestHelpers {
       case UUID:
       case BINARY:
       case DECIMAL:
-        org.junit.jupiter.api.Assertions.assertEquals(
-            expected, actual, "Primitive value should be equal to expected for type " + type);
+        Assertions.assertThat(actual).isEqualTo(expected).describedAs( "Primitive value should be equal to expected for type " + type);
         break;
       case FIXED:
         Assertions.assertThat(expected)
