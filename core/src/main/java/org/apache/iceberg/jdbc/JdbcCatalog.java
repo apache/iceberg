@@ -86,7 +86,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
   private Map<String, String> catalogProperties;
   private final Function<Map<String, String>, FileIO> ioBuilder;
   private final Function<Map<String, String>, JdbcClientPool> clientPoolBuilder;
-  private final boolean initializeCatalogTables;
+  private boolean initializeCatalogTables;
   private CloseableGroup closeableGroup;
   private JdbcUtil.SchemaVersion schemaVersion = JdbcUtil.SchemaVersion.V0;
 
@@ -137,6 +137,9 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
       this.connections = new JdbcClientPool(uri, properties);
     }
 
+    this.initializeCatalogTables =
+        PropertyUtil.propertyAsBoolean(
+            properties, JdbcUtil.INIT_CATALOG_TABLES_PROPERTY, initializeCatalogTables);
     if (initializeCatalogTables) {
       initializeCatalogTables();
     }
