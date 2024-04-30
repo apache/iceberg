@@ -58,7 +58,7 @@ public class TestOrcRowIterator {
     }
   }
 
-  @TempDir public File temp;
+  @TempDir private File temp;
 
   @BeforeEach
   public void writeFile() throws IOException {
