@@ -187,7 +187,7 @@ public class TestDataFileIndexStatsFilters {
       tasks = Lists.newArrayList(tasksIterable);
     }
 
-    Assertions.assertThat(1).isEqualTo(tasks.size()).as("Should produce one task");
+    Assertions.assertThat(tasks).as("Should produce one task").hasSize(1);
     FileScanTask task = tasks.get(0);
     Assertions.assertThat(task.deletes())
         .as("Should have one delete file, data contains a matching value").hasSize(1);
