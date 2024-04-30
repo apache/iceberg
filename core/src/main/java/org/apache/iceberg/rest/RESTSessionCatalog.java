@@ -215,6 +215,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     this.paths = ResourcePaths.forCatalogProperties(mergedProps);
 
     String token = mergedProps.get(OAuth2Properties.TOKEN);
+    // re-resolve these variables in case they were overridden by the config endpoint
+    credential = mergedProps.get(OAuth2Properties.CREDENTIAL);
+    scope = mergedProps.getOrDefault(OAuth2Properties.SCOPE, OAuth2Properties.CATALOG_SCOPE);
+    oauth2ServerUri =
+        mergedProps.getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens());
+    optionalOAuthParams = OAuth2Util.buildOptionalParam(mergedProps);
     this.catalogAuth =
         new AuthSession(
             baseHeaders, null, null, credential, scope, oauth2ServerUri, optionalOAuthParams);

@@ -18,7 +18,11 @@
  */
 package org.apache.iceberg.rest.auth;
 
+import java.lang.reflect.Field;
+import org.apache.iceberg.rest.RESTCatalog;
+import org.apache.iceberg.rest.RESTSessionCatalog;
 import org.apache.iceberg.rest.auth.OAuth2Util.AuthSession;
+import org.junit.jupiter.api.Assertions;
 
 /** Helper class to make the token refresh retries configurable for testing */
 public class AuthSessionUtil {
@@ -27,5 +31,18 @@ public class AuthSessionUtil {
 
   public static void setTokenRefreshNumRetries(int retries) {
     AuthSession.setTokenRefreshNumRetries(retries);
+  }
+
+  public static AuthSession getCatalogAuthSession(RESTCatalog catalog) {
+    try {
+      Field scf = catalog.getClass().getDeclaredField("sessionCatalog");
+      scf.setAccessible(true);
+      RESTSessionCatalog sc = (RESTSessionCatalog) scf.get(catalog);
+      Field caf = sc.getClass().getDeclaredField("catalogAuth");
+      caf.setAccessible(true);
+      return (AuthSession) caf.get(sc);
+    } catch (Exception e) {
+      return Assertions.fail("Failed to get AuthSession from RESTCatalog", e);
+    }
   }
 }

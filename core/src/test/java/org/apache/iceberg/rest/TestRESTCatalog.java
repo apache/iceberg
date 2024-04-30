@@ -272,7 +272,15 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                               CatalogProperties.CACHE_ENABLED,
                               "false",
                               CatalogProperties.WAREHOUSE_LOCATION,
-                              queryParams.get(CatalogProperties.WAREHOUSE_LOCATION) + "warehouse"))
+                              queryParams.get(CatalogProperties.WAREHOUSE_LOCATION) + "warehouse",
+                              OAuth2Properties.OAUTH2_SERVER_URI,
+                              "https://auth.server.com:8080/oauth2/token",
+                              OAuth2Properties.SCOPE,
+                              "custom",
+                              OAuth2Properties.CREDENTIAL,
+                              "custom:secret",
+                              OAuth2Properties.AUDIENCE,
+                              "audience1"))
                       .build());
             }
             return super.get(path, queryParams, responseType, headers, errorHandler);
@@ -300,6 +308,41 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Assertions.assertThat(restCat.properties().get(CatalogProperties.WAREHOUSE_LOCATION))
         .as("Catalog should return final warehouse location")
         .isEqualTo("s3://bucket/warehouse");
+
+    Assertions.assertThat(restCat.properties().get(OAuth2Properties.OAUTH2_SERVER_URI))
+        .as("Catalog should return final oauth2 server uri")
+        .isEqualTo("https://auth.server.com:8080/oauth2/token");
+
+    Assertions.assertThat(restCat.properties().get(OAuth2Properties.SCOPE))
+        .as("Catalog should return final scope")
+        .isEqualTo("custom");
+
+    Assertions.assertThat(restCat.properties().get(OAuth2Properties.CREDENTIAL))
+        .as("Catalog should return final credential")
+        .isEqualTo("custom:secret");
+
+    Assertions.assertThat(restCat.properties().get(OAuth2Properties.AUDIENCE))
+        .as("Catalog should return final audience")
+        .isEqualTo("audience1");
+
+    OAuth2Util.AuthSession authSession = AuthSessionUtil.getCatalogAuthSession(restCat);
+    Assertions.assertThat(authSession).isNotNull();
+
+    Assertions.assertThat(authSession.oauth2ServerUri())
+        .as("Auth session should have the final oauth2 server uri")
+        .isEqualTo("https://auth.server.com:8080/oauth2/token");
+
+    Assertions.assertThat(authSession.scope())
+        .as("Auth session should have the final scope")
+        .isEqualTo("custom");
+
+    Assertions.assertThat(authSession.credential())
+        .as("Auth session should have the final credential")
+        .isEqualTo("custom:secret");
+
+    Assertions.assertThat(authSession.optionalOAuthParams().get(OAuth2Properties.AUDIENCE))
+        .as("Auth session should have the final audience")
+        .isEqualTo("audience1");
 
     restCat.close();
   }
