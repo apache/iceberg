@@ -71,7 +71,7 @@ public class TestLocalScan {
   private static final Tables TABLES = new HadoopTables(CONF);
 
   @Parameters(name = "format = {0}")
-  public static Object parameters() {
+  public static Object[] parameters() {
     return new Object[] {"parquet", "orc", "avro"};
   }
 
