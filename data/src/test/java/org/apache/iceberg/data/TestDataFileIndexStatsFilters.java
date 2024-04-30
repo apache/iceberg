@@ -216,7 +216,7 @@ public class TestDataFileIndexStatsFilters {
 
     Assertions.assertThat(tasks.size()).isEqualTo(1).as("Should produce one task");
     FileScanTask task = tasks.get(0);
-    Assertions.assertThat(task.deletes().size())
+    Assertions.assertThat(task.deletes()).as(..).isEmpty();`
         .isEqualTo(0)
         .as("Should not have delete file, filtered by data column stats");
   }
