@@ -86,7 +86,7 @@ public class TestSingleMessageEncoding {
 
     Record copy = decoder.decode(encoder.encode(V2_RECORDS.get(0)));
 
-    Assertions.assertThat(copy != V2_RECORDS.get(0))
+    Assertions.assertThat(copy).as(...).isNotSameAs(V2_RECORDS.get(0)))
         .as("Copy should not be the same object")
         .isTrue();
     Assertions.assertThat(V2_RECORDS.get(0))
