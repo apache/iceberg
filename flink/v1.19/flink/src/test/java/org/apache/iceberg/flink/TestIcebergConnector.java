@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Map;
 import org.apache.flink.configuration.CoreOptions;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -47,14 +46,11 @@ import org.apache.thrift.TException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestIcebergConnector extends TestBase {
 
   private static final String TABLE_NAME = "test_table";
-
-  @TempDir private static Path warehouse;
 
   @Parameter(index = 0)
   private String catalogName;
@@ -327,10 +323,11 @@ public class TestIcebergConnector extends TestBase {
     return CatalogTestBase.toWithClause(props);
   }
 
-  private static String createWarehouse() {
+  private String createWarehouse() {
     try {
       return String.format(
-          "file://%s", Files.createTempDirectory(warehouse, "junit").toFile().getAbsolutePath());
+          "file://%s",
+          Files.createTempDirectory(temporaryDirectory, "junit").toFile().getAbsolutePath());
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

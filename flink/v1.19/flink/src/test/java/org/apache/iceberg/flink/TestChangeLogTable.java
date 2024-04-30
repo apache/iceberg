@@ -22,7 +22,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.List;
 import org.apache.flink.types.Row;
 import org.apache.hadoop.conf.Configuration;
@@ -45,11 +44,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
 
 /**
  * In this test case, we mainly cover the impact of primary key selection, multiple operations
@@ -58,14 +55,13 @@ import org.junit.jupiter.api.io.TempDir;
  */
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestChangeLogTable extends ChangeLogTableTestBase {
-  @TempDir private static Path temp;
   private static final Configuration CONF = new Configuration();
   private static final String SOURCE_TABLE = "default_catalog.default_database.source_change_logs";
 
   private static final String CATALOG_NAME = "test_catalog";
   private static final String DATABASE_NAME = "test_db";
   private static final String TABLE_NAME = "test_table";
-  private static String warehouse;
+  private String warehouse;
 
   @Parameter private boolean partitioned;
 
@@ -74,15 +70,12 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
     return ImmutableList.of(new Object[] {true}, new Object[] {false});
   }
 
-  @BeforeAll
-  public static void createWarehouse() throws IOException {
-    File warehouseFile = File.createTempFile("junit", null, temp.toFile());
+  @BeforeEach
+  public void before() throws IOException {
+    File warehouseFile = File.createTempFile("junit", null, temporaryDirectory.toFile());
     assertThat(warehouseFile.delete()).isTrue();
     warehouse = String.format("file:%s", warehouseFile);
-  }
 
-  @BeforeEach
-  public void before() {
     sql(
         "CREATE CATALOG %s WITH ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s')",
         CATALOG_NAME, warehouse);

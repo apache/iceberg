@@ -18,12 +18,13 @@
  */
 package org.apache.iceberg.flink.source;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.List;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.flink.FlinkReadOptions;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestFlinkSourceConfig extends TestFlinkTableSource {
   private static final String TABLE = "test_table";
@@ -31,8 +32,7 @@ public class TestFlinkSourceConfig extends TestFlinkTableSource {
   @Test
   public void testFlinkSessionConfig() {
     getTableEnv().getConfig().set(FlinkReadOptions.STREAMING_OPTION, true);
-    Assertions.assertThatThrownBy(
-            () -> sql("SELECT * FROM %s /*+ OPTIONS('as-of-timestamp'='1')*/", TABLE))
+    assertThatThrownBy(() -> sql("SELECT * FROM %s /*+ OPTIONS('as-of-timestamp'='1')*/", TABLE))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot set as-of-timestamp option for streaming reader");
   }
@@ -43,16 +43,16 @@ public class TestFlinkSourceConfig extends TestFlinkTableSource {
         sql(
             "SELECT * FROM %s /*+ OPTIONS('as-of-timestamp'='%d','streaming'='false')*/",
             TABLE, System.currentTimeMillis());
-    Assert.assertEquals(3, result.size());
+    assertThat(result).hasSize(3);
   }
 
   @Test
   public void testReadOptionHierarchy() {
     getTableEnv().getConfig().set(FlinkReadOptions.LIMIT_OPTION, 1L);
     List<Row> result = sql("SELECT * FROM %s", TABLE);
-    Assert.assertEquals(1, result.size());
+    assertThat(result).hasSize(1);
 
     result = sql("SELECT * FROM %s /*+ OPTIONS('limit'='3')*/", TABLE);
-    Assert.assertEquals(3, result.size());
+    assertThat(result).hasSize(3);
   }
 }
