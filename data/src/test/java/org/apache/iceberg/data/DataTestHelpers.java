@@ -42,9 +42,8 @@ public class DataTestHelpers {
   public static void assertEquals(Types.ListType list, List<?> expected, List<?> actual) {
     Type elementType = list.elementType();
 
-    Assertions.assertThat(actual)
-        .hasSameSizeAs(expected)
-        .describedAs("List size should match");
+    Assertions.assertThat(actual).as("List size should match")
+        .hasSameSizeAs(expected);
 
     for (int i = 0; i < expected.size(); i += 1) {
       Object expectedValue = expected.get(i);
