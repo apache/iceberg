@@ -369,7 +369,7 @@ public class TestLocalScan {
             .copy(ImmutableMap.of("id", 2L, "data", "falafel", "_spec_id", 0, "_pos", 2L));
     expectedRecord.setField("_partition", null);
     Assertions.assertThat(iterator.next()).isEqualTo(expectedRecord);
-    Assertions.assertThat(iterator.hasNext()).isFalse();
+    Assertions.assertThat(iterator).isExhausted();
   }
 
   @TestTemplate
