@@ -24,6 +24,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -47,10 +48,12 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
+import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.jupiter.api.BeforeEach;
@@ -60,7 +63,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestTaskEqualityDeltaWriter extends TestBase {
   private static final int FORMAT_V2 = 2;
-  private static final long TARGET_FILE_SIZE = 128 * 1024 * 1024L;
+  private static final long TARGET_FILE_SIZE = 128L;
   private final GenericRecord gRecord = GenericRecord.create(SCHEMA);
   private final GenericRecord posRecord = GenericRecord.create(DeleteSchemaUtil.pathPosSchema());
 
@@ -105,7 +108,8 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
     List<Integer> eqDeleteFieldIds = Lists.newArrayList(idFieldId, dataFieldId);
     Schema eqDeleteRowSchema = table.schema();
 
-    GenericTaskDeltaWriter deltaWriter = createTaskWriter(eqDeleteFieldIds, eqDeleteRowSchema);
+    GenericTaskDeltaWriter deltaWriter =
+        createTaskWriter(eqDeleteFieldIds, eqDeleteRowSchema, DeleteGranularity.PARTITION);
     List<Record> expected = Lists.newArrayList();
     for (int i = 0; i < 20; i++) {
       Record record = createRecord(i, String.format("val-%d", i));
@@ -122,7 +126,8 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
         .as("Should have expected records")
         .isEqualTo(actualRowSet("*"));
 
-    deltaWriter = createTaskWriter(eqDeleteFieldIds, eqDeleteRowSchema);
+    deltaWriter =
+        createTaskWriter(eqDeleteFieldIds, eqDeleteRowSchema, DeleteGranularity.PARTITION);
     for (int i = 20; i < 30; i++) {
       Record record = createRecord(i, String.format("val-%d", i));
       expected.add(record);
@@ -143,7 +148,8 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
     List<Integer> equalityFieldIds = Lists.newArrayList(idFieldId);
     Schema eqDeleteRowSchema = table.schema();
 
-    GenericTaskDeltaWriter deltaWriter = createTaskWriter(equalityFieldIds, eqDeleteRowSchema);
+    GenericTaskDeltaWriter deltaWriter =
+        createTaskWriter(equalityFieldIds, eqDeleteRowSchema, DeleteGranularity.PARTITION);
     deltaWriter.write(createRecord(1, "aaa"));
     deltaWriter.write(createRecord(2, "bbb"));
     deltaWriter.write(createRecord(3, "ccc"));
@@ -203,7 +209,8 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
     List<Integer> eqDeleteFieldIds = Lists.newArrayList(idFieldId, dataFieldId);
     Schema eqDeleteRowSchema = table.schema();
 
-    GenericTaskDeltaWriter deltaWriter = createTaskWriter(eqDeleteFieldIds, eqDeleteRowSchema);
+    GenericTaskDeltaWriter deltaWriter =
+        createTaskWriter(eqDeleteFieldIds, eqDeleteRowSchema, DeleteGranularity.PARTITION);
 
     Record record = createRecord(1, "aaa");
     deltaWriter.write(record);
@@ -230,7 +237,8 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
     assertThat(readRecordsAsList(DeleteSchemaUtil.pathPosSchema(), posDeleteFile.path()))
         .isEqualTo(ImmutableList.of(posRecord.copy("file_path", dataFile.path(), "pos", 0L)));
 
-    deltaWriter = createTaskWriter(eqDeleteFieldIds, eqDeleteRowSchema);
+    deltaWriter =
+        createTaskWriter(eqDeleteFieldIds, eqDeleteRowSchema, DeleteGranularity.PARTITION);
     deltaWriter.delete(record);
     result = deltaWriter.complete();
     assertThat(result.dataFiles()).as("Should have 0 data file.").hasSize(0);
@@ -246,7 +254,8 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
     List<Integer> eqDeleteFieldIds = Lists.newArrayList(dataFieldId);
     Schema eqDeleteRowSchema = table.schema().select("data");
 
-    GenericTaskDeltaWriter deltaWriter = createTaskWriter(eqDeleteFieldIds, eqDeleteRowSchema);
+    GenericTaskDeltaWriter deltaWriter =
+        createTaskWriter(eqDeleteFieldIds, eqDeleteRowSchema, DeleteGranularity.PARTITION);
     deltaWriter.write(createRecord(1, "aaa"));
     deltaWriter.write(createRecord(2, "bbb"));
     deltaWriter.write(createRecord(3, "aaa"));
@@ -273,7 +282,8 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
                     createRecord(2, "bbb"), createRecord(3, "aaa"), createRecord(4, "ccc"))));
 
     // Start the 2nd transaction.
-    deltaWriter = createTaskWriter(eqDeleteFieldIds, eqDeleteRowSchema);
+    deltaWriter =
+        createTaskWriter(eqDeleteFieldIds, eqDeleteRowSchema, DeleteGranularity.PARTITION);
     GenericRecord keyRecord = GenericRecord.create(eqDeleteRowSchema);
     Function<String, Record> keyFunc = data -> keyRecord.copy("data", data);
 
@@ -330,7 +340,8 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
     List<Integer> eqDeleteFieldIds = Lists.newArrayList(dataFieldId);
     Schema eqDeleteRowSchema = table.schema();
 
-    GenericTaskDeltaWriter deltaWriter = createTaskWriter(eqDeleteFieldIds, eqDeleteRowSchema);
+    GenericTaskDeltaWriter deltaWriter =
+        createTaskWriter(eqDeleteFieldIds, eqDeleteRowSchema, DeleteGranularity.PARTITION);
     deltaWriter.write(createRecord(1, "aaa"));
     deltaWriter.write(createRecord(2, "bbb"));
     deltaWriter.write(createRecord(3, "aaa"));
@@ -357,7 +368,8 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
                     createRecord(2, "bbb"), createRecord(3, "aaa"), createRecord(4, "ccc"))));
 
     // Start the 2nd transaction.
-    deltaWriter = createTaskWriter(eqDeleteFieldIds, eqDeleteRowSchema);
+    deltaWriter =
+        createTaskWriter(eqDeleteFieldIds, eqDeleteRowSchema, DeleteGranularity.PARTITION);
 
     // UPSERT <3,'aaa'> to <5,'aaa'> - (by delete the entire row)
     deltaWriter.delete(createRecord(3, "aaa"));
@@ -409,6 +421,62 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
         .isEqualTo(ImmutableList.of(posRecord.copy("file_path", dataFile.path(), "pos", 0L)));
   }
 
+  @TestTemplate
+  public void testDeleteFileGranularity() throws IOException {
+    withGranularity(DeleteGranularity.FILE);
+  }
+
+  @TestTemplate
+  public void testDeletePartitionGranularity() throws IOException {
+    withGranularity(DeleteGranularity.PARTITION);
+  }
+
+  private void withGranularity(DeleteGranularity granularity) throws IOException {
+    List<Integer> eqDeleteFieldIds = Lists.newArrayList(idFieldId, dataFieldId);
+    Schema eqDeleteRowSchema = table.schema();
+
+    GenericTaskDeltaWriter deltaWriter =
+        createTaskWriter(eqDeleteFieldIds, eqDeleteRowSchema, granularity);
+
+    Map<Integer, Record> expected = Maps.newHashMapWithExpectedSize(2000);
+    int expectedDeleteCount = 0;
+    // Create enough records, so we have multiple files
+    for (int i = 0; i < 2000; ++i) {
+      Record record = createRecord(i, "aaa" + i);
+      deltaWriter.write(record);
+      if (i % 5 == 0) {
+        deltaWriter.delete(record);
+        ++expectedDeleteCount;
+      } else {
+        expected.put(i, record);
+      }
+    }
+
+    // Add some deletes in the end
+    for (int i = 0; i < 199; ++i) {
+      int id = i * 10 + 1;
+      Record record = createRecord(id, "aaa" + id);
+      deltaWriter.delete(record);
+      ++expectedDeleteCount;
+      expected.remove(id);
+    }
+
+    WriteResult result = deltaWriter.complete();
+
+    // Should have 2 files, as BaseRollingWriter checks the size on every 1000 rows (ROWS_DIVISOR)
+    assertThat(result.dataFiles()).as("Should have 2 data files.").hasSize(2);
+    assertThat(result.deleteFiles())
+        .as("Should have correct number of pos-delete files")
+        .hasSize(granularity.equals(DeleteGranularity.FILE) ? 2 : 1);
+    assertThat(Arrays.stream(result.deleteFiles()).mapToLong(delete -> delete.recordCount()).sum())
+        .isEqualTo(expectedDeleteCount);
+
+    commitTransaction(result);
+    assertThat(actualRowSet("*"))
+        .as("Should have expected record")
+        .isEqualTo(expectedRowSet(expected.values()));
+  }
+
   private void commitTransaction(WriteResult result) {
     RowDelta rowDelta = table.newRowDelta();
     Arrays.stream(result.dataFiles()).forEach(rowDelta::addRows);
@@ -442,7 +510,9 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
    *     be the entire fields of the table schema.
    */
   private GenericTaskDeltaWriter createTaskWriter(
-      List<Integer> equalityFieldIds, Schema eqDeleteRowSchema) {
+      List<Integer> equalityFieldIds,
+      Schema eqDeleteRowSchema,
+      DeleteGranularity deleteGranularity) {
     FileAppenderFactory<Record> appenderFactory =
         new GenericAppenderFactory(
             table.schema(),
@@ -465,7 +535,8 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
         appenderFactory,
         fileFactory,
         table.io(),
-        TARGET_FILE_SIZE);
+        TARGET_FILE_SIZE,
+        deleteGranularity);
   }
 
   private static class GenericTaskDeltaWriter extends BaseTaskWriter<Record> {
@@ -479,9 +550,11 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
         FileAppenderFactory<Record> appenderFactory,
         OutputFileFactory fileFactory,
         FileIO io,
-        long targetFileSize) {
+        long targetFileSize,
+        DeleteGranularity deleteGranularity) {
       super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
-      this.deltaWriter = new GenericEqualityDeltaWriter(null, schema, deleteSchema);
+      this.deltaWriter =
+          new GenericEqualityDeltaWriter(null, schema, deleteSchema, deleteGranularity);
     }
 
     @Override
@@ -505,8 +578,11 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
 
     private class GenericEqualityDeltaWriter extends BaseEqualityDeltaWriter {
       private GenericEqualityDeltaWriter(
-          PartitionKey partition, Schema schema, Schema eqDeleteSchema) {
-        super(partition, schema, eqDeleteSchema);
+          PartitionKey partition,
+          Schema schema,
+          Schema eqDeleteSchema,
+          DeleteGranularity deleteGranularity) {
+        super(partition, schema, eqDeleteSchema, deleteGranularity);
       }
 
       @Override
