@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.fail;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ContentFile;
@@ -57,7 +58,7 @@ public class TestDataFileIndexStatsFilters {
           Types.NestedField.optional(2, "data", Types.StringType.get()),
           Types.NestedField.required(3, "category", Types.StringType.get()));
 
-  @TempDir protected File temp;
+  @TempDir private Path temp;
 
   private Table table;
   private List<Record> records = null;
@@ -69,7 +70,7 @@ public class TestDataFileIndexStatsFilters {
 
   @BeforeEach
   public void createTableAndData() throws IOException {
-    File location = Files.createTempDirectory(temp, "junit").toFile();
+    File location = File.createTempFile("junit", null, temp.toFile());
     this.table = TestTables.create(location, "test", SCHEMA, PartitionSpec.unpartitioned(), 2);
 
     this.records = Lists.newArrayList();
@@ -93,6 +94,7 @@ public class TestDataFileIndexStatsFilters {
             .filter(rec -> rec.getField("category").equals("even"))
             .collect(Collectors.toList());
 
+    this.dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.toFile()), records);
     this.dataFileWithoutNulls =
         FileHelpers.writeDataFile(
             table,
@@ -103,7 +105,7 @@ public class TestDataFileIndexStatsFilters {
     this.dataFileOnlyNulls =
         FileHelpers.writeDataFile(
             table,
-            Files.localOutput(temp),
+                Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
             records.stream()
                 .filter(rec -> rec.getField("data") == null)
                 .collect(Collectors.toList()));
@@ -123,7 +125,7 @@ public class TestDataFileIndexStatsFilters {
     deletes.add(Pair.of(dataFile.path(), 1L));
 
     Pair<DeleteFile, CharSequenceSet> posDeletes =
-        FileHelpers.writeDeleteFile(table, Files.localOutput(temp), deletes);
+        FileHelpers.writeDeleteFile(table, Files.localOutput(File.createTempFile("junit", null, temp.toFile())), deletes);
     table
         .newRowDelta()
         .addDeletes(posDeletes.first())
@@ -137,9 +139,7 @@ public class TestDataFileIndexStatsFilters {
 
     Assertions.assertThat(tasks).as("Should produce one task").hasSize(1);
     FileScanTask task = tasks.get(0);
-    Assertions.assertThat(task.deletes().size())
-        .isEqualTo(1)
-        .as("Should have one delete file, file_path matches");
+    Assertions.assertThat(task.deletes()).as("Should have one delete file, file_path matches").hasSize(1);
   }
 
   @Test
@@ -151,7 +151,7 @@ public class TestDataFileIndexStatsFilters {
     deletes.add(Pair.of("some-other-file.parquet", 1L));
 
     Pair<DeleteFile, CharSequenceSet> posDeletes =
-        FileHelpers.writeDeleteFile(table, Files.localOutput(temp), deletes);
+        FileHelpers.writeDeleteFile(table, Files.localOutput(File.createTempFile("junit", null, temp.toFile())), deletes);
     table
         .newRowDelta()
         .addDeletes(posDeletes.first())
@@ -166,7 +166,6 @@ public class TestDataFileIndexStatsFilters {
     Assertions.assertThat(tasks).as("Should produce one task").hasSize(1);
     FileScanTask task = tasks.get(0);
     Assertions.assertThat(task.deletes()).as("Should not have delete file, filtered by file_path stats").hasSize(0);
-
   }
 
   @Test
@@ -179,7 +178,7 @@ public class TestDataFileIndexStatsFilters {
     deletes.add(delete.copy("data", "d"));
 
     DeleteFile posDeletes =
-        FileHelpers.writeDeleteFile(table, Files.localOutput(temp), deletes, deleteRowSchema);
+        FileHelpers.writeDeleteFile(table, Files.localOutput(File.createTempFile("junit", null, temp.toFile())), deletes, deleteRowSchema);
 
     table.newRowDelta().addDeletes(posDeletes).commit();
 
@@ -190,9 +189,8 @@ public class TestDataFileIndexStatsFilters {
 
     Assertions.assertThat(1).isEqualTo(tasks.size()).as("Should produce one task");
     FileScanTask task = tasks.get(0);
-    Assertions.assertThat(task.deletes().size())
-        .isEqualTo(1)
-        .as("Should have one delete file, data contains a matching value");
+    Assertions.assertThat(task.deletes())
+        .as("Should have one delete file, data contains a matching value").hasSize(1);
   }
 
   @Test
@@ -207,7 +205,7 @@ public class TestDataFileIndexStatsFilters {
     deletes.add(delete.copy("data", "z"));
 
     DeleteFile posDeletes =
-        FileHelpers.writeDeleteFile(table, Files.localOutput(temp), deletes, deleteRowSchema);
+        FileHelpers.writeDeleteFile(table, Files.localOutput(File.createTempFile("junit", null, temp.toFile())), deletes, deleteRowSchema);
 
     table.newRowDelta().addDeletes(posDeletes).commit();
 
@@ -233,7 +231,7 @@ public class TestDataFileIndexStatsFilters {
     deletes.add(delete.copy("data", null));
 
     DeleteFile posDeletes =
-        FileHelpers.writeDeleteFile(table, Files.localOutput(temp), deletes, deleteRowSchema);
+        FileHelpers.writeDeleteFile(table, Files.localOutput(File.createTempFile("junit", null, temp.toFile())), deletes, deleteRowSchema);
 
     table.newRowDelta().addDeletes(posDeletes).commit();
 
@@ -262,7 +260,7 @@ public class TestDataFileIndexStatsFilters {
     deletes.add(delete.copy("data", null));
 
     DeleteFile posDeletes =
-        FileHelpers.writeDeleteFile(table, Files.localOutput(temp), deletes, deleteRowSchema);
+        FileHelpers.writeDeleteFile(table, Files.localOutput(File.createTempFile("junit", null, temp.toFile())), deletes, deleteRowSchema);
 
     table.newRowDelta().addDeletes(posDeletes).commit();
 
@@ -291,7 +289,7 @@ public class TestDataFileIndexStatsFilters {
     deletes.add(delete.copy("data", "d"));
 
     DeleteFile posDeletes =
-        FileHelpers.writeDeleteFile(table, Files.localOutput(temp), deletes, deleteRowSchema);
+        FileHelpers.writeDeleteFile(table, Files.localOutput(File.createTempFile("junit", null, temp.toFile())), deletes, deleteRowSchema);
 
     table.newRowDelta().addDeletes(posDeletes).commit();
 
@@ -323,7 +321,7 @@ public class TestDataFileIndexStatsFilters {
     deletes.add(delete.copy("data", "x"));
 
     DeleteFile posDeletes =
-        FileHelpers.writeDeleteFile(table, Files.localOutput(temp), deletes, deleteRowSchema);
+        FileHelpers.writeDeleteFile(table, Files.localOutput(File.createTempFile("junit", null, temp.toFile())), deletes, deleteRowSchema);
 
     table.newRowDelta().addDeletes(posDeletes).commit();
 
@@ -457,7 +455,7 @@ public class TestDataFileIndexStatsFilters {
   }
 
   private DataFile writeData(StructLike partition, List<Record> data) throws IOException {
-    return FileHelpers.writeDataFile(table, Files.localOutput(temp), partition, data);
+    return FileHelpers.writeDataFile(table, Files.localOutput(File.createTempFile("junit", null, temp.toFile())), partition, data);
   }
 
   private DeleteFile writeEqDeletes(String col, Object... values) throws IOException {
@@ -474,13 +472,13 @@ public class TestDataFileIndexStatsFilters {
       deletes.add(delete.copy(col, value));
     }
 
-    OutputFile out = Files.localOutput(temp);
+    OutputFile out = Files.localOutput(File.createTempFile("junit", null, temp.toFile()));
     return FileHelpers.writeDeleteFile(table, out, partition, deletes, deleteSchema);
   }
 
   private Pair<DeleteFile, CharSequenceSet> writePosDeletes(
       StructLike partition, List<Pair<CharSequence, Long>> deletes) throws IOException {
-    OutputFile out = Files.localOutput(temp);
+    OutputFile out = Files.localOutput(File.createTempFile("junit", null, temp.toFile()));
     return FileHelpers.writeDeleteFile(table, out, partition, deletes);
   }
 }

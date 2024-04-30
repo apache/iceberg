@@ -217,9 +217,8 @@ public class TestMetricsRowGroupFilterTypes {
 
     InputFile inFile = Files.localInput(PARQUET_FILE);
     try (ParquetFileReader reader = ParquetFileReader.open(parquetInputFile(inFile))) {
-      Assertions.assertThat(1)
-          .isEqualTo(reader.getRowGroups().size())
-          .as("Should create only one row group");
+      Assertions.assertThat(1).as("Should create only one row group")
+          .isEqualTo(reader.getRowGroups().size());
       rowGroupMetadata = reader.getRowGroups().get(0);
       parquetSchema = reader.getFileMetaData().getSchema();
     }
@@ -290,14 +289,12 @@ public class TestMetricsRowGroupFilterTypes {
   @TestTemplate
   public void testEq() {
     boolean shouldRead = shouldRead(readValue, column);
-    Assertions.assertThat(shouldRead)
-        .isTrue()
-        .as("Should read: value is in the row group: " + readValue);
+    Assertions.assertThat(shouldRead).as("Should read: value is in the row group: " + readValue)
+        .isTrue();
 
     shouldRead = shouldRead(skipValue, column);
-    Assertions.assertThat(shouldRead)
-        .isFalse()
-        .as("Should skip: value is not in the row group: " + skipValue);
+    Assertions.assertThat(shouldRead).as("Should skip: value is not in the row group: " + skipValue)
+        .isFalse();
   }
 
   private boolean shouldRead(Object value, String column) {

@@ -34,7 +34,7 @@ public class TestGenericReadProjection extends TestReadProjection {
   protected Record writeAndRead(String desc, Schema writeSchema, Schema readSchema, Record record)
       throws IOException {
 
-    File file = temp;
+    File file = File.createTempFile("junit", null, temp);
     file.delete();
 
     try (FileAppender<Record> appender =

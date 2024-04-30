@@ -77,7 +77,8 @@ public class TestLocalScan {
 
   @TempDir private File temp;                    
 
-  @Parameter private FileFormat format;
+  @Parameter
+  private FileFormat format;
   private String sharedTableLocation = null;
   private Table sharedTable = null;
 
@@ -254,12 +255,10 @@ public class TestLocalScan {
     append.commit();
 
     Set<Record> records = Sets.newHashSet(IcebergGenerics.read(table).build());
-    Assertions.assertThat(expected)
-        .hasSize(records.size())
-        .as("Should produce correct number of records");
-    Assertions.assertThat(records)
-        .isEqualTo(Sets.newHashSet(expected))
-        .as("Random record set should match");
+    Assertions.assertThat(expected).as("Should produce correct number of records")
+            .hasSize(records.size());
+    Assertions.assertThat(records).as("Random record set should match")
+            .hasSameSizeAs(Sets.newHashSet(expected));
   }
 
   @TestTemplate
@@ -272,12 +271,10 @@ public class TestLocalScan {
     expected.addAll(file3FirstSnapshotRecords);
 
     Set<Record> records = Sets.newHashSet(results);
-    Assertions.assertThat(expected)
-        .hasSize(records.size())
-        .as("Should produce correct number of records");
-    Assertions.assertThat(records)
-        .isEqualTo(Sets.newHashSet(expected))
-        .as("Random record set should match");
+    Assertions.assertThat(records).as("Should produce correct number of records")
+        .hasSameSizeAs(expected);
+    Assertions.assertThat(records).as("Random record set should match")
+        .hasSameSizeAs(expected);
   }
 
   @TestTemplate

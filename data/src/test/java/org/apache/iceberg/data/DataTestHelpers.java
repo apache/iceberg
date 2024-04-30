@@ -57,7 +57,7 @@ public class DataTestHelpers {
   public static void assertEquals(Types.MapType map, Map<?, ?> expected, Map<?, ?> actual) {
     Type valueType = map.valueType();
 
-    Assertions.assertThat(actual).hasSameSizeAs(expected).as("Map size should match");
+    Assertions.assertThat(actual).as("Map size should match").hasSameSizeAs(expected);
 
     for (Object expectedKey : expected.keySet()) {
       Object expectedValue = expected.get(expectedKey);
@@ -85,7 +85,7 @@ public class DataTestHelpers {
       case UUID:
       case BINARY:
       case DECIMAL:
-        Assertions.assertThat(actual).isEqualTo(expected).describedAs( "Primitive value should be equal to expected for type " + type);
+        Assertions.assertThat(actual).as( "Primitive value should be equal to expected for type " + type).isEqualTo(expected);
         break;
       case FIXED:
         Assertions.assertThat(expected)
