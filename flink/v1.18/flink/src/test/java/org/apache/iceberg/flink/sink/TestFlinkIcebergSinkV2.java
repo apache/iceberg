@@ -33,7 +33,6 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.flink.HadoopCatalogResource;
 import org.apache.iceberg.flink.MiniClusterResource;
 import org.apache.iceberg.flink.SimpleDataUtil;
@@ -51,6 +50,7 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
@@ -66,6 +66,8 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
   @Rule
   public final HadoopCatalogResource catalogResource =
       new HadoopCatalogResource(TEMPORARY_FOLDER, TestFixtures.DATABASE, TestFixtures.TABLE);
+
+  @Rule public final Timeout globalTimeout = Timeout.seconds(60);
 
   @Parameterized.Parameters(
       name = "FileFormat = {0}, Parallelism = {1}, Partitioned={2}, WriteDistributionMode ={3}")
@@ -179,8 +181,7 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
         true,
         elementsPerCheckpoint,
         expectedRecords,
-        SnapshotRef.MAIN_BRANCH,
-        DeleteGranularity.PARTITION);
+        SnapshotRef.MAIN_BRANCH);
   }
 
   @Test
@@ -258,8 +259,7 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
         false,
         elementsPerCheckpoint,
         expectedRecords,
-        "main",
-        DeleteGranularity.PARTITION);
+        "main");
 
     DeleteFile deleteFile = table.currentSnapshot().addedDeleteFiles(table.io()).iterator().next();
     String fromStat =

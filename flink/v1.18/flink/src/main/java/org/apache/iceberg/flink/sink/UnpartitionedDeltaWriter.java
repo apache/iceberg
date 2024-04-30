@@ -25,7 +25,6 @@ import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
@@ -43,8 +42,7 @@ class UnpartitionedDeltaWriter extends BaseDeltaTaskWriter {
       Schema schema,
       RowType flinkSchema,
       List<Integer> equalityFieldIds,
-      boolean upsert,
-      DeleteGranularity deleteGranularity) {
+      boolean upsert) {
     super(
         spec,
         format,
@@ -55,8 +53,7 @@ class UnpartitionedDeltaWriter extends BaseDeltaTaskWriter {
         schema,
         flinkSchema,
         equalityFieldIds,
-        upsert,
-        deleteGranularity);
+        upsert);
     this.writer = new RowDataDeltaWriter(null);
   }
 

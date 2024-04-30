@@ -26,7 +26,6 @@ import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.deletes.DeleteGranularity;
 
 /**
  * A class for common Iceberg configs for Flink writes.
@@ -166,18 +165,6 @@ public class FlinkWriteConf {
             .defaultValue(TableProperties.WRITE_DISTRIBUTION_MODE_NONE)
             .parse();
     return DistributionMode.fromName(modeName);
-  }
-
-  public DeleteGranularity deleteGranularity() {
-    String modeName =
-        confParser
-            .stringConf()
-            .option(FlinkWriteOptions.DELETE_GRANULARITY.key())
-            .flinkConfig(FlinkWriteOptions.DELETE_GRANULARITY)
-            .tableProperty(TableProperties.DELETE_GRANULARITY)
-            .defaultValue(TableProperties.DELETE_GRANULARITY_DEFAULT)
-            .parse();
-    return DeleteGranularity.fromString(modeName);
   }
 
   public int workerPoolSize() {

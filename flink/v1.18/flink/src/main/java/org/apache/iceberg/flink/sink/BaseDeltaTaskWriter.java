@@ -46,7 +46,6 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
   private final RowDataWrapper keyWrapper;
   private final RowDataProjection keyProjection;
   private final boolean upsert;
-  private final DeleteGranularity deleteGranularity;
 
   BaseDeltaTaskWriter(
       PartitionSpec spec,
@@ -58,8 +57,7 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
       Schema schema,
       RowType flinkSchema,
       List<Integer> equalityFieldIds,
-      boolean upsert,
-      DeleteGranularity deleteGranularity) {
+      boolean upsert) {
     super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
     this.schema = schema;
     this.deleteSchema = TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds));
@@ -69,7 +67,6 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
     this.keyProjection =
         RowDataProjection.create(flinkSchema, schema.asStruct(), deleteSchema.asStruct());
     this.upsert = upsert;
-    this.deleteGranularity = deleteGranularity;
   }
 
   abstract RowDataDeltaWriter route(RowData row);
@@ -113,7 +110,7 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
 
   protected class RowDataDeltaWriter extends BaseEqualityDeltaWriter {
     RowDataDeltaWriter(PartitionKey partition) {
-      super(partition, schema, deleteSchema, deleteGranularity);
+      super(partition, schema, deleteSchema, DeleteGranularity.FILE);
     }
 
     @Override

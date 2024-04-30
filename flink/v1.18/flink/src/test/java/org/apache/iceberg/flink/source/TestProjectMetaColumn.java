@@ -29,7 +29,6 @@ import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.TestHelpers;
@@ -179,8 +178,7 @@ public class TestProjectMetaColumn {
             format,
             table.properties(),
             equalityFieldIds,
-            upsert,
-            DeleteGranularity.PARTITION);
+            upsert);
 
     taskWriterFactory.initialize(1, 1);
     return taskWriterFactory.create();

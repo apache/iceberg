@@ -56,7 +56,6 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.FlinkWriteOptions;
@@ -240,18 +239,6 @@ public class FlinkSink {
       if (mode != null) {
         writeOptions.put(FlinkWriteOptions.DISTRIBUTION_MODE.key(), mode.modeName());
       }
-      return this;
-    }
-
-    /**
-     * Configure the write {@link DeleteGranularity} that the flink sink will use. Currently, flink
-     * support {@link DeleteGranularity#PARTITION} and {@link DeleteGranularity#FILE}.
-     *
-     * @param granularity to specify the delete granularity.
-     * @return {@link Builder} to connect the iceberg table.
-     */
-    public Builder deleteGranularity(DeleteGranularity granularity) {
-      writeOptions.put(FlinkWriteOptions.DELETE_GRANULARITY.key(), granularity.toString());
       return this;
     }
 
@@ -619,8 +606,7 @@ public class FlinkSink {
             format,
             writeProperties(initTable, format, flinkWriteConf),
             equalityFieldIds,
-            flinkWriteConf.upsertMode(),
-            flinkWriteConf.deleteGranularity());
+            flinkWriteConf.upsertMode());
 
     return new IcebergStreamWriter<>(initTable.name(), taskWriterFactory);
   }

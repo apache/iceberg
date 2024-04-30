@@ -28,7 +28,6 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
@@ -51,8 +50,7 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
       Schema schema,
       RowType flinkSchema,
       List<Integer> equalityFieldIds,
-      boolean upsert,
-      DeleteGranularity deleteGranularity) {
+      boolean upsert) {
     super(
         spec,
         format,
@@ -63,8 +61,7 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
         schema,
         flinkSchema,
         equalityFieldIds,
-        upsert,
-        deleteGranularity);
+        upsert);
     this.partitionKey = new PartitionKey(spec, schema);
   }
 

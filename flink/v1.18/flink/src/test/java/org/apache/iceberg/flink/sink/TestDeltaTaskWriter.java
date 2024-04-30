@@ -58,7 +58,6 @@ import org.apache.iceberg.TestBase;
 import org.apache.iceberg.TestTables;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.io.TaskWriter;
@@ -395,8 +394,7 @@ public class TestDeltaTaskWriter extends TestBase {
         format,
         table.properties(),
         equalityFieldIds,
-        false,
-        DeleteGranularity.PARTITION);
+        false);
   }
 
   private TaskWriterFactory<RowData> createTaskWriterFactory(
@@ -408,8 +406,7 @@ public class TestDeltaTaskWriter extends TestBase {
         format,
         table.properties(),
         equalityFieldIds,
-        true,
-        DeleteGranularity.PARTITION);
+        true);
   }
 
   private void createAndInitTable(boolean partitioned) {
