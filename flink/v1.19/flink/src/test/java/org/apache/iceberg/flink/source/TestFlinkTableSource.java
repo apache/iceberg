@@ -48,16 +48,6 @@ public class TestFlinkTableSource extends TestBase {
   private int scanEventCount = 0;
   private ScanEvent lastScanEvent = null;
 
-  public TestFlinkTableSource() {
-    // register a scan event listener to validate pushdown
-    Listeners.register(
-        event -> {
-          scanEventCount += 1;
-          lastScanEvent = event;
-        },
-        ScanEvent.class);
-  }
-
   @Override
   protected TableEnvironment getTableEnv() {
     super.getTableEnv().getConfig().getConfiguration().set(CoreOptions.DEFAULT_PARALLELISM, 1);
@@ -66,6 +56,14 @@ public class TestFlinkTableSource extends TestBase {
 
   @BeforeEach
   public void before() throws IOException {
+    // register a scan event listener to validate pushdown
+    Listeners.register(
+        event -> {
+          scanEventCount += 1;
+          lastScanEvent = event;
+        },
+        ScanEvent.class);
+
     File warehouseFile = File.createTempFile("junit", null, temporaryDirectory.toFile());
     assertThat(warehouseFile.delete()).isTrue();
     String warehouse = String.format("file:%s", warehouseFile);
