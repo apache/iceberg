@@ -335,7 +335,7 @@ public class TestLocalScan {
     expected.addAll(file3FirstSnapshotRecords);
 
     results.forEach(record -> expected.remove(record));
-    Assertions.assertThat(expected.isEmpty()).isTrue();
+    Assertions.assertThat(expected).isEmpty();
 
     // Test with projected schema
     Schema schema = new Schema(required(1, "id", Types.LongType.get()));
