@@ -303,6 +303,20 @@ Create a PR in the `iceberg` repo to make revapi run on the new release. For an 
 - Create a PR in the `iceberg` repo to add the new version to the github issue template. For an example see [this PR](https://github.com/apache/iceberg/pull/6287).
 - Draft [a new release to update Github](https://github.com/apache/iceberg/releases/new) to show the latest release. A changelog can be generated automatically using Github.
 
+#### Update DOAP (ASF Project Description)
+
+- Create a PR to update the release version in [doap.rdf](https://github.com/apache/iceberg/blob/main/doap.rdf) file, in the `<release/>` section:
+
+```xml
+    <release>
+      <Version>
+        <name>x.y.z</name>
+        <created>yyyy-mm-dd</created>
+        <revision>x.y.z</revision>
+      </Version>
+    </release>
+```
+
 ### Documentation Release
 
 Documentation needs to be updated as a part of an Iceberg release after a release candidate is passed.
