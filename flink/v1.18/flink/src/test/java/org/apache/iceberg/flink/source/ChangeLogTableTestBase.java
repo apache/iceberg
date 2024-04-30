@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink.source;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -26,20 +28,26 @@ import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.types.Row;
 import org.apache.flink.types.RowKind;
-import org.apache.iceberg.flink.FlinkTestBase;
 import org.apache.iceberg.flink.MiniClusterResource;
-import org.junit.After;
-import org.junit.Rule;
-import org.junit.rules.TestName;
+import org.apache.iceberg.flink.TestBase;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestInfo;
 
-public class ChangeLogTableTestBase extends FlinkTestBase {
+public class ChangeLogTableTestBase extends TestBase {
   private volatile TableEnvironment tEnv = null;
 
-  @Rule public TestName name = new TestName();
+  protected String tableName;
 
-  @After
+  @BeforeEach
+  public void setup(TestInfo testInfo) {
+    assertThat(testInfo.getTestMethod()).isPresent();
+    this.tableName = testInfo.getTestMethod().get().getName();
+  }
+
+  @AfterEach
   public void clean() {
-    sql("DROP TABLE IF EXISTS %s", name.getMethodName());
+    sql("DROP TABLE IF EXISTS %s", tableName);
     BoundedTableFactory.clearDataSets();
   }
 

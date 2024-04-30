@@ -18,36 +18,32 @@
  */
 package org.apache.iceberg.flink.source;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestBoundedTableFactory extends ChangeLogTableTestBase {
 
   @Test
   public void testEmptyDataSet() {
-    String table = name.getMethodName();
     List<List<Row>> emptyDataSet = ImmutableList.of();
 
     String dataId = BoundedTableFactory.registerDataSet(emptyDataSet);
     sql(
         "CREATE TABLE %s(id INT, data STRING) WITH ('connector'='BoundedSource', 'data-id'='%s')",
-        table, dataId);
+        tableName, dataId);
 
-    Assert.assertEquals(
-        "Should have caught empty change log set.",
-        ImmutableList.of(),
-        sql("SELECT * FROM %s", table));
+    assertThat(sql("SELECT * FROM %s", tableName)).isEmpty();
   }
 
   @Test
   public void testBoundedTableFactory() {
-    String table = name.getMethodName();
     List<List<Row>> dataSet =
         ImmutableList.of(
             ImmutableList.of(
@@ -71,17 +67,15 @@ public class TestBoundedTableFactory extends ChangeLogTableTestBase {
     String dataId = BoundedTableFactory.registerDataSet(dataSet);
     sql(
         "CREATE TABLE %s(id INT, data STRING) WITH ('connector'='BoundedSource', 'data-id'='%s')",
-        table, dataId);
+        tableName, dataId);
 
     List<Row> rowSet = dataSet.stream().flatMap(Streams::stream).collect(Collectors.toList());
-    Assert.assertEquals(
-        "Should have the expected change log events.", rowSet, sql("SELECT * FROM %s", table));
+    assertThat(sql("SELECT * FROM %s", tableName)).isEqualTo(rowSet);
 
-    Assert.assertEquals(
-        "Should have the expected change log events",
-        rowSet.stream()
-            .filter(r -> Objects.equals(r.getField(1), "aaa"))
-            .collect(Collectors.toList()),
-        sql("SELECT * FROM %s WHERE data='aaa'", table));
+    assertThat(sql("SELECT * FROM %s WHERE data='aaa'", tableName))
+        .isEqualTo(
+            rowSet.stream()
+                .filter(r -> Objects.equals(r.getField(1), "aaa"))
+                .collect(Collectors.toList()));
   }
 }

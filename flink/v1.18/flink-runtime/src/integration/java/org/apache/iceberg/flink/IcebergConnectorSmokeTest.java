@@ -18,12 +18,4 @@
  */
 package org.apache.iceberg.flink;
 
-import java.util.Map;
-
-public class IcebergConnectorSmokeTest extends TestIcebergConnector {
-
-  public IcebergConnectorSmokeTest(
-      String catalogName, Map<String, String> properties, boolean isStreaming) {
-    super(catalogName, properties, isStreaming);
-  }
-}
+public class IcebergConnectorSmokeTest extends TestIcebergConnector {}
