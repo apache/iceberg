@@ -137,7 +137,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private FileIO io = null;
   private MetricsReporter reporter = null;
   private boolean reportingViaRestEnabled;
-  private String restPageSize = null;
+  private Integer restPageSize = null;
   private CloseableGroup closeables = null;
 
   // a lazy thread pool for token refresh
@@ -230,10 +230,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               client, tokenRefreshExecutor(), token, expiresAtMillis(mergedProps), catalogAuth);
     }
 
-    this.restPageSize = mergedProps.get(REST_PAGE_SIZE);
+    this.restPageSize = PropertyUtil.propertyAsNullableInt(mergedProps, REST_PAGE_SIZE);
     if (restPageSize != null) {
       Preconditions.checkArgument(
-          Integer.parseInt(restPageSize) > 0,
+          restPageSize > 0,
           "Invalid value for pageSize, must be a positive integer");
     }
 
@@ -288,10 +288,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   public List<TableIdentifier> listTables(SessionContext context, Namespace ns) {
     checkNamespaceIsValid(ns);
     Map<String, String> queryParams = Maps.newHashMap();
-    List<TableIdentifier> tables = Lists.newArrayList();
+    ImmutableList.Builder<TableIdentifier> tables = ImmutableList.builder();
     String pageToken = "";
     if (restPageSize != null) {
-      queryParams.put("pageSize", restPageSize);
+      queryParams.put("pageSize", String.valueOf(restPageSize));
     }
 
     do {
@@ -307,7 +307,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       tables.addAll(response.identifiers());
     } while (pageToken != null);
 
-    return tables;
+    return tables.build();
   }
 
   @Override
@@ -520,10 +520,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     if (!namespace.isEmpty()) {
       queryParams.put("parent", RESTUtil.NAMESPACE_JOINER.join(namespace.levels()));
     }
-    List<Namespace> namespaces = Lists.newArrayList();
+    ImmutableList.Builder<Namespace> namespaces = ImmutableList.builder();
     String pageToken = "";
     if (restPageSize != null) {
-      queryParams.put("pageSize", restPageSize);
+      queryParams.put("pageSize", String.valueOf(restPageSize));
     }
 
     do {
@@ -539,7 +539,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       namespaces.addAll(response.namespaces());
     } while (pageToken != null);
 
-    return namespaces;
+    return namespaces.build();
   }
 
   @Override
@@ -1079,10 +1079,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   public List<TableIdentifier> listViews(SessionContext context, Namespace namespace) {
     checkNamespaceIsValid(namespace);
     Map<String, String> queryParams = Maps.newHashMap();
-    List<TableIdentifier> views = Lists.newArrayList();
+    ImmutableList.Builder<TableIdentifier> views = ImmutableList.builder();
     String pageToken = "";
     if (restPageSize != null) {
-      queryParams.put("pageSize", restPageSize);
+      queryParams.put("pageSize", String.valueOf(restPageSize));
     }
 
     do {
@@ -1098,7 +1098,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       views.addAll(response.identifiers());
     } while (pageToken != null);
 
-    return views;
+    return views.build();
   }
 
   @Override
