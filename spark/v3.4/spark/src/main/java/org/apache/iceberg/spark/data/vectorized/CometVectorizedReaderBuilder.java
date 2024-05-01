@@ -47,7 +47,7 @@ class CometVectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedReade
   private final Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory;
   private final DeleteFilter<InternalRow> deleteFilter;
 
-  public CometVectorizedReaderBuilder(
+  CometVectorizedReaderBuilder(
       Schema expectedSchema,
       MessageType parquetSchema,
       Map<Integer, ?> idToConstant,
