@@ -27,8 +27,6 @@ import org.apache.iceberg.arrow.vectorized.VectorizedReaderBuilder;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.parquet.VectorizedReader;
-import org.apache.iceberg.spark.data.vectorized.comet.CometColumnarBatchReader;
-import org.apache.iceberg.spark.data.vectorized.comet.CometVectorizedReaderBuilder;
 import org.apache.parquet.schema.MessageType;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.slf4j.Logger;

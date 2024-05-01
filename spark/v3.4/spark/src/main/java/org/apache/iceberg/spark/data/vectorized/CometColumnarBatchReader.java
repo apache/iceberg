@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.spark.data.vectorized.comet;
+package org.apache.iceberg.spark.data.vectorized;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -28,7 +28,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.iceberg.spark.data.vectorized.BaseColumnBatchLoader;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
@@ -42,7 +41,7 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
  * populated via delegated read calls to {@linkplain CometColumnReader VectorReader(s)}.
  */
 @SuppressWarnings("checkstyle:VisibilityModifier")
-public class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
+class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
 
   private final CometColumnReader[] readers;
   private final boolean hasIsDeletedColumn;

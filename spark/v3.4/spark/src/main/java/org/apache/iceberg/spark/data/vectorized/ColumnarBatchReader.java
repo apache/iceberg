@@ -81,9 +81,7 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
     public ColumnarBatch loadDataToColumnBatch() {
       int numRowsUndeleted = initRowIdMapping();
       ColumnVector[] arrowColumnVectors = readDataToColumnVectors();
-      ColumnarBatch newColumnarBatch =
-          initializeColumnBatchWithDeletions(arrowColumnVectors, numRowsUndeleted);
-      return newColumnarBatch;
+      return initializeColumnBatchWithDeletions(arrowColumnVectors, numRowsUndeleted);
     }
 
     @Override

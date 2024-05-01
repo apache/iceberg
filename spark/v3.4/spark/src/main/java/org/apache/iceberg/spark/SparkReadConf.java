@@ -26,6 +26,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.Util;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.SparkConf;
 import org.apache.spark.sql.SparkSession;
@@ -165,7 +166,7 @@ public class SparkReadConf {
         .parse();
   }
 
-  public int parquetBatchSize() {
+  private int parquetBatchSize() {
     return confParser
         .intConf()
         .option(SparkReadOptions.VECTORIZATION_BATCH_SIZE)
@@ -184,7 +185,7 @@ public class SparkReadConf {
         .parse();
   }
 
-  public int orcBatchSize() {
+  private int orcBatchSize() {
     return confParser
         .intConf()
         .option(SparkReadOptions.VECTORIZATION_BATCH_SIZE)
@@ -354,11 +355,18 @@ public class SparkReadConf {
         .parse();
   }
 
-  public ParquetReaderType parquetReaderType() {
+  private ParquetReaderType parquetReaderType() {
     return confParser
         .enumConf(ParquetReaderType::valueOf)
         .sessionConf(SparkSQLProperties.PARQUET_READER_TYPE)
         .defaultValue(SparkSQLProperties.PARQUET_READER_TYPE_DEFAULT)
         .parse();
+  }
+
+  public BatchReadConf batchReadConf() {
+    int parquetBatchSize = parquetBatchSize();
+    int orcBatchSize = orcBatchSize();
+    Preconditions.checkArgument(parquetBatchSize > 1 || orcBatchSize > 1, "Batch size must be > 1");
+    return new BatchReadConf(parquetBatchSize, orcBatchSize, parquetReaderType());
   }
 }
