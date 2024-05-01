@@ -233,8 +233,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     this.restPageSize = PropertyUtil.propertyAsNullableInt(mergedProps, REST_PAGE_SIZE);
     if (restPageSize != null) {
       Preconditions.checkArgument(
-          restPageSize > 0,
-          "Invalid value for pageSize, must be a positive integer");
+          restPageSize > 0, "Invalid value for pageSize, must be a positive integer");
     }
 
     this.io = newFileIO(SessionContext.createEmpty(), mergedProps);
