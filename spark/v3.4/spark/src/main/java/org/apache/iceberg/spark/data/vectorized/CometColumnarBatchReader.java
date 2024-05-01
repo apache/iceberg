@@ -49,7 +49,7 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
   private long rowStartPosInBatch = 0;
   private final BatchReader delegate;
 
-  public CometColumnarBatchReader(List<VectorizedReader<?>> readers, Schema schema) {
+  CometColumnarBatchReader(List<VectorizedReader<?>> readers, Schema schema) {
     this.readers =
         readers.stream().map(CometColumnReader.class::cast).toArray(CometColumnReader[]::new);
     this.hasIsDeletedColumn =
