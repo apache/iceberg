@@ -117,6 +117,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
 
   private EncryptionManager encryptionManager;
   private EncryptingFileIO encryptingFileIO;
+  private boolean encryptedTable;
 
   /** Tests only */
   protected HiveTableOperations(
@@ -151,6 +152,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
             HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES_DEFAULT);
     this.maxHiveTablePropertySize =
         conf.getLong(HIVE_TABLE_PROPERTY_MAX_SIZE, HIVE_TABLE_PROPERTY_MAX_SIZE_DEFAULT);
+    this.encryptedTable = false;
   }
 
   @Override
@@ -160,6 +162,14 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
 
   @Override
   public FileIO io() {
+    if (encryptionManager == null) {
+      encryptionManager = encryption();
+    }
+
+    if (!encryptedTable) {
+      return fileIO;
+    }
+
     if (encryptingFileIO != null) {
       return encryptingFileIO;
     }
@@ -174,19 +184,24 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       return encryptionManager;
     }
 
-    if (keyManagementClient == null) {
-      encryptionManager = PlaintextEncryptionManager.instance();
-      return encryptionManager;
-    }
-
     String tableKeyID = encryptionKeyIdFromProps(); // writing
 
     if (tableKeyID == null) {
       tableKeyID = encryptionKeyIdFromHms(); // reading
     }
 
-    encryptionManager =
-        EncryptionUtil.createEncryptionManager(tableKeyID, dekLength(), keyManagementClient);
+    if (tableKeyID != null) {
+      if (keyManagementClient == null) {
+        throw new RuntimeException(
+            "Cant create encryption manager, because key management client is not set");
+      }
+
+      encryptedTable = true;
+      encryptionManager =
+          EncryptionUtil.createEncryptionManager(tableKeyID, dekLength(), keyManagementClient);
+    } else {
+      encryptionManager = PlaintextEncryptionManager.instance();
+    }
 
     return encryptionManager;
   }
@@ -195,6 +210,10 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     String keyID;
     try {
       Table table = loadHmsTable();
+      if (table == null) {
+        return null;
+      }
+
       keyID = table.getParameters().get(TableProperties.ENCRYPTION_TABLE_KEY);
     } catch (TException e) {
       String errMsg =

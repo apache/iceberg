@@ -73,10 +73,6 @@ public class EncryptingFileIO implements FileIO, Serializable {
     return em;
   }
 
-  public FileIO sourceFileIO() {
-    return io;
-  }
-
   @Override
   public InputFile newInputFile(String path) {
     return io.newInputFile(path);

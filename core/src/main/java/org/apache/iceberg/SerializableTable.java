@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.io.FileIO;
@@ -114,13 +113,8 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
   }
 
   private FileIO fileIO(Table table) {
-    FileIO fileIO = table.io();
-    if (fileIO instanceof EncryptingFileIO) {
-      fileIO = ((EncryptingFileIO) fileIO).sourceFileIO();
-    }
-
-    if (fileIO instanceof HadoopConfigurable) {
-      ((HadoopConfigurable) fileIO).serializeConfWith(SerializableConfSupplier::new);
+    if (table.io() instanceof HadoopConfigurable) {
+      ((HadoopConfigurable) table.io()).serializeConfWith(SerializableConfSupplier::new);
     }
 
     return table.io();
