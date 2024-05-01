@@ -174,7 +174,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       return encryptingFileIO;
     }
 
-    encryptingFileIO = EncryptingFileIO.combine(fileIO, encryption());
+    encryptingFileIO = EncryptingFileIO.combine(fileIO, encryptionManager);
     return encryptingFileIO;
   }
 
@@ -455,9 +455,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
 
     if (newMetadataFile.wrappedKeyMetadata() != null) {
       parameters.put(METADATA_WRAPPED_KEY_PROP, newMetadataFile.wrappedKeyMetadata());
-    }
-
-    if (newMetadataFile.size() > 0) {
       parameters.put(METADATA_SIZE_PROP, Long.toString(newMetadataFile.size()));
     }
 
@@ -465,16 +462,12 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       parameters.put(PREVIOUS_METADATA_LOCATION_PROP, currentMetadataLocation());
     }
 
-    if (currentMetadataFile() != null) {
-      if (currentMetadataFile().wrappedKeyMetadata() != null
-          && !currentMetadataFile().wrappedKeyMetadata().isEmpty()) {
-        parameters.put(
-            PREVIOUS_METADATA_WRAPPED_KEY_PROP, currentMetadataFile().wrappedKeyMetadata());
-      }
-
-      if (currentMetadataFile().size() > 0) {
-        parameters.put(PREVIOUS_METADATA_SIZE_PROP, Long.toString(currentMetadataFile().size()));
-      }
+    if (currentMetadataFile() != null
+        && currentMetadataFile().wrappedKeyMetadata() != null
+        && !currentMetadataFile().wrappedKeyMetadata().isEmpty()) {
+      parameters.put(
+          PREVIOUS_METADATA_WRAPPED_KEY_PROP, currentMetadataFile().wrappedKeyMetadata());
+      parameters.put(PREVIOUS_METADATA_SIZE_PROP, Long.toString(currentMetadataFile().size()));
     }
 
     // If needed set the 'storage_handler' property to enable query from Hive
