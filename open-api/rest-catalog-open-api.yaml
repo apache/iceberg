@@ -604,7 +604,7 @@ paths:
         
         An optional `plan-task` can be provided from a `PreplanTableResponse`
         to limit the request of the full task set to a subset of table files.
-        If a valid `plan-task` is provided, the service must attempt to send all results for that planning task.
+        If a valid `plan-task` is provided, the service must send all results for that planning task.
       requestBody:
         content:
           application/json:

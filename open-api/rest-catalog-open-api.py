@@ -1161,7 +1161,10 @@ class CreateTableRequest(BaseModel):
 
 
 class PreplanTableRequest(BaseModel):
-    select: List[str] = Field(..., description='A list of the selected column names')
+    select: List[str] = Field(
+        ...,
+        description='A list of the selected column names. If referencing a column with a nested field, ensure full name is joined by `.` such as `a.b`',
+    )
     filter: Expression
     case_sensitive: Optional[bool] = Field(
         True,
