@@ -316,13 +316,17 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
               .skipArchive(awsProperties.glueCatalogSkipArchive())
               .tableInput(
                   TableInput.builder()
+                      // Keep the existing table description
+                      .description(glueTable.description())
+                      // This overwrites the existing table description if there's a comment like
+                      // ALTER TABLE prod.db.sample SET TBLPROPERTIES (
+                      //    'comment' = 'A table description.')
                       .applyMutation(
                           builder ->
                               IcebergToGlueConverter.setTableInputInformation(builder, metadata))
                       .name(tableName)
                       .tableType(GLUE_EXTERNAL_TABLE_TYPE)
                       .parameters(parameters)
-                      .description(glueTable.description())
                       .build());
       // Use Optimistic locking with table version id while updating table
       if (!SET_VERSION_ID.isNoop() && lockManager == null) {
