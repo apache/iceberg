@@ -18,12 +18,17 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import static org.assertj.core.api.Assumptions.assumeThat;
+
 import java.util.List;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.apache.flink.types.Row;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableProperties;
@@ -45,6 +50,7 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
@@ -60,6 +66,8 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
   @Rule
   public final HadoopCatalogResource catalogResource =
       new HadoopCatalogResource(TEMPORARY_FOLDER, TestFixtures.DATABASE, TestFixtures.TABLE);
+
+  @Rule public final Timeout globalTimeout = Timeout.seconds(60);
 
   @Parameterized.Parameters(
       name = "FileFormat = {0}, Parallelism = {1}, Partitioned={2}, WriteDistributionMode ={3}")
@@ -232,5 +240,32 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
   @Test
   public void testUpsertOnIdDataKey() throws Exception {
     testUpsertOnIdDataKey(SnapshotRef.MAIN_BRANCH);
+  }
+
+  @Test
+  public void testDeleteStats() throws Exception {
+    assumeThat(format).isNotEqualTo(FileFormat.AVRO);
+
+    List<List<Row>> elementsPerCheckpoint =
+        ImmutableList.of(
+            // Checkpoint #1
+            ImmutableList.of(row("+I", 1, "aaa"), row("-D", 1, "aaa"), row("+I", 1, "aaa")));
+
+    List<List<Record>> expectedRecords = ImmutableList.of(ImmutableList.of(record(1, "aaa")));
+
+    testChangeLogs(
+        ImmutableList.of("id", "data"),
+        row -> Row.of(row.getField(ROW_ID_POS), row.getField(ROW_DATA_POS)),
+        false,
+        elementsPerCheckpoint,
+        expectedRecords,
+        "main");
+
+    DeleteFile deleteFile = table.currentSnapshot().addedDeleteFiles(table.io()).iterator().next();
+    String fromStat =
+        new String(
+            deleteFile.lowerBounds().get(MetadataColumns.DELETE_FILE_PATH.fieldId()).array());
+    DataFile dataFile = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
+    assumeThat(fromStat).isEqualTo(dataFile.path().toString());
   }
 }
