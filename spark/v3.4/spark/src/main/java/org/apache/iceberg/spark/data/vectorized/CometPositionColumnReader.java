@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.spark.data.vectorized.comet;
+package org.apache.iceberg.spark.data.vectorized;
 
 import org.apache.comet.parquet.MetadataColumnReader;
 import org.apache.comet.parquet.Native;

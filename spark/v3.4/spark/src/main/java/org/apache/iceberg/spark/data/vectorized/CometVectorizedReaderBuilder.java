@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.spark.data.vectorized.comet;
+package org.apache.iceberg.spark.data.vectorized;
 
 import java.util.List;
 import java.util.Map;
@@ -39,7 +39,7 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.catalyst.InternalRow;
 
-public class CometVectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedReader<?>> {
+class CometVectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedReader<?>> {
 
   private final MessageType parquetSchema;
   private final Schema icebergSchema;
