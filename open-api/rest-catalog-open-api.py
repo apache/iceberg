@@ -220,7 +220,7 @@ class MetadataLog(BaseModel):
 
 class PlanTask(BaseModel):
     """
-    An opaque JSON object that contains information provided by the REST server to be utilized by clients for distributed table scan planning; should be supplied as is for input in `PlanTable` operation.
+    An opaque JSON object that contains information provided by the REST server to be utilized by clients for distributed table scan planning; should be supplied as input in `PlanTable` operation.
     """
 
 
