@@ -85,8 +85,8 @@ public abstract class BaseColumnIterator {
                 page.getFirstRowIndex()
                     .orElseThrow(
                         () ->
-                            new IllegalArgumentException(
-                                "Missing page first row index for synchronizing values"));
+                            new IllegalStateException(
+                                "Index of first row in page is not available"));
             this.numValuesToSkip = 0;
             this.currentRowIndex = firstRowIndex - 1;
           }

@@ -140,10 +140,10 @@ class ParquetFilters {
       String errMsg = "Cannot convert to Parquet filter: " + pred;
       if (mType != null) {
         // We create a Parquet filter predicate and that predicate uses a Parquet column.
-        // We need to ensure that the Parquet column type converted from the Iceberg type of the
-        // column matches the Parquet type in the Parquet file. (If the filter is passed to
-        // Parquet and used by Parquet to filter row groups, Parquet checks that the type in
-        // predicate matches the type in the file as a validation step before filtering.)
+        // We need to ensure that the Parquet column type converted from the Iceberg type of
+        // the column matches the Parquet type in the Parquet file. (If the filter is passed
+        // to Parquet and used by Parquet to filter row groups, Parquet checks that the type
+        // in the predicate matches the type in the file as a validation step before filtering.)
         // If the two do not match, we abort the conversion.
         org.apache.parquet.schema.Type pType = mType.getType(path);
         if (!(pType instanceof PrimitiveType)) {
