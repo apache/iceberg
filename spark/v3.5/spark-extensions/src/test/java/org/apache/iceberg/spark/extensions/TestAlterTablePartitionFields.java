@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -27,6 +28,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
@@ -538,7 +540,9 @@ public class TestAlterTablePartitionFields extends ExtensionsTestBase {
 
     sql("ALTER TABLE %s REPLACE PARTITION FIELD day_of_ts WITH days(ts)", tableName);
 
-    sql("ALTER TABLE %s DROP COLUMN day_of_ts", tableName);
+    assertThatThrownBy(() -> sql("ALTER TABLE %s DROP COLUMN day_of_ts", tableName))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Cannot find source column for partition field: 1000: day_of_ts: identity(3)");
   }
 
   @TestTemplate
@@ -549,7 +553,9 @@ public class TestAlterTablePartitionFields extends ExtensionsTestBase {
 
     sql("ALTER TABLE %s REPLACE PARTITION FIELD day_of_ts WITH days(ts)", tableName);
 
-    sql("ALTER TABLE %s DROP COLUMN day_of_ts", tableName);
+    assertThatThrownBy(() -> sql("ALTER TABLE %s DROP COLUMN day_of_ts", tableName))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Cannot find source column for partition field: 1000: day_of_ts: identity(3)");
   }
 
   private void assertPartitioningEquals(SparkTable table, int len, String transform) {

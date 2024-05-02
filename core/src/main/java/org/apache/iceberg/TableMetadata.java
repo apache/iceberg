@@ -1444,7 +1444,10 @@ public class TableMetadata implements Serializable {
           changes.size());
 
       Schema schema = schemasById.get(currentSchemaId);
-      PartitionSpec.checkCompatibility(specsById.get(defaultSpecId), schema);
+      specsById.forEach(
+          (specId, spec) -> {
+            PartitionSpec.checkCompatibility(spec, schema);
+          });
       SortOrder.checkCompatibility(sortOrdersById.get(defaultSortOrderId), schema);
 
       List<MetadataLogEntry> metadataHistory;
