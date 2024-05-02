@@ -2342,7 +2342,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                 catalog.initialize(
                     "test", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "-1")))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid value for pageSize, must be a positive integer");
+        .hasMessage(
+            String.format(
+                "Invalid value for %s, must be a positive integer",
+                RESTSessionCatalog.REST_PAGE_SIZE));
   }
 
   @Test

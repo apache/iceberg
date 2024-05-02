@@ -137,7 +137,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private FileIO io = null;
   private MetricsReporter reporter = null;
   private boolean reportingViaRestEnabled;
-  private Integer restPageSize = null;
+  private Integer pageSize = null;
   private CloseableGroup closeables = null;
 
   // a lazy thread pool for token refresh
@@ -230,10 +230,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               client, tokenRefreshExecutor(), token, expiresAtMillis(mergedProps), catalogAuth);
     }
 
-    this.restPageSize = PropertyUtil.propertyAsNullableInt(mergedProps, REST_PAGE_SIZE);
-    if (restPageSize != null) {
+    this.pageSize = PropertyUtil.propertyAsNullableInt(mergedProps, REST_PAGE_SIZE);
+    if (pageSize != null) {
       Preconditions.checkArgument(
-          restPageSize > 0, "Invalid value for pageSize, must be a positive integer");
+          pageSize > 0, "Invalid value for %s, must be a positive integer", REST_PAGE_SIZE);
     }
 
     this.io = newFileIO(SessionContext.createEmpty(), mergedProps);
@@ -289,8 +289,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     Map<String, String> queryParams = Maps.newHashMap();
     ImmutableList.Builder<TableIdentifier> tables = ImmutableList.builder();
     String pageToken = "";
-    if (restPageSize != null) {
-      queryParams.put("pageSize", String.valueOf(restPageSize));
+    if (pageSize != null) {
+      queryParams.put("pageSize", String.valueOf(pageSize));
     }
 
     do {
@@ -519,10 +519,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     if (!namespace.isEmpty()) {
       queryParams.put("parent", RESTUtil.NAMESPACE_JOINER.join(namespace.levels()));
     }
+
     ImmutableList.Builder<Namespace> namespaces = ImmutableList.builder();
     String pageToken = "";
-    if (restPageSize != null) {
-      queryParams.put("pageSize", String.valueOf(restPageSize));
+    if (pageSize != null) {
+      queryParams.put("pageSize", String.valueOf(pageSize));
     }
 
     do {
@@ -1080,8 +1081,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     Map<String, String> queryParams = Maps.newHashMap();
     ImmutableList.Builder<TableIdentifier> views = ImmutableList.builder();
     String pageToken = "";
-    if (restPageSize != null) {
-      queryParams.put("pageSize", String.valueOf(restPageSize));
+    if (pageSize != null) {
+      queryParams.put("pageSize", String.valueOf(pageSize));
     }
 
     do {
