@@ -26,6 +26,7 @@ import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.flink.sink.shuffle.StatisticsType;
 
 /**
  * A class for common Iceberg configs for Flink writes.
@@ -165,6 +166,26 @@ public class FlinkWriteConf {
             .defaultValue(TableProperties.WRITE_DISTRIBUTION_MODE_NONE)
             .parse();
     return DistributionMode.fromName(modeName);
+  }
+
+  public StatisticsType rangeDistributionStatisticsType() {
+    String name =
+        confParser
+            .stringConf()
+            .option(FlinkWriteOptions.RANGE_DISTRIBUTION_STATISTICS_TYPE.key())
+            .flinkConfig(FlinkWriteOptions.RANGE_DISTRIBUTION_STATISTICS_TYPE)
+            .defaultValue(FlinkWriteOptions.RANGE_DISTRIBUTION_STATISTICS_TYPE.defaultValue())
+            .parse();
+    return StatisticsType.valueOf(name);
+  }
+
+  public double closeFileCostWeightPercentage() {
+    return confParser
+        .doubleConf()
+        .option(FlinkWriteOptions.CLOSE_FILE_COST_WEIGHT_PERCENTAGE.key())
+        .flinkConfig(FlinkWriteOptions.CLOSE_FILE_COST_WEIGHT_PERCENTAGE)
+        .defaultValue(FlinkWriteOptions.CLOSE_FILE_COST_WEIGHT_PERCENTAGE.defaultValue())
+        .parse();
   }
 
   public int workerPoolSize() {

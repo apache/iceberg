@@ -23,6 +23,7 @@ import org.apache.flink.annotation.Experimental;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
 import org.apache.iceberg.SnapshotRef;
+import org.apache.iceberg.flink.sink.shuffle.StatisticsType;
 
 /** Flink sink write options */
 public class FlinkWriteOptions {
@@ -59,6 +60,14 @@ public class FlinkWriteOptions {
   // Overrides the table's write.distribution-mode
   public static final ConfigOption<String> DISTRIBUTION_MODE =
       ConfigOptions.key("distribution-mode").stringType().noDefaultValue();
+
+  public static final ConfigOption<String> RANGE_DISTRIBUTION_STATISTICS_TYPE =
+      ConfigOptions.key("range-distribution-statistics-type")
+          .stringType()
+          .defaultValue(StatisticsType.Auto.name());
+
+  public static final ConfigOption<Double> CLOSE_FILE_COST_WEIGHT_PERCENTAGE =
+      ConfigOptions.key("close-file-cost-weight-percentage").doubleType().defaultValue(0.02d);
 
   // Branch to write to
   public static final ConfigOption<String> BRANCH =
