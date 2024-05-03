@@ -46,14 +46,14 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
 
   private final long numSplits;
 
-  BatchDataReader(SparkInputPartition partition, BatchReadConf batchReadConf) {
+  BatchDataReader(SparkInputPartition partition, BatchReadConf conf) {
     this(
         partition.table(),
         partition.taskGroup(),
         SnapshotUtil.schemaFor(partition.table(), partition.branch()),
         partition.expectedSchema(),
         partition.isCaseSensitive(),
-        batchReadConf);
+        conf);
   }
 
   BatchDataReader(

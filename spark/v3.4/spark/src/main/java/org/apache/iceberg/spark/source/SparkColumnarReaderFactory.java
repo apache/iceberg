@@ -28,10 +28,10 @@ import org.apache.spark.sql.connector.read.PartitionReaderFactory;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 class SparkColumnarReaderFactory implements PartitionReaderFactory {
-  private final BatchReadConf batchReadConf;
+  private final BatchReadConf conf;
 
-  SparkColumnarReaderFactory(BatchReadConf batchReadConf) {
-    this.batchReadConf = batchReadConf;
+  SparkColumnarReaderFactory(BatchReadConf conf) {
+    this.conf = conf;
   }
 
   @Override
@@ -49,7 +49,7 @@ class SparkColumnarReaderFactory implements PartitionReaderFactory {
     SparkInputPartition partition = (SparkInputPartition) inputPartition;
 
     if (partition.allTasksOfType(FileScanTask.class)) {
-      return new BatchDataReader(partition, batchReadConf);
+      return new BatchDataReader(partition, conf);
     } else {
       throw new UnsupportedOperationException(
           "Unsupported task group for columnar reads: " + partition.taskGroup());

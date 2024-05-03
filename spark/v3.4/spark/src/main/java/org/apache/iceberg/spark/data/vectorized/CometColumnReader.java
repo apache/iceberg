@@ -32,7 +32,6 @@ import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.column.page.PageReader;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
-import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
@@ -102,7 +101,7 @@ class CometColumnReader implements VectorizedReader<CometVector> {
       delegate.close();
     }
 
-    delegate = Utils.getColumnReader(sparkType, descriptor, batchSize, SQLConf.get());
+    delegate = Utils.getColumnReader(sparkType, descriptor, batchSize, false, false);
     initialized = true;
   }
 
