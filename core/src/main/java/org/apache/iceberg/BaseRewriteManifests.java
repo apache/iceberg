@@ -43,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
 
 public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
@@ -131,6 +132,12 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
   }
 
   @Override
+  public RewriteManifests toBranch(String branch) {
+    targetBranch(branch);
+    return this;
+  }
+
+  @Override
   public RewriteManifests addManifest(ManifestFile manifest) {
     Preconditions.checkArgument(!manifest.hasAddedFiles(), "Cannot add manifest with added files");
     Preconditions.checkArgument(
@@ -168,7 +175,8 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
 
   @Override
   public List<ManifestFile> apply(TableMetadata base, Snapshot snapshot) {
-    List<ManifestFile> currentManifests = base.currentSnapshot().allManifests(ops.io());
+    Snapshot latest = SnapshotUtil.latestSnapshot(base, targetBranch());
+    List<ManifestFile> currentManifests = latest.allManifests(ops.io());
     Set<ManifestFile> currentManifestSet = ImmutableSet.copyOf(currentManifests);
 
     validateDeletedManifests(currentManifestSet);
