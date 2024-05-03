@@ -166,7 +166,7 @@ public class SparkReadConf {
         .parse();
   }
 
-  private int parquetBatchSize() {
+  public int parquetBatchSize() {
     return confParser
         .intConf()
         .option(SparkReadOptions.VECTORIZATION_BATCH_SIZE)
@@ -185,7 +185,7 @@ public class SparkReadConf {
         .parse();
   }
 
-  private int orcBatchSize() {
+  public int orcBatchSize() {
     return confParser
         .intConf()
         .option(SparkReadOptions.VECTORIZATION_BATCH_SIZE)
@@ -366,7 +366,7 @@ public class SparkReadConf {
   public BatchReadConf batchReadConf() {
     int parquetBatchSize = parquetBatchSize();
     int orcBatchSize = orcBatchSize();
-    Preconditions.checkArgument(parquetBatchSize > 1 || orcBatchSize > 1, "Batch size must be > 1");
-    return new BatchReadConf(parquetBatchSize, orcBatchSize, parquetReaderType());
+    Preconditions.checkArgument(parquetBatchSize > 1 && orcBatchSize > 1, "Batch size must be > 1");
+    return new BatchReadConf(parquetBatchSize, parquetReaderType(), orcBatchSize);
   }
 }
