@@ -40,7 +40,7 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBatch, T> {
-  private final BatchReadConf batchReadConf;
+  private final BatchReadConf conf;
 
   BaseBatchReader(
       Table table,
@@ -48,9 +48,9 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       Schema tableSchema,
       Schema expectedSchema,
       boolean caseSensitive,
-      BatchReadConf batchReadConf) {
+      BatchReadConf conf) {
     super(table, taskGroup, tableSchema, expectedSchema, caseSensitive);
-    this.batchReadConf = batchReadConf;
+    this.conf = conf;
   }
 
   protected CloseableIterable<ColumnarBatch> newBatchIterable(
@@ -89,7 +89,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
         .split(start, length)
         .createBatchedReaderFunc(
             fileSchema -> {
-              if (batchReadConf.parquetReaderType() == ParquetReaderType.COMET) {
+              if (conf.parquetReaderType() == ParquetReaderType.COMET) {
                 return VectorizedSparkParquetReaders.buildCometReader(
                     requiredSchema, fileSchema, idToConstant, deleteFilter);
               } else {
@@ -97,7 +97,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
                     requiredSchema, fileSchema, idToConstant, deleteFilter);
               }
             })
-        .recordsPerBatch(batchReadConf.parquetBatchSize())
+        .recordsPerBatch(conf.parquetBatchSize())
         .filter(residual)
         .caseSensitive(caseSensitive())
         // Spark eagerly consumes the batches. So the underlying memory allocated could be reused
@@ -127,7 +127,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
         .createBatchedReaderFunc(
             fileSchema ->
                 VectorizedSparkOrcReaders.buildReader(expectedSchema(), fileSchema, idToConstant))
-        .recordsPerBatch(batchReadConf.orcBatchSize())
+        .recordsPerBatch(conf.orcBatchSize())
         .filter(residual)
         .caseSensitive(caseSensitive())
         .withNameMapping(nameMapping())

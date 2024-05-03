@@ -115,6 +115,7 @@ class SparkBatch implements Batch {
   public PartitionReaderFactory createReaderFactory() {
     if (useParquetBatchReads()) {
       return new SparkColumnarReaderFactory(readConf.batchReadConf());
+
     } else if (useOrcBatchReads()) {
       return new SparkColumnarReaderFactory(readConf.batchReadConf());
 
