@@ -80,6 +80,7 @@ import org.apache.iceberg.view.ViewRepresentation;
 
 public class CatalogHandlers {
   private static final Schema EMPTY_SCHEMA = new Schema();
+  private static final String INTIAL_PAGE_TOKEN = "";
 
   private CatalogHandlers() {}
 
@@ -115,6 +116,29 @@ public class CatalogHandlers {
     }
 
     return ListNamespacesResponse.builder().addAll(results).build();
+  }
+
+  public static ListNamespacesResponse listNamespaces(
+      SupportsNamespaces catalog, Namespace parent, String pageToken, String pageSize) {
+    List<Namespace> results;
+    List<Namespace> subResults;
+
+    if (parent.isEmpty()) {
+      results = catalog.listNamespaces();
+    } else {
+      results = catalog.listNamespaces(parent);
+    }
+
+    int start = INTIAL_PAGE_TOKEN.equals(pageToken) ? 0 : Integer.parseInt(pageToken);
+    int end = start + Integer.parseInt(pageSize);
+    subResults = results.subList(start, end);
+    String nextToken = String.valueOf(end);
+
+    if (end >= results.size()) {
+      nextToken = null;
+    }
+
+    return ListNamespacesResponse.builder().addAll(subResults).nextPageToken(nextToken).build();
   }
 
   public static CreateNamespaceResponse createNamespace(
@@ -172,6 +196,23 @@ public class CatalogHandlers {
   public static ListTablesResponse listTables(Catalog catalog, Namespace namespace) {
     List<TableIdentifier> idents = catalog.listTables(namespace);
     return ListTablesResponse.builder().addAll(idents).build();
+  }
+
+  public static ListTablesResponse listTables(
+      Catalog catalog, Namespace namespace, String pageToken, String pageSize) {
+    List<TableIdentifier> results = catalog.listTables(namespace);
+    List<TableIdentifier> subResults;
+
+    int start = INTIAL_PAGE_TOKEN.equals(pageToken) ? 0 : Integer.parseInt(pageToken);
+    int end = start + Integer.parseInt(pageSize);
+    subResults = results.subList(start, end);
+    String nextToken = String.valueOf(end);
+
+    if (end >= results.size()) {
+      nextToken = null;
+    }
+
+    return ListTablesResponse.builder().addAll(subResults).nextPageToken(nextToken).build();
   }
 
   public static LoadTableResponse stageTableCreate(
@@ -395,6 +436,23 @@ public class CatalogHandlers {
 
   public static ListTablesResponse listViews(ViewCatalog catalog, Namespace namespace) {
     return ListTablesResponse.builder().addAll(catalog.listViews(namespace)).build();
+  }
+
+  public static ListTablesResponse listViews(
+      ViewCatalog catalog, Namespace namespace, String pageToken, String pageSize) {
+    List<TableIdentifier> results = catalog.listViews(namespace);
+    List<TableIdentifier> subResults;
+
+    int start = INTIAL_PAGE_TOKEN.equals(pageToken) ? 0 : Integer.parseInt(pageToken);
+    int end = start + Integer.parseInt(pageSize);
+    subResults = results.subList(start, end);
+    String nextToken = String.valueOf(end);
+
+    if (end >= results.size()) {
+      nextToken = null;
+    }
+
+    return ListTablesResponse.builder().addAll(subResults).nextPageToken(nextToken).build();
   }
 
   public static LoadViewResponse createView(
