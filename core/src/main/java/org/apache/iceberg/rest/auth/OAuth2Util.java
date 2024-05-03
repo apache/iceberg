@@ -738,13 +738,21 @@ public class OAuth2Util {
         long startTimeMillis,
         AuthSession parent,
         String credential) {
+      // issued token type is not present in every OAuth2 response:
+      // assume type is access token if none provided.
+      // See https://datatracker.ietf.org/doc/html/rfc6749#section-4.4.3
+      // for an example of a response that does not include the issued token type.
+      String issuedTokenType = response.issuedTokenType();
+      if (issuedTokenType == null) {
+        issuedTokenType = OAuth2Properties.ACCESS_TOKEN_TYPE;
+      }
       AuthSession session =
           new AuthSession(
               parent.headers(),
               AuthConfig.builder()
                   .from(parent.config())
                   .token(response.token())
-                  .tokenType(response.issuedTokenType())
+                  .tokenType(issuedTokenType)
                   .credential(credential)
                   .build());
 
