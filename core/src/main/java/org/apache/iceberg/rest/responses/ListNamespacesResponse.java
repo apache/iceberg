@@ -29,13 +29,15 @@ import org.apache.iceberg.rest.RESTResponse;
 public class ListNamespacesResponse implements RESTResponse {
 
   private List<Namespace> namespaces;
+  private String nextPageToken;
 
   public ListNamespacesResponse() {
     // Required for Jackson deserialization
   }
 
-  private ListNamespacesResponse(List<Namespace> namespaces) {
+  private ListNamespacesResponse(List<Namespace> namespaces, String nextPageToken) {
     this.namespaces = namespaces;
+    this.nextPageToken = nextPageToken;
     validate();
   }
 
@@ -48,9 +50,16 @@ public class ListNamespacesResponse implements RESTResponse {
     return namespaces != null ? namespaces : ImmutableList.of();
   }
 
+  public String nextPageToken() {
+    return nextPageToken;
+  }
+
   @Override
   public String toString() {
-    return MoreObjects.toStringHelper(this).add("namespaces", namespaces()).toString();
+    return MoreObjects.toStringHelper(this)
+        .add("namespaces", namespaces())
+        .add("next-page-token", nextPageToken())
+        .toString();
   }
 
   public static Builder builder() {
@@ -59,6 +68,7 @@ public class ListNamespacesResponse implements RESTResponse {
 
   public static class Builder {
     private final ImmutableList.Builder<Namespace> namespaces = ImmutableList.builder();
+    private String nextPageToken;
 
     private Builder() {}
 
@@ -75,8 +85,13 @@ public class ListNamespacesResponse implements RESTResponse {
       return this;
     }
 
+    public Builder nextPageToken(String pageToken) {
+      nextPageToken = pageToken;
+      return this;
+    }
+
     public ListNamespacesResponse build() {
-      return new ListNamespacesResponse(namespaces.build());
+      return new ListNamespacesResponse(namespaces.build(), nextPageToken);
     }
   }
 }
