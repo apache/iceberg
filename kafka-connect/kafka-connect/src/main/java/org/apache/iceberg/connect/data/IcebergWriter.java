@@ -32,16 +32,16 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
 
-public class IcebergWriter implements RecordWriter {
+class IcebergWriter implements RecordWriter {
   private final Table table;
   private final String tableName;
   private final IcebergSinkConfig config;
-  private final List<WriterResult> writerResults;
+  private final List<IcebergWriterResult> writerResults;
 
   private RecordConverter recordConverter;
   private TaskWriter<Record> writer;
 
-  public IcebergWriter(Table table, String tableName, IcebergSinkConfig config) {
+  IcebergWriter(Table table, String tableName, IcebergSinkConfig config) {
     this.table = table;
     this.tableName = tableName;
     this.config = config;
@@ -50,7 +50,7 @@ public class IcebergWriter implements RecordWriter {
   }
 
   private void initNewWriter() {
-    this.writer = Utilities.createTableWriter(table, tableName, config);
+    this.writer = RecordUtils.createTableWriter(table, tableName, config);
     this.recordConverter = new RecordConverter(table, config);
   }
 
@@ -102,7 +102,7 @@ public class IcebergWriter implements RecordWriter {
     }
 
     writerResults.add(
-        new WriterResult(
+        new IcebergWriterResult(
             TableIdentifier.parse(tableName),
             Arrays.asList(writeResult.dataFiles()),
             Arrays.asList(writeResult.deleteFiles()),
@@ -110,10 +110,10 @@ public class IcebergWriter implements RecordWriter {
   }
 
   @Override
-  public List<WriterResult> complete() {
+  public List<IcebergWriterResult> complete() {
     flush();
 
-    List<WriterResult> result = Lists.newArrayList(writerResults);
+    List<IcebergWriterResult> result = Lists.newArrayList(writerResults);
     writerResults.clear();
 
     return result;

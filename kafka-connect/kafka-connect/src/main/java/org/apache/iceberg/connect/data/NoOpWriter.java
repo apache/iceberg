@@ -28,7 +28,7 @@ class NoOpWriter implements RecordWriter {
   }
 
   @Override
-  public List<WriterResult> complete() {
+  public List<IcebergWriterResult> complete() {
     // NO-OP
     return null;
   }
