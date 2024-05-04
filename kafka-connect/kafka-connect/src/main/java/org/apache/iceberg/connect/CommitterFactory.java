@@ -16,16 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.connect.data;
+package org.apache.iceberg.connect;
 
-import java.util.List;
-import org.apache.kafka.connect.sink.SinkRecord;
+import org.apache.iceberg.connect.channel.CommitterImpl;
 
-interface RecordWriter extends Cloneable {
+public class CommitterFactory {
+  public static Committer createCommitter(IcebergSinkConfig config) {
+    return new CommitterImpl();
+  }
 
-  void write(SinkRecord record);
-
-  List<IcebergWriterResult> complete();
-
-  void close();
+  private CommitterFactory() {}
 }
