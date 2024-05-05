@@ -42,7 +42,7 @@ flink117 = { strictly = "1.17.2"}
 flink118 =  { strictly = "1.18.1"}
 flink119 =  { strictly = "1.19.0"}
 google-libraries-bom = "26.28.0"
-guava = "33.1.0-jre"
+guava = "33.2.0-jre"
 hadoop2 = "2.7.3"
 hadoop3-client = "3.3.6"
 httpcomponents-httpclient5 = "5.3.1"
