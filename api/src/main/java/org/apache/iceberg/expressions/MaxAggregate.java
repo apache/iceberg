@@ -18,7 +18,10 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.nio.ByteBuffer;
 import java.util.Comparator;
+import java.util.Map;
+
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
@@ -40,7 +43,11 @@ public class MaxAggregate<T> extends ValueAggregate<T> {
 
   @Override
   protected boolean hasValue(DataFile file) {
-    boolean hasBound = file.upperBounds().containsKey(fieldId);
+    Map<Integer, ByteBuffer> upperBounds = file.upperBounds();
+    if (upperBounds == null) {
+      return false;
+    }
+    boolean hasBound = upperBounds.containsKey(fieldId);
     Long valueCount = safeGet(file.valueCounts(), fieldId);
     Long nullCount = safeGet(file.nullValueCounts(), fieldId);
     boolean boundAllNull =
