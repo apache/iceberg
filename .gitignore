@@ -24,6 +24,7 @@ gradle/wrapper/gradle-wrapper.jar
 lib/
 
 # web site build
+docs/site/
 site/site/
 site/docs/docs/
 site/docs/.asf.yaml
