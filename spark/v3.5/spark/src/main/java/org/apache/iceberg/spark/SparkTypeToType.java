@@ -22,6 +22,7 @@ import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.BinaryType;
 import org.apache.spark.sql.types.BooleanType;
@@ -47,6 +48,8 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
   private final StructType root;
   private int nextId = 0;
 
+  private boolean isAllNullableField = SparkSQLProperties.SET_ALL_NULLABLE_FIELD_DEFAULT;
+
   SparkTypeToType() {
     this.root = null;
   }
@@ -55,6 +58,12 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
     this.root = root;
     // the root struct's fields use the first ids
     this.nextId = root.fields().length;
+
+    String nullableFieldStr =
+        SparkSession.active()
+            .conf()
+            .get(SparkSQLProperties.SET_ALL_NULLABLE_FIELD, String.valueOf(isAllNullableField));
+    this.isAllNullableField = Boolean.parseBoolean(nullableFieldStr);
   }
 
   private int getNextId() {
@@ -83,7 +92,7 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
 
       String doc = field.getComment().isDefined() ? field.getComment().get() : null;
 
-      if (field.nullable()) {
+      if (field.nullable() || isAllNullableField) {
         newFields.add(Types.NestedField.optional(id, field.name(), type, doc));
       } else {
         newFields.add(Types.NestedField.required(id, field.name(), type, doc));
@@ -100,7 +109,7 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
 
   @Override
   public Type array(ArrayType array, Type elementType) {
-    if (array.containsNull()) {
+    if (array.containsNull() || isAllNullableField) {
       return Types.ListType.ofOptional(getNextId(), elementType);
     } else {
       return Types.ListType.ofRequired(getNextId(), elementType);
@@ -109,7 +118,7 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
 
   @Override
   public Type map(MapType map, Type keyType, Type valueType) {
-    if (map.valueContainsNull()) {
+    if (map.valueContainsNull() || isAllNullableField) {
       return Types.MapType.ofOptional(getNextId(), getNextId(), keyType, valueType);
     } else {
       return Types.MapType.ofRequired(getNextId(), getNextId(), keyType, valueType);

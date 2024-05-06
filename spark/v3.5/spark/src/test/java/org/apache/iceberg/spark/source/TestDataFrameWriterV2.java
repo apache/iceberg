@@ -209,4 +209,51 @@ public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
     fields = Spark3Util.loadIcebergTable(sparkSession, tableName).schema().asStruct().fields();
     assertThat(fields).hasSize(4);
   }
+
+  @TestTemplate
+  public void testWithNullableProperty() throws Exception {
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
+        tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
+    spark.conf().set("spark.sql.iceberg.set-all-nullable-field", "true");
+    Dataset<Row> threeColDF =
+        jsonToDF(
+            "id bigint, data string, new_col struct<col1: bigint NOT NULL, col2: bigint NOT NULL> ",
+            "{ \"id\": 1,  \"data\": \"a\", \"new_col\":{\"col1\":1, \"col2\":2} }");
+
+    threeColDF.writeTo(tableName).option("merge-schema", "true").append();
+
+    Dataset<Row> newColDF =
+        jsonToDF(
+            "id bigint, data string, new_col struct<col1: bigint NOT NULL, col3: bigint> ",
+            "{ \"id\": 2,  \"data\": \"b\", \"new_col\":{\"col1\":2, \"col3\":3} }");
+    newColDF.writeTo(tableName).option("merge-schema", "true").append();
+
+    assertEquals(
+        "Should have struct column with all the fields ",
+        ImmutableList.of(row(1L, "a", row(1L, 2L, null)), row(2L, "b", row(2L, null, 3L))),
+        sql("select * from %s order by id", tableName));
+  }
+
+  @TestTemplate
+  public void testWithoutNullableProperty() throws Exception {
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
+        tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
+    spark.conf().set("spark.sql.iceberg.set-all-nullable-field", "false");
+    Dataset<Row> threeColDF =
+        jsonToDF(
+            "id bigint, data string, new_col struct<col1: bigint NOT NULL, col2: bigint NOT NULL> ",
+            "{ \"id\": 1, \"data\": \"a\", \"new_col\":{\"col1\":1, \"col2\":2} }");
+
+    threeColDF.writeTo(tableName).option("merge-schema", "true").append();
+
+    Dataset<Row> newColDF =
+        jsonToDF(
+            "id bigint, data string, new_col struct<col1: bigint NOT NULL, col3: bigint> ",
+            "{ \"id\": 1, \"data\": \"a\", \"new_col\":{\"col1\":2, \"col3\":3} }");
+    assertThatThrownBy(() -> newColDF.writeTo(tableName).option("merge-schema", "true").append())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot write incompatible dataset to table with schema");
+  }
 }
