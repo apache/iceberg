@@ -70,4 +70,10 @@ public interface ActionsProvider {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " does not implement rewritePositionDeletes");
   }
+
+  /** Instantiates an action to analyze tables */
+  default AnalyzeTable analyzeTable(Table table) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement analyzeTable");
+  }
 }
