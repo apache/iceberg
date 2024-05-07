@@ -66,12 +66,13 @@ public class TestS3URI {
   }
 
   @Test
-  public void testQueryAndFragment() {
+  public void testSpecialChars() {
     String p1 = "s3://bucket/path/to/file?query=foo#bar";
     S3URI uri1 = new S3URI(p1);
 
     Assertions.assertThat(uri1.bucket()).isEqualTo("bucket");
-    Assertions.assertThat(uri1.key()).isEqualTo("path/to/file");
+    // query and fragment parts are not interpreted
+    Assertions.assertThat(uri1.key()).isEqualTo("path/to/file?query=foo#bar");
     Assertions.assertThat(uri1.toString()).isEqualTo(p1);
   }
 
@@ -91,7 +92,7 @@ public class TestS3URI {
     S3URI uri1 = new S3URI(p1, bucketToAccessPointMapping);
 
     Assertions.assertThat(uri1.bucket()).isEqualTo("access-point");
-    Assertions.assertThat(uri1.key()).isEqualTo("path/to/file");
+    Assertions.assertThat(uri1.key()).isEqualTo("path/to/file?query=foo#bar");
     Assertions.assertThat(uri1.toString()).isEqualTo(p1);
   }
 }

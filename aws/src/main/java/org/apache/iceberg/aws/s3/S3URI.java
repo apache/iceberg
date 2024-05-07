@@ -34,8 +34,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 class S3URI {
   private static final String SCHEME_DELIM = "://";
   private static final String PATH_DELIM = "/";
-  private static final String QUERY_DELIM = "\\?";
-  private static final String FRAGMENT_DELIM = "#";
 
   private final String location;
   private final String scheme;
@@ -80,11 +78,12 @@ class S3URI {
             ? authoritySplit[0]
             : bucketToAccessPointMapping.getOrDefault(authoritySplit[0], authoritySplit[0]);
 
-    // Strip query and fragment if they exist
-    String path = authoritySplit.length > 1 ? authoritySplit[1] : "";
-    path = path.split(QUERY_DELIM, -1)[0];
-    path = path.split(FRAGMENT_DELIM, -1)[0];
-    this.key = path;
+    // Note: AWS UI (as an example) embeds special chars like `?` and `#` in `s3://` URIs without
+    // encoding. This technically does not match the URI spec per RFC 3986, but it is worth
+    // supporting to ensure interoperability for S3FileIO. Therefore, the whole sub-string after the
+    // "authority" part is treated as the "key" without interpreting "query" and "fragment" parts
+    // defined by the RFC.
+    this.key = authoritySplit.length > 1 ? authoritySplit[1] : "";
   }
 
   /** Returns S3 bucket name. */
