@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -60,7 +61,7 @@ public class PartitionSpec implements Serializable {
   private transient volatile ListMultimap<Integer, PartitionField> fieldsBySourceId = null;
   private transient volatile Class<?>[] lazyJavaClasses = null;
   private transient volatile StructType lazyPartitionType = null;
-  private transient volatile StructType lazyOriginalPartitionType = null;
+  private transient volatile StructType lazyRawPartitionType = null;
   private transient volatile List<PartitionField> fieldList = null;
   private final int lastAssignedFieldId;
 
@@ -141,29 +142,28 @@ public class PartitionSpec implements Serializable {
     return lazyPartitionType;
   }
 
-  public StructType originalPartitionType() {
-    if (schema.idsToOriginal().size() == 0) {
+  /**
+   * Returns a struct with TransformID's which match the ID's used in the Table Metadata. This is
+   * different than the {@link #partitionType()} method which returns a struct which is guaranteed
+   * not to overlap with column ID's of the table by reassigning ID's.
+   */
+  public StructType rawPartitionType() {
+    if (schema.idsToOriginal().isEmpty()) {
       return partitionType();
     }
-    if (lazyOriginalPartitionType == null) {
+    if (lazyRawPartitionType == null) {
       synchronized (this) {
-        if (lazyOriginalPartitionType == null) {
-          List<Types.NestedField> structFields = Lists.newArrayListWithExpectedSize(fields.length);
-
-          for (PartitionField field : fields) {
-            Type sourceType = schema.findType(field.sourceId());
-            Type resultType = field.transform().getResultType(sourceType);
-            structFields.add(
-                Types.NestedField.optional(
-                    schema.idsToOriginal().get(field.fieldId()), field.name(), resultType));
-          }
-
-          this.lazyOriginalPartitionType = Types.StructType.of(structFields);
+        if (lazyRawPartitionType == null) {
+          this.lazyRawPartitionType =
+              StructType.of(
+                  partitionType().fields().stream()
+                      .map(f -> f.withFieldId(schema.idsToOriginal().get(f.fieldId())))
+                      .collect(Collectors.toList()));
         }
       }
     }
 
-    return lazyOriginalPartitionType;
+    return lazyRawPartitionType;
   }
 
   public Class<?>[] javaClasses() {
