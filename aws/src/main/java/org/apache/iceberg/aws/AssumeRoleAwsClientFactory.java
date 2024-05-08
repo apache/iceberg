@@ -127,14 +127,18 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
     return s3FileIOProperties;
   }
 
+  private StsClient sts() {
+    return stsClientBuilder().build();
+  }
+
   @VisibleForTesting
-  StsClient sts() {
+  StsClientBuilder stsClientBuilder() {
     StsClientBuilder clientBuilder =
         StsClient.builder().applyMutation(httpClientProperties::applyHttpClientConfigurations);
     if (awsProperties.clientAssumeRoleStsRegionalEndpointEnabled()) {
       clientBuilder.region(Region.of(awsProperties.clientAssumeRoleRegion()));
     }
-    return clientBuilder.build();
+    return clientBuilder;
   }
 
   private String genSessionName() {
