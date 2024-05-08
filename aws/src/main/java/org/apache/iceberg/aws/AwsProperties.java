@@ -156,6 +156,13 @@ public class AwsProperties implements Serializable {
   public static final String CLIENT_ASSUME_ROLE_REGION = "client.assume-role.region";
 
   /**
+   * Used by {@link AssumeRoleAwsClientFactory}. If set, STS client will use the region specified
+   * through {@code CLIENT_ASSUME_ROLE_REGION}, else uses the default region chain.
+   */
+  public static final String CLIENT_ASSUME_ROLE_STS_REGIONAL_ENDPOINT_ENABLED =
+      "client.assume-role.sts-regional-endpoint-enabled";
+
+  /**
    * Used by {@link AssumeRoleAwsClientFactory}. Optional session name used to assume an IAM role.
    *
    * <p>For more details, see
@@ -219,6 +226,7 @@ public class AwsProperties implements Serializable {
   private String clientAssumeRoleRegion;
   private String clientAssumeRoleSessionName;
   private String clientCredentialsProvider;
+  private boolean clientAssumeRoleStsRegionalEndpointEnabled;
   private final Map<String, String> clientCredentialsProviderProperties;
 
   private String glueEndpoint;
@@ -274,6 +282,9 @@ public class AwsProperties implements Serializable {
     this.clientCredentialsProviderProperties =
         PropertyUtil.propertiesWithPrefix(
             properties, AwsClientProperties.CLIENT_CREDENTIAL_PROVIDER_PREFIX);
+    this.clientAssumeRoleStsRegionalEndpointEnabled =
+        PropertyUtil.propertyAsBoolean(
+            properties, CLIENT_ASSUME_ROLE_STS_REGIONAL_ENDPOINT_ENABLED, false);
 
     this.glueEndpoint = properties.get(GLUE_CATALOG_ENDPOINT);
     this.glueCatalogId = properties.get(GLUE_CATALOG_ID);
@@ -322,6 +333,10 @@ public class AwsProperties implements Serializable {
 
   public String clientAssumeRoleSessionName() {
     return clientAssumeRoleSessionName;
+  }
+
+  public boolean clientAssumeRoleStsRegionalEndpointEnabled() {
+    return clientAssumeRoleStsRegionalEndpointEnabled;
   }
 
   public String glueCatalogId() {

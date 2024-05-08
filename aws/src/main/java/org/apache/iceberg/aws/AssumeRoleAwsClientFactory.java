@@ -21,6 +21,7 @@ package org.apache.iceberg.aws;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
@@ -30,6 +31,7 @@ import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.sts.StsClient;
+import software.amazon.awssdk.services.sts.StsClientBuilder;
 import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider;
 import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
 
@@ -125,10 +127,14 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
     return s3FileIOProperties;
   }
 
-  private StsClient sts() {
-    return StsClient.builder()
-        .applyMutation(httpClientProperties::applyHttpClientConfigurations)
-        .build();
+  @VisibleForTesting
+  StsClient sts() {
+    StsClientBuilder clientBuilder =
+        StsClient.builder().applyMutation(httpClientProperties::applyHttpClientConfigurations);
+    if (awsProperties.clientAssumeRoleStsRegionalEndpointEnabled()) {
+      clientBuilder.region(Region.of(awsProperties.clientAssumeRoleRegion()));
+    }
+    return clientBuilder.build();
   }
 
   private String genSessionName() {

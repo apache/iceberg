@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.aws;
 
+import static org.apache.iceberg.aws.AwsProperties.CLIENT_ASSUME_ROLE_STS_REGIONAL_ENDPOINT_ENABLED;
 import static org.apache.iceberg.aws.AwsProperties.DYNAMODB_TABLE_NAME;
 import static org.apache.iceberg.aws.AwsProperties.GLUE_CATALOG_ID;
 
@@ -39,5 +40,21 @@ public class TestAwsProperties {
         .isEqualTo(awsPropertiesWithProps.glueCatalogId());
     Assertions.assertThat(deSerializedAwsPropertiesWithProps.dynamoDbTableName())
         .isEqualTo(awsPropertiesWithProps.dynamoDbTableName());
+  }
+
+  @Test
+  public void testAssumeRoleShouldUseRegionalEndpoint() {
+    AwsProperties awsProperties =
+        new AwsProperties(
+            ImmutableMap.of(CLIENT_ASSUME_ROLE_STS_REGIONAL_ENDPOINT_ENABLED, "true"));
+    Assertions.assertThat(awsProperties.clientAssumeRoleStsRegionalEndpointEnabled()).isTrue();
+
+    awsProperties =
+        new AwsProperties(
+            ImmutableMap.of(CLIENT_ASSUME_ROLE_STS_REGIONAL_ENDPOINT_ENABLED, "false"));
+    Assertions.assertThat(awsProperties.clientAssumeRoleStsRegionalEndpointEnabled()).isFalse();
+
+    awsProperties = new AwsProperties(ImmutableMap.of());
+    Assertions.assertThat(awsProperties.clientAssumeRoleStsRegionalEndpointEnabled()).isFalse();
   }
 }
