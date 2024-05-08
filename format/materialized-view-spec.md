@@ -29,27 +29,27 @@ Such metadata allows creating and querying Iceberg materialized views across dif
 
 ## Specification
 A materialized view is an Iceberg view with a respective Iceberg table that stores the results of the view query.
-An Iceberg view is considered a materialized view if it has the `iceberg.materialized.view` property set to `true`.
-A materialized view must also reference the storage table identifier in its `iceberg.materialized.view.storage.table` property.
+An Iceberg view is considered a materialized view if it has the `materialized.view` property set to `true`.
+A materialized view must also reference the storage table identifier in its `materialized.view.storage.table` property.
 
 The specification for the materialized view properties on the view is as follows:
 | Property name                              | Description                                                             |
 |--------------------------------------------|-------------------------------------------------------------------------|
-| `iceberg.materialized.view`                | This property is used to mark whether a view is a materialized view. If set to `true`, the view is treated as a materialized view.|
-| `iceberg.materialized.view.storage.table`  | This property specifies the identifier of the storage table associated with the materialized view.|
+| `materialized.view`                | This property is used to mark whether a view is a materialized view. If set to `true`, the view is treated as a materialized view.|
+| `materialized.view.storage.table`  | This property specifies the identifier of the storage table associated with the materialized view.|
 
 In addition to the properties on the view, the storage table associated with the materialized view has the following properties:
 
 | Property name                        | Description                                                                   |
 |--------------------------------------|-------------------------------------------------------------------------------|
-| `iceberg.base.snapshot.[UUID]`       | These properties store the snapshot IDs of the base tables at the time the materialized view's data was last updated. Each property is prefixed with `iceberg.base.snapshot.` followed by the UUID of the base table.|
-| `iceberg.view.version`               | This property stores the version of the view that this storage table is associated with at the time of materialization|
-| `iceberg.child.view.version.[UUID]`  | If the top level materialized view is nested on top of other views, these properties store the version of the child views that the top level view is associated with at the time of materialization. Each property is prefixed with `iceberg.child.view.version.` followed by the UUID of the child view.|
+| `base.snapshot.[UUID]`       | These properties store the snapshot IDs of the base tables at the time the materialized view's data was last updated. Each property is prefixed with `base.snapshot.` followed by the UUID of the base table.|
+| `view.version`               | This property stores the version of the view that this storage table is associated with at the time of materialization|
+| `child.view.version.[UUID]`  | If the top level materialized view is nested on top of other views, these properties store the version of the child views that the top level view is associated with at the time of materialization. Each property is prefixed with `child.view.version.` followed by the UUID of the child view.|
 
 A storage table is considered fresh if all the following conditions are true:
-* For each table `T` with `UUID` in `iceberg.base.snapshot.[UUID]`, the current snapshot ID of `T` is equal to the value stored in `iceberg.base.snapshot.[UUID]`.
-* The version of the view using the table as the storage table is equal to the value stored in `iceberg.view.version`.
-* For each child view `V` with `UUID` in `iceberg.child.view.version.[UUID]`, the version of `V` is equal to the value stored in `iceberg.child.view.version.[UUID]`.
+* For each table `T` with `UUID` in `base.snapshot.[UUID]`, the current snapshot ID of `T` is equal to the value stored in `base.snapshot.[UUID]`.
+* The version of the view using the table as the storage table is equal to the value stored in `view.version`.
+* For each child view `V` with `UUID` in `child.view.version.[UUID]`, the version of `V` is equal to the value stored in `child.view.version.[UUID]`.
 
 Implementations may elect to leverage the storage table with more relaxed freshness conditions, such as allowing base table stored snapshots to be different from current snapshots, as long as the respective snapshot timestamp difference is within a given time range.
 
@@ -68,14 +68,14 @@ This example highlights the role of the snapshot ID in determining the freshness
 **Example States:**
 1. **Initial State:**
   - The materialized view `event_summary` is created using the current snapshot of the `event` table.
-  - Property `iceberg.base.snapshot.123e4567` is set with the snapshot ID at the time of creation, say `123`.
+  - Property `base.snapshot.123e4567` is set with the snapshot ID at the time of creation, say `123`.
 
 2. **Fresh State:**
-  - No updates have occurred in the `event` table, so the current snapshot ID, `123` matches the value stored in `iceberg.base.snapshot.123e4567`.
+  - No updates have occurred in the `event` table, so the current snapshot ID, `123` matches the value stored in `base.snapshot.123e4567`.
 
 3. **Stale State:**
   - The `event` table receives an update, changing the current snapshot ID to `456`. No other changes have taken place.
-  - When `event_summary` is queried again, the snapshot ID in `iceberg.base.snapshot.123e4567` (i.e., `123`) no longer matches the current snapshot ID of the `event` table (i.e., `456`).
+  - When `event_summary` is queried again, the snapshot ID in `base.snapshot.123e4567` (i.e., `123`) no longer matches the current snapshot ID of the `event` table (i.e., `456`).
   - The view is now considered stale due to the snapshot ID mismatch.
 
 ### Example 2:
@@ -89,16 +89,16 @@ This example highlights the role of the view version in determining the freshnes
 **Example states:**
 1. **Initial State:**
   - `monthly_event_report` is created using the current data in the `event` table.
-  - The property `iceberg.view.version` is set with the view version at the time of creation, say `1`.
+  - The property `view.version` is set with the view version at the time of creation, say `1`.
 
 2. **Fresh State:**
-  - The view `monthly_event_report` version has not changed, so the current view version, `1`, matches the value stored in `iceberg.view.version`.
+  - The view `monthly_event_report` version has not changed, so the current view version, `1`, matches the value stored in `view.version`.
   - The storage table is considered fresh.
 
 3. **Stale State:**
   - The definition of `monthly_event_report` is updated (e.g., adding more grouping conditions or changing the aggregation). No other changes have taken place.
   - This change updates the view version, say to `2`.
-  - When `monthly_event_report` is queried again, the version recorded in `iceberg.view.version`, i.e., `1`, does not match the current version of the view, i.e., `2`.
+  - When `monthly_event_report` is queried again, the version recorded in `view.version`, i.e., `1`, does not match the current version of the view, i.e., `2`.
   - The view is now considered stale due to the top level view version mismatch, i.e., the storage table does not contain a valid result for the current view version.
 
 ### Example 3:
@@ -118,14 +118,14 @@ This example highlights the role of the view version in determining the freshnes
 1. **Initial State:**
   - `event_analysis` is created using data joined from `event_type_count` and `event_region_count`.
   - Properties for child view versions are set based on the current state.
-  - `iceberg.child.view.version.456e7890` is set with the version of `event_type_count`, say `1`.
-  - `iceberg.child.view.version.789e0123` is set with the version of `event_region_count`, say `1`.
+  - `child.view.version.456e7890` is set with the version of `event_type_count`, say `1`.
+  - `child.view.version.789e0123` is set with the version of `event_region_count`, say `1`.
 
 2. **Fresh State:**
-  - Child views have not undergone any version changes. The view versions stored in `iceberg.child.view.version.456e7890` and `iceberg.child.view.version.789e0123` are both still set to `1`, matching the current versions of the child views.
+  - Child views have not undergone any version changes. The view versions stored in `child.view.version.456e7890` and `child.view.version.789e0123` are both still set to `1`, matching the current versions of the child views.
   - The storage table is considered fresh. 
 
 3. **Stale State:**
   - `event_type_count` undergoes an update in its definition, changing its view version, say to `2`. No other changes have taken place.
-  - Despite no changes to `event_region_count` or `event_analysis`, the mismatch in `event_type_count` view version, i.e., `2`,  versus the stored `iceberg.child.view.version.456e7890-` renders the storage table for `event_analysis` stale.
+  - Despite no changes to `event_region_count` or `event_analysis`, the mismatch in `event_type_count` view version, i.e., `2`,  versus the stored `child.view.version.456e7890-` renders the storage table for `event_analysis` stale.
   - The view is now considered stale due to one child view version mismatch.
