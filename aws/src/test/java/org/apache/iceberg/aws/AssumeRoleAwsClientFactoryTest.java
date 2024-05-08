@@ -22,14 +22,18 @@ import static org.apache.iceberg.aws.AwsProperties.CLIENT_ASSUME_ROLE_ARN;
 import static org.apache.iceberg.aws.AwsProperties.CLIENT_ASSUME_ROLE_REGION;
 import static org.apache.iceberg.aws.AwsProperties.CLIENT_ASSUME_ROLE_STS_REGIONAL_ENDPOINT_ENABLED;
 import static org.apache.iceberg.aws.AwsProperties.CLIENT_FACTORY;
+import static software.amazon.awssdk.core.SdkSystemSetting.AWS_REGION;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -48,6 +52,22 @@ import software.amazon.awssdk.services.sts.StsClientBuilder;
 import software.amazon.awssdk.services.sts.StsServiceClientConfiguration;
 
 public class AssumeRoleAwsClientFactoryTest {
+
+  private static final String CURRENT_DEFAULT_REGION = System.getProperty(AWS_REGION.property());
+
+  @BeforeAll
+  public static void init() {
+    if (Objects.isNull(CURRENT_DEFAULT_REGION)) {
+      System.setProperty(AWS_REGION.property(), "us-west-2");
+    }
+  }
+
+  @AfterAll
+  public static void cleanup() {
+    if (Objects.isNull(CURRENT_DEFAULT_REGION)) {
+      System.clearProperty(AWS_REGION.property());
+    }
+  }
 
   @ParameterizedTest
   @ArgumentsSource(RegionArgumentsProvider.class)
