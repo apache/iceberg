@@ -116,7 +116,6 @@ This example highlights the role of the view version in determining the freshnes
   - `event_type_count`: `SELECT event_type, COUNT(*) AS count FROM event1 GROUP BY event_type`
   - `event_region_count`: `SELECT region, COUNT(*) AS count FROM event2 GROUP BY region`
 
-**Steps:**
 1. **Initial State:**
   - `event_analysis` is created using data joined from `event_type_count` and `event_region_count`.
   - Properties for child view versions are set based on the current state.
