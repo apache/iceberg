@@ -35,7 +35,9 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.*;
+import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.utils.IoUtils;
 
 /** Specialized test cases that validate {@link S3FileIO} against the Minio S3 implementation. */
@@ -81,15 +83,7 @@ public class TestS3FileIOMinio {
   }
 
   @ParameterizedTest
-  @ValueSource(
-      strings = {
-        "test",
-        "te_st",
-        "te st",
-        "te~!@$%^&*()-+st",
-        "te#st",
-        "te?st",
-      })
+  @ValueSource(strings = {"test", "te_st", "te st", "te~!@$%^&*()-+st", "te#st", "te?st"})
   void testReadFileWithSpecialChars(String dir) throws IOException {
     String key = dir + "/test_file";
     // Make sure the characters in the key are supported by the S3 client and server.
