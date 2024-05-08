@@ -36,6 +36,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.ArgumentsProvider;
 import org.junit.jupiter.params.provider.ArgumentsSource;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.interceptor.Context;
 import software.amazon.awssdk.core.interceptor.ExecutionAttributes;
 import software.amazon.awssdk.core.interceptor.ExecutionInterceptor;
@@ -126,6 +128,7 @@ public class AssumeRoleAwsClientFactoryTest {
 
   private StsClient buildWithCustomInterceptor(
       StsClientBuilder clientBuilder, AtomicReference<String> stsHost) {
+    // using static credential provider to ensure region is not looked up in CI env
     return clientBuilder
         .overrideConfiguration(
             c ->
@@ -141,6 +144,8 @@ public class AssumeRoleAwsClientFactoryTest {
                                 .getHost());
                       }
                     }))
+        .credentialsProvider(
+            StaticCredentialsProvider.create(AwsBasicCredentials.create("test1", "test2")))
         .build();
   }
 
