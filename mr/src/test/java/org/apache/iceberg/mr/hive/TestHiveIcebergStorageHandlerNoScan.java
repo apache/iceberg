@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -70,6 +71,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -496,6 +499,47 @@ public class TestHiveIcebergStorageHandlerNoScan {
           .hasMessageStartingWith("Failed to execute Hive query")
           .hasMessageEndingWith("Table location not set");
     }
+  }
+
+  @TestTemplate
+  public void testEngineHiveDisable() throws TException, IOException {
+    Assume.assumeTrue(
+        "Only HiveCatalog attempts to load the Iceberg table prior to dropping it.",
+        testTableType == TestTables.TestTableType.HIVE_CATALOG);
+
+    shell.setHiveSessionValue("iceberg.engine.hive.enabled", "false");
+
+    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+
+    shell.executeStatement(
+        "CREATE EXTERNAL TABLE customers "
+            + "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' "
+            + testTables.locationForCreateTableSQL(identifier)
+            + "TBLPROPERTIES ('"
+            + InputFormatConfig.TABLE_SCHEMA
+            + "'='"
+            + SchemaParser.toJson(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA)
+            + "','"
+            + InputFormatConfig.CATALOG_NAME
+            + "'='"
+            + Catalogs.ICEBERG_DEFAULT_CATALOG_NAME
+            + "')");
+
+    List<Object[]> rows = shell.executeStatement("DESCRIBE formatted default.customers");
+    boolean containsExpectedString = false;
+
+    for (Object[] row : rows) {
+      containsExpectedString =
+          Arrays.stream(row)
+              .filter(item -> item instanceof String)
+              .anyMatch(
+                  item -> ((String) item).contains("org.apache.hadoop.mapred.FileInputFormat"));
+      if (containsExpectedString) {
+        break;
+      }
+    }
+
+    Assert.assertTrue("The row does not contain the expected string", containsExpectedString);
   }
 
   @TestTemplate

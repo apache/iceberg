@@ -36,6 +36,7 @@ import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.hive.HiveSchemaUtil;
 import org.apache.iceberg.hive.HiveTableOperations;
 import org.apache.iceberg.io.FileIO;
@@ -151,7 +152,10 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
   @Override
   public void commitCreateTable(org.apache.hadoop.hive.metastore.api.Table hmsTable) {
     if (icebergTable == null) {
-      if (Catalogs.hiveCatalog(conf, catalogProperties)) {
+      // Check if the catalog is a Hive catalog and if the Hive engine is enabled in the
+      // configuration
+      if (Catalogs.hiveCatalog(conf, catalogProperties)
+          && Boolean.parseBoolean(conf.get(ConfigProperties.ENGINE_HIVE_ENABLED))) {
         catalogProperties.put(TableProperties.ENGINE_HIVE_ENABLED, true);
       }
 
