@@ -103,22 +103,7 @@ public class SnapshotUtil {
    * @return a set of snapshot IDs of the known ancestor snapshots, including the current ID
    */
   public static List<Long> currentAncestorIds(Table table) {
-    return currentAncestorIds(table, null);
-  }
-
-  /**
-   * Return the snapshot IDs for the ancestors of the current table state at a given branch.
-   *
-   * <p>Ancestor IDs are ordered by commit time, descending. The first ID is the current snapshot at
-   * a given branch, followed by its parent, and so on.
-   *
-   * @param table a {@link Table}
-   * @param branch branch name of the table (nullable)
-   * @return a set of snapshot IDs of the known ancestor snapshots, including the current ID
-   */
-  public static List<Long> currentAncestorIds(Table table, String branch) {
-    return ancestorIds(
-        branch == null ? table.currentSnapshot() : table.snapshot(branch), table::snapshot);
+    return ancestorIds(table.currentSnapshot(), table::snapshot);
   }
 
   /**

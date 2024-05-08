@@ -399,7 +399,8 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
     Assertions.assertThat(result).as("Records should match").isEqualTo(expected);
 
     // test (1st snapshot, 5th snapshot] use b1 branch incremental scan.
-    List<Long> branchSnapshotIds = SnapshotUtil.currentAncestorIds(table, branch);
+    List<Long> branchSnapshotIds =
+        SnapshotUtil.ancestorIds(table.snapshot(branch), table::snapshot);
 
     Dataset<Row> resultDf =
         spark
@@ -454,7 +455,8 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
           .mode("append")
           .save(tableLocation);
     }
-    List<Long> branchSnapshotIds = SnapshotUtil.currentAncestorIds(table, branch);
+    List<Long> branchSnapshotIds =
+        SnapshotUtil.ancestorIds(table.snapshot(branch), table::snapshot);
 
     /*
          data:1 a          data:2 b         data:3 c
