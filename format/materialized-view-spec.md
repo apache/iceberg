@@ -51,6 +51,8 @@ A storage table is considered fresh if all the following conditions are true:
 * The version of the view using the table as the storage table is equal to the value stored in `view.version`.
 * For each child view `V` with `UUID` in `child.view.version.[UUID]`, the version of `V` is equal to the value stored in `child.view.version.[UUID]`.
 
+The reason for tracking view versions is to evaluate whether the current storage table is a valid materialization of the current view tree. If the view tree changes in any way, the current table is no longer a valid materialization of the current view tree.
+
 Implementations may elect to leverage the storage table with more relaxed freshness conditions, such as allowing base table stored snapshots to be different from current snapshots, as long as the respective snapshot timestamp difference is within a given time range.
 
 ## Examples
@@ -110,7 +112,7 @@ This example highlights the role of the view version in determining the freshnes
 - **Child Views:** `event_type_count` (based on `event1`), `event_region_count` (based on `event2`)
 - **Child View UUIDs:** `event_type_count` - `456e7890`, `event_region_count` - `789e0123`
 - **View Definitions:**
-  - `event_analysis`: `SELECT E1.event_type, E1.count, E2.region, E2.count FROM EventTypeCount E1 JOIN EventRegionCount E2 ON E1.event_type = E2.event_type`
+  - `event_analysis`: `SELECT E1.event_type, E1.count, E2.region, E2.count FROM event_type_count E1 JOIN event_region_count E2 ON E1.event_type = E2.event_type`
   - `event_type_count`: `SELECT event_type, COUNT(*) AS count FROM event1 GROUP BY event_type`
   - `event_region_count`: `SELECT region, COUNT(*) AS count FROM event2 GROUP BY region`
 
