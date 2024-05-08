@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.puffin;
 
+import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+
 public final class StandardBlobTypes {
   private StandardBlobTypes() {}
 
@@ -26,4 +29,8 @@ public final class StandardBlobTypes {
    * href="https://datasketches.apache.org/">Apache DataSketches</a> library
    */
   public static final String APACHE_DATASKETCHES_THETA_V1 = "apache-datasketches-theta-v1";
+
+  public static List<String> blobTypes() {
+    return Lists.newArrayList(APACHE_DATASKETCHES_THETA_V1);
+  }
 }
