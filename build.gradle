@@ -840,8 +840,6 @@ project(':iceberg-arrow') {
       exclude group: 'org.codehaus.jackson'
     }
 
-    testImplementation 'org.apache.spark:spark-catalyst_2.12:3.5.1'
-
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     // To run ArrowReaderTest test cases, :netty-common is needed.
     // We import :netty-common through :arrow-memory-netty

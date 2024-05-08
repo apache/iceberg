@@ -42,17 +42,11 @@ class GenericArrowVectorAccessorFactoryTest {
   @Mock Supplier<GenericArrowVectorAccessorFactory.StringFactory<String>> stringFactorySupplier;
 
   @Mock
-  Supplier<
-          GenericArrowVectorAccessorFactory.StructChildFactory<
-              org.apache.spark.sql.vectorized.ArrowColumnVector>>
+  Supplier<GenericArrowVectorAccessorFactory.StructChildFactory<Integer>>
       structChildFactorySupplier;
 
   @Mock
-  Supplier<
-          GenericArrowVectorAccessorFactory.ArrayFactory<
-              org.apache.spark.sql.vectorized.ArrowColumnVector,
-              org.apache.spark.sql.vectorized.ColumnarArray>>
-      arrayFactorySupplier;
+  Supplier<GenericArrowVectorAccessorFactory.ArrayFactory<Integer, Integer[]>> arrayFactorySupplier;
 
   @InjectMocks GenericArrowVectorAccessorFactory genericArrowVectorAccessorFactory;
 
