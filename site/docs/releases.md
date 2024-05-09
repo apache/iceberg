@@ -71,6 +71,12 @@ To add a dependency on Iceberg in Maven, add the following to your `pom.xml`:
   ...
 </dependencies>
 ```
+### 1.5.2 release
+Apache Iceberg 1.5.2 was released on May 9, 2024.
+
+The 1.5.2 release has the same changes that the 1.5.1 release (see directly below)
+has. The 1.5.1 release had issues with the spark runtime artifacts; specifically certain artifacts were built with the wrong Scala version. 
+It is strongly recommended to upgrade to 1.5.2 for any systems that are using 1.5.1.  
 
 ### 1.5.1 release
 Apache Iceberg 1.5.1 was released on April 25, 2024.
