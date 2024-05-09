@@ -18,49 +18,42 @@
  */
 package org.apache.iceberg.expressions;
 
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.List;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.TestHelpers.TestDataFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.junit.jupiter.api.Test;
-
-import java.util.List;
-
-import static org.apache.iceberg.types.Conversions.toByteBuffer;
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.assertj.core.api.Assertions.assertThat;
 
 public class TestAggregateEvaluatorAllStatsOptional {
   private static final Schema SCHEMA =
       new Schema(
-          required(1, "id", IntegerType.get()),
-          optional(2, "optional_col", IntegerType.get()));
+          required(1, "id", IntegerType.get()), optional(2, "optional_col", IntegerType.get()));
 
   private static final DataFile MISSING_ALL_OPTIONAL_STATS =
-          new TestDataFile(
-                  "file_3.avro",
-                  Row.of(),
-                  20,
-                  // any value counts, including nulls
-                  null,
-                  // null value counts
-                  null,
-                  // nan value counts
-                  null,
-                  // lower bounds
-                  null,
-                  // upper bounds
-                  null);
+      new TestDataFile(
+          "file_3.avro",
+          Row.of(),
+          20,
+          // any value counts, including nulls
+          null,
+          // null value counts
+          null,
+          // nan value counts
+          null,
+          // lower bounds
+          null,
+          // upper bounds
+          null);
 
-
-  private static final DataFile[] dataFiles = {
-          MISSING_ALL_OPTIONAL_STATS
-  };
+  private static final DataFile[] dataFiles = {MISSING_ALL_OPTIONAL_STATS};
 
   @Test
   public void testIntAggregate() {
@@ -101,7 +94,6 @@ public class TestAggregateEvaluatorAllStatsOptional {
     Object[] expected = {20L, null, null, null};
     assertEvaluatorResult(result, expected);
   }
-
 
   private void assertEvaluatorResult(StructLike result, Object[] expected) {
     Object[] actual = new Object[result.size()];

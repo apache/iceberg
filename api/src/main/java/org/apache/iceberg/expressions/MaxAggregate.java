@@ -21,7 +21,6 @@ package org.apache.iceberg.expressions;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.Map;
-
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
