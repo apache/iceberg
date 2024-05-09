@@ -121,6 +121,10 @@ public class IcebergWriterFactory {
 
   @VisibleForTesting
   static void createNamespaceIfNotExist(Catalog catalog, Namespace identifierNamespace) {
+    if (!(catalog instanceof SupportsNamespaces)) {
+      return;
+    }
+
     String[] levels = identifierNamespace.levels();
     for (int index = 0; index < levels.length; index++) {
       Namespace namespace = Namespace.of(Arrays.copyOfRange(levels, 0, index + 1));
