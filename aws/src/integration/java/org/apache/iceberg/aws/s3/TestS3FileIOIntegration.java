@@ -407,7 +407,7 @@ public class TestS3FileIOIntegration {
             });
 
     long totalFiles = scaleSizes.stream().mapToLong(Integer::longValue).sum();
-    assertThat(s3FileIO.listPrefix(listPrefix)).hasSize((int) totalFiles);
+    assertThat(s3FileIO.listPrefix(listPrefix + "/")).hasSize((int) totalFiles);
   }
 
   @SuppressWarnings("DangerousParallelStreamUsage")
