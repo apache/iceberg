@@ -228,6 +228,7 @@ Any struct, including a top-level schema, can evolve through deleting fields, ad
 Grouping a subset of a struct’s fields into a nested struct is **not** allowed, nor is moving fields from a nested struct into its immediate parent struct (`struct<a, b, c> ↔ struct<a, struct<b, c>>`). Evolving primitive types to structs is **not** allowed, nor is evolving a single-field struct to a primitive (`map<string, int> ↔ map<string, struct<int>>`).
 
 Struct evolution requires the following rules for default values:
+
 * The `initial-default` must be set when a field is added and cannot change
 * The `write-default` must be set when a field is added and may change
 * When a required field is added, both defaults must be set to a non-null value
