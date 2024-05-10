@@ -34,16 +34,29 @@ public abstract class ClientPoolImpl<C, E extends Exception>
   private final Class<? extends E> reconnectExc;
   private final Object signal = new Object();
   private final boolean retryByDefault;
+  private final int maxRetries;
+
   private volatile int currentSize;
   private boolean closed;
 
+  private int connectionRetryWaitPeriodMs = 1000;
+
   public ClientPoolImpl(int poolSize, Class<? extends E> reconnectExc, boolean retryByDefault) {
+    this(poolSize, reconnectExc, retryByDefault, 1);
+  }
+
+  public ClientPoolImpl(
+      int poolSize,
+      Class<? extends E> reconnectExc,
+      boolean retryByDefault,
+      int maxConnectionRetries) {
     this.poolSize = poolSize;
     this.reconnectExc = reconnectExc;
     this.clients = new ArrayDeque<>(poolSize);
     this.currentSize = 0;
     this.closed = false;
     this.retryByDefault = retryByDefault;
+    this.maxRetries = maxConnectionRetries;
   }
 
   @Override
@@ -56,24 +69,36 @@ public abstract class ClientPoolImpl<C, E extends Exception>
     C client = get();
     try {
       return action.run(client);
-
     } catch (Exception exc) {
-      if (retry && isConnectionException(exc)) {
-        try {
-          client = reconnect(client);
-        } catch (Exception ignored) {
-          // if reconnection throws any exception, rethrow the original failure
-          throw reconnectExc.cast(exc);
-        }
-
-        return action.run(client);
+      if (!retry || !isConnectionException(exc)) {
+        throw exc;
       }
 
-      throw exc;
+      return retryAction(action, exc, client);
 
     } finally {
       release(client);
     }
+  }
+
+  private <R> R retryAction(Action<R, C, E> action, Exception originalFailure, C client)
+      throws E, InterruptedException {
+    int retryAttempts = 0;
+    while (retryAttempts < maxRetries) {
+      try {
+        C reconnectedClient = reconnect(client);
+        return action.run(reconnectedClient);
+      } catch (Exception exc) {
+        if (isConnectionException(exc)) {
+          retryAttempts++;
+          Thread.sleep(connectionRetryWaitPeriodMs);
+        } else {
+          throw reconnectExc.cast(originalFailure);
+        }
+      }
+    }
+
+    throw reconnectExc.cast(originalFailure);
   }
 
   protected abstract C newClient();

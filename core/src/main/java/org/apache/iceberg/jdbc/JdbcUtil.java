@@ -43,6 +43,8 @@ final class JdbcUtil {
   static final String INIT_CATALOG_TABLES_PROPERTY =
       JdbcCatalog.PROPERTY_PREFIX + "init-catalog-tables";
 
+  static final String RETRYABLE_STATUS_CODES = "retryable_status_codes";
+
   enum SchemaVersion {
     V0,
     V1
