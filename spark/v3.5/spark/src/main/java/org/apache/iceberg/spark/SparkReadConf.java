@@ -300,14 +300,12 @@ public class SparkReadConf {
       return LOCAL;
     }
 
-    String modeName =
-        confParser
-            .stringConf()
-            .sessionConf(SparkSQLProperties.DATA_PLANNING_MODE)
-            .tableProperty(TableProperties.DATA_PLANNING_MODE)
-            .defaultValue(TableProperties.PLANNING_MODE_DEFAULT)
-            .parse();
-    return PlanningMode.fromName(modeName);
+    return confParser
+        .enumConf(PlanningMode::fromName)
+        .sessionConf(SparkSQLProperties.DATA_PLANNING_MODE)
+        .tableProperty(TableProperties.DATA_PLANNING_MODE)
+        .defaultValue(PlanningMode.fromName(TableProperties.PLANNING_MODE_DEFAULT))
+        .parse();
   }
 
   public PlanningMode deletePlanningMode() {
