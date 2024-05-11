@@ -80,6 +80,33 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testValidation() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    Map<String, String> options = ImmutableMap.of("key", "1");
+    SparkConfParser parser = new SparkConfParser(spark, table, options);
+
+    int parsedValue =
+        parser
+            .intConf()
+            .option("key")
+            .defaultValue(100)
+            .check(value -> value > 0, "Key must be > 0")
+            .parse();
+    assertThat(parsedValue).isEqualTo(1);
+
+    assertThatThrownBy(
+            () ->
+                parser
+                    .intConf()
+                    .option("key")
+                    .defaultValue(100)
+                    .check(value -> value > 10, "Key must be > 10")
+                    .parse())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid value: 1 (Key must be > 10)");
+  }
+
+  @TestTemplate
   public void testOptionCaseInsensitive() {
     Table table = validationCatalog.loadTable(tableIdent);
     Map<String, String> options = ImmutableMap.of("option", "value");
