@@ -80,6 +80,15 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testOptionCaseInsensitive() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    Map<String, String> options = ImmutableMap.of("option", "value");
+    SparkConfParser parser = new SparkConfParser(spark, table, options);
+    String parsedValue = parser.stringConf().option("oPtIoN").parseOptional();
+    assertThat(parsedValue).isEqualTo("value");
+  }
+
+  @TestTemplate
   public void testDurationConf() {
     Table table = validationCatalog.loadTable(tableIdent);
     String confName = "spark.sql.iceberg.some-duration-conf";

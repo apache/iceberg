@@ -20,7 +20,6 @@ package org.apache.iceberg.spark;
 
 import java.time.Duration;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import org.apache.iceberg.Table;
@@ -31,23 +30,24 @@ import org.apache.spark.network.util.JavaUtils;
 import org.apache.spark.sql.RuntimeConfig;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.internal.SQLConf;
+import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
 class SparkConfParser {
 
   private final Map<String, String> properties;
   private final RuntimeConfig sessionConf;
-  private final Map<String, String> options;
+  private final CaseInsensitiveStringMap options;
 
   SparkConfParser() {
     this.properties = ImmutableMap.of();
     this.sessionConf = new RuntimeConfig(SQLConf.get());
-    this.options = ImmutableMap.of();
+    this.options = CaseInsensitiveStringMap.empty();
   }
 
   SparkConfParser(SparkSession spark, Table table, Map<String, String> options) {
     this.properties = table.properties();
     this.sessionConf = spark.conf();
-    this.options = options;
+    this.options = asCaseInsensitiveStringMap(options);
   }
 
   public BooleanConfParser booleanConf() {
@@ -68,6 +68,14 @@ class SparkConfParser {
 
   public DurationConfParser durationConf() {
     return new DurationConfParser();
+  }
+
+  private static CaseInsensitiveStringMap asCaseInsensitiveStringMap(Map<String, String> map) {
+    if (map instanceof CaseInsensitiveStringMap) {
+      return (CaseInsensitiveStringMap) map;
+    } else {
+      return new CaseInsensitiveStringMap(map);
+    }
   }
 
   class BooleanConfParser extends ConfParser<BooleanConfParser, Boolean> {
@@ -220,14 +228,10 @@ class SparkConfParser {
     }
 
     protected T parse(Function<String, T> conversion, T defaultValue) {
-      if (!optionNames.isEmpty()) {
-        for (String optionName : optionNames) {
-          // use lower case comparison as DataSourceOptions.asMap() in Spark 2 returns a lower case
-          // map
-          String optionValue = options.get(optionName.toLowerCase(Locale.ROOT));
-          if (optionValue != null) {
-            return conversion.apply(optionValue);
-          }
+      for (String optionName : optionNames) {
+        String optionValue = options.get(optionName);
+        if (optionValue != null) {
+          return conversion.apply(optionValue);
         }
       }
 
