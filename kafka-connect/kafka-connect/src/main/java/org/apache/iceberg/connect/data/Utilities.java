@@ -28,8 +28,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
@@ -39,6 +37,7 @@ import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.common.DynMethods.BoundMethod;
+import org.apache.iceberg.common.DynMethods.StaticMethod;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.Record;
@@ -135,31 +134,61 @@ public class Utilities {
           "Hadoop is using Kerberos for authentication, you need to provide both a connect "
               + "principal and the path to the keytab of the principal.");
     }
-    try {
-      UserGroupInformation.setConfiguration((Configuration) hadoopConf);
-      UserGroupInformation.loginUserFromKeytab(principal, keytabPath);
-      final UserGroupInformation ugi = UserGroupInformation.getLoginUser();
-      LOG.info("login as: " + ugi.getUserName());
 
-      Thread ticketRenewThread = new Thread(() -> renewKerberosTicket(ugi, renewPeriod));
+    Class<?> configurationClass =
+        DynClasses.builder().impl("org.apache.hadoop.conf.Configuration").build();
+    Class<?> userGroupInformationClass =
+        DynClasses.builder().impl("org.apache.hadoop.security.UserGroupInformation").build();
+    if (configurationClass == null) {
+      throw new RuntimeException("Hadoop not found on classpath, not creating Hadoop config");
+    }
+    if (userGroupInformationClass == null) {
+      throw new RuntimeException(
+          "Hadoop security not found on classpath, unable to configure Kerberos authentication");
+    }
+
+    try {
+      StaticMethod setConfigurationMethod =
+          DynMethods.builder("setConfiguration")
+              .impl(userGroupInformationClass, configurationClass)
+              .buildStatic();
+      StaticMethod loginUserFromKeytabMethod =
+          DynMethods.builder("loginUserFromKeytab")
+              .impl(userGroupInformationClass, String.class, String.class)
+              .buildStatic();
+      StaticMethod getLoginUserMethod =
+          DynMethods.builder("getLoginUser").impl(userGroupInformationClass).buildStatic();
+
+      setConfigurationMethod.invoke(hadoopConf);
+      loginUserFromKeytabMethod.invoke(principal, keytabPath);
+      final Object ugi = getLoginUserMethod.invoke();
+      BoundMethod getUserNameMethod =
+          DynMethods.builder("getUserName").impl(userGroupInformationClass).build(ugi);
+      String userName = getUserNameMethod.invoke();
+      LOG.info("login as: {}", userName);
+
+      Thread ticketRenewThread =
+          new Thread(() -> renewKerberosTicket(userGroupInformationClass, ugi, renewPeriod));
       ticketRenewThread.setDaemon(true);
       LOG.info("Starting the Kerberos ticket renew with period {} ms.", renewPeriod);
       ticketRenewThread.start();
-    } catch (IOException e) {
+    } catch (Exception e) {
       throw new RuntimeException("Could not authenticate with Kerberos: " + e.getMessage());
     }
   }
 
-  private static void renewKerberosTicket(UserGroupInformation ugi, long renewPeriod) {
+  private static void renewKerberosTicket(Class<?> ugiClass, Object ugi, long renewPeriod) {
+    BoundMethod reloginFromKeytabMethod =
+        DynMethods.builder("reloginFromKeytab").impl(ugiClass).build(ugi);
+    BoundMethod getUserNameMethod = DynMethods.builder("getUserName").impl(ugiClass).build(ugi);
+    String userName = getUserNameMethod.invoke();
     while (true) {
       try {
         Thread.sleep(renewPeriod);
-        LOG.info("Attempting to re-login from keytab for user {}", ugi.getUserName());
-        ugi.reloginFromKeytab();
-      } catch (IOException e) {
+        LOG.info("Attempting to re-login from keytab for user {}", userName);
+        reloginFromKeytabMethod.invoke();
+      } catch (Exception e) {
         LOG.error("Error renewing the ticket", e);
-      } catch (InterruptedException e) {
-        // ignored
       }
     }
   }
