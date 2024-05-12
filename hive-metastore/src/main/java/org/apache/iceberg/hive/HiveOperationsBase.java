@@ -103,14 +103,6 @@ interface HiveOperationsBase {
     return maxHiveTablePropertySize() > 0;
   }
 
-  /**
-   * @deprecated since 1.6.0, will be removed in 1.7.0; Use {@link #setSchema(Schema, Map)} instead
-   */
-  @Deprecated
-  default void setSchema(TableMetadata metadata, Map<String, String> parameters) {
-    setSchema(metadata.schema(), parameters);
-  }
-
   default void setSchema(Schema schema, Map<String, String> parameters) {
     parameters.remove(TableProperties.CURRENT_SCHEMA);
     if (exposeInHmsProperties() && schema != null) {
