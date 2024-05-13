@@ -33,6 +33,7 @@ azuresdk-bom = "1.2.23"
 awssdk-s3accessgrants = "2.0.0"
 caffeine = "2.9.3"
 calcite = "1.10.0"
+datasketches = "6.0.0"
 delta-standalone = "3.1.0"
 delta-spark = "3.2.0"
 esotericsoftware-kryo = "4.0.3"
@@ -102,6 +103,7 @@ azuresdk-bom = { module = "com.azure:azure-sdk-bom", version.ref = "azuresdk-bom
 caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "caffeine" }
 calcite-core = { module = "org.apache.calcite:calcite-core", version.ref = "calcite" }
 calcite-druid = { module = "org.apache.calcite:calcite-druid", version.ref = "calcite" }
+datasketches = { module = "org.apache.datasketches:datasketches-java", version.ref = "datasketches" }
 delta-standalone = { module = "io.delta:delta-standalone_2.12", version.ref = "delta-standalone" }
 errorprone-annotations = { module = "com.google.errorprone:error_prone_annotations", version.ref = "errorprone-annotations" }
 findbugs-jsr305 = { module = "com.google.code.findbugs:jsr305", version.ref = "findbugs-jsr305" }

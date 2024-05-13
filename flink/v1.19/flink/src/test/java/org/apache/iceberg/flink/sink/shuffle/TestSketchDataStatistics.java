@@ -21,19 +21,18 @@ package org.apache.iceberg.flink.sink.shuffle;
 import static org.apache.iceberg.flink.sink.shuffle.Fixtures.CHAR_KEYS;
 import static org.apache.iceberg.flink.sink.shuffle.Fixtures.ROW_WRAPPER;
 
-import java.util.Map;
+import org.apache.datasketches.sampling.ReservoirItemsSketch;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.iceberg.SortKey;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-public class TestMapDataStatistics {
+public class TestSketchDataStatistics {
   @SuppressWarnings("unchecked")
   @Test
   public void testAddsAndGet() {
-    MapDataStatistics dataStatistics = new MapDataStatistics();
+    SketchDataStatistics dataStatistics = new SketchDataStatistics(128);
 
     GenericRowData reusedRow = GenericRowData.of(StringData.fromString("a"), 1);
     Fixtures.SORT_KEY.wrap(ROW_WRAPPER.wrap(reusedRow));
@@ -51,17 +50,11 @@ public class TestMapDataStatistics {
     Fixtures.SORT_KEY.wrap(ROW_WRAPPER.wrap(reusedRow));
     dataStatistics.add(Fixtures.SORT_KEY);
 
-    reusedRow.setField(0, StringData.fromString("a"));
-    Fixtures.SORT_KEY.wrap(ROW_WRAPPER.wrap(reusedRow));
-    dataStatistics.add(Fixtures.SORT_KEY);
-
-    reusedRow.setField(0, StringData.fromString("b"));
-    Fixtures.SORT_KEY.wrap(ROW_WRAPPER.wrap(reusedRow));
-    dataStatistics.add(Fixtures.SORT_KEY);
-
-    Map<SortKey, Long> actual = (Map<SortKey, Long>) dataStatistics.result();
-    Map<SortKey, Long> expected =
-        ImmutableMap.of(CHAR_KEYS.get("a"), 2L, CHAR_KEYS.get("b"), 3L, CHAR_KEYS.get("c"), 1L);
-    Assertions.assertThat(actual).isEqualTo(expected);
+    ReservoirItemsSketch<SortKey> actual = (ReservoirItemsSketch<SortKey>) dataStatistics.result();
+    Assertions.assertThat(actual.getSamples())
+        .isEqualTo(
+            new SortKey[] {
+              CHAR_KEYS.get("a"), CHAR_KEYS.get("b"), CHAR_KEYS.get("c"), CHAR_KEYS.get("b")
+            });
   }
 }

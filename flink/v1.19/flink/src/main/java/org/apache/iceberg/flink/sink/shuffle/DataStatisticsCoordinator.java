@@ -35,6 +35,8 @@ import org.apache.flink.util.FlinkRuntimeException;
 import org.apache.flink.util.Preconditions;
 import org.apache.flink.util.ThrowableCatchingRunnable;
 import org.apache.flink.util.function.ThrowingRunnable;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -44,51 +46,76 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * DataStatisticsCoordinator receives {@link DataStatisticsEvent} from {@link
- * DataStatisticsOperator} every subtask and then merge them together. Once aggregation for all
- * subtasks data statistics completes, DataStatisticsCoordinator will send the aggregated data
- * statistics back to {@link DataStatisticsOperator}. In the end a custom partitioner will
- * distribute traffic based on the aggregated data statistics to improve data clustering.
+ * DataStatisticsCoordinator receives {@link StatisticsEvent} from {@link DataStatisticsOperator}
+ * every subtask and then merge them together. Once aggregation for all subtasks data statistics
+ * completes, DataStatisticsCoordinator will send the aggregated data statistics back to {@link
+ * DataStatisticsOperator}. In the end a custom partitioner will distribute traffic based on the
+ * aggregated data statistics to improve data clustering.
  */
 @Internal
-class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements OperatorCoordinator {
+class DataStatisticsCoordinator implements OperatorCoordinator {
   private static final Logger LOG = LoggerFactory.getLogger(DataStatisticsCoordinator.class);
 
   private final String operatorName;
+  private final OperatorCoordinator.Context context;
+  private final Schema schema;
+  private final SortOrder sortOrder;
+  private final int downstreamParallelism;
+  private final StatisticsType statisticsType;
+
   private final ExecutorService coordinatorExecutor;
-  private final OperatorCoordinator.Context operatorCoordinatorContext;
   private final SubtaskGateways subtaskGateways;
   private final CoordinatorExecutorThreadFactory coordinatorThreadFactory;
-  private final TypeSerializer<DataStatistics<D, S>> statisticsSerializer;
-  private final transient AggregatedStatisticsTracker<D, S> aggregatedStatisticsTracker;
-  private volatile AggregatedStatistics<D, S> completedStatistics;
-  private volatile boolean started;
+  private final TypeSerializer<AggregatedStatistics> aggregatedStatisticsSerializer;
+
+  private transient boolean started;
+  private transient AggregatedStatisticsTracker aggregatedStatisticsTracker;
+  private transient AggregatedStatistics completedStatistics;
 
   DataStatisticsCoordinator(
       String operatorName,
       OperatorCoordinator.Context context,
-      TypeSerializer<DataStatistics<D, S>> statisticsSerializer) {
+      Schema schema,
+      SortOrder sortOrder,
+      int downstreamParallelism,
+      StatisticsType statisticsType) {
     this.operatorName = operatorName;
+    this.context = context;
+    this.schema = schema;
+    this.sortOrder = sortOrder;
+    this.downstreamParallelism = downstreamParallelism;
+    this.statisticsType = statisticsType;
+
     this.coordinatorThreadFactory =
         new CoordinatorExecutorThreadFactory(
             "DataStatisticsCoordinator-" + operatorName, context.getUserCodeClassloader());
     this.coordinatorExecutor = Executors.newSingleThreadExecutor(coordinatorThreadFactory);
-    this.operatorCoordinatorContext = context;
     this.subtaskGateways = new SubtaskGateways(operatorName, parallelism());
-    this.statisticsSerializer = statisticsSerializer;
-    this.aggregatedStatisticsTracker =
-        new AggregatedStatisticsTracker<>(operatorName, statisticsSerializer, parallelism());
+    SortKeySerializer sortKeySerializer = new SortKeySerializer(schema, sortOrder);
+    this.aggregatedStatisticsSerializer = new AggregatedStatisticsSerializer(sortKeySerializer);
   }
 
   @Override
   public void start() throws Exception {
     LOG.info("Starting data statistics coordinator: {}.", operatorName);
-    started = true;
+    this.started = true;
+    this.aggregatedStatisticsTracker =
+        new AggregatedStatisticsTracker(
+            operatorName,
+            context.currentParallelism(),
+            schema,
+            sortOrder,
+            downstreamParallelism,
+            statisticsType,
+            SketchUtil.COORDINATOR_SKETCH_SWITCH_THRESHOLD,
+            completedStatistics);
   }
 
   @Override
   public void close() throws Exception {
     coordinatorExecutor.shutdown();
+    this.aggregatedStatisticsTracker = null;
+    this.started = false;
     LOG.info("Closed data statistics coordinator: {}.", operatorName);
   }
 
@@ -148,7 +175,7 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
                 operatorName,
                 actionString,
                 t);
-            operatorCoordinatorContext.failJob(t);
+            context.failJob(t);
           }
         });
   }
@@ -158,30 +185,29 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
   }
 
   private int parallelism() {
-    return operatorCoordinatorContext.currentParallelism();
+    return context.currentParallelism();
   }
 
-  private void handleDataStatisticRequest(int subtask, DataStatisticsEvent<D, S> event) {
-    AggregatedStatistics<D, S> aggregatedStatistics =
+  private void handleDataStatisticRequest(int subtask, StatisticsEvent event) {
+    AggregatedStatistics aggregatedStatistics =
         aggregatedStatisticsTracker.updateAndCheckCompletion(subtask, event);
 
     if (aggregatedStatistics != null) {
       completedStatistics = aggregatedStatistics;
-      sendDataStatisticsToSubtasks(
-          completedStatistics.checkpointId(), completedStatistics.dataStatistics());
+      sendAggregatedStatisticsToSubtasks(completedStatistics.checkpointId(), completedStatistics);
     }
   }
 
   @SuppressWarnings("FutureReturnValueIgnored")
-  private void sendDataStatisticsToSubtasks(
-      long checkpointId, DataStatistics<D, S> globalDataStatistics) {
+  private void sendAggregatedStatisticsToSubtasks(
+      long checkpointId, AggregatedStatistics globalStatistics) {
     callInCoordinatorThread(
         () -> {
-          DataStatisticsEvent<D, S> dataStatisticsEvent =
-              DataStatisticsEvent.create(checkpointId, globalDataStatistics, statisticsSerializer);
-          int parallelism = parallelism();
-          for (int i = 0; i < parallelism; ++i) {
-            subtaskGateways.getSubtaskGateway(i).sendEvent(dataStatisticsEvent);
+          StatisticsEvent statisticsEvent =
+              StatisticsEvent.createAggregatedStatisticsEvent(
+                  checkpointId, globalStatistics, aggregatedStatisticsSerializer);
+          for (int i = 0; i < context.currentParallelism(); ++i) {
+            subtaskGateways.getSubtaskGateway(i).sendEvent(statisticsEvent);
           }
 
           return null;
@@ -192,7 +218,6 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
   }
 
   @Override
-  @SuppressWarnings("unchecked")
   public void handleEventFromOperator(int subtask, int attemptNumber, OperatorEvent event) {
     runInCoordinatorThread(
         () -> {
@@ -202,8 +227,8 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
               attemptNumber,
               operatorName,
               event);
-          Preconditions.checkArgument(event instanceof DataStatisticsEvent);
-          handleDataStatisticRequest(subtask, ((DataStatisticsEvent<D, S>) event));
+          Preconditions.checkArgument(event instanceof StatisticsEvent);
+          handleDataStatisticRequest(subtask, ((StatisticsEvent) event));
         },
         String.format(
             "handling operator event %s from subtask %d (#%d)",
@@ -219,8 +244,8 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
               operatorName,
               checkpointId);
           resultFuture.complete(
-              DataStatisticsUtil.serializeAggregatedStatistics(
-                  completedStatistics, statisticsSerializer));
+              StatisticsUtil.serializeAggregatedStatistics(
+                  completedStatistics, aggregatedStatisticsSerializer));
         },
         String.format("taking checkpoint %d", checkpointId));
   }
@@ -229,8 +254,7 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
   public void notifyCheckpointComplete(long checkpointId) {}
 
   @Override
-  public void resetToCheckpoint(long checkpointId, @Nullable byte[] checkpointData)
-      throws Exception {
+  public void resetToCheckpoint(long checkpointId, byte[] checkpointData) {
     Preconditions.checkState(
         !started, "The coordinator %s can only be reset if it was not yet started", operatorName);
 
@@ -244,8 +268,9 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
 
     LOG.info(
         "Restoring data statistic coordinator {} from checkpoint {}", operatorName, checkpointId);
-    completedStatistics =
-        DataStatisticsUtil.deserializeAggregatedStatistics(checkpointData, statisticsSerializer);
+    this.completedStatistics =
+        StatisticsUtil.deserializeAggregatedStatistics(
+            checkpointData, aggregatedStatisticsSerializer);
   }
 
   @Override
@@ -295,7 +320,7 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
   }
 
   @VisibleForTesting
-  AggregatedStatistics<D, S> completedStatistics() {
+  AggregatedStatistics completedStatistics() {
     return completedStatistics;
   }
 
@@ -303,6 +328,7 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
     private final String operatorName;
     private final Map<Integer, SubtaskGateway>[] gateways;
 
+    @SuppressWarnings("unchecked")
     private SubtaskGateways(String operatorName, int parallelism) {
       this.operatorName = operatorName;
       gateways = new Map[parallelism];

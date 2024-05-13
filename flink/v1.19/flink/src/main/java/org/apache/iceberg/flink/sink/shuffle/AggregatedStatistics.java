@@ -19,53 +19,87 @@
 package org.apache.iceberg.flink.sink.shuffle;
 
 import java.io.Serializable;
-import org.apache.flink.api.common.typeutils.TypeSerializer;
+import java.util.Arrays;
+import java.util.Map;
+import org.apache.iceberg.SortKey;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Objects;
 
 /**
  * AggregatedStatistics is used by {@link DataStatisticsCoordinator} to collect {@link
  * DataStatistics} from {@link DataStatisticsOperator} subtasks for specific checkpoint. It stores
  * the merged {@link DataStatistics} result from all reported subtasks.
  */
-class AggregatedStatistics<D extends DataStatistics<D, S>, S> implements Serializable {
-
+class AggregatedStatistics implements Serializable {
   private final long checkpointId;
-  private final DataStatistics<D, S> dataStatistics;
+  private final StatisticsType type;
+  private final Map<SortKey, Long> keyFrequency;
+  private final SortKey[] rangeBounds;
 
-  AggregatedStatistics(long checkpoint, TypeSerializer<DataStatistics<D, S>> statisticsSerializer) {
-    this.checkpointId = checkpoint;
-    this.dataStatistics = statisticsSerializer.createInstance();
+  AggregatedStatistics(
+      long checkpointId,
+      StatisticsType type,
+      Map<SortKey, Long> keyFrequency,
+      SortKey[] rangeBounds) {
+    this.checkpointId = checkpointId;
+    this.type = type;
+    this.keyFrequency = keyFrequency;
+    this.rangeBounds = rangeBounds;
   }
 
-  AggregatedStatistics(long checkpoint, DataStatistics<D, S> dataStatistics) {
-    this.checkpointId = checkpoint;
-    this.dataStatistics = dataStatistics;
+  static AggregatedStatistics fromKeyFrequency(long checkpointId, Map<SortKey, Long> stats) {
+    return new AggregatedStatistics(checkpointId, StatisticsType.Map, stats, null);
   }
 
-  long checkpointId() {
-    return checkpointId;
-  }
-
-  DataStatistics<D, S> dataStatistics() {
-    return dataStatistics;
-  }
-
-  void mergeDataStatistic(String operatorName, long eventCheckpointId, D eventDataStatistics) {
-    Preconditions.checkArgument(
-        checkpointId == eventCheckpointId,
-        "Received unexpected event from operator %s checkpoint %s. Expected checkpoint %s",
-        operatorName,
-        eventCheckpointId,
-        checkpointId);
-    dataStatistics.merge(eventDataStatistics);
+  static AggregatedStatistics fromRangeBounds(long checkpointId, SortKey[] stats) {
+    return new AggregatedStatistics(checkpointId, StatisticsType.Sketch, null, stats);
   }
 
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("checkpointId", checkpointId)
-        .add("dataStatistics", dataStatistics)
+        .add("type", type)
+        .add("keyFrequency", keyFrequency)
+        .add("rangeBounds", rangeBounds)
         .toString();
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+
+    if (!(o instanceof AggregatedStatistics)) {
+      return false;
+    }
+
+    AggregatedStatistics other = (AggregatedStatistics) o;
+    return Objects.equal(checkpointId, other.checkpointId())
+        && Objects.equal(type, other.type())
+        && Objects.equal(keyFrequency, other.keyFrequency())
+        && Arrays.equals(rangeBounds, other.rangeBounds());
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hashCode(checkpointId, type, keyFrequency, rangeBounds);
+  }
+
+  StatisticsType type() {
+    return type;
+  }
+
+  Map<SortKey, Long> keyFrequency() {
+    return keyFrequency;
+  }
+
+  SortKey[] rangeBounds() {
+    return rangeBounds;
+  }
+
+  long checkpointId() {
+    return checkpointId;
   }
 }
