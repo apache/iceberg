@@ -214,9 +214,11 @@ public class TestDataFileIndexStatsFilters {
       tasks = Lists.newArrayList(tasksIterable);
     }
 
-    Assertions.assertThat(tasks.size()).isEqualTo(1).as("Should produce one task");
+    Assertions.assertThat(tasks).as("Should produce one task").hasSize(1);
     FileScanTask task = tasks.get(0);
-    Assertions.assertThat(task.deletes()).as("Should not have delete file, filtered by data column stats").isEmpty();
+    Assertions.assertThat(task.deletes())
+            .as("Should not have delete file, filtered by data column stats")
+            .hasSize(0);
   }
 
   @Test
@@ -238,11 +240,11 @@ public class TestDataFileIndexStatsFilters {
       tasks = Lists.newArrayList(tasksIterable);
     }
 
-    Assertions.assertThat(tasks.size()).isEqualTo(1).as("Should produce one task");
+    Assertions.assertThat(tasks).as("Should produce one task").hasSize(1);
     FileScanTask task = tasks.get(0);
-    Assertions.assertThat(task.deletes().size())
-        .isEqualTo(1)
-        .as("Should have delete file, data contains a null value");
+    Assertions.assertThat(task.deletes())
+            .as("Should have delete file, data contains a null value")
+        .hasSize(1);
   }
 
   @Test
@@ -267,11 +269,11 @@ public class TestDataFileIndexStatsFilters {
       tasks = Lists.newArrayList(tasksIterable);
     }
 
-    Assertions.assertThat(tasks.size()).isEqualTo(1).as("Should produce one task");
+    Assertions.assertThat(tasks)
+            .as("Should have delete file, data contains a null value").hasSize(1);
     FileScanTask task = tasks.get(0);
-    Assertions.assertThat(task.deletes().size())
-        .isEqualTo(0)
-        .as("Should have no delete files, data contains no null values");
+    Assertions.assertThat(task.deletes()).as("Should have no delete files, data contains no null values")
+        .hasSize(0);
   }
 
   @Test

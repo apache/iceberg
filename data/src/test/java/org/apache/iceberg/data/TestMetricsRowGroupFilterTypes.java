@@ -32,13 +32,13 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.*;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Files;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
@@ -71,14 +71,13 @@ import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.io.DelegatingSeekableInputStream;
 import org.apache.parquet.schema.MessageType;
-import org.assertj.core.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.TestTemplate;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
-@ExtendWith(ParameterizedTestExtension.class)
+@RunWith(Parameterized.class)
 public class TestMetricsRowGroupFilterTypes {
   private static final Schema SCHEMA =
       new Schema(
@@ -136,7 +135,7 @@ public class TestMetricsRowGroupFilterTypes {
       LocalDateTime.parse("2018-06-29T10:02:34.000000", DateTimeFormatter.ISO_LOCAL_DATE_TIME);
   private static final byte[] fixed = "abcd".getBytes(StandardCharsets.UTF_8);
 
-  @BeforeEach
+  @Before
   public void createInputFile() throws IOException {
     List<Record> records = Lists.newArrayList();
     // create 50 records
@@ -177,7 +176,7 @@ public class TestMetricsRowGroupFilterTypes {
 
   public void createOrcInputFile(List<Record> records) throws IOException {
     if (ORC_FILE.exists()) {
-      Assertions.assertThat(ORC_FILE.delete()).isTrue();
+      Assert.assertTrue(ORC_FILE.delete());
     }
 
     OutputFile outFile = Files.localOutput(ORC_FILE);
@@ -193,9 +192,7 @@ public class TestMetricsRowGroupFilterTypes {
     try (Reader reader =
         OrcFile.createReader(
             new Path(inFile.location()), OrcFile.readerOptions(new Configuration()))) {
-      Assertions.assertThat(1)
-          .isEqualTo(reader.getStripes().size())
-          .as("Should create only one stripe");
+      Assert.assertEquals("Should create only one stripe", 1, reader.getStripes().size());
     }
 
     ORC_FILE.deleteOnExit();
@@ -203,7 +200,7 @@ public class TestMetricsRowGroupFilterTypes {
 
   public void createParquetInputFile(List<Record> records) throws IOException {
     if (PARQUET_FILE.exists()) {
-      Assertions.assertThat(PARQUET_FILE.delete()).isTrue();
+      Assert.assertTrue(PARQUET_FILE.delete());
     }
 
     OutputFile outFile = Files.localOutput(PARQUET_FILE);
@@ -217,8 +214,7 @@ public class TestMetricsRowGroupFilterTypes {
 
     InputFile inFile = Files.localInput(PARQUET_FILE);
     try (ParquetFileReader reader = ParquetFileReader.open(parquetInputFile(inFile))) {
-      Assertions.assertThat(1).as("Should create only one row group")
-          .isEqualTo(reader.getRowGroups().size());
+      Assert.assertEquals("Should create only one row group", 1, reader.getRowGroups().size());
       rowGroupMetadata = reader.getRowGroups().get(0);
       parquetSchema = reader.getFileMetaData().getSchema();
     }
@@ -231,7 +227,7 @@ public class TestMetricsRowGroupFilterTypes {
   private final Object readValue;
   private final Object skipValue;
 
-  @Parameters(name = "format = {0} column = {1} readValue = {2} skipValue = {3}")
+  @Parameterized.Parameters(name = "format = {0} column = {1} readValue = {2} skipValue = {3}")
   public static Object[][] parameters() {
     return new Object[][] {
       {"parquet", "boolean", false, true},
@@ -286,33 +282,28 @@ public class TestMetricsRowGroupFilterTypes {
     this.skipValue = skipValue;
   }
 
-  @TestTemplate
+  @Test
   public void testEq() {
-    boolean shouldRead = shouldRead(readValue, column);
-    Assertions.assertThat(shouldRead).as("Should read: value is in the row group: " + readValue)
-        .isTrue();
+    boolean shouldRead = shouldRead(readValue);
+    Assert.assertTrue("Should read: value is in the row group: " + readValue, shouldRead);
 
-    shouldRead = shouldRead(skipValue, column);
-    Assertions.assertThat(shouldRead).as("Should skip: value is not in the row group: " + skipValue)
-        .isFalse();
+    shouldRead = shouldRead(skipValue);
+    Assert.assertFalse("Should skip: value is not in the row group: " + skipValue, shouldRead);
   }
 
-  private boolean shouldRead(Object value, String column) {
-    for (FileFormat fileFormat : FileFormat.values()) {
-      switch (fileFormat) {
-        case ORC:
-          return shouldReadOrc(value, column);
-        case PARQUET:
-          return shouldReadParquet(value, column);
-        default:
-          throw new UnsupportedOperationException(
-              "Row group filter types tests not supported for " + fileFormat);
-      }
+  private boolean shouldRead(Object value) {
+    switch (format) {
+      case ORC:
+        return shouldReadOrc(value);
+      case PARQUET:
+        return shouldReadParquet(value);
+      default:
+        throw new UnsupportedOperationException(
+            "Row group filter types tests not supported for " + format);
     }
-    return false;
   }
 
-  private boolean shouldReadOrc(Object value, String column) {
+  private boolean shouldReadOrc(Object value) {
     try (CloseableIterable<Record> reader =
         ORC.read(Files.localInput(ORC_FILE))
             .project(SCHEMA)
@@ -325,7 +316,7 @@ public class TestMetricsRowGroupFilterTypes {
     }
   }
 
-  private boolean shouldReadParquet(Object value, String column) {
+  private boolean shouldReadParquet(Object value) {
     return new ParquetMetricsRowGroupFilter(SCHEMA, equal(column, value))
         .shouldRead(parquetSchema, rowGroupMetadata);
   }

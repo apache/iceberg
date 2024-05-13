@@ -255,8 +255,8 @@ public class TestLocalScan {
     append.commit();
 
     Set<Record> records = Sets.newHashSet(IcebergGenerics.read(table).build());
-    Assertions.assertThat(expected).as("Should produce correct number of records")
-            .hasSize(records.size());
+    Assertions.assertThat(records).as("Should produce correct number of records")
+            .hasSameSizeAs(expected);
     Assertions.assertThat(records).as("Random record set should match")
             .hasSameSizeAs(Sets.newHashSet(expected));
   }
@@ -281,21 +281,20 @@ public class TestLocalScan {
   public void testFilter() {
     Iterable<Record> result = IcebergGenerics.read(sharedTable).where(lessThan("id", 3)).build();
 
-    Assertions.assertThat(Sets.newHashSet(file1FirstSnapshotRecords))
-        .isEqualTo(Sets.newHashSet(result))
-        .as("Records should match file 1");
+    Assertions.assertThat(Sets.newHashSet(file1FirstSnapshotRecords)).as("Records should match file 1")
+        .isEqualTo(Sets.newHashSet(result));
     result = IcebergGenerics.read(sharedTable).where(lessThan("iD", 3)).caseInsensitive().build();
 
     Assertions.assertThat(Sets.newHashSet(file1FirstSnapshotRecords))
-        .isEqualTo(Sets.newHashSet(result))
-        .as("Records should match file 1");
+            .as("Records should match file 1")
+        .isEqualTo(Sets.newHashSet(result));
 
     result = IcebergGenerics.read(sharedTable).where(lessThanOrEqual("id", 1)).build();
 
     Assertions.assertThat(
             Sets.newHashSet(filter(file1FirstSnapshotRecords, r -> (Long) r.getField("id") <= 1)))
-        .isEqualTo(Sets.newHashSet(result))
-        .as("Records should match file 1 without id 2");
+            .as("Records should match file 1 without id 2")
+        .isEqualTo(Sets.newHashSet(result));
   }
 
   @TestTemplate
@@ -320,8 +319,8 @@ public class TestLocalScan {
 
     Assertions.assertThat(
             Sets.newHashSet(transform(results, record -> (Long) record.getField("id"))))
-        .isEqualTo(expected)
-        .as("Should project only id columns");
+            .as("Should project only id columns")
+        .isEqualTo(expected);
   }
 
   @TestTemplate
@@ -413,12 +412,10 @@ public class TestLocalScan {
     expected.addAll(file3SecondSnapshotRecords);
 
     Set<Record> records = Sets.newHashSet(results);
-    Assertions.assertThat(records.size())
-        .isEqualTo(expected.size())
-        .as("Should produce correct number of records");
-    Assertions.assertThat(records)
-        .isEqualTo(Sets.newHashSet(expected))
-        .as("Record set should match");
+    Assertions.assertThat(records).as("Should produce correct number of records")
+        .hasSameSizeAs(expected);
+    Assertions.assertThat(records).as("Record set should match")
+        .isEqualTo(Sets.newHashSet(expected));
     Assertions.assertThat(Iterables.get(records, 0).getField("id")).isNotNull();
     Assertions.assertThat(Iterables.get(records, 0).getField("data")).isNotNull();
   }
@@ -437,12 +434,11 @@ public class TestLocalScan {
     expected.addAll(file3ThirdSnapshotRecords);
 
     Set<Record> records = Sets.newHashSet(results);
-    Assertions.assertThat(records.size())
-        .isEqualTo(expected.size())
-        .as("Should produce correct number of records");
     Assertions.assertThat(records)
-        .isEqualTo(Sets.newHashSet(expected))
-        .as("Record set should match");
+            .as("Should produce correct number of records")
+        .hasSameSizeAs(expected);
+    Assertions.assertThat(records).as("Record set should match")
+        .isEqualTo(Sets.newHashSet(expected));
     Assertions.assertThat(Iterables.get(records, 0).getField("id")).isNotNull();
     Assertions.assertThat(Iterables.get(records, 0).getField("data")).isNotNull();
   }
@@ -463,12 +459,10 @@ public class TestLocalScan {
     expected.addAll(file3ThirdSnapshotRecords);
 
     Set<Record> records = Sets.newHashSet(results);
-    Assertions.assertThat(records.size())
-        .isEqualTo(expected.size())
-        .as("Should produce correct number of records");
-    Assertions.assertThat(records)
-        .isEqualTo(Sets.newHashSet(expected))
-        .as("Record set should match");
+    Assertions.assertThat(records).as("Should produce correct number of records")
+        .hasSameSizeAs(expected);
+    Assertions.assertThat(records).as("Record set should match")
+        .isEqualTo(Sets.newHashSet(expected));
     Assertions.assertThat(Iterables.get(records, 0).getField("id")).isNotNull();
     Assertions.assertThat(Iterables.get(records, 0).getField("data")).isNotNull();
   }
@@ -490,12 +484,10 @@ public class TestLocalScan {
     expected.addAll(file3ThirdSnapshotRecords);
 
     Set<Record> records = Sets.newHashSet(results);
-    Assertions.assertThat(records.size())
-        .isEqualTo(expected.size())
-        .as("Should produce correct number of records");
-    Assertions.assertThat(records)
-        .isEqualTo(Sets.newHashSet(expected))
-        .as("Should produce correct number of records");
+    Assertions.assertThat(records).as("Should produce correct number of records")
+        .hasSameSizeAs(expected);
+    Assertions.assertThat(records).as("Should produce correct number of records");
+        .isEqualTo(Sets.newHashSet(expected));
     Assertions.assertThat(Iterables.get(records, 0).getField("id")).isNotNull();
     Assertions.assertThat(Iterables.get(records, 0).getField("data")).isNotNull();
   }
