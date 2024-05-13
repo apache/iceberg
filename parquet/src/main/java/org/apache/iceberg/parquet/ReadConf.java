@@ -19,7 +19,6 @@
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,7 +34,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.parquet.ParquetReadOptions;
-import org.apache.parquet.crypto.FileDecryptionProperties;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
@@ -186,27 +184,14 @@ class ReadConf<T> {
       return null;
     }
 
-    FileDecryptionProperties decryptionProperties =
-        (options == null) ? null : options.getDecryptionProperties();
-
-    ParquetReadOptions readOptions =
-        ParquetReadOptions.builder().withDecryption(decryptionProperties).build();
-
-    try (ParquetFileReader fileReader = newReader(file, readOptions)) {
-      Map<Long, Long> offsetToStartPos = Maps.newHashMap();
-
-      long curRowCount = 0;
-      for (int i = 0; i < fileReader.getRowGroups().size(); i += 1) {
-        BlockMetaData meta = fileReader.getRowGroups().get(i);
-        offsetToStartPos.put(meta.getStartingPos(), curRowCount);
-        curRowCount += meta.getRowCount();
-      }
-
-      return offsetToStartPos;
-
-    } catch (IOException e) {
-      throw new UncheckedIOException("Failed to create/close reader for file: " + file, e);
+    Map<Long, Long> offsetToStartPos = Maps.newHashMap();
+    long currRowCount = 0;
+    for (BlockMetaData rowGroupMetadata : rowGroups) {
+      offsetToStartPos.put(rowGroupMetadata.getStartingPos(), currRowCount);
+      currRowCount += rowGroupMetadata.getRowCount();
     }
+
+    return offsetToStartPos;
   }
 
   long[] startRowPositions() {
