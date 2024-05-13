@@ -288,10 +288,10 @@ public class TestLocationProvider extends TestBase {
   }
 
   @TestTemplate
-  public void testEncodedFieldIdInPartitionPath() {
+  public void testEncodedFieldNameInPartitionPath() {
     // Update the table to use a string field for partitioning with special characters in the name
-    table.updateSchema().addColumn("data#1", Types.StringType.get()).commit();
     table.updateProperties().set(TableProperties.OBJECT_STORE_ENABLED, "true").commit();
+    table.updateSchema().addColumn("data#1", Types.StringType.get()).commit();
     table.updateSpec().addField("data#1").commit();
 
     // Use a partition value that has a special character
