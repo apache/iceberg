@@ -18,12 +18,15 @@
  */
 package org.apache.iceberg.spark.data;
 
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.Iterator;
 import org.apache.iceberg.Files;
@@ -31,14 +34,23 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.parquet.column.ColumnDescriptor;
+import org.apache.parquet.column.ParquetProperties;
+import org.apache.parquet.schema.MessageType;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 public class TestSparkParquetWriter {
   @TempDir private Path temp;
+
+  public static final Schema SCHEMA =
+      new Schema(
+          Types.NestedField.required(1, "id", Types.IntegerType.get()),
+          Types.NestedField.required(2, "id_long", Types.LongType.get()));
 
   private static final Schema COMPLEX_SCHEMA =
       new Schema(
@@ -114,6 +126,29 @@ public class TestSparkParquetWriter {
         TestHelpers.assertEquals(COMPLEX_SCHEMA, expected.next(), rows.next());
       }
       assertThat(rows).as("Should not have extra rows").isExhausted();
+    }
+  }
+
+  @Test
+  public void testFpp() throws IOException, NoSuchFieldException, IllegalAccessException {
+    File testFile = File.createTempFile("junit", null, temp.toFile());
+    try (FileAppender<InternalRow> writer =
+        Parquet.write(Files.localOutput(testFile))
+            .schema(SCHEMA)
+            .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id", "true")
+            .set(PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX + "id", "0.05")
+            .createWriterFunc(
+                msgType ->
+                    SparkParquetWriters.buildWriter(SparkSchemaUtil.convert(SCHEMA), msgType))
+            .build()) {
+      // Using reflection to access the private 'props' field in ParquetWriter
+      Field propsField = writer.getClass().getDeclaredField("props");
+      propsField.setAccessible(true);
+      ParquetProperties props = (ParquetProperties) propsField.get(writer);
+      MessageType parquetSchema = ParquetSchemaUtil.convert(SCHEMA, "test");
+      ColumnDescriptor descriptor = parquetSchema.getColumnDescription(new String[] {"id"});
+      double fpp = props.getBloomFilterFPP(descriptor).getAsDouble();
+      assertThat(fpp).isEqualTo(0.05);
     }
   }
 }
