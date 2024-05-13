@@ -304,7 +304,7 @@ public class SparkReadConf {
         .enumConf(PlanningMode::fromName)
         .sessionConf(SparkSQLProperties.DATA_PLANNING_MODE)
         .tableProperty(TableProperties.DATA_PLANNING_MODE)
-        .defaultValue(PlanningMode.fromName(TableProperties.PLANNING_MODE_DEFAULT))
+        .defaultValue(TableProperties.PLANNING_MODE_DEFAULT)
         .parse();
   }
 
