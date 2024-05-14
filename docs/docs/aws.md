@@ -578,7 +578,7 @@ In contrast, URL Connection HTTP Client optimizes for minimum dependencies and s
 
 For more details of configuration, see sections [URL Connection HTTP Client Configurations](#url-connection-http-client-configurations) and [Apache HTTP Client Configurations](#apache-http-client-configurations).
 
-Configurations for the HTTP client can be set in the catalog properties. The following are the available configurations:
+Configurations for the HTTP client can be set via catalog properties. Below is an overview of available configurations:
 
 | Property                   | Default | Description                                                                                                |
 |----------------------------|---------|------------------------------------------------------------------------------------------------------------|
