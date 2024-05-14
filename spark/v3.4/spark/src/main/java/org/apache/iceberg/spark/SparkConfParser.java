@@ -69,6 +69,10 @@ class SparkConfParser {
     return new DurationConfParser();
   }
 
+  public <T extends Enum<T>> EnumConfParser<T> enumConf(Function<String, T> toEnum) {
+    return new EnumConfParser<>(toEnum);
+  }
+
   class BooleanConfParser extends ConfParser<BooleanConfParser, Boolean> {
     private Boolean defaultValue;
     private boolean negate = false;
@@ -193,6 +197,39 @@ class SparkConfParser {
 
     private Duration toDuration(String time) {
       return Duration.ofSeconds(JavaUtils.timeStringAsSec(time));
+    }
+  }
+
+  class EnumConfParser<T extends Enum<T>> extends ConfParser<EnumConfParser<T>, T> {
+    private final Function<String, T> toEnum;
+    private T defaultValue;
+
+    EnumConfParser(Function<String, T> toEnum) {
+      this.toEnum = toEnum;
+    }
+
+    @Override
+    protected EnumConfParser<T> self() {
+      return this;
+    }
+
+    public EnumConfParser<T> defaultValue(T value) {
+      this.defaultValue = value;
+      return self();
+    }
+
+    public EnumConfParser<T> defaultValue(String value) {
+      this.defaultValue = toEnum.apply(value);
+      return self();
+    }
+
+    public T parse() {
+      Preconditions.checkArgument(defaultValue != null, "Default value cannot be null");
+      return parse(toEnum, defaultValue);
+    }
+
+    public T parseOptional() {
+      return parse(toEnum, defaultValue);
     }
   }
 
