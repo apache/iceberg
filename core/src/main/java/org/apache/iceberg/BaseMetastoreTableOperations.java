@@ -105,6 +105,7 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
   }
 
   @Override
+  @SuppressWarnings("ReferenceEquality")
   public void commit(TableMetadata base, TableMetadata metadata) {
     // if the metadata is already out of date, reject it
     if (base != current()) {

@@ -146,4 +146,26 @@ public class TestGetNamespaceResponse extends RequestResponseTestBase<GetNamespa
     resp.validate();
     return resp;
   }
+
+  @Test
+  public void testEqualsCheck() {
+    GetNamespaceResponse resp1 = createExampleInstance();
+    GetNamespaceResponse resp2 = createExampleInstance();
+
+    Assertions.assertThat(resp1).isEqualTo(resp2);
+    Assertions.assertThat(resp1.hashCode()).isEqualTo(resp2.hashCode());
+  }
+
+  @Test
+  public void testUnEqualsCheck() {
+    GetNamespaceResponse resp1 = createExampleInstance();
+    GetNamespaceResponse resp2 =
+        GetNamespaceResponse.builder()
+            .withNamespace(Namespace.of("ns1", "ts1"))
+            .setProperties(PROPERTIES)
+            .build();
+
+    Assertions.assertThat(resp1).isNotEqualTo(resp2);
+    Assertions.assertThat(resp1.hashCode()).isNotEqualTo(resp2.hashCode());
+  }
 }

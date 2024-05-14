@@ -132,4 +132,29 @@ public class TestOAuthTokenResponse extends RequestResponseTestBase<OAuthTokenRe
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot parse to a string value: token_type: 34");
   }
+
+  @Test
+  public void testEqualsCheck() {
+    OAuthTokenResponse resp1 = createExampleInstance();
+    OAuthTokenResponse resp2 = createExampleInstance();
+
+    Assertions.assertThat(resp1).isEqualTo(resp2);
+    Assertions.assertThat(resp1.hashCode()).isEqualTo(resp2.hashCode());
+  }
+
+  @Test
+  public void testUnequalsCheck() {
+    OAuthTokenResponse resp1 = createExampleInstance();
+    OAuthTokenResponse resp2 =
+        OAuthTokenResponse.builder()
+            .setExpirationInSeconds(600)
+            .withToken("test-token2")
+            .withIssuedTokenType("urn:ietf:params:oauth:token-type:access_token")
+            .withTokenType("Bearer")
+            .addScope("catalog")
+            .build();
+
+    Assertions.assertThat(resp1).isNotEqualTo(resp2);
+    Assertions.assertThat(resp1.hashCode()).isNotEqualTo(resp2.hashCode());
+  }
 }

@@ -22,6 +22,7 @@ import java.io.Serializable;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -31,7 +32,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -180,7 +180,7 @@ public class TableMetadata implements Serializable {
 
     @Override
     public int hashCode() {
-      return Objects.hashCode(timestampMillis, snapshotId);
+      return Objects.hash(timestampMillis, snapshotId);
     }
 
     @Override
@@ -217,12 +217,12 @@ public class TableMetadata implements Serializable {
         return false;
       }
       MetadataLogEntry that = (MetadataLogEntry) other;
-      return timestampMillis == that.timestampMillis && java.util.Objects.equals(file, that.file);
+      return timestampMillis == that.timestampMillis && Objects.equals(file, that.file);
     }
 
     @Override
     public int hashCode() {
-      return Objects.hashCode(timestampMillis, file);
+      return Objects.hash(timestampMillis, file);
     }
 
     @Override
@@ -851,6 +851,92 @@ public class TableMetadata implements Serializable {
     }
 
     return inputRefs;
+  }
+
+  @Override
+  @SuppressWarnings("CyclomaticComplexity")
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    TableMetadata that = (TableMetadata) o;
+    return formatVersion == that.formatVersion
+        && lastSequenceNumber == that.lastSequenceNumber
+        && lastUpdatedMillis == that.lastUpdatedMillis
+        && lastColumnId == that.lastColumnId
+        && currentSchemaId == that.currentSchemaId
+        && defaultSpecId == that.defaultSpecId
+        && lastAssignedPartitionId == that.lastAssignedPartitionId
+        && defaultSortOrderId == that.defaultSortOrderId
+        && currentSnapshotId == that.currentSnapshotId
+        && Objects.equals(metadataFileLocation, that.metadataFileLocation)
+        && Objects.equals(uuid, that.uuid)
+        && Objects.equals(location, that.location)
+        && Objects.equals(properties, that.properties)
+        && Objects.equals(schemasById, that.schemasById)
+        && Objects.equals(specsById, that.specsById)
+        && Objects.equals(sortOrdersById, that.sortOrdersById)
+        && Objects.equals(snapshotLog, that.snapshotLog)
+        && Objects.equals(previousFiles, that.previousFiles)
+        && Objects.equals(statisticsFiles, that.statisticsFiles)
+        && Objects.equals(snapshotsById, that.snapshotsById)
+        && Objects.equals(refs, that.refs);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(
+        metadataFileLocation,
+        formatVersion,
+        uuid,
+        location,
+        lastSequenceNumber,
+        lastUpdatedMillis,
+        lastColumnId,
+        currentSchemaId,
+        defaultSpecId,
+        lastAssignedPartitionId,
+        defaultSortOrderId,
+        properties,
+        currentSnapshotId,
+        schemasById,
+        specsById,
+        sortOrdersById,
+        snapshotLog,
+        previousFiles,
+        statisticsFiles,
+        snapshotsById,
+        refs);
+  }
+
+  @Override
+  public String toString() {
+    return MoreObjects.toStringHelper(this)
+        .add("metadataFileLocation", metadataFileLocation)
+        .add("formatVersion", formatVersion)
+        .add("uuid", uuid)
+        .add("location", location)
+        .add("lastSequenceNumber", lastSequenceNumber)
+        .add("lastUpdatedMillis", lastUpdatedMillis)
+        .add("lastColumnId", lastColumnId)
+        .add("currentSchemaId", currentSchemaId)
+        .add("defaultSpecId", defaultSpecId)
+        .add("lastAssignedPartitionId", lastAssignedPartitionId)
+        .add("defaultSortOrderId", defaultSortOrderId)
+        .add("properties", properties)
+        .add("currentSnapshotId", currentSnapshotId)
+        .add("schemasById", schemasById)
+        .add("specsById", specsById)
+        .add("sortOrdersById", sortOrdersById)
+        .add("snapshotLog", snapshotLog)
+        .add("previousFiles", previousFiles)
+        .add("statisticsFiles", statisticsFiles)
+        .add("snapshotsById", snapshotsById)
+        .add("refs", refs)
+        .toString();
   }
 
   public static Builder buildFrom(TableMetadata base) {

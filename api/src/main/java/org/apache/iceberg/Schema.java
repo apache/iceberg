@@ -25,6 +25,7 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -506,5 +507,26 @@ public class Schema implements Serializable {
             struct.fields().stream()
                 .map(this::identifierFieldToString)
                 .collect(Collectors.toList())));
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    Schema schema = (Schema) o;
+    return schemaId == schema.schemaId
+        && Objects.equals(struct, schema.struct)
+        && Arrays.equals(identifierFieldIds, schema.identifierFieldIds);
+  }
+
+  @Override
+  public int hashCode() {
+    int result = Objects.hash(struct, schemaId);
+    result = 31 * result + Arrays.hashCode(identifierFieldIds);
+    return result;
   }
 }
