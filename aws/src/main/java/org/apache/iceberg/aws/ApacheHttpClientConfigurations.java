@@ -18,12 +18,14 @@
  */
 package org.apache.iceberg.aws;
 
+import java.net.URI;
 import java.time.Duration;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
+import software.amazon.awssdk.http.apache.ProxyConfiguration;
 
 class ApacheHttpClientConfigurations {
   private Long connectionTimeoutMs;
@@ -35,6 +37,7 @@ class ApacheHttpClientConfigurations {
   private Integer maxConnections;
   private Boolean tcpKeepAliveEnabled;
   private Boolean useIdleConnectionReaperEnabled;
+  private String proxyEndpoint;
 
   private ApacheHttpClientConfigurations() {}
 
@@ -72,6 +75,9 @@ class ApacheHttpClientConfigurations {
     this.useIdleConnectionReaperEnabled =
         PropertyUtil.propertyAsNullableBoolean(
             httpClientProperties, HttpClientProperties.APACHE_USE_IDLE_CONNECTION_REAPER_ENABLED);
+    this.proxyEndpoint =
+        PropertyUtil.propertyAsString(
+            httpClientProperties, HttpClientProperties.PROXY_ENDPOINT, null);
   }
 
   @VisibleForTesting
@@ -102,6 +108,10 @@ class ApacheHttpClientConfigurations {
     }
     if (useIdleConnectionReaperEnabled != null) {
       apacheHttpClientBuilder.useIdleConnectionReaper(useIdleConnectionReaperEnabled);
+    }
+    if (proxyEndpoint != null) {
+      apacheHttpClientBuilder.proxyConfiguration(
+          ProxyConfiguration.builder().endpoint(URI.create(proxyEndpoint)).build());
     }
   }
 

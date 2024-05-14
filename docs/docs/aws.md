@@ -578,11 +578,12 @@ In contrast, URL Connection HTTP Client optimizes for minimum dependencies and s
 
 For more details of configuration, see sections [URL Connection HTTP Client Configurations](#url-connection-http-client-configurations) and [Apache HTTP Client Configurations](#apache-http-client-configurations).
 
-Configure the following property to set the type of HTTP client:
+Configurations for the HTTP client can be set via catalog properties. Below is an overview of available configurations:
 
-| Property         | Default | Description                                                                                                |
-|------------------|---------|------------------------------------------------------------------------------------------------------------|
-| http-client.type | apache  | Types of HTTP Client. <br/> `urlconnection`: URL Connection HTTP Client <br/> `apache`: Apache HTTP Client |
+| Property                   | Default | Description                                                                                                |
+|----------------------------|---------|------------------------------------------------------------------------------------------------------------|
+| http-client.type           | apache  | Types of HTTP Client. <br/> `urlconnection`: URL Connection HTTP Client <br/> `apache`: Apache HTTP Client |
+| http-client.proxy-endpoint | null    | An optional proxy endpoint to use for the HTTP client.                                                     |
 
 #### URL Connection HTTP Client Configurations
 
