@@ -17,45 +17,17 @@
 # under the License.
 #
 
-name: "API Binary Compatibility Checks"
-on:
-  push:
-    branches:
-      - 'main'
-      - '0.**'
-    tags:
-      - 'apache-iceberg-**'
-  pull_request:
-    paths:
-      - 'api/**'
-      - '.palantir/revapi.yml'
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+name: "API Compatibility Checks"
+on: pull_request
 
 jobs:
   revapi:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-        with:
-          # fetch-depth of zero ensures that the tags are pulled in and we're not in a detached HEAD state
-          # revapi depends on the tags, specifically the tag from git describe, to find the relevant override
-          # in the .palantir/revapi.yml file
-          #
-          # See https://github.com/actions/checkout/issues/124
-          fetch-depth: 0
       - uses: actions/setup-java@v4
         with:
           distribution: zulu
-          java-version: 11
-      - run: |
-          echo "Using the old version tag, as per git describe, of $(git describe)";
-      - run: ./gradlew revapi --rerun-tasks
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: test logs
-          path: |
-            **/build/testlogs
+          java-version: 8
+      - run: ./gradlew -DallVersions build -x test -x javadoc -x integrationTest
+      - run: ./dev/revapi

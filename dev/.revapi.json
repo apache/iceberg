@@ -1,0 +1,15 @@
+[
+  {
+    "extension": "revapi.differences",
+    "id": "1.6.0",
+    "configuration": {
+      "differences": [
+        {
+          "justification": "This is a test",
+          "code": "java.method.addedToInterface",
+          "new": "method void org.apache.iceberg.catalog.SessionCatalog::testing()"
+        }
+      ]
+    }
+  }
+]

@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+export REVAPI_VERSION=0.12.0
+export OLD_VERSION=1.5.2
+
+# Go to the root directory
+ROOT_DIR="$(cd "`dirname "$0"`"/..; pwd)"
+cd "$ROOT_DIR"
+
+REVAPI_WORKING_DIR="$ROOT_DIR/lib/temp/revapi"
+
+mkdir -p $REVAPI_WORKING_DIR
+
+export REVAPI_ZIP="$ROOT_DIR"/lib/revapi-standalone-${REVAPI_VERSION}-standalone.zip
+
+if test -x "$JAVA_HOME/bin/java"; then
+  declare java_cmd="$JAVA_HOME/bin/java"
+else
+  declare java_cmd=java
+fi
+
+REVAPI_URL=https://repo1.maven.org/maven2/org/revapi/revapi-standalone/${REVAPI_VERSION}/revapi-standalone-${REVAPI_VERSION}-standalone.zip
+
+if [ ! -f "$REVAPI_ZIP" ]; then
+  printf "Downloading revapi\n"
+  REVAPI_ZIP_DL="${REVAPI_ZIP}.part"
+  if [ $(command -v curl) ]; then
+    curl -L --silent "${REVAPI_URL}" > "$REVAPI_ZIP_DL" && mv "$REVAPI_ZIP_DL" "$REVAPI_ZIP"
+  elif [ $(command -v wget) ]; then
+    wget --quiet ${REVAPI_URL} -O "$REVAPI_ZIP_DL" && mv "$REVAPI_ZIP_DL" "$REVAPI_ZIP"
+  else
+    printf "You do not have curl or wget installed, please install revapi manually.\n"
+    exit 1
+  fi
+fi
+
+unzip -q -o "$REVAPI_ZIP" -d "$ROOT_DIR/lib"
+
+export REVAPI_HOME="$ROOT_DIR/lib/revapi-$REVAPI_VERSION"
+
+REVAPI_PROJECTS="api core parquet orc common data"
+
+REVAPI_OUT=lib/revapi.report
+rm "$REVAPI_OUT"
+rm -f "$REVAPI_OUT"
+for REVAPI_PROJECT in $REVAPI_PROJECTS; do
+  echo "========================"
+  echo "Checking iceberg-$REVAPI_PROJECT"
+  echo "Downloading iceberg-$REVAPI_PROJECT $OLD_VERSION"
+  if [ $(command -v curl) ]; then
+    curl -L --silent "https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-$REVAPI_PROJECT/$OLD_VERSION/iceberg-$REVAPI_PROJECT-$OLD_VERSION.jar" > "$REVAPI_WORKING_DIR/iceberg-$REVAPI_PROJECT-$OLD_VERSION.jar"
+  elif [ $(command -v wget) ]; then
+    wget --quiet "https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-$REVAPI_PROJECT/$OLD_VERSION/iceberg-$REVAPI_PROJECT-$OLD_VERSION.jar" -O "$REVAPI_REVAPI_WORKING_DIR/iceberg-$REVAPI_PROJECT-$OLD_VERSION.jar"
+  else
+    printf "You do not have curl or wget installed, please download artifact manually.\n"
+    exit 1
+  fi
+  $REVAPI_HOME/revapi.sh --extensions=org.revapi:revapi-java:0.28.1,org.revapi:revapi-reporter-text:0.15.0 --old "$REVAPI_WORKING_DIR/iceberg-$REVAPI_PROJECT-$OLD_VERSION.jar" --new $REVAPI_PROJECT/build/libs/iceberg-$REVAPI_PROJECT*SNAPSHOT.jar -c dev/.revapi.json -Drevapi.java.missing-classes.behavior=ignore -Drevapi.reporter.text.minCriticality=error -Drevapi.reporter.text.append=true -Drevapi.reporter.text.output=$REVAPI_OUT -Drevapi.reporter.text.minSeverity=BREAKING -Drevapi.reporter.text.template=dev/.revapi.template
+  if [[ $(grep "ERROR" $REVAPI_OUT) ]]; then
+    echo "=================================================================================="
+    echo "API/ABI breaks detected."
+    echo "Details can be found in ${REVAPI_OUT}"
+    echo "Adding RevAPI breaks should only be done after going through a deprecation cycle."
+    echo "Please make sure to follow the deprecation rules defined in"
+    echo "https://github.com/apache/iceberg/blob/main/CONTRIBUTING.md#semantic-versioning."
+    echo "=================================================================================="
+    exit 2
+  fi
+done
+
+echo "revapi check passed"
