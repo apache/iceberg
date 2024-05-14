@@ -1,0 +1,17 @@
+<#ftl strip_whitespace=true>
+Old API: <#list analysis.oldApi.archives as archive>${archive.name}<#sep>, </#list>
+New API: <#list analysis.newApi.archives as archive>${archive.name}<#sep>, </#list>
+<#if reports?has_content>
+<#list reports as report>
+<#list report.differences as diff>
+<#list diff.classification?keys as compat>
+<#if compat == "SOURCE" && diff.classification?api.get(compat) == "BREAKING">
+[ERROR] ${diff.description!}
+ code: ${diff.code}
+ new:  ${report.newElement!""}
+ old:  ${report.oldElement!""}
+</#if>
+</#list>
+</#list>
+</#list>
+</#if>
