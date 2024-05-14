@@ -210,13 +210,15 @@ public class TestGlueCatalogTable extends GlueTestBase {
     assertThat(response.table().partitionKeys()).hasSameSizeAs(partitionSpec.fields());
     assertThat(response.table().description()).isEqualTo(description);
 
-    // Make sure adding a comment updates the existing table description
-    String comment = "Test comment";
-    table.updateProperties().set(IcebergToGlueConverter.GLUE_DESCRIPTION_KEY, comment).commit();
+    String updatedComment = "test updated comment";
+    table
+        .updateProperties()
+        .set(IcebergToGlueConverter.GLUE_DESCRIPTION_KEY, updatedComment)
+        .commit();
     // check table in Glue
     response =
         glue.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
-    assertThat(response.table().description()).isEqualTo(comment);
+    assertThat(response.table().description()).isEqualTo(updatedComment);
   }
 
   @Test
