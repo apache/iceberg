@@ -163,7 +163,7 @@ public abstract class ClientPoolImpl<C, E extends Exception>
   }
 
   @VisibleForTesting
-  protected Deque<C> clients() {
+  Deque<C> clients() {
     return clients;
   }
 
