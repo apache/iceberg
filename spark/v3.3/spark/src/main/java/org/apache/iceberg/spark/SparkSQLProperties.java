@@ -66,4 +66,7 @@ public class SparkSQLProperties {
 
   // Controls whether to report locality information to Spark while allocating input partitions
   public static final String LOCALITY = "spark.sql.iceberg.locality.enabled";
+
+  // Controls the spark input split size.
+  public static final String SPLIT_SIZE = "spark.sql.iceberg.split-size";
 }
