@@ -40,7 +40,7 @@ public class TestClientPoolImpl {
           .as("There should be exactly one successful action invocation")
           .isEqualTo(1);
       assertThat(mockClientPool.reconnectionAttempts()).isEqualTo(succeedAfterAttempts - 1);
-      assertThat(mockClientPool.peekFirst().equals(firstClient)).isFalse();
+      assertThat(mockClientPool.clients().peekFirst().equals(firstClient)).isFalse();
     }
   }
 
@@ -136,10 +136,6 @@ public class TestClientPoolImpl {
     protected MockClient reconnect(MockClient client) {
       reconnectionAttempts++;
       return new MockClient(reconnectionAttempts);
-    }
-
-    protected MockClient peekFirst() {
-      return clients().peekFirst();
     }
 
     @Override
