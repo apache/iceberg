@@ -316,6 +316,9 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
               .skipArchive(awsProperties.glueCatalogSkipArchive())
               .tableInput(
                   TableInput.builder()
+                      // Call description before applyMutation so that applyMutation overwrites the
+                      // description with the comment specified in the query
+                      .description(glueTable.description())
                       .applyMutation(
                           builder ->
                               IcebergToGlueConverter.setTableInputInformation(builder, metadata))

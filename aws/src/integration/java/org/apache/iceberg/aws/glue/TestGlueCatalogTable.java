@@ -182,6 +182,8 @@ public class TestGlueCatalogTable extends GlueTestBase {
     assertThat(current).isNull();
     // create table, refresh should update
     createTable(namespace, tableName);
+    String description = "test description";
+    updateTableDescription(namespace, tableName, description);
     current = ops.refresh();
     assertThat(current.schema()).asString().isEqualTo(schema.toString());
     assertThat(current.spec()).isEqualTo(partitionSpec);
@@ -206,6 +208,17 @@ public class TestGlueCatalogTable extends GlueTestBase {
         .isEqualTo("EXTERNAL_TABLE");
     assertThat(response.table().storageDescriptor().columns()).hasSameSizeAs(schema.columns());
     assertThat(response.table().partitionKeys()).hasSameSizeAs(partitionSpec.fields());
+    assertThat(response.table().description()).isEqualTo(description);
+
+    String updatedComment = "test updated comment";
+    table
+        .updateProperties()
+        .set(IcebergToGlueConverter.GLUE_DESCRIPTION_KEY, updatedComment)
+        .commit();
+    // check table in Glue
+    response =
+        glue.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
+    assertThat(response.table().description()).isEqualTo(updatedComment);
   }
 
   @Test
