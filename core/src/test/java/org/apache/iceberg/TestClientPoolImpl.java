@@ -31,11 +31,16 @@ public class TestClientPoolImpl {
     int succeedAfterAttempts = 3;
     try (MockClientPoolImpl mockClientPool =
         new MockClientPoolImpl(2, RetryableException.class, true, maxRetries)) {
+      // initial the client pool with a client, so that we can verify the client is replaced
+      MockClient firstClient = mockClientPool.newClient();
+      mockClientPool.clients().add(firstClient);
+
       int actions = mockClientPool.run(client -> client.succeedAfter(succeedAfterAttempts));
       assertThat(actions)
           .as("There should be exactly one successful action invocation")
           .isEqualTo(1);
       assertThat(mockClientPool.reconnectionAttempts()).isEqualTo(succeedAfterAttempts - 1);
+      assertThat(mockClientPool.clients().peekFirst().equals(firstClient)).isFalse();
     }
   }
 
@@ -78,10 +83,14 @@ public class TestClientPoolImpl {
 
   static class MockClient {
     boolean closed = false;
-
     int actions = 0;
-
     int retryableFailures = 0;
+
+    MockClient() {}
+
+    MockClient(int retryableFailures) {
+      this.retryableFailures = retryableFailures;
+    }
 
     public void close() {
       closed = true;
@@ -126,7 +135,7 @@ public class TestClientPoolImpl {
     @Override
     protected MockClient reconnect(MockClient client) {
       reconnectionAttempts++;
-      return client;
+      return new MockClient(reconnectionAttempts);
     }
 
     @Override
