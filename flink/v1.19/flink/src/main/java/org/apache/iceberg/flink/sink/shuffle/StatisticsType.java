@@ -42,7 +42,7 @@ public enum StatisticsType {
    *
    * <ul>
    *   <li>Pro: relatively low memory footprint for high-cardinality sort keys.
-   *   <li>Con: memory footprint can be large if the key cardinality is high.
+   *   <li>Con: non-precise approximation with potentially lower accuracy.
    * </ul>
    */
   Sketch,
