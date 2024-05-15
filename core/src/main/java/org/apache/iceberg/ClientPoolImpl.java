@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.Closeable;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,35 +71,27 @@ public abstract class ClientPoolImpl<C, E extends Exception>
     try {
       return action.run(client);
     } catch (Exception exc) {
-      if (!retry || !isConnectionException(exc)) {
-        throw exc;
+      if (retry && isConnectionException(exc)) {
+        int retryAttempts = 0;
+        while (retryAttempts < maxRetries) {
+          try {
+            client = reconnect(client);
+            return action.run(client);
+          } catch (Exception e) {
+            if (isConnectionException(e)) {
+              retryAttempts++;
+              Thread.sleep(connectionRetryWaitPeriodMs);
+            } else {
+              throw reconnectExc.cast(exc);
+            }
+          }
+        }
       }
 
-      return retryAction(action, exc, client);
-
+      throw exc;
     } finally {
       release(client);
     }
-  }
-
-  private <R> R retryAction(Action<R, C, E> action, Exception originalFailure, C client)
-      throws E, InterruptedException {
-    int retryAttempts = 0;
-    while (retryAttempts < maxRetries) {
-      try {
-        C reconnectedClient = reconnect(client);
-        return action.run(reconnectedClient);
-      } catch (Exception exc) {
-        if (isConnectionException(exc)) {
-          retryAttempts++;
-          Thread.sleep(connectionRetryWaitPeriodMs);
-        } else {
-          throw reconnectExc.cast(originalFailure);
-        }
-      }
-    }
-
-    throw reconnectExc.cast(originalFailure);
   }
 
   protected abstract C newClient();
@@ -167,6 +160,11 @@ public abstract class ClientPoolImpl<C, E extends Exception>
     synchronized (signal) {
       signal.notify();
     }
+  }
+
+  @VisibleForTesting
+  protected Deque<C> clients() {
+    return clients;
   }
 
   public int poolSize() {
