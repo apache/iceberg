@@ -31,7 +31,7 @@ import org.apache.flink.api.connector.sink2.SinkWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /** Sink for collecting output during testing. */
-public class CollectingSink<T> implements Sink<T> {
+class CollectingSink<T> implements Sink<T> {
   private static final long serialVersionUID = 1L;
   private static final List<BlockingQueue<Object>> queues =
       Collections.synchronizedList(Lists.newArrayListWithExpectedSize(1));
@@ -39,7 +39,7 @@ public class CollectingSink<T> implements Sink<T> {
   private final int index;
 
   /** Creates a new sink which collects the elements received. */
-  public CollectingSink() {
+  CollectingSink() {
     this.index = numSinks.incrementAndGet();
     queues.add(new LinkedBlockingQueue<>());
   }
@@ -49,7 +49,7 @@ public class CollectingSink<T> implements Sink<T> {
    *
    * @return all the remaining output
    */
-  public List<T> getRemainingOutput() {
+  List<T> getRemainingOutput() {
     return Lists.newArrayList((BlockingQueue<T>) queues.get(this.index));
   }
 
@@ -58,7 +58,7 @@ public class CollectingSink<T> implements Sink<T> {
    *
    * @return <code>true</code> if there is no remaining output
    */
-  public boolean isEmpty() {
+  boolean isEmpty() {
     return queues.get(this.index).isEmpty();
   }
 
@@ -69,7 +69,7 @@ public class CollectingSink<T> implements Sink<T> {
    * @return The first element received by this {@link Sink}
    * @throws TimeoutException if no element received until the timeout
    */
-  public T poll(Duration timeout) throws TimeoutException {
+  T poll(Duration timeout) throws TimeoutException {
     Object element;
 
     try {

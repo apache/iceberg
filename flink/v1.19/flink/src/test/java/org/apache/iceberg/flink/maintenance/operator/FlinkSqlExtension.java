@@ -25,6 +25,7 @@ import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.TableResult;
@@ -122,24 +123,10 @@ public class FlinkSqlExtension implements BeforeEachCallback, AfterEachCallback 
   }
 
   private static String toWithClause(Map<String, String> props) {
-    StringBuilder builder = new StringBuilder();
-    builder.append("(");
-    int propCount = 0;
-    for (Map.Entry<String, String> entry : props.entrySet()) {
-      if (propCount > 0) {
-        builder.append(",");
-      }
-      builder
-          .append("'")
-          .append(entry.getKey())
-          .append("'")
-          .append("=")
-          .append("'")
-          .append(entry.getValue())
-          .append("'");
-      propCount++;
-    }
-    builder.append(")");
-    return builder.toString();
+    return String.format(
+        "(%s)",
+        props.entrySet().stream()
+            .map(e -> String.format("'%s'='%s'", e.getKey(), e.getValue()))
+            .collect(Collectors.joining(",")));
   }
 }

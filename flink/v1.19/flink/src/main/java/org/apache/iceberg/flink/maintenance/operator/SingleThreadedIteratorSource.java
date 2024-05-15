@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink.maintenance.operator;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.util.Collection;
 import java.util.Iterator;
 import org.apache.flink.api.connector.source.Source;
@@ -55,14 +54,14 @@ public abstract class SingleThreadedIteratorSource<T>
    *
    * @return iterator for the elements
    */
-  public abstract Iterator<T> createIterator();
+  abstract Iterator<T> createIterator();
 
   /**
    * Serializes the iterator, which is used to save and restore the state of the source.
    *
    * @return serializer for the iterator
    */
-  public abstract SimpleVersionedSerializer<Iterator<T>> getIteratorSerializer();
+  abstract SimpleVersionedSerializer<Iterator<T>> getIteratorSerializer();
 
   @Override
   public SplitEnumerator<GlobalSplit<T>, Collection<GlobalSplit<T>>> createEnumerator(
@@ -97,10 +96,10 @@ public abstract class SingleThreadedIteratorSource<T>
   }
 
   /** The single split of the {@link SingleThreadedIteratorSource}. */
-  public static class GlobalSplit<T> implements IteratorSourceSplit<T, Iterator<T>>, Serializable {
-    private transient Iterator<T> iterator;
+  static class GlobalSplit<T> implements IteratorSourceSplit<T, Iterator<T>> {
+    private final Iterator<T> iterator;
 
-    public GlobalSplit(Iterator<T> iterator) {
+    GlobalSplit(Iterator<T> iterator) {
       this.iterator = iterator;
     }
 

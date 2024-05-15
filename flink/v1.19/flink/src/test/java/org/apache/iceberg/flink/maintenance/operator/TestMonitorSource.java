@@ -27,6 +27,7 @@ import java.time.Duration;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.connector.source.util.ratelimit.RateLimiterStrategy;
+import org.apache.flink.configuration.CheckpointingOptions;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.runtime.client.JobExecutionException;
@@ -135,9 +136,12 @@ class TestMonitorSource extends OperatorTestBase {
         "CREATE TABLE %s (id int, data varchar) "
             + "WITH ('flink.max-continuous-empty-commits'='100000')",
         TABLE_NAME);
-    StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+    Configuration config = new Configuration();
+    config.set(CheckpointingOptions.CHECKPOINT_STORAGE, "filesystem");
+    config.set(CheckpointingOptions.CHECKPOINTS_DIRECTORY, "file://" + checkpointDir.getPath());
+    StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment(config);
     env.enableCheckpointing(1000);
-    env.getCheckpointConfig().setCheckpointStorage("file://" + checkpointDir.getPath());
+    env.setParallelism(1);
 
     TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
     tableLoader.open();
@@ -200,9 +204,11 @@ class TestMonitorSource extends OperatorTestBase {
     sql.exec("CREATE TABLE %s (id int, data varchar)", TABLE_NAME);
     sql.exec("INSERT INTO %s VALUES (1, 'a')", TABLE_NAME);
 
-    StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+    Configuration config = new Configuration();
+    config.set(CheckpointingOptions.CHECKPOINT_STORAGE, "filesystem");
+    config.set(CheckpointingOptions.CHECKPOINTS_DIRECTORY, "file://" + checkpointDir.getPath());
+    StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment(config);
     env.enableCheckpointing(1000);
-    env.getCheckpointConfig().setCheckpointStorage("file://" + checkpointDir.getPath());
 
     TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
     tableLoader.open();

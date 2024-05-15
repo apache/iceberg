@@ -25,7 +25,7 @@ import org.apache.flink.core.execution.SavepointFormatType;
 import org.apache.flink.runtime.jobgraph.SavepointConfigOptions;
 import org.awaitility.Awaitility;
 
-public class FlinkStreamingTestUtils {
+class FlinkStreamingTestUtils {
   private FlinkStreamingTestUtils() {
     // Do not instantiate
   }
@@ -39,7 +39,7 @@ public class FlinkStreamingTestUtils {
    *     stop without a savepoint.
    * @return configuration for restarting the job from the savepoint
    */
-  public static Configuration closeJobClient(JobClient jobClient, File savepointDir) {
+  static Configuration closeJobClient(JobClient jobClient, File savepointDir) {
     Configuration conf = new Configuration();
     if (jobClient != null) {
       if (savepointDir != null) {
@@ -67,7 +67,7 @@ public class FlinkStreamingTestUtils {
    *
    * @param jobClient the job to close
    */
-  public static void closeJobClient(JobClient jobClient) {
+  static void closeJobClient(JobClient jobClient) {
     closeJobClient(jobClient, null);
   }
 }

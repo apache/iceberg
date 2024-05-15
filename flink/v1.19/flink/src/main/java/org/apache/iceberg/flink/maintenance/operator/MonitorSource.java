@@ -34,6 +34,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -76,12 +77,12 @@ public class MonitorSource extends SingleThreadedIteratorSource<TableChange> {
   }
 
   @Override
-  public Iterator<TableChange> createIterator() {
+  Iterator<TableChange> createIterator() {
     return new SchedulerEventIterator(tableLoader, null, maxReadBack);
   }
 
   @Override
-  public SimpleVersionedSerializer<Iterator<TableChange>> getIteratorSerializer() {
+  SimpleVersionedSerializer<Iterator<TableChange>> getIteratorSerializer() {
     return new SchedulerEventIteratorSerializer(tableLoader, maxReadBack);
   }
 
@@ -139,6 +140,15 @@ public class MonitorSource extends SingleThreadedIteratorSource<TableChange> {
         return new TableChange(0, 0, 0L, 0L, 0);
       }
     }
+
+    @Override
+    public String toString() {
+      return MoreObjects.toStringHelper(this)
+          .add("lastSnapshotId", lastSnapshotId)
+          .add("maxReadBack", maxReadBack)
+          .add("table", table)
+          .toString();
+    }
   }
 
   private static final class SchedulerEventIteratorSerializer
@@ -162,7 +172,7 @@ public class MonitorSource extends SingleThreadedIteratorSource<TableChange> {
     public byte[] serialize(Iterator<TableChange> iterator) throws IOException {
       Preconditions.checkArgument(
           iterator instanceof SchedulerEventIterator,
-          "Can not serialize different type: %s",
+          "Use SchedulerEventIterator iterator. Found incompatible type: %s",
           iterator.getClass());
 
       SchedulerEventIterator schedulerEventIterator = (SchedulerEventIterator) iterator;
@@ -177,11 +187,14 @@ public class MonitorSource extends SingleThreadedIteratorSource<TableChange> {
 
     @Override
     public SchedulerEventIterator deserialize(int version, byte[] serialized) throws IOException {
-      Preconditions.checkArgument(version == CURRENT_VERSION, "Unrecognized version: %s", version);
-      DataInputDeserializer in = new DataInputDeserializer(serialized);
-      long fromStore = in.readLong();
-      return new SchedulerEventIterator(
-          tableLoader, fromStore != -1 ? fromStore : null, maxReadBack);
+      if (version == CURRENT_VERSION) {
+        DataInputDeserializer in = new DataInputDeserializer(serialized);
+        long fromStore = in.readLong();
+        return new SchedulerEventIterator(
+            tableLoader, fromStore != -1 ? fromStore : null, maxReadBack);
+      } else {
+        throw new IOException("Unrecognized version or corrupt state: " + version);
+      }
     }
   }
 }
