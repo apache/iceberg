@@ -20,22 +20,20 @@ package org.apache.iceberg.flink.sink.shuffle;
 
 import java.util.Arrays;
 import org.apache.datasketches.sampling.ReservoirItemsSketch;
-import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.SortKey;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 
 /** MapDataStatistics uses map to count key frequency */
-@Internal
-public class SketchDataStatistics implements DataStatistics {
+class SketchDataStatistics implements DataStatistics {
 
-  private ReservoirItemsSketch<SortKey> sketch;
+  private final ReservoirItemsSketch<SortKey> sketch;
 
   SketchDataStatistics(int reservoirSize) {
     this.sketch = ReservoirItemsSketch.newInstance(reservoirSize);
   }
 
-  SketchDataStatistics(ReservoirItemsSketch sketchStats) {
+  SketchDataStatistics(ReservoirItemsSketch<SortKey> sketchStats) {
     this.sketch = sketchStats;
   }
 

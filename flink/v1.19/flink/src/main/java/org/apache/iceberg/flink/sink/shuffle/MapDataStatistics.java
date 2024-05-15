@@ -19,15 +19,13 @@
 package org.apache.iceberg.flink.sink.shuffle;
 
 import java.util.Map;
-import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.SortKey;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /** MapDataStatistics uses map to count key frequency */
-@Internal
-public class MapDataStatistics implements DataStatistics {
+class MapDataStatistics implements DataStatistics {
   private final Map<SortKey, Long> keyFrequency;
 
   MapDataStatistics() {
