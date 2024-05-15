@@ -71,7 +71,7 @@ class StatisticsOrRecordSerializer extends TypeSerializer<StatisticsOrRecord> {
     if (from.hasRecord()) {
       return StatisticsOrRecord.fromRecord(recordSerializer.copy(from.record()));
     } else {
-      return StatisticsOrRecord.fromDataStatistics(statisticsSerializer.copy(from.statistics()));
+      return StatisticsOrRecord.fromStatistics(statisticsSerializer.copy(from.statistics()));
     }
   }
 
@@ -115,7 +115,7 @@ class StatisticsOrRecordSerializer extends TypeSerializer<StatisticsOrRecord> {
     if (isRecord) {
       return StatisticsOrRecord.fromRecord(recordSerializer.deserialize(source));
     } else {
-      return StatisticsOrRecord.fromDataStatistics(statisticsSerializer.deserialize(source));
+      return StatisticsOrRecord.fromStatistics(statisticsSerializer.deserialize(source));
     }
   }
 

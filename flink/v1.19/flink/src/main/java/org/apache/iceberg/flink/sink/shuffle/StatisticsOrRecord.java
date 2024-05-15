@@ -54,7 +54,7 @@ public class StatisticsOrRecord implements Serializable {
     return new StatisticsOrRecord(null, record);
   }
 
-  static StatisticsOrRecord fromDataStatistics(AggregatedStatistics statistics) {
+  static StatisticsOrRecord fromStatistics(AggregatedStatistics statistics) {
     return new StatisticsOrRecord(statistics, null);
   }
 
@@ -74,7 +74,7 @@ public class StatisticsOrRecord implements Serializable {
       return reuse;
     } else {
       // not reusable
-      return StatisticsOrRecord.fromDataStatistics(statisticsSerializer.createInstance());
+      return StatisticsOrRecord.fromStatistics(statisticsSerializer.createInstance());
     }
   }
 

@@ -54,6 +54,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
@@ -203,6 +204,95 @@ public class TestDataStatisticsOperator {
     }
   }
 
+  @SuppressWarnings("unchecked")
+  @Test
+  public void testMigrationWithLocalStatsOverThreshold() throws Exception {
+    DataStatisticsOperator operator = createOperator(StatisticsType.Auto);
+    try (OneInputStreamOperatorTestHarness<RowData, StatisticsOrRecord> testHarness =
+        createHarness(operator)) {
+      StateInitializationContext stateContext = getStateContext();
+      operator.initializeState(stateContext);
+
+      // add rows with unique keys
+      for (int i = 0; i < SketchUtil.OPERATOR_SKETCH_SWITCH_THRESHOLD; ++i) {
+        operator.processElement(
+            new StreamRecord<>(GenericRowData.of(StringData.fromString(String.valueOf(i)), i)));
+        assertThat(operator.localStatistics().type()).isEqualTo(StatisticsType.Map);
+        assertThat((Map<SortKey, Long>) operator.localStatistics().result()).hasSize(i + 1);
+      }
+
+      // one more item should trigger the migration to sketch stats
+      operator.processElement(
+          new StreamRecord<>(GenericRowData.of(StringData.fromString("key-trigger-migration"), 1)));
+
+      int reservoirSize =
+          SketchUtil.determineOperatorReservoirSize(Fixtures.NUM_SUBTASKS, Fixtures.NUM_SUBTASKS);
+
+      assertThat(operator.localStatistics().type()).isEqualTo(StatisticsType.Sketch);
+      ReservoirItemsSketch<SortKey> sketch =
+          (ReservoirItemsSketch<SortKey>) operator.localStatistics().result();
+      assertThat(sketch.getK()).isEqualTo(reservoirSize);
+      assertThat(sketch.getN()).isEqualTo(SketchUtil.OPERATOR_SKETCH_SWITCH_THRESHOLD + 1);
+      // reservoir not full yet
+      assertThat(sketch.getN()).isLessThan(reservoirSize);
+      assertThat(sketch.getSamples()).hasSize((int) sketch.getN());
+
+      // add more items to saturate the reservoir
+      for (int i = 0; i < reservoirSize; ++i) {
+        operator.processElement(
+            new StreamRecord<>(GenericRowData.of(StringData.fromString(String.valueOf(i)), i)));
+      }
+
+      assertThat(operator.localStatistics().type()).isEqualTo(StatisticsType.Sketch);
+      sketch = (ReservoirItemsSketch<SortKey>) operator.localStatistics().result();
+      assertThat(sketch.getK()).isEqualTo(reservoirSize);
+      assertThat(sketch.getN())
+          .isEqualTo(SketchUtil.OPERATOR_SKETCH_SWITCH_THRESHOLD + 1 + reservoirSize);
+      // reservoir is full now
+      assertThat(sketch.getN()).isGreaterThan(reservoirSize);
+      assertThat(sketch.getSamples()).hasSize(reservoirSize);
+
+      testHarness.endInput();
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  @Test
+  public void testMigrationWithGlobalSketchStatistics() throws Exception {
+    DataStatisticsOperator operator = createOperator(StatisticsType.Auto);
+    try (OneInputStreamOperatorTestHarness<RowData, StatisticsOrRecord> testHarness =
+        createHarness(operator)) {
+      StateInitializationContext stateContext = getStateContext();
+      operator.initializeState(stateContext);
+
+      // started with Map stype
+      operator.processElement(new StreamRecord<>(GenericRowData.of(StringData.fromString("a"), 1)));
+      assertThat(operator.localStatistics().type()).isEqualTo(StatisticsType.Map);
+      assertThat((Map<SortKey, Long>) operator.localStatistics().result())
+          .isEqualTo(ImmutableMap.of(CHAR_KEYS.get("a"), 1L));
+
+      // received global statistics with sketch type
+      AggregatedStatistics globalStatistics =
+          AggregatedStatistics.fromRangeBounds(
+              1L, new SortKey[] {CHAR_KEYS.get("c"), CHAR_KEYS.get("f")});
+      operator.handleOperatorEvent(
+          StatisticsEvent.createAggregatedStatisticsEvent(
+              1L, globalStatistics, Fixtures.AGGREGATED_STATISTICS_SERIALIZER));
+
+      int reservoirSize =
+          SketchUtil.determineOperatorReservoirSize(Fixtures.NUM_SUBTASKS, Fixtures.NUM_SUBTASKS);
+
+      assertThat(operator.localStatistics().type()).isEqualTo(StatisticsType.Sketch);
+      ReservoirItemsSketch<SortKey> sketch =
+          (ReservoirItemsSketch<SortKey>) operator.localStatistics().result();
+      assertThat(sketch.getK()).isEqualTo(reservoirSize);
+      assertThat(sketch.getN()).isEqualTo(1);
+      assertThat(sketch.getSamples()).isEqualTo(new SortKey[] {CHAR_KEYS.get("a")});
+
+      testHarness.endInput();
+    }
+  }
+
   private StateInitializationContext getStateContext() throws Exception {
     AbstractStateBackend abstractStateBackend = new HashMapStateBackend();
     CloseableRegistry cancelStreamRegistry = new CloseableRegistry();
@@ -216,7 +306,8 @@ public class TestDataStatisticsOperator {
   private OneInputStreamOperatorTestHarness<RowData, StatisticsOrRecord> createHarness(
       DataStatisticsOperator dataStatisticsOperator) throws Exception {
     OneInputStreamOperatorTestHarness<RowData, StatisticsOrRecord> harness =
-        new OneInputStreamOperatorTestHarness<>(dataStatisticsOperator, 1, 1, 0);
+        new OneInputStreamOperatorTestHarness<>(
+            dataStatisticsOperator, Fixtures.NUM_SUBTASKS, Fixtures.NUM_SUBTASKS, 0);
     harness.setup(
         new StatisticsOrRecordSerializer(
             Fixtures.AGGREGATED_STATISTICS_SERIALIZER, Fixtures.ROW_SERIALIZER));

@@ -122,7 +122,7 @@ public class DataStatisticsOperator extends AbstractStreamOperator<StatisticsOrR
   @Override
   public void open() throws Exception {
     if (globalStatistics != null) {
-      output.collect(new StreamRecord<>(StatisticsOrRecord.fromDataStatistics(globalStatistics)));
+      output.collect(new StreamRecord<>(StatisticsOrRecord.fromStatistics(globalStatistics)));
     }
   }
 
@@ -142,33 +142,20 @@ public class DataStatisticsOperator extends AbstractStreamOperator<StatisticsOrR
     globalStatistics =
         StatisticsUtil.deserializeAggregatedStatistics(
             statisticsEvent.statisticsBytes(), aggregatedStatisticsSerializer);
-    output.collect(new StreamRecord<>(StatisticsOrRecord.fromDataStatistics(globalStatistics)));
+    checkStatisticsTypeMigration();
+    output.collect(new StreamRecord<>(StatisticsOrRecord.fromStatistics(globalStatistics)));
   }
 
   @SuppressWarnings("unchecked")
   @Override
   public void processElement(StreamRecord<RowData> streamRecord) {
+    // collect data statistics
     RowData record = streamRecord.getValue();
     StructLike struct = rowDataWrapper.wrap(record);
     sortKey.wrap(struct);
     localStatistics.add(sortKey);
 
-    if (localStatistics.type() == StatisticsType.Map) {
-      Map<SortKey, Long> mapStatistics = (Map<SortKey, Long>) localStatistics.result();
-      if (statisticsType == StatisticsType.Auto
-          && mapStatistics.size() > SketchUtil.OPERATOR_SKETCH_SWITCH_THRESHOLD) {
-        LOG.info(
-            "Operator {} subtask {} switched local statistics from Map to Sketch.",
-            operatorName,
-            subtaskIndex);
-        this.taskStatisticsType = StatisticsType.Sketch;
-        this.localStatistics =
-            StatisticsUtil.createTaskStatistics(
-                taskStatisticsType, parallelism, downstreamParallelism);
-        SketchUtil.convertMapToSketch(mapStatistics, localStatistics::add);
-      }
-    }
-
+    checkStatisticsTypeMigration();
     output.collect(new StreamRecord<>(StatisticsOrRecord.fromRecord(record)));
   }
 
@@ -184,7 +171,7 @@ public class DataStatisticsOperator extends AbstractStreamOperator<StatisticsOrR
     // Pass global statistics to partitioner so that all the operators refresh statistics
     // at same checkpoint barrier
     if (globalStatistics != null) {
-      output.collect(new StreamRecord<>(StatisticsOrRecord.fromDataStatistics(globalStatistics)));
+      output.collect(new StreamRecord<>(StatisticsOrRecord.fromStatistics(globalStatistics)));
     }
 
     // Only subtask 0 saves the state so that globalStatisticsState(UnionListState) stores
@@ -215,6 +202,27 @@ public class DataStatisticsOperator extends AbstractStreamOperator<StatisticsOrR
     // Recreate the local statistics
     localStatistics =
         StatisticsUtil.createTaskStatistics(taskStatisticsType, parallelism, downstreamParallelism);
+  }
+
+  private void checkStatisticsTypeMigration() {
+    // only check if the statisticsType config is Auto and localStatistics is currently Map type
+    if (statisticsType == StatisticsType.Auto && localStatistics.type() == StatisticsType.Map) {
+      Map<SortKey, Long> mapStatistics = (Map<SortKey, Long>) localStatistics.result();
+      // convert if local statistics has cardinality over the threshold or
+      // if received global statistics is already sketch type
+      if (mapStatistics.size() > SketchUtil.OPERATOR_SKETCH_SWITCH_THRESHOLD
+          || (globalStatistics != null && globalStatistics.type() == StatisticsType.Sketch)) {
+        LOG.info(
+            "Operator {} subtask {} switched local statistics from Map to Sketch.",
+            operatorName,
+            subtaskIndex);
+        this.taskStatisticsType = StatisticsType.Sketch;
+        this.localStatistics =
+            StatisticsUtil.createTaskStatistics(
+                taskStatisticsType, parallelism, downstreamParallelism);
+        SketchUtil.convertMapToSketch(mapStatistics, localStatistics::add);
+      }
+    }
   }
 
   @VisibleForTesting
