@@ -274,7 +274,7 @@ public class TestLocalScan {
     Assertions.assertThat(records).as("Should produce correct number of records")
         .hasSameSizeAs(expected);
     Assertions.assertThat(records).as("Random record set should match")
-        .hasSameSizeAs(expected);
+        .isEqualTo(expected);
   }
 
   @TestTemplate
