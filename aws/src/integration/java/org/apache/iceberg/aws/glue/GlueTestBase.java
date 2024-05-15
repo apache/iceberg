@@ -39,6 +39,11 @@ import org.junit.jupiter.api.BeforeAll;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.glue.GlueClient;
+import software.amazon.awssdk.services.glue.model.GetTableRequest;
+import software.amazon.awssdk.services.glue.model.GetTableResponse;
+import software.amazon.awssdk.services.glue.model.Table;
+import software.amazon.awssdk.services.glue.model.TableInput;
+import software.amazon.awssdk.services.glue.model.UpdateTableRequest;
 import software.amazon.awssdk.services.s3.S3Client;
 
 @SuppressWarnings({"VisibilityModifier", "HideUtilityClassConstructor"})
@@ -128,5 +133,29 @@ public class GlueTestBase {
   public static String createTable(String namespace, String tableName) {
     glueCatalog.createTable(TableIdentifier.of(namespace, tableName), schema, partitionSpec);
     return tableName;
+  }
+
+  // Directly call Glue API to update table description
+  public static void updateTableDescription(
+      String namespace, String tableName, String description) {
+    GetTableResponse response =
+        glue.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
+    Table table = response.table();
+    UpdateTableRequest request =
+        UpdateTableRequest.builder()
+            .catalogId(table.catalogId())
+            .databaseName(table.databaseName())
+            .tableInput(
+                TableInput.builder()
+                    .description(description)
+                    .name(table.name())
+                    .partitionKeys(table.partitionKeys())
+                    .tableType(table.tableType())
+                    .owner(table.owner())
+                    .parameters(table.parameters())
+                    .storageDescriptor(table.storageDescriptor())
+                    .build())
+            .build();
+    glue.updateTable(request);
   }
 }
