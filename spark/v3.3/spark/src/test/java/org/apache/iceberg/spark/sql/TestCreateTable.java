@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.sql;
 
 import java.io.File;
 import java.util.Map;
+import java.util.UUID;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.PartitionSpec;
@@ -33,6 +34,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -102,6 +104,31 @@ public class TestCreateTable extends SparkCatalogTestBase {
     Assert.assertNull(
         "Should not have the default format set",
         table.properties().get(TableProperties.DEFAULT_FILE_FORMAT));
+  }
+
+  @Test
+  public void testCreateTablePartitionedByUUID() {
+    Assertions.assertThat(validationCatalog.tableExists(tableIdent)).isFalse();
+    Schema schema = new Schema(1, Types.NestedField.optional(1, "uuid", Types.UUIDType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("uuid", 16).build();
+    validationCatalog.createTable(tableIdent, schema, spec);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assertions.assertThat(table).isNotNull();
+
+    StructType expectedSchema =
+        StructType.of(Types.NestedField.optional(1, "uuid", Types.UUIDType.get()));
+    Assertions.assertThat(table.schema().asStruct()).isEqualTo(expectedSchema);
+    Assertions.assertThat(table.spec().fields()).hasSize(1);
+
+    String uuid = UUID.randomUUID().toString();
+
+    sql("INSERT INTO %s VALUES('%s')", tableName, uuid);
+
+    Assertions.assertThat(sql("SELECT uuid FROM %s", tableName))
+        .hasSize(1)
+        .element(0)
+        .isEqualTo(row(uuid));
   }
 
   @Test
