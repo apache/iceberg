@@ -28,8 +28,14 @@ import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.spark.ImmutableOrcBatchReadConf;
+import org.apache.iceberg.spark.ImmutableParquetBatchReadConf;
+import org.apache.iceberg.spark.OrcBatchReadConf;
+import org.apache.iceberg.spark.ParquetBatchReadConf;
+import org.apache.iceberg.spark.ParquetReaderType;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkUtil;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
@@ -113,15 +119,31 @@ class SparkBatch implements Batch {
 
   @Override
   public PartitionReaderFactory createReaderFactory() {
-    if (useParquetBatchReads()) {
-      return new SparkColumnarReaderFactory(readConf.batchReadConf());
+    if (useCometBatchReads()) {
+      return new SparkColumnarReaderFactory(
+          parquetBatchReadConf(readConf.parquetBatchSize(), ParquetReaderType.COMET));
+
+    } else if (useParquetBatchReads()) {
+      return new SparkColumnarReaderFactory(
+          parquetBatchReadConf(readConf.parquetBatchSize(), ParquetReaderType.ICEBERG));
 
     } else if (useOrcBatchReads()) {
-      return new SparkColumnarReaderFactory(readConf.batchReadConf());
+      return new SparkColumnarReaderFactory(orcBatchReadConf(readConf.orcBatchSize()));
 
     } else {
       return new SparkRowReaderFactory();
     }
+  }
+
+  private ParquetBatchReadConf parquetBatchReadConf(int batchSize, ParquetReaderType readerType) {
+    return ImmutableParquetBatchReadConf.builder()
+        .batchSize(batchSize)
+        .readerType(readerType)
+        .build();
+  }
+
+  private OrcBatchReadConf orcBatchReadConf(int batchSize) {
+    return ImmutableOrcBatchReadConf.builder().batchSize(batchSize).build();
   }
 
   // conditions for using Parquet batch reads:
@@ -150,6 +172,17 @@ class SparkBatch implements Batch {
 
   private boolean supportsParquetBatchReads(Types.NestedField field) {
     return field.type().isPrimitiveType() || MetadataColumns.isMetadataColumn(field.fieldId());
+  }
+
+  private boolean useCometBatchReads() {
+    return readConf.parquetVectorizationEnabled()
+        && readConf.parquetReaderType() == ParquetReaderType.COMET
+        && expectedSchema.columns().stream().allMatch(this::supportsCometBatchReads)
+        && taskGroups.stream().allMatch(this::supportsParquetBatchReads);
+  }
+
+  private boolean supportsCometBatchReads(Types.NestedField field) {
+    return field.type().isPrimitiveType() && !field.type().typeId().equals(Type.TypeID.UUID);
   }
 
   // conditions for using ORC batch reads:
