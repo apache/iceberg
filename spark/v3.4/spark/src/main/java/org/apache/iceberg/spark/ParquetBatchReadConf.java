@@ -19,29 +19,11 @@
 package org.apache.iceberg.spark;
 
 import java.io.Serializable;
+import org.immutables.value.Value;
 
-public class BatchReadConf implements Serializable {
+@Value.Immutable
+public interface ParquetBatchReadConf extends Serializable {
+  int batchSize();
 
-  private final int parquetBatchSize;
-  private final ParquetReaderType parquetReaderType;
-  private final int orcBatchSize;
-
-  public BatchReadConf(
-      int parquetBatchSize, ParquetReaderType parquetReaderType, int orcBatchSize) {
-    this.parquetBatchSize = parquetBatchSize;
-    this.parquetReaderType = parquetReaderType;
-    this.orcBatchSize = orcBatchSize;
-  }
-
-  public int parquetBatchSize() {
-    return parquetBatchSize;
-  }
-
-  public int orcBatchSize() {
-    return orcBatchSize;
-  }
-
-  public ParquetReaderType parquetReaderType() {
-    return parquetReaderType;
-  }
+  ParquetReaderType readerType();
 }
