@@ -61,7 +61,7 @@ public class TestSparkPositionDeltaWriters extends TestPositionDeltaWriters<Inte
     StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
     StructType sparkType = SparkSchemaUtil.convert(table.schema());
     for (InternalRow row : rows) {
-      InternalRowWrapper wrapper = new InternalRowWrapper(sparkType);
+      InternalRowWrapper wrapper = new InternalRowWrapper(sparkType, table.schema().asStruct());
       set.add(wrapper.wrap(row));
     }
     return set;

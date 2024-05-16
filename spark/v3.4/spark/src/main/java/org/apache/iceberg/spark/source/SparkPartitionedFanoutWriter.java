@@ -44,7 +44,7 @@ public class SparkPartitionedFanoutWriter extends PartitionedFanoutWriter<Intern
       StructType sparkSchema) {
     super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
     this.partitionKey = new PartitionKey(spec, schema);
-    this.internalRowWrapper = new InternalRowWrapper(sparkSchema);
+    this.internalRowWrapper = new InternalRowWrapper(sparkSchema, schema.asStruct());
   }
 
   @Override

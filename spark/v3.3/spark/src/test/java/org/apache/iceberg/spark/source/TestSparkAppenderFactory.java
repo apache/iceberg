@@ -56,7 +56,7 @@ public class TestSparkAppenderFactory extends TestAppenderFactory<InternalRow> {
   protected StructLikeSet expectedRowSet(Iterable<InternalRow> rows) {
     StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
     for (InternalRow row : rows) {
-      InternalRowWrapper wrapper = new InternalRowWrapper(sparkType);
+      InternalRowWrapper wrapper = new InternalRowWrapper(sparkType, table.schema().asStruct());
       set.add(wrapper.wrap(row));
     }
     return set;

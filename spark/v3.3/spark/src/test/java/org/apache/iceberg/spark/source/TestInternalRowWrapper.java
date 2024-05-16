@@ -53,7 +53,8 @@ public class TestInternalRowWrapper extends RecordWrapperTest {
     Iterable<InternalRow> rowList = RandomData.generateSpark(schema, numRecords, 101L);
 
     InternalRecordWrapper recordWrapper = new InternalRecordWrapper(schema.asStruct());
-    InternalRowWrapper rowWrapper = new InternalRowWrapper(SparkSchemaUtil.convert(schema));
+    InternalRowWrapper rowWrapper =
+        new InternalRowWrapper(SparkSchemaUtil.convert(schema), schema.asStruct());
 
     Iterator<Record> actual = recordList.iterator();
     Iterator<InternalRow> expected = rowList.iterator();
