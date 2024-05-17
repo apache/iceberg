@@ -902,9 +902,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     testTableAuth(
         "catalog",
         ImmutableMap.of("urn:ietf:params:oauth:token-type:id_token", "id-token"),
-        ImmutableMap.of("credential", "table-user:secret"),
+        ImmutableMap.of("credential", "table-user:secret"), // will be ignored
         ImmutableMap.of("Authorization", "Bearer token-exchange-token:sub=id-token,act=catalog"),
-        ImmutableMap.of("Authorization", "Bearer client-credentials-token:sub=table-user"),
+        ImmutableMap.of("Authorization", "Bearer token-exchange-token:sub=id-token,act=catalog"),
         oauth2ServerUri);
   }
 
@@ -1354,9 +1354,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(expectedContextHeaders),
             any());
 
-    // if the table returned a bearer token, there will be no token request
-    if (!tableConfig.containsKey("token")) {
-      // client credentials or token exchange to get a table token
+    // if the table returned a bearer token or a credential, there will be no token request
+    if (!tableConfig.containsKey("token") && !tableConfig.containsKey("credential")) {
+      // token exchange to get a table token
       Mockito.verify(adapter, times(1))
           .execute(
               eq(HTTPMethod.POST),
@@ -1368,38 +1368,40 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               any());
     }
 
-    // automatic refresh when metadata is accessed after commit
-    Mockito.verify(adapter)
-        .execute(
-            eq(HTTPMethod.GET),
-            eq("v1/namespaces/ns/tables/table"),
-            any(),
-            any(),
-            eq(LoadTableResponse.class),
-            eq(expectedTableHeaders),
-            any());
+    if (expectedContextHeaders.equals(expectedTableHeaders)) {
+      // load table from catalog + refresh loaded table
+      Mockito.verify(adapter, times(2))
+          .execute(
+              eq(HTTPMethod.GET),
+              eq("v1/namespaces/ns/tables/table"),
+              any(),
+              any(),
+              eq(LoadTableResponse.class),
+              eq(expectedTableHeaders),
+              any());
+    } else {
+      // load table from catalog
+      Mockito.verify(adapter)
+          .execute(
+              eq(HTTPMethod.GET),
+              eq("v1/namespaces/ns/tables/table"),
+              any(),
+              any(),
+              eq(LoadTableResponse.class),
+              eq(expectedContextHeaders),
+              any());
 
-    // load table from catalog
-    Mockito.verify(adapter)
-        .execute(
-            eq(HTTPMethod.GET),
-            eq("v1/namespaces/ns/tables/table"),
-            any(),
-            any(),
-            eq(LoadTableResponse.class),
-            eq(expectedContextHeaders),
-            any());
-
-    // refresh loaded table
-    Mockito.verify(adapter)
-        .execute(
-            eq(HTTPMethod.GET),
-            eq("v1/namespaces/ns/tables/table"),
-            any(),
-            any(),
-            eq(LoadTableResponse.class),
-            eq(expectedTableHeaders),
-            any());
+      // refresh loaded table
+      Mockito.verify(adapter)
+          .execute(
+              eq(HTTPMethod.GET),
+              eq("v1/namespaces/ns/tables/table"),
+              any(),
+              any(),
+              eq(LoadTableResponse.class),
+              eq(expectedTableHeaders),
+              any());
+    }
   }
 
   @ParameterizedTest

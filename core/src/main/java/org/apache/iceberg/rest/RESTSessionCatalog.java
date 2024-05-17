@@ -68,6 +68,7 @@ import org.apache.iceberg.metrics.MetricsReporters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.auth.AuthConfig;
@@ -123,6 +124,13 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           OAuth2Properties.JWT_TOKEN_TYPE,
           OAuth2Properties.SAML2_TOKEN_TYPE,
           OAuth2Properties.SAML1_TOKEN_TYPE);
+
+  // Auth-related properties that are allowed to be passed to the table session
+  private static final Set<String> TABLE_SESSION_ALLOW_LIST =
+      ImmutableSet.<String>builder()
+          .add(OAuth2Properties.TOKEN)
+          .addAll(TOKEN_PREFERENCE_ORDER)
+          .build();
 
   private final Function<Map<String, String>, RESTClient> clientBuilder;
   private final BiFunction<SessionContext, Map<String, String>, FileIO> ioBuilder;
@@ -922,7 +930,14 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   private AuthSession tableSession(Map<String, String> tableConf, AuthSession parent) {
-    Pair<String, Supplier<AuthSession>> newSession = newSession(tableConf, tableConf, parent);
+    Map<String, String> credentials = Maps.newHashMapWithExpectedSize(tableConf.size());
+    for (String prop : tableConf.keySet()) {
+      if (TABLE_SESSION_ALLOW_LIST.contains(prop)) {
+        credentials.put(prop, tableConf.get(prop));
+      }
+    }
+
+    Pair<String, Supplier<AuthSession>> newSession = newSession(credentials, tableConf, parent);
     if (null == newSession) {
       return parent;
     }
