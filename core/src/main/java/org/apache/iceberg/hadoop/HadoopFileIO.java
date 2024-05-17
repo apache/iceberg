@@ -21,12 +21,12 @@ package org.apache.iceberg.hadoop;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.net.URI;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -209,42 +209,45 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
 
     LOG.debug("Using bulk delete operation to delete files");
 
-    SetMultimap<String, Path> fsMap =
+    SetMultimap<Path, Path> fsMap =
         Multimaps.newSetMultimap(Maps.newHashMap(), Sets::newHashSet);
     List<Future<List<Map.Entry<Path, String>>>> deletionTasks = Lists.newArrayList();
-    for (String path : pathnames) {
-      Path p = new Path(path);
-      final URI uri = p.toUri();
-      String fsURI = uri.getScheme() + "://" + uri.getHost() + "/";
-      fsMap.get(fsURI).add(p);
+    final Path rootPath = new Path("/");
+    final Configuration conf = hadoopConf.get();
+    for (String name : pathnames) {
+      Path target = new Path(name);
+      FileSystem fs = Util.getFs(target, conf);
+      // build root path of the filesystem.
+      Path fsRoot = fs.makeQualified(rootPath);
+      // retrieve or create set paths for the specific filesystem
+      Set<Path> pathsForFilesystem = fsMap.get(fsRoot);
+      pathsForFilesystem.add(target);
 
-      FileSystem fs = Util.getFs(p, hadoopConf.get());
-      int pageSize = WrappedIO.bulkDeletePageSize(fs, p);
+      int pageSize = WrappedIO.bulkDeletePageSize(fs, target);
 
       // the page size has been reached.
       // for classic filesystems page size == 1 so this happens every time.
       // hence: try and keep it efficient.
-      if (fsMap.get(fsURI).size() == pageSize) {
-        LOG.debug("Queueing batch delete for filesystem {}: file count {}", fsURI, pageSize);
-        HashSet<Path> paths = Sets.newHashSet(fsMap.get(fsURI));
+      if (pathsForFilesystem.size() == pageSize) {
+        LOG.debug("Queueing batch delete for filesystem {}: file count {}", fsRoot, pageSize);
+        HashSet<Path> paths = Sets.newHashSet(pathsForFilesystem);
         deletionTasks.add(executorService().submit(() ->
-            deleteBatch(fs, paths)));
-        fsMap.removeAll(fsURI);
+            deleteBatch(fs, fsRoot, paths)));
+        fsMap.removeAll(fsRoot);
       }
     }
 
-    // Delete the remainder
-    for (Map.Entry<String, Collection<Path>> pathsToDeleteByFileSystem :
+    // End of the iteration. Submit deletion batches for all
+    // entries in the map which haven't yet reached their page size
+    for (Map.Entry<Path, Collection<Path>> pathsToDeleteByFileSystem :
         fsMap.asMap().entrySet()) {
-      String fsURI = pathsToDeleteByFileSystem.getKey();
-      Path p = new Path(fsURI);
-      FileSystem fs = Util.getFs(p, hadoopConf.get());
+      Path fsRoot = pathsToDeleteByFileSystem.getKey();
 
-      Collection<Path> paths = pathsToDeleteByFileSystem.getValue();
-      Future<List<Map.Entry<Path, String>>> deletionTask =
-          executorService().submit(() ->
-              deleteBatch(fs, paths));
-      deletionTasks.add(deletionTask);
+      deletionTasks.add(executorService().submit(() ->
+          deleteBatch(Util.getFs(fsRoot, conf),
+              fsRoot,
+              pathsToDeleteByFileSystem.getValue())));
+
     }
 
     int totalFailedDeletions = 0;
@@ -269,11 +272,14 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
 
   /**
    * Blocking batch delete.
+   *
    * @param fs filesystem.
+   * @param fsRoot
    * @param paths paths to delete.
+   *
    * @return the list of paths that couldn't be deleted.
    */
-  private List<Map.Entry<Path, String>> deleteBatch(FileSystem fs, Collection<Path> paths) {
+  private List<Map.Entry<Path, String>> deleteBatch(FileSystem fs, final Path fsRoot, Collection<Path> paths) {
 
     return WrappedIO.bulkDelete(fs, new Path(fs.getUri()), paths);
   }
