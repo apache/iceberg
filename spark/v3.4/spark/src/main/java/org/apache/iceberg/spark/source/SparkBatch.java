@@ -120,30 +120,28 @@ class SparkBatch implements Batch {
   @Override
   public PartitionReaderFactory createReaderFactory() {
     if (useCometBatchReads()) {
-      return new SparkColumnarReaderFactory(
-          parquetBatchReadConf(readConf.parquetBatchSize(), ParquetReaderType.COMET));
+      return new SparkColumnarReaderFactory(parquetBatchReadConf(ParquetReaderType.COMET));
 
     } else if (useParquetBatchReads()) {
-      return new SparkColumnarReaderFactory(
-          parquetBatchReadConf(readConf.parquetBatchSize(), ParquetReaderType.ICEBERG));
+      return new SparkColumnarReaderFactory(parquetBatchReadConf(ParquetReaderType.ICEBERG));
 
     } else if (useOrcBatchReads()) {
-      return new SparkColumnarReaderFactory(orcBatchReadConf(readConf.orcBatchSize()));
+      return new SparkColumnarReaderFactory(orcBatchReadConf());
 
     } else {
       return new SparkRowReaderFactory();
     }
   }
 
-  private ParquetBatchReadConf parquetBatchReadConf(int batchSize, ParquetReaderType readerType) {
+  private ParquetBatchReadConf parquetBatchReadConf(ParquetReaderType readerType) {
     return ImmutableParquetBatchReadConf.builder()
-        .batchSize(batchSize)
+        .batchSize(readConf.parquetBatchSize())
         .readerType(readerType)
         .build();
   }
 
-  private OrcBatchReadConf orcBatchReadConf(int batchSize) {
-    return ImmutableOrcBatchReadConf.builder().batchSize(batchSize).build();
+  private OrcBatchReadConf orcBatchReadConf() {
+    return ImmutableOrcBatchReadConf.builder().batchSize(readConf.parquetBatchSize()).build();
   }
 
   // conditions for using Parquet batch reads:
