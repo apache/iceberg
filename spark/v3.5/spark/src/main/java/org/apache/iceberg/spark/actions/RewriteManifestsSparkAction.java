@@ -49,6 +49,7 @@ import org.apache.iceberg.actions.RewriteManifests;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -60,7 +61,6 @@ import org.apache.iceberg.spark.SparkDeleteFile;
 import org.apache.iceberg.spark.source.SerializableTableWithSize;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.api.java.function.MapPartitionsFunction;
 import org.apache.spark.broadcast.Broadcast;
@@ -362,12 +362,14 @@ public class RewriteManifestsSparkAction
   }
 
   private void deleteFiles(Iterable<String> locations) {
-    Tasks.foreach(locations)
-        .executeWith(ThreadPools.getWorkerPool())
-        .noRetry()
-        .suppressFailureWhenFinished()
-        .onFailure((location, exc) -> LOG.warn("Failed to delete: {}", location, exc))
-        .run(location -> table.io().deleteFile(location));
+    Iterable<FileInfo> files =
+        Iterables.transform(locations, location -> new FileInfo(location, MANIFEST));
+    if (table.io() instanceof SupportsBulkOperations) {
+      deleteFiles((SupportsBulkOperations) table.io(), files.iterator());
+    } else {
+      deleteFiles(
+          ThreadPools.getWorkerPool(), file -> table.io().deleteFile(file), files.iterator());
+    }
   }
 
   private ManifestWriterFactory manifestWriters() {
