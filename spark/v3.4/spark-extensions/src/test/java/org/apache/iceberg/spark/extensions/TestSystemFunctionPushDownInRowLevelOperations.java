@@ -317,8 +317,6 @@ public class TestSystemFunctionPushDownInRowLevelOperations extends SparkExtensi
   private List<Expression> executeAndCollectFunctionCalls(String query, Object... args) {
     CommandResultExec command = (CommandResultExec) executeAndKeepPlan(query, args);
     V2TableWriteExec write = (V2TableWriteExec) command.commandPhysicalPlan();
-    System.out.println("!!! WRITE PLAN !!!");
-    System.out.println(write.toString());
     return SparkPlanUtil.collectExprs(
         write.query(),
         expr -> expr instanceof StaticInvoke || expr instanceof ApplyFunctionExpression);

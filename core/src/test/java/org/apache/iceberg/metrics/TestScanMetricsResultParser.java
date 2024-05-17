@@ -324,7 +324,6 @@ public class TestScanMetricsResultParser {
     String expectedJson = "{ }";
 
     String json = ScanMetricsResultParser.toJson(scanMetricsResult, true);
-    System.out.println(json);
     Assertions.assertThat(json).isEqualTo(expectedJson);
     Assertions.assertThat(ScanMetricsResultParser.fromJson(json))
         .isEqualTo(ImmutableScanMetricsResult.builder().build());
