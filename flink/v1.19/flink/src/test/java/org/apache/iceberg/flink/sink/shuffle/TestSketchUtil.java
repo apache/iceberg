@@ -21,11 +21,7 @@ package org.apache.iceberg.flink.sink.shuffle;
 import static org.apache.iceberg.flink.sink.shuffle.Fixtures.CHAR_KEYS;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.List;
-import java.util.Map;
 import org.apache.iceberg.SortKey;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
 
 public class TestSketchUtil {
@@ -133,69 +129,5 @@ public class TestSketchUtil {
                 }))
         // skipped duplicate c's
         .containsExactly(CHAR_KEYS.get("c"), CHAR_KEYS.get("g"), CHAR_KEYS.get("j"));
-  }
-
-  @Test
-  public void testPartition() {
-    // step is 3 = 26/7
-    int numPartitions = 7;
-    SortKey[] rangeBounds =
-        SketchUtil.determineBounds(
-            numPartitions,
-            Fixtures.SORT_ORDER_COMPARTOR,
-            CHAR_KEYS.values().toArray(new SortKey[0]));
-    assertThat(rangeBounds).hasSize(6);
-
-    Map<Integer, List<SortKey>> result = Maps.newHashMap();
-    for (SortKey sortKey : CHAR_KEYS.values()) {
-      int partition =
-          SketchUtil.partition(sortKey, numPartitions, rangeBounds, Fixtures.SORT_ORDER_COMPARTOR);
-      result.compute(
-          partition,
-          (parition, keys) -> {
-            if (keys == null) {
-              List<SortKey> newList = Lists.newArrayList();
-              newList.add(sortKey);
-              return newList;
-            } else {
-              keys.add(sortKey);
-              return keys;
-            }
-          });
-    }
-
-    // validate range partition
-    result.forEach(
-        (partition, keys) -> {
-          if (partition == 0) {
-            SortKey upperBound = rangeBounds[partition];
-            for (SortKey key : keys) {
-              assertThat(Fixtures.SORT_ORDER_COMPARTOR.compare(key, upperBound))
-                  .isLessThanOrEqualTo(0);
-            }
-          } else if (partition == 6) {
-            SortKey lowerBound = rangeBounds[partition - 1];
-            for (SortKey key : keys) {
-              assertThat(Fixtures.SORT_ORDER_COMPARTOR.compare(key, lowerBound)).isGreaterThan(0);
-            }
-          } else {
-            SortKey lowerBound = rangeBounds[partition - 1];
-            SortKey upperBound = rangeBounds[partition];
-            for (SortKey key : keys) {
-              assertThat(Fixtures.SORT_ORDER_COMPARTOR.compare(key, lowerBound)).isGreaterThan(0);
-              assertThat(Fixtures.SORT_ORDER_COMPARTOR.compare(key, upperBound))
-                  .isLessThanOrEqualTo(0);
-            }
-          }
-        });
-  }
-
-  @Test
-  public void testPartitionOneChannel() {
-    SortKey[] rangeBounds = new SortKey[0];
-    for (SortKey sortKey : CHAR_KEYS.values()) {
-      int partition = SketchUtil.partition(sortKey, 1, rangeBounds, Fixtures.SORT_ORDER_COMPARTOR);
-      assertThat(partition).isEqualTo(0);
-    }
   }
 }

@@ -25,7 +25,6 @@ import java.util.function.Consumer;
 import org.apache.datasketches.sampling.ReservoirItemsSketch;
 import org.apache.iceberg.SortKey;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 class SketchUtil {
   static final int COORDINATOR_MIN_RESERVOIR_SIZE = 10_000;
@@ -145,38 +144,5 @@ class SketchUtil {
             sketchConsumer.accept(sortKey);
           }
         });
-  }
-
-  static int partition(
-      SortKey key, int numPartitions, SortKey[] rangeBounds, Comparator<StructLike> comparator) {
-    Preconditions.checkArgument(
-        numPartitions - 1 == rangeBounds.length,
-        "Invalid range bounds: number of items not equal to number of partitions - 1. "
-            + "Should be {}, but got {}",
-        numPartitions - 1,
-        rangeBounds.length);
-
-    int partition = 0;
-    if (rangeBounds.length < 128) {
-      // linear probe for small array
-      while (partition < rangeBounds.length
-          && comparator.compare(key, rangeBounds[partition]) > 0) {
-        partition += 1;
-      }
-    } else {
-      // use binary search for larger array
-      partition = Arrays.binarySearch(rangeBounds, key, comparator);
-
-      // binarySearch either returns the match location or -[insertion point]-1
-      if (partition < 0) {
-        partition = -partition - 1;
-      }
-
-      if (partition > rangeBounds.length) {
-        partition = rangeBounds.length;
-      }
-    }
-
-    return partition;
   }
 }
