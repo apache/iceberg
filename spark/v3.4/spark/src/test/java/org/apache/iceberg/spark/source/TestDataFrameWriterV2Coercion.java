@@ -30,40 +30,40 @@ import org.junit.runners.Parameterized;
 @RunWith(Parameterized.class)
 public class TestDataFrameWriterV2Coercion extends SparkTestBaseWithCatalog {
 
-    private final FileFormat format;
-    private final String dataType;
+  private final FileFormat format;
+  private final String dataType;
 
-    public TestDataFrameWriterV2Coercion(FileFormat format, String dataType) {
-        this.format = format;
-        this.dataType = dataType;
-    }
+  public TestDataFrameWriterV2Coercion(FileFormat format, String dataType) {
+    this.format = format;
+    this.dataType = dataType;
+  }
 
-    @Parameterized.Parameters(name = "format = {0}, dataType = {1}")
-    public static Object[][] parameters() {
-        return new Object[][] {
-                new Object[] {FileFormat.AVRO, "byte"},
-                new Object[] {FileFormat.ORC, "byte"},
-                new Object[] {FileFormat.PARQUET, "byte"},
-                new Object[] {FileFormat.AVRO, "short"},
-                new Object[] {FileFormat.ORC, "short"},
-                new Object[] {FileFormat.PARQUET, "short"}
-        };
-    }
+  @Parameterized.Parameters(name = "format = {0}, dataType = {1}")
+  public static Object[][] parameters() {
+    return new Object[][] {
+      new Object[] {FileFormat.AVRO, "byte"},
+      new Object[] {FileFormat.ORC, "byte"},
+      new Object[] {FileFormat.PARQUET, "byte"},
+      new Object[] {FileFormat.AVRO, "short"},
+      new Object[] {FileFormat.ORC, "short"},
+      new Object[] {FileFormat.PARQUET, "short"}
+    };
+  }
 
-    @Test
-    public void testByteAndShortCoercion() {
+  @Test
+  public void testByteAndShortCoercion() {
 
-        Dataset<Row> df =
-                jsonToDF(
-                        "id " + dataType + ", data string",
-                        "{ \"id\": 1, \"data\": \"a\" }",
-                        "{ \"id\": 2, \"data\": \"b\" }");
+    Dataset<Row> df =
+        jsonToDF(
+            "id " + dataType + ", data string",
+            "{ \"id\": 1, \"data\": \"a\" }",
+            "{ \"id\": 2, \"data\": \"b\" }");
 
-        df.writeTo(tableName).option("write-format", format.name()).createOrReplace();
+    df.writeTo(tableName).option("write-format", format.name()).createOrReplace();
 
-        assertEquals(
-                "Should have initial 2-column rows",
-                ImmutableList.of(row(1, "a"), row(2, "b")),
-                sql("select * from %s order by id", tableName));
-    }
+    assertEquals(
+        "Should have initial 2-column rows",
+        ImmutableList.of(row(1, "a"), row(2, "b")),
+        sql("select * from %s order by id", tableName));
+  }
 }
