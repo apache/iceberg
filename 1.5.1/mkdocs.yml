@@ -59,7 +59,7 @@ nav:
   - Amazon EMR: https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-iceberg-use-cluster.html
   - Snowflake: https://docs.snowflake.com/en/user-guide/tables-iceberg
   - Impala: https://impala.apache.org/docs/build/html/topics/impala_iceberg.html
-  - Doris: https://doris.apache.org/docs/dev/lakehouse/multi-catalog/iceberg
+  - Doris: https://doris.apache.org/docs/dev/lakehouse/datalake-analytics/iceberg
   - Integrations:
     - aws.md
     - dell.md
