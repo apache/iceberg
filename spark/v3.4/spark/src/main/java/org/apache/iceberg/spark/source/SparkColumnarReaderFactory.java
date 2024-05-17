@@ -29,15 +29,17 @@ import org.apache.spark.sql.connector.read.PartitionReaderFactory;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 class SparkColumnarReaderFactory implements PartitionReaderFactory {
-  private ParquetBatchReadConf parquetConf;
-  private OrcBatchReadConf orcConf;
+  private final ParquetBatchReadConf parquetConf;
+  private final OrcBatchReadConf orcConf;
 
   SparkColumnarReaderFactory(ParquetBatchReadConf conf) {
     this.parquetConf = conf;
+    this.orcConf = null;
   }
 
   SparkColumnarReaderFactory(OrcBatchReadConf conf) {
     this.orcConf = conf;
+    this.parquetConf = null;
   }
 
   @Override
