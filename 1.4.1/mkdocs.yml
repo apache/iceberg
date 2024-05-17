@@ -57,7 +57,7 @@ nav:
   - Amazon Athena: https://docs.aws.amazon.com/athena/latest/ug/querying-iceberg.html
   - Amazon EMR: https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-iceberg-use-cluster.html
   - Impala: https://impala.apache.org/docs/build/html/topics/impala_iceberg.html
-  - Doris: https://doris.apache.org/docs/dev/lakehouse/multi-catalog/iceberg
+  - Doris: https://doris.apache.org/docs/dev/lakehouse/datalake-analytics/iceberg
   - Integrations:
     - aws.md
     - dell.md
