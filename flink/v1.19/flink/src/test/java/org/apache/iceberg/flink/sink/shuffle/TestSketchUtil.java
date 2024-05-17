@@ -55,6 +55,23 @@ public class TestSketchUtil {
   }
 
   @Test
+  public void testRangeBoundsOneChannel() {
+    assertThat(
+            SketchUtil.determineBounds(
+                1,
+                Fixtures.SORT_ORDER_COMPARTOR,
+                new SortKey[] {
+                  CHAR_KEYS.get("a"),
+                  CHAR_KEYS.get("b"),
+                  CHAR_KEYS.get("c"),
+                  CHAR_KEYS.get("d"),
+                  CHAR_KEYS.get("e"),
+                  CHAR_KEYS.get("f")
+                }))
+        .isEmpty();
+  }
+
+  @Test
   public void testRangeBoundsDivisible() {
     assertThat(
             SketchUtil.determineBounds(
@@ -171,5 +188,14 @@ public class TestSketchUtil {
             }
           }
         });
+  }
+
+  @Test
+  public void testPartitionOneChannel() {
+    SortKey[] rangeBounds = new SortKey[0];
+    for (SortKey sortKey : CHAR_KEYS.values()) {
+      int partition = SketchUtil.partition(sortKey, 1, rangeBounds, Fixtures.SORT_ORDER_COMPARTOR);
+      assertThat(partition).isEqualTo(0);
+    }
   }
 }
