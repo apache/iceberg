@@ -106,7 +106,7 @@ class SnapshotTableProcedure extends BaseProcedure {
     if (!args.isNullAt(4)) {
       int parallelism = args.getInt(4);
       Preconditions.checkArgument(parallelism > 0, "Parallelism should be larger than 0");
-      action = action.parallelism(parallelism);
+      action = action.executeWith(executorService(parallelism, "table-snapshot"));
     }
 
     SnapshotTable.Result result = action.tableProperties(properties).execute();

@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.actions;
 
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
@@ -54,7 +55,7 @@ public class SnapshotTableSparkAction extends BaseTableCreationSparkAction<Snaps
   private StagingTableCatalog destCatalog;
   private Identifier destTableIdent;
   private String destTableLocation = null;
-  private int parallelism = 1;
+  private ExecutorService executorService;
 
   SnapshotTableSparkAction(
       SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
@@ -100,8 +101,8 @@ public class SnapshotTableSparkAction extends BaseTableCreationSparkAction<Snaps
   }
 
   @Override
-  public SnapshotTable parallelism(int numThreads) {
-    this.parallelism = numThreads;
+  public SnapshotTableSparkAction executeWith(ExecutorService service) {
+    this.executorService = service;
     return this;
   }
 
@@ -134,7 +135,7 @@ public class SnapshotTableSparkAction extends BaseTableCreationSparkAction<Snaps
       String stagingLocation = getMetadataLocation(icebergTable);
       LOG.info("Generating Iceberg metadata for {} in {}", destTableIdent(), stagingLocation);
       SparkTableUtil.importSparkTable(
-          spark(), v1TableIdent, icebergTable, stagingLocation, parallelism);
+          spark(), v1TableIdent, icebergTable, stagingLocation, executorService);
 
       LOG.info("Committing staged changes to {}", destTableIdent());
       stagedTable.commitStagedChanges();

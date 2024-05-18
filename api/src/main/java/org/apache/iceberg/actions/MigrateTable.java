@@ -19,6 +19,7 @@
 package org.apache.iceberg.actions;
 
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 
 /** An action that migrates an existing table to Iceberg. */
 public interface MigrateTable extends Action<MigrateTable, MigrateTable.Result> {
@@ -61,13 +62,14 @@ public interface MigrateTable extends Action<MigrateTable, MigrateTable.Result> 
   }
 
   /**
-   * Sets the number of threads to use for file reading. The default is 1.
+   * Sets the executor service to use for parallel file reading. The default is not using executor
+   * service.
    *
-   * @param numThreads the number of threads
+   * @param service executor service
    * @return this for method chaining
    */
-  default MigrateTable parallelism(int numThreads) {
-    throw new UnsupportedOperationException("Setting parallelism is not supported");
+  default MigrateTable executeWith(ExecutorService service) {
+    throw new UnsupportedOperationException("Setting executor service is not supported");
   }
 
   /** The action result that contains a summary of the execution. */
