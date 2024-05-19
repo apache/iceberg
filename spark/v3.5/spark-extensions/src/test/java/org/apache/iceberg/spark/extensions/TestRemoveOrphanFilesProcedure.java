@@ -666,4 +666,87 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
     // Dropping the table here
     sql("DROP TABLE %s", tableName);
   }
+
+  @TestTemplate
+  public void testRemoveOrphanFilesProcedureWithEqualAuthorities()
+      throws NoSuchTableException, ParseException, IOException {
+    if (catalogName.equals("testhadoop")) {
+      sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    } else {
+      sql(
+          "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg LOCATION '%s'",
+          tableName, java.nio.file.Files.createTempDirectory(temp, "junit"));
+    }
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    Path originalPath = new Path(table.location());
+
+    URI uri = originalPath.toUri();
+    String originalAuthority = uri.getAuthority() == null ? "" : uri.getAuthority();
+    Path newParentPath = new Path(uri.getScheme(), "localhost", uri.getPath());
+
+    DataFile dataFile1 =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath(new Path(newParentPath, "path/to/data-a.parquet").toString())
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+    DataFile dataFile2 =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath(new Path(newParentPath, "path/to/data-b.parquet").toString())
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+
+    table.newFastAppend().appendFile(dataFile1).appendFile(dataFile2).commit();
+
+    Timestamp lastModifiedTimestamp = new Timestamp(10000);
+
+    List<FilePathLastModifiedRecord> allFiles =
+        Lists.newArrayList(
+            new FilePathLastModifiedRecord(
+                new Path(originalPath, "path/to/data-a.parquet").toString(), lastModifiedTimestamp),
+            new FilePathLastModifiedRecord(
+                new Path(originalPath, "path/to/data-b.parquet").toString(), lastModifiedTimestamp),
+            new FilePathLastModifiedRecord(
+                ReachableFileUtil.versionHintLocation(table), lastModifiedTimestamp));
+
+    for (String file : ReachableFileUtil.metadataFileLocations(table, true)) {
+      allFiles.add(new FilePathLastModifiedRecord(file, lastModifiedTimestamp));
+    }
+
+    for (ManifestFile manifest : TestHelpers.dataManifests(table)) {
+      allFiles.add(new FilePathLastModifiedRecord(manifest.path(), lastModifiedTimestamp));
+    }
+
+    Dataset<Row> compareToFileList =
+        spark
+            .createDataFrame(allFiles, FilePathLastModifiedRecord.class)
+            .withColumnRenamed("filePath", "file_path")
+            .withColumnRenamed("lastModified", "last_modified");
+    String fileListViewName = "files_view";
+    compareToFileList.createOrReplaceTempView(fileListViewName);
+    List<Object[]> orphanFiles =
+        sql(
+            "CALL %s.system.remove_orphan_files("
+                + "table => '%s',"
+                + "equal_authorities => map('localhost', '%s'),"
+                + "file_list_view => '%s')",
+            catalogName, tableIdent, originalAuthority, fileListViewName);
+    assertThat(orphanFiles).isEmpty();
+
+    // Test with no equal authorities
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.remove_orphan_files("
+                        + "table => '%s',"
+                        + "file_list_view => '%s')",
+                    catalogName, tableIdent, fileListViewName))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageEndingWith("Conflicting authorities/schemes: [(localhost, null)].");
+
+    // Drop table in afterEach has purge and fails due to invalid authority "localhost"
+    // Dropping the table here
+    sql("DROP TABLE %s", tableName);
+  }
 }
