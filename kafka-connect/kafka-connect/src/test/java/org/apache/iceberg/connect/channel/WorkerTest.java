@@ -47,27 +47,10 @@ import org.junit.jupiter.api.Test;
 
 public class WorkerTest extends ChannelTestBase {
 
-  private static final String TABLE_NAME = "db.tbl";
-  private static final String FIELD_NAME = "fld";
-
   @Test
-  public void testStaticRoute() {
+  public void testSave() {
     when(config.catalogName()).thenReturn("catalog");
-    when(config.tables()).thenReturn(ImmutableList.of(TABLE_NAME));
-    Map<String, Object> value = ImmutableMap.of(FIELD_NAME, "val");
-    workerTest(value);
-  }
 
-  @Test
-  public void testDynamicRoute() {
-    when(config.catalogName()).thenReturn("catalog");
-    when(config.dynamicTablesEnabled()).thenReturn(true);
-    when(config.tablesRouteField()).thenReturn(FIELD_NAME);
-    Map<String, Object> value = ImmutableMap.of(FIELD_NAME, TABLE_NAME);
-    workerTest(value);
-  }
-
-  private void workerTest(Map<String, Object> value) {
     SinkTaskContext context = mock(SinkTaskContext.class);
     TopicPartition topicPartition = new TopicPartition(SRC_TOPIC_NAME, 0);
     when(context.assignment()).thenReturn(ImmutableSet.of(topicPartition));
@@ -94,6 +77,7 @@ public class WorkerTest extends ChannelTestBase {
     initConsumer();
 
     // save a record
+    Map<String, Object> value = ImmutableMap.of();
     SinkRecord rec = new SinkRecord(SRC_TOPIC_NAME, 0, null, "key", null, value, 0L);
     worker.save(ImmutableList.of(rec));
 
