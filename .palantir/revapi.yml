@@ -1140,6 +1140,78 @@ acceptedBreaks:
       new: "method org.apache.iceberg.BaseMetastoreOperations.CommitStatus org.apache.iceberg.BaseMetastoreTableOperations::checkCommitStatus(java.lang.String,\
         \ org.apache.iceberg.TableMetadata)"
       justification: "Removing deprecated code"
+    - code: "java.method.returnTypeTypeParametersChanged"
+      old: "method org.apache.iceberg.io.CloseableIterable<org.apache.iceberg.ManifestFile>\
+        \ org.apache.iceberg.AllDataFilesTable.AllDataFilesTableScan::manifests()"
+      new: "method org.apache.iceberg.io.CloseableIterable<org.apache.iceberg.util.Pair<org.apache.iceberg.Snapshot,\
+        \ org.apache.iceberg.ManifestFile>> org.apache.iceberg.AllDataFilesTable.AllDataFilesTableScan::manifests()"
+      justification: "Track manifests per snapshot"
+    - code: "java.method.returnTypeTypeParametersChanged"
+      old: "method org.apache.iceberg.io.CloseableIterable<org.apache.iceberg.ManifestFile>\
+        \ org.apache.iceberg.AllDeleteFilesTable.AllDeleteFilesTableScan::manifests()"
+      new: "method org.apache.iceberg.io.CloseableIterable<org.apache.iceberg.util.Pair<org.apache.iceberg.Snapshot,\
+        \ org.apache.iceberg.ManifestFile>> org.apache.iceberg.AllDeleteFilesTable.AllDeleteFilesTableScan::manifests()"
+      justification: "Track manifests per snapshot"
+    - code: "java.method.returnTypeTypeParametersChanged"
+      old: "method org.apache.iceberg.io.CloseableIterable<org.apache.iceberg.ManifestFile>\
+        \ org.apache.iceberg.AllFilesTable.AllFilesTableScan::manifests()"
+      new: "method org.apache.iceberg.io.CloseableIterable<org.apache.iceberg.util.Pair<org.apache.iceberg.Snapshot,\
+        \ org.apache.iceberg.ManifestFile>> org.apache.iceberg.AllFilesTable.AllFilesTableScan::manifests()"
+      justification: "Track manifests per snapshot"
+    - code: "java.method.returnTypeTypeParametersChanged"
+      old: "method org.apache.iceberg.io.CloseableIterable<org.apache.iceberg.ManifestFile>\
+        \ org.apache.iceberg.BaseAllMetadataTableScan::reachableManifests(org.apache.iceberg.relocated.com.google.common.base.Function<org.apache.iceberg.Snapshot,\
+        \ java.lang.Iterable<org.apache.iceberg.ManifestFile>>) @ org.apache.iceberg.AllDataFilesTable.AllDataFilesTableScan"
+      new: "method org.apache.iceberg.io.CloseableIterable<org.apache.iceberg.util.Pair<org.apache.iceberg.Snapshot,\
+        \ org.apache.iceberg.ManifestFile>> org.apache.iceberg.BaseAllMetadataTableScan::reachableManifests(org.apache.iceberg.relocated.com.google.common.base.Function<org.apache.iceberg.Snapshot,\
+        \ java.lang.Iterable<org.apache.iceberg.util.Pair<org.apache.iceberg.Snapshot,\
+        \ org.apache.iceberg.ManifestFile>>>) @ org.apache.iceberg.AllDataFilesTable.AllDataFilesTableScan"
+      justification: "Track manifests per snapshot"
+    - code: "java.method.returnTypeTypeParametersChanged"
+      old: "method org.apache.iceberg.io.CloseableIterable<org.apache.iceberg.ManifestFile>\
+        \ org.apache.iceberg.BaseAllMetadataTableScan::reachableManifests(org.apache.iceberg.relocated.com.google.common.base.Function<org.apache.iceberg.Snapshot,\
+        \ java.lang.Iterable<org.apache.iceberg.ManifestFile>>) @ org.apache.iceberg.AllDeleteFilesTable.AllDeleteFilesTableScan"
+      new: "method org.apache.iceberg.io.CloseableIterable<org.apache.iceberg.util.Pair<org.apache.iceberg.Snapshot,\
+        \ org.apache.iceberg.ManifestFile>> org.apache.iceberg.BaseAllMetadataTableScan::reachableManifests(org.apache.iceberg.relocated.com.google.common.base.Function<org.apache.iceberg.Snapshot,\
+        \ java.lang.Iterable<org.apache.iceberg.util.Pair<org.apache.iceberg.Snapshot,\
+        \ org.apache.iceberg.ManifestFile>>>) @ org.apache.iceberg.AllDeleteFilesTable.AllDeleteFilesTableScan"
+      justification: "Track manifests per snapshot"
+    - code: "java.method.returnTypeTypeParametersChanged"
+      old: "method org.apache.iceberg.io.CloseableIterable<org.apache.iceberg.ManifestFile>\
+        \ org.apache.iceberg.BaseAllMetadataTableScan::reachableManifests(org.apache.iceberg.relocated.com.google.common.base.Function<org.apache.iceberg.Snapshot,\
+        \ java.lang.Iterable<org.apache.iceberg.ManifestFile>>) @ org.apache.iceberg.AllFilesTable.AllFilesTableScan"
+      new: "method org.apache.iceberg.io.CloseableIterable<org.apache.iceberg.util.Pair<org.apache.iceberg.Snapshot,\
+        \ org.apache.iceberg.ManifestFile>> org.apache.iceberg.BaseAllMetadataTableScan::reachableManifests(org.apache.iceberg.relocated.com.google.common.base.Function<org.apache.iceberg.Snapshot,\
+        \ java.lang.Iterable<org.apache.iceberg.util.Pair<org.apache.iceberg.Snapshot,\
+        \ org.apache.iceberg.ManifestFile>>>) @ org.apache.iceberg.AllFilesTable.AllFilesTableScan"
+      justification: "Track manifests per snapshot"
+    - code: "java.method.returnTypeTypeParametersChanged"
+      old: "method org.apache.iceberg.io.CloseableIterable<org.apache.iceberg.ManifestFile>\
+        \ org.apache.iceberg.BaseAllMetadataTableScan::reachableManifests(org.apache.iceberg.relocated.com.google.common.base.Function<org.apache.iceberg.Snapshot,\
+        \ java.lang.Iterable<org.apache.iceberg.ManifestFile>>) @ org.apache.iceberg.AllManifestsTable.AllManifestsTableScan"
+      new: "method org.apache.iceberg.io.CloseableIterable<org.apache.iceberg.util.Pair<org.apache.iceberg.Snapshot,\
+        \ org.apache.iceberg.ManifestFile>> org.apache.iceberg.BaseAllMetadataTableScan::reachableManifests(org.apache.iceberg.relocated.com.google.common.base.Function<org.apache.iceberg.Snapshot,\
+        \ java.lang.Iterable<org.apache.iceberg.util.Pair<org.apache.iceberg.Snapshot,\
+        \ org.apache.iceberg.ManifestFile>>>) @ org.apache.iceberg.AllManifestsTable.AllManifestsTableScan"
+      justification: "Track manifests per snapshot"
+    - code: "java.method.returnTypeTypeParametersChanged"
+      old: "method org.apache.iceberg.io.CloseableIterable<org.apache.iceberg.ManifestFile>\
+        \ org.apache.iceberg.DataFilesTable.DataFilesTableScan::manifests()"
+      new: "method org.apache.iceberg.io.CloseableIterable<org.apache.iceberg.util.Pair<org.apache.iceberg.Snapshot,\
+        \ org.apache.iceberg.ManifestFile>> org.apache.iceberg.DataFilesTable.DataFilesTableScan::manifests()"
+      justification: "Track manifests per snapshot"
+    - code: "java.method.returnTypeTypeParametersChanged"
+      old: "method org.apache.iceberg.io.CloseableIterable<org.apache.iceberg.ManifestFile>\
+        \ org.apache.iceberg.DeleteFilesTable.DeleteFilesTableScan::manifests()"
+      new: "method org.apache.iceberg.io.CloseableIterable<org.apache.iceberg.util.Pair<org.apache.iceberg.Snapshot,\
+        \ org.apache.iceberg.ManifestFile>> org.apache.iceberg.DeleteFilesTable.DeleteFilesTableScan::manifests()"
+      justification: "Track manifests per snapshot"
+    - code: "java.method.returnTypeTypeParametersChanged"
+      old: "method org.apache.iceberg.io.CloseableIterable<org.apache.iceberg.ManifestFile>\
+        \ org.apache.iceberg.FilesTable.FilesTableScan::manifests()"
+      new: "method org.apache.iceberg.io.CloseableIterable<org.apache.iceberg.util.Pair<org.apache.iceberg.Snapshot,\
+        \ org.apache.iceberg.ManifestFile>> org.apache.iceberg.FilesTable.FilesTableScan::manifests()"
+      justification: "Track manifests per snapshot"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"
