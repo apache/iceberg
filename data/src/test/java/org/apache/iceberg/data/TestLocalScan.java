@@ -32,11 +32,9 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.*;
@@ -54,12 +52,9 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestLocalScan {
@@ -313,9 +308,8 @@ public class TestLocalScan {
         Lists.transform(file3FirstSnapshotRecords, record -> (Long) record.getField("id")));
 
     results.forEach(
-        record -> Assertions.assertThat(record.size()).as("Record should have one projected field")
-                .isEqualTo(1)
-               );
+        record -> Assertions.assertThat(record.size())
+                .as("Record should have one projected field").isNull());
 
     Assertions.assertThat(
             Sets.newHashSet(transform(results, record -> (Long) record.getField("id"))))
@@ -486,7 +480,7 @@ public class TestLocalScan {
     Set<Record> records = Sets.newHashSet(results);
     Assertions.assertThat(records).as("Should produce correct number of records")
         .hasSameSizeAs(expected);
-    Assertions.assertThat(records).as("Should produce correct number of records");
+    Assertions.assertThat(records).as("Should produce correct number of records")
         .isEqualTo(Sets.newHashSet(expected));
     Assertions.assertThat(Iterables.get(records, 0).getField("id")).isNotNull();
     Assertions.assertThat(Iterables.get(records, 0).getField("data")).isNotNull();
