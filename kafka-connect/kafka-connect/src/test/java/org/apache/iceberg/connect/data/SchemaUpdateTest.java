@@ -44,7 +44,7 @@ public class SchemaUpdateTest {
     SchemaUpdate.Consumer updateConsumer = new SchemaUpdate.Consumer();
     updateConsumer.updateType("name", Types.LongType.get());
     assertThat(updateConsumer.addColumns()).isEmpty();
-    ;
+
     assertThat(updateConsumer.updateTypes()).hasSize(1);
     assertThat(updateConsumer.makeOptionals()).isEmpty();
 
@@ -58,7 +58,7 @@ public class SchemaUpdateTest {
     SchemaUpdate.Consumer updateConsumer = new SchemaUpdate.Consumer();
     updateConsumer.makeOptional("name");
     assertThat(updateConsumer.addColumns()).isEmpty();
-    ;
+
     assertThat(updateConsumer.updateTypes()).isEmpty();
     assertThat(updateConsumer.makeOptionals()).hasSize(1);
 
