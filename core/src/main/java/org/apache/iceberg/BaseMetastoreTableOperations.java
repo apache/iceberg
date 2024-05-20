@@ -87,6 +87,11 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
     return encryptionDekLength;
   }
 
+  // TODO metadata encrypt flag (on/off)
+  protected boolean encryptMetadataFile() {
+    return true;
+  }
+
   @Override
   public TableMetadata current() {
     if (shouldRefresh) {
@@ -177,10 +182,11 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
 
   protected MetadataFile writeNewMetadataFileIfRequired(boolean newTable, TableMetadata metadata) {
     return newTable && metadata.metadataFileLocation() != null
-        ? new MetadataFile(metadata.metadataFileLocation(), null, -1L)
+        ? new MetadataFile(metadata.metadataFileLocation(), null, 0L)
         : writeNewMetadataFile(metadata, currentVersion() + 1);
   }
 
+  // TODO no usages
   protected String writeNewMetadata(TableMetadata metadata, int newVersion) {
     return writeNewMetadataFile(metadata, newVersion).location();
   }
@@ -195,7 +201,10 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
     OutputFile newMetadataFile;
     String wrappedMetadataKey;
 
-    if (encryptionKeyId != null) {
+    if (encryptionKeyId == null) {
+      newMetadataFile = io().newOutputFile(newTableMetadataFilePath);
+      wrappedMetadataKey = null;
+    } else {
 
       if (encryptionDekLength < 0) {
         String encryptionDekLenProp =
@@ -221,31 +230,39 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
         throw new IllegalStateException("Null key metadata in encrypted table");
       }
 
-      newMetadataFile = newEncryptedMetadataFile.encryptingOutputFile();
+      if (encryptMetadataFile()) {
+        newMetadataFile = newEncryptedMetadataFile.encryptingOutputFile();
+      } else {
+        newMetadataFile = io.newOutputFile(newTableMetadataFilePath);
+      }
+
       EncryptionManager encryptionManager = encryptingIO.encryptionManager();
 
-      Preconditions.checkArgument(
+      Preconditions.checkState(
           encryptionManager instanceof StandardEncryptionManager,
           "Cannot encrypt table metadata because the encryption manager (%s) does not "
               + "implement StandardEncryptionManager",
           encryptionManager.getClass());
-      NativeEncryptionKeyMetadata keyMetadata =
+      NativeEncryptionKeyMetadata metadataKeyMetadata =
           (NativeEncryptionKeyMetadata) newEncryptedMetadataFile.keyMetadata();
-      ByteBuffer metadataEncryptionKey = keyMetadata.encryptionKey();
+      ByteBuffer metadataEncryptionKey = metadataKeyMetadata.encryptionKey();
+      ByteBuffer metadataAADPrefix = metadataKeyMetadata.aadPrefix();
+
+      // encrypt manifest list keys with metadata key
+      for (Snapshot snapshot : metadata.snapshots()) {
+        snapshot.encryptManifestListKeyMetadata(metadataEncryptionKey, metadataAADPrefix);
+      }
+
       // Wrap (encrypt) metadata file key
       ByteBuffer wrappedEncryptionKey =
           ((StandardEncryptionManager) encryptionManager).wrapKey(metadataEncryptionKey);
 
-      ByteBuffer metadataAADPrefix = keyMetadata.aadPrefix();
       wrappedMetadataKey =
           Base64.getEncoder()
               .encodeToString(
                   EncryptionUtil.createKeyMetadata(wrappedEncryptionKey, metadataAADPrefix)
                       .buffer()
                       .array());
-    } else {
-      newMetadataFile = io().newOutputFile(newTableMetadataFilePath);
-      wrappedMetadataKey = null;
     }
 
     // write the new metadata
@@ -264,10 +281,12 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
     refreshFromMetadataLocation(newLocation, null, 20);
   }
 
+  // TODO no usages
   protected void refreshFromMetadataLocation(String newLocation, int numRetries) {
     refreshFromMetadataLocation(newLocation, null, numRetries);
   }
 
+  // TODO metadata decrypt flag (on/off)
   protected void refreshFromMetadataLocation(MetadataFile newLocation, int numRetries) {
     refreshFromMetadataLocation(newLocation, null, numRetries);
   }
@@ -281,6 +300,7 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
         metadataLocation -> TableMetadataParser.read(io(), metadataLocation));
   }
 
+  // TODO metadata decrypt flag (on/off)
   protected void refreshFromMetadataLocation(
       MetadataFile newLocation, Predicate<Exception> shouldRetry, int numRetries) {
     refreshFromMetadataLocation(

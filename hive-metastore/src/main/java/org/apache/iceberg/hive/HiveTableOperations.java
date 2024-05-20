@@ -184,10 +184,10 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       return encryptionManager;
     }
 
-    String tableKeyID = encryptionKeyIdFromProps(); // writing
+    String tableKeyID = encryptionKeyIdFromProps();
 
     if (tableKeyID == null) {
-      tableKeyID = encryptionKeyIdFromHms(); // reading
+      tableKeyID = encryptionKeyIdFromHms();
     }
 
     if (tableKeyID != null) {
@@ -230,14 +230,16 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
   @Override
   protected void doRefresh() {
     String metadataLocation = null;
-    String metadataKey = null;
-    long metadataSize = -1L;
+    String metadataKeyMetadata = null;
+    long metadataSize = 0L;
     try {
       Table table = metaClients.run(client -> client.getTable(database, tableName));
       HiveOperationsBase.validateTableIsIceberg(table, fullName);
 
       metadataLocation = table.getParameters().get(METADATA_LOCATION_PROP);
-      metadataKey = table.getParameters().get(METADATA_WRAPPED_KEY_PROP);
+      // TODO do we need to lock/unlock Hive table, to get all 3 params in one atomic operation?
+      // TODO Or bundle all 3 in one string? (serialized MetadataFile object)
+      metadataKeyMetadata = table.getParameters().get(METADATA_WRAPPED_KEY_PROP);
       String metadataSizeString = table.getParameters().get(METADATA_SIZE_PROP);
       if (metadataSizeString != null) {
         metadataSize = Long.valueOf(metadataSizeString);
@@ -258,8 +260,10 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       throw new RuntimeException("Interrupted during refresh", e);
     }
 
-    MetadataFile metadataFile = new MetadataFile(metadataLocation, metadataKey, metadataSize);
+    MetadataFile metadataFile =
+        new MetadataFile(metadataLocation, metadataKeyMetadata, metadataSize);
 
+    // TODO metadata decrypt flag (on/off)
     refreshFromMetadataLocation(metadataFile, metadataRefreshMaxRetries);
   }
 

@@ -94,6 +94,34 @@ public class TestTableEncryption extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testInsertAndDelete() {
+    sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0), (6, 'f', float('NaN'))", tableName);
+
+    List<Object[]> expected =
+        ImmutableList.of(
+            row(1L, "a", 1.0F),
+            row(2L, "b", 2.0F),
+            row(3L, "c", Float.NaN),
+            row(4L, "d", 4.0F),
+            row(5L, "e", 5.0F),
+            row(6L, "f", Float.NaN));
+
+    assertEquals(
+        "Should return all expected rows",
+        expected,
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    sql("DELETE FROM %s WHERE id < 4", tableName);
+
+    expected = ImmutableList.of(row(4L, "d", 4.0F), row(5L, "e", 5.0F), row(6L, "f", Float.NaN));
+
+    assertEquals(
+        "Should return all expected rows",
+        expected,
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @TestTemplate
   public void testDirectDataFileRead() {
     List<Object[]> dataFileTable =
         sql("SELECT file_path FROM %s.%s", tableName, MetadataTableType.ALL_DATA_FILES);
@@ -140,6 +168,10 @@ public class TestTableEncryption extends CatalogTestBase {
       if (metadataFolderPath == null) {
         metadataFolderPath = new File(manifestFilePath).getParent().replaceFirst("file:", "");
       }
+    }
+
+    if (metadataFolderPath == null) {
+      throw new RuntimeException("No metadata folder found for table " + tableName);
     }
 
     // Find manifest list and metadata files; check their encryption

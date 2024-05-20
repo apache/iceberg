@@ -151,7 +151,7 @@ public class TableMetadataParser {
       }
     }
 
-    return -1L;
+    return 0L;
   }
 
   public static String getFileExtension(String codecName) {
@@ -293,6 +293,7 @@ public class TableMetadataParser {
     return read(io, io.newInputFile(path));
   }
 
+  // TODO metadata decrypt flag (on/off)
   public static TableMetadata read(FileIO io, MetadataFile metadataFile) {
     if (metadataFile.wrappedKeyMetadata() == null) {
       return read(io, io.newInputFile(metadataFile.location()));
@@ -318,25 +319,31 @@ public class TableMetadataParser {
 
       // Unwrap (decrypt) metadata file key
       NativeEncryptionKeyMetadata keyMetadata = EncryptionUtil.parseKeyMetadata(keyMetadataBytes);
-      ByteBuffer unwrappedManfestListKey =
+      ByteBuffer unwrappedMetadataKey =
           standardEncryptionManager.unwrapKey(keyMetadata.encryptionKey());
 
-      EncryptionKeyMetadata unwrappedKeyMetadata =
-          EncryptionUtil.createKeyMetadata(unwrappedManfestListKey, keyMetadata.aadPrefix());
+      EncryptionKeyMetadata metadataKeyMetadata =
+          EncryptionUtil.createKeyMetadata(unwrappedMetadataKey, keyMetadata.aadPrefix());
 
       InputFile input =
           encryptingFileIO.newDecryptingInputFile(
-              metadataFile.location(), metadataFile.size(), unwrappedKeyMetadata.buffer());
+              metadataFile.location(), metadataFile.size(), metadataKeyMetadata.buffer());
 
-      return read(io, input);
+      return read(io, input, unwrappedMetadataKey, keyMetadata.aadPrefix());
     }
   }
 
   public static TableMetadata read(FileIO io, InputFile file) {
+    return read(io, file, null, null);
+  }
+
+  public static TableMetadata read(
+      FileIO io, InputFile file, ByteBuffer metadataKey, ByteBuffer metadataAadPrefix) {
     Codec codec = Codec.fromFileName(file.location());
     try (InputStream is =
         codec == Codec.GZIP ? new GZIPInputStream(file.newStream()) : file.newStream()) {
-      return fromJson(file, JsonUtil.mapper().readValue(is, JsonNode.class));
+      return fromJson(
+          file, JsonUtil.mapper().readValue(is, JsonNode.class), metadataKey, metadataAadPrefix);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read file: %s", file);
     }
@@ -366,15 +373,28 @@ public class TableMetadataParser {
   }
 
   public static TableMetadata fromJson(InputFile file, JsonNode node) {
-    return fromJson(file.location(), node);
+    return fromJson(file, node, null, null);
+  }
+
+  public static TableMetadata fromJson(
+      InputFile file, JsonNode node, ByteBuffer metadataKey, ByteBuffer metadataAadPrefix) {
+    return fromJson(file.location(), node, metadataKey, metadataAadPrefix);
   }
 
   public static TableMetadata fromJson(JsonNode node) {
     return fromJson((String) null, node);
   }
 
-  @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:MethodLength"})
   public static TableMetadata fromJson(String metadataLocation, JsonNode node) {
+    return fromJson(metadataLocation, node, null, null);
+  }
+
+  @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:MethodLength"})
+  public static TableMetadata fromJson(
+      String metadataLocation,
+      JsonNode node,
+      ByteBuffer metadataKey,
+      ByteBuffer metadataAadPrefix) {
     Preconditions.checkArgument(
         node.isObject(), "Cannot parse metadata from a non-object: %s", node);
 
@@ -534,7 +554,7 @@ public class TableMetadataParser {
       snapshots = Lists.newArrayListWithExpectedSize(snapshotArray.size());
       Iterator<JsonNode> iterator = snapshotArray.elements();
       while (iterator.hasNext()) {
-        snapshots.add(SnapshotParser.fromJson(iterator.next()));
+        snapshots.add(SnapshotParser.fromJson(iterator.next(), metadataKey, metadataAadPrefix));
       }
     } else {
       snapshots = ImmutableList.of();
