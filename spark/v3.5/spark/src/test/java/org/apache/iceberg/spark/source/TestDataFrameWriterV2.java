@@ -211,11 +211,11 @@ public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testWithNullableProperty() throws Exception {
+  public void testWithSetFieldNullableProperty() throws Exception {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
         tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
-    spark.conf().set("spark.sql.iceberg.set-all-nullable-field", "true");
+    spark.conf().set("spark.sql.iceberg.set-field-nullable", "true");
     Dataset<Row> threeColDF =
         jsonToDF(
             "id bigint, data string, new_col struct<col1: bigint NOT NULL, col2: bigint NOT NULL> ",
@@ -236,11 +236,11 @@ public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testWithoutNullableProperty() throws Exception {
+  public void testWithoutSetFieldNullableProperty() throws Exception {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
         tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
-    spark.conf().set("spark.sql.iceberg.set-all-nullable-field", "false");
+    spark.conf().set("spark.sql.iceberg.set-field-nullable", "false");
     Dataset<Row> threeColDF =
         jsonToDF(
             "id bigint, data string, new_col struct<col1: bigint NOT NULL, col2: bigint NOT NULL> ",

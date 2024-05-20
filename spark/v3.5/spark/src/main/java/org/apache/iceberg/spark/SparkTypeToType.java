@@ -48,7 +48,7 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
   private final StructType root;
   private int nextId = 0;
 
-  private boolean isAllNullableField = SparkSQLProperties.SET_ALL_NULLABLE_FIELD_DEFAULT;
+  private boolean isAllNullableField = SparkSQLProperties.SET_FIELD_NULLABLE_DEFAULT;
 
   SparkTypeToType() {
     this.root = null;
@@ -62,7 +62,7 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
     String nullableFieldStr =
         SparkSession.active()
             .conf()
-            .get(SparkSQLProperties.SET_ALL_NULLABLE_FIELD, String.valueOf(isAllNullableField));
+            .get(SparkSQLProperties.SET_FIELD_NULLABLE, String.valueOf(isAllNullableField));
     this.isAllNullableField = Boolean.parseBoolean(nullableFieldStr);
   }
 
