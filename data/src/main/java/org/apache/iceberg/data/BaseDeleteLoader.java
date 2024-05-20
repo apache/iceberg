@@ -47,10 +47,10 @@ import org.apache.iceberg.orc.OrcRowReader;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.math.LongMath;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.CharSequenceMap;
+import org.apache.iceberg.util.RocksDBStructLikeSet;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -105,10 +105,9 @@ public class BaseDeleteLoader implements DeleteLoader {
   @Override
   public StructLikeSet loadEqualityDeletes(Iterable<DeleteFile> deleteFiles, Schema projection) {
     Iterable<Iterable<StructLike>> deletes =
-        execute(deleteFiles, deleteFile -> getOrReadEqDeletes(deleteFile, projection));
-    StructLikeSet deleteSet = StructLikeSet.create(projection.asStruct());
-    Iterables.addAll(deleteSet, Iterables.concat(deletes));
-    return deleteSet;
+        execute(
+            deleteFiles, deleteFile -> toStructs(openDeletes(deleteFile, projection), projection));
+    return RocksDBStructLikeSet.getOrCreate(projection.asStruct(), deletes);
   }
 
   private Iterable<StructLike> getOrReadEqDeletes(DeleteFile deleteFile, Schema projection) {
