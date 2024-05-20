@@ -34,11 +34,11 @@ public class TestListNamespacesResponse extends RequestResponseTestBase<ListName
 
   @Test
   public void testRoundTripSerDe() throws JsonProcessingException {
-    String fullJson = "{\"namespaces\":[[\"accounting\"],[\"tax\"]]}";
+    String fullJson = "{\"namespaces\":[[\"accounting\"],[\"tax\"]],\"next-page-token\":null}";
     ListNamespacesResponse fullValue = ListNamespacesResponse.builder().addAll(NAMESPACES).build();
     assertRoundTripSerializesEquallyFrom(fullJson, fullValue);
 
-    String emptyNamespaces = "{\"namespaces\":[]}";
+    String emptyNamespaces = "{\"namespaces\":[],\"next-page-token\":null}";
     assertRoundTripSerializesEquallyFrom(emptyNamespaces, ListNamespacesResponse.builder().build());
   }
 
@@ -83,9 +83,32 @@ public class TestListNamespacesResponse extends RequestResponseTestBase<ListName
         .hasMessage("Invalid namespace: null");
   }
 
+  @Test
+  public void testWithNullPaginationToken() throws JsonProcessingException {
+    String jsonWithNullPageToken =
+        "{\"namespaces\":[[\"accounting\"],[\"tax\"]],\"next-page-token\":null}";
+    ListNamespacesResponse response =
+        ListNamespacesResponse.builder().addAll(NAMESPACES).nextPageToken(null).build();
+    assertRoundTripSerializesEquallyFrom(jsonWithNullPageToken, response);
+    Assertions.assertThat(response.nextPageToken()).isNull();
+    Assertions.assertThat(response.namespaces()).isEqualTo(NAMESPACES);
+  }
+
+  @Test
+  public void testWithPaginationToken() throws JsonProcessingException {
+    String pageToken = "token";
+    String jsonWithPageToken =
+        "{\"namespaces\":[[\"accounting\"],[\"tax\"]],\"next-page-token\":\"token\"}";
+    ListNamespacesResponse response =
+        ListNamespacesResponse.builder().addAll(NAMESPACES).nextPageToken(pageToken).build();
+    assertRoundTripSerializesEquallyFrom(jsonWithPageToken, response);
+    Assertions.assertThat(response.nextPageToken()).isEqualTo("token");
+    Assertions.assertThat(response.namespaces()).isEqualTo(NAMESPACES);
+  }
+
   @Override
   public String[] allFieldsFromSpec() {
-    return new String[] {"namespaces"};
+    return new String[] {"namespaces", "next-page-token"};
   }
 
   @Override

@@ -18,7 +18,9 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.apache.iceberg.DataOperations.DELETE;
 import static org.apache.iceberg.RowLevelOperationMode.COPY_ON_WRITE;
+import static org.apache.iceberg.SnapshotSummary.ADD_POS_DELETE_FILES_PROP;
 import static org.apache.iceberg.TableProperties.DELETE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.DELETE_MODE;
@@ -27,6 +29,7 @@ import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.apache.spark.sql.functions.lit;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.Arrays;
@@ -503,6 +506,31 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   }
 
   @Test
+  public void deleteSingleRecordProducesDeleteOperation() throws NoSuchTableException {
+    createAndInitPartitionedTable();
+    append(tableName, new Employee(1, "eng"), new Employee(2, "eng"), new Employee(3, "eng"));
+
+    sql("DELETE FROM %s WHERE id = 2", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(table.snapshots()).hasSize(2);
+
+    Snapshot currentSnapshot = table.currentSnapshot();
+
+    if (mode(table) == COPY_ON_WRITE) {
+      // this is an OverwriteFiles and produces "overwrite"
+      validateCopyOnWrite(currentSnapshot, "1", "1", "1");
+    } else {
+      // this is a RowDelta that produces a "delete" instead of "overwrite"
+      validateMergeOnRead(currentSnapshot, "1", "1", null);
+      validateProperty(currentSnapshot, ADD_POS_DELETE_FILES_PROP, "1");
+    }
+
+    assertThat(sql("SELECT * FROM %s", tableName))
+        .containsExactlyInAnyOrder(row(1, "eng"), row(3, "eng"));
+  }
+
+  @Test
   public void testDeleteWithoutCondition() {
     createAndInitPartitionedTable();
 
@@ -565,8 +593,10 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     Table table = validationCatalog.loadTable(tableIdent);
     Assert.assertEquals("Should have 4 snapshots", 4, Iterables.size(table.snapshots()));
 
-    // should be an overwrite since cannot be executed using a metadata operation
+    // should be a "delete" instead of an "overwrite" as only data files have been removed (COW) /
+    // delete files have been added (MOR)
     Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
+    assertThat(currentSnapshot.operation()).isEqualTo(DELETE);
     if (mode(table) == COPY_ON_WRITE) {
       validateCopyOnWrite(currentSnapshot, "1", "1", null);
     } else {

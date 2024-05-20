@@ -127,12 +127,12 @@ Tables do not require rename, except for tables that use atomic rename to implem
 
 #### Writer requirements
 
-Some tables in this spec have columns that specify requirements for v1 and v2 tables. These requirements are intended for writers when adding metadata files to a table with the given version.
+Some tables in this spec have columns that specify requirements for v1 and v2 tables. These requirements are intended for writers when adding metadata files (including manifests files and manifest lists) to a table with the given version.
 
 | Requirement | Write behavior |
 |-------------|----------------|
 | (blank)     | The field should be omitted |
-| _optional_  | The field can be written |
+| _optional_  | The field can be written or omitted |
 | _required_  | The field must be written |
 
 Readers should be more permissive because v1 metadata files are allowed in v2 tables so that tables can be upgraded to v2 without rewriting the metadata tree. For manifest list and manifest files, this table shows the expected v2 read behavior:
@@ -228,6 +228,7 @@ Any struct, including a top-level schema, can evolve through deleting fields, ad
 Grouping a subset of a struct’s fields into a nested struct is **not** allowed, nor is moving fields from a nested struct into its immediate parent struct (`struct<a, b, c> ↔ struct<a, struct<b, c>>`). Evolving primitive types to structs is **not** allowed, nor is evolving a single-field struct to a primitive (`map<string, int> ↔ map<string, struct<int>>`).
 
 Struct evolution requires the following rules for default values:
+
 * The `initial-default` must be set when a field is added and cannot change
 * The `write-default` must be set when a field is added and may change
 * When a required field is added, both defaults must be set to a non-null value

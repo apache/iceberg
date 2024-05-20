@@ -36,6 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
@@ -788,10 +789,15 @@ public class S3FileIOProperties implements Serializable {
    */
   public <T extends S3ClientBuilder> void applySignerConfiguration(T builder) {
     if (isRemoteSigningEnabled) {
+      ClientOverrideConfiguration.Builder configBuilder =
+          null != builder.overrideConfiguration()
+              ? builder.overrideConfiguration().toBuilder()
+              : ClientOverrideConfiguration.builder();
       builder.overrideConfiguration(
-          c ->
-              c.putAdvancedOption(
-                  SdkAdvancedClientOption.SIGNER, S3V4RestSignerClient.create(allProperties)));
+          configBuilder
+              .putAdvancedOption(
+                  SdkAdvancedClientOption.SIGNER, S3V4RestSignerClient.create(allProperties))
+              .build());
     }
   }
 
@@ -829,8 +835,14 @@ public class S3FileIOProperties implements Serializable {
   }
 
   public <T extends S3ClientBuilder> void applyUserAgentConfigurations(T builder) {
+    ClientOverrideConfiguration.Builder configBuilder =
+        null != builder.overrideConfiguration()
+            ? builder.overrideConfiguration().toBuilder()
+            : ClientOverrideConfiguration.builder();
     builder.overrideConfiguration(
-        c -> c.putAdvancedOption(SdkAdvancedClientOption.USER_AGENT_PREFIX, S3_FILE_IO_USER_AGENT));
+        configBuilder
+            .putAdvancedOption(SdkAdvancedClientOption.USER_AGENT_PREFIX, S3_FILE_IO_USER_AGENT)
+            .build());
   }
 
   /**

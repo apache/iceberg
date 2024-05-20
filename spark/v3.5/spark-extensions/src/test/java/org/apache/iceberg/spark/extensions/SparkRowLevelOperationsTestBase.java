@@ -276,8 +276,9 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
       String changedPartitionCount,
       String deletedDataFiles,
       String addedDataFiles) {
+    String operation = null == addedDataFiles && null != deletedDataFiles ? DELETE : OVERWRITE;
     validateSnapshot(
-        snapshot, OVERWRITE, changedPartitionCount, deletedDataFiles, null, addedDataFiles);
+        snapshot, operation, changedPartitionCount, deletedDataFiles, null, addedDataFiles);
   }
 
   protected void validateMergeOnRead(
@@ -285,8 +286,9 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
       String changedPartitionCount,
       String addedDeleteFiles,
       String addedDataFiles) {
+    String operation = null == addedDataFiles && null != addedDeleteFiles ? DELETE : OVERWRITE;
     validateSnapshot(
-        snapshot, OVERWRITE, changedPartitionCount, null, addedDeleteFiles, addedDataFiles);
+        snapshot, operation, changedPartitionCount, null, addedDeleteFiles, addedDataFiles);
   }
 
   protected void validateSnapshot(
@@ -317,10 +319,13 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
   }
 
   protected void validateProperty(Snapshot snapshot, String property, String expectedValue) {
-    String actual = snapshot.summary().get(property);
-    assertThat(actual)
-        .as("Snapshot property " + property + " has unexpected value.")
-        .isEqualTo(expectedValue);
+    if (null == expectedValue) {
+      assertThat(snapshot.summary()).doesNotContainKey(property);
+    } else {
+      assertThat(snapshot.summary())
+          .as("Snapshot property " + property + " has unexpected value.")
+          .containsEntry(property, expectedValue);
+    }
   }
 
   protected void sleep(long millis) {

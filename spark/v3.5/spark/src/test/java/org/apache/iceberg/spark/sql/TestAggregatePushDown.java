@@ -595,9 +595,9 @@ public class TestAggregatePushDown extends CatalogTestBase {
     Arrays.stream(expectedFragments)
         .forEach(
             fragment ->
-                Assertions.assertThat(explainString.contains(fragment))
-                    .isTrue()
-                    .as("Expected to find plan fragment in explain plan"));
+                Assertions.assertThat(explainString)
+                    .as("Expected to find plan fragment in explain plan")
+                    .contains(fragment));
   }
 
   @TestTemplate

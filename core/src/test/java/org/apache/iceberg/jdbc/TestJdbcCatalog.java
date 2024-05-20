@@ -31,7 +31,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLNonTransientConnectionException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -167,6 +170,100 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
   }
 
   @Test
+  public void testDisableInitCatalogTablesOverridesDefault() throws Exception {
+    // as this test uses different connections, we can't use memory database (as it's per
+    // connection), but a file database instead
+    java.nio.file.Path dbFile = Files.createTempFile("icebergInitCatalogTables", "db");
+    String jdbcUrl = "jdbc:sqlite:" + dbFile.toAbsolutePath();
+
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.toAbsolutePath().toString());
+    properties.put(CatalogProperties.URI, jdbcUrl);
+    properties.put(JdbcUtil.INIT_CATALOG_TABLES_PROPERTY, "false");
+
+    JdbcCatalog jdbcCatalog = new JdbcCatalog();
+    jdbcCatalog.initialize("test_jdbc_catalog", properties);
+
+    assertThat(catalogTablesExist(jdbcUrl)).isFalse();
+
+    assertThatThrownBy(() -> jdbcCatalog.listNamespaces())
+        .isInstanceOf(UncheckedSQLException.class)
+        .hasMessage(String.format("Failed to execute query: %s", JdbcUtil.LIST_ALL_NAMESPACES_SQL));
+  }
+
+  @Test
+  public void testEnableInitCatalogTablesOverridesDefault() throws Exception {
+    // as this test uses different connections, we can't use memory database (as it's per
+    // connection), but a file database instead
+    java.nio.file.Path dbFile = Files.createTempFile("icebergInitCatalogTables", "db");
+    String jdbcUrl = "jdbc:sqlite:" + dbFile.toAbsolutePath();
+
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.toAbsolutePath().toString());
+    properties.put(CatalogProperties.URI, jdbcUrl);
+    properties.put(JdbcUtil.INIT_CATALOG_TABLES_PROPERTY, "true");
+
+    JdbcCatalog jdbcCatalog = new JdbcCatalog(null, null, false);
+    jdbcCatalog.initialize("test_jdbc_catalog", properties);
+
+    assertThat(catalogTablesExist(jdbcUrl)).isTrue();
+  }
+
+  @Test
+  public void testRetryingErrorCodesProperty() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.toAbsolutePath().toString());
+    properties.put(CatalogProperties.URI, "jdbc:sqlite:file::memory:?icebergDB");
+    properties.put(JdbcUtil.RETRYABLE_STATUS_CODES, "57000,57P03,57P04");
+    JdbcCatalog jdbcCatalog = new JdbcCatalog();
+    jdbcCatalog.setConf(conf);
+    jdbcCatalog.initialize("test_catalog_with_retryable_status_codes", properties);
+    JdbcClientPool jdbcClientPool = jdbcCatalog.connectionPool();
+    List<SQLException> expectedRetryableExceptions =
+        Lists.newArrayList(
+            new SQLException("operator_intervention", "57000"),
+            new SQLException("cannot_connect_now", "57P03"),
+            new SQLException("database_dropped", "57P04"));
+    JdbcClientPool.COMMON_RETRYABLE_CONNECTION_SQL_STATES.forEach(
+        code -> expectedRetryableExceptions.add(new SQLException("some failure", code)));
+
+    expectedRetryableExceptions.forEach(
+        exception -> {
+          assertThat(jdbcClientPool.isConnectionException(exception))
+              .as(String.format("%s status should be retryable", exception.getSQLState()))
+              .isTrue();
+        });
+
+    // Test the same retryable status codes but with spaces in the configuration
+    properties.put(JdbcUtil.RETRYABLE_STATUS_CODES, "57000, 57P03, 57P04");
+    jdbcCatalog.initialize("test_catalog_with_retryable_status_codes_with_spaces", properties);
+    JdbcClientPool updatedClientPool = jdbcCatalog.connectionPool();
+    expectedRetryableExceptions.forEach(
+        exception -> {
+          assertThat(updatedClientPool.isConnectionException(exception))
+              .as(String.format("%s status should be retryable", exception.getSQLState()))
+              .isTrue();
+        });
+  }
+
+  @Test
+  public void testSqlNonTransientExceptionNotRetryable() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.toAbsolutePath().toString());
+    properties.put(CatalogProperties.URI, "jdbc:sqlite:file::memory:?icebergDB");
+    properties.put(JdbcUtil.RETRYABLE_STATUS_CODES, "57000,57P03,57P04");
+    JdbcCatalog jdbcCatalog = new JdbcCatalog();
+    jdbcCatalog.setConf(conf);
+    jdbcCatalog.initialize("test_catalog_with_retryable_status_codes", properties);
+    JdbcClientPool jdbcClientPool = jdbcCatalog.connectionPool();
+    Assertions.assertThat(
+            jdbcClientPool.isConnectionException(
+                new SQLNonTransientConnectionException("Failed to authenticate")))
+        .as("SQL Non Transient exception is not retryable")
+        .isFalse();
+  }
+
+  @Test
   public void testInitSchemaV0() {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.toAbsolutePath().toString());
@@ -239,6 +336,17 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
         .create();
 
     assertThat(jdbcCatalog.listViews(Namespace.of("namespace1"))).hasSize(1).containsExactly(view);
+
+    TableIdentifier tableThree = TableIdentifier.of("namespace2", "table3");
+    jdbcCatalog.createTable(tableThree, SCHEMA);
+    assertThat(jdbcCatalog.tableExists(tableThree)).isTrue();
+
+    // testing append datafile to check commit, it should not throw an exception
+    jdbcCatalog.loadTable(tableOne).newAppend().appendFile(FILE_A).commit();
+    jdbcCatalog.loadTable(tableTwo).newAppend().appendFile(FILE_B).commit();
+
+    assertThat(jdbcCatalog.tableExists(tableOne)).isTrue();
+    assertThat(jdbcCatalog.tableExists(tableTwo)).isTrue();
   }
 
   @ParameterizedTest
@@ -1024,7 +1132,49 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     }
   }
 
+  private String createMetadataLocationViaJdbcCatalog(TableIdentifier identifier)
+      throws SQLException {
+    // temporary connection just to actually create a concrete metadata location
+    String jdbcUrl = null;
+    try {
+      java.nio.file.Path dbFile = Files.createTempFile("temp", "metadata");
+      jdbcUrl = "jdbc:sqlite:" + dbFile.toAbsolutePath();
+    } catch (IOException e) {
+      throw new SQLException("Error while creating temp data", e);
+    }
+
+    Map<String, String> properties = Maps.newHashMap();
+
+    properties.put(CatalogProperties.URI, jdbcUrl);
+
+    warehouseLocation = this.tableDir.toAbsolutePath().toString();
+    properties.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation);
+    properties.put("type", "jdbc");
+
+    JdbcCatalog jdbcCatalog =
+        (JdbcCatalog) CatalogUtil.buildIcebergCatalog("TEMP", properties, conf);
+    jdbcCatalog.buildTable(identifier, SCHEMA).create();
+
+    SQLiteDataSource dataSource = new SQLiteDataSource();
+    dataSource.setUrl(jdbcUrl);
+
+    try (Connection connection = dataSource.getConnection()) {
+      ResultSet result =
+          connection
+              .prepareStatement("SELECT * FROM " + JdbcUtil.CATALOG_TABLE_VIEW_NAME)
+              .executeQuery();
+      result.next();
+      return result.getString(JdbcTableOperations.METADATA_LOCATION_PROP);
+    }
+  }
+
   private void initLegacySchema(String jdbcUrl) throws SQLException {
+    TableIdentifier table1 = TableIdentifier.of(Namespace.of("namespace1"), "table1");
+    TableIdentifier table2 = TableIdentifier.of(Namespace.of("namespace2"), "table2");
+
+    String table1MetadataLocation = createMetadataLocationViaJdbcCatalog(table1);
+    String table2MetadataLocation = createMetadataLocationViaJdbcCatalog(table2);
+
     SQLiteDataSource dataSource = new SQLiteDataSource();
     dataSource.setUrl(jdbcUrl);
 
@@ -1045,7 +1195,9 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
                   + JdbcTableOperations.METADATA_LOCATION_PROP
                   + ","
                   + JdbcTableOperations.PREVIOUS_METADATA_LOCATION_PROP
-                  + ") VALUES('TEST','namespace1','table1',null,null)")
+                  + ") VALUES('TEST','namespace1','table1','"
+                  + table1MetadataLocation
+                  + "',null)")
           .execute();
       connection
           .prepareStatement(
@@ -1061,8 +1213,42 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
                   + JdbcTableOperations.METADATA_LOCATION_PROP
                   + ","
                   + JdbcTableOperations.PREVIOUS_METADATA_LOCATION_PROP
-                  + ") VALUES('TEST','namespace2','table2',null,null)")
+                  + ") VALUES('TEST','namespace2','table2','"
+                  + table2MetadataLocation
+                  + "',null)")
           .execute();
     }
+  }
+
+  private boolean catalogTablesExist(String jdbcUrl) throws SQLException {
+    SQLiteDataSource dataSource = new SQLiteDataSource();
+    dataSource.setUrl(jdbcUrl);
+
+    boolean catalogTableExists = false;
+    boolean namespacePropertiesTableExists = false;
+
+    try (Connection connection = dataSource.getConnection()) {
+      DatabaseMetaData metadata = connection.getMetaData();
+      if (tableExists(metadata, JdbcUtil.CATALOG_TABLE_VIEW_NAME)) {
+        catalogTableExists = true;
+      }
+      if (tableExists(metadata, JdbcUtil.NAMESPACE_PROPERTIES_TABLE_NAME)) {
+        namespacePropertiesTableExists = true;
+      }
+    }
+
+    return catalogTableExists && namespacePropertiesTableExists;
+  }
+
+  private boolean tableExists(DatabaseMetaData metadata, String tableName) throws SQLException {
+    ResultSet resultSet = metadata.getTables(null, null, tableName, new String[] {"TABLE"});
+
+    while (resultSet.next()) {
+      if (tableName.equals(resultSet.getString("TABLE_NAME"))) {
+        return true;
+      }
+    }
+
+    return false;
   }
 }

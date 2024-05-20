@@ -36,11 +36,11 @@ public class TestListTablesResponse extends RequestResponseTestBase<ListTablesRe
   @Test
   public void testRoundTripSerDe() throws JsonProcessingException {
     String fullJson =
-        "{\"identifiers\":[{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid\"}]}";
+        "{\"identifiers\":[{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid\"}],\"next-page-token\":null}";
     assertRoundTripSerializesEquallyFrom(
         fullJson, ListTablesResponse.builder().addAll(IDENTIFIERS).build());
 
-    String emptyIdentifiers = "{\"identifiers\":[]}";
+    String emptyIdentifiers = "{\"identifiers\":[],\"next-page-token\":null}";
     assertRoundTripSerializesEquallyFrom(emptyIdentifiers, ListTablesResponse.builder().build());
   }
 
@@ -105,9 +105,32 @@ public class TestListTablesResponse extends RequestResponseTestBase<ListTablesRe
         .hasMessage("Invalid table identifier: null");
   }
 
+  @Test
+  public void testWithNullPaginationToken() throws JsonProcessingException {
+    String jsonWithNullPageToken =
+        "{\"identifiers\":[{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid\"}],\"next-page-token\":null}";
+    ListTablesResponse response =
+        ListTablesResponse.builder().addAll(IDENTIFIERS).nextPageToken(null).build();
+    assertRoundTripSerializesEquallyFrom(jsonWithNullPageToken, response);
+    Assertions.assertThat(response.nextPageToken()).isNull();
+    Assertions.assertThat(response.identifiers()).isEqualTo(IDENTIFIERS);
+  }
+
+  @Test
+  public void testWithPaginationToken() throws JsonProcessingException {
+    String pageToken = "token";
+    String jsonWithPageToken =
+        "{\"identifiers\":[{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid\"}],\"next-page-token\":\"token\"}";
+    ListTablesResponse response =
+        ListTablesResponse.builder().addAll(IDENTIFIERS).nextPageToken(pageToken).build();
+    assertRoundTripSerializesEquallyFrom(jsonWithPageToken, response);
+    Assertions.assertThat(response.nextPageToken()).isEqualTo("token");
+    Assertions.assertThat(response.identifiers()).isEqualTo(IDENTIFIERS);
+  }
+
   @Override
   public String[] allFieldsFromSpec() {
-    return new String[] {"identifiers"};
+    return new String[] {"identifiers", "next-page-token"};
   }
 
   @Override
