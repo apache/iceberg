@@ -302,8 +302,8 @@ public class TestS3FileIOIntegration {
     GetObjectResponse response =
         s3.getObject(GetObjectRequest.builder().bucket(bucketName).key(objectKey).build())
             .response();
-    Assert.assertEquals(ServerSideEncryption.AWS_KMS_DSSE, response.serverSideEncryption());
-    Assert.assertEquals(response.ssekmsKeyId(), kmsKeyArn);
+    assertThat(response.serverSideEncryption()).isEqualTo(ServerSideEncryption.AWS_KMS_DSSE);
+    assertThat(response.ssekmsKeyId()).isEqualTo(kmsKeyArn);
   }
 
   @Test
