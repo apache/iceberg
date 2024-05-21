@@ -164,6 +164,10 @@ public class Schema implements Serializable {
     this(schemaId, Arrays.asList(columns));
   }
 
+  public Schema(Map<String, Integer> aliases, NestedField... columns) {
+    this(Arrays.asList(columns), aliases);
+  }
+
   private Map<Integer, NestedField> lazyIdToField() {
     if (idToField == null) {
       this.idToField = TypeUtil.indexById(struct);
