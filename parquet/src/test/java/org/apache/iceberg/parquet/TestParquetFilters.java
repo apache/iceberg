@@ -57,13 +57,12 @@ public class TestParquetFilters {
 
   @TestTemplate
   public void testIntegerInFilter() {
-    Object abc = ParquetFilters.convert(SCHEMA, in("id", 1, 2, 3), true);
-    FilterCompat.Filter bcf = (FilterCompat.Filter) abc;
+    FilterCompat.Filter filter = (FilterCompat.Filter)  ParquetFilters.convert(SCHEMA, in("id", 1, 2, 3), true);
 
     try {
-      java.lang.reflect.Field privateField = bcf.getClass().getDeclaredField("filterPredicate");
+      java.lang.reflect.Field privateField = filter.getClass().getDeclaredField("filterPredicate");
       privateField.setAccessible(true);
-      assertThat(privateField.get(bcf).toString().equalsIgnoreCase("in(id, 1, 2, 3)")).isTrue();
+      assertThat(privateField.get(filter).toString().equalsIgnoreCase("in(id, 1, 2, 3)")).isTrue();
     } catch (Exception e) {
       assertThat(true).isFalse();
     }
@@ -71,13 +70,12 @@ public class TestParquetFilters {
 
   @TestTemplate
   public void testDoubleNotInFilter() {
-    Object abc = ParquetFilters.convert(SCHEMA, notIn("age", 1.0, 2.0, 3.0), true);
-    FilterCompat.Filter bcf = (FilterCompat.Filter) abc;
+    FilterCompat.Filter filter = (FilterCompat.Filter)  ParquetFilters.convert(SCHEMA, notIn("age", 1.0, 2.0, 3.0), true);
 
     try {
-      java.lang.reflect.Field privateField = bcf.getClass().getDeclaredField("filterPredicate");
+      java.lang.reflect.Field privateField = filter.getClass().getDeclaredField("filterPredicate");
       privateField.setAccessible(true);
-      assertThat(privateField.get(bcf).toString().equalsIgnoreCase("notin(age, 1.0, 2.0, 3.0)"))
+      assertThat(privateField.get(filter).toString().equalsIgnoreCase("notin(age, 1.0, 2.0, 3.0)"))
           .isTrue();
     } catch (Exception e) {
       assertThat(true).isFalse();
