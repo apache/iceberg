@@ -34,8 +34,8 @@ public class ViewProperties {
    *
    * <p>This value is only advisory, which means that engines that can enforce the mode should do
    * so, and engines that cannot enforce the mode can choose to ignore this property, but should
-   * ideally fail the query or provide a warning or provide both behaviors through an engine-level
-   * feature flag
+   * ideally fail the query, or provide a warning, or provide both failure and warning behaviors
+   * through an engine-level feature flag
    */
   public static final String READ_ADVISORY_MODE = "read.advisory-mode";
 
@@ -46,20 +46,21 @@ public class ViewProperties {
    *
    * <p>For example, a view "SELECT * FROM foo WHERE id=1" and a query "SELECT * FROM view WHERE
    * category='c1' AND user='Jack'" can be evaluated under open mode to "SELECT * FROM foo WHERE
-   * id=1 AND category='c1' AND user='Jack'", but filter "user='Jack'" might be subject to
-   * side-channel attacks.
+   * id=1 AND category='c1' AND user='Jack'", where all the filters are directly pushed down into
+   * table foo.
    */
   public static final String READ_ADVISORY_MODE_OPEN = "open";
 
   /**
    * The protected mode advises that a query engine should only perform optimizations that are not
    * subject to side-channel attacks. However, attackers might find innovative ways to perform the
-   * attack and it is the query engine's responsibility to keep updating its optimization.
+   * attack, and it is the query engine's responsibility to keep updating its optimization strategy.
    *
    * <p>For example, a view "SELECT * FROM foo WHERE id=1" and a query "SELECT * FROM view WHERE
-   * category='c1' AND user='Jack'" can be evaluated under protected mode to "SELECT * FROM foo
-   * WHERE id=1 AND category='c1'", And then the result is further filtered against "user='Jack'"
-   * because the query engine considers filter "user='Jack'" as unsafe to pushdown to the view.
+   * category='c1' AND user='Jack'" can be evaluated under protected mode to first execute "SELECT *
+   * FROM foo WHERE id=1 AND category='c1'", and then the result is further filtered against
+   * "user='Jack'" because the query engine considers filter "user='Jack'" unsafe to pushdown into
+   * the table foo.
    */
   public static final String READ_ADVISORY_MODE_PROTECTED = "protected";
 
@@ -70,8 +71,8 @@ public class ViewProperties {
    *
    * <p>For example, a view "SELECT * FROM foo WHERE id=1" and a query "SELECT * FROM view WHERE
    * category='c1' AND user='Jack'" should be executed as first running "SELECT * FROM foo WHERE
-   * id=1" And then the result is further filtered against "category='c1' AND user='Jack'" because
-   * all the filters are considered potentially unsafe to pushdown to the view.
+   * id=1", and then the result is further filtered against "category='c1' AND user='Jack'" because
+   * all the filters are considered potentially unsafe to pushdown to the table foo.
    */
   public static final String READ_ADVISORY_MODE_ISOLATED = "isolated";
 
