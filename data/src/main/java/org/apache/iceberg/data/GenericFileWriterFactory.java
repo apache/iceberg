@@ -35,7 +35,7 @@ import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-class GenericFileWriterFactory extends BaseFileWriterFactory<Record> {
+public class GenericFileWriterFactory extends BaseFileWriterFactory<Record> {
 
   GenericFileWriterFactory(
       Table table,
@@ -59,7 +59,7 @@ class GenericFileWriterFactory extends BaseFileWriterFactory<Record> {
         positionDeleteRowSchema);
   }
 
-  static Builder builderFor(Table table) {
+  public static Builder builderFor(Table table) {
     return new Builder(table);
   }
 
@@ -108,7 +108,7 @@ class GenericFileWriterFactory extends BaseFileWriterFactory<Record> {
     builder.createWriterFunc(GenericOrcWriter::buildWriter);
   }
 
-  static class Builder {
+  public static class Builder {
     private final Table table;
     private FileFormat dataFileFormat;
     private Schema dataSchema;
@@ -119,7 +119,7 @@ class GenericFileWriterFactory extends BaseFileWriterFactory<Record> {
     private SortOrder equalityDeleteSortOrder;
     private Schema positionDeleteRowSchema;
 
-    Builder(Table table) {
+    public Builder(Table table) {
       this.table = table;
       this.dataSchema = table.schema();
 
@@ -134,47 +134,47 @@ class GenericFileWriterFactory extends BaseFileWriterFactory<Record> {
       this.deleteFileFormat = FileFormat.fromString(deleteFileFormatName);
     }
 
-    Builder dataFileFormat(FileFormat newDataFileFormat) {
+    public Builder dataFileFormat(FileFormat newDataFileFormat) {
       this.dataFileFormat = newDataFileFormat;
       return this;
     }
 
-    Builder dataSchema(Schema newDataSchema) {
+    public Builder dataSchema(Schema newDataSchema) {
       this.dataSchema = newDataSchema;
       return this;
     }
 
-    Builder dataSortOrder(SortOrder newDataSortOrder) {
+    public Builder dataSortOrder(SortOrder newDataSortOrder) {
       this.dataSortOrder = newDataSortOrder;
       return this;
     }
 
-    Builder deleteFileFormat(FileFormat newDeleteFileFormat) {
+    public Builder deleteFileFormat(FileFormat newDeleteFileFormat) {
       this.deleteFileFormat = newDeleteFileFormat;
       return this;
     }
 
-    Builder equalityFieldIds(int[] newEqualityFieldIds) {
+    public Builder equalityFieldIds(int[] newEqualityFieldIds) {
       this.equalityFieldIds = newEqualityFieldIds;
       return this;
     }
 
-    Builder equalityDeleteRowSchema(Schema newEqualityDeleteRowSchema) {
+    public Builder equalityDeleteRowSchema(Schema newEqualityDeleteRowSchema) {
       this.equalityDeleteRowSchema = newEqualityDeleteRowSchema;
       return this;
     }
 
-    Builder equalityDeleteSortOrder(SortOrder newEqualityDeleteSortOrder) {
+    public Builder equalityDeleteSortOrder(SortOrder newEqualityDeleteSortOrder) {
       this.equalityDeleteSortOrder = newEqualityDeleteSortOrder;
       return this;
     }
 
-    Builder positionDeleteRowSchema(Schema newPositionDeleteRowSchema) {
+    public Builder positionDeleteRowSchema(Schema newPositionDeleteRowSchema) {
       this.positionDeleteRowSchema = newPositionDeleteRowSchema;
       return this;
     }
 
-    GenericFileWriterFactory build() {
+    public GenericFileWriterFactory build() {
       boolean noEqualityDeleteConf = equalityFieldIds == null && equalityDeleteRowSchema == null;
       boolean fullEqualityDeleteConf = equalityFieldIds != null && equalityDeleteRowSchema != null;
       Preconditions.checkArgument(
