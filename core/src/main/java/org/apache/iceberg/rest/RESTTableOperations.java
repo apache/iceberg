@@ -31,6 +31,8 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.UpdateRequirements;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -147,14 +149,21 @@ class RESTTableOperations implements TableOperations {
 
     // the error handler will throw necessary exceptions like CommitFailedException and
     // UnknownCommitStateException
-    // TODO: ensure that the HTTP client lib passes HTTP client errors to the error handler
-    LoadTableResponse response =
-        client.post(path, request, LoadTableResponse.class, headers, errorHandler);
+    try {
+      LoadTableResponse response =
+          client.post(path, request, LoadTableResponse.class, headers, errorHandler);
 
-    // all future commits should be simple commits
-    this.updateType = UpdateType.SIMPLE;
+      // all future commits should be simple commits
+      this.updateType = UpdateType.SIMPLE;
 
-    updateCurrentMetadata(response);
+      updateCurrentMetadata(response);
+    } catch (RESTException e) {
+      // Iceberg HTTPClient wrapper converts Apache httpclient IOException to RESTException
+      throw new CommitStateUnknownException(
+          "Encountered http client exception while committing to REST catalog. "
+              + "Possible reasons are network timeout or error.",
+          e);
+    }
   }
 
   @Override

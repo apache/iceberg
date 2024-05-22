@@ -21,9 +21,13 @@ package org.apache.iceberg.inmemory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.io.FileInfo;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -122,6 +126,34 @@ public class TestInMemoryFileIO {
     Assertions.assertThat(fileIO2.fileExists(location))
         .isTrue()
         .as("Files should be shared across all InMemoryFileIO instances");
+  }
+
+  @Test
+  public void testListAndDeletePrefix() {
+    InMemoryFileIO fileIO = new InMemoryFileIO();
+
+    String prefix1 = "s3://dw/prefix1/";
+    String prefix1File1 = prefix1 + UUID.randomUUID();
+    fileIO.addFile(prefix1File1, prefix1File1.getBytes());
+
+    String prefix2 = "s3://dw/prefix2";
+    String prefix2File1 = prefix2 + UUID.randomUUID();
+    fileIO.addFile(prefix2File1, prefix2File1.getBytes());
+    String prefix2File2 = prefix2 + UUID.randomUUID();
+    fileIO.addFile(prefix2File2, prefix2File2.getBytes());
+
+    List<FileInfo> prefix2Files = Lists.newArrayList(fileIO.listPrefix(prefix2).iterator());
+    Assertions.assertThat(prefix2Files).hasSize(2);
+    List<String> prefix2Locations =
+        prefix2Files.stream().map(fileInfo -> fileInfo.location()).collect(Collectors.toList());
+    Assertions.assertThat(prefix2Locations).containsExactlyInAnyOrder(prefix2File1, prefix2File2);
+
+    fileIO.deletePrefix(prefix2);
+    prefix2Files = Lists.newArrayList(fileIO.listPrefix(prefix2).iterator());
+    Assertions.assertThat(prefix2Files).isEmpty();
+
+    List<FileInfo> prefix1Files = Lists.newArrayList(fileIO.listPrefix(prefix1).iterator());
+    Assertions.assertThat(prefix1Files).hasSize(1);
   }
 
   private String randomLocation() {

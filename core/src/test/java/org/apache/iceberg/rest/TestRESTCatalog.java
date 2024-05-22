@@ -32,18 +32,22 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -59,12 +63,16 @@ import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
+import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -2690,6 +2698,111 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                 .newInputFile(addSnapshot.snapshot().manifestListLocation())
                 .exists())
         .isTrue();
+  }
+
+  @Test
+  public void testRESTExceptionConvertedToCommitStateUnknownException() {
+    SessionCatalog.SessionContext context =
+        new SessionCatalog.SessionContext(
+            UUID.randomUUID().toString(),
+            "user",
+            ImmutableMap.of("credential", "user:12345"),
+            ImmutableMap.of());
+    RestClientBuilderWithMockedRESTExceptionOnCommit restClientBuilder =
+        new RestClientBuilderWithMockedRESTExceptionOnCommit();
+    RESTCatalog catalog = new RESTCatalog(context, restClientBuilder);
+    catalog.setConf(new Configuration());
+    catalog.initialize(
+        "prod",
+        ImmutableMap.of(
+            CatalogProperties.URI,
+            httpServer.getURI().toString(),
+            CatalogProperties.FILE_IO_IMPL,
+            "org.apache.iceberg.inmemory.InMemoryFileIO",
+            "credential",
+            "catalog:12345"));
+
+    catalog.createNamespace(NS);
+    Table table = catalog.createTable(TABLE, SCHEMA);
+    Assertions.assertThat(catalog.tableExists(TABLE)).isTrue();
+
+    RESTTableOperations ops = (RESTTableOperations) ((HasTableOperations) table).operations();
+    InMemoryFileIO fileIO = (InMemoryFileIO) table.io();
+    ops.refresh();
+    List<FileInfo> metadataFiles = metadataFiles(ops.current(), fileIO);
+    assertThat(metadataFiles).hasSize(1);
+    assertThat(
+            metadataFiles.stream()
+                .filter(fileInfo -> fileInfo.location().endsWith("metadata.json"))
+                .collect(Collectors.toList()))
+        .hasSize(1);
+
+    // Commit happened before the exception thrown by REST client
+    assertThatThrownBy(
+            () ->
+                table
+                    .newFastAppend()
+                    .appendFile(
+                        DataFiles.builder(PartitionSpec.unpartitioned())
+                            .withPath("/path/to/data-a.parquet")
+                            .withFileSizeInBytes(10)
+                            .withRecordCount(2)
+                            .build())
+                    .commit())
+        .isInstanceOf(CommitStateUnknownException.class)
+        .hasMessageContaining(
+            "Encountered http client exception while committing to REST catalog. Possible reasons are network timeout or error.");
+
+    ops.refresh();
+    metadataFiles = metadataFiles(ops.current(), fileIO);
+    // should 2 metadata.json files, 1 snapshot file, 1 manifest file
+    assertThat(metadataFiles).hasSize(4);
+    assertThat(
+            metadataFiles.stream()
+                .filter(fileInfo -> fileInfo.location().endsWith(".metadata.json"))
+                .collect(Collectors.toList()))
+        .hasSize(2);
+    assertThat(
+            metadataFiles.stream()
+                .filter(fileInfo -> fileInfo.location().endsWith("-m0.avro"))
+                .collect(Collectors.toList()))
+        .hasSize(1);
+    assertThat(
+            metadataFiles.stream()
+                .filter(fileInfo -> fileInfo.location().contains("metadata/snap-"))
+                .collect(Collectors.toList()))
+        .hasSize(1);
+  }
+
+  /** Creates RestClient that throws RESTException on commit post call */
+  private static class RestClientBuilderWithMockedRESTExceptionOnCommit
+      implements Function<Map<String, String>, RESTClient> {
+    @Override
+    public RESTClient apply(Map<String, String> config) {
+      HTTPClient spyClient =
+          Mockito.spy(HTTPClient.builder(config).uri(config.get(CatalogProperties.URI)).build());
+      Mockito.doAnswer(
+              answer -> {
+                // it is important to call real method first so that the actual commit happens first
+                answer.callRealMethod();
+                // now simulate the network error between REST catalog client and server
+                throw new RESTException("HTTP client exception due to network error");
+              })
+          .when(spyClient)
+          .post(
+              any(String.class),
+              any(UpdateTableRequest.class),
+              any(),
+              any(Map.class),
+              any(Consumer.class));
+      return spyClient;
+    }
+  }
+
+  /** Extract all metadata files (metadata json, snapshot, manifest) */
+  private List<FileInfo> metadataFiles(TableMetadata metadata, InMemoryFileIO fileIO) {
+    String metadataDir = new File(metadata.metadataFileLocation()).getParentFile().getPath();
+    return Lists.newArrayList(fileIO.listPrefix(metadataDir));
   }
 
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
