@@ -441,6 +441,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     this.dictionary =
         vectorizedColumnIterator.setRowGroupInfo(
             source.getPageReader(columnDescriptor),
+            source.getRowIndexes(),
             !ParquetUtil.hasNonDictionaryPages(chunkMetaData));
   }
 

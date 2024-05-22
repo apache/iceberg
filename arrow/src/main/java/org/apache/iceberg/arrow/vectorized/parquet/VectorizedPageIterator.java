@@ -23,6 +23,7 @@ import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
+import org.apache.iceberg.arrow.vectorized.parquet.VectorizedColumnIterator.ReadState;
 import org.apache.iceberg.parquet.BasePageIterator;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.parquet.ValuesAsBytesReader;
@@ -150,7 +151,8 @@ public class VectorizedPageIterator extends BasePageIterator {
       final IntVector vector,
       final int expectedBatchSize,
       final int numValsInVector,
-      NullabilityHolder holder) {
+      NullabilityHolder holder,
+      ReadState readState) {
     final int actualBatchSize = getActualBatchSize(expectedBatchSize);
     if (actualBatchSize <= 0) {
       return 0;
@@ -164,7 +166,8 @@ public class VectorizedPageIterator extends BasePageIterator {
             actualBatchSize,
             holder,
             dictionaryEncodedValuesReader,
-            null);
+            null,
+            readState);
     triplesRead += actualBatchSize;
     this.hasNext = triplesRead < triplesCount;
     return actualBatchSize;
@@ -176,15 +179,16 @@ public class VectorizedPageIterator extends BasePageIterator {
         int expectedBatchSize,
         int numValsInVector,
         int typeWidth,
-        NullabilityHolder holder) {
+        NullabilityHolder holder,
+        ReadState readState) {
       final int actualBatchSize = getActualBatchSize(expectedBatchSize);
       if (actualBatchSize <= 0) {
         return 0;
       }
       if (dictionaryDecodeMode == DictionaryDecodeMode.EAGER) {
-        nextDictEncodedVal(vector, actualBatchSize, numValsInVector, typeWidth, holder);
+        nextDictEncodedVal(vector, actualBatchSize, numValsInVector, typeWidth, holder, readState);
       } else {
-        nextVal(vector, actualBatchSize, numValsInVector, typeWidth, holder);
+        nextVal(vector, actualBatchSize, numValsInVector, typeWidth, holder, readState);
       }
       triplesRead += actualBatchSize;
       hasNext = triplesRead < triplesCount;
@@ -192,25 +196,45 @@ public class VectorizedPageIterator extends BasePageIterator {
     }
 
     protected abstract void nextVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder);
+        FieldVector vector,
+        int batchSize,
+        int numVals,
+        int typeWidth,
+        NullabilityHolder holder,
+        ReadState readState);
 
     protected abstract void nextDictEncodedVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder);
+        FieldVector vector,
+        int batchSize,
+        int numVals,
+        int typeWidth,
+        NullabilityHolder holder,
+        ReadState readState);
   }
 
   /** Method for reading a batch of values of INT32 data type */
   class IntPageReader extends BasePageReader {
     @Override
     protected void nextVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+        FieldVector vector,
+        int batchSize,
+        int numVals,
+        int typeWidth,
+        NullabilityHolder holder,
+        ReadState readState) {
       vectorizedDefinitionLevelReader
           .integerReader()
-          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader);
+          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader, readState);
     }
 
     @Override
     protected void nextDictEncodedVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+        FieldVector vector,
+        int batchSize,
+        int numVals,
+        int typeWidth,
+        NullabilityHolder holder,
+        ReadState readState) {
       vectorizedDefinitionLevelReader
           .integerReader()
           .nextDictEncodedBatch(
@@ -220,7 +244,8 @@ public class VectorizedPageIterator extends BasePageIterator {
               batchSize,
               holder,
               dictionaryEncodedValuesReader,
-              dictionary);
+              dictionary,
+              readState);
     }
   }
 
@@ -229,15 +254,25 @@ public class VectorizedPageIterator extends BasePageIterator {
 
     @Override
     protected void nextVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+        FieldVector vector,
+        int batchSize,
+        int numVals,
+        int typeWidth,
+        NullabilityHolder holder,
+        ReadState readState) {
       vectorizedDefinitionLevelReader
           .longReader()
-          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader);
+          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader, readState);
     }
 
     @Override
     protected void nextDictEncodedVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+        FieldVector vector,
+        int batchSize,
+        int numVals,
+        int typeWidth,
+        NullabilityHolder holder,
+        ReadState readState) {
       vectorizedDefinitionLevelReader
           .longReader()
           .nextDictEncodedBatch(
@@ -247,7 +282,8 @@ public class VectorizedPageIterator extends BasePageIterator {
               batchSize,
               holder,
               dictionaryEncodedValuesReader,
-              dictionary);
+              dictionary,
+              readState);
     }
   }
 
@@ -260,15 +296,25 @@ public class VectorizedPageIterator extends BasePageIterator {
 
     @Override
     protected void nextVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+        FieldVector vector,
+        int batchSize,
+        int numVals,
+        int typeWidth,
+        NullabilityHolder holder,
+        ReadState readState) {
       vectorizedDefinitionLevelReader
           .timestampMillisReader()
-          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader);
+          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader, readState);
     }
 
     @Override
     protected void nextDictEncodedVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+        FieldVector vector,
+        int batchSize,
+        int numVals,
+        int typeWidth,
+        NullabilityHolder holder,
+        ReadState readState) {
       vectorizedDefinitionLevelReader
           .timestampMillisReader()
           .nextDictEncodedBatch(
@@ -278,7 +324,8 @@ public class VectorizedPageIterator extends BasePageIterator {
               batchSize,
               holder,
               dictionaryEncodedValuesReader,
-              dictionary);
+              dictionary,
+              readState);
     }
   }
 
@@ -286,15 +333,25 @@ public class VectorizedPageIterator extends BasePageIterator {
   class TimestampInt96PageReader extends BasePageReader {
     @Override
     protected void nextVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+        FieldVector vector,
+        int batchSize,
+        int numVals,
+        int typeWidth,
+        NullabilityHolder holder,
+        ReadState readState) {
       vectorizedDefinitionLevelReader
           .timestampInt96Reader()
-          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader);
+          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader, readState);
     }
 
     @Override
     protected void nextDictEncodedVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+        FieldVector vector,
+        int batchSize,
+        int numVals,
+        int typeWidth,
+        NullabilityHolder holder,
+        ReadState readState) {
       vectorizedDefinitionLevelReader
           .timestampInt96Reader()
           .nextDictEncodedBatch(
@@ -304,7 +361,8 @@ public class VectorizedPageIterator extends BasePageIterator {
               batchSize,
               holder,
               dictionaryEncodedValuesReader,
-              dictionary);
+              dictionary,
+              readState);
     }
   }
 
@@ -313,15 +371,25 @@ public class VectorizedPageIterator extends BasePageIterator {
 
     @Override
     protected void nextVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+        FieldVector vector,
+        int batchSize,
+        int numVals,
+        int typeWidth,
+        NullabilityHolder holder,
+        ReadState readState) {
       vectorizedDefinitionLevelReader
           .floatReader()
-          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader);
+          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader, readState);
     }
 
     @Override
     protected void nextDictEncodedVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+        FieldVector vector,
+        int batchSize,
+        int numVals,
+        int typeWidth,
+        NullabilityHolder holder,
+        ReadState readState) {
       vectorizedDefinitionLevelReader
           .floatReader()
           .nextDictEncodedBatch(
@@ -331,7 +399,8 @@ public class VectorizedPageIterator extends BasePageIterator {
               batchSize,
               holder,
               dictionaryEncodedValuesReader,
-              dictionary);
+              dictionary,
+              readState);
     }
   }
 
@@ -340,15 +409,25 @@ public class VectorizedPageIterator extends BasePageIterator {
 
     @Override
     protected void nextVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+        FieldVector vector,
+        int batchSize,
+        int numVals,
+        int typeWidth,
+        NullabilityHolder holder,
+        ReadState readState) {
       vectorizedDefinitionLevelReader
           .doubleReader()
-          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader);
+          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader, readState);
     }
 
     @Override
     protected void nextDictEncodedVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+        FieldVector vector,
+        int batchSize,
+        int numVals,
+        int typeWidth,
+        NullabilityHolder holder,
+        ReadState readState) {
       vectorizedDefinitionLevelReader
           .doubleReader()
           .nextDictEncodedBatch(
@@ -358,7 +437,8 @@ public class VectorizedPageIterator extends BasePageIterator {
               batchSize,
               holder,
               dictionaryEncodedValuesReader,
-              dictionary);
+              dictionary,
+              readState);
     }
   }
 
@@ -369,15 +449,25 @@ public class VectorizedPageIterator extends BasePageIterator {
   class FixedSizeBinaryPageReader extends BasePageReader {
     @Override
     protected void nextVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+        FieldVector vector,
+        int batchSize,
+        int numVals,
+        int typeWidth,
+        NullabilityHolder holder,
+        ReadState readState) {
       vectorizedDefinitionLevelReader
           .fixedSizeBinaryReader()
-          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader);
+          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader, readState);
     }
 
     @Override
     protected void nextDictEncodedVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+        FieldVector vector,
+        int batchSize,
+        int numVals,
+        int typeWidth,
+        NullabilityHolder holder,
+        ReadState readState) {
       vectorizedDefinitionLevelReader
           .fixedSizeBinaryReader()
           .nextDictEncodedBatch(
@@ -387,7 +477,8 @@ public class VectorizedPageIterator extends BasePageIterator {
               batchSize,
               holder,
               dictionaryEncodedValuesReader,
-              dictionary);
+              dictionary,
+              readState);
     }
   }
 
@@ -395,15 +486,25 @@ public class VectorizedPageIterator extends BasePageIterator {
   class VarWidthTypePageReader extends BasePageReader {
     @Override
     protected void nextVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+        FieldVector vector,
+        int batchSize,
+        int numVals,
+        int typeWidth,
+        NullabilityHolder holder,
+        ReadState readState) {
       vectorizedDefinitionLevelReader
           .varWidthReader()
-          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader);
+          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader, readState);
     }
 
     @Override
     protected void nextDictEncodedVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+        FieldVector vector,
+        int batchSize,
+        int numVals,
+        int typeWidth,
+        NullabilityHolder holder,
+        ReadState readState) {
       vectorizedDefinitionLevelReader
           .varWidthReader()
           .nextDictEncodedBatch(
@@ -413,7 +514,8 @@ public class VectorizedPageIterator extends BasePageIterator {
               batchSize,
               holder,
               dictionaryEncodedValuesReader,
-              dictionary);
+              dictionary,
+              readState);
     }
   }
 
@@ -425,15 +527,25 @@ public class VectorizedPageIterator extends BasePageIterator {
   class FixedWidthBinaryPageReader extends BasePageReader {
     @Override
     protected void nextVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+        FieldVector vector,
+        int batchSize,
+        int numVals,
+        int typeWidth,
+        NullabilityHolder holder,
+        ReadState readState) {
       vectorizedDefinitionLevelReader
           .fixedWidthBinaryReader()
-          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader);
+          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader, readState);
     }
 
     @Override
     protected void nextDictEncodedVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+        FieldVector vector,
+        int batchSize,
+        int numVals,
+        int typeWidth,
+        NullabilityHolder holder,
+        ReadState readState) {
       vectorizedDefinitionLevelReader
           .fixedWidthBinaryReader()
           .nextDictEncodedBatch(
@@ -443,7 +555,8 @@ public class VectorizedPageIterator extends BasePageIterator {
               batchSize,
               holder,
               dictionaryEncodedValuesReader,
-              dictionary);
+              dictionary,
+              readState);
     }
   }
 
@@ -451,15 +564,25 @@ public class VectorizedPageIterator extends BasePageIterator {
   class BooleanPageReader extends BasePageReader {
     @Override
     protected void nextVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+        FieldVector vector,
+        int batchSize,
+        int numVals,
+        int typeWidth,
+        NullabilityHolder holder,
+        ReadState readState) {
       vectorizedDefinitionLevelReader
           .booleanReader()
-          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader);
+          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader, readState);
     }
 
     @Override
     protected void nextDictEncodedVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+        FieldVector vector,
+        int batchSize,
+        int numVals,
+        int typeWidth,
+        NullabilityHolder holder,
+        ReadState readState) {
       throw new UnsupportedOperationException();
     }
   }
