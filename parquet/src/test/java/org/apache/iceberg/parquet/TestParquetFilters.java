@@ -57,7 +57,8 @@ public class TestParquetFilters {
 
   @TestTemplate
   public void testIntegerInFilter() {
-    FilterCompat.Filter filter = (FilterCompat.Filter)  ParquetFilters.convert(SCHEMA, in("id", 1, 2, 3), true);
+    FilterCompat.Filter filter =
+        (FilterCompat.Filter) ParquetFilters.convert(SCHEMA, in("id", 1, 2, 3), true);
 
     try {
       java.lang.reflect.Field privateField = filter.getClass().getDeclaredField("filterPredicate");
@@ -70,7 +71,8 @@ public class TestParquetFilters {
 
   @TestTemplate
   public void testDoubleNotInFilter() {
-    FilterCompat.Filter filter = (FilterCompat.Filter)  ParquetFilters.convert(SCHEMA, notIn("age", 1.0, 2.0, 3.0), true);
+    FilterCompat.Filter filter =
+        (FilterCompat.Filter) ParquetFilters.convert(SCHEMA, notIn("age", 1.0, 2.0, 3.0), true);
 
     try {
       java.lang.reflect.Field privateField = filter.getClass().getDeclaredField("filterPredicate");
