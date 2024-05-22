@@ -34,7 +34,7 @@ This page describes the procedures that the release manager and voting PMC membe
 
 To create a release candidate, you will need:
 
-* Apache LDAP credentals for Nexus and SVN
+* Apache LDAP credentials for Nexus and SVN
 * A [GPG key for signing](https://www.apache.org/dev/release-signing#generate), published in [KEYS](https://dist.apache.org/repos/dist/dev/iceberg/KEYS)
 
 If you have not published your GPG key yet, you must publish it before sending the vote email by doing:
@@ -256,14 +256,7 @@ are prepared when going through the below steps.
 First, copy the source release directory to releases:
 
 ```bash
-mkdir iceberg
-cd iceberg
-svn co https://dist.apache.org/repos/dist/dev/iceberg candidates
-svn co https://dist.apache.org/repos/dist/release/iceberg releases
-cp -r candidates/apache-iceberg-<VERSION>-rcN/ releases/apache-iceberg-<VERSION>
-cd releases
-svn add apache-iceberg-<VERSION>
-svn ci -m 'Iceberg: Add release <VERSION>'
+svn mv https://dist.apache.org/repos/dist/dev/iceberg/apache-iceberg-<VERSION>-rcN https://dist.apache.org/repos/dist/release/iceberg/apache-iceberg-<VERSION> -m "Iceberg: Add release <VERSION>"
 ```
 
 !!! Note
@@ -309,6 +302,20 @@ Create a PR in the `iceberg` repo to make revapi run on the new release. For an 
 
 - Create a PR in the `iceberg` repo to add the new version to the github issue template. For an example see [this PR](https://github.com/apache/iceberg/pull/6287).
 - Draft [a new release to update Github](https://github.com/apache/iceberg/releases/new) to show the latest release. A changelog can be generated automatically using Github.
+
+#### Update DOAP (ASF Project Description)
+
+- Create a PR to update the release version in [doap.rdf](https://github.com/apache/iceberg/blob/main/doap.rdf) file, in the `<release/>` section:
+
+```xml
+    <release>
+      <Version>
+        <name>x.y.z</name>
+        <created>yyyy-mm-dd</created>
+        <revision>x.y.z</revision>
+      </Version>
+    </release>
+```
 
 ### Documentation Release
 

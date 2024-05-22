@@ -49,9 +49,11 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.MapData;
 import org.apache.spark.sql.types.ArrayType;
+import org.apache.spark.sql.types.ByteType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.MapType;
+import org.apache.spark.sql.types.ShortType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
@@ -267,7 +269,7 @@ public class SparkParquetWriters {
         case BOOLEAN:
           return ParquetValueWriters.booleans(desc);
         case INT32:
-          return ParquetValueWriters.ints(desc);
+          return ints(sType, desc);
         case INT64:
           return ParquetValueWriters.longs(desc);
         case FLOAT:
@@ -278,6 +280,15 @@ public class SparkParquetWriters {
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }
     }
+  }
+
+  private static PrimitiveWriter<?> ints(DataType type, ColumnDescriptor desc) {
+    if (type instanceof ByteType) {
+      return ParquetValueWriters.tinyints(desc);
+    } else if (type instanceof ShortType) {
+      return ParquetValueWriters.shorts(desc);
+    }
+    return ParquetValueWriters.ints(desc);
   }
 
   private static PrimitiveWriter<UTF8String> utf8Strings(ColumnDescriptor desc) {

@@ -48,7 +48,9 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.Timeout;
 
+@Timeout(60)
 public class TestStreamScanSql extends CatalogTestBase {
   private static final String TABLE = "test_table";
   private static final FileFormat FORMAT = FileFormat.PARQUET;
