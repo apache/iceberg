@@ -19,16 +19,16 @@
 package org.apache.iceberg.parquet;
 
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.parquet.compression.CompressionCodecFactory;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 
 public class AirliftCodecFactory implements CompressionCodecFactory {
 
   private final Map<CompressionCodecName, AirliftBytesInputCompressor> compressors =
-      new HashMap<>();
+      new Maps.newHashMap<>();
 
   private static final Set<CompressionCodecName> CODECS =
       EnumSet.of(
