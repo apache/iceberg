@@ -28,7 +28,7 @@ import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 public class AirliftCodecFactory implements CompressionCodecFactory {
 
   private final Map<CompressionCodecName, AirliftBytesInputCompressor> compressors =
-      new Maps.newHashMap<>();
+      Maps.newHashMap();
 
   private static final Set<CompressionCodecName> CODECS =
       EnumSet.of(
