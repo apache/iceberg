@@ -95,8 +95,6 @@ public class TestAggregateEvaluator {
     FILE, MISSING_SOME_NULLS_STATS_1, MISSING_SOME_NULLS_STATS_2
   };
 
-  // This is not included in dataFiles as tests using it assume that
-  // all aggregators will be valid vs in this case all will always be invalid
   private static final DataFile MISSING_ALL_OPTIONAL_STATS =
       new TestDataFile(
           "file_null_stats.avro",
