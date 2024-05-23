@@ -27,7 +27,6 @@ import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
-import org.apache.iceberg.arrow.vectorized.parquet.VectorizedColumnIterator.ReadState;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.parquet.column.Dictionary;
 
@@ -51,8 +50,7 @@ public class VectorizedDictionaryEncodedParquetValuesReader
         int numValuesToRead,
         Dictionary dict,
         NullabilityHolder nullabilityHolder,
-        int typeWidth,
-        ReadState readState) {
+        int typeWidth) {
       int left = numValuesToRead;
       int idx = startOffset;
       while (left > 0) {
