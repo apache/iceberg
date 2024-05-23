@@ -124,7 +124,7 @@ public class TestIcebergSourceFailover {
     GenericAppenderHelper dataAppender =
         new GenericAppenderHelper(
             sourceTableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER);
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < 20; ++i) {
       List<Record> records = generateRecords(2, i);
       expectedRecords.addAll(records);
       dataAppender.appendToTable(records);
