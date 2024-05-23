@@ -40,7 +40,7 @@ public class MaxAggregate<T> extends ValueAggregate<T> {
 
   @Override
   protected boolean hasValue(DataFile file) {
-    boolean hasBound = file.upperBounds().containsKey(fieldId);
+    boolean hasBound = safeContainsKey(file.upperBounds(), fieldId);
     Long valueCount = safeGet(file.valueCounts(), fieldId);
     Long nullCount = safeGet(file.nullValueCounts(), fieldId);
     boolean boundAllNull =
