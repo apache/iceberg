@@ -270,12 +270,22 @@ class SparkConfParser {
         if (optionValue != null) {
           return conversion.apply(optionValue);
         }
+
+        String sparkOptionValue = options.get(toCamelCase(optionName));
+        if (sparkOptionValue != null) {
+          return conversion.apply(sparkOptionValue);
+        }
       }
 
       if (sessionConfName != null) {
         String sessionConfValue = sessionConf.get(sessionConfName, null);
         if (sessionConfValue != null) {
           return conversion.apply(sessionConfValue);
+        }
+
+        String sparkSessionConfValue = sessionConf.get(toCamelCase(sessionConfName), null);
+        if (sparkSessionConfValue != null) {
+          return conversion.apply(sparkSessionConfValue);
         }
       }
 
@@ -287,6 +297,24 @@ class SparkConfParser {
       }
 
       return defaultValue;
+    }
+
+    private String toCamelCase(String key) {
+      StringBuilder transformedKey = new StringBuilder();
+      boolean capitalizeNext = false;
+
+      for (char character : key.toCharArray()) {
+        if (character == '-') {
+          capitalizeNext = true;
+        } else if (capitalizeNext) {
+          transformedKey.append(Character.toUpperCase(character));
+          capitalizeNext = false;
+        } else {
+          transformedKey.append(character);
+        }
+      }
+
+      return transformedKey.toString();
     }
   }
 }
