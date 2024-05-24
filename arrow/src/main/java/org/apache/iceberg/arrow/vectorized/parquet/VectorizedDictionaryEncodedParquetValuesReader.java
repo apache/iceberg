@@ -43,6 +43,25 @@ public class VectorizedDictionaryEncodedParquetValuesReader
     super(maxDefLevel, setValidityVector);
   }
 
+  public void skipValues(int numValuesToSkip) {
+    int left = numValuesToSkip;
+    while (left > 0) {
+      if (this.currentCount == 0) {
+        this.readNextGroup();
+      }
+      int num = Math.min(left, this.currentCount);
+      switch (mode) {
+        case RLE:
+          break;
+        case PACKED:
+          packedValuesBufferIdx += num;
+          break;
+      }
+      currentCount -= num;
+      left -= num;
+    }
+  }
+
   abstract class BaseDictEncodedReader {
     public void nextBatch(
         FieldVector vector,

@@ -51,7 +51,7 @@ public final class VectorizedParquetDefinitionLevelReader
 
   abstract class CommonBaseReader {
 
-    protected void nextCommonBatch(
+    private void nextCommonBatch(
         final FieldVector vector,
         final int startOffset,
         final int typeWidth,
@@ -60,8 +60,9 @@ public final class VectorizedParquetDefinitionLevelReader
         ValuesReader valuesReader,
         Dictionary dict,
         ReadState readState) {
-      int idx = startOffset;
+      int idx = readState.currentOffset();
       int left = numValsToRead;
+      long rowIdx = readState.currentRowIndex();
 
       while (left > 0) {
         if (currentCount == 0) {
@@ -75,56 +76,125 @@ public final class VectorizedParquetDefinitionLevelReader
         }
         ArrowBuf validityBuffer = vector.getValidityBuffer();
 
+        long rangeStart = readState.currentRangeStart();
+        long rangeEnd = readState.currentRangeEnd();
+
+        // If [rowIdx, rowIdx + numValues) is wholly before or after the current row range,
+        // we skip to the start of the current row range or advance the current row range
+        if (rowIdx + numValues < rangeStart) {
+          skipValues(numValues, typeWidth, valuesReader);
+          rowIdx += numValues;
+          left -= numValues;
+        } else if (rowIdx > rangeEnd) {
+          readState.nextRange();
+        } else {
+          // [rowIdx, rowIdx + numValues) overlaps with the current row range
+          long start = Math.max(rangeStart, rowIdx);
+          long end = Math.min(rangeEnd, rowIdx + numValues - 1);
+
+          // skip [rowIdx, start)
+          int toSkip = (int) (start - rowIdx);
+          if (toSkip > 0) {
+            skipValues(toSkip, typeWidth, valuesReader);
+            rowIdx += toSkip;
+            left -= toSkip;
+          }
+
+          // read [start, end]
+          numValues = (int) (end - start + 1);
+
+          switch (mode) {
+            case RLE:
+              if (valuesReader instanceof ValuesAsBytesReader) {
+                nextRleBatch(
+                    vector,
+                    typeWidth,
+                    nullabilityHolder,
+                    (ValuesAsBytesReader) valuesReader,
+                    idx,
+                    numValues,
+                    byteArray);
+              } else if (valuesReader instanceof VectorizedDictionaryEncodedParquetValuesReader) {
+                nextRleDictEncodedBatch(
+                    vector,
+                    typeWidth,
+                    nullabilityHolder,
+                    (VectorizedDictionaryEncodedParquetValuesReader) valuesReader,
+                    dict,
+                    idx,
+                    numValues,
+                    validityBuffer);
+              }
+              idx += numValues;
+              break;
+            case PACKED:
+              if (valuesReader instanceof ValuesAsBytesReader) {
+                nextPackedBatch(
+                    vector,
+                    typeWidth,
+                    nullabilityHolder,
+                    (ValuesAsBytesReader) valuesReader,
+                    idx,
+                    numValues,
+                    byteArray);
+              } else if (valuesReader instanceof VectorizedDictionaryEncodedParquetValuesReader) {
+                nextPackedDictEncodedBatch(
+                    vector,
+                    typeWidth,
+                    nullabilityHolder,
+                    (VectorizedDictionaryEncodedParquetValuesReader) valuesReader,
+                    dict,
+                    idx,
+                    numValues,
+                    validityBuffer);
+              }
+              idx += numValues;
+              break;
+          }
+          rowIdx += numValues;
+          left -= numValues;
+          currentCount -= numValues;
+        }
+      }
+      readState.advanceOffsetAndRowIndex(idx, rowIdx);
+    }
+
+    private void skipValues(int numValuesToSkip, int typeWidth, ValuesReader valuesReader) {
+      int numValues = numValuesToSkip;
+      while (numValues > 0) {
+        if (currentCount == 0) {
+          readNextGroup();
+        }
+        int num = Math.min(numValues, currentCount);
         switch (mode) {
           case RLE:
-            if (valuesReader instanceof ValuesAsBytesReader) {
-              nextRleBatch(
-                  vector,
-                  typeWidth,
-                  nullabilityHolder,
-                  (ValuesAsBytesReader) valuesReader,
-                  idx,
-                  numValues,
-                  byteArray);
-            } else if (valuesReader instanceof VectorizedDictionaryEncodedParquetValuesReader) {
-              nextRleDictEncodedBatch(
-                  vector,
-                  typeWidth,
-                  nullabilityHolder,
-                  (VectorizedDictionaryEncodedParquetValuesReader) valuesReader,
-                  dict,
-                  idx,
-                  numValues,
-                  validityBuffer);
+            // we only need to skip non-null values from `valuesReader` since nulls are represented
+            // via definition levels which are skipped here via decrementing `currentCount`.
+            if (currentValue == maxDefLevel) {
+              if (valuesReader instanceof ValuesAsBytesReader) {
+                for (int i = 0; i < num; i++) {
+                  skipVal((ValuesAsBytesReader) valuesReader, typeWidth);
+                }
+              } else if (valuesReader instanceof VectorizedDictionaryEncodedParquetValuesReader) {
+                ((VectorizedDictionaryEncodedParquetValuesReader) valuesReader).skipValues(num);
+              }
             }
-            idx += numValues;
             break;
           case PACKED:
-            if (valuesReader instanceof ValuesAsBytesReader) {
-              nextPackedBatch(
-                  vector,
-                  typeWidth,
-                  nullabilityHolder,
-                  (ValuesAsBytesReader) valuesReader,
-                  idx,
-                  numValues,
-                  byteArray);
-            } else if (valuesReader instanceof VectorizedDictionaryEncodedParquetValuesReader) {
-              nextPackedDictEncodedBatch(
-                  vector,
-                  typeWidth,
-                  nullabilityHolder,
-                  (VectorizedDictionaryEncodedParquetValuesReader) valuesReader,
-                  dict,
-                  idx,
-                  numValues,
-                  validityBuffer);
+            for (int i = 0; i < num; ++i) {
+              // same as above, only skip non-null values from `valuesReader`
+              if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
+                if (valuesReader instanceof ValuesAsBytesReader) {
+                  skipVal((ValuesAsBytesReader) valuesReader, typeWidth);
+                } else if (valuesReader instanceof VectorizedDictionaryEncodedParquetValuesReader) {
+                  ((VectorizedDictionaryEncodedParquetValuesReader) valuesReader).skipValues(1);
+                }
+              }
             }
-            idx += numValues;
             break;
         }
-        left -= numValues;
-        currentCount -= numValues;
+        currentCount -= num;
+        numValues -= num;
       }
     }
 
@@ -236,6 +306,8 @@ public final class VectorizedParquetDefinitionLevelReader
         int numValues,
         NullabilityHolder holder,
         int typeWidth);
+
+    protected abstract void skipVal(ValuesAsBytesReader valuesReader, int typeWidth);
   }
 
   abstract class NumericBaseReader extends CommonBaseReader {
@@ -288,6 +360,11 @@ public final class VectorizedParquetDefinitionLevelReader
     }
 
     @Override
+    protected void skipVal(ValuesAsBytesReader valuesReader, int typeWidth) {
+      valuesReader.skipBytes(8);
+    }
+
+    @Override
     protected void nextDictEncodedVal(
         FieldVector vector,
         int idx,
@@ -314,6 +391,11 @@ public final class VectorizedParquetDefinitionLevelReader
     protected void nextVal(
         FieldVector vector, int idx, ValuesAsBytesReader valuesReader, Mode mode) {
       vector.getDataBuffer().setDouble(idx, valuesReader.readDouble());
+    }
+
+    @Override
+    protected void skipVal(ValuesAsBytesReader valuesReader, int typeWidth) {
+      valuesReader.skipBytes(8);
     }
 
     @Override
@@ -346,6 +428,11 @@ public final class VectorizedParquetDefinitionLevelReader
     }
 
     @Override
+    protected void skipVal(ValuesAsBytesReader valuesReader, int typeWidth) {
+      valuesReader.skipBytes(4);
+    }
+
+    @Override
     protected void nextDictEncodedVal(
         FieldVector vector,
         int idx,
@@ -372,6 +459,11 @@ public final class VectorizedParquetDefinitionLevelReader
     protected void nextVal(
         FieldVector vector, int idx, ValuesAsBytesReader valuesReader, Mode mode) {
       vector.getDataBuffer().setInt(idx, valuesReader.readInteger());
+    }
+
+    @Override
+    protected void skipVal(ValuesAsBytesReader valuesReader, int typeWidth) {
+      valuesReader.skipBytes(4);
     }
 
     @Override
@@ -461,6 +553,11 @@ public final class VectorizedParquetDefinitionLevelReader
     }
 
     @Override
+    protected void skipVal(ValuesAsBytesReader valuesReader, int typeWidth) {
+      valuesReader.skipBytes(8);
+    }
+
+    @Override
     protected void nextDictEncodedVal(
         FieldVector vector,
         int idx,
@@ -494,6 +591,11 @@ public final class VectorizedParquetDefinitionLevelReader
       ByteBuffer buffer = valuesReader.getBuffer(12).order(ByteOrder.LITTLE_ENDIAN);
       long timestampInt96 = ParquetUtil.extractTimestampInt96(buffer);
       vector.getDataBuffer().setLong((long) idx * typeWidth, timestampInt96);
+    }
+
+    @Override
+    protected void skipVal(ValuesAsBytesReader valuesReader, int typeWidth) {
+      valuesReader.skipBytes(12);
     }
 
     @Override
@@ -545,6 +647,11 @@ public final class VectorizedParquetDefinitionLevelReader
     }
 
     @Override
+    protected void skipVal(ValuesAsBytesReader valuesReader, int typeWidth) {
+      valuesReader.skipBytes(typeWidth);
+    }
+
+    @Override
     protected void nextDictEncodedVal(
         FieldVector vector,
         int idx,
@@ -578,6 +685,11 @@ public final class VectorizedParquetDefinitionLevelReader
     }
 
     @Override
+    protected void skipVal(ValuesAsBytesReader valuesReader, int typeWidth) {
+      valuesReader.skipBytes(typeWidth);
+    }
+
+    @Override
     protected void nextDictEncodedVal(
         FieldVector vector,
         int idx,
@@ -608,6 +720,11 @@ public final class VectorizedParquetDefinitionLevelReader
         byte[] byteArray) {
       valuesReader.getBuffer(typeWidth).get(byteArray, 0, typeWidth);
       ((FixedSizeBinaryVector) vector).set(idx, byteArray);
+    }
+
+    @Override
+    protected void skipVal(ValuesAsBytesReader valuesReader, int typeWidth) {
+      valuesReader.skipBytes(typeWidth);
     }
 
     @Override
@@ -658,6 +775,12 @@ public final class VectorizedParquetDefinitionLevelReader
     }
 
     @Override
+    protected void skipVal(ValuesAsBytesReader valuesReader, int typeWidth) {
+      int len = valuesReader.readInteger();
+      valuesReader.skipBytes(len);
+    }
+
+    @Override
     protected void nextDictEncodedVal(
         FieldVector vector,
         int idx,
@@ -687,6 +810,11 @@ public final class VectorizedParquetDefinitionLevelReader
         int typeWidth,
         byte[] byteArray) {
       ((DecimalVector) vector).set(idx, valuesReader.getBuffer(Integer.BYTES).getInt());
+    }
+
+    @Override
+    protected void skipVal(ValuesAsBytesReader valuesReader, int typeWidth) {
+      valuesReader.skipBytes(Integer.BYTES);
     }
 
     @Override
@@ -721,6 +849,11 @@ public final class VectorizedParquetDefinitionLevelReader
     }
 
     @Override
+    protected void skipVal(ValuesAsBytesReader valuesReader, int typeWidth) {
+      valuesReader.skipBytes(Long.BYTES);
+    }
+
+    @Override
     protected void nextDictEncodedVal(
         FieldVector vector,
         int idx,
@@ -752,6 +885,11 @@ public final class VectorizedParquetDefinitionLevelReader
     }
 
     @Override
+    protected void skipVal(ValuesAsBytesReader valuesReader, int typeWidth) {
+      valuesReader.readBooleanAsInt();
+    }
+
+    @Override
     protected void nextDictEncodedVal(
         FieldVector vector,
         int idx,
@@ -774,6 +912,11 @@ public final class VectorizedParquetDefinitionLevelReader
         ValuesAsBytesReader valuesReader,
         int typeWidth,
         byte[] byteArray) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected void skipVal(ValuesAsBytesReader valuesReader, int typeWidth) {
       throw new UnsupportedOperationException();
     }
 

@@ -61,6 +61,9 @@ public abstract class BaseColumnIterator {
     this.needsSynchronizing = optionalRowIndexes.isPresent();
     if (needsSynchronizing) {
       this.rowIndexes = optionalRowIndexes.get();
+    } else {
+      // reset
+      this.rowIndexes = null;
     }
     BasePageIterator pageIterator = pageIterator();
     pageIterator.reset();

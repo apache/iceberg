@@ -145,6 +145,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       vec.setValueCount(0);
       nullabilityHolder.reset();
     }
+    vectorizedColumnIterator.newBatch();
     if (vectorizedColumnIterator.hasNext()) {
       if (dictEncoded) {
         vectorizedColumnIterator.dictionaryBatchReader().nextBatch(vec, -1, nullabilityHolder);

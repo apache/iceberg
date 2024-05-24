@@ -52,6 +52,7 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
 
   private final VectorizedPageIterator vectorizedPageIterator;
   private int batchSize;
+  private int currentOffset;
   private long pageFirstRowIndex;
   private Iterator<RowRange> rowRanges;
   private RowRange currentRange;
@@ -70,6 +71,10 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     this.batchSize = batchSize;
   }
 
+  public void newBatch() {
+    this.currentOffset = 0;
+  }
+
   public Dictionary setRowGroupInfo(
       PageReader store,
       Optional<PrimitiveIterator.OfLong> optionalRowIndexes,
@@ -80,6 +85,7 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     super.setPageSource(store, optionalRowIndexes);
     this.rowRanges = constructRanges(rowIndexes);
     nextRange();
+    this.currentOffset = 0;
     return dictionary;
   }
 
@@ -175,6 +181,10 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
   }
 
   public class ReadState {
+    public int currentOffset() {
+      return currentOffset;
+    }
+
     public long currentRowIndex() {
       return currentRowIndex;
     }
@@ -191,7 +201,8 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
       VectorizedColumnIterator.this.nextRange();
     }
 
-    public void advanceRowIndex(long rowIndex) {
+    public void advanceOffsetAndRowIndex(int offset, long rowIndex) {
+      currentOffset = offset;
       currentRowIndex = rowIndex;
     }
   }
@@ -211,7 +222,7 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
                 new ReadState());
         rowsReadSoFar += rowsInThisBatch;
         triplesRead += rowsInThisBatch;
-        fieldVector.setValueCount(rowsReadSoFar);
+        fieldVector.setValueCount(currentOffset);
       }
     }
 
