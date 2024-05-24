@@ -292,6 +292,21 @@ public class TestS3FileIOIntegration {
   }
 
   @Test
+  public void testDualLayerServerSideKmsEncryption() throws Exception {
+    S3FileIOProperties properties = new S3FileIOProperties();
+    properties.setSseType(S3FileIOProperties.DSSE_TYPE_KMS);
+    properties.setSseKey(kmsKeyArn);
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, properties);
+    write(s3FileIO);
+    validateRead(s3FileIO);
+    GetObjectResponse response =
+        s3.getObject(GetObjectRequest.builder().bucket(bucketName).key(objectKey).build())
+            .response();
+    assertThat(response.serverSideEncryption()).isEqualTo(ServerSideEncryption.AWS_KMS_DSSE);
+    assertThat(response.ssekmsKeyId()).isEqualTo(kmsKeyArn);
+  }
+
+  @Test
   public void testServerSideCustomEncryption() throws Exception {
     // generate key
     KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
