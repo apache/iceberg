@@ -22,6 +22,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -107,8 +108,7 @@ class SparkConfParser {
     }
 
     public boolean parse() {
-      Preconditions.checkArgument(defaultValue != null, "Default value cannot be null");
-      boolean value = parse(Boolean::parseBoolean, defaultValue);
+      boolean value = parseAndCheck(Boolean::parseBoolean, defaultValue);
       return negate ? !value : value;
     }
   }
@@ -127,12 +127,11 @@ class SparkConfParser {
     }
 
     public int parse() {
-      Preconditions.checkArgument(defaultValue != null, "Default value cannot be null");
-      return parse(Integer::parseInt, defaultValue);
+      return parseAndCheck(Integer::parseInt, defaultValue);
     }
 
     public Integer parseOptional() {
-      return parse(Integer::parseInt, defaultValue);
+      return parseOptionalAndCheck(Integer::parseInt, defaultValue);
     }
   }
 
@@ -150,12 +149,11 @@ class SparkConfParser {
     }
 
     public long parse() {
-      Preconditions.checkArgument(defaultValue != null, "Default value cannot be null");
-      return parse(Long::parseLong, defaultValue);
+      return parseAndCheck(Long::parseLong, defaultValue);
     }
 
     public Long parseOptional() {
-      return parse(Long::parseLong, defaultValue);
+      return parseOptionalAndCheck(Long::parseLong, defaultValue);
     }
   }
 
@@ -173,12 +171,11 @@ class SparkConfParser {
     }
 
     public String parse() {
-      Preconditions.checkArgument(defaultValue != null, "Default value cannot be null");
-      return parse(Function.identity(), defaultValue);
+      return parseAndCheck(Function.identity(), defaultValue);
     }
 
     public String parseOptional() {
-      return parse(Function.identity(), defaultValue);
+      return parseOptionalAndCheck(Function.identity(), defaultValue);
     }
   }
 
@@ -196,12 +193,11 @@ class SparkConfParser {
     }
 
     public Duration parse() {
-      Preconditions.checkArgument(defaultValue != null, "Default value cannot be null");
-      return parse(this::toDuration, defaultValue);
+      return parseAndCheck(this::toDuration, defaultValue);
     }
 
     public Duration parseOptional() {
-      return parse(this::toDuration, defaultValue);
+      return parseOptionalAndCheck(this::toDuration, defaultValue);
     }
 
     private Duration toDuration(String time) {
@@ -233,12 +229,11 @@ class SparkConfParser {
     }
 
     public T parse() {
-      Preconditions.checkArgument(defaultValue != null, "Default value cannot be null");
-      return parse(toEnum, defaultValue);
+      return parseAndCheck(toEnum, defaultValue);
     }
 
     public T parseOptional() {
-      return parse(toEnum, defaultValue);
+      return parseOptionalAndCheck(toEnum, defaultValue);
     }
   }
 
@@ -246,6 +241,8 @@ class SparkConfParser {
     private final List<String> optionNames = Lists.newArrayList();
     private String sessionConfName;
     private String tablePropertyName;
+    private Predicate<T> check;
+    private String errMsg;
 
     protected abstract ThisT self();
 
@@ -264,7 +261,26 @@ class SparkConfParser {
       return self();
     }
 
-    protected T parse(Function<String, T> conversion, T defaultValue) {
+    public ThisT check(Predicate<T> newCheck, String newErrMsg) {
+      this.check = newCheck;
+      this.errMsg = newErrMsg;
+      return self();
+    }
+
+    protected T parseAndCheck(Function<String, T> conversion, T defaultValue) {
+      T value = parse(conversion, defaultValue);
+      Preconditions.checkArgument(value != null, "Value cannot be null");
+      check(value);
+      return value;
+    }
+
+    protected T parseOptionalAndCheck(Function<String, T> conversion, T defaultValue) {
+      T value = parse(conversion, defaultValue);
+      check(value);
+      return value;
+    }
+
+    private T parse(Function<String, T> conversion, T defaultValue) {
       for (String optionName : optionNames) {
         String optionValue = options.get(optionName);
         if (optionValue != null) {
@@ -287,6 +303,12 @@ class SparkConfParser {
       }
 
       return defaultValue;
+    }
+
+    private void check(T value) {
+      if (check != null && value != null) {
+        Preconditions.checkArgument(check.test(value), "Invalid value: %s (%s)", value, errMsg);
+      }
     }
   }
 }
