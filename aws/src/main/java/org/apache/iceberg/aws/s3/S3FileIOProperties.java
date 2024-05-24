@@ -93,6 +93,14 @@ public class S3FileIOProperties implements Serializable {
   public static final String SSE_TYPE_KMS = "kms";
 
   /**
+   * S3 DSSE-KMS encryption.
+   *
+   * <p>For more details:
+   * https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingDSSEncryption.html
+   */
+  public static final String DSSE_TYPE_KMS = "dsse-kms";
+
+  /**
    * S3 SSE-S3 encryption.
    *
    * <p>For more details:
@@ -109,9 +117,9 @@ public class S3FileIOProperties implements Serializable {
   public static final String SSE_TYPE_CUSTOM = "custom";
 
   /**
-   * If S3 encryption type is SSE-KMS, input is a KMS Key ID or ARN. In case this property is not
-   * set, default key "aws/s3" is used. If encryption type is SSE-C, input is a custom base-64
-   * AES256 symmetric key.
+   * If S3 encryption type is SSE-KMS or DSSE-KMS, input is a KMS Key ID or ARN. In case this
+   * property is not set, default key "aws/s3" is used. If encryption type is SSE-C, input is a
+   * custom base-64 AES256 symmetric key.
    */
   public static final String SSE_KEY = "s3.sse.key";
 
