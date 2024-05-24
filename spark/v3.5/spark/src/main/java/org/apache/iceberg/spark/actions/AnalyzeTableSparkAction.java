@@ -114,13 +114,12 @@ public class AnalyzeTableSparkAction extends BaseSparkAction<AnalyzeTableSparkAc
 
   private AnalysisResult generateNDVAndCommit() {
     try {
+      long snapshotId = table.currentSnapshot().snapshotId();
+
       StatisticsFile statisticsFile =
           NDVSketchGenerator.generateNDV(
-              spark(), table, columnsToBeAnalyzed.toArray(new String[0]));
-      table
-          .updateStatistics()
-          .setStatistics(table.currentSnapshot().snapshotId(), statisticsFile)
-          .commit();
+              spark(), table, snapshotId, columnsToBeAnalyzed.toArray(new String[0]));
+      table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
       return ImmutableAnalyzeTable.AnalysisResult.builder()
           .statsName(StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1)
           .statsCollected(true)

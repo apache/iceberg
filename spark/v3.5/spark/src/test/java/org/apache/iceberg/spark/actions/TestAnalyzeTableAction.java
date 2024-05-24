@@ -45,10 +45,7 @@ public class TestAnalyzeTableAction extends CatalogTestBase {
   @TestTemplate
   public void testAnalyzeTableAction() throws NoSuchTableException, ParseException {
     assumeTrue(catalogName.equals("spark_catalog"));
-    sql(
-        "CREATE TABLE %s (id int, data string) USING iceberg TBLPROPERTIES"
-            + "('format-version'='2')",
-        tableName);
+    sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
 
     List<SimpleRecord> records =
         Lists.newArrayList(

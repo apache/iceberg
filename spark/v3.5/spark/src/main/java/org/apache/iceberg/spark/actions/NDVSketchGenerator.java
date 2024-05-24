@@ -56,9 +56,10 @@ public class NDVSketchGenerator {
   private NDVSketchGenerator() {}
 
   public static StatisticsFile generateNDV(
-      SparkSession spark, Table table, String... columnsToBeAnalyzed) throws IOException {
+      SparkSession spark, Table table, long snapshotId, String... columnsToBeAnalyzed)
+      throws IOException {
     Iterator<Tuple2<String, ThetaSketchJavaSerializable>> tuple2Iterator =
-        NDVSketchGenerator.computeNDVSketches(spark, table.name(), columnsToBeAnalyzed);
+        NDVSketchGenerator.computeNDVSketches(spark, table.name(), snapshotId, columnsToBeAnalyzed);
     Map<String, ThetaSketchJavaSerializable> sketchMap = Maps.newHashMap();
 
     tuple2Iterator.forEachRemaining(tuple -> sketchMap.put(tuple._1, tuple._2));
@@ -103,8 +104,10 @@ public class NDVSketchGenerator {
   }
 
   public static Iterator<Tuple2<String, ThetaSketchJavaSerializable>> computeNDVSketches(
-      SparkSession spark, String tableName, String... columns) {
-    String sql = String.format("select %s from %s", String.join(",", columns), tableName);
+      SparkSession spark, String tableName, long snapshotId, String... columns) {
+    String sql =
+        String.format(
+            "select %s from %s VERSION AS OF %d", String.join(",", columns), tableName, snapshotId);
     Dataset<Row> data = spark.sql(sql);
     final JavaPairRDD<String, String> pairs =
         data.javaRDD()
