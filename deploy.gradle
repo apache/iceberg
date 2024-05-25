@@ -22,6 +22,11 @@ if (project.hasProperty('release') && jdkVersion != '8') {
 }
 
 subprojects {
+  if (it.name == 'iceberg-open-api') {
+    // don't publish iceberg-open-api
+    return
+  }
+
   def isBom = it.name == 'iceberg-bom'
 
   apply plugin: 'maven-publish'
@@ -89,20 +94,42 @@ subprojects {
             }
           }
 
-          groupId = 'com.flipkart.fdp.iceberg'
+          groupId = 'org.apache.iceberg'
           pom {
-            name = 'FDP Apache Iceberg'
+            name = 'Apache Iceberg'
             description = 'A table format for huge analytic datasets'
             url = 'https://iceberg.apache.org'
+            licenses {
+              license {
+                name = 'The Apache Software License, Version 2.0'
+                url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+              }
+            }
+            mailingLists {
+              mailingList {
+                name = 'Dev Mailing List'
+                post = 'dev@iceberg.apache.org'
+                subscribe = 'dev-subscribe@iceberg.apache.org'
+                unsubscribe = 'dev-unsubscribe@iceberg.apache.org'
+              }
+            }
+            issueManagement {
+              system = 'GitHub'
+              url = 'https://github.com/apache/iceberg/issues'
+            }
           }
         }
       }
 
       repositories {
         maven {
+          credentials {
+            username project.hasProperty('mavenUser') ? "$mavenUser" : ""
+            password project.hasProperty('mavenPassword') ? "$mavenPassword" : ""
+          }
           // upload to the releases repository using ./gradlew -Prelease publish
-          def apacheSnapshotsRepoUrl = 'https://jfrog.fkinternal.com/artifactory/maven_virtual'
-          def apacheReleasesRepoUrl = 'https://jfrog.fkinternal.com/artifactory/maven_virtual'
+          def apacheSnapshotsRepoUrl = 'https://repository.apache.org/content/repositories/snapshots'
+          def apacheReleasesRepoUrl = 'https://repository.apache.org/service/local/staging/deploy/maven2'
           def snapshotsRepoUrl = project.hasProperty('mavenSnapshotsRepo') ? "$mavenSnapshotsRepo" : "$apacheSnapshotsRepoUrl"
           def releasesRepoUrl = project.hasProperty('mavenReleasesRepo') ? "$mavenReleasesRepo" : "$apacheReleasesRepoUrl"
           url = project.hasProperty('release') ? releasesRepoUrl : snapshotsRepoUrl
@@ -110,5 +137,11 @@ subprojects {
       }
     }
 
+    if (project.hasProperty('release')) {
+      signing {
+        useGpgCmd()
+        sign publishing.publications.apache
+      }
+    }
   }
 }

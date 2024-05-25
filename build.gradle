@@ -36,10 +36,10 @@ buildscript {
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.13.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
     classpath 'me.champeau.jmh:jmh-gradle-plugin:0.7.2'
-    classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.0'
+    classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.6'
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.5.0"
     classpath 'com.palantir.gradle.revapi:gradle-revapi:1.7.0'
-    classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.4.1'
+    classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.4.2'
     classpath 'com.palantir.gradle.gitversion:gradle-git-version:3.0.0'
     classpath 'org.openapitools:openapi-generator-gradle-plugin:6.6.0'
   }
@@ -123,7 +123,7 @@ def projectVersion = getProjectVersion()
 final REVAPI_PROJECTS = ["iceberg-api", "iceberg-core", "iceberg-parquet", "iceberg-orc", "iceberg-common", "iceberg-data"]
 
 allprojects {
-  group = "com.flipkart.fdp.iceberg"
+  group = "org.apache.iceberg"
   version = projectVersion
   repositories {
     mavenCentral()
@@ -144,7 +144,7 @@ subprojects {
     revapi {
       oldGroup = project.group
       oldName = project.name
-      oldVersion = "1.4.0"
+      oldVersion = "1.5.0"
     }
 
     tasks.register('showDeprecationRulesOnRevApiFailure') {
@@ -440,7 +440,8 @@ project(':iceberg-aliyun') {
       exclude group: 'com.google.code.gson', module: 'gson'
     }
 
-    testImplementation libs.jackson.dataformat.xml
+    testImplementation platform(libs.jackson.bom)
+    testImplementation "com.fasterxml.jackson.dataformat:jackson-dataformat-xml"
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation libs.spring.web
     testImplementation(libs.spring.boot.starter.jetty) {
@@ -528,6 +529,7 @@ project(':iceberg-aws') {
   }
 
   task integrationTest(type: Test) {
+    useJUnitPlatform()
     testClassesDirs = sourceSets.integration.output.classesDirs
     classpath = sourceSets.integration.runtimeClasspath
     jvmArgs += project.property('extraJvmArgs')
@@ -1040,9 +1042,9 @@ project(':iceberg-bom') {
       // the BOM references the artifacts for all Scala versions.
       def sparkScalaPattern = ~"(.*)-([0-9][.][0-9]+)_([0-9][.][0-9]+)"
       def sparkScalaVersions = [
-        "3.3": ["2.12", "2.13"],
-        "3.4": ["2.12", "2.13"],
-        "3.5": ["2.12", "2.13"],
+              "3.3": ["2.12", "2.13"],
+              "3.4": ["2.12", "2.13"],
+              "3.5": ["2.12", "2.13"],
       ]
       rootProject.allprojects.forEach {
         // Do not include ':iceberg-spark', the bom itself and the root project.
