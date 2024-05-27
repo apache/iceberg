@@ -27,6 +27,7 @@ nav:
     - configuration.md
     - evolution.md
     - maintenance.md
+    - metrics-reporting.md
     - partitioning.md
     - performance.md
     - reliability.md
