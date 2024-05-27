@@ -189,7 +189,7 @@ public class PartitionSpec implements Serializable {
       if (i > 0) {
         sb.append("/");
       }
-      sb.append(field.name()).append("=").append(escape(valueString));
+      sb.append(escape(field.name())).append("=").append(escape(valueString));
     }
     return sb.toString();
   }
