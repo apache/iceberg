@@ -21,7 +21,7 @@ title: "Archive"
 Documentations of Iceberg versions older than 1.4.0 are no longer maintained. Here are the links to web archive.
 
 - [1.3.1](https://web.archive.org/web/20231210001939/https://iceberg.apache.org/docs/1.3.1/)
-- [1.3.0](https://web.archive.org/web/20231210001939/https://iceberg.apache.org/docs/1.3.0/)
+- [1.3.0](https://web.archive.org/web/20230923205931/https://iceberg.apache.org/docs/1.3.0/)
 - [1.2.1](https://web.archive.org/web/20230923215523/https://iceberg.apache.org/docs/1.2.1/)
 - [1.2.0](https://web.archive.org/web/20230611013035/https://iceberg.apache.org/docs/1.2.0/)
 - [1.1.0](https://web.archive.org/web/20230611011106/https://iceberg.apache.org/docs/1.1.0/)
