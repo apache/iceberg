@@ -388,7 +388,7 @@ project(':iceberg-data') {
 
     implementation("${libs.orc.core.get().module}:${libs.versions.orc.get()}:nohive") {
       exclude group: 'org.apache.hadoop'
-      exclude group: 'commons-lang'
+      exclude group: 'org.apache.commons'
       // These artifacts are shaded and included in the orc-core fat jar
       exclude group: 'com.google.protobuf', module: 'protobuf-java'
       exclude group: 'org.apache.hive', module: 'hive-storage-api'
