@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -284,5 +285,23 @@ public class TestLocationProvider extends TestBase {
     assertThat(parts).element(1).asString().isEqualTo("data");
     assertThat(parts).element(2).asString().isNotEmpty();
     assertThat(parts).element(3).asString().isEqualTo("test.parquet");
+  }
+
+  @TestTemplate
+  public void testEncodedFieldNameInPartitionPath() {
+    // Update the table to use a string field for partitioning with special characters in the name
+    table.updateProperties().set(TableProperties.OBJECT_STORE_ENABLED, "true").commit();
+    table.updateSchema().addColumn("data#1", Types.StringType.get()).commit();
+    table.updateSpec().addField("data#1").commit();
+
+    // Use a partition value that has a special character
+    StructLike partitionData = TestHelpers.CustomRow.of(0, "val#1");
+
+    String fileLocation =
+        table.locationProvider().newDataLocation(table.spec(), partitionData, "test.parquet");
+    List<String> parts = Splitter.on("/").splitToList(fileLocation);
+    String partitionString = parts.get(parts.size() - 2);
+
+    assertThat(partitionString).isEqualTo("data%231=val%231");
   }
 }

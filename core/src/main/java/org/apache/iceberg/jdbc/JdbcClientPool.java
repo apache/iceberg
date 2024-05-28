@@ -21,16 +21,39 @@ package org.apache.iceberg.jdbc;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.sql.SQLNonTransientConnectionException;
+import java.sql.SQLTransientException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.ClientPoolImpl;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 public class JdbcClientPool extends ClientPoolImpl<Connection, SQLException> {
 
+  /**
+   * The following are common retryable SQLSTATEs error codes which are generic across vendors.
+   *
+   * <ul>
+   *   <li>08000: Generic Connection Exception
+   *   <li>08003: Connection does not exist
+   *   <li>08006: Connection failure
+   *   <li>08007: Transaction resolution unknown
+   *   <li>40001: Serialization failure due to deadlock
+   * </ul>
+   *
+   * See https://en.wikipedia.org/wiki/SQLSTATE for more details.
+   */
+  static final Set<String> COMMON_RETRYABLE_CONNECTION_SQL_STATES =
+      ImmutableSet.of("08000", "08003", "08006", "08007", "40001");
+
   private final String dbUrl;
   private final Map<String, String> properties;
+
+  private Set<String> retryableStatusCodes;
 
   public JdbcClientPool(String dbUrl, Map<String, String> props) {
     this(
@@ -43,8 +66,18 @@ public class JdbcClientPool extends ClientPoolImpl<Connection, SQLException> {
   }
 
   public JdbcClientPool(int poolSize, String dbUrl, Map<String, String> props) {
-    super(poolSize, SQLNonTransientConnectionException.class, true);
+    super(poolSize, SQLTransientException.class, true);
     properties = props;
+    retryableStatusCodes = Sets.newHashSet();
+    retryableStatusCodes.addAll(COMMON_RETRYABLE_CONNECTION_SQL_STATES);
+    String configuredRetryableStatuses = props.get(JdbcUtil.RETRYABLE_STATUS_CODES);
+    if (configuredRetryableStatuses != null) {
+      retryableStatusCodes.addAll(
+          Arrays.stream(configuredRetryableStatuses.split(","))
+              .map(status -> status.replaceAll("\\s+", ""))
+              .collect(Collectors.toSet()));
+    }
+
     this.dbUrl = dbUrl;
   }
 
@@ -71,5 +104,12 @@ public class JdbcClientPool extends ClientPoolImpl<Connection, SQLException> {
     } catch (SQLException e) {
       throw new UncheckedSQLException(e, "Failed to close connection");
     }
+  }
+
+  @Override
+  protected boolean isConnectionException(Exception e) {
+    return super.isConnectionException(e)
+        || (e instanceof SQLException
+            && retryableStatusCodes.contains(((SQLException) e).getSQLState()));
   }
 }

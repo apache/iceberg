@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.nio.file.Files;
+import java.util.UUID;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -109,6 +110,31 @@ public class TestCreateTable extends CatalogTestBase {
     assertThat(table.properties().get(TableProperties.DEFAULT_FILE_FORMAT))
         .as("Should not have the default format set")
         .isNull();
+  }
+
+  @TestTemplate
+  public void testCreateTablePartitionedByUUID() {
+    Assertions.assertThat(validationCatalog.tableExists(tableIdent)).isFalse();
+    Schema schema = new Schema(1, Types.NestedField.optional(1, "uuid", Types.UUIDType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("uuid", 16).build();
+    validationCatalog.createTable(tableIdent, schema, spec);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assertions.assertThat(table).isNotNull();
+
+    StructType expectedSchema =
+        StructType.of(Types.NestedField.optional(1, "uuid", Types.UUIDType.get()));
+    Assertions.assertThat(table.schema().asStruct()).isEqualTo(expectedSchema);
+    Assertions.assertThat(table.spec().fields()).hasSize(1);
+
+    String uuid = UUID.randomUUID().toString();
+
+    sql("INSERT INTO %s VALUES('%s')", tableName, uuid);
+
+    Assertions.assertThat(sql("SELECT uuid FROM %s", tableName))
+        .hasSize(1)
+        .element(0)
+        .isEqualTo(row(uuid));
   }
 
   @TestTemplate

@@ -772,7 +772,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       this.io = io;
       this.spec = spec;
       this.partitionKey = new PartitionKey(spec, dataSchema);
-      this.internalRowWrapper = new InternalRowWrapper(dataSparkType);
+      this.internalRowWrapper = new InternalRowWrapper(dataSparkType, dataSchema.asStruct());
     }
 
     @Override

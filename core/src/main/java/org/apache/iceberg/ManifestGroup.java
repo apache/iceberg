@@ -51,7 +51,6 @@ class ManifestGroup {
   private final FileIO io;
   private final Set<ManifestFile> dataManifests;
   private final DeleteFileIndex.Builder deleteIndexBuilder;
-  private Predicate<ManifestFile> manifestPredicate;
   private Predicate<ManifestEntry<DataFile>> manifestEntryPredicate;
   private Map<Integer, PartitionSpec> specsById;
   private Expression dataFilter;
@@ -86,7 +85,6 @@ class ManifestGroup {
     this.ignoreResiduals = false;
     this.columns = ManifestReader.ALL_COLUMNS;
     this.caseSensitive = true;
-    this.manifestPredicate = m -> true;
     this.manifestEntryPredicate = e -> true;
     this.scanMetrics = ScanMetrics.noop();
   }
@@ -111,11 +109,6 @@ class ManifestGroup {
   ManifestGroup filterPartitions(Expression newPartitionFilter) {
     this.partitionFilter = Expressions.and(partitionFilter, newPartitionFilter);
     deleteIndexBuilder.filterPartitions(newPartitionFilter);
-    return this;
-  }
-
-  ManifestGroup filterManifests(Predicate<ManifestFile> newManifestPredicate) {
-    this.manifestPredicate = manifestPredicate.and(newManifestPredicate);
     return this;
   }
 
@@ -302,9 +295,6 @@ class ManifestGroup {
               manifest -> manifest.hasAddedFiles() || manifest.hasDeletedFiles());
     }
 
-    matchingManifests =
-        CloseableIterable.filter(
-            scanMetrics.skippedDataManifests(), matchingManifests, manifestPredicate);
     matchingManifests =
         CloseableIterable.count(scanMetrics.scannedDataManifests(), matchingManifests);
 
