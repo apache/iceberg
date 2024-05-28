@@ -237,13 +237,12 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       HiveOperationsBase.validateTableIsIceberg(table, fullName);
 
       metadataLocation = table.getParameters().get(METADATA_LOCATION_PROP);
-      // TODO do we need to lock/unlock Hive table, to get all 3 params in one atomic operation?
-      // TODO Or bundle all 3 in one string? (serialized MetadataFile object)
       metadataKeyMetadata = table.getParameters().get(METADATA_WRAPPED_KEY_PROP);
       String metadataSizeString = table.getParameters().get(METADATA_SIZE_PROP);
       if (metadataSizeString != null) {
         metadataSize = Long.valueOf(metadataSizeString);
       }
+      // TODO get "encrypted metadata" flag here? Or rely on catalog prop?
 
     } catch (NoSuchObjectException e) {
       if (currentMetadataLocation() != null) {
@@ -460,6 +459,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     if (newMetadataFile.wrappedKeyMetadata() != null) {
       parameters.put(METADATA_WRAPPED_KEY_PROP, newMetadataFile.wrappedKeyMetadata());
       parameters.put(METADATA_SIZE_PROP, Long.toString(newMetadataFile.size()));
+      // TODO set "encrypted metadata" flag here? Or rely on catalog prop in readers?
     }
 
     if (currentMetadataLocation() != null && !currentMetadataLocation().isEmpty()) {
