@@ -36,8 +36,8 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.RemoteIterator;
-import org.apache.hadoop.io.wrappedio.WrappedIO;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.hadoop.wrappedio.DynamicWrappedIO;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
@@ -68,6 +68,8 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
 
   private SerializableSupplier<Configuration> hadoopConf;
   private SerializableMap<String, String> properties = SerializableMap.copyOf(ImmutableMap.of());
+  private transient DynamicWrappedIO wrappedIO;
+  private boolean useBulkDelete;
 
   /**
    * Constructor used for dynamic FileIO loading.
@@ -83,6 +85,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
 
   public HadoopFileIO(SerializableSupplier<Configuration> hadoopConf) {
     this.hadoopConf = hadoopConf;
+    this.wrappedIO = new DynamicWrappedIO(this.getClass().getClassLoader());
   }
 
   public Configuration conf() {
@@ -92,6 +95,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   @Override
   public void initialize(Map<String, String> props) {
     this.properties = SerializableMap.copyOf(props);
+    this.useBulkDelete = wrappedIO.bulkDeleteAvailable();
   }
 
   @Override
@@ -178,7 +182,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   @Override
   public void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException {
     AtomicInteger failureCount = new AtomicInteger(0);
-    if (WrappedIO.isBulkDeleteAvailable()) {
+    if (useBulkDelete) {
       failureCount.set(bulkDeleteFiles(pathsToDelete));
     } else {
       Tasks.foreach(pathsToDelete)
@@ -223,7 +227,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
       Set<Path> pathsForFilesystem = fsMap.get(fsRoot);
       pathsForFilesystem.add(target);
 
-      int pageSize = WrappedIO.bulkDeletePageSize(fs, target);
+      int pageSize = wrappedIO.bulkDelete_pageSize(fs, target);
 
       // the page size has been reached.
       // for classic filesystems page size == 1 so this happens every time.
@@ -281,7 +285,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
    */
   private List<Map.Entry<Path, String>> deleteBatch(FileSystem fs, final Path fsRoot, Collection<Path> paths) {
 
-    return WrappedIO.bulkDelete(fs, new Path(fs.getUri()), paths);
+    return wrappedIO.bulkDelete_delete(fs, new Path(fs.getUri()), paths);
   }
 
   private int deleteThreads() {
