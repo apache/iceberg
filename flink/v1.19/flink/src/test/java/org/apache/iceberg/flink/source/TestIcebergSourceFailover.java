@@ -24,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
@@ -61,6 +61,7 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.rules.Timeout;
 
 public class TestIcebergSourceFailover {
 
@@ -90,6 +91,8 @@ public class TestIcebergSourceFailover {
   public final HadoopTableResource sinkTableResource =
       new HadoopTableResource(
           TEMPORARY_FOLDER, TestFixtures.DATABASE, TestFixtures.SINK_TABLE, schema());
+
+  @Rule public Timeout globalTimeout = Timeout.seconds(120);
 
   protected IcebergSource.Builder<RowData> sourceBuilder() {
     Configuration config = new Configuration();
@@ -189,7 +192,7 @@ public class TestIcebergSourceFailover {
 
     StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
     env.setRestartStrategy(RestartStrategies.fixedDelayRestart(1, 0));
-    createBoundedStreams(env, expectedRecords.size() / 2);
+    createBoundedStreams(env, 2);
 
     JobClient jobClient = env.executeAsync("Bounded Iceberg Source Failover Test");
     JobID jobId = jobClient.getJobID();
@@ -333,28 +336,28 @@ public class TestIcebergSourceFailover {
   private static class RecordCounterToFail {
 
     private static AtomicInteger records;
-    private static CompletableFuture<Void> fail;
+    private static CountDownLatch countDownLatch;
     private static CompletableFuture<Void> continueProcessing;
 
     private static <T> DataStream<T> wrapWithFailureAfter(DataStream<T> stream, int failAfter) {
 
       records = new AtomicInteger();
-      fail = new CompletableFuture<>();
       continueProcessing = new CompletableFuture<>();
+      countDownLatch = new CountDownLatch(stream.getParallelism());
       return stream.map(
           record -> {
             boolean reachedFailPoint = records.incrementAndGet() > failAfter;
-            boolean notFailedYet = !fail.isDone();
+            boolean notFailedYet = countDownLatch.getCount() != 0;
             if (notFailedYet && reachedFailPoint) {
-              fail.complete(null);
+              countDownLatch.countDown();
               continueProcessing.get();
             }
             return record;
           });
     }
 
-    private static void waitToFail() throws ExecutionException, InterruptedException {
-      fail.get();
+    private static void waitToFail() throws InterruptedException {
+      countDownLatch.await();
     }
 
     private static void continueProcessing() {
