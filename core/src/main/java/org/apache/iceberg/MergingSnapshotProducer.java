@@ -259,7 +259,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     }
   }
 
-  /** Add all files in a manifest to the new snapshot. */
+  /**
+   * Add all files in a manifest to the new snapshot.
+   *
+   * @deprecated since 1.6.0, will be removed in 2.0.0
+   */
+  @Deprecated
   protected void add(ManifestFile manifest) {
     Preconditions.checkArgument(
         manifest.content() == ManifestContent.DATA, "Cannot append delete manifest: %s", manifest);

@@ -55,6 +55,8 @@ public interface AppendFiles extends SnapshotUpdate<AppendFiles> {
    *
    * @param file a manifest file
    * @return this for method chaining
+   * @deprecated since 1.6.0, will be removed in 2.0.0
    */
+  @Deprecated
   AppendFiles appendManifest(ManifestFile file);
 }

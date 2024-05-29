@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.spark;
 
-import static org.apache.spark.sql.functions.col;
-
 import java.io.IOException;
 import java.io.Serializable;
 import java.net.URI;
@@ -34,7 +32,6 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestWriter;
@@ -43,7 +40,6 @@ import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.TableMigrationUtil;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -71,7 +67,6 @@ import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.FlatMapFunction;
 import org.apache.spark.api.java.function.MapFunction;
-import org.apache.spark.api.java.function.MapPartitionsFunction;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
@@ -605,7 +600,6 @@ public class SparkTableUtil {
     int listingParallelism =
         Math.min(
             partitions.size(), spark.sessionState().conf().parallelPartitionDiscoveryParallelism());
-    int numShufflePartitions = spark.sessionState().conf().numShufflePartitions();
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(targetTable.properties());
     String nameMappingString = targetTable.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
     NameMapping nameMapping =
@@ -648,41 +642,12 @@ public class SparkTableUtil {
               DUPLICATE_FILE_MESSAGE, Joiner.on(",").join((String[]) duplicates.take(10))));
     }
 
-    List<ManifestFile> manifests =
-        filesToImport
-            .repartition(numShufflePartitions)
-            .map(
-                (MapFunction<DataFile, Tuple2<String, DataFile>>)
-                    file -> Tuple2.apply(file.path().toString(), file),
-                Encoders.tuple(Encoders.STRING(), Encoders.javaSerialization(DataFile.class)))
-            .orderBy(col("_1"))
-            .mapPartitions(
-                (MapPartitionsFunction<Tuple2<String, DataFile>, ManifestFile>)
-                    fileTuple -> buildManifest(serializableConf, spec, stagingDir, fileTuple),
-                Encoders.javaSerialization(ManifestFile.class))
-            .collectAsList();
-
-    try {
-      TableOperations ops = ((HasTableOperations) targetTable).operations();
-      int formatVersion = ops.current().formatVersion();
-      boolean snapshotIdInheritanceEnabled =
-          PropertyUtil.propertyAsBoolean(
-              targetTable.properties(),
-              TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED,
-              TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT);
-
-      AppendFiles append = targetTable.newAppend();
-      manifests.forEach(append::appendManifest);
-      append.commit();
-
-      if (formatVersion == 1 && !snapshotIdInheritanceEnabled) {
-        // delete original manifests as they were rewritten before the commit
-        deleteManifests(targetTable.io(), manifests);
-      }
-    } catch (Throwable e) {
-      deleteManifests(targetTable.io(), manifests);
-      throw e;
+    List<DataFile> datafiles = filesToImport.collectAsList();
+    AppendFiles append = targetTable.newAppend();
+    for (DataFile dataFile : datafiles) {
+      append.appendFile(dataFile);
     }
+    append.commit();
   }
 
   /**

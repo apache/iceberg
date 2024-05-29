@@ -54,7 +54,9 @@ class MergeAppend extends MergingSnapshotProducer<AppendFiles> implements Append
     return this;
   }
 
+  /** @deprecated since 1.6.0, will be removed in 2.0.0 */
   @Override
+  @Deprecated
   public AppendFiles appendManifest(ManifestFile manifest) {
     Preconditions.checkArgument(
         !manifest.hasExistingFiles(), "Cannot append manifest with existing files");
