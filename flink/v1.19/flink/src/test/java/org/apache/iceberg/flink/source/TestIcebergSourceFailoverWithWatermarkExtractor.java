@@ -34,7 +34,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkReadOptions;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestFixtures;
@@ -53,7 +52,6 @@ public class TestIcebergSourceFailoverWithWatermarkExtractor extends TestIceberg
   @Override
   protected IcebergSource.Builder<RowData> sourceBuilder() {
     Configuration config = new Configuration();
-    config.setInteger(FlinkConfigOptions.SOURCE_READER_FETCH_BATCH_RECORD_COUNT, 128);
     return IcebergSource.forRowData()
         .tableLoader(sourceTableResource.tableLoader())
         .watermarkColumn("ts")
