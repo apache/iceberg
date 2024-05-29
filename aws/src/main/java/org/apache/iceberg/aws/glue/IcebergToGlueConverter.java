@@ -49,6 +49,7 @@ import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.glue.model.Column;
 import software.amazon.awssdk.services.glue.model.DatabaseInput;
 import software.amazon.awssdk.services.glue.model.StorageDescriptor;
+import software.amazon.awssdk.services.glue.model.Table;
 import software.amazon.awssdk.services.glue.model.TableInput;
 
 class IcebergToGlueConverter {
@@ -219,6 +220,29 @@ class IcebergToGlueConverter {
    */
   static void setTableInputInformation(
       TableInput.Builder tableInputBuilder, TableMetadata metadata) {
+    setTableInputInformation(tableInputBuilder, metadata, null);
+  }
+
+  /**
+   * Set Glue table input information based on Iceberg table metadata, optionally preserving
+   * comments from an existing Glue table's columns.
+   *
+   * <p>A best-effort conversion of Iceberg metadata to Glue table is performed to display Iceberg
+   * information in Glue, but such information is only intended for informational human read access
+   * through tools like UI or CLI, and should never be used by any query processing engine to infer
+   * information like schema, partition spec, etc. The source of truth is stored in the actual
+   * Iceberg metadata file defined by the metadata_location table property.
+   *
+   * <p>If an existing Glue table is provided, the comments from its columns will be preserved in
+   * the resulting Glue TableInput. This is useful when updating an existing Glue table to retain
+   * any user-defined comments on the columns.
+   *
+   * @param tableInputBuilder Glue TableInput builder
+   * @param metadata Iceberg table metadata
+   * @param existingTable optional existing Glue table, used to preserve column comments
+   */
+  static void setTableInputInformation(
+      TableInput.Builder tableInputBuilder, TableMetadata metadata, Table existingTable) {
     try {
       Map<String, String> properties = metadata.properties();
       StorageDescriptor.Builder storageDescriptor = StorageDescriptor.builder();
@@ -231,11 +255,33 @@ class IcebergToGlueConverter {
                 .collect(Collectors.toSet()));
       }
 
-      Optional.ofNullable(properties.get(GLUE_DESCRIPTION_KEY))
-          .ifPresent(tableInputBuilder::description);
+      String description = properties.get(GLUE_DESCRIPTION_KEY);
+      if (description != null) {
+        tableInputBuilder.description(description);
+      } else if (existingTable != null) {
+        Optional.ofNullable(existingTable.description()).ifPresent(tableInputBuilder::description);
+      }
+
+      List<Column> columns = toColumns(metadata);
+      if (existingTable != null) {
+        List<Column> existingColumns = existingTable.storageDescriptor().columns();
+        Map<String, String> existingColumnMap =
+            existingColumns.stream().collect(Collectors.toMap(Column::name, Column::comment));
+
+        columns =
+            columns.stream()
+                .map(
+                    newColumn -> {
+                      String existingComment = existingColumnMap.get(newColumn.name());
+                      return existingComment != null && newColumn.comment() == null
+                          ? newColumn.toBuilder().comment(existingComment).build()
+                          : newColumn;
+                    })
+                .collect(Collectors.toList());
+      }
 
       tableInputBuilder.storageDescriptor(
-          storageDescriptor.location(metadata.location()).columns(toColumns(metadata)).build());
+          storageDescriptor.location(metadata.location()).columns(columns).build());
     } catch (RuntimeException e) {
       LOG.warn(
           "Encountered unexpected exception while converting Iceberg metadata to Glue table information",

@@ -21,6 +21,8 @@ package org.apache.iceberg.aws.glue;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableProperties;
@@ -39,6 +41,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.glue.GlueClient;
+import software.amazon.awssdk.services.glue.model.Column;
 import software.amazon.awssdk.services.glue.model.GetTableRequest;
 import software.amazon.awssdk.services.glue.model.GetTableResponse;
 import software.amazon.awssdk.services.glue.model.Table;
@@ -154,6 +157,39 @@ public class GlueTestBase {
                     .owner(table.owner())
                     .parameters(table.parameters())
                     .storageDescriptor(table.storageDescriptor())
+                    .build())
+            .build();
+    glue.updateTable(request);
+  }
+
+  public static void updateTableColumns(
+      String namespace, String tableName, Function<Column, Column> columnUpdater) {
+    GetTableResponse response =
+        glue.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
+    Table existingTable = response.table();
+    List<Column> updatedColumns =
+        existingTable.storageDescriptor().columns().stream()
+            .map(columnUpdater)
+            .collect(Collectors.toList());
+
+    UpdateTableRequest request =
+        UpdateTableRequest.builder()
+            .catalogId(existingTable.catalogId())
+            .databaseName(existingTable.databaseName())
+            .tableInput(
+                TableInput.builder()
+                    .description(existingTable.description())
+                    .name(existingTable.name())
+                    .partitionKeys(existingTable.partitionKeys())
+                    .tableType(existingTable.tableType())
+                    .owner(existingTable.owner())
+                    .parameters(existingTable.parameters())
+                    .storageDescriptor(
+                        existingTable
+                            .storageDescriptor()
+                            .toBuilder()
+                            .columns(updatedColumns)
+                            .build())
                     .build())
             .build();
     glue.updateTable(request);
