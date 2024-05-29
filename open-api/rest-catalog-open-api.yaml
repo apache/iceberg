@@ -129,62 +129,6 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
-  /v1/oauth/tokens:
-
-    post:
-      tags:
-        - OAuth2 API
-      summary: Get a token using an OAuth2 flow
-      operationId: getToken
-      description:
-        Exchange credentials for a token using the OAuth2 client credentials flow or token exchange.
-
-
-        This endpoint is used for three purposes -
-
-        1. To exchange client credentials (client ID and secret) for an access token
-           This uses the client credentials flow.
-
-        2. To exchange a client token and an identity token for a more specific access token
-           This uses the token exchange flow.
-
-        3. To exchange an access token for one with the same claims and a refreshed expiration period
-           This uses the token exchange flow.
-
-
-        For example, a catalog client may be configured with client credentials from the OAuth2
-        Authorization flow. This client would exchange its client ID and secret for an access token
-        using the client credentials request with this endpoint (1). Subsequent requests would then
-        use that access token.
-
-
-        Some clients may also handle sessions that have additional user context. These clients would
-        use the token exchange flow to exchange a user token (the "subject" token) from the session
-        for a more specific access token for that user, using the catalog's access token as the
-        "actor" token (2). The user ID token is the "subject" token and can be any token type
-        allowed by the OAuth2 token exchange flow, including a unsecured JWT token with a sub claim.
-        This request should use the catalog's bearer token in the "Authorization" header.
-
-
-        Clients may also use the token exchange flow to refresh a token that is about to expire by
-        sending a token exchange request (3). The request's "subject" token should be the expiring
-        token. This request should use the subject token in the "Authorization" header.
-      requestBody:
-        required: true
-        content:
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/OAuthTokenRequest'
-      responses:
-        200:
-          $ref: '#/components/responses/OAuthTokenResponse'
-        400:
-          $ref: '#/components/responses/OAuthErrorResponse'
-        401:
-          $ref: '#/components/responses/OAuthErrorResponse'
-        5XX:
-          $ref: '#/components/responses/OAuthErrorResponse'
-
   /v1/{prefix}/namespaces:
     parameters:
       - $ref: '#/components/parameters/prefix'
@@ -2923,92 +2867,6 @@ components:
           additionalProperties:
             type: string
 
-    TokenType:
-      type: string
-      enum:
-        - urn:ietf:params:oauth:token-type:access_token
-        - urn:ietf:params:oauth:token-type:refresh_token
-        - urn:ietf:params:oauth:token-type:id_token
-        - urn:ietf:params:oauth:token-type:saml1
-        - urn:ietf:params:oauth:token-type:saml2
-        - urn:ietf:params:oauth:token-type:jwt
-      description:
-        Token type identifier, from RFC 8693 Section 3
-
-
-        See https://datatracker.ietf.org/doc/html/rfc8693#section-3
-
-    OAuthClientCredentialsRequest:
-      description:
-        OAuth2 client credentials request
-
-
-        See https://datatracker.ietf.org/doc/html/rfc6749#section-4.4
-      type: object
-      required:
-        - grant_type
-        - client_id
-        - client_secret
-      properties:
-        grant_type:
-          type: string
-          enum:
-            - client_credentials
-        scope:
-          type: string
-        client_id:
-          type: string
-          description:
-            Client ID
-
-
-            This can be sent in the request body, but OAuth2 recommends sending it in
-            a Basic Authorization header.
-        client_secret:
-          type: string
-          description:
-            Client secret
-
-
-            This can be sent in the request body, but OAuth2 recommends sending it in
-            a Basic Authorization header.
-
-    OAuthTokenExchangeRequest:
-      description:
-        OAuth2 token exchange request
-
-
-        See https://datatracker.ietf.org/doc/html/rfc8693
-      type: object
-      required:
-        - grant_type
-        - subject_token
-        - subject_token_type
-      properties:
-        grant_type:
-          type: string
-          enum:
-            - urn:ietf:params:oauth:grant-type:token-exchange
-        scope:
-          type: string
-        requested_token_type:
-          $ref: '#/components/schemas/TokenType'
-        subject_token:
-          type: string
-          description: Subject token for token exchange request
-        subject_token_type:
-          $ref: '#/components/schemas/TokenType'
-        actor_token:
-          type: string
-          description: Actor token for token exchange request
-        actor_token_type:
-          $ref: '#/components/schemas/TokenType'
-
-    OAuthTokenRequest:
-      anyOf:
-        - $ref: '#/components/schemas/OAuthClientCredentialsRequest'
-        - $ref: '#/components/schemas/OAuthTokenExchangeRequest'
-
     CounterResult:
       type: object
       required:
@@ -3157,59 +3015,6 @@ components:
           type: object
           additionalProperties:
             type: string
-
-    OAuthError:
-      type: object
-      required:
-        - error
-      properties:
-        error:
-          type: string
-          enum:
-            - invalid_request
-            - invalid_client
-            - invalid_grant
-            - unauthorized_client
-            - unsupported_grant_type
-            - invalid_scope
-        error_description:
-          type: string
-        error_uri:
-          type: string
-
-    OAuthTokenResponse:
-      type: object
-      required:
-        - access_token
-        - token_type
-      properties:
-        access_token:
-          type: string
-          description:
-            The access token, for client credentials or token exchange
-        token_type:
-          type: string
-          enum:
-            - bearer
-            - mac
-            - N_A
-          description:
-            Access token type for client credentials or token exchange
-
-
-            See https://datatracker.ietf.org/doc/html/rfc6749#section-7.1
-        expires_in:
-          type: integer
-          description:
-            Lifetime of the access token in seconds for client credentials or token exchange
-        issued_token_type:
-          $ref: '#/components/schemas/TokenType'
-        refresh_token:
-          type: string
-          description: Refresh token for client credentials or token exchange
-        scope:
-          type: string
-          description: Authorization scope for client credentials or token exchange
 
     IcebergErrorResponse:
       description: JSON wrapper for all error responses (non-2xx)
@@ -3668,20 +3473,6 @@ components:
   # Reusable Response Objects #
   #############################
   responses:
-
-    OAuthTokenResponse:
-      description: OAuth2 token response for client credentials or token exchange
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/OAuthTokenResponse'
-
-    OAuthErrorResponse:
-      description: OAuth2 error response
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/OAuthError'
 
     BadRequestErrorResponse:
       description:

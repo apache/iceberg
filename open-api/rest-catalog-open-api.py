@@ -454,63 +454,6 @@ class RegisterTableRequest(BaseModel):
     metadata_location: str = Field(..., alias='metadata-location')
 
 
-class TokenType(BaseModel):
-    __root__: Literal[
-        'urn:ietf:params:oauth:token-type:access_token',
-        'urn:ietf:params:oauth:token-type:refresh_token',
-        'urn:ietf:params:oauth:token-type:id_token',
-        'urn:ietf:params:oauth:token-type:saml1',
-        'urn:ietf:params:oauth:token-type:saml2',
-        'urn:ietf:params:oauth:token-type:jwt',
-    ] = Field(
-        ...,
-        description='Token type identifier, from RFC 8693 Section 3\n\nSee https://datatracker.ietf.org/doc/html/rfc8693#section-3',
-    )
-
-
-class OAuthClientCredentialsRequest(BaseModel):
-    """
-    OAuth2 client credentials request
-
-    See https://datatracker.ietf.org/doc/html/rfc6749#section-4.4
-    """
-
-    grant_type: Literal['client_credentials']
-    scope: Optional[str] = None
-    client_id: str = Field(
-        ...,
-        description='Client ID\n\nThis can be sent in the request body, but OAuth2 recommends sending it in a Basic Authorization header.',
-    )
-    client_secret: str = Field(
-        ...,
-        description='Client secret\n\nThis can be sent in the request body, but OAuth2 recommends sending it in a Basic Authorization header.',
-    )
-
-
-class OAuthTokenExchangeRequest(BaseModel):
-    """
-    OAuth2 token exchange request
-
-    See https://datatracker.ietf.org/doc/html/rfc8693
-    """
-
-    grant_type: Literal['urn:ietf:params:oauth:grant-type:token-exchange']
-    scope: Optional[str] = None
-    requested_token_type: Optional[TokenType] = None
-    subject_token: str = Field(
-        ..., description='Subject token for token exchange request'
-    )
-    subject_token_type: TokenType
-    actor_token: Optional[str] = Field(
-        None, description='Actor token for token exchange request'
-    )
-    actor_token_type: Optional[TokenType] = None
-
-
-class OAuthTokenRequest(BaseModel):
-    __root__: Union[OAuthClientCredentialsRequest, OAuthTokenExchangeRequest]
-
-
 class CounterResult(BaseModel):
     unit: str
     value: int
@@ -537,40 +480,6 @@ class CommitReport(BaseModel):
     operation: str
     metrics: Metrics
     metadata: Optional[Dict[str, str]] = None
-
-
-class OAuthError(BaseModel):
-    error: Literal[
-        'invalid_request',
-        'invalid_client',
-        'invalid_grant',
-        'unauthorized_client',
-        'unsupported_grant_type',
-        'invalid_scope',
-    ]
-    error_description: Optional[str] = None
-    error_uri: Optional[str] = None
-
-
-class OAuthTokenResponse(BaseModel):
-    access_token: str = Field(
-        ..., description='The access token, for client credentials or token exchange'
-    )
-    token_type: Literal['bearer', 'mac', 'N_A'] = Field(
-        ...,
-        description='Access token type for client credentials or token exchange\n\nSee https://datatracker.ietf.org/doc/html/rfc6749#section-7.1',
-    )
-    expires_in: Optional[int] = Field(
-        None,
-        description='Lifetime of the access token in seconds for client credentials or token exchange',
-    )
-    issued_token_type: Optional[TokenType] = None
-    refresh_token: Optional[str] = Field(
-        None, description='Refresh token for client credentials or token exchange'
-    )
-    scope: Optional[str] = Field(
-        None, description='Authorization scope for client credentials or token exchange'
-    )
 
 
 class IcebergErrorResponse(BaseModel):
