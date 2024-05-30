@@ -104,7 +104,8 @@ public class ADLSFileIOTest extends BaseAzuriteTest {
   @SuppressWarnings("unchecked")
   @Test
   public void testListPrefixOperations() {
-    String prefix = "abfs://container@account.dfs.core.windows.net/dir";
+    String root = "abfs://container@account.dfs.core.windows.net/";
+    String prefix = root + "dir";
 
     OffsetDateTime now = OffsetDateTime.now();
     PathItem dir =
@@ -129,7 +130,7 @@ public class ADLSFileIOTest extends BaseAzuriteTest {
 
     // assert that only files were returned and not directories
     FileInfo fileInfo = result.next();
-    assertThat(fileInfo.location()).isEqualTo("dir/file");
+    assertThat(fileInfo.location()).isEqualTo(root + "dir/file");
     assertThat(fileInfo.size()).isEqualTo(123L);
     assertThat(fileInfo.createdAtMillis()).isEqualTo(now.toInstant().toEpochMilli());
 
