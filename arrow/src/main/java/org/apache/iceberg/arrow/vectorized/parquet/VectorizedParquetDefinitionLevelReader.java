@@ -53,7 +53,6 @@ public final class VectorizedParquetDefinitionLevelReader
 
     private void nextCommonBatch(
         final FieldVector vector,
-        final int startOffset,
         final int typeWidth,
         final int numValsToRead,
         NullabilityHolder nullabilityHolder,
@@ -200,26 +199,17 @@ public final class VectorizedParquetDefinitionLevelReader
 
     public void nextBatch(
         final FieldVector vector,
-        final int startOffset,
         final int typeWidth,
         final int numValsToRead,
         NullabilityHolder nullabilityHolder,
         ValuesAsBytesReader valuesReader,
         ReadState readState) {
       nextCommonBatch(
-          vector,
-          startOffset,
-          typeWidth,
-          numValsToRead,
-          nullabilityHolder,
-          valuesReader,
-          null,
-          readState);
+          vector, typeWidth, numValsToRead, nullabilityHolder, valuesReader, null, readState);
     }
 
     public void nextDictEncodedBatch(
         final FieldVector vector,
-        final int startOffset,
         final int typeWidth,
         final int numValsToRead,
         NullabilityHolder nullabilityHolder,
@@ -227,14 +217,7 @@ public final class VectorizedParquetDefinitionLevelReader
         Dictionary dict,
         ReadState readState) {
       nextCommonBatch(
-          vector,
-          startOffset,
-          typeWidth,
-          numValsToRead,
-          nullabilityHolder,
-          valuesReader,
-          dict,
-          readState);
+          vector, typeWidth, numValsToRead, nullabilityHolder, valuesReader, dict, readState);
     }
 
     protected abstract void nextRleBatch(
