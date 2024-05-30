@@ -30,6 +30,7 @@ nav:
     - 1.4.2: '!include docs/docs/1.4.2/mkdocs.yml'
     - 1.4.1: '!include docs/docs/1.4.1/mkdocs.yml'
     - 1.4.0: '!include docs/docs/1.4.0/mkdocs.yml'
+    - archive: archive.md
   - Releases: releases.md
   - Blogs: blogs.md
   - Talks: talks.md
