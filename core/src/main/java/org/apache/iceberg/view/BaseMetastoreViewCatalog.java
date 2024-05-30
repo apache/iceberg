@@ -20,6 +20,7 @@ package org.apache.iceberg.view;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.Schema;
@@ -33,6 +34,8 @@ import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
 
 public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog implements ViewCatalog {
   protected abstract ViewOperations newViewOps(TableIdentifier identifier);
@@ -74,6 +77,7 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
     private String defaultCatalog = null;
     private Schema schema = null;
     private String location = null;
+    private Map<String, String> fieldNameToDocChanges = Maps.newHashMap();
 
     protected BaseViewBuilder(TableIdentifier identifier) {
       Preconditions.checkArgument(
@@ -103,6 +107,17 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
     @Override
     public ViewBuilder withDefaultNamespace(Namespace namespace) {
       this.defaultNamespace = namespace;
+      return this;
+    }
+
+    @Override
+    public ViewBuilder withColumnDoc(String name, String doc) {
+      Preconditions.checkArgument(name != null, "Field name cannot be null");
+      Preconditions.checkArgument(
+          !fieldNameToDocChanges.containsKey(name),
+          "Cannot change docs for column %s multiple times in a single operation",
+          name);
+      fieldNameToDocChanges.put(name, doc);
       return this;
     }
 
@@ -191,11 +206,48 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
         throw new NoSuchViewException("View does not exist: %s", identifier);
       }
 
-      Preconditions.checkState(
-          !representations.isEmpty(), "Cannot replace view without specifying a query");
-      Preconditions.checkState(null != schema, "Cannot replace view without specifying schema");
-      Preconditions.checkState(
-          null != defaultNamespace, "Cannot replace view without specifying a default namespace");
+      if (fieldNameToDocChanges.isEmpty()) {
+        Preconditions.checkState(
+            !representations.isEmpty(), "Cannot replace view without specifying a query");
+        Preconditions.checkState(null != schema, "Cannot replace view without specifying schema");
+        Preconditions.checkState(
+            null != defaultNamespace, "Cannot replace view without specifying a default namespace");
+      } else {
+        Preconditions.checkState(
+            representations.isEmpty(), "Cannot change column docs and replace representations");
+        Preconditions.checkState(
+            null == schema, "Cannot change column docs and also explicitly change schema");
+        Preconditions.checkState(
+            null == defaultNamespace, "Cannot change column docs and change default namespace");
+        Schema currentSchema = ops.current().schema();
+        List<Types.NestedField> newFields = Lists.newArrayList();
+
+        Set<Integer> changedFieldIds = Sets.newHashSet();
+        for (Map.Entry<String, String> docChange : fieldNameToDocChanges.entrySet()) {
+          String name = docChange.getKey();
+          String doc = docChange.getValue();
+          Types.NestedField fieldToUpdate = currentSchema.findField(name);
+          Preconditions.checkArgument(fieldToUpdate != null, "Field %s does not exist", name);
+          Types.NestedField updatedField =
+              Types.NestedField.of(
+                  fieldToUpdate.fieldId(),
+                  fieldToUpdate.isOptional(),
+                  fieldToUpdate.name(),
+                  fieldToUpdate.type(),
+                  doc);
+
+          newFields.add(updatedField);
+          changedFieldIds.add(fieldToUpdate.fieldId());
+        }
+
+        for (Types.NestedField field : schema.columns()) {
+          if (!changedFieldIds.contains(field.fieldId())) {
+            newFields.add(field);
+          }
+        }
+
+        this.schema = new Schema(newFields, schema.getAliases(), schema.identifierFieldIds());
+      }
 
       ViewMetadata metadata = ops.current();
       int maxVersionId =

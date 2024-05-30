@@ -54,4 +54,16 @@ public interface VersionBuilder<T> {
    * @return this for method chaining
    */
   T withDefaultNamespace(Namespace namespace);
+
+  /**
+   * Updates the column documentation for the field with the given name in the latest schema
+   *
+   * @param name field name
+   * @param doc doc to update
+   * @return this for method changing
+   */
+  default T withColumnDoc(String name, String doc) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement withColumnDoc(String)");
+  }
 }
