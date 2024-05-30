@@ -60,21 +60,14 @@ concurrency:
 
 jobs:
   core-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         jvm: [8, 11, 17]
     env:
       SPARK_LOCAL_IP: localhost
+      ACTIONS_RUNNER_DEBUG: true
     steps:
-    - name: rate
-      shell: pwsh
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: |
-        # get currently authenticated user rate limit info
-        $rate = gh api rate_limit | convertfrom-json | select -expandproperty rate
-        echo "$($rate.remaining) requests remaining"
     - uses: actions/checkout@v4
     - uses: actions/setup-java@v4
       with:
