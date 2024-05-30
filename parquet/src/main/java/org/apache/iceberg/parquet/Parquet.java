@@ -1170,8 +1170,7 @@ public class Parquet {
           optionsBuilder.withDecryption(fileDecryptionProperties);
         }
 
-        // TODO: for now, apply filter only for non-vectorized read
-        if (filter != null && batchedReaderFunc == null) {
+        if (filter != null) {
           MessageType type = getSchemaFromFile(fileDecryptionProperties);
           Schema fileSchema = ParquetSchemaUtil.convert(type);
           try {

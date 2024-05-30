@@ -116,20 +116,20 @@ class ReadConf<T> {
       }
     }
 
+    if (options.useRecordFilter()) {
+      this.totalValues = reader.getFilteredRecordCount();
+    } else {
+      this.totalValues = computedTotalValues;
+    }
+
     if (readerFunc != null) {
       this.model = (ParquetValueReader<T>) readerFunc.apply(typeWithIds);
       this.vectorizedModel = null;
       this.columnChunkMetaDataForRowGroups = null;
-      if (options.useRecordFilter()) {
-        this.totalValues = reader.getFilteredRecordCount();
-      } else {
-        this.totalValues = computedTotalValues;
-      }
     } else {
       this.model = null;
       this.vectorizedModel = (VectorizedReader<T>) batchedReaderFunc.apply(typeWithIds);
       this.columnChunkMetaDataForRowGroups = getColumnChunkMetadataForRowGroups();
-      this.totalValues = computedTotalValues;
     }
 
     this.reuseContainers = reuseContainers;

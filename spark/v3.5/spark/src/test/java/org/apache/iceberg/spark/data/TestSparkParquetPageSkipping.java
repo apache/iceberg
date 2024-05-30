@@ -101,7 +101,6 @@ public class TestSparkParquetPageSkipping {
 
   private File testFile;
   private List<GenericData.Record> allRecords = Lists.newArrayList();
-  private List<GenericData.Record> rowGroup0;
 
   /* Column and offset indexes info of `_long` column in `testFile` copied from text printed by parquet-cli's
   column-index command:
@@ -189,7 +188,6 @@ public class TestSparkParquetPageSkipping {
         RandomData.generateList(COMPLEX_SCHEMA, numRecords, 0).stream()
             .map(transform)
             .collect(Collectors.toList());
-    rowGroup0 = selectRecords(allRecords, Pair.of(0, 593));
 
     try (FileAppender<GenericData.Record> writer =
         Parquet.write(Files.localOutput(testFile))
@@ -225,7 +223,7 @@ public class TestSparkParquetPageSkipping {
             Expressions.lessThan("_long", 114)); // exactly page-1  -> row ranges: [57, 113]
 
     List<GenericData.Record> expected = selectRecords(allRecords, Pair.of(57, 114));
-    readAndValidate(filter, expected, rowGroup0);
+    readAndValidate(filter, expected);
   }
 
   @Test
@@ -242,7 +240,7 @@ public class TestSparkParquetPageSkipping {
 
     List<GenericData.Record> expected =
         selectRecords(allRecords, Pair.of(57, 114), Pair.of(171, 285));
-    readAndValidate(filter, expected, rowGroup0);
+    readAndValidate(filter, expected);
   }
 
   @Test
@@ -266,7 +264,7 @@ public class TestSparkParquetPageSkipping {
 
     List<GenericData.Record> expected =
         selectRecords(allRecords, Pair.of(57, 114), Pair.of(171, 285), Pair.of(570, 707));
-    readAndValidate(filter, expected, allRecords);
+    readAndValidate(filter, expected);
   }
 
   @Test
@@ -287,7 +285,7 @@ public class TestSparkParquetPageSkipping {
     List<GenericData.Record> expected =
         selectRecords(allRecords, Pair.of(57, 114), Pair.of(513, 593), Pair.of(593, 1000));
 
-    readAndValidate(filter, expected, allRecords);
+    readAndValidate(filter, expected);
   }
 
   @Test
@@ -298,23 +296,20 @@ public class TestSparkParquetPageSkipping {
                 Expressions.greaterThan("_long", 40), Expressions.lessThan("_long", 46)),
             Expressions.equal("_int", ABOVE_INT_COL_MAX_VALUE));
 
-    readAndValidate(filter, ImmutableList.of(), ImmutableList.of());
+    readAndValidate(filter, ImmutableList.of());
   }
 
   @Test
   public void testAllRowsMatch() {
     Expression filter = Expressions.greaterThanOrEqual("_long", Long.MIN_VALUE);
-    readAndValidate(filter, allRecords, allRecords);
+    readAndValidate(filter, allRecords);
   }
 
   private Schema readSchema() {
     return vectorized ? PRIMITIVES_SCHEMA : COMPLEX_SCHEMA;
   }
 
-  private void readAndValidate(
-      Expression filter,
-      List<GenericData.Record> expected,
-      List<GenericData.Record> vectorizedExpected) {
+  private void readAndValidate(Expression filter, List<GenericData.Record> expected) {
     Schema projected = readSchema();
 
     Parquet.ReadBuilder builder =
@@ -331,7 +326,7 @@ public class TestSparkParquetPageSkipping {
                           projected, type, ImmutableMap.of(), null))
               .build();
 
-      Iterator<GenericData.Record> expectedIterator = vectorizedExpected.iterator();
+      Iterator<GenericData.Record> expectedIterator = expected.iterator();
       for (ColumnarBatch batch : batches) {
         TestHelpers.assertEqualsBatch(struct, expectedIterator, batch);
       }
