@@ -22,6 +22,7 @@ on:
     branches:
       - main
     paths:
+      - docs/**
       - site/**
   workflow_dispatch:
 jobs:
