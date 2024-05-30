@@ -60,7 +60,7 @@ concurrency:
 
 jobs:
   core-tests:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         jvm: [8, 11, 17]
