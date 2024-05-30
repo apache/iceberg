@@ -69,6 +69,8 @@ jobs:
     steps:
     - name: rate
       shell: pwsh
+      env:
+        GH_TOKEN: ${{ github.token }}
       run: |
         # get currently authenticated user rate limit info
         $rate = gh api rate_limit | convertfrom-json | select -expandproperty rate
