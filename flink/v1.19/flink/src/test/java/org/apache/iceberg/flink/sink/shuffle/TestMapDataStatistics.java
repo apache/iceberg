@@ -72,17 +72,17 @@ public class TestMapDataStatistics {
     rowWrapper.wrap(
         GenericRowData.of(StringData.fromString("a"), 1, StringData.fromString("2023-06-20")));
     sortKey.wrap(rowWrapper);
-    SortKey keyA = sortKey.copy();
+    SortKey keyA = sortKey;
 
     rowWrapper.wrap(
         GenericRowData.of(StringData.fromString("b"), 1, StringData.fromString("2023-06-20")));
     sortKey.wrap(rowWrapper);
-    SortKey keyB = sortKey.copy();
+    SortKey keyB = sortKey;
 
     rowWrapper.wrap(
         GenericRowData.of(StringData.fromString("c"), 1, StringData.fromString("2023-06-20")));
     sortKey.wrap(rowWrapper);
-    SortKey keyC = sortKey.copy();
+    SortKey keyC = sortKey;
 
     Map<SortKey, Long> expected = ImmutableMap.of(keyA, 2L, keyB, 3L, keyC, 1L);
     Assertions.assertThat(actual).isEqualTo(expected);

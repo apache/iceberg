@@ -48,8 +48,7 @@ class MapDataStatistics implements DataStatistics<MapDataStatistics, Map<SortKey
       statistics.merge(sortKey, 1L, Long::sum);
     } else {
       // clone the sort key before adding to map because input sortKey object can be reused
-      SortKey copiedKey = sortKey.copy();
-      statistics.put(copiedKey, 1L);
+      statistics.put(sortKey, 1L);
     }
   }
 

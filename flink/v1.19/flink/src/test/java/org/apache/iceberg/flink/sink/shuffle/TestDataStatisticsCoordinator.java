@@ -90,7 +90,7 @@ public class TestDataStatisticsCoordinator {
   @Test
   public void testDataStatisticsEventHandling() throws Exception {
     tasksReady();
-    SortKey key = sortKey.copy();
+    SortKey key = sortKey;
 
     MapDataStatistics checkpoint1Subtask0DataStatistic = new MapDataStatistics();
     key.set(0, "a");
@@ -131,11 +131,11 @@ public class TestDataStatisticsCoordinator {
     waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
 
     // Verify global data statistics is the aggregation of all subtasks data statistics
-    SortKey keyA = sortKey.copy();
+    SortKey keyA = sortKey;
     keyA.set(0, "a");
-    SortKey keyB = sortKey.copy();
+    SortKey keyB = sortKey;
     keyB.set(0, "b");
-    SortKey keyC = sortKey.copy();
+    SortKey keyC = sortKey;
     keyC.set(0, "c");
     MapDataStatistics globalDataStatistics =
         (MapDataStatistics) dataStatisticsCoordinator.completedStatistics().dataStatistics();

@@ -97,7 +97,7 @@ class SortKeySerializer extends TypeSerializer<SortKey> {
 
   @Override
   public SortKey copy(SortKey from) {
-    return from.copy();
+    return from;
   }
 
   @Override
@@ -175,7 +175,7 @@ class SortKeySerializer extends TypeSerializer<SortKey> {
   @Override
   public SortKey deserialize(DataInputView source) throws IOException {
     // copying is a little faster than constructing a new SortKey object
-    SortKey deserialized = lazySortKey().copy();
+    SortKey deserialized = lazySortKey();
     deserialize(deserialized, source);
     return deserialized;
   }

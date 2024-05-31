@@ -44,9 +44,10 @@ public class SortKey extends StructTransform {
     this.sortOrder = toCopy.sortOrder;
   }
 
-  public SortKey copy() {
-    return new SortKey(this);
-  }
+  // This should trigger the rev-api check
+  //  public SortKey copy() {
+  //    return new SortKey(this);
+  //  }
 
   private static List<FieldTransform> fieldTransform(SortOrder sortOrder) {
     return sortOrder.fields().stream()

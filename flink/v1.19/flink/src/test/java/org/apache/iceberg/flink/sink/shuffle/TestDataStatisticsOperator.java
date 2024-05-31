@@ -126,9 +126,9 @@ public class TestDataStatisticsOperator {
       operator.processElement(new StreamRecord<>(GenericRowData.of(StringData.fromString("b"), 1)));
       assertThat(operator.localDataStatistics()).isInstanceOf(MapDataStatistics.class);
 
-      SortKey keyA = sortKey.copy();
+      SortKey keyA = sortKey;
       keyA.set(0, "a");
-      SortKey keyB = sortKey.copy();
+      SortKey keyB = sortKey;
       keyB.set(0, "b");
       Map<SortKey, Long> expectedMap = ImmutableMap.of(keyA, 2L, keyB, 1L);
 
@@ -175,7 +175,7 @@ public class TestDataStatisticsOperator {
         testHarness1 = createHarness(this.operator)) {
       MapDataStatistics mapDataStatistics = new MapDataStatistics();
 
-      SortKey key = sortKey.copy();
+      SortKey key = sortKey;
       key.set(0, "a");
       mapDataStatistics.add(key);
       key.set(0, "a");
@@ -185,11 +185,11 @@ public class TestDataStatisticsOperator {
       key.set(0, "c");
       mapDataStatistics.add(key);
 
-      SortKey keyA = sortKey.copy();
+      SortKey keyA = sortKey;
       keyA.set(0, "a");
-      SortKey keyB = sortKey.copy();
+      SortKey keyB = sortKey;
       keyB.set(0, "b");
-      SortKey keyC = sortKey.copy();
+      SortKey keyC = sortKey;
       keyC.set(0, "c");
       Map<SortKey, Long> expectedMap = ImmutableMap.of(keyA, 2L, keyB, 1L, keyC, 1L);
 
@@ -217,11 +217,11 @@ public class TestDataStatisticsOperator {
       Map<SortKey, Long> restoredStatistics = Maps.newHashMap();
       restoredStatistics.putAll(restoredOperator.globalDataStatistics().statistics());
 
-      SortKey keyA = sortKey.copy();
+      SortKey keyA = sortKey;
       keyA.set(0, "a");
-      SortKey keyB = sortKey.copy();
+      SortKey keyB = sortKey;
       keyB.set(0, "b");
-      SortKey keyC = sortKey.copy();
+      SortKey keyC = sortKey;
       keyC.set(0, "c");
       Map<SortKey, Long> expectedMap = ImmutableMap.of(keyA, 2L, keyB, 1L, keyC, 1L);
 

@@ -1,0 +1,284 @@
+09:39:12.755 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:39:12.761 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:39:13.566 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:39:15.570 [main] INFO  org.revapi.standalone.Main - Analysis took 2004ms.
+09:39:16.041 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:39:16.046 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:39:16.755 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:39:20.029 [main] INFO  org.revapi.standalone.Main - Analysis took 3274ms.
+09:39:20.470 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:39:20.477 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:39:21.357 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:39:23.216 [main] INFO  org.revapi.standalone.Main - Analysis took 1858ms.
+09:39:23.624 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:39:23.630 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:39:24.330 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:39:25.375 [main] INFO  org.revapi.standalone.Main - Analysis took 1045ms.
+09:39:25.713 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:39:25.719 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:39:26.362 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:39:27.135 [main] INFO  org.revapi.standalone.Main - Analysis took 773ms.
+09:39:27.496 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:39:27.501 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:39:28.129 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:39:28.779 [main] ERROR org.revapi.java.spi.Util - Failed to enumerate type arguments of 'java.util.function.Function'. Class is missing?
+com.sun.tools.javac.code.Symbol$CompletionFailure: class file for org.apache.iceberg.orc.OrcRowReader not found
+09:39:28.779 [main] ERROR org.revapi.java.spi.Util - Failed to enumerate type arguments of 'java.util.function.Function'. Class is missing?
+com.sun.tools.javac.code.Symbol$CompletionFailure: class file for org.apache.iceberg.parquet.ParquetValueReader not found
+09:39:28.793 [main] ERROR org.revapi.java.spi.Util - Failed to enumerate type arguments of 'java.util.function.Function'. Class is missing?
+com.sun.tools.javac.code.Symbol$CompletionFailure: class file for org.apache.iceberg.orc.OrcRowReader not found
+09:39:28.794 [main] ERROR org.revapi.java.spi.Util - Failed to enumerate type arguments of 'java.util.function.Function'. Class is missing?
+com.sun.tools.javac.code.Symbol$CompletionFailure: class file for org.apache.iceberg.parquet.ParquetValueReader not found
+09:39:28.831 [main] INFO  org.revapi.standalone.Main - Analysis took 702ms.
+09:41:08.982 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:41:08.999 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:41:11.391 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:41:18.425 [main] INFO  org.revapi.standalone.Main - Analysis took 7033ms.
+09:41:19.330 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:41:19.345 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:41:21.735 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:41:32.021 [main] INFO  org.revapi.standalone.Main - Analysis took 10285ms.
+09:41:32.913 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:41:32.927 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:41:35.439 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:41:40.640 [main] INFO  org.revapi.standalone.Main - Analysis took 5200ms.
+09:41:41.450 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:41:41.463 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:41:43.799 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:41:48.122 [main] INFO  org.revapi.standalone.Main - Analysis took 4322ms.
+09:41:48.925 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:41:48.941 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:41:51.357 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:41:54.911 [main] INFO  org.revapi.standalone.Main - Analysis took 3553ms.
+09:41:55.740 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:41:55.754 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:41:58.162 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:42:01.467 [main] INFO  org.revapi.standalone.Main - Analysis took 3304ms.
+09:45:14.858 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:45:14.882 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:45:19.659 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:45:30.849 [main] INFO  org.revapi.standalone.Main - Analysis took 11188ms.
+09:45:31.857 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:45:31.870 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:45:34.243 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:45:44.579 [main] INFO  org.revapi.standalone.Main - Analysis took 10330ms.
+09:45:45.463 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:45:45.476 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:45:47.849 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:45:53.002 [main] INFO  org.revapi.standalone.Main - Analysis took 5152ms.
+09:45:53.817 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:45:53.829 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:45:56.189 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:46:00.560 [main] INFO  org.revapi.standalone.Main - Analysis took 4369ms.
+09:46:01.350 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:46:01.363 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:46:03.745 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:46:07.128 [main] INFO  org.revapi.standalone.Main - Analysis took 3382ms.
+09:46:07.913 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:46:07.929 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:46:10.314 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:46:13.741 [main] INFO  org.revapi.standalone.Main - Analysis took 3425ms.
+09:52:05.775 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:52:05.782 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:52:06.460 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:52:08.383 [main] INFO  org.revapi.standalone.Main - Analysis took 1923ms.
+09:52:09.018 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:52:09.023 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:52:09.683 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:52:12.629 [main] INFO  org.revapi.standalone.Main - Analysis took 2946ms.
+09:52:13.027 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:52:13.032 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:52:13.654 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:52:14.993 [main] INFO  org.revapi.standalone.Main - Analysis took 1339ms.
+09:52:15.394 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:52:15.399 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:52:15.992 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:52:17.088 [main] INFO  org.revapi.standalone.Main - Analysis took 1096ms.
+09:52:17.439 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:52:17.444 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:52:18.045 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:52:18.779 [main] INFO  org.revapi.standalone.Main - Analysis took 734ms.
+09:52:19.128 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:52:19.134 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:52:19.760 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:52:20.449 [main] ERROR org.revapi.java.spi.Util - Failed to enumerate type arguments of 'java.util.function.Function'. Class is missing?
+com.sun.tools.javac.code.Symbol$CompletionFailure: class file for org.apache.iceberg.orc.OrcRowReader not found
+09:52:20.449 [main] ERROR org.revapi.java.spi.Util - Failed to enumerate type arguments of 'java.util.function.Function'. Class is missing?
+com.sun.tools.javac.code.Symbol$CompletionFailure: class file for org.apache.iceberg.parquet.ParquetValueReader not found
+09:52:20.462 [main] ERROR org.revapi.java.spi.Util - Failed to enumerate type arguments of 'java.util.function.Function'. Class is missing?
+com.sun.tools.javac.code.Symbol$CompletionFailure: class file for org.apache.iceberg.orc.OrcRowReader not found
+09:52:20.462 [main] ERROR org.revapi.java.spi.Util - Failed to enumerate type arguments of 'java.util.function.Function'. Class is missing?
+com.sun.tools.javac.code.Symbol$CompletionFailure: class file for org.apache.iceberg.parquet.ParquetValueReader not found
+09:52:20.499 [main] INFO  org.revapi.standalone.Main - Analysis took 739ms.
+09:52:39.610 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:52:39.615 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:52:40.241 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:52:42.029 [main] INFO  org.revapi.standalone.Main - Analysis took 1787ms.
+09:52:42.510 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:52:42.515 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:52:43.148 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:52:46.110 [main] INFO  org.revapi.standalone.Main - Analysis took 2962ms.
+09:52:46.501 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:52:46.506 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:52:47.173 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:52:48.531 [main] INFO  org.revapi.standalone.Main - Analysis took 1358ms.
+09:52:48.897 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:52:48.904 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:52:49.539 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:52:50.654 [main] INFO  org.revapi.standalone.Main - Analysis took 1115ms.
+09:52:50.974 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:52:50.978 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:52:51.564 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:52:52.356 [main] INFO  org.revapi.standalone.Main - Analysis took 792ms.
+09:52:52.707 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:52:52.712 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:52:53.565 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:52:54.215 [main] ERROR org.revapi.java.spi.Util - Failed to enumerate type arguments of 'java.util.function.Function'. Class is missing?
+com.sun.tools.javac.code.Symbol$CompletionFailure: class file for org.apache.iceberg.orc.OrcRowReader not found
+09:52:54.215 [main] ERROR org.revapi.java.spi.Util - Failed to enumerate type arguments of 'java.util.function.Function'. Class is missing?
+com.sun.tools.javac.code.Symbol$CompletionFailure: class file for org.apache.iceberg.parquet.ParquetValueReader not found
+09:52:54.228 [main] ERROR org.revapi.java.spi.Util - Failed to enumerate type arguments of 'java.util.function.Function'. Class is missing?
+com.sun.tools.javac.code.Symbol$CompletionFailure: class file for org.apache.iceberg.orc.OrcRowReader not found
+09:52:54.229 [main] ERROR org.revapi.java.spi.Util - Failed to enumerate type arguments of 'java.util.function.Function'. Class is missing?
+com.sun.tools.javac.code.Symbol$CompletionFailure: class file for org.apache.iceberg.parquet.ParquetValueReader not found
+09:52:54.264 [main] INFO  org.revapi.standalone.Main - Analysis took 699ms.
+09:54:56.325 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:54:56.884 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:54:57.293 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:54:57.640 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:54:57.972 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:54:58.310 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:56:05.771 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:56:06.360 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:56:06.749 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:56:07.145 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:56:07.499 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:56:07.861 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:59:03.989 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:59:03.994 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:59:04.666 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:59:06.862 [main] INFO  org.revapi.standalone.Main - Analysis took 2195ms.
+09:59:07.469 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:59:07.481 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:59:08.284 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:59:11.378 [main] INFO  org.revapi.standalone.Main - Analysis took 3094ms.
+09:59:11.778 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:59:11.782 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:59:12.422 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:59:13.775 [main] INFO  org.revapi.standalone.Main - Analysis took 1352ms.
+09:59:14.177 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:59:14.183 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:59:14.809 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:59:15.966 [main] INFO  org.revapi.standalone.Main - Analysis took 1157ms.
+09:59:16.314 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:59:16.318 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:59:16.951 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:59:18.011 [main] INFO  org.revapi.standalone.Main - Analysis took 1060ms.
+09:59:18.383 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+09:59:18.388 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+09:59:19.014 [main] INFO  org.revapi.standalone.Main - Starting analysis
+09:59:19.668 [main] ERROR org.revapi.java.spi.Util - Failed to enumerate type arguments of 'java.util.function.Function'. Class is missing?
+com.sun.tools.javac.code.Symbol$CompletionFailure: class file for org.apache.iceberg.orc.OrcRowReader not found
+09:59:19.668 [main] ERROR org.revapi.java.spi.Util - Failed to enumerate type arguments of 'java.util.function.Function'. Class is missing?
+com.sun.tools.javac.code.Symbol$CompletionFailure: class file for org.apache.iceberg.parquet.ParquetValueReader not found
+09:59:19.682 [main] ERROR org.revapi.java.spi.Util - Failed to enumerate type arguments of 'java.util.function.Function'. Class is missing?
+com.sun.tools.javac.code.Symbol$CompletionFailure: class file for org.apache.iceberg.orc.OrcRowReader not found
+09:59:19.683 [main] ERROR org.revapi.java.spi.Util - Failed to enumerate type arguments of 'java.util.function.Function'. Class is missing?
+com.sun.tools.javac.code.Symbol$CompletionFailure: class file for org.apache.iceberg.parquet.ParquetValueReader not found
+09:59:19.718 [main] INFO  org.revapi.standalone.Main - Analysis took 704ms.
+10:01:31.712 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+10:01:31.717 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+10:01:32.366 [main] INFO  org.revapi.standalone.Main - Starting analysis
+10:01:34.106 [main] INFO  org.revapi.standalone.Main - Analysis took 1740ms.
+10:01:34.594 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+10:01:34.600 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+10:01:35.238 [main] INFO  org.revapi.standalone.Main - Starting analysis
+10:01:38.167 [main] INFO  org.revapi.standalone.Main - Analysis took 2929ms.
+10:01:38.589 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+10:01:38.595 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+10:01:39.243 [main] INFO  org.revapi.standalone.Main - Starting analysis
+10:01:40.656 [main] INFO  org.revapi.standalone.Main - Analysis took 1413ms.
+10:01:41.053 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+10:01:41.058 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+10:01:41.707 [main] INFO  org.revapi.standalone.Main - Starting analysis
+10:01:42.995 [main] INFO  org.revapi.standalone.Main - Analysis took 1288ms.
+10:01:43.354 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+10:01:43.359 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+10:01:43.989 [main] INFO  org.revapi.standalone.Main - Starting analysis
+10:01:44.758 [main] INFO  org.revapi.standalone.Main - Analysis took 769ms.
+10:01:45.137 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+10:01:45.143 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+10:01:45.790 [main] INFO  org.revapi.standalone.Main - Starting analysis
+10:01:46.456 [main] ERROR org.revapi.java.spi.Util - Failed to enumerate type arguments of 'java.util.function.Function'. Class is missing?
+com.sun.tools.javac.code.Symbol$CompletionFailure: class file for org.apache.iceberg.orc.OrcRowReader not found
+10:01:46.456 [main] ERROR org.revapi.java.spi.Util - Failed to enumerate type arguments of 'java.util.function.Function'. Class is missing?
+com.sun.tools.javac.code.Symbol$CompletionFailure: class file for org.apache.iceberg.parquet.ParquetValueReader not found
+10:01:46.470 [main] ERROR org.revapi.java.spi.Util - Failed to enumerate type arguments of 'java.util.function.Function'. Class is missing?
+com.sun.tools.javac.code.Symbol$CompletionFailure: class file for org.apache.iceberg.orc.OrcRowReader not found
+10:01:46.471 [main] ERROR org.revapi.java.spi.Util - Failed to enumerate type arguments of 'java.util.function.Function'. Class is missing?
+com.sun.tools.javac.code.Symbol$CompletionFailure: class file for org.apache.iceberg.parquet.ParquetValueReader not found
+10:01:46.509 [main] INFO  org.revapi.standalone.Main - Analysis took 719ms.
+10:01:55.416 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+10:01:55.421 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+10:01:56.084 [main] INFO  org.revapi.standalone.Main - Starting analysis
+10:01:58.098 [main] INFO  org.revapi.standalone.Main - Analysis took 2014ms.
+10:01:58.656 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+10:01:58.661 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+10:01:59.629 [main] INFO  org.revapi.standalone.Main - Starting analysis
+10:02:02.881 [main] INFO  org.revapi.standalone.Main - Analysis took 3252ms.
+10:02:03.293 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+10:02:03.299 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+10:02:03.945 [main] INFO  org.revapi.standalone.Main - Starting analysis
+10:02:05.342 [main] INFO  org.revapi.standalone.Main - Analysis took 1396ms.
+10:02:05.714 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+10:02:05.719 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+10:02:06.374 [main] INFO  org.revapi.standalone.Main - Starting analysis
+10:02:07.452 [main] INFO  org.revapi.standalone.Main - Analysis took 1078ms.
+10:02:07.832 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+10:02:07.837 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+10:02:08.487 [main] INFO  org.revapi.standalone.Main - Starting analysis
+10:02:09.244 [main] INFO  org.revapi.standalone.Main - Analysis took 757ms.
+10:02:09.606 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+10:02:09.612 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+10:02:10.242 [main] INFO  org.revapi.standalone.Main - Starting analysis
+10:02:10.927 [main] ERROR org.revapi.java.spi.Util - Failed to enumerate type arguments of 'java.util.function.Function'. Class is missing?
+com.sun.tools.javac.code.Symbol$CompletionFailure: class file for org.apache.iceberg.orc.OrcRowReader not found
+10:02:10.927 [main] ERROR org.revapi.java.spi.Util - Failed to enumerate type arguments of 'java.util.function.Function'. Class is missing?
+com.sun.tools.javac.code.Symbol$CompletionFailure: class file for org.apache.iceberg.parquet.ParquetValueReader not found
+10:02:10.940 [main] ERROR org.revapi.java.spi.Util - Failed to enumerate type arguments of 'java.util.function.Function'. Class is missing?
+com.sun.tools.javac.code.Symbol$CompletionFailure: class file for org.apache.iceberg.orc.OrcRowReader not found
+10:02:10.941 [main] ERROR org.revapi.java.spi.Util - Failed to enumerate type arguments of 'java.util.function.Function'. Class is missing?
+com.sun.tools.javac.code.Symbol$CompletionFailure: class file for org.apache.iceberg.parquet.ParquetValueReader not found
+10:02:10.978 [main] INFO  org.revapi.standalone.Main - Analysis took 736ms.
+10:10:00.012 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+10:10:00.021 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+10:10:00.912 [main] INFO  org.revapi.standalone.Main - Starting analysis
+10:10:02.029 [main] INFO  org.revapi.standalone.Main - Analysis took 1117ms.
+10:10:02.461 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+10:10:02.470 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+10:10:03.140 [main] INFO  org.revapi.standalone.Main - Starting analysis
+10:10:04.643 [main] INFO  org.revapi.standalone.Main - Analysis took 1503ms.
+10:10:05.022 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+10:10:05.031 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+10:10:05.701 [main] INFO  org.revapi.standalone.Main - Starting analysis
+10:10:06.573 [main] INFO  org.revapi.standalone.Main - Analysis took 872ms.
+10:10:06.936 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+10:10:06.945 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+10:10:07.621 [main] INFO  org.revapi.standalone.Main - Starting analysis
+10:10:08.434 [main] INFO  org.revapi.standalone.Main - Analysis took 812ms.
+10:10:08.781 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+10:10:08.790 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+10:10:09.454 [main] INFO  org.revapi.standalone.Main - Starting analysis
+10:10:10.126 [main] INFO  org.revapi.standalone.Main - Analysis took 672ms.
+10:10:10.458 [main] INFO  org.revapi.standalone.Main - Downloading checked archives
+10:10:10.466 [main] INFO  org.revapi.standalone.Main - Downloading extensions
+10:10:11.148 [main] INFO  org.revapi.standalone.Main - Starting analysis
+10:10:11.748 [main] ERROR org.revapi.java.spi.Util - Failed to enumerate type arguments of 'java.util.function.Function'. Class is missing?
+com.sun.tools.javac.code.Symbol$CompletionFailure: class file for org.apache.iceberg.orc.OrcRowReader not found
+10:10:11.748 [main] ERROR org.revapi.java.spi.Util - Failed to enumerate type arguments of 'java.util.function.Function'. Class is missing?
+com.sun.tools.javac.code.Symbol$CompletionFailure: class file for org.apache.iceberg.parquet.ParquetValueReader not found
+10:10:11.751 [main] ERROR org.revapi.java.spi.Util - Failed to enumerate type arguments of 'java.util.function.Function'. Class is missing?
+com.sun.tools.javac.code.Symbol$CompletionFailure: class file for org.apache.iceberg.orc.OrcRowReader not found
+10:10:11.752 [main] ERROR org.revapi.java.spi.Util - Failed to enumerate type arguments of 'java.util.function.Function'. Class is missing?
+com.sun.tools.javac.code.Symbol$CompletionFailure: class file for org.apache.iceberg.parquet.ParquetValueReader not found
+10:10:11.752 [main] INFO  org.revapi.standalone.Main - Analysis took 604ms.

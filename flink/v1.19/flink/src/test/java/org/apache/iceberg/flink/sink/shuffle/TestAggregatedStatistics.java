@@ -37,9 +37,9 @@ public class TestAggregatedStatistics {
 
   @Test
   public void mergeDataStatisticTest() {
-    SortKey keyA = sortKey.copy();
+    SortKey keyA = sortKey;
     keyA.set(0, "a");
-    SortKey keyB = sortKey.copy();
+    SortKey keyB = sortKey;
     keyB.set(0, "b");
 
     AggregatedStatistics<MapDataStatistics, Map<SortKey, Long>> aggregatedStatistics =

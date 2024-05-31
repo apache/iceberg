@@ -59,15 +59,15 @@ public class TestDataStatisticsCoordinatorProvider {
   @Test
   @SuppressWarnings("unchecked")
   public void testCheckpointAndReset() throws Exception {
-    SortKey keyA = sortKey.copy();
+    SortKey keyA = sortKey;
     keyA.set(0, "a");
-    SortKey keyB = sortKey.copy();
+    SortKey keyB = sortKey;
     keyB.set(0, "b");
-    SortKey keyC = sortKey.copy();
+    SortKey keyC = sortKey;
     keyC.set(0, "c");
-    SortKey keyD = sortKey.copy();
+    SortKey keyD = sortKey;
     keyD.set(0, "c");
-    SortKey keyE = sortKey.copy();
+    SortKey keyE = sortKey;
     keyE.set(0, "c");
 
     try (RecreateOnResetOperatorCoordinator coordinator =

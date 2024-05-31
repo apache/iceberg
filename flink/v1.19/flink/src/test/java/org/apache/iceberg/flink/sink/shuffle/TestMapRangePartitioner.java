@@ -55,7 +55,7 @@ public class TestMapRangePartitioner {
           GenericRowData.of(StringData.fromString("k" + i), i, StringData.fromString("2023-06-20"));
       RowDataWrapper keyWrapper = new RowDataWrapper(ROW_TYPE, TestFixtures.SCHEMA.asStruct());
       keyWrapper.wrap(rowData);
-      SortKey sortKey = SORT_KEY.copy();
+      SortKey sortKey = SORT_KEY;
       sortKey.wrap(keyWrapper);
       sortKeys[i] = sortKey;
     }

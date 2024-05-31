@@ -37,8 +37,8 @@ public class TestAggregatedStatisticsTracker {
   private final SortKey sortKey = new SortKey(schema, sortOrder);
   private final MapDataStatisticsSerializer statisticsSerializer =
       MapDataStatisticsSerializer.fromSortKeySerializer(new SortKeySerializer(schema, sortOrder));
-  private final SortKey keyA = sortKey.copy();
-  private final SortKey keyB = sortKey.copy();
+  private final SortKey keyA = sortKey;
+  private final SortKey keyB = sortKey;
 
   private AggregatedStatisticsTracker<MapDataStatistics, Map<SortKey, Long>>
       aggregatedStatisticsTracker;
