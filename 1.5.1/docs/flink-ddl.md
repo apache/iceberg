@@ -152,7 +152,7 @@ Table create commands support the commonly used [Flink create clauses](https://n
 
 * `PARTITION BY (column1, column2, ...)` to configure partitioning, Flink does not yet support hidden partitioning.
 * `COMMENT 'table document'` to set a table description.
-* `WITH ('key'='value', ...)` to set [table configuration](../configuration.md) which will be stored in Iceberg table properties.
+* `WITH ('key'='value', ...)` to set [table configuration](configuration.md) which will be stored in Iceberg table properties.
 
 Currently, it does not support computed column and watermark definition etc.
 
