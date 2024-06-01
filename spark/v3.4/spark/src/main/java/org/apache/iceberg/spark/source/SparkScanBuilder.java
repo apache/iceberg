@@ -546,7 +546,7 @@ public class SparkScanBuilder
     }
 
     if (endTimestamp != null) {
-      endSnapshotId = SnapshotUtil.nullableSnapshotIdAsOfTime(table, endTimestamp);
+      endSnapshotId = getEndSnapshotId(endTimestamp);
       if ((startSnapshotId == null && endSnapshotId == null)
           || (startSnapshotId != null && startSnapshotId.equals(endSnapshotId))) {
         emptyScan = true;
@@ -587,6 +587,17 @@ public class SparkScanBuilder
     } else {
       return oldestSnapshotAfter.parentId();
     }
+  }
+
+  private Long getEndSnapshotId(Long endTimestamp) {
+    Long endSnapshotId = null;
+    for (Snapshot snapshot : SnapshotUtil.currentAncestors(table)) {
+      if (snapshot.timestampMillis() <= endTimestamp) {
+        endSnapshotId = snapshot.snapshotId();
+        break;
+      }
+    }
+    return endSnapshotId;
   }
 
   public Scan buildMergeOnReadScan() {
