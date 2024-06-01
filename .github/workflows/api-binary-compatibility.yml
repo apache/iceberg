@@ -29,5 +29,5 @@ jobs:
         with:
           distribution: zulu
           java-version: 8
-      - run: ./gradlew -DallVersions build -x test -x javadoc -x integrationTest
+      - run: ./gradlew publishToMavenLocal
       - run: ./dev/revapi
