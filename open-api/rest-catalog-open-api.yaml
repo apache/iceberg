@@ -2643,7 +2643,7 @@ components:
       properties:
         type:
           type: string
-          enum: [ "assert-ref-snapshot-id" ]
+          enum: ["tag", "branch"]
         ref:
           type: string
         snapshot-id:

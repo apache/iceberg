@@ -386,7 +386,7 @@ class AssertRefSnapshotId(TableRequirement):
     The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; if `snapshot-id` is `null` or missing, the ref must not already exist
     """
 
-    type: Literal['assert-ref-snapshot-id']
+    type: Literal['tag', 'branch']
     ref: str
     snapshot_id: int = Field(..., alias='snapshot-id')
 
