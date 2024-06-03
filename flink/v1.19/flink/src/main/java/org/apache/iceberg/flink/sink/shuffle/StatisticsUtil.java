@@ -25,10 +25,6 @@ import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.core.memory.DataInputDeserializer;
 import org.apache.flink.core.memory.DataOutputSerializer;
 
-/**
- * DataStatisticsUtil is the utility to serialize and deserialize {@link DataStatistics} and {@link
- * AggregatedStatistics}
- */
 class StatisticsUtil {
 
   private StatisticsUtil() {}
