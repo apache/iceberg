@@ -28,7 +28,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * A {@link MetricsReporter} implementation that reports the {@link MetricsReport} to a REST
- * endpoint. It's the default when using the {@link RESTCatalog}.
+ * endpoint. This is the default metrics reporter when using {@link RESTCatalog}.
  */
 class RESTMetricsReporter implements MetricsReporter {
   private static final Logger LOG = LoggerFactory.getLogger(RESTMetricsReporter.class);
