@@ -300,6 +300,7 @@ project(':iceberg-api') {
 
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    implementation libs.failsafe
     compileOnly libs.errorprone.annotations
     compileOnly libs.findbugs.jsr305
     testImplementation libs.avro.avro
@@ -468,6 +469,7 @@ project(':iceberg-aws') {
     annotationProcessor libs.immutables.value
     compileOnly libs.immutables.value
     implementation libs.caffeine
+    implementation libs.failsafe
     implementation platform(libs.jackson.bom)
     implementation "com.fasterxml.jackson.core:jackson-databind"
     implementation "com.fasterxml.jackson.core:jackson-core"
