@@ -25,6 +25,7 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.RangeReadable;
+import org.apache.iceberg.io.RetryableInputStream;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.MetricsContext;
@@ -139,7 +140,11 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
 
     S3RequestUtil.configureEncryption(s3FileIOProperties, requestBuilder);
 
-    return s3.getObject(requestBuilder.build(), ResponseTransformer.toInputStream());
+    stream =
+        RetryableInputStream.builderFor(
+                () -> s3.getObject(requestBuilder.build(), ResponseTransformer.toInputStream()))
+            .build();
+    return stream;
   }
 
   @Override
@@ -189,7 +194,10 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     closeStream();
 
     try {
-      stream = s3.getObject(requestBuilder.build(), ResponseTransformer.toInputStream());
+      stream =
+          RetryableInputStream.builderFor(
+                  () -> s3.getObject(requestBuilder.build(), ResponseTransformer.toInputStream()))
+              .build();
     } catch (NoSuchKeyException e) {
       throw new NotFoundException(e, "Location does not exist: %s", location);
     }
