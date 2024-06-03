@@ -437,7 +437,7 @@ class AssertDefaultSortOrderId(TableRequirement):
 
 
 class ViewRequirement(BaseModel):
-    type: str
+    type: Literal['assert-view-uuid']
 
 
 class AssertViewUUID(ViewRequirement):
@@ -445,7 +445,6 @@ class AssertViewUUID(ViewRequirement):
     The view UUID must match the requirement's `uuid`
     """
 
-    type: Literal['assert-view-uuid']
     uuid: str
 
 
