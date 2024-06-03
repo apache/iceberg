@@ -126,7 +126,7 @@ public class ParquetUtil {
 
         increment(columnSizes, fieldId, column.getTotalSize());
 
-        MetricsMode metricsMode = MetricsUtil.metricsMode(fileSchema, metricsConfig, fieldId);
+        MetricsMode metricsMode = metricsConfig.columnMode(fieldId);
         if (metricsMode == MetricsModes.None.get()) {
           continue;
         }
@@ -189,7 +189,7 @@ public class ParquetUtil {
             entry -> {
               int fieldId = entry.getKey();
               FieldMetrics<?> metrics = entry.getValue();
-              MetricsMode metricsMode = MetricsUtil.metricsMode(schema, metricsConfig, fieldId);
+              MetricsMode metricsMode = metricsConfig.columnMode(fieldId);
 
               // only check for MetricsModes.None, since we don't truncate float/double values.
               if (metricsMode != MetricsModes.None.get()) {

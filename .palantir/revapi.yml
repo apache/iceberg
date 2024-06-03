@@ -1018,6 +1018,34 @@ acceptedBreaks:
       old: "method void org.apache.iceberg.PositionDeletesTable.PositionDeletesBatchScan::<init>(org.apache.iceberg.Table,\
         \ org.apache.iceberg.Schema, org.apache.iceberg.TableScanContext)"
       justification: "Removing deprecated code"
+  "1.5.0":
+    org.apache.iceberg:iceberg-core:
+    - code: "java.method.numberOfParametersChanged"
+      old: "method org.apache.iceberg.MetricsConfig org.apache.iceberg.MetricsConfig::fromProperties(java.util.Map<java.lang.String,\
+        \ java.lang.String>)"
+      new: "method org.apache.iceberg.MetricsConfig org.apache.iceberg.MetricsConfig::fromProperties(org.apache.iceberg.Schema,\
+        \ java.util.Map<java.lang.String, java.lang.String>)"
+      justification: "change MetricsConfig columnModes from Map[colName, MetricsMode]\
+        \ to Map[fieldId, MetricsMode]"
+    - code: "java.method.parameterTypeChanged"
+      old: "parameter org.apache.iceberg.MetricsModes.MetricsMode org.apache.iceberg.MetricsConfig::columnMode(===java.lang.String===)"
+      new: "parameter org.apache.iceberg.MetricsModes.MetricsMode org.apache.iceberg.MetricsConfig::columnMode(===int===)"
+      justification: "change MetricsConfig columnModes from Map[colName, MetricsMode]\
+        \ to Map[fieldId, MetricsMode]"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.MetricsModes.MetricsMode org.apache.iceberg.MetricsUtil::metricsMode(org.apache.iceberg.Schema,\
+        \ org.apache.iceberg.MetricsConfig, int)"
+      justification: "change MetricsConfig columnModes from Map[colName, MetricsMode]\
+        \ to Map[fieldId, MetricsMode]"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.MetricsConfig::validateReferencedColumns(org.apache.iceberg.Schema)"
+      justification: "change MetricsConfig columnModes from Map[colName, MetricsMode]\
+        \ to Map[fieldId, MetricsMode]"
+    - code: "java.method.returnTypeTypeParametersChanged"
+      old: "method java.util.Set<java.lang.String> org.apache.iceberg.util.SortOrderUtil::orderPreservingSortedColumns(org.apache.iceberg.SortOrder)"
+      new: "method java.util.Set<java.lang.Integer> org.apache.iceberg.util.SortOrderUtil::orderPreservingSortedColumns(org.apache.iceberg.SortOrder)"
+      justification: "change MetricsConfig columnModes from Map[colName, MetricsMode]\
+        \ to Map[fieldId, MetricsMode]"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"

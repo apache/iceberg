@@ -102,20 +102,8 @@ public class MetricsUtil {
     }
 
     return fieldMetrics
-        .filter(
-            metrics ->
-                metricsMode(inputSchema, metricsConfig, metrics.id()) != MetricsModes.None.get())
+        .filter(metrics -> metricsConfig.columnMode(metrics.id()) != MetricsModes.None.get())
         .collect(Collectors.toMap(FieldMetrics::id, FieldMetrics::nanValueCount));
-  }
-
-  /** Extract MetricsMode for the given field id from metrics config. */
-  public static MetricsModes.MetricsMode metricsMode(
-      Schema inputSchema, MetricsConfig metricsConfig, int fieldId) {
-    Preconditions.checkNotNull(inputSchema, "inputSchema is required");
-    Preconditions.checkNotNull(metricsConfig, "metricsConfig is required");
-
-    String columnName = inputSchema.findColumnName(fieldId);
-    return metricsConfig.columnMode(columnName);
   }
 
   public static final List<ReadableMetricColDefinition> READABLE_METRIC_COLS =

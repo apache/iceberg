@@ -309,7 +309,7 @@ public abstract class TestMetrics {
             MetricsModes.None.get().toString(),
             TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "nestedStructCol.longCol",
             MetricsModes.Full.get().toString());
-    MetricsConfig config = MetricsConfig.fromProperties(properties);
+    MetricsConfig config = MetricsConfig.fromProperties(NESTED_SCHEMA, properties);
 
     Metrics metrics = getMetrics(NESTED_SCHEMA, config, buildNestedTestRecord());
     assertThat(metrics.recordCount()).isEqualTo(1L);
@@ -331,6 +331,39 @@ public abstract class TestMetrics {
     record.setField("nestedStructCol", nestedStruct);
 
     return record;
+  }
+
+  @TestTemplate
+  public void testMetricsForSpecialCharactersFields() throws IOException {
+    Schema schema =
+        new Schema(
+            required(1, "stringCol.string", StringType.get()),
+            required(2, "intCol:int", IntegerType.get()));
+
+    Map<String, String> properties =
+        ImmutableMap.of(
+            TableProperties.DEFAULT_WRITE_METRICS_MODE,
+            MetricsModes.None.get().toString(),
+            TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "stringCol.string",
+            MetricsModes.Full.get().toString(),
+            TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "intCol:int",
+            MetricsModes.Full.get().toString());
+    MetricsConfig config = MetricsConfig.fromProperties(schema, properties);
+
+    Record first = GenericRecord.create(schema);
+    first.setField("stringCol.string", "AAA");
+    first.setField("intCol:int", 1);
+
+    Record second = GenericRecord.create(schema);
+    second.setField("stringCol.string", "FFF");
+    second.setField("intCol:int", 1000);
+
+    Metrics metrics = getMetrics(schema, config, first, second);
+    assertThat(metrics.recordCount()).isEqualTo(2L);
+    assertCounts(1, 2L, 0L, metrics);
+    assertBounds(1, StringType.get(), CharBuffer.wrap("AAA"), CharBuffer.wrap("FFF"), metrics);
+    assertCounts(2, 2L, 0L, metrics);
+    assertBounds(2, IntegerType.get(), 1, 1000, metrics);
   }
 
   @TestTemplate
@@ -558,7 +591,8 @@ public abstract class TestMetrics {
     Metrics metrics =
         getMetrics(
             NESTED_SCHEMA,
-            MetricsConfig.fromProperties(ImmutableMap.of("write.metadata.metrics.default", "none")),
+            MetricsConfig.fromProperties(
+                NESTED_SCHEMA, ImmutableMap.of("write.metadata.metrics.default", "none")),
             buildNestedTestRecord());
     assertThat(metrics.recordCount()).isEqualTo(1L);
     assertThat(metrics.columnSizes()).doesNotContainValue(null);
@@ -580,7 +614,7 @@ public abstract class TestMetrics {
         getMetrics(
             NESTED_SCHEMA,
             MetricsConfig.fromProperties(
-                ImmutableMap.of("write.metadata.metrics.default", "counts")),
+                NESTED_SCHEMA, ImmutableMap.of("write.metadata.metrics.default", "counts")),
             buildNestedTestRecord());
     assertThat(metrics.recordCount()).isEqualTo(1L);
     assertThat(metrics.columnSizes()).doesNotContainValue(null);
@@ -601,7 +635,8 @@ public abstract class TestMetrics {
     Metrics metrics =
         getMetrics(
             NESTED_SCHEMA,
-            MetricsConfig.fromProperties(ImmutableMap.of("write.metadata.metrics.default", "full")),
+            MetricsConfig.fromProperties(
+                NESTED_SCHEMA, ImmutableMap.of("write.metadata.metrics.default", "full")),
             buildNestedTestRecord());
     assertThat(metrics.recordCount()).isEqualTo(1L);
     assertThat(metrics.columnSizes()).doesNotContainValue(null);
@@ -635,6 +670,7 @@ public abstract class TestMetrics {
         getMetrics(
             singleStringColSchema,
             MetricsConfig.fromProperties(
+                singleStringColSchema,
                 ImmutableMap.of("write.metadata.metrics.default", "truncate(10)")),
             record);
 
@@ -659,6 +695,7 @@ public abstract class TestMetrics {
         getMetrics(
             singleBinaryColSchema,
             MetricsConfig.fromProperties(
+                singleBinaryColSchema,
                 ImmutableMap.of("write.metadata.metrics.default", "truncate(5)")),
             record);
 

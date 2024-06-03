@@ -333,8 +333,8 @@ public class TestSortOrder {
   public void testSortedColumnNames() {
     SortOrder order =
         SortOrder.builderFor(SCHEMA).withOrderId(10).asc("s.id").desc(truncate("data", 10)).build();
-    Set<String> sortedCols = SortOrderUtil.orderPreservingSortedColumns(order);
-    assertThat(sortedCols).containsExactly("s.id", "data");
+    Set<Integer> sortedCols = SortOrderUtil.orderPreservingSortedColumns(order);
+    assertThat(sortedCols).containsExactly(17, 11);
   }
 
   @TestTemplate
@@ -345,8 +345,8 @@ public class TestSortOrder {
             .asc(bucket("s.id", 5))
             .desc(truncate("data", 10))
             .build();
-    Set<String> sortedCols = SortOrderUtil.orderPreservingSortedColumns(order);
-    assertThat(sortedCols).containsExactly("data");
+    Set<Integer> sortedCols = SortOrderUtil.orderPreservingSortedColumns(order);
+    assertThat(sortedCols).containsExactly(11);
   }
 
   @TestTemplate

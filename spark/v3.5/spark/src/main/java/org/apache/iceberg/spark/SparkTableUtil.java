@@ -606,7 +606,7 @@ public class SparkTableUtil {
         Math.min(
             partitions.size(), spark.sessionState().conf().parallelPartitionDiscoveryParallelism());
     int numShufflePartitions = spark.sessionState().conf().numShufflePartitions();
-    MetricsConfig metricsConfig = MetricsConfig.fromProperties(targetTable.properties());
+    MetricsConfig metricsConfig = MetricsConfig.forTable(targetTable);
     String nameMappingString = targetTable.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
     NameMapping nameMapping =
         nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;

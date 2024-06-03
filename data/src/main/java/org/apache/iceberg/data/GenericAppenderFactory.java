@@ -91,7 +91,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   @Override
   public FileAppender<Record> newAppender(
       EncryptedOutputFile encryptedOutputFile, FileFormat fileFormat) {
-    MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
+    MetricsConfig metricsConfig = MetricsConfig.fromProperties(schema, config);
     try {
       switch (fileFormat) {
         case AVRO:
@@ -152,7 +152,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
         eqDeleteRowSchema,
         "Equality delete row schema shouldn't be null when creating equality-delete writer");
 
-    MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
+    MetricsConfig metricsConfig = MetricsConfig.fromProperties(eqDeleteRowSchema, config);
 
     try {
       switch (format) {
@@ -206,7 +206,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   @Override
   public PositionDeleteWriter<Record> newPosDeleteWriter(
       EncryptedOutputFile file, FileFormat format, StructLike partition) {
-    MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
+    MetricsConfig metricsConfig = MetricsConfig.fromProperties(posDeleteRowSchema, config);
 
     try {
       switch (format) {

@@ -30,10 +30,10 @@ import java.util.Set;
 import javax.annotation.concurrent.Immutable;
 import org.apache.iceberg.MetricsModes.MetricsMode;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SortOrderUtil;
@@ -44,17 +44,16 @@ import org.slf4j.LoggerFactory;
 public final class MetricsConfig implements Serializable {
 
   private static final Logger LOG = LoggerFactory.getLogger(MetricsConfig.class);
-  private static final Joiner DOT = Joiner.on('.');
 
   // Disable metrics by default for wide tables to prevent excessive metadata
   private static final MetricsMode DEFAULT_MODE =
       MetricsModes.fromString(DEFAULT_WRITE_METRICS_MODE_DEFAULT);
   private static final MetricsConfig DEFAULT = new MetricsConfig(ImmutableMap.of(), DEFAULT_MODE);
 
-  private final Map<String, MetricsMode> columnModes;
+  private final Map<Integer, MetricsMode> columnModes;
   private final MetricsMode defaultMode;
 
-  private MetricsConfig(Map<String, MetricsMode> columnModes, MetricsMode defaultMode) {
+  private MetricsConfig(Map<Integer, MetricsMode> columnModes, MetricsMode defaultMode) {
     this.columnModes = SerializableMap.copyOf(columnModes).immutableMap();
     this.defaultMode = defaultMode;
   }
@@ -66,12 +65,13 @@ public final class MetricsConfig implements Serializable {
   /**
    * Creates a metrics config from table configuration.
    *
+   * @param schema table schema
    * @param props table configuration
    * @deprecated use {@link MetricsConfig#forTable(Table)}
    */
   @Deprecated
-  public static MetricsConfig fromProperties(Map<String, String> props) {
-    return from(props, null, null);
+  public static MetricsConfig fromProperties(Schema schema, Map<String, String> props) {
+    return from(props, schema, null);
   }
 
   /**
@@ -89,20 +89,15 @@ public final class MetricsConfig implements Serializable {
    * @param table an Iceberg table
    */
   public static MetricsConfig forPositionDelete(Table table) {
-    ImmutableMap.Builder<String, MetricsMode> columnModes = ImmutableMap.builder();
+    ImmutableMap.Builder<Integer, MetricsMode> columnModes = ImmutableMap.builder();
 
-    columnModes.put(MetadataColumns.DELETE_FILE_PATH.name(), MetricsModes.Full.get());
-    columnModes.put(MetadataColumns.DELETE_FILE_POS.name(), MetricsModes.Full.get());
+    columnModes.put(MetadataColumns.DELETE_FILE_PATH.fieldId(), MetricsModes.Full.get());
+    columnModes.put(MetadataColumns.DELETE_FILE_POS.fieldId(), MetricsModes.Full.get());
 
     MetricsConfig tableConfig = forTable(table);
 
     MetricsMode defaultMode = tableConfig.defaultMode;
-    tableConfig.columnModes.forEach(
-        (columnAlias, mode) -> {
-          String positionDeleteColumnAlias =
-              DOT.join(MetadataColumns.DELETE_FILE_ROW_FIELD_NAME, columnAlias);
-          columnModes.put(positionDeleteColumnAlias, mode);
-        });
+    tableConfig.columnModes.forEach(columnModes::put);
 
     return new MetricsConfig(columnModes.build(), defaultMode);
   }
@@ -118,7 +113,7 @@ public final class MetricsConfig implements Serializable {
    */
   private static MetricsConfig from(Map<String, String> props, Schema schema, SortOrder order) {
     int maxInferredDefaultColumns = maxInferredColumnDefaults(props);
-    Map<String, MetricsMode> columnModes = Maps.newHashMap();
+    Map<Integer, MetricsMode> columnModes = Maps.newHashMap();
 
     // Handle user override of default mode
     MetricsMode defaultMode;
@@ -135,7 +130,7 @@ public final class MetricsConfig implements Serializable {
       // an inferred default mode is applied to the first few columns, up to the limit
       Schema subSchema = new Schema(schema.columns().subList(0, maxInferredDefaultColumns));
       for (Integer id : TypeUtil.getProjectedIds(subSchema)) {
-        columnModes.put(subSchema.findColumnName(id), DEFAULT_MODE);
+        columnModes.put(id, DEFAULT_MODE);
       }
 
       // all other columns don't use metrics
@@ -144,7 +139,7 @@ public final class MetricsConfig implements Serializable {
 
     // First set sorted column with sorted column default (can be overridden by user)
     MetricsMode sortedColDefaultMode = sortedColumnDefaultMode(defaultMode);
-    Set<String> sortedCols = SortOrderUtil.orderPreservingSortedColumns(order);
+    Set<Integer> sortedCols = SortOrderUtil.orderPreservingSortedColumns(order);
     sortedCols.forEach(sc -> columnModes.put(sc, sortedColDefaultMode));
 
     // Handle user overrides of defaults
@@ -152,7 +147,16 @@ public final class MetricsConfig implements Serializable {
       if (key.startsWith(METRICS_MODE_COLUMN_CONF_PREFIX)) {
         String columnAlias = key.replaceFirst(METRICS_MODE_COLUMN_CONF_PREFIX, "");
         MetricsMode mode = parseMode(props.get(key), defaultMode, "column " + columnAlias);
-        columnModes.put(columnAlias, mode);
+        if (schema != null) {
+          Types.NestedField field = schema.findField(columnAlias);
+          ValidationException.check(
+              field != null,
+              "Invalid metrics config, could not find column %s from table prop %s in schema %s",
+              columnAlias,
+              METRICS_MODE_COLUMN_CONF_PREFIX + columnAlias,
+              schema);
+          columnModes.put(field.fieldId(), mode);
+        }
       }
     }
 
@@ -201,18 +205,7 @@ public final class MetricsConfig implements Serializable {
     }
   }
 
-  public void validateReferencedColumns(Schema schema) {
-    for (String column : columnModes.keySet()) {
-      ValidationException.check(
-          schema.findField(column) != null,
-          "Invalid metrics config, could not find column %s from table prop %s in schema %s",
-          column,
-          METRICS_MODE_COLUMN_CONF_PREFIX + column,
-          schema);
-    }
-  }
-
-  public MetricsMode columnMode(String columnAlias) {
-    return columnModes.getOrDefault(columnAlias, defaultMode);
+  public MetricsMode columnMode(int fieldId) {
+    return columnModes.getOrDefault(fieldId, defaultMode);
   }
 }
