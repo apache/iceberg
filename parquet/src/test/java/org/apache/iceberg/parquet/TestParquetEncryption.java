@@ -23,6 +23,7 @@ import static org.apache.iceberg.Files.localOutput;
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.createTempFile;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.Closeable;
 import java.io.File;
@@ -33,7 +34,6 @@ import java.security.SecureRandom;
 import java.util.List;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileAppender;
@@ -85,27 +85,28 @@ public class TestParquetEncryption {
 
   @Test
   public void testReadEncryptedFileWithoutKeys() throws IOException {
-    TestHelpers.assertThrows(
-        "Decrypted without keys",
-        ParquetCryptoRuntimeException.class,
-        "Trying to read file with encrypted footer. No keys available",
-        () -> Parquet.read(localInput(file)).project(schema).callInit().build().iterator());
+    assertThatThrownBy(
+            () -> Parquet.read(localInput(file)).project(schema).callInit().build().iterator())
+        .as("Decrypted without keys")
+        .isInstanceOf(ParquetCryptoRuntimeException.class)
+        .hasMessage("Trying to read file with encrypted footer. No keys available");
   }
 
   @Test
   public void testReadEncryptedFileWithoutAADPrefix() throws IOException {
-    TestHelpers.assertThrows(
-        "Decrypted without AAD prefix",
-        ParquetCryptoRuntimeException.class,
-        "AAD prefix used for file encryption, "
-            + "but not stored in file and not supplied in decryption properties",
-        () ->
-            Parquet.read(localInput(file))
-                .project(schema)
-                .withFileEncryptionKey(fileDek)
-                .callInit()
-                .build()
-                .iterator());
+    assertThatThrownBy(
+            () ->
+                Parquet.read(localInput(file))
+                    .project(schema)
+                    .withFileEncryptionKey(fileDek)
+                    .callInit()
+                    .build()
+                    .iterator())
+        .as("Decrypted without AAD prefix")
+        .isInstanceOf(ParquetCryptoRuntimeException.class)
+        .hasMessage(
+            "AAD prefix used for file encryption, "
+                + "but not stored in file and not supplied in decryption properties");
   }
 
   @Test
