@@ -42,6 +42,7 @@ import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.ResourcePaths;
+import org.apache.iceberg.rest.auth.AuthConfig;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.auth.OAuth2Util.AuthSession;
@@ -213,12 +214,13 @@ public abstract class S3V4RestSignerClient
                       expiresAtMillis(properties()),
                       new AuthSession(
                           ImmutableMap.of(),
-                          token,
-                          null,
-                          credential(),
-                          SCOPE,
-                          oauth2ServerUri(),
-                          optionalOAuthParams())));
+                          AuthConfig.builder()
+                              .token(token)
+                              .credential(credential())
+                              .scope(SCOPE)
+                              .oauth2ServerUri(oauth2ServerUri())
+                              .optionalOAuthParams(optionalOAuthParams())
+                              .build())));
     }
 
     if (credentialProvided()) {
@@ -229,12 +231,12 @@ public abstract class S3V4RestSignerClient
                 AuthSession session =
                     new AuthSession(
                         ImmutableMap.of(),
-                        null,
-                        null,
-                        credential(),
-                        SCOPE,
-                        oauth2ServerUri(),
-                        optionalOAuthParams());
+                        AuthConfig.builder()
+                            .credential(credential())
+                            .scope(SCOPE)
+                            .oauth2ServerUri(oauth2ServerUri())
+                            .optionalOAuthParams(optionalOAuthParams())
+                            .build());
                 long startTimeMillis = System.currentTimeMillis();
                 OAuthTokenResponse authResponse =
                     OAuth2Util.fetchToken(
