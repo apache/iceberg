@@ -24,6 +24,7 @@ import java.util.Map;
 import org.apache.iceberg.SortKey;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * AggregatedStatistics is used by {@link DataStatisticsCoordinator} to collect {@link
@@ -41,6 +42,10 @@ class AggregatedStatistics implements Serializable {
       StatisticsType type,
       Map<SortKey, Long> keyFrequency,
       SortKey[] rangeBounds) {
+    Preconditions.checkArgument(
+        (keyFrequency != null && rangeBounds == null)
+            || (keyFrequency == null && rangeBounds != null),
+        "Invalid key frequency or range bounds: both are non-null or null");
     this.checkpointId = checkpointId;
     this.type = type;
     this.keyFrequency = keyFrequency;

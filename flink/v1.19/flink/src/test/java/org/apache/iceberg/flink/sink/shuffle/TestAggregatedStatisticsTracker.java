@@ -220,7 +220,7 @@ public class TestAggregatedStatisticsTracker {
             Fixtures.SCHEMA,
             Fixtures.SORT_ORDER,
             downstreamParallelism,
-            StatisticsType.Map,
+            StatisticsType.Auto,
             switchToSketchThreshold,
             null);
 

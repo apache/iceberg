@@ -88,7 +88,7 @@ class SketchUtil {
   }
 
   /**
-   * To understand how range bounds are used in range partitioning, heere is an example for human
+   * To understand how range bounds are used in range partitioning, here is an example for human
    * ages with 4 partitions: [15, 32, 60]. The 4 ranges would be
    * <li>age <= 15
    * <li>age > 15 && age <= 32

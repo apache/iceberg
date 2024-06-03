@@ -90,7 +90,7 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
         new CoordinatorExecutorThreadFactory(
             "DataStatisticsCoordinator-" + operatorName, context.getUserCodeClassloader());
     this.coordinatorExecutor = Executors.newSingleThreadExecutor(coordinatorThreadFactory);
-    this.subtaskGateways = new SubtaskGateways(operatorName, parallelism());
+    this.subtaskGateways = new SubtaskGateways(operatorName, context.currentParallelism());
     SortKeySerializer sortKeySerializer = new SortKeySerializer(schema, sortOrder);
     this.aggregatedStatisticsSerializer = new AggregatedStatisticsSerializer(sortKeySerializer);
   }
@@ -182,10 +182,6 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
 
   private void ensureStarted() {
     Preconditions.checkState(started, "The coordinator of %s has not started yet.", operatorName);
-  }
-
-  private int parallelism() {
-    return context.currentParallelism();
   }
 
   private void handleDataStatisticRequest(int subtask, StatisticsEvent event) {

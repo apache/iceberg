@@ -219,7 +219,8 @@ class AggregatedStatisticsTracker {
       Map<SortKey, Long> taskMapStats = (Map<SortKey, Long>) taskStatistics.result();
       if (coordinatorStatisticsType == StatisticsType.Map) {
         taskMapStats.forEach((key, count) -> coordinatorMapStatistics.merge(key, count, Long::sum));
-        if (coordinatorMapStatistics.size() > switchToSketchThreshold) {
+        if (statisticsType == StatisticsType.Auto
+            && coordinatorMapStatistics.size() > switchToSketchThreshold) {
           convertCoordinatorToSketch();
         }
       } else {
