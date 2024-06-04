@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -68,6 +69,17 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
   private final AtomicLong entryCount = new AtomicLong(0);
 
   private Function<DataFile, Object> clusterByFunc;
+
+  private BiFunction<Long, Long, Void> validateFileCountsFunc =
+      (createdManifestsFilesCount, replacedManifestsFilesCount) -> {
+        if (!createdManifestsFilesCount.equals(replacedManifestsFilesCount)) {
+          throw new ValidationException(
+              "Replaced and created manifests must have the same number of active files: %d (new), %d (old)",
+              createdManifestsFilesCount, replacedManifestsFilesCount);
+        }
+        return null;
+      };
+
   private Predicate<ManifestFile> predicate;
 
   private final SnapshotSummary.Builder summaryBuilder = SnapshotSummary.builder();
@@ -149,6 +161,12 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
       rewrittenAddedManifests.add(copiedManifest);
     }
 
+    return this;
+  }
+
+  @Override
+  public RewriteManifests validateWith(BiFunction<Long, Long, Void> func) {
+    this.validateFileCountsFunc = func;
     return this;
   }
 
@@ -295,11 +313,8 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
         Iterables.concat(rewrittenManifests, deletedManifests);
     int replacedManifestsFilesCount = activeFilesCount(replacedManifests);
 
-    if (createdManifestsFilesCount != replacedManifestsFilesCount) {
-      throw new ValidationException(
-          "Replaced and created manifests must have the same number of active files: %d (new), %d (old)",
-          createdManifestsFilesCount, replacedManifestsFilesCount);
-    }
+    validateFileCountsFunc.apply(
+        (long) createdManifestsFilesCount, (long) replacedManifestsFilesCount);
   }
 
   private int activeFilesCount(Iterable<ManifestFile> manifests) {

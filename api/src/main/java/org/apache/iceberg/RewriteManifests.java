@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -86,4 +87,7 @@ public interface RewriteManifests extends SnapshotUpdate<RewriteManifests> {
    * @return this for method chaining
    */
   RewriteManifests addManifest(ManifestFile manifest);
+
+  RewriteManifests validateWith(BiFunction<Long, Long, Void> func);
+
 }
