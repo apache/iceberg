@@ -26,12 +26,15 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
@@ -713,5 +716,99 @@ public class TestTransaction extends TestBase {
 
     assertThat(paths).isEqualTo(expectedPaths);
     assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(2);
+  }
+
+  @TestTemplate
+  public void testTransactionPassesValidation() {
+    validateTableFiles(table);
+
+    Transaction transaction = table.newTransaction();
+    AppendFiles appendFiles = transaction.newAppend().appendFile(FILE_A);
+    appendFiles.validate(
+        ImmutableList.of(new Validation(currentTable -> true, "Custom validation failed.")));
+    appendFiles.commit();
+    transaction.commitTransaction();
+
+    validateTableFiles(table, FILE_A);
+  }
+
+  @TestTemplate
+  public void testTransactionFailsValidation() {
+    validateTableFiles(table);
+
+    Transaction transaction = table.newTransaction();
+    assertThatThrownBy(
+            () -> {
+              AppendFiles appendFiles = transaction.newAppend().appendFile(FILE_A);
+              appendFiles.validate(
+                  ImmutableList.of(
+                      new Validation(currentTable -> false, "Custom validation failed.")));
+              appendFiles.commit();
+            },
+            "Transaction commit should fail")
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Custom validation failed.");
+
+    validateTableFiles(table);
+  }
+
+  @TestTemplate
+  public void testTransactionFailsValidationDueToConcurrentCommit() {
+    validateTableFiles(table);
+
+    String watermarkKey = "custom_watermark";
+    String currentWatermarkValue = "1";
+    String nextWatermarkValue = "2";
+
+    table.updateProperties().set(watermarkKey, currentWatermarkValue).commit();
+
+    Transaction transaction = table.newTransaction();
+    transaction.newAppend().appendFile(FILE_A).commit();
+    UpdateProperties updateProperties =
+        transaction.updateProperties().set(watermarkKey, nextWatermarkValue);
+    updateProperties.validate(
+        ImmutableList.of(
+            new Validation(
+                currentTable ->
+                    Objects.equals(
+                        currentTable.properties().get(watermarkKey), currentWatermarkValue),
+                "Current watermark value not equal to expected value=%s",
+                currentWatermarkValue)));
+    updateProperties.commit();
+
+    // concurrent update to the table which advances our watermark value before we're able to commit
+    table.updateProperties().set(watermarkKey, nextWatermarkValue).commit();
+
+    assertThatThrownBy(transaction::commitTransaction, "Transaction commit should fail")
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Current watermark value not equal to expected value=1");
+
+    validateTableFiles(table);
+    assertThat(table.properties().get(watermarkKey)).isEqualTo(nextWatermarkValue);
+  }
+
+  @TestTemplate
+  public void testTransactionFailsDueToIllegalTableModificationInsideValidation() {
+    validateTableFiles(table);
+
+    assertThatThrownBy(
+            () -> {
+              AppendFiles appendFiles = table.newTransaction().newAppend().appendFile(FILE_A);
+              appendFiles.validate(
+                  ImmutableList.of(
+                      new Validation(
+                          currentTable -> {
+                            // illegal action
+                            currentTable.updateProperties().set("key", "value").commit();
+                            return true;
+                          },
+                          "Custom validation failed.")));
+              appendFiles.commit();
+            },
+            "Any attempts to modify a table inside a validation should throw an exception")
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot modify a static table");
+
+    validateTableFiles(table);
   }
 }

@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ValidationException;
+import java.util.List;
 
 /**
  * API for table metadata changes.
@@ -39,6 +40,19 @@ public interface PendingUpdate<T> {
    * @throws IllegalArgumentException If the pending changes are conflicting or invalid
    */
   T apply();
+
+  /**
+   * Validate the current version of the table.
+   *
+   * @param validations A list of {@link Validation} which will be used to test whether it is safe
+   *     to commit the pending changes to the current version of the table at commit time.
+   * @throws ValidationException If the update cannot be applied to the current table metadata.
+   * @throws UnsupportedOperationException If any of the supplied validations attempt to modify the
+   *     table.
+   */
+  default void validate(List<Validation> validations) {
+    throw new UnsupportedOperationException();
+  }
 
   /**
    * Apply the pending changes and commit.
