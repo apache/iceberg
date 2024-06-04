@@ -18,40 +18,28 @@
  */
 package org.apache.iceberg.spark.source;
 
-import java.io.BufferedWriter;
+import com.fasterxml.jackson.core.JacksonException;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
+import java.io.StringWriter;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
+import java.util.concurrent.ExecutionException;
 import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.ManifestFile;
-import org.apache.iceberg.MicroBatches;
-import org.apache.iceberg.MicroBatches.MicroBatch;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.CloseableIterator;
-import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.metrics.CommitMetricsResult;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
-import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.Pair;
-import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.JsonUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.iceberg.util.Tasks;
@@ -60,33 +48,36 @@ import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.connector.read.InputPartition;
 import org.apache.spark.sql.connector.read.PartitionReaderFactory;
+import org.apache.spark.sql.connector.read.streaming.CompositeReadLimit;
 import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
 import org.apache.spark.sql.connector.read.streaming.Offset;
 import org.apache.spark.sql.connector.read.streaming.ReadLimit;
+import org.apache.spark.sql.connector.read.streaming.ReadMaxFiles;
+import org.apache.spark.sql.connector.read.streaming.ReadMaxRows;
 import org.apache.spark.sql.connector.read.streaming.SupportsAdmissionControl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissionControl {
-  private static final Joiner SLASH = Joiner.on("/");
   private static final Logger LOG = LoggerFactory.getLogger(SparkMicroBatchStream.class);
   private static final Types.StructType EMPTY_GROUPING_KEY_TYPE = Types.StructType.of();
 
   private final Table table;
+  private final SparkReadConf readConf;
   private final String branch;
   private final boolean caseSensitive;
   private final String expectedSchema;
   private final Broadcast<Table> tableBroadcast;
-  private final long splitSize;
-  private final int splitLookback;
-  private final long splitOpenFileCost;
+  private final Long splitSize;
+  private final Integer splitLookback;
+  private final Long splitOpenFileCost;
   private final boolean localityPreferred;
-  private final StreamingOffset initialOffset;
   private final boolean skipDelete;
   private final boolean skipOverwrite;
-  private final long fromTimestamp;
-  private final int maxFilesPerMicroBatch;
-  private final int maxRecordsPerMicroBatch;
+  private final Long fromTimestamp;
+  private final Integer maxFilesPerMicroBatch;
+  private final Integer maxRecordsPerMicroBatch;
+  private SparkMicroBatchPlanner microBatchPlanner;
 
   SparkMicroBatchStream(
       JavaSparkContext sparkContext,
@@ -95,40 +86,86 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
       Schema expectedSchema,
       String checkpointLocation) {
     this.table = table;
+    this.readConf = readConf;
     this.branch = readConf.branch();
     this.caseSensitive = readConf.caseSensitive();
     this.expectedSchema = SchemaParser.toJson(expectedSchema);
-    this.localityPreferred = readConf.localityEnabled();
     this.tableBroadcast = sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
     this.splitSize = readConf.splitSize();
     this.splitLookback = readConf.splitLookback();
     this.splitOpenFileCost = readConf.splitOpenFileCost();
+    this.localityPreferred = readConf.localityEnabled();
+    this.skipDelete = readConf.streamingSkipDeleteSnapshots();
+    this.skipOverwrite = readConf.streamingSkipOverwriteSnapshots();
     this.fromTimestamp = readConf.streamFromTimestamp();
     this.maxFilesPerMicroBatch = readConf.maxFilesPerMicroBatch();
     this.maxRecordsPerMicroBatch = readConf.maxRecordsPerMicroBatch();
+    // this refresh is important
+    this.table.refresh();
+    // microbatch planner isn't initialized here, rather when we wither get our first of either:
+    // - planInputPartitions (called when resuming from a snapshot with committed offsets)
+    // - latestOffset (called when starting without committed offsets)
+  }
 
-    InitialOffsetStore initialOffsetStore =
-        new InitialOffsetStore(table, checkpointLocation, fromTimestamp);
-    this.initialOffset = initialOffsetStore.initialOffset();
+  public static StreamingOffset computeInitialOffset(Table table, SparkReadConf readConf) {
+    Long fromTimestamp = readConf.streamFromTimestamp();
 
-    this.skipDelete = readConf.streamingSkipDeleteSnapshots();
-    this.skipOverwrite = readConf.streamingSkipOverwriteSnapshots();
+    if (table.currentSnapshot() == null) {
+      LOG.debug("computeInitialOffset: Table is empty, returning START_OFFSET");
+      return StreamingOffset.START_OFFSET;
+    }
+
+    if (fromTimestamp == null) {
+      LOG.debug("computeInitialOffset: fromTimestamp is null, returning oldest snapshot");
+      // match existing behavior and start from the oldest snapshot
+      Snapshot oldestSnapshot = SnapshotUtil.oldestAncestor(table);
+      return new StreamingOffset(
+          oldestSnapshot.snapshotId(),
+          0,
+          false,
+          oldestSnapshot.timestampMillis(),
+          Long.parseLong(
+              oldestSnapshot.summary().getOrDefault(CommitMetricsResult.TOTAL_RECORDS, "-1")));
+    }
+
+    if (table.currentSnapshot().timestampMillis() < fromTimestamp) {
+      LOG.debug("computeInitialOffset: all snapshots are older than {}", fromTimestamp);
+      return StreamingOffset.START_OFFSET;
+    }
+
+    try {
+      Snapshot snapshot = SnapshotUtil.oldestAncestorAfter(table, fromTimestamp);
+      if (snapshot != null) {
+        return new StreamingOffset(
+            snapshot.snapshotId(),
+            0,
+            false,
+            snapshot.timestampMillis(),
+            Long.parseLong(
+                snapshot.summary().getOrDefault(CommitMetricsResult.TOTAL_RECORDS, "-1")));
+      } else {
+
+        LOG.debug("computeInitialOffset: could not find ancestor older than {}", fromTimestamp);
+        return StreamingOffset.START_OFFSET;
+      }
+    } catch (IllegalStateException e) {
+      LOG.debug("computeInitialOffset: exception", e);
+      // could not determine the first snapshot after the timestamp. use the oldest ancestor instead
+      Snapshot oldestSnapshot = SnapshotUtil.oldestAncestor(table);
+      return new StreamingOffset(
+          oldestSnapshot.snapshotId(),
+          0,
+          false,
+          oldestSnapshot.timestampMillis(),
+          Long.parseLong(
+              oldestSnapshot.summary().getOrDefault(CommitMetricsResult.TOTAL_RECORDS, "-1")));
+    }
   }
 
   @Override
   public Offset latestOffset() {
-    table.refresh();
-    if (table.currentSnapshot() == null) {
-      return StreamingOffset.START_OFFSET;
-    }
-
-    if (table.currentSnapshot().timestampMillis() < fromTimestamp) {
-      return StreamingOffset.START_OFFSET;
-    }
-
-    Snapshot latestSnapshot = table.currentSnapshot();
-
-    return new StreamingOffset(latestSnapshot.snapshotId(), addedFilesCount(latestSnapshot), false);
+    throw new UnsupportedOperationException(
+        "latestOffset(Offset, ReadLimit) should be called instead of this method");
   }
 
   @Override
@@ -146,8 +183,19 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
 
     StreamingOffset endOffset = (StreamingOffset) end;
     StreamingOffset startOffset = (StreamingOffset) start;
+    // this can happen on a startup with available offsets but nothing in the commit log
+    if (microBatchPlanner == null) {
+      // this will block while the planner fills the queue
+      this.microBatchPlanner =
+          new AsyncSparkMicroBatchPlanner(table, readConf, startOffset, endOffset);
+    }
 
-    List<FileScanTask> fileScanTasks = planFiles(startOffset, endOffset);
+    List<FileScanTask> fileScanTasks;
+    try {
+      fileScanTasks = microBatchPlanner.planFiles(startOffset, endOffset);
+    } catch (ExecutionException e) {
+      throw new RuntimeException(e);
+    }
 
     CloseableIterable<FileScanTask> splitTasks =
         TableScanUtil.splitFiles(CloseableIterable.withNoopClose(fileScanTasks), splitSize);
@@ -180,9 +228,15 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
     return new SparkRowReaderFactory();
   }
 
+  /**
+   * Spark will call this function if it is starting the stream without a checkpoint
+   *
+   * @return The offset to start from, given our read configuration, and no checkpoint
+   */
   @Override
   public Offset initialOffset() {
-    return initialOffset;
+    StreamingOffset computedInitialOffset = computeInitialOffset(table, readConf);
+    return computedInitialOffset;
   }
 
   @Override
@@ -194,131 +248,24 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
   public void commit(Offset end) {}
 
   @Override
-  public void stop() {}
-
-  private List<FileScanTask> planFiles(StreamingOffset startOffset, StreamingOffset endOffset) {
-    List<FileScanTask> fileScanTasks = Lists.newArrayList();
-    StreamingOffset batchStartOffset =
-        StreamingOffset.START_OFFSET.equals(startOffset)
-            ? determineStartingOffset(table, fromTimestamp)
-            : startOffset;
-
-    StreamingOffset currentOffset = null;
-
-    // [(startOffset : startFileIndex), (endOffset : endFileIndex) )
-    do {
-      long endFileIndex;
-      if (currentOffset == null) {
-        currentOffset = batchStartOffset;
-      } else {
-        Snapshot snapshotAfter = SnapshotUtil.snapshotAfter(table, currentOffset.snapshotId());
-        // it may happen that we need to read this snapshot partially in case it's equal to
-        // endOffset.
-        if (currentOffset.snapshotId() != endOffset.snapshotId()) {
-          currentOffset = new StreamingOffset(snapshotAfter.snapshotId(), 0L, false);
-        } else {
-          currentOffset = endOffset;
-        }
-      }
-
-      Snapshot snapshot = table.snapshot(currentOffset.snapshotId());
-
-      validateCurrentSnapshotExists(snapshot, currentOffset);
-
-      if (!shouldProcess(snapshot)) {
-        LOG.debug("Skipping snapshot: {} of table {}", currentOffset.snapshotId(), table.name());
-        continue;
-      }
-
-      Snapshot currentSnapshot = table.snapshot(currentOffset.snapshotId());
-      if (currentOffset.snapshotId() == endOffset.snapshotId()) {
-        endFileIndex = endOffset.position();
-      } else {
-        endFileIndex = addedFilesCount(currentSnapshot);
-      }
-
-      MicroBatch latestMicroBatch =
-          MicroBatches.from(currentSnapshot, table.io())
-              .caseSensitive(caseSensitive)
-              .specsById(table.specs())
-              .generate(
-                  currentOffset.position(),
-                  endFileIndex,
-                  Long.MAX_VALUE,
-                  currentOffset.shouldScanAllFiles());
-
-      fileScanTasks.addAll(latestMicroBatch.tasks());
-    } while (currentOffset.snapshotId() != endOffset.snapshotId());
-
-    return fileScanTasks;
-  }
-
-  private boolean shouldProcess(Snapshot snapshot) {
-    String op = snapshot.operation();
-    switch (op) {
-      case DataOperations.APPEND:
-        return true;
-      case DataOperations.REPLACE:
-        return false;
-      case DataOperations.DELETE:
-        Preconditions.checkState(
-            skipDelete,
-            "Cannot process delete snapshot: %s, to ignore deletes, set %s=true",
-            snapshot.snapshotId(),
-            SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS);
-        return false;
-      case DataOperations.OVERWRITE:
-        Preconditions.checkState(
-            skipOverwrite,
-            "Cannot process overwrite snapshot: %s, to ignore overwrites, set %s=true",
-            snapshot.snapshotId(),
-            SparkReadOptions.STREAMING_SKIP_OVERWRITE_SNAPSHOTS);
-        return false;
-      default:
-        throw new IllegalStateException(
-            String.format(
-                "Cannot process unknown snapshot operation: %s (snapshot id %s)",
-                op.toLowerCase(Locale.ROOT), snapshot.snapshotId()));
-    }
-  }
-
-  private static StreamingOffset determineStartingOffset(Table table, Long fromTimestamp) {
-    if (table.currentSnapshot() == null) {
-      return StreamingOffset.START_OFFSET;
-    }
-
-    if (fromTimestamp == null) {
-      // match existing behavior and start from the oldest snapshot
-      return new StreamingOffset(SnapshotUtil.oldestAncestor(table).snapshotId(), 0, false);
-    }
-
-    if (table.currentSnapshot().timestampMillis() < fromTimestamp) {
-      return StreamingOffset.START_OFFSET;
-    }
-
-    try {
-      Snapshot snapshot = SnapshotUtil.oldestAncestorAfter(table, fromTimestamp);
-      if (snapshot != null) {
-        return new StreamingOffset(snapshot.snapshotId(), 0, false);
-      } else {
-        return StreamingOffset.START_OFFSET;
-      }
-    } catch (IllegalStateException e) {
-      // could not determine the first snapshot after the timestamp. use the oldest ancestor instead
-      return new StreamingOffset(SnapshotUtil.oldestAncestor(table).snapshotId(), 0, false);
-    }
+  public void stop() {
+    microBatchPlanner.stop();
   }
 
   @Override
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public Offset latestOffset(Offset startOffset, ReadLimit limit) {
+    if (microBatchPlanner == null) {
+      // this will block while the planner fills the queue
+      this.microBatchPlanner =
+          new AsyncSparkMicroBatchPlanner(table, readConf, (StreamingOffset) startOffset, null);
+    }
+    LOG.debug("Getting endOffset, from: {}, limit: {}", startOffset.json(), limit.toString());
     // calculate end offset get snapshotId from the startOffset
     Preconditions.checkArgument(
         startOffset instanceof StreamingOffset,
         "Invalid start offset: %s is not a StreamingOffset",
         startOffset);
 
-    table.refresh();
     if (table.currentSnapshot() == null) {
       return StreamingOffset.START_OFFSET;
     }
@@ -327,102 +274,10 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
       return StreamingOffset.START_OFFSET;
     }
 
-    // end offset can expand to multiple snapshots
-    StreamingOffset startingOffset = (StreamingOffset) startOffset;
-
-    if (startOffset.equals(StreamingOffset.START_OFFSET)) {
-      startingOffset = determineStartingOffset(table, fromTimestamp);
-    }
-
-    Snapshot curSnapshot = table.snapshot(startingOffset.snapshotId());
-    validateCurrentSnapshotExists(curSnapshot, startingOffset);
-
-    int startPosOfSnapOffset = (int) startingOffset.position();
-
-    boolean scanAllFiles = startingOffset.shouldScanAllFiles();
-
-    boolean shouldContinueReading = true;
-    int curFilesAdded = 0;
-    int curRecordCount = 0;
-    int curPos = 0;
-
-    // Note : we produce nextOffset with pos as non-inclusive
-    while (shouldContinueReading) {
-      // generate manifest index for the curSnapshot
-      List<Pair<ManifestFile, Integer>> indexedManifests =
-          MicroBatches.skippedManifestIndexesFromSnapshot(
-              table.io(), curSnapshot, startPosOfSnapOffset, scanAllFiles);
-      // this is under assumption we will be able to add at-least 1 file in the new offset
-      for (int idx = 0; idx < indexedManifests.size() && shouldContinueReading; idx++) {
-        // be rest assured curPos >= startFileIndex
-        curPos = indexedManifests.get(idx).second();
-        try (CloseableIterable<FileScanTask> taskIterable =
-                MicroBatches.openManifestFile(
-                    table.io(),
-                    table.specs(),
-                    caseSensitive,
-                    curSnapshot,
-                    indexedManifests.get(idx).first(),
-                    scanAllFiles);
-            CloseableIterator<FileScanTask> taskIter = taskIterable.iterator()) {
-          while (taskIter.hasNext()) {
-            FileScanTask task = taskIter.next();
-            if (curPos >= startPosOfSnapOffset) {
-              // TODO : use readLimit provided in function param, the readLimits are derived from
-              // these 2 properties.
-              if ((curFilesAdded + 1) > maxFilesPerMicroBatch
-                  || (curRecordCount + task.file().recordCount()) > maxRecordsPerMicroBatch) {
-                shouldContinueReading = false;
-                break;
-              }
-
-              curFilesAdded += 1;
-              curRecordCount += task.file().recordCount();
-            }
-            ++curPos;
-          }
-        } catch (IOException ioe) {
-          LOG.warn("Failed to close task iterable", ioe);
-        }
-      }
-      // if the currentSnapShot was also the mostRecentSnapshot then break
-      if (curSnapshot.snapshotId() == table.currentSnapshot().snapshotId()) {
-        break;
-      }
-
-      // if everything was OK and we consumed complete snapshot then move to next snapshot
-      if (shouldContinueReading) {
-        startPosOfSnapOffset = -1;
-        curSnapshot = SnapshotUtil.snapshotAfter(table, curSnapshot.snapshotId());
-        // if anyhow we are moving to next snapshot we should only scan addedFiles
-        scanAllFiles = false;
-      }
-    }
-
-    StreamingOffset latestStreamingOffset =
-        new StreamingOffset(curSnapshot.snapshotId(), curPos, scanAllFiles);
-
-    // if no new data arrived, then return null.
-    return latestStreamingOffset.equals(startingOffset) ? null : latestStreamingOffset;
-  }
-
-  private long addedFilesCount(Snapshot snapshot) {
-    long addedFilesCount =
-        PropertyUtil.propertyAsLong(snapshot.summary(), SnapshotSummary.ADDED_FILES_PROP, -1);
-    // If snapshotSummary doesn't have SnapshotSummary.ADDED_FILES_PROP,
-    // iterate through addedFiles iterator to find addedFilesCount.
-    return addedFilesCount == -1
-        ? Iterables.size(snapshot.addedDataFiles(table.io()))
-        : addedFilesCount;
-  }
-
-  private void validateCurrentSnapshotExists(Snapshot snapshot, StreamingOffset currentOffset) {
-    if (snapshot == null) {
-      throw new IllegalStateException(
-          String.format(
-              "Cannot load current offset at snapshot %d, the snapshot was expired or removed",
-              currentOffset.snapshotId()));
-    }
+    StreamingOffset latestOffset =
+        microBatchPlanner.latestOffset((StreamingOffset) startOffset, limit);
+    LOG.info("latestOffset result: {}", latestOffset);
+    return latestOffset;
   }
 
   @Override
@@ -442,53 +297,81 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
     }
   }
 
-  private static class InitialOffsetStore {
-    private final Table table;
-    private final FileIO io;
-    private final String initialOffsetLocation;
-    private final Long fromTimestamp;
+  @Override
+  public Offset reportLatestOffset() {
+    return microBatchPlanner.reportLatestOffset();
+  }
 
-    InitialOffsetStore(Table table, String checkpointLocation, Long fromTimestamp) {
-      this.table = table;
-      this.io = table.io();
-      this.initialOffsetLocation = SLASH.join(checkpointLocation, "offsets/0");
-      this.fromTimestamp = fromTimestamp;
+  @Override
+  public String toString() {
+    StringWriter writer = new StringWriter();
+    try {
+      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
+      generator.writeStartObject();
+      generator.writeStringField("table", table.name());
+      generator.writeStringField("branch", branch);
+      generator.writeBooleanField("caseSensitive", caseSensitive);
+      try {
+        JsonNode parsedSchema = JsonUtil.mapper().readTree(expectedSchema);
+        generator.writeObjectField("expectedSchema", parsedSchema);
+      } catch (JacksonException schemaParseException) {
+        throw new RuntimeException("exectedSchema was not valid json", schemaParseException);
+      }
+      generator.writeNumberField("splitSize", splitSize);
+      generator.writeNumberField("splitLookback", splitLookback);
+      generator.writeBooleanField("localityPreferred", localityPreferred);
+      generator.writeBooleanField("skipDelete", skipDelete);
+      generator.writeBooleanField("skipOverwrite", skipOverwrite);
+      generator.writeNumberField("fromTimestamp", fromTimestamp);
+      generator.writeNumberField("maxFilesPerMicroBatch", maxFilesPerMicroBatch);
+      generator.writeNumberField("maxRecordsPerMicroBatch", maxRecordsPerMicroBatch);
+      generator.writeEndObject();
+      generator.flush();
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to write SparkMicroBatchStream to json", e);
+    }
+    return writer.toString();
+  }
+
+  public static class UnpackedLimits {
+    private long maxRows = Integer.MAX_VALUE;
+    private long maxFiles = Integer.MAX_VALUE;
+
+    public UnpackedLimits(ReadLimit limit) {
+      if (limit instanceof CompositeReadLimit) {
+        ReadLimit[] compositeLimits = ((CompositeReadLimit) limit).getReadLimits();
+        Arrays.stream(compositeLimits)
+            .forEach(
+                (individualLimit) -> {
+                  if (individualLimit instanceof ReadMaxRows) {
+                    ReadMaxRows readMaxRows = (ReadMaxRows) individualLimit;
+                    this.maxRows = Math.min(this.maxRows, readMaxRows.maxRows());
+                  } else if (individualLimit instanceof ReadMaxFiles) {
+                    ReadMaxFiles readMaxFiles = (ReadMaxFiles) individualLimit;
+                    this.maxFiles = Math.min(this.maxFiles, readMaxFiles.maxFiles());
+                  } else {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            "Unknown ReadLimit type %s found inside a CompositeReadLimit",
+                            limit.getClass().getCanonicalName()));
+                  }
+                });
+      } else if (limit instanceof ReadMaxRows) {
+        this.maxRows = ((ReadMaxRows) limit).maxRows();
+      } else if (limit instanceof ReadMaxFiles) {
+        this.maxFiles = ((ReadMaxFiles) limit).maxFiles();
+      } else {
+        throw new IllegalArgumentException(
+            String.format("Unknown ReadLimit type %s", limit.getClass().getCanonicalName()));
+      }
     }
 
-    public StreamingOffset initialOffset() {
-      InputFile inputFile = io.newInputFile(initialOffsetLocation);
-      if (inputFile.exists()) {
-        return readOffset(inputFile);
-      }
-
-      table.refresh();
-      StreamingOffset offset = determineStartingOffset(table, fromTimestamp);
-
-      OutputFile outputFile = io.newOutputFile(initialOffsetLocation);
-      writeOffset(offset, outputFile);
-
-      return offset;
+    public long getMaxRows() {
+      return maxRows;
     }
 
-    private void writeOffset(StreamingOffset offset, OutputFile file) {
-      try (OutputStream outputStream = file.create()) {
-        BufferedWriter writer =
-            new BufferedWriter(new OutputStreamWriter(outputStream, StandardCharsets.UTF_8));
-        writer.write(offset.json());
-        writer.flush();
-      } catch (IOException ioException) {
-        throw new UncheckedIOException(
-            String.format("Failed writing offset to: %s", initialOffsetLocation), ioException);
-      }
-    }
-
-    private StreamingOffset readOffset(InputFile file) {
-      try (InputStream in = file.newStream()) {
-        return StreamingOffset.fromJson(in);
-      } catch (IOException ioException) {
-        throw new UncheckedIOException(
-            String.format("Failed reading offset from: %s", initialOffsetLocation), ioException);
-      }
+    public long getMaxFiles() {
+      return maxFiles;
     }
   }
 }
