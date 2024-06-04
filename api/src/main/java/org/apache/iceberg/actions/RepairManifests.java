@@ -32,6 +32,14 @@ public interface RepairManifests extends SnapshotUpdate<RepairManifests, RepairM
      */
     RepairManifests stagingLocation(String stagingLocation);
 
+    /**
+     * Toggle writing manifests or only seeing potential results
+     *
+     * <p>If not set, defaults false
+     *
+     * @param value boolean
+     * @return this for method chaining
+     */
     RepairManifests dryRun(boolean value);
 
     interface Result {
