@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.Table;
@@ -163,6 +165,14 @@ public class SmokeTest extends SparkExtensionsTestBase {
         tableName("third"));
     Table third = getTable("third");
     Assert.assertEquals("Should be partitioned on 3 columns", 3, third.spec().fields().size());
+  }
+
+  @Test
+  public void showView() {
+    sql("DROP VIEW IF EXISTS %s", "test");
+    sql("CREATE VIEW %s AS SELECT 1 AS id", "test");
+    Object[] expected = row("default", "test", false);
+    assertThat(sql("SHOW VIEWS")).contains(expected);
   }
 
   private Table getTable(String name) {

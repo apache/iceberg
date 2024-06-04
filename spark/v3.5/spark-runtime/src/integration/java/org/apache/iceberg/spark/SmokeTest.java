@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -172,6 +174,14 @@ public class SmokeTest extends ExtensionsTestBase {
     Assertions.assertThat(third.spec().fields())
         .as("Should be partitioned on 3 columns")
         .hasSize(3);
+  }
+
+  @TestTemplate
+  public void showView() {
+    sql("DROP VIEW IF EXISTS %s", "test");
+    sql("CREATE VIEW %s AS SELECT 1 AS id", "test");
+    Object[] expected = row("default", "test", false);
+    assertThat(sql("SHOW VIEWS")).contains(expected);
   }
 
   private Table getTable(String name) {
