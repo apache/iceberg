@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.maintenance.operator;
 
 import java.io.IOException;
 import java.util.Iterator;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.connector.source.Boundedness;
 import org.apache.flink.api.connector.source.SourceReader;
@@ -41,6 +42,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Monitors an Iceberg table for changes */
+@Internal
 public class MonitorSource extends SingleThreadedIteratorSource<TableChange> {
   private static final Logger LOG = LoggerFactory.getLogger(MonitorSource.class);
 

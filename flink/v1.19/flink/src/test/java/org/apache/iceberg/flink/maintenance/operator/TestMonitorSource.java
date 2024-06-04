@@ -34,17 +34,16 @@ import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.runtime.client.JobExecutionException;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.table.data.GenericRowData;
-import org.apache.flink.table.data.RowData;
-import org.apache.flink.table.data.StringData;
-import org.apache.flink.table.runtime.typeutils.InternalTypeInfo;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.data.GenericAppenderHelper;
+import org.apache.iceberg.data.RandomGenericData;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.TableLoader;
-import org.apache.iceberg.flink.sink.FlinkSink;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
@@ -111,13 +110,7 @@ class TestMonitorSource extends OperatorTestBase {
         "CREATE TABLE %s (id int, data varchar) "
             + "WITH ('flink.max-continuous-empty-commits'='100000')",
         TABLE_NAME);
-    Configuration config = new Configuration();
-    config.set(CheckpointingOptions.CHECKPOINT_STORAGE, "filesystem");
-    config.set(CheckpointingOptions.CHECKPOINTS_DIRECTORY, "file://" + checkpointDir.getPath());
-    StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment(config);
-    env.enableCheckpointing(1000);
-    env.setParallelism(1);
-
+    StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
     TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
     tableLoader.open();
     Table table = tableLoader.loadTable();
@@ -128,48 +121,51 @@ class TestMonitorSource extends OperatorTestBase {
                 "TableChangeSource")
             .forceNonParallel();
 
-    // Creating a stream for inserting data into the table concurrently
-    ManualSource<RowData> insertSource =
-        new ManualSource<>(env, InternalTypeInfo.of(FlinkSchemaUtil.convert(table.schema())));
-    FlinkSink.forRowData(insertSource.dataStream())
-        .tableLoader(tableLoader)
-        .uidPrefix("iceberg-sink")
-        .append();
-
     // Sink to collect the results
     CollectingSink<TableChange> result = new CollectingSink<>();
     events.sinkTo(result);
 
-    // First result is an empty event
-    env.executeAsync("Table Change Source Test");
-    assertThat(result.poll(Duration.ofSeconds(5L))).isEqualTo(EMPTY_EVENT);
+    JobClient jobClient = null;
+    try {
+      // First result is an empty event
+      jobClient = env.executeAsync("Table Change Source Test");
+      assertThat(result.poll(Duration.ofSeconds(5L))).isEqualTo(EMPTY_EVENT);
 
-    // Insert some data
-    insertSource.sendRecord(GenericRowData.of(1, StringData.fromString("a")));
-    // Wait until the changes are committed
-    Awaitility.await()
-        .until(
-            () -> {
-              table.refresh();
-              return table.currentSnapshot() != null;
-            });
+      // Insert some data
+      File dataDir = new File(new Path(table.location(), "data").toUri().getPath());
+      dataDir.mkdir();
+      GenericAppenderHelper dataAppender =
+          new GenericAppenderHelper(table, FileFormat.PARQUET, dataDir.toPath());
+      List<Record> batch1 = RandomGenericData.generate(table.schema(), 2, 1);
+      dataAppender.appendToTable(batch1);
 
-    table.refresh();
-    long size = firstFileLength(table);
+      // Wait until the changes are committed
+      Awaitility.await()
+          .until(
+              () -> {
+                table.refresh();
+                return table.currentSnapshot() != null;
+              });
 
-    // Wait until the first non-empty event has arrived, and check the expected result
-    Awaitility.await()
-        .until(
-            () -> {
-              TableChange newEvent = result.poll(Duration.ofSeconds(5L));
-              // Fetch every empty event from the beginning
-              while (newEvent.equals(EMPTY_EVENT)) {
-                newEvent = result.poll(Duration.ofSeconds(5L));
-              }
+      table.refresh();
+      long size = firstFileLength(table);
 
-              // The first non-empty event should contain the expected value
-              return newEvent.equals(new TableChange(1, 0, size, 0L, 1));
-            });
+      // Wait until the first non-empty event has arrived, and check the expected result
+      Awaitility.await()
+          .until(
+              () -> {
+                TableChange newEvent = result.poll(Duration.ofSeconds(5L));
+                // Fetch every empty event from the beginning
+                while (newEvent.equals(EMPTY_EVENT)) {
+                  newEvent = result.poll(Duration.ofSeconds(5L));
+                }
+
+                // The first non-empty event should contain the expected value
+                return newEvent.equals(new TableChange(1, 0, size, 0L, 1));
+              });
+    } finally {
+      closeJobClient(jobClient);
+    }
   }
 
   /** Check that the {@link MonitorSource} operator state is restored correctly. */

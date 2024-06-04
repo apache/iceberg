@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.maintenance.operator;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.connector.source.Source;
 import org.apache.flink.api.connector.source.SourceReader;
 import org.apache.flink.api.connector.source.SourceReaderContext;
@@ -41,6 +42,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
  *
  * @param <T> The return type of the source
  */
+@Internal
 public abstract class SingleThreadedIteratorSource<T>
     implements Source<
             T,

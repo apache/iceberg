@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.maintenance.operator;
 
 import java.util.Objects;
+import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Snapshot;
@@ -26,6 +27,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /** Event describing changes in an Iceberg table */
+@Internal
 class TableChange {
   private int dataFileNum;
   private int deleteFileNum;
