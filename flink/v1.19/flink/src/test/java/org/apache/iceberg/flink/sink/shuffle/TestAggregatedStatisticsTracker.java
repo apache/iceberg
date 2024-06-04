@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
-import static org.apache.flink.runtime.checkpoint.CheckpointStoreUtil.INVALID_CHECKPOINT_ID;
 import static org.apache.iceberg.flink.sink.shuffle.Fixtures.CHAR_KEYS;
 import static org.apache.iceberg.flink.sink.shuffle.Fixtures.TASK_STATISTICS_SERIALIZER;
 import static org.apache.iceberg.flink.sink.shuffle.Fixtures.createStatisticsEvent;
@@ -40,13 +39,14 @@ public class TestAggregatedStatisticsTracker {
     AggregatedStatistics completedStatistics =
         tracker.updateAndCheckCompletion(0, checkpoint1Subtask0StatisticsEvent);
     assertThat(completedStatistics).isNull();
-    assertThat(tracker.inProgressCheckpointId()).isEqualTo(1L);
-    assertThat(tracker.coordinatorStatisticsType()).isEqualTo(StatisticsUtil.collectType(type));
-    if (type == StatisticsType.Map || type == StatisticsType.Auto) {
-      assertThat(tracker.coordinatorMapStatistics())
-          .isEqualTo(ImmutableMap.of(CHAR_KEYS.get("a"), 1L));
+    assertThat(tracker.aggregationsPerCheckpoint().keySet()).containsExactlyInAnyOrder(1L);
+    AggregatedStatisticsTracker.Aggregation aggregation =
+        tracker.aggregationsPerCheckpoint().get(1L);
+    assertThat(aggregation.currentType()).isEqualTo(StatisticsUtil.collectType(type));
+    if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
+      assertThat(aggregation.mapStatistics()).isEqualTo(ImmutableMap.of(CHAR_KEYS.get("a"), 1L));
     } else {
-      assertThat(tracker.coordinatorSketchStatistics().getResult().getSamples())
+      assertThat(aggregation.sketchStatistics().getResult().getSamples())
           .containsExactlyInAnyOrder(CHAR_KEYS.get("a"));
     }
 
@@ -59,16 +59,45 @@ public class TestAggregatedStatisticsTracker {
             CHAR_KEYS.get("b"),
             CHAR_KEYS.get("b"));
     completedStatistics = tracker.updateAndCheckCompletion(0, checkpoint2Subtask0StatisticsEvent);
-    // Checkpoint 2 is newer than checkpoint1, thus dropping in progress and incomplete statistics
-    // for checkpoint1
     assertThat(completedStatistics).isNull();
-    assertThat(tracker.inProgressCheckpointId()).isEqualTo(2L);
-    assertThat(tracker.coordinatorStatisticsType()).isEqualTo(StatisticsUtil.collectType(type));
+    // both checkpoints are tracked
+    assertThat(tracker.aggregationsPerCheckpoint().keySet()).containsExactlyInAnyOrder(1L, 2L);
+    aggregation = tracker.aggregationsPerCheckpoint().get(2L);
+    assertThat(aggregation.currentType()).isEqualTo(StatisticsUtil.collectType(type));
     if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
-      assertThat(tracker.coordinatorMapStatistics())
+      assertThat(aggregation.mapStatistics())
           .isEqualTo(ImmutableMap.of(CHAR_KEYS.get("a"), 1L, CHAR_KEYS.get("b"), 2L));
     } else {
-      assertThat(tracker.coordinatorSketchStatistics().getResult().getSamples())
+      assertThat(aggregation.sketchStatistics().getResult().getSamples())
+          .containsExactlyInAnyOrder(CHAR_KEYS.get("a"), CHAR_KEYS.get("b"), CHAR_KEYS.get("b"));
+    }
+
+    StatisticsEvent checkpoint1Subtask1StatisticsEvent =
+        createStatisticsEvent(type, TASK_STATISTICS_SERIALIZER, 1L, CHAR_KEYS.get("b"));
+    completedStatistics = tracker.updateAndCheckCompletion(1, checkpoint1Subtask1StatisticsEvent);
+    // checkpoint 1 is completed
+    assertThat(completedStatistics).isNotNull();
+    assertThat(completedStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
+    assertThat(completedStatistics.checkpointId()).isEqualTo(1L);
+    if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
+      assertThat(completedStatistics.keyFrequency())
+          .isEqualTo(
+              ImmutableMap.of(
+                  CHAR_KEYS.get("a"), 1L,
+                  CHAR_KEYS.get("b"), 1L));
+    } else {
+      assertThat(completedStatistics.rangeBounds()).containsExactly(CHAR_KEYS.get("a"));
+    }
+
+    // checkpoint 2 remains
+    assertThat(tracker.aggregationsPerCheckpoint().keySet()).containsExactlyInAnyOrder(2L);
+    aggregation = tracker.aggregationsPerCheckpoint().get(2L);
+    assertThat(aggregation.currentType()).isEqualTo(StatisticsUtil.collectType(type));
+    if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
+      assertThat(aggregation.mapStatistics())
+          .isEqualTo(ImmutableMap.of(CHAR_KEYS.get("a"), 1L, CHAR_KEYS.get("b"), 2L));
+    } else {
+      assertThat(aggregation.sketchStatistics().getResult().getSamples())
           .containsExactlyInAnyOrder(CHAR_KEYS.get("a"), CHAR_KEYS.get("b"), CHAR_KEYS.get("b"));
     }
   }
@@ -89,28 +118,78 @@ public class TestAggregatedStatisticsTracker {
     AggregatedStatistics completedStatistics =
         tracker.updateAndCheckCompletion(0, checkpoint2Subtask0StatisticsEvent);
     assertThat(completedStatistics).isNull();
-    assertThat(tracker.inProgressCheckpointId()).isEqualTo(2L);
-    assertThat(tracker.coordinatorStatisticsType()).isEqualTo(StatisticsUtil.collectType(type));
-    if (type == StatisticsType.Map || type == StatisticsType.Auto) {
-      assertThat(tracker.coordinatorMapStatistics())
+    assertThat(tracker.aggregationsPerCheckpoint().keySet()).containsExactlyInAnyOrder(2L);
+    AggregatedStatisticsTracker.Aggregation aggregation =
+        tracker.aggregationsPerCheckpoint().get(2L);
+    assertThat(aggregation.currentType()).isEqualTo(StatisticsUtil.collectType(type));
+    if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
+      assertThat(aggregation.mapStatistics())
           .isEqualTo(ImmutableMap.of(CHAR_KEYS.get("a"), 1L, CHAR_KEYS.get("b"), 2L));
     } else {
-      assertThat(tracker.coordinatorSketchStatistics().getResult().getSamples())
+      assertThat(aggregation.sketchStatistics().getResult().getSamples())
           .containsExactlyInAnyOrder(CHAR_KEYS.get("a"), CHAR_KEYS.get("b"), CHAR_KEYS.get("b"));
     }
 
     StatisticsEvent checkpoint1Subtask1StatisticsEvent =
         createStatisticsEvent(type, TASK_STATISTICS_SERIALIZER, 1L, CHAR_KEYS.get("b"));
-    // Receive event from old checkpoint, aggregatedStatisticsAggregatorTracker won't return
-    // completed statistics and in progress statistics won't be updated
-    assertThat(tracker.updateAndCheckCompletion(1, checkpoint1Subtask1StatisticsEvent)).isNull();
-    assertThat(tracker.inProgressCheckpointId()).isEqualTo(2L);
-    if (type == StatisticsType.Map || type == StatisticsType.Auto) {
-      assertThat(tracker.coordinatorMapStatistics())
-          .isEqualTo(ImmutableMap.of(CHAR_KEYS.get("a"), 1L, CHAR_KEYS.get("b"), 2L));
+    completedStatistics = tracker.updateAndCheckCompletion(1, checkpoint1Subtask1StatisticsEvent);
+    assertThat(completedStatistics).isNull();
+    // both checkpoints are tracked
+    assertThat(tracker.aggregationsPerCheckpoint().keySet()).containsExactlyInAnyOrder(1L, 2L);
+    aggregation = tracker.aggregationsPerCheckpoint().get(1L);
+    assertThat(aggregation.currentType()).isEqualTo(StatisticsUtil.collectType(type));
+    if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
+      assertThat(aggregation.mapStatistics()).isEqualTo(ImmutableMap.of(CHAR_KEYS.get("b"), 1L));
     } else {
-      assertThat(tracker.coordinatorSketchStatistics().getResult().getSamples())
-          .containsExactlyInAnyOrder(CHAR_KEYS.get("a"), CHAR_KEYS.get("b"), CHAR_KEYS.get("b"));
+      assertThat(aggregation.sketchStatistics().getResult().getSamples())
+          .containsExactlyInAnyOrder(CHAR_KEYS.get("b"));
+    }
+
+    StatisticsEvent checkpoint3Subtask0StatisticsEvent =
+        createStatisticsEvent(type, TASK_STATISTICS_SERIALIZER, 3L, CHAR_KEYS.get("x"));
+    completedStatistics = tracker.updateAndCheckCompletion(1, checkpoint3Subtask0StatisticsEvent);
+    assertThat(completedStatistics).isNull();
+    assertThat(tracker.aggregationsPerCheckpoint().keySet()).containsExactlyInAnyOrder(1L, 2L, 3L);
+    aggregation = tracker.aggregationsPerCheckpoint().get(3L);
+    assertThat(aggregation.currentType()).isEqualTo(StatisticsUtil.collectType(type));
+    if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
+      assertThat(aggregation.mapStatistics()).isEqualTo(ImmutableMap.of(CHAR_KEYS.get("x"), 1L));
+    } else {
+      assertThat(aggregation.sketchStatistics().getResult().getSamples())
+          .containsExactlyInAnyOrder(CHAR_KEYS.get("x"));
+    }
+
+    StatisticsEvent checkpoint2Subtask1StatisticsEvent =
+        createStatisticsEvent(
+            type,
+            TASK_STATISTICS_SERIALIZER,
+            2L,
+            CHAR_KEYS.get("a"),
+            CHAR_KEYS.get("b"),
+            CHAR_KEYS.get("b"));
+    completedStatistics = tracker.updateAndCheckCompletion(1, checkpoint2Subtask1StatisticsEvent);
+    // checkpoint 1 is cleared along with checkpoint 2. checkpoint 3 remains
+    assertThat(tracker.aggregationsPerCheckpoint().keySet()).containsExactlyInAnyOrder(3L);
+    aggregation = tracker.aggregationsPerCheckpoint().get(3L);
+    assertThat(aggregation.currentType()).isEqualTo(StatisticsUtil.collectType(type));
+    if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
+      assertThat(aggregation.mapStatistics()).isEqualTo(ImmutableMap.of(CHAR_KEYS.get("x"), 1L));
+    } else {
+      assertThat(aggregation.sketchStatistics().getResult().getSamples())
+          .containsExactlyInAnyOrder(CHAR_KEYS.get("x"));
+    }
+
+    assertThat(completedStatistics).isNotNull();
+    assertThat(completedStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
+    assertThat(completedStatistics.checkpointId()).isEqualTo(2L);
+    if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
+      assertThat(completedStatistics.keyFrequency())
+          .isEqualTo(
+              ImmutableMap.of(
+                  CHAR_KEYS.get("a"), 2L,
+                  CHAR_KEYS.get("b"), 4L));
+    } else {
+      assertThat(completedStatistics.rangeBounds()).containsExactly(CHAR_KEYS.get("b"));
     }
   }
 
@@ -131,13 +210,15 @@ public class TestAggregatedStatisticsTracker {
     AggregatedStatistics completedStatistics =
         tracker.updateAndCheckCompletion(0, checkpoint1Subtask0DataStatisticEvent);
     assertThat(completedStatistics).isNull();
-    assertThat(tracker.inProgressCheckpointId()).isEqualTo(1L);
-    assertThat(tracker.inProgressSubtaskSet()).containsExactlyInAnyOrder(0);
-    if (type == StatisticsType.Map || type == StatisticsType.Auto) {
-      assertThat(tracker.coordinatorMapStatistics())
+    assertThat(tracker.aggregationsPerCheckpoint().keySet()).containsExactlyInAnyOrder(1L);
+    AggregatedStatisticsTracker.Aggregation aggregation =
+        tracker.aggregationsPerCheckpoint().get(1L);
+    assertThat(aggregation.subtaskSet()).containsExactlyInAnyOrder(0);
+    if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
+      assertThat(aggregation.mapStatistics())
           .isEqualTo(ImmutableMap.of(CHAR_KEYS.get("a"), 1L, CHAR_KEYS.get("b"), 2L));
     } else {
-      assertThat(tracker.coordinatorSketchStatistics().getResult().getSamples())
+      assertThat(aggregation.sketchStatistics().getResult().getSamples())
           .containsExactlyInAnyOrder(CHAR_KEYS.get("a"), CHAR_KEYS.get("b"), CHAR_KEYS.get("b"));
     }
 
@@ -153,11 +234,7 @@ public class TestAggregatedStatisticsTracker {
     // Receive data statistics from all subtasks at checkpoint 1
     completedStatistics =
         tracker.updateAndCheckCompletion(1, checkpoint1Subtask1DataStatisticEvent);
-    assertThat(tracker.inProgressSubtaskSet()).isEmpty();
-    assertThat(tracker.inProgressCheckpointId()).isEqualTo(INVALID_CHECKPOINT_ID);
-    assertThat(tracker.coordinatorStatisticsType()).isEqualTo(StatisticsUtil.collectType(type));
-    assertThat(tracker.coordinatorMapStatistics()).isNull();
-    assertThat(tracker.coordinatorSketchStatistics()).isNull();
+    assertThat(tracker.aggregationsPerCheckpoint()).isEmpty();
 
     assertThat(completedStatistics).isNotNull();
     assertThat(completedStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
@@ -177,13 +254,13 @@ public class TestAggregatedStatisticsTracker {
     completedStatistics =
         tracker.updateAndCheckCompletion(0, checkpoint2Subtask0DataStatisticEvent);
     assertThat(completedStatistics).isNull();
-    assertThat(tracker.inProgressSubtaskSet()).containsExactlyInAnyOrder(0);
-    assertThat(tracker.inProgressCheckpointId()).isEqualTo(2L);
+    assertThat(tracker.aggregationsPerCheckpoint().keySet()).containsExactlyInAnyOrder(2L);
+    aggregation = tracker.aggregationsPerCheckpoint().get(2L);
+    assertThat(aggregation.subtaskSet()).containsExactlyInAnyOrder(0);
     if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
-      assertThat(tracker.coordinatorMapStatistics())
-          .isEqualTo(ImmutableMap.of(CHAR_KEYS.get("a"), 1L));
+      assertThat(aggregation.mapStatistics()).isEqualTo(ImmutableMap.of(CHAR_KEYS.get("a"), 1L));
     } else {
-      assertThat(tracker.coordinatorSketchStatistics().getResult().getSamples())
+      assertThat(aggregation.sketchStatistics().getResult().getSamples())
           .containsExactlyInAnyOrder(CHAR_KEYS.get("a"));
     }
 
@@ -192,8 +269,7 @@ public class TestAggregatedStatisticsTracker {
     // Receive data statistics from all subtasks at checkpoint 2
     completedStatistics =
         tracker.updateAndCheckCompletion(1, checkpoint2Subtask1DataStatisticEvent);
-    assertThat(tracker.inProgressSubtaskSet()).isEmpty();
-    assertThat(tracker.inProgressCheckpointId()).isEqualTo(INVALID_CHECKPOINT_ID);
+    assertThat(tracker.aggregationsPerCheckpoint()).isEmpty();
 
     assertThat(completedStatistics).isNotNull();
     assertThat(completedStatistics.checkpointId()).isEqualTo(2L);
@@ -234,12 +310,14 @@ public class TestAggregatedStatisticsTracker {
     AggregatedStatistics completedStatistics =
         tracker.updateAndCheckCompletion(0, checkpoint1Subtask0StatisticsEvent);
     assertThat(completedStatistics).isNull();
-    assertThat(tracker.inProgressSubtaskSet()).containsExactlyInAnyOrder(0);
-    assertThat(tracker.inProgressCheckpointId()).isEqualTo(1L);
-    assertThat(tracker.coordinatorStatisticsType()).isEqualTo(StatisticsType.Map);
-    assertThat(tracker.coordinatorMapStatistics())
+    assertThat(tracker.aggregationsPerCheckpoint().keySet()).containsExactlyInAnyOrder(1L);
+    AggregatedStatisticsTracker.Aggregation aggregation =
+        tracker.aggregationsPerCheckpoint().get(1L);
+    assertThat(aggregation.subtaskSet()).containsExactlyInAnyOrder(0);
+    assertThat(aggregation.currentType()).isEqualTo(StatisticsType.Map);
+    assertThat(aggregation.sketchStatistics()).isNull();
+    assertThat(aggregation.mapStatistics())
         .isEqualTo(ImmutableMap.of(CHAR_KEYS.get("a"), 1L, CHAR_KEYS.get("b"), 1L));
-    assertThat(tracker.coordinatorSketchStatistics()).isNull();
 
     StatisticsEvent checkpoint1Subtask1StatisticsEvent =
         createStatisticsEvent(
@@ -250,12 +328,13 @@ public class TestAggregatedStatisticsTracker {
             CHAR_KEYS.get("d"));
     completedStatistics = tracker.updateAndCheckCompletion(1, checkpoint1Subtask1StatisticsEvent);
     assertThat(completedStatistics).isNull();
-    assertThat(tracker.inProgressSubtaskSet()).containsExactlyInAnyOrder(0, 1);
-    assertThat(tracker.inProgressCheckpointId()).isEqualTo(1L);
+    assertThat(tracker.aggregationsPerCheckpoint().keySet()).containsExactlyInAnyOrder(1L);
+    aggregation = tracker.aggregationsPerCheckpoint().get(1L);
+    assertThat(aggregation.subtaskSet()).containsExactlyInAnyOrder(0, 1);
     // converted to sketch statistics as map size is 4 (over the switch threshold of 3)
-    assertThat(tracker.coordinatorStatisticsType()).isEqualTo(StatisticsType.Sketch);
-    assertThat(tracker.coordinatorMapStatistics()).isNull();
-    assertThat(tracker.coordinatorSketchStatistics().getResult().getSamples())
+    assertThat(aggregation.currentType()).isEqualTo(StatisticsType.Sketch);
+    assertThat(aggregation.mapStatistics()).isNull();
+    assertThat(aggregation.sketchStatistics().getResult().getSamples())
         .containsExactlyInAnyOrder(
             CHAR_KEYS.get("a"), CHAR_KEYS.get("b"), CHAR_KEYS.get("c"), CHAR_KEYS.get("d"));
 
@@ -267,15 +346,11 @@ public class TestAggregatedStatisticsTracker {
             CHAR_KEYS.get("e"),
             CHAR_KEYS.get("f"));
     completedStatistics = tracker.updateAndCheckCompletion(2, checkpoint1Subtask2StatisticsEvent);
+    assertThat(tracker.aggregationsPerCheckpoint()).isEmpty();
     assertThat(completedStatistics).isNotNull();
     assertThat(completedStatistics.type()).isEqualTo(StatisticsType.Sketch);
     assertThat(completedStatistics.rangeBounds())
         .containsExactly(CHAR_KEYS.get("b"), CHAR_KEYS.get("d"));
-    assertThat(tracker.inProgressSubtaskSet()).isEmpty();
-    assertThat(tracker.inProgressCheckpointId()).isEqualTo(INVALID_CHECKPOINT_ID);
-    assertThat(tracker.coordinatorStatisticsType()).isEqualTo(StatisticsType.Sketch);
-    assertThat(tracker.coordinatorMapStatistics()).isNull();
-    assertThat(tracker.coordinatorSketchStatistics()).isNull();
   }
 
   @Test
@@ -304,14 +379,16 @@ public class TestAggregatedStatisticsTracker {
     AggregatedStatistics completedStatistics =
         tracker.updateAndCheckCompletion(0, checkpoint1Subtask0StatisticsEvent);
     assertThat(completedStatistics).isNull();
-    assertThat(tracker.inProgressSubtaskSet()).containsExactlyInAnyOrder(0);
-    assertThat(tracker.inProgressCheckpointId()).isEqualTo(1L);
-    assertThat(tracker.coordinatorStatisticsType()).isEqualTo(StatisticsType.Map);
-    assertThat(tracker.coordinatorMapStatistics())
+    assertThat(tracker.aggregationsPerCheckpoint().keySet()).containsExactlyInAnyOrder(1L);
+    AggregatedStatisticsTracker.Aggregation aggregation =
+        tracker.aggregationsPerCheckpoint().get(1L);
+    assertThat(aggregation.subtaskSet()).containsExactlyInAnyOrder(0);
+    assertThat(aggregation.currentType()).isEqualTo(StatisticsType.Map);
+    assertThat(aggregation.sketchStatistics()).isNull();
+    assertThat(aggregation.mapStatistics())
         .isEqualTo(ImmutableMap.of(CHAR_KEYS.get("a"), 1L, CHAR_KEYS.get("b"), 1L));
-    assertThat(tracker.coordinatorSketchStatistics()).isNull();
 
-    // second operator event has sketch statistics
+    // second operator event contains sketch statistics
     StatisticsEvent checkpoint1Subtask1StatisticsEvent =
         createStatisticsEvent(
             StatisticsType.Sketch,
@@ -321,12 +398,12 @@ public class TestAggregatedStatisticsTracker {
             CHAR_KEYS.get("d"));
     completedStatistics = tracker.updateAndCheckCompletion(1, checkpoint1Subtask1StatisticsEvent);
     assertThat(completedStatistics).isNull();
-    assertThat(tracker.inProgressSubtaskSet()).containsExactlyInAnyOrder(0, 1);
-    assertThat(tracker.inProgressCheckpointId()).isEqualTo(1L);
-    // coordinator stats switched to sketch
-    assertThat(tracker.coordinatorStatisticsType()).isEqualTo(StatisticsType.Sketch);
-    assertThat(tracker.coordinatorMapStatistics()).isNull();
-    assertThat(tracker.coordinatorSketchStatistics().getResult().getSamples())
+    assertThat(tracker.aggregationsPerCheckpoint().keySet()).containsExactlyInAnyOrder(1L);
+    aggregation = tracker.aggregationsPerCheckpoint().get(1L);
+    assertThat(aggregation.subtaskSet()).containsExactlyInAnyOrder(0, 1);
+    assertThat(aggregation.currentType()).isEqualTo(StatisticsType.Sketch);
+    assertThat(aggregation.mapStatistics()).isNull();
+    assertThat(aggregation.sketchStatistics().getResult().getSamples())
         .containsExactlyInAnyOrder(
             CHAR_KEYS.get("a"), CHAR_KEYS.get("b"), CHAR_KEYS.get("c"), CHAR_KEYS.get("d"));
 
@@ -339,15 +416,11 @@ public class TestAggregatedStatisticsTracker {
             CHAR_KEYS.get("e"),
             CHAR_KEYS.get("f"));
     completedStatistics = tracker.updateAndCheckCompletion(2, checkpoint1Subtask2StatisticsEvent);
+    assertThat(tracker.aggregationsPerCheckpoint()).isEmpty();
     assertThat(completedStatistics).isNotNull();
     assertThat(completedStatistics.type()).isEqualTo(StatisticsType.Sketch);
     assertThat(completedStatistics.rangeBounds())
         .containsExactly(CHAR_KEYS.get("b"), CHAR_KEYS.get("d"));
-    assertThat(tracker.inProgressSubtaskSet()).isEmpty();
-    assertThat(tracker.inProgressCheckpointId()).isEqualTo(INVALID_CHECKPOINT_ID);
-    assertThat(tracker.coordinatorStatisticsType()).isEqualTo(StatisticsType.Sketch);
-    assertThat(tracker.coordinatorMapStatistics()).isNull();
-    assertThat(tracker.coordinatorSketchStatistics()).isNull();
   }
 
   private AggregatedStatisticsTracker createTracker(StatisticsType type) {
