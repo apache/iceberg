@@ -145,6 +145,14 @@ public class SparkReadConf {
         .parse();
   }
 
+  public long streamingSnapshotPollingIntervalMs() {
+    return confParser
+        .longConf()
+        .option(SparkReadOptions.STREAMING_SNAPSHOT_POLLING_INTERVAL_MS)
+        .defaultValue(SparkReadOptions.STREAMING_SNAPSHOT_POLLING_INTERVAL_MS_DEFAULT)
+        .parse();
+  }
+
   public boolean parquetVectorizationEnabled() {
     return confParser
         .booleanConf()
