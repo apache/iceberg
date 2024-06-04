@@ -2586,17 +2586,6 @@ components:
         - $ref: '#/components/schemas/SetCurrentViewVersionUpdate'
 
     TableRequirement:
-      discriminator:
-        propertyName: type
-        mapping:
-          assert-create: '#/components/schemas/AssertCreate'
-          assert-table-uuid: '#/components/schemas/AssertTableUUID'
-          assert-ref-snapshot-id: '#/components/schemas/AssertRefSnapshotId'
-          assert-last-assigned-field-id: '#/components/schemas/AssertLastAssignedFieldId'
-          assert-current-schema-id: '#/components/schemas/AssertCurrentSchemaId'
-          assert-last-assigned-partition-id: '#/components/schemas/AssertLastAssignedPartitionId'
-          assert-default-spec-id: '#/components/schemas/AssertDefaultSpecId'
-          assert-default-sort-order-id: '#/components/schemas/AssertDefaultSortOrderId'
       type: object
       required:
         - type
@@ -2612,6 +2601,17 @@ components:
           - "assert-last-assigned-partition-id"
           - "assert-default-spec-id"
           - "assert-default-sort-order-id"
+      discriminator:
+        propertyName: type
+        mapping:
+          assert-create: '#/components/schemas/AssertCreate'
+          assert-table-uuid: '#/components/schemas/AssertTableUUID'
+          assert-ref-snapshot-id: '#/components/schemas/AssertRefSnapshotId'
+          assert-last-assigned-field-id: '#/components/schemas/AssertLastAssignedFieldId'
+          assert-current-schema-id: '#/components/schemas/AssertCurrentSchemaId'
+          assert-last-assigned-partition-id: '#/components/schemas/AssertLastAssignedPartitionId'
+          assert-default-spec-id: '#/components/schemas/AssertDefaultSpecId'
+          assert-default-sort-order-id: '#/components/schemas/AssertDefaultSortOrderId'
 
     AssertCreate:
       allOf:
@@ -2701,16 +2701,16 @@ components:
           type: integer
 
     ViewRequirement:
-      discriminator:
-        propertyName: type
-        mapping:
-          assert-view-uuid: '#/components/schemas/AssertViewUUID'
       type: object
       required:
         - type
       properties:
         type:
           enum: [ "assert-view-uuid" ]
+      discriminator:
+        propertyName: type
+        mapping:
+          assert-view-uuid: '#/components/schemas/AssertViewUUID'
 
     AssertViewUUID:
       allOf:
