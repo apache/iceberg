@@ -20,12 +20,12 @@ title: "Metrics Reporting"
 
 # Metrics Reporting
 
-As of 1.1.0 Iceberg supports the [`MetricsReporter`](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/metrics/MetricsReporter.html) and the [`MetricsReport`](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/metrics/MetricsReport.html) APIs. These two APIs allow expressing different metrics reports while supporting a pluggable way of reporting these reports.
+As of 1.1.0 Iceberg supports the [`MetricsReporter`](https://github.com/apache/iceberg/blob/main/api/src/main/java/org/apache/iceberg/metrics/MetricsReporter.java) and the [`MetricsReport`](https://github.com/apache/iceberg/blob/main/api/src/main/java/org/apache/iceberg/metrics/MetricsReport.java) APIs. These two APIs allow expressing different metrics reports while supporting a pluggable way of reporting these reports.
 
 ## Type of Reports
 
 ### ScanReport
-A [`ScanReport`](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/metrics/ScanReport.html) carries metrics being collected during scan planning against a given table. Amongst some general information about the involved table, such as the snapshot id or the table name, it includes metrics like:
+A [`ScanReport`](https://github.com/apache/iceberg/blob/main/core/src/main/java/org/apache/iceberg/metrics/ScanReport.java) carries metrics being collected during scan planning against a given table. Amongst some general information about the involved table, such as the snapshot id or the table name, it includes metrics like:
 
 * total scan planning duration
 * number of data/delete files included in the result
@@ -35,7 +35,7 @@ A [`ScanReport`](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/metrics/S
 
 
 ### CommitReport
-A [`CommitReport`](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/metrics/CommitReport.html) carries metrics being collected after committing changes to a table (aka producing a snapshot). Amongst some general information about the involved table, such as the snapshot id or the table name, it includes metrics like:
+A [`CommitReport`](https://github.com/apache/iceberg/blob/main/core/src/main/java/org/apache/iceberg/metrics/CommitReport.java) carries metrics being collected after committing changes to a table (aka producing a snapshot). Amongst some general information about the involved table, such as the snapshot id or the table name, it includes metrics like:
 
 * total duration
 * number of attempts required for the commit to succeed
@@ -46,7 +46,7 @@ A [`CommitReport`](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/metrics
 
 ## Available Metrics Reporters
 
-### [`LoggingMetricsReporter`](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/metrics/LoggingMetricsReporter.html)
+### [`LoggingMetricsReporter`](https://github.com/apache/iceberg/blob/main/api/src/main/java/org/apache/iceberg/metrics/LoggingMetricsReporter.java)
 
 This is the default metrics reporter when nothing else is configured and its purpose is to log results to the log file. Example output would look as shown below:
 
@@ -117,16 +117,16 @@ CommitReport{
 ```
 
 
-### [`RESTMetricsReporter`](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/rest/RESTMetricsReporter.html)
+### [`RESTMetricsReporter`](https://github.com/apache/iceberg/blob/main/core/src/main/java/org/apache/iceberg/rest/RESTMetricsReporter.java)
 
-This is the default when using the [`RESTCatalog`](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/rest/RESTCatalog.html) and its purpose is to send metrics to a REST server at the `/v1/{prefix}/namespaces/{namespace}/tables/{table}/metrics` endpoint as defined in the [REST OpenAPI spec](https://github.com/apache/iceberg/blob/main/open-api/rest-catalog-open-api.yaml).
+This is the default when using the [`RESTCatalog`](https://github.com/apache/iceberg/blob/main/core/src/main/java/org/apache/iceberg/rest/RESTCatalog.java) and its purpose is to send metrics to a REST server at the `/v1/{prefix}/namespaces/{namespace}/tables/{table}/metrics` endpoint as defined in the [REST OpenAPI spec](https://github.com/apache/iceberg/blob/main/open-api/rest-catalog-open-api.yaml).
 
 Sending metrics via REST can be controlled with the `rest-metrics-reporting-enabled` (defaults to `true`) property.
 
 
 ## Implementing a custom Metrics Reporter
 
-Implementing the [`MetricsReporter`](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/metrics/MetricsReporter.html) API gives full flexibility in dealing with incoming [`MetricsReport`](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/metrics/MetricsReport.html) instances. For example, it would be possible to send results to a Prometheus endpoint or any other observability framework/system.
+Implementing the [`MetricsReporter`](https://github.com/apache/iceberg/blob/main/api/src/main/java/org/apache/iceberg/metrics/MetricsReporter.java) API gives full flexibility in dealing with incoming [`MetricsReport`](https://github.com/apache/iceberg/blob/main/api/src/main/java/org/apache/iceberg/metrics/MetricsReport.java) instances. For example, it would be possible to send results to a Prometheus endpoint or any other observability framework/system.
 
 Below is a short example illustrating an `InMemoryMetricsReporter` that stores reports in a list and makes them available:
 ```java
@@ -149,11 +149,11 @@ public class InMemoryMetricsReporter implements MetricsReporter {
 
 ### Via Catalog Configuration
 
-The [catalog property](configuration.md#catalog-properties) `metrics-reporter-impl` allows registering a given [`MetricsReporter`](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/metrics/MetricsReporter.html) by specifying its fully-qualified class name, e.g. `metrics-reporter-impl=org.apache.iceberg.metrics.InMemoryMetricsReporter`.
+The [catalog property](configuration.md#catalog-properties) `metrics-reporter-impl` allows registering a given [`MetricsReporter`](https://github.com/apache/iceberg/blob/main/api/src/main/java/org/apache/iceberg/metrics/MetricsReporter.java) by specifying its fully-qualified class name, e.g. `metrics-reporter-impl=org.apache.iceberg.metrics.InMemoryMetricsReporter`.
 
 ### Via the Java API during Scan planning
 
-Independently of the [`MetricsReporter`](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/metrics/MetricsReporter.html) being registered at the catalog level via the `metrics-reporter-impl` property, it is also possible to supply additional reporters during scan planning as shown below:
+Independently of the [`MetricsReporter`](https://github.com/apache/iceberg/blob/main/api/src/main/java/org/apache/iceberg/metrics/MetricsReporter.java) being registered at the catalog level via the `metrics-reporter-impl` property, it is also possible to supply additional reporters during scan planning as shown below:
 
 ```java
 TableScan tableScan = 
