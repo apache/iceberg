@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Arrays;
 import java.util.List;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
@@ -32,7 +32,7 @@ public class TestPartitionSpecParser extends TestBase {
     return Arrays.asList(1);
   }
 
-  @Test
+  @TestTemplate
   public void testToJsonForV1Table() {
     String expected =
         "{\n"
@@ -69,7 +69,7 @@ public class TestPartitionSpecParser extends TestBase {
     assertThat(PartitionSpecParser.toJson(table.spec(), true)).isEqualTo(expected);
   }
 
-  @Test
+  @TestTemplate
   public void testFromJsonWithFieldId() {
     String specString =
         "{\n"
@@ -95,7 +95,7 @@ public class TestPartitionSpecParser extends TestBase {
     assertThat(spec.fields().get(1).fieldId()).isEqualTo(1000);
   }
 
-  @Test
+  @TestTemplate
   public void testFromJsonWithoutFieldId() {
     String specString =
         "{\n"
@@ -119,7 +119,7 @@ public class TestPartitionSpecParser extends TestBase {
     assertThat(spec.fields().get(1).fieldId()).isEqualTo(1001);
   }
 
-  @Test
+  @TestTemplate
   public void testTransforms() {
     for (PartitionSpec spec : PartitionSpecTestBase.SPECS) {
       assertThat(roundTripJSON(spec)).isEqualTo(spec);
