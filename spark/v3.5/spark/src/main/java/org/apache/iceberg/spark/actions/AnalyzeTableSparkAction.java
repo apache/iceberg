@@ -28,6 +28,8 @@ import org.apache.iceberg.actions.AnalyzeTable;
 import org.apache.iceberg.actions.ImmutableAnalyzeTable;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.puffin.StandardBlobTypes;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.JobGroupInfo;
@@ -43,9 +45,10 @@ public class AnalyzeTableSparkAction extends BaseSparkAction<AnalyzeTableSparkAc
 
   private static final Logger LOG = LoggerFactory.getLogger(AnalyzeTableSparkAction.class);
   private final Table table;
-  private Set<String> columnsToBeAnalyzed;
+  private Set<String> columnsToBeAnalyzed = ImmutableSet.of();
   private Set<String> statsToBecollected =
       Sets.newHashSet(StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1);
+  private Long snapshotId;
 
   AnalyzeTableSparkAction(SparkSession spark, Table table) {
     super(spark);
@@ -66,7 +69,6 @@ public class AnalyzeTableSparkAction extends BaseSparkAction<AnalyzeTableSparkAc
 
   private Result doExecute() {
     LOG.info("Starting the analysis of {}", table.name());
-    validateColumns();
     List<AnalysisResult> analysisResults =
         statsToBecollected.stream()
             .map(
@@ -86,35 +88,28 @@ public class AnalyzeTableSparkAction extends BaseSparkAction<AnalyzeTableSparkAc
     return ImmutableAnalyzeTable.Result.builder().analysisResults(analysisResults).build();
   }
 
-  private void validateColumns() {
-    validateEmptyColumns();
-    validateTypes();
-  }
-
-  private void validateEmptyColumns() {
-    if (columnsToBeAnalyzed == null || columnsToBeAnalyzed.isEmpty()) {
-      throw new ValidationException("No columns to analyze for the table", table.name());
-    }
-  }
-
-  private void validateTypes() {
-    columnsToBeAnalyzed.forEach(
-        columnName -> {
-          Types.NestedField field = table.schema().findField(columnName);
-          if (field == null) {
-            throw new ValidationException("No column with %s name in the table", columnName);
-          }
-          Type type = field.type();
-          if (type.isListType() || type.isMapType() || type.isNestedType() || type.isStructType()) {
-            throw new ValidationException(
-                "Analysis not supported on column %s of type %s", columnName, type.typeId());
-          }
-        });
+  private boolean analyzeableTypes(Set<String> columns) {
+    return columns.stream()
+        .anyMatch(
+            columnName -> {
+              Types.NestedField field = table.schema().findField(columnName);
+              if (field == null) {
+                throw new ValidationException("No column with %s name in the table", columnName);
+              }
+              Type type = field.type();
+              return type.isListType()
+                  || type.isMapType()
+                  || type.isNestedType()
+                  || type.isStructType();
+            });
   }
 
   private AnalysisResult generateNDVAndCommit() {
     try {
-      long snapshotId = table.currentSnapshot().snapshotId();
+
+      if (snapshotId == null) {
+        snapshotId = table.currentSnapshot().snapshotId();
+      }
 
       StatisticsFile statisticsFile =
           NDVSketchGenerator.generateNDV(
@@ -137,13 +132,26 @@ public class AnalyzeTableSparkAction extends BaseSparkAction<AnalyzeTableSparkAc
 
   @Override
   public AnalyzeTable columns(Set<String> columns) {
+    Preconditions.checkArgument(columns != null && !columns.isEmpty(), "Columns cannot be empty");
+    Preconditions.checkArgument(
+        !analyzeableTypes(columns),
+        "Cannot be applied to the given columns, since the column(s) have list/map/nested type");
     this.columnsToBeAnalyzed = columns;
     return this;
   }
 
   @Override
   public AnalyzeTable stats(Set<String> statsToBeCollected) {
+    Preconditions.checkArgument(
+        Sets.newHashSet(StandardBlobTypes.blobTypes()).containsAll(statsToBeCollected),
+        "Stats type not supported");
     this.statsToBecollected = statsToBeCollected;
+    return this;
+  }
+
+  @Override
+  public AnalyzeTable snapshot(String snapshotIdStr) {
+    this.snapshotId = Long.parseLong(snapshotIdStr);
     return this;
   }
 }

@@ -28,21 +28,21 @@ import org.apache.datasketches.theta.Sketch;
 import org.apache.datasketches.theta.Sketches;
 import org.apache.datasketches.theta.UpdateSketch;
 
-public class ThetaSketchJavaSerializable implements Serializable {
+class ThetaSketchJavaSerializable implements Serializable {
 
   private Sketch sketch;
 
-  public ThetaSketchJavaSerializable() {}
+  ThetaSketchJavaSerializable() {}
 
-  public ThetaSketchJavaSerializable(final Sketch sketch) {
+  ThetaSketchJavaSerializable(final Sketch sketch) {
     this.sketch = sketch;
   }
 
-  public Sketch getSketch() {
+  Sketch getSketch() {
     return sketch;
   }
 
-  public CompactSketch getCompactSketch() {
+  CompactSketch getCompactSketch() {
     if (sketch == null) {
       return null;
     }
@@ -52,7 +52,7 @@ public class ThetaSketchJavaSerializable implements Serializable {
     return (CompactSketch) sketch;
   }
 
-  public void update(final String value) {
+  void update(final String value) {
     if (sketch == null) {
       sketch = UpdateSketch.builder().build();
     }
@@ -63,7 +63,7 @@ public class ThetaSketchJavaSerializable implements Serializable {
     }
   }
 
-  public double getEstimate() {
+  double getEstimate() {
     if (sketch == null) {
       return 0.0;
     }

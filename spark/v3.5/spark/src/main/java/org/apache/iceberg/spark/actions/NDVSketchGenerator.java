@@ -24,6 +24,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.apache.datasketches.theta.CompactSketch;
 import org.apache.datasketches.theta.SetOperationBuilder;
 import org.apache.datasketches.theta.UpdateSketch;
@@ -43,6 +44,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFlatMapFunction;
@@ -55,15 +57,24 @@ public class NDVSketchGenerator {
 
   private NDVSketchGenerator() {}
 
-  public static StatisticsFile generateNDV(
+  static StatisticsFile generateNDV(
       SparkSession spark, Table table, long snapshotId, String... columnsToBeAnalyzed)
       throws IOException {
+    List<String> columnList;
+    if (columnsToBeAnalyzed == null || columnsToBeAnalyzed.length == 0) {
+      columnList =
+          table.schema().columns().stream()
+              .map(Types.NestedField::name)
+              .collect(Collectors.toList());
+    } else {
+      columnList = Lists.newArrayList(columnsToBeAnalyzed);
+    }
     Iterator<Tuple2<String, ThetaSketchJavaSerializable>> tuple2Iterator =
-        NDVSketchGenerator.computeNDVSketches(spark, table.name(), snapshotId, columnsToBeAnalyzed);
+        computeNDVSketches(spark, table.name(), snapshotId, columnList);
     Map<String, ThetaSketchJavaSerializable> sketchMap = Maps.newHashMap();
 
     tuple2Iterator.forEachRemaining(tuple -> sketchMap.put(tuple._1, tuple._2));
-    return writeToPuffin(table, Lists.newArrayList(columnsToBeAnalyzed), sketchMap);
+    return writeToPuffin(table, columnList, sketchMap);
   }
 
   private static StatisticsFile writeToPuffin(
@@ -103,8 +114,8 @@ public class NDVSketchGenerator {
     }
   }
 
-  public static Iterator<Tuple2<String, ThetaSketchJavaSerializable>> computeNDVSketches(
-      SparkSession spark, String tableName, long snapshotId, String... columns) {
+  static Iterator<Tuple2<String, ThetaSketchJavaSerializable>> computeNDVSketches(
+      SparkSession spark, String tableName, long snapshotId, List<String> columns) {
     String sql =
         String.format(
             "select %s from %s VERSION AS OF %d", String.join(",", columns), tableName, snapshotId);
@@ -119,7 +130,7 @@ public class NDVSketchGenerator {
                         final Row row = input.next();
                         int size = row.size();
                         for (int i = 0; i < size; i++) {
-                          list.add(new Tuple2<>(columns[i], row.get(i).toString()));
+                          list.add(new Tuple2<>(columns.get(i), row.get(i).toString()));
                         }
                       }
                       return list.iterator();
@@ -163,6 +174,7 @@ public class NDVSketchGenerator {
       if (sketch2.getSketch() == null) {
         return sketch1;
       }
+
       final CompactSketch compactSketch1 = sketch1.getCompactSketch();
       final CompactSketch compactSketch2 = sketch2.getCompactSketch();
       return new ThetaSketchJavaSerializable(

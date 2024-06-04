@@ -39,6 +39,14 @@ public interface AnalyzeTable extends Action<AnalyzeTable, AnalyzeTable.Result> 
    */
   AnalyzeTable stats(Set<String> statsToBeCollected);
 
+  /**
+   * id of the snapshot for which stats needs to be collected
+   *
+   * @param snapshotId long id of the snapshot for which stats needs to be collected
+   * @return this for method chaining
+   */
+  AnalyzeTable snapshot(String snapshotId);
+
   /** The action result that contains a summary of the Analysis. */
   interface Result {
     /** Returns summary of analysis */
