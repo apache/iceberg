@@ -33,9 +33,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.source.SimpleRecord;
+import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
+import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
+import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.StructField;
+import org.apache.spark.sql.types.StructType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.TestTemplate;
@@ -70,22 +75,36 @@ public class TestAnalyzeTableAction extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testAnalyzeTableActionWithErrors() {
-    // TODO
-  }
+  public void testAnalyzeTableActionWithoutExplicitColumns()
+      throws NoSuchTableException, ParseException {
+    assumeTrue(catalogName.equals("spark_catalog"));
+    sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
 
-  @TestTemplate
-  public void testAnalyzeTableForTypes() {
-    // TODO
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "b"),
+            new SimpleRecord(3, "c"),
+            new SimpleRecord(4, "d"));
+    spark
+        .createDataset(records, Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    SparkActions actions = SparkActions.get();
+    AnalyzeTable.Result results = actions.analyzeTable(table).execute();
+    assertNotNull(results);
+
+    Assertions.assertEquals(1, table.statisticsFiles().size());
+    Assertions.assertEquals(2, table.statisticsFiles().get(0).blobMetadata().size());
+    assertNotEquals(0, table.statisticsFiles().get(0).fileSizeInBytes());
   }
 
   @TestTemplate
   public void testAnalyzeTableForInvalidColumns() throws NoSuchTableException, ParseException {
     assumeTrue(catalogName.equals("spark_catalog"));
-    sql(
-        "CREATE TABLE %s (id int, data string) USING iceberg TBLPROPERTIES"
-            + "('format-version'='2')",
-        tableName);
+    sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     SparkActions actions = SparkActions.get();
     ValidationException validationException =
@@ -100,28 +119,46 @@ public class TestAnalyzeTableAction extends CatalogTestBase {
   public void testAnalyzeTableShouldThrowErrorForInvalidStatsType()
       throws NoSuchTableException, ParseException {
     assumeTrue(catalogName.equals("spark_catalog"));
-    sql(
-        "CREATE TABLE %s (id int, data string) USING iceberg TBLPROPERTIES"
-            + "('format-version'='2')",
-        tableName);
+    sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     SparkActions actions = SparkActions.get();
     String statsName = "abcd";
-    AnalyzeTable.Result result =
-        actions
-            .analyzeTable(table)
-            .stats(Sets.newHashSet(statsName))
-            .columns(Sets.newHashSet("id", "data"))
-            .execute();
 
-    Assertions.assertEquals(result.analysisResults().size(), 1);
-    AnalyzeTable.AnalysisResult analysisResult = result.analysisResults().get(0);
-    Assertions.assertEquals(analysisResult.statsName(), statsName);
-    Assertions.assertFalse(analysisResult.statsCollected());
-    Assertions.assertTrue(
-        () ->
-            analysisResult.errors().size() == 1
-                && analysisResult.errors().get(0).contains("Stats type not supported"));
+    IllegalArgumentException illegalArgumentException =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                actions
+                    .analyzeTable(table)
+                    .stats(Sets.newHashSet(statsName))
+                    .columns(Sets.newHashSet("id", "data"))
+                    .execute());
+
+    assertTrue(illegalArgumentException.getMessage().equalsIgnoreCase("Stats type not supported"));
+  }
+
+  @TestTemplate
+  public void testAnalyzeTableShouldThrowErrorForTypes()
+      throws NoSuchTableException, ParseException {
+    assumeTrue(catalogName.equals("spark_catalog"));
+    // Define schema
+    StructType schema =
+        new StructType(
+            new StructField[] {
+              DataTypes.createStructField("name", DataTypes.StringType, true),
+              DataTypes.createStructField(
+                  "scores", DataTypes.createArrayType(DataTypes.IntegerType), true)
+            });
+    Dataset<Row> dataFrame = spark.createDataFrame(Lists.newArrayList(), schema);
+    dataFrame.writeTo(tableName).using("iceberg").createOrReplace();
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    SparkActions actions = SparkActions.get();
+    IllegalArgumentException illegalArgumentException =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> actions.analyzeTable(table).columns(Sets.newHashSet("scores")));
+    assertTrue(
+        illegalArgumentException.getMessage().contains("Cannot be applied to the given columns"));
   }
 
   @AfterEach
