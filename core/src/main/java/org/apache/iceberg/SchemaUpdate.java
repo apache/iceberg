@@ -64,6 +64,7 @@ class SchemaUpdate implements UpdateSchema {
   private boolean allowIncompatibleChanges = false;
   private Set<String> identifierFieldNames;
   private boolean caseSensitive = true;
+  private final List<Validation> pendingValidations = Lists.newArrayList();
 
   SchemaUpdate(TableOperations ops) {
     this(ops, ops.current());
@@ -443,8 +444,15 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   @Override
+  public void validate(List<Validation> validations) {
+    ValidationUtils.validate(base, validations);
+    pendingValidations.addAll(validations);
+  }
+
+  @Override
   public void commit() {
     TableMetadata update = applyChangesToMetadata(base.updateSchema(apply(), lastColumnId));
+    ValidationUtils.validate(base, pendingValidations);
     ops.commit(base, update);
   }
 

@@ -27,14 +27,17 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
+import java.util.List;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.expressions.Term;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.Tasks;
 
 public class BaseReplaceSortOrder implements ReplaceSortOrder {
   private final TableOperations ops;
   private final SortOrder.Builder builder;
   private TableMetadata base;
+  private final List<Validation> pendingValidations = Lists.newArrayList();
 
   BaseReplaceSortOrder(TableOperations ops) {
     this.ops = ops;
@@ -45,6 +48,12 @@ public class BaseReplaceSortOrder implements ReplaceSortOrder {
   @Override
   public SortOrder apply() {
     return builder.build();
+  }
+
+  @Override
+  public void validate(List<Validation> validations) {
+    ValidationUtils.validate(base, validations);
+    pendingValidations.addAll(validations);
   }
 
   @Override
@@ -62,6 +71,7 @@ public class BaseReplaceSortOrder implements ReplaceSortOrder {
               this.base = ops.refresh();
               SortOrder newOrder = apply();
               TableMetadata updated = base.replaceSortOrder(newOrder);
+              ValidationUtils.validate(base, pendingValidations);
               taskOps.commit(base, updated);
             });
   }

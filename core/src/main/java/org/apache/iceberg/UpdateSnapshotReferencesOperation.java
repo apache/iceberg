@@ -18,8 +18,10 @@
  */
 package org.apache.iceberg;
 
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SnapshotUtil;
 
@@ -32,6 +34,7 @@ class UpdateSnapshotReferencesOperation implements PendingUpdate<Map<String, Sna
   private final TableOperations ops;
   private final Map<String, SnapshotRef> updatedRefs;
   private final TableMetadata base;
+  private final List<Validation> pendingValidations = Lists.newArrayList();
 
   UpdateSnapshotReferencesOperation(TableOperations ops) {
     this.ops = ops;
@@ -45,8 +48,15 @@ class UpdateSnapshotReferencesOperation implements PendingUpdate<Map<String, Sna
   }
 
   @Override
+  public void validate(List<Validation> validations) {
+    ValidationUtils.validate(base, validations);
+    pendingValidations.addAll(validations);
+  }
+
+  @Override
   public void commit() {
     TableMetadata updated = internalApply();
+    ValidationUtils.validate(base, pendingValidations);
     ops.commit(base, updated);
   }
 

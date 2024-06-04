@@ -105,6 +105,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private String targetBranch = SnapshotRef.MAIN_BRANCH;
   private CommitMetrics commitMetrics;
 
+  private final List<Validation> pendingValidations = Lists.newArrayList();
+
   protected SnapshotProducer(TableOperations ops) {
     this.ops = ops;
     this.strictCleanup = ops.requireStrictCleanup();
@@ -366,6 +368,12 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   @Override
+  public void validate(List<Validation> validations) {
+    ValidationUtils.validate(base, validations);
+    pendingValidations.addAll(validations);
+  }
+
+  @Override
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public void commit() {
     // this is always set to the latest commit attempt's snapshot id.
@@ -403,6 +411,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                     // identity.
                     return;
                   }
+
+                  ValidationUtils.validate(base, pendingValidations);
 
                   // if the table UUID is missing, add it here. the UUID will be re-created each
                   // time

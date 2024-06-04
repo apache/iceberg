@@ -22,11 +22,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class SetStatistics implements UpdateStatistics {
   private final TableOperations ops;
   private final Map<Long, Optional<StatisticsFile>> statisticsToSet = Maps.newHashMap();
+  private final List<Validation> pendingValidations = Lists.newArrayList();
 
   public SetStatistics(TableOperations ops) {
     this.ops = ops;
@@ -51,9 +53,15 @@ public class SetStatistics implements UpdateStatistics {
   }
 
   @Override
+  public void validate(List<Validation> validations) {
+    pendingValidations.addAll(validations);
+  }
+
+  @Override
   public void commit() {
     TableMetadata base = ops.current();
     TableMetadata newMetadata = internalApply(base);
+    ValidationUtils.validate(base, pendingValidations);
     ops.commit(base, newMetadata);
   }
 

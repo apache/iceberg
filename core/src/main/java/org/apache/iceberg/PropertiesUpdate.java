@@ -27,10 +27,12 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Tasks;
@@ -40,6 +42,7 @@ class PropertiesUpdate implements UpdateProperties {
   private final Map<String, String> updates = Maps.newHashMap();
   private final Set<String> removals = Sets.newHashSet();
   private TableMetadata base;
+  private final List<Validation> pendingValidations = Lists.newArrayList();
 
   PropertiesUpdate(TableOperations ops) {
     this.ops = ops;
@@ -97,6 +100,12 @@ class PropertiesUpdate implements UpdateProperties {
   }
 
   @Override
+  public void validate(List<Validation> validations) {
+    ValidationUtils.validate(base, validations);
+    pendingValidations.addAll(validations);
+  }
+
+  @Override
   public void commit() {
     Tasks.foreach(ops)
         .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
@@ -110,6 +119,7 @@ class PropertiesUpdate implements UpdateProperties {
             taskOps -> {
               Map<String, String> newProperties = apply();
               TableMetadata updated = base.replaceProperties(newProperties);
+              ValidationUtils.validate(base, pendingValidations);
               taskOps.commit(base, updated);
             });
   }

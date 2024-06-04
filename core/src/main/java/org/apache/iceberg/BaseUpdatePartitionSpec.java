@@ -61,6 +61,8 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
   private boolean caseSensitive;
   private int lastAssignedPartitionId;
 
+  private final List<Validation> pendingValidations = Lists.newArrayList();
+
   BaseUpdatePartitionSpec(TableOperations ops) {
     this.ops = ops;
     this.caseSensitive = true;
@@ -326,8 +328,15 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
   }
 
   @Override
+  public void validate(List<Validation> validations) {
+    ValidationUtils.validate(base, validations);
+    pendingValidations.addAll(validations);
+  }
+
+  @Override
   public void commit() {
     TableMetadata update = base.updatePartitionSpec(apply());
+    ValidationUtils.validate(base, pendingValidations);
     ops.commit(base, update);
   }
 

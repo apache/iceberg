@@ -31,6 +31,7 @@ import java.util.List;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
 
@@ -46,6 +47,7 @@ class SetSnapshotOperation implements PendingUpdate<Snapshot> {
   private TableMetadata base;
   private Long targetSnapshotId = null;
   private boolean isRollback = false;
+  private final List<Validation> pendingValidations = Lists.newArrayList();
 
   SetSnapshotOperation(TableOperations ops) {
     this.ops = ops;
@@ -106,6 +108,12 @@ class SetSnapshotOperation implements PendingUpdate<Snapshot> {
   }
 
   @Override
+  public void validate(List<Validation> validations) {
+    ValidationUtils.validate(base, validations);
+    pendingValidations.addAll(validations);
+  }
+
+  @Override
   public void commit() {
     Tasks.foreach(ops)
         .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
@@ -122,6 +130,8 @@ class SetSnapshotOperation implements PendingUpdate<Snapshot> {
                   TableMetadata.buildFrom(base)
                       .setBranchSnapshot(snapshot.snapshotId(), SnapshotRef.MAIN_BRANCH)
                       .build();
+
+              ValidationUtils.validate(base, pendingValidations);
 
               // Do commit this operation even if the metadata has not changed, as we need to
               // advance the hasLastOpCommited for the transaction's commit to work properly.

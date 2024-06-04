@@ -84,6 +84,7 @@ class RemoveSnapshots implements ExpireSnapshots {
   private ExecutorService deleteExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
   private ExecutorService planExecutorService = ThreadPools.getWorkerPool();
   private Boolean incrementalCleanup;
+  private final List<Validation> pendingValidations = Lists.newArrayList();
 
   RemoveSnapshots(TableOperations ops) {
     this.ops = ops;
@@ -292,6 +293,12 @@ class RemoveSnapshots implements ExpireSnapshots {
   }
 
   @Override
+  public void validate(List<Validation> validations) {
+    ValidationUtils.validate(base, validations);
+    pendingValidations.addAll(validations);
+  }
+
+  @Override
   public void commit() {
     Tasks.foreach(ops)
         .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
@@ -304,6 +311,7 @@ class RemoveSnapshots implements ExpireSnapshots {
         .run(
             item -> {
               TableMetadata updated = internalApply();
+              ValidationUtils.validate(base, pendingValidations);
               ops.commit(base, updated);
             });
     LOG.info("Committed snapshot changes");
