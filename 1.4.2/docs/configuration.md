@@ -124,16 +124,16 @@ The value of these properties are not persisted as a part of the table metadata.
 
 Iceberg catalogs support using catalog properties to configure catalog behaviors. Here is a list of commonly used catalog properties:
 
-| Property                          | Default            | Description                                            |
-| --------------------------------- | ------------------ | ------------------------------------------------------ |
-| catalog-impl                      | null               | a custom `Catalog` implementation to use by an engine  |
-| io-impl                           | null               | a custom `FileIO` implementation to use in a catalog   |
-| warehouse                         | null               | the root path of the data warehouse                    |
-| uri                               | null               | a URI string, such as Hive metastore URI               |
-| clients                           | 2                  | client pool size                                       |
-| cache-enabled                     | true               | Whether to cache catalog entries |
-| cache.expiration-interval-ms      | 30000              | How long catalog entries are locally cached, in milliseconds; 0 disables caching, negative values disable expiration |
-| metrics-reporter-impl | org.apache.iceberg.metrics.LoggingMetricsReporter | Custom `MetricsReporter` implementation to use in a catalog. See the [Metrics reporting](metrics-reporting) section for additional details |
+| Property                          | Default            | Description                                                                                                                                   |
+| --------------------------------- | ------------------ |-----------------------------------------------------------------------------------------------------------------------------------------------|
+| catalog-impl                      | null               | a custom `Catalog` implementation to use by an engine                                                                                         |
+| io-impl                           | null               | a custom `FileIO` implementation to use in a catalog                                                                                          |
+| warehouse                         | null               | the root path of the data warehouse                                                                                                           |
+| uri                               | null               | a URI string, such as Hive metastore URI                                                                                                      |
+| clients                           | 2                  | client pool size                                                                                                                              |
+| cache-enabled                     | true               | Whether to cache catalog entries                                                                                                              |
+| cache.expiration-interval-ms      | 30000              | How long catalog entries are locally cached, in milliseconds; 0 disables caching, negative values disable expiration                          |
+| metrics-reporter-impl | org.apache.iceberg.metrics.LoggingMetricsReporter | Custom `MetricsReporter` implementation to use in a catalog. See the [Metrics reporting](metrics-reporting.md) section for additional details |
 
 `HadoopCatalog` and `HiveCatalog` can access the properties in their constructors.
 Any other custom catalog can access the properties by implementing `Catalog.initialize(catalogName, catalogProperties)`.
