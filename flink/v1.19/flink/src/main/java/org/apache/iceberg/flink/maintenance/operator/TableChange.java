@@ -61,6 +61,10 @@ class TableChange {
     this.commitNum = 1;
   }
 
+  static TableChange empty() {
+    return new TableChange(0, 0, 0L, 0L, 0);
+  }
+
   int dataFileNum() {
     return dataFileNum;
   }

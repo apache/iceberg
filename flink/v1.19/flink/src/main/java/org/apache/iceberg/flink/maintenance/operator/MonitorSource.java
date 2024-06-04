@@ -30,6 +30,7 @@ import org.apache.flink.api.connector.source.util.ratelimit.RateLimiterStrategy;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
 import org.apache.flink.core.memory.DataInputDeserializer;
 import org.apache.flink.core.memory.DataOutputSerializer;
+import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
@@ -78,12 +79,12 @@ public class MonitorSource extends SingleThreadedIteratorSource<TableChange> {
 
   @Override
   Iterator<TableChange> createIterator() {
-    return new SchedulerEventIterator(tableLoader, null, maxReadBack);
+    return new TableChangeIterator(tableLoader, null, maxReadBack);
   }
 
   @Override
-  SimpleVersionedSerializer<Iterator<TableChange>> getIteratorSerializer() {
-    return new SchedulerEventIteratorSerializer(tableLoader, maxReadBack);
+  SimpleVersionedSerializer<Iterator<TableChange>> iteratorSerializer() {
+    return new TableChangeIteratorSerializer(tableLoader, maxReadBack);
   }
 
   @Override
@@ -95,12 +96,12 @@ public class MonitorSource extends SingleThreadedIteratorSource<TableChange> {
 
   /** The Iterator which returns the latest changes on an Iceberg table. */
   @VisibleForTesting
-  static class SchedulerEventIterator implements Iterator<TableChange> {
+  static class TableChangeIterator implements Iterator<TableChange> {
     private Long lastSnapshotId;
     private final long maxReadBack;
     private final Table table;
 
-    SchedulerEventIterator(TableLoader tableLoader, Long lastSnapshotId, long maxReadBack) {
+    TableChangeIterator(TableLoader tableLoader, Long lastSnapshotId, long maxReadBack) {
       this.lastSnapshotId = lastSnapshotId;
       this.maxReadBack = maxReadBack;
       tableLoader.open();
@@ -119,13 +120,18 @@ public class MonitorSource extends SingleThreadedIteratorSource<TableChange> {
         Snapshot currentSnapshot = table.currentSnapshot();
         Long current = currentSnapshot != null ? currentSnapshot.snapshotId() : null;
         Long checking = current;
-        TableChange event = new TableChange(0, 0, 0L, 0L, 0);
+        TableChange event = TableChange.empty();
         long readBack = 0;
         while (checking != null && !checking.equals(lastSnapshotId) && ++readBack <= maxReadBack) {
           Snapshot snapshot = table.snapshot(checking);
           if (snapshot != null) {
-            LOG.debug("Reading snapshot {}", snapshot.snapshotId());
-            event.merge(new TableChange(snapshot, table.io()));
+            if (!DataOperations.REPLACE.equals(snapshot.operation())) {
+              LOG.debug("Reading snapshot {}", snapshot.snapshotId());
+              event.merge(new TableChange(snapshot, table.io()));
+            } else {
+              LOG.debug("Skipping replace snapshot {}", snapshot.snapshotId());
+            }
+
             checking = snapshot.parentId();
           } else {
             // If the last snapshot has been removed from the history
@@ -137,7 +143,7 @@ public class MonitorSource extends SingleThreadedIteratorSource<TableChange> {
         return event;
       } catch (Exception e) {
         LOG.warn("Failed to fetch table changes for {}", table, e);
-        return new TableChange(0, 0, 0L, 0L, 0);
+        return TableChange.empty();
       }
     }
 
@@ -151,14 +157,14 @@ public class MonitorSource extends SingleThreadedIteratorSource<TableChange> {
     }
   }
 
-  private static final class SchedulerEventIteratorSerializer
+  private static final class TableChangeIteratorSerializer
       implements SimpleVersionedSerializer<Iterator<TableChange>> {
 
     private static final int CURRENT_VERSION = 1;
     private final TableLoader tableLoader;
     private final long maxReadBack;
 
-    SchedulerEventIteratorSerializer(TableLoader tableLoader, long maxReadBack) {
+    TableChangeIteratorSerializer(TableLoader tableLoader, long maxReadBack) {
       this.tableLoader = tableLoader;
       this.maxReadBack = maxReadBack;
     }
@@ -171,26 +177,24 @@ public class MonitorSource extends SingleThreadedIteratorSource<TableChange> {
     @Override
     public byte[] serialize(Iterator<TableChange> iterator) throws IOException {
       Preconditions.checkArgument(
-          iterator instanceof SchedulerEventIterator,
-          "Use SchedulerEventIterator iterator. Found incompatible type: %s",
+          iterator instanceof TableChangeIterator,
+          "Use TableChangeIterator iterator. Found incompatible type: %s",
           iterator.getClass());
 
-      SchedulerEventIterator schedulerEventIterator = (SchedulerEventIterator) iterator;
+      TableChangeIterator tableChangeIterator = (TableChangeIterator) iterator;
       DataOutputSerializer out = new DataOutputSerializer(8);
       long toStore =
-          schedulerEventIterator.lastSnapshotId != null
-              ? schedulerEventIterator.lastSnapshotId
-              : -1L;
+          tableChangeIterator.lastSnapshotId != null ? tableChangeIterator.lastSnapshotId : -1L;
       out.writeLong(toStore);
       return out.getCopyOfBuffer();
     }
 
     @Override
-    public SchedulerEventIterator deserialize(int version, byte[] serialized) throws IOException {
+    public TableChangeIterator deserialize(int version, byte[] serialized) throws IOException {
       if (version == CURRENT_VERSION) {
         DataInputDeserializer in = new DataInputDeserializer(serialized);
         long fromStore = in.readLong();
-        return new SchedulerEventIterator(
+        return new TableChangeIterator(
             tableLoader, fromStore != -1 ? fromStore : null, maxReadBack);
       } else {
         throw new IOException("Unrecognized version or corrupt state: " + version);

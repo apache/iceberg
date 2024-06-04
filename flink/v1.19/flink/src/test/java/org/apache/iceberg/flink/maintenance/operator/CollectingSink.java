@@ -49,7 +49,7 @@ class CollectingSink<T> implements Sink<T> {
    *
    * @return all the remaining output
    */
-  List<T> getRemainingOutput() {
+  List<T> remainingOutput() {
     return Lists.newArrayList((BlockingQueue<T>) queues.get(this.index));
   }
 

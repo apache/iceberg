@@ -112,12 +112,12 @@ public class FlinkSqlExtension implements BeforeEachCallback, AfterEachCallback 
   /**
    * Returns the {@link TableLoader} which could be used to access the given table.
    *
-   * @param name of the table
+   * @param tableName of the table
    * @return the {@link TableLoader} for the table
    */
-  public TableLoader tableLoader(String name) {
+  public TableLoader tableLoader(String tableName) {
     TableLoader tableLoader =
-        TableLoader.fromCatalog(catalogLoader, TableIdentifier.of(databaseName, name));
+        TableLoader.fromCatalog(catalogLoader, TableIdentifier.of(databaseName, tableName));
     tableLoader.open();
     return tableLoader;
   }

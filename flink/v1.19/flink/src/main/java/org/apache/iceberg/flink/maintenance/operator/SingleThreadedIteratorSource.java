@@ -61,7 +61,7 @@ public abstract class SingleThreadedIteratorSource<T>
    *
    * @return serializer for the iterator
    */
-  abstract SimpleVersionedSerializer<Iterator<T>> getIteratorSerializer();
+  abstract SimpleVersionedSerializer<Iterator<T>> iteratorSerializer();
 
   @Override
   public SplitEnumerator<GlobalSplit<T>, Collection<GlobalSplit<T>>> createEnumerator(
@@ -80,12 +80,12 @@ public abstract class SingleThreadedIteratorSource<T>
 
   @Override
   public SimpleVersionedSerializer<GlobalSplit<T>> getSplitSerializer() {
-    return new SplitSerializer<>(getIteratorSerializer());
+    return new SplitSerializer<>(iteratorSerializer());
   }
 
   @Override
   public SimpleVersionedSerializer<Collection<GlobalSplit<T>>> getEnumeratorCheckpointSerializer() {
-    return new CheckpointSerializer<>(getIteratorSerializer());
+    return new EnumeratorSerializer<>(iteratorSerializer());
   }
 
   @Override
@@ -127,10 +127,10 @@ public abstract class SingleThreadedIteratorSource<T>
 
   private static final class SplitSerializer<T>
       implements SimpleVersionedSerializer<GlobalSplit<T>> {
-    private final SimpleVersionedSerializer<Iterator<T>> serializer;
+    private final SimpleVersionedSerializer<Iterator<T>> iteratorSerializer;
 
-    SplitSerializer(SimpleVersionedSerializer<Iterator<T>> serializer) {
-      this.serializer = serializer;
+    SplitSerializer(SimpleVersionedSerializer<Iterator<T>> iteratorSerializer) {
+      this.iteratorSerializer = iteratorSerializer;
     }
 
     private static final int CURRENT_VERSION = 1;
@@ -142,21 +142,21 @@ public abstract class SingleThreadedIteratorSource<T>
 
     @Override
     public byte[] serialize(GlobalSplit<T> split) throws IOException {
-      return serializer.serialize(split.iterator);
+      return iteratorSerializer.serialize(split.iterator);
     }
 
     @Override
     public GlobalSplit<T> deserialize(int version, byte[] serialized) throws IOException {
-      return new GlobalSplit<>(serializer.deserialize(version, serialized));
+      return new GlobalSplit<>(iteratorSerializer.deserialize(version, serialized));
     }
   }
 
-  private static final class CheckpointSerializer<T>
+  private static final class EnumeratorSerializer<T>
       implements SimpleVersionedSerializer<Collection<GlobalSplit<T>>> {
     private static final int CURRENT_VERSION = 1;
     private final SimpleVersionedSerializer<Iterator<T>> iteratorSerializer;
 
-    CheckpointSerializer(SimpleVersionedSerializer<Iterator<T>> iteratorSerializer) {
+    EnumeratorSerializer(SimpleVersionedSerializer<Iterator<T>> iteratorSerializer) {
       this.iteratorSerializer = iteratorSerializer;
     }
 

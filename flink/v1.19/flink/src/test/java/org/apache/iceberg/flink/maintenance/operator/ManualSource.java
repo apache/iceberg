@@ -111,7 +111,7 @@ class ManualSource<T>
    *
    * @return the stream emitted by this source
    */
-  DataStream<T> getDataStream() {
+  DataStream<T> dataStream() {
     if (this.stream == null) {
       this.stream =
           this.env

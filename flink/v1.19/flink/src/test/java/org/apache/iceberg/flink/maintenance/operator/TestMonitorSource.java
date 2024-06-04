@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.connector.source.util.ratelimit.RateLimiterStrategy;
@@ -37,10 +38,14 @@ import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.runtime.typeutils.InternalTypeInfo;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.sink.FlinkSink;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -48,7 +53,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class TestMonitorSource extends OperatorTestBase {
-  private static final TableChange EMPTY_EVENT = new TableChange(0, 0, 0L, 0L, 0);
+  private static final TableChange EMPTY_EVENT = TableChange.empty();
   private static final RateLimiterStrategy HIGH_RATE = RateLimiterStrategy.perSecond(100.0);
   private static final RateLimiterStrategy LOW_RATE = RateLimiterStrategy.perSecond(1.0 / 10000.0);
 
@@ -69,8 +74,8 @@ class TestMonitorSource extends OperatorTestBase {
     tableLoader.open();
     Table table = tableLoader.loadTable();
 
-    MonitorSource.SchedulerEventIterator iterator =
-        new MonitorSource.SchedulerEventIterator(tableLoader, null, Long.MAX_VALUE);
+    MonitorSource.TableChangeIterator iterator =
+        new MonitorSource.TableChangeIterator(tableLoader, null, Long.MAX_VALUE);
 
     // For an empty table we get an empty result
     assertThat(iterator.next()).isEqualTo(EMPTY_EVENT);
@@ -78,51 +83,21 @@ class TestMonitorSource extends OperatorTestBase {
     // Add a single commit and get back the commit data in the event
     sql.exec("INSERT INTO %s VALUES (1, 'a')", TABLE_NAME);
     table.refresh();
-    long dataSize =
-        table.currentSnapshot().addedDataFiles(table.io()).iterator().next().fileSizeInBytes();
-    long deleteSize =
-        withDelete
-            ? table
-                .currentSnapshot()
-                .addedDeleteFiles(table.io())
-                .iterator()
-                .next()
-                .fileSizeInBytes()
-            : 0;
-    assertThat(iterator.next())
-        .isEqualTo(new TableChange(1, withDelete ? 1 : 0, dataSize, deleteSize, 1));
+    TableChange expected = tableChangeWithLastSnapshot(table, TableChange.empty());
+    assertThat(iterator.next()).isEqualTo(expected);
     // Make sure that consecutive calls do not return the data again
     assertThat(iterator.next()).isEqualTo(EMPTY_EVENT);
 
     // Add two more commits, but fetch the data in one loop
     sql.exec("INSERT INTO %s VALUES (2, 'b')", TABLE_NAME);
     table.refresh();
-    dataSize =
-        table.currentSnapshot().addedDataFiles(table.io()).iterator().next().fileSizeInBytes();
-    deleteSize =
-        withDelete
-            ? table
-                .currentSnapshot()
-                .addedDeleteFiles(table.io())
-                .iterator()
-                .next()
-                .fileSizeInBytes()
-            : 0;
+    expected = tableChangeWithLastSnapshot(table, TableChange.empty());
+
     sql.exec("INSERT INTO %s VALUES (3, 'c')", TABLE_NAME);
     table.refresh();
-    dataSize +=
-        table.currentSnapshot().addedDataFiles(table.io()).iterator().next().fileSizeInBytes();
-    deleteSize +=
-        withDelete
-            ? table
-                .currentSnapshot()
-                .addedDeleteFiles(table.io())
-                .iterator()
-                .next()
-                .fileSizeInBytes()
-            : 0;
-    assertThat(iterator.next())
-        .isEqualTo(new TableChange(2, withDelete ? 2 : 0, dataSize, deleteSize, 2));
+    expected = tableChangeWithLastSnapshot(table, expected);
+
+    assertThat(iterator.next()).isEqualTo(expected);
     // Make sure that consecutive calls do not return the data again
     assertThat(iterator.next()).isEqualTo(EMPTY_EVENT);
   }
@@ -156,7 +131,7 @@ class TestMonitorSource extends OperatorTestBase {
     // Creating a stream for inserting data into the table concurrently
     ManualSource<RowData> insertSource =
         new ManualSource<>(env, InternalTypeInfo.of(FlinkSchemaUtil.convert(table.schema())));
-    FlinkSink.forRowData(insertSource.getDataStream())
+    FlinkSink.forRowData(insertSource.dataStream())
         .tableLoader(tableLoader)
         .uidPrefix("iceberg-sink")
         .append();
@@ -180,8 +155,7 @@ class TestMonitorSource extends OperatorTestBase {
             });
 
     table.refresh();
-    long size =
-        table.currentSnapshot().addedDataFiles(table.io()).iterator().next().fileSizeInBytes();
+    long size = firstFileLength(table);
 
     // Wait until the first non-empty event has arrived, and check the expected result
     Awaitility.await()
@@ -308,9 +282,7 @@ class TestMonitorSource extends OperatorTestBase {
 
     assertThatThrownBy(env::execute)
         .isInstanceOf(JobExecutionException.class)
-        .cause()
-        .cause()
-        .cause()
+        .rootCause()
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Parallelism should be set to 1");
   }
@@ -325,20 +297,70 @@ class TestMonitorSource extends OperatorTestBase {
     TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
     tableLoader.open();
 
-    MonitorSource.SchedulerEventIterator iterator =
-        new MonitorSource.SchedulerEventIterator(tableLoader, null, 1);
+    MonitorSource.TableChangeIterator iterator =
+        new MonitorSource.TableChangeIterator(tableLoader, null, 1);
 
     // For a single maxReadBack we only get a single change
     assertThat(iterator.next().commitNum()).isEqualTo(1);
 
-    iterator = new MonitorSource.SchedulerEventIterator(tableLoader, null, 2);
+    iterator = new MonitorSource.TableChangeIterator(tableLoader, null, 2);
 
-    // For maxReadBack we 2 we get 2 changes
+    // Expecting 2 commits/snapshots for maxReadBack=2
     assertThat(iterator.next().commitNum()).isEqualTo(2);
 
-    iterator = new MonitorSource.SchedulerEventIterator(tableLoader, null, Long.MAX_VALUE);
+    iterator = new MonitorSource.TableChangeIterator(tableLoader, null, Long.MAX_VALUE);
 
     // For maxReadBack Long.MAX_VALUE we get every change
     assertThat(iterator.next().commitNum()).isEqualTo(3);
+  }
+
+  @Test
+  void testSkipReplace() {
+    sql.exec("CREATE TABLE %s (id int, data varchar)", TABLE_NAME);
+    sql.exec("INSERT INTO %s VALUES (1, 'a')", TABLE_NAME);
+
+    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
+    tableLoader.open();
+
+    MonitorSource.TableChangeIterator iterator =
+        new MonitorSource.TableChangeIterator(tableLoader, null, Long.MAX_VALUE);
+
+    // Read the current snapshot
+    assertThat(iterator.next().commitNum()).isEqualTo(1);
+
+    // Create a DataOperations.REPLACE snapshot
+    Table table = tableLoader.loadTable();
+    DataFile dataFile =
+        table.snapshots().iterator().next().addedDataFiles(table.io()).iterator().next();
+    RewriteFiles rewrite = tableLoader.loadTable().newRewrite();
+    // Replace the file with itself for testing purposes
+    rewrite.deleteFile(dataFile);
+    rewrite.addFile(dataFile);
+    rewrite.commit();
+
+    // Check that the rewrite is ignored
+    assertThat(iterator.next()).isEqualTo(EMPTY_EVENT);
+  }
+
+  private static long firstFileLength(Table table) {
+    return table.currentSnapshot().addedDataFiles(table.io()).iterator().next().fileSizeInBytes();
+  }
+
+  private static TableChange tableChangeWithLastSnapshot(Table table, TableChange previous) {
+    List<DataFile> dataFiles =
+        Lists.newArrayList(table.currentSnapshot().addedDataFiles(table.io()).iterator());
+    List<DeleteFile> deleteFiles =
+        Lists.newArrayList(table.currentSnapshot().addedDeleteFiles(table.io()).iterator());
+
+    long dataSize = dataFiles.stream().mapToLong(d -> d.fileSizeInBytes()).sum();
+    long deleteSize = deleteFiles.stream().mapToLong(d -> d.fileSizeInBytes()).sum();
+    boolean hasDelete = table.currentSnapshot().addedDeleteFiles(table.io()).iterator().hasNext();
+
+    return new TableChange(
+        previous.dataFileNum() + dataFiles.size(),
+        previous.deleteFileNum() + deleteFiles.size(),
+        previous.dataFileSize() + dataSize,
+        previous.deleteFileSize() + deleteSize,
+        previous.commitNum() + 1);
   }
 }
