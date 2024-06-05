@@ -1463,6 +1463,11 @@ public class TestViews extends SparkExtensionsTestBase {
         .contains(
             // spark stores temp views case-insensitive by default
             row("global_temp", "globalviewforlisting", true), tempView);
+
+    sql("USE spark_catalog");
+    assertThat(sql("SHOW VIEWS")).contains(tempView);
+
+    assertThat(sql("SHOW VIEWS IN default")).contains(tempView);
   }
 
   @Test
