@@ -160,11 +160,12 @@ public class OrcMetrics {
 
         final MetricsMode metricsMode =
             MetricsUtil.metricsMode(schema, effectiveMetricsConfig, icebergCol.fieldId());
-        columnSizes.put(fieldId, colStat.getBytesOnDisk());
 
         if (metricsMode == MetricsModes.None.get()) {
           continue;
         }
+
+        columnSizes.put(fieldId, colStat.getBytesOnDisk());
 
         if (statsColumns.contains(fieldId)) {
           // Since ORC does not track null values nor repeated ones, the value count for columns in
