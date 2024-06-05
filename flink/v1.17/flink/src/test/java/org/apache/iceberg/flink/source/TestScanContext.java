@@ -87,13 +87,37 @@ class TestScanContext {
   @Test
   void testStartConflict() {
     ScanContext context = ScanContext.builder().startTag("tag").startSnapshotId(1L).build();
-    assertException(context, "START_SNAPSHOT_ID and START_TAG cannot both be set.");
+    assertException(
+        context,
+        "Cannot specify more than one of start-snapshot-id, start-tag, or start-snapshot-timestamp.");
+
+    context = ScanContext.builder().startSnapshotId(1L).startSnapshotTimestamp(1L).build();
+    assertException(
+        context,
+        "Cannot specify more than one of start-snapshot-id, start-tag, or start-snapshot-timestamp.");
+
+    context = ScanContext.builder().startTag("tag").startSnapshotTimestamp(1L).build();
+    assertException(
+        context,
+        "Cannot specify more than one of start-snapshot-id, start-tag, or start-snapshot-timestamp.");
   }
 
   @Test
   void testEndConflict() {
     ScanContext context = ScanContext.builder().endTag("tag").endSnapshotId(1L).build();
-    assertException(context, "END_SNAPSHOT_ID and END_TAG cannot both be set.");
+    assertException(
+        context,
+        "Cannot specify more than one of end-snapshot-id, end-tag, or end-snapshot-timestamp.");
+
+    context = ScanContext.builder().endSnapshotId(1L).endSnapshotTimestamp(1L).build();
+    assertException(
+        context,
+        "Cannot specify more than one of end-snapshot-id, end-tag, or end-snapshot-timestamp.");
+
+    context = ScanContext.builder().endTag("tag").endSnapshotTimestamp(1L).build();
+    assertException(
+        context,
+        "Cannot specify more than one of end-snapshot-id, end-tag, or end-snapshot-timestamp.");
   }
 
   @Test

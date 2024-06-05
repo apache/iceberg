@@ -585,32 +585,6 @@ public abstract class TestFlinkScan {
             () ->
                 runWithOptions(
                     ImmutableMap.<String, String>builder()
-                        .put("start-snapshot-timestamp", Long.toString(timestampMillis1))
-                        .put("end-snapshot-timestamp", Long.toString(timestampMillis2))
-                        .put(
-                            "start-snapshot-id",
-                            Long.toString(table.currentSnapshot().snapshotId()))
-                        .buildOrThrow()))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining(
-            "Cannot specify more than one of start-snapshot-id, start-tag, or start-snapshot-timestamp.");
-
-    Assertions.assertThatThrownBy(
-            () ->
-                runWithOptions(
-                    ImmutableMap.<String, String>builder()
-                        .put("start-snapshot-timestamp", Long.toString(timestampMillis1))
-                        .put("end-snapshot-timestamp", Long.toString(timestampMillis2))
-                        .put("start-tag", "tag1")
-                        .buildOrThrow()))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining(
-            "Cannot specify more than one of start-snapshot-id, start-tag, or start-snapshot-timestamp.");
-
-    Assertions.assertThatThrownBy(
-            () ->
-                runWithOptions(
-                    ImmutableMap.<String, String>builder()
                         .put("start-snapshot-timestamp", Long.toString(timestampMillis2))
                         .put("end-snapshot-timestamp", Long.toString(timestampMillis1))
                         .buildOrThrow()))
