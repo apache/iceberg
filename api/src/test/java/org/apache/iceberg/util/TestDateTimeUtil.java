@@ -18,7 +18,10 @@
  */
 package org.apache.iceberg.util;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -34,5 +37,31 @@ public class TestDateTimeUtil {
     Assertions.assertThat(DateTimeUtil.formatTimestampMillis(1000000L)).isEqualTo(timestamp);
     Assertions.assertThat(ZonedDateTime.parse(timestamp).toInstant().toEpochMilli())
         .isEqualTo(1000000L);
+  }
+
+  @Test
+  public void nanosToMicros() {
+    assertThat(DateTimeUtil.nanosToMicros(1510871468000001001L)).isEqualTo(1510871468000001L);
+  }
+
+  @Test
+  public void isoTimestampToNanos() {
+    assertThat(DateTimeUtil.isoTimestampToNanos("2017-11-16T14:31:08.000001001-08:00"))
+        .isEqualTo(1510871468000001001L);
+  }
+
+  @Test
+  public void convertNanos() {
+    assertThat(DateTimeUtil.convertNanos(1510871468000001001L, ChronoUnit.HOURS)).isEqualTo(419686);
+    assertThat(DateTimeUtil.convertNanos(1510871468000001001L, ChronoUnit.MINUTES))
+        .isEqualTo(25181191);
+    assertThat(DateTimeUtil.convertNanos(1510871468000001001L, ChronoUnit.SECONDS))
+        .isEqualTo(1510871468);
+    assertThat(DateTimeUtil.convertNanos(1510871468000001001L, ChronoUnit.MILLIS))
+        .isEqualTo(1510871468000L);
+    assertThat(DateTimeUtil.convertNanos(1510871468000001001L, ChronoUnit.MICROS))
+        .isEqualTo(1510871468000001L);
+    assertThat(DateTimeUtil.convertNanos(1510871468000001001L, ChronoUnit.NANOS))
+        .isEqualTo(1510871468000001001L);
   }
 }

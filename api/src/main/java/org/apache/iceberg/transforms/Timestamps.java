@@ -85,9 +85,6 @@ class Timestamps implements Transform<Long, Integer> {
   }
 
   static Timestamps get(Types.TimestampType type, ChronoUnit resultTypeUnit) {
-    if (type.typeId() != Type.TypeID.TIMESTAMP) {
-      throw new UnsupportedOperationException("Unsupported timestamp unit: " + type);
-    }
     switch (resultTypeUnit) {
       case YEARS:
         return YEAR_FROM_MICROS;
@@ -104,9 +101,6 @@ class Timestamps implements Transform<Long, Integer> {
   }
 
   static Timestamps get(Types.TimestampNanoType type, ChronoUnit resultTypeUnit) {
-    if (type.typeId() != Type.TypeID.TIMESTAMP_NANO) {
-      throw new UnsupportedOperationException("Unsupported timestamp unit: " + type);
-    }
     switch (resultTypeUnit) {
       case YEARS:
         return YEAR_FROM_NANOS;
@@ -174,7 +168,9 @@ class Timestamps implements Transform<Long, Integer> {
                   "Unsupported result type unit: " + resultTypeUnit);
           }
         case NANOS:
-          return DateTimeUtil.convertNanos(timestampUnits, resultTypeUnit.unit);
+          // TODO(epg): Overflows for MILLIS, MICROS, and NANOS!  Fixing this is quite invasive, as
+          //  Timestamps is assumed to be Transform<Long, Integer> in many, many places.
+          return (int) DateTimeUtil.convertNanos(timestampUnits, resultTypeUnit.unit);
         default:
           throw new UnsupportedOperationException(
               "Unsupported source type unit: " + sourceTypeUnit);

@@ -90,13 +90,21 @@ public interface SortOrderVisitor<T> {
           || transform instanceof Years) {
         results.add(
             visitor.year(sourceName, field.sourceId(), field.direction(), field.nullOrder()));
-      } else if ("month".equalsIgnoreCase(transform.toString())) {
+      } else if (transform == Dates.MONTH
+          || transform == Timestamps.MONTH_FROM_MICROS
+          || transform == Timestamps.MONTH_FROM_NANOS
+          || transform instanceof Months) {
         results.add(
             visitor.month(sourceName, field.sourceId(), field.direction(), field.nullOrder()));
-      } else if ("day".equalsIgnoreCase(transform.toString())) {
+      } else if (transform == Dates.DAY
+          || transform == Timestamps.DAY_FROM_MICROS
+          || transform == Timestamps.DAY_FROM_NANOS
+          || transform instanceof Days) {
         results.add(
             visitor.day(sourceName, field.sourceId(), field.direction(), field.nullOrder()));
-      } else if ("hour".equalsIgnoreCase(transform.toString())) {
+      } else if (transform == Timestamps.HOUR_FROM_MICROS
+          || transform == Timestamps.HOUR_FROM_NANOS
+          || transform instanceof Hours) {
         results.add(
             visitor.hour(sourceName, field.sourceId(), field.direction(), field.nullOrder()));
       } else if (transform instanceof UnknownTransform) {

@@ -19,7 +19,9 @@
 package org.apache.iceberg.transforms;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.temporal.ChronoUnit;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -240,5 +242,55 @@ public class TestTimestamps {
     Transform<Integer, Integer> hour = Transforms.hour();
     Type hourResultType = hour.getResultType(type);
     assertThat(hourResultType).isEqualTo(Types.IntegerType.get());
+  }
+
+  @Test
+  public void apply_bad_source_type() {
+    Timestamps badSourceType =
+        new Timestamps(ChronoUnit.CENTURIES, Timestamps.ResultTypeUnit.YEARS, "year");
+    assertThatThrownBy(() -> badSourceType.apply(11L))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageMatching("Unsupported source type unit: Centuries");
+  }
+
+  @Test
+  public void apply_bad_result_type() {
+    Timestamps badResultType =
+        new Timestamps(ChronoUnit.MICROS, Timestamps.ResultTypeUnit.NANOS, "nano");
+    assertThatThrownBy(() -> badResultType.apply(11L))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageMatching("Unsupported result type unit: NANOS");
+  }
+
+  @Test
+  public void get_TimestampType_ChronoUnit() {
+    Types.TimestampType timestampType = Types.TimestampType.withZone();
+    assertThatThrownBy(() -> Timestamps.get(timestampType, ChronoUnit.CENTURIES))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageMatching("Unsupported source/result type units: timestamptz->Centuries");
+  }
+
+  @Test
+  public void get_TimestampType_String() {
+    Types.TimestampType timestampType = Types.TimestampType.withZone();
+    assertThatThrownBy(() -> Timestamps.get(timestampType, "trash"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageMatching("Unsupported source/result type units: timestamptz->trash");
+  }
+
+  @Test
+  public void get_TimestampNanoType_ChronoUnit() {
+    Types.TimestampNanoType timestampNanoType = Types.TimestampNanoType.withZone();
+    assertThatThrownBy(() -> Timestamps.get(timestampNanoType, ChronoUnit.CENTURIES))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageMatching("Unsupported source/result type units: timestamptz_ns->Centuries");
+  }
+
+  @Test
+  public void get_TimestampNanoType_String() {
+    Types.TimestampNanoType timestampNanoType = Types.TimestampNanoType.withZone();
+    assertThatThrownBy(() -> Timestamps.get(timestampNanoType, "trash"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageMatching("Unsupported source/result type units: timestamptz_ns->trash");
   }
 }

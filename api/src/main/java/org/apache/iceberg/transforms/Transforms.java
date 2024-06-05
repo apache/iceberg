@@ -23,7 +23,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -204,8 +203,7 @@ public class Transforms {
       case TIMESTAMP_NANO:
         return (Transform<T, Integer>) Timestamps.HOUR_FROM_NANOS;
       default:
-        throw new IllegalArgumentException(
-            Strings.lenientFormat("Cannot partition type %s by hour", type));
+        throw new IllegalArgumentException(String.format("Cannot partition type %s by hour", type));
     }
   }
 

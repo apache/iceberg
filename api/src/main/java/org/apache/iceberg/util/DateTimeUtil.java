@@ -194,17 +194,17 @@ public class DateTimeUtil {
     }
   }
 
-  public static int convertNanos(long nanos, ChronoUnit granularity) {
+  public static long convertNanos(long nanos, ChronoUnit granularity) {
     if (nanos >= 0) {
       long epochSecond = Math.floorDiv(nanos, NANOS_PER_SECOND);
       long nanoAdjustment = Math.floorMod(nanos, NANOS_PER_SECOND);
-      return (int) granularity.between(EPOCH, toOffsetDateTime(epochSecond, nanoAdjustment));
+      return granularity.between(EPOCH, toOffsetDateTime(epochSecond, nanoAdjustment));
     } else {
       // add 1 nano to the value to account for the case where there is exactly 1 unit between
       // the timestamp and epoch because the result will always be decremented.
       long epochSecond = Math.floorDiv(nanos, NANOS_PER_SECOND);
       long nanoAdjustment = Math.floorMod(nanos + 1, NANOS_PER_SECOND);
-      return (int) granularity.between(EPOCH, toOffsetDateTime(epochSecond, nanoAdjustment)) - 1;
+      return granularity.between(EPOCH, toOffsetDateTime(epochSecond, nanoAdjustment)) - 1;
     }
   }
 
