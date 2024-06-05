@@ -40,8 +40,8 @@ project(":iceberg-kafka-connect:iceberg-kafka-connect") {
     implementation project(':iceberg-data')
     implementation project(':iceberg-kafka-connect:iceberg-kafka-connect-events')
     implementation platform(libs.jackson.bom)
-    implementation "com.fasterxml.jackson.core:jackson-core"
-    implementation "com.fasterxml.jackson.core:jackson-databind"
+    implementation libs.jackson.core
+    implementation libs.jackson.databind
     implementation libs.avro.avro
 
     compileOnly libs.kafka.clients

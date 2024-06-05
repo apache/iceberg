@@ -352,8 +352,8 @@ project(':iceberg-core') {
     implementation libs.aircompressor
     implementation libs.httpcomponents.httpclient5
     implementation platform(libs.jackson.bom)
-    implementation "com.fasterxml.jackson.core:jackson-core"
-    implementation "com.fasterxml.jackson.core:jackson-databind"
+    implementation libs.jackson.core
+    implementation libs.jackson.databind
     implementation libs.caffeine
     implementation libs.roaringbitmap
     compileOnly(libs.hadoop2.client) {
@@ -469,8 +469,8 @@ project(':iceberg-aws') {
     compileOnly libs.immutables.value
     implementation libs.caffeine
     implementation platform(libs.jackson.bom)
-    implementation "com.fasterxml.jackson.core:jackson-databind"
-    implementation "com.fasterxml.jackson.core:jackson-core"
+    implementation libs.jackson.core
+    implementation libs.jackson.databind
 
     compileOnly(platform(libs.awssdk.bom))
     compileOnly(libs.awssdk.s3accessgrants)
@@ -582,7 +582,7 @@ project(':iceberg-delta-lake') {
     implementation project(':iceberg-core')
     implementation project(':iceberg-parquet')
     implementation platform(libs.jackson.bom)
-    implementation "com.fasterxml.jackson.core:jackson-databind"
+    implementation libs.jackson.databind
     annotationProcessor libs.immutables.value
     compileOnly libs.immutables.value
 
@@ -912,8 +912,8 @@ project(':iceberg-nessie') {
       exclude group: 'com.fasterxml.jackson'
     }
     implementation platform(libs.jackson.bom)
-    implementation "com.fasterxml.jackson.core:jackson-databind"
-    implementation "com.fasterxml.jackson.core:jackson-core"
+    implementation libs.jackson.core
+    implementation libs.jackson.databind
 
     compileOnly libs.hadoop2.common
     // Only there to prevent "warning: unknown enum constant SchemaType.OBJECT" compile messages
@@ -964,8 +964,8 @@ project(':iceberg-snowflake') {
     implementation project(':iceberg-common')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     implementation platform(libs.jackson.bom)
-    implementation "com.fasterxml.jackson.core:jackson-databind"
-    implementation "com.fasterxml.jackson.core:jackson-core"
+    implementation libs.jackson.core
+    implementation libs.jackson.databind
 
     runtimeOnly libs.snowflake.jdbc
 
