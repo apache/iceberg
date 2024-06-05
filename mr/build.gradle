@@ -49,7 +49,6 @@ project(':iceberg-mr') {
       exclude group: 'org.apache.calcite.avatica'
       exclude group: 'org.apache.hive', module: 'hive-llap-tez'
       exclude group: 'org.apache.logging.log4j'
-      exclude group: 'org.pentaho' // missing dependency
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
     compileOnly libs.hive2.metastore
@@ -68,8 +67,7 @@ project(':iceberg-mr') {
     testImplementation libs.avro.avro
     testImplementation libs.calcite.core
     testImplementation libs.kryo.shaded
-    testImplementation platform(libs.jackson.bom)
-    testImplementation libs.jackson.annotations
+    testImplementation enforcedPlatform(libs.jackson212.bom)
     testImplementation(libs.hive2.service) {
       exclude group: 'org.apache.hive', module: 'hive-exec'
     }
