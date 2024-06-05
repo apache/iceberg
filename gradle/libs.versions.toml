@@ -142,8 +142,9 @@ hive3-service = { module = "org.apache.hive:hive-service", version.ref = "hive3"
 httpcomponents-httpclient5 = { module = "org.apache.httpcomponents.client5:httpclient5", version.ref = "httpcomponents-httpclient5" }
 immutables-value = { module = "org.immutables:value", version.ref = "immutables-value" }
 jackson-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson-bom" }
-jackson-core = { module = "com.fasterxml.jackson:jackson-core", version.ref = "jackson-bom" }
-jackson-databind = { module = "com.fasterxml.jackson:jackson-databind", version.ref = "jackson-bom" }
+jackson-core = { module = "com.fasterxml.jackson.core:jackson-core", version.ref = "jackson-bom" }
+jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson-bom" }
+jackson-annotations = { module = "com.fasterxml.jackson.core:jackson-annotations", version.ref = "jackson-bom" }
 jackson211-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson211" }
 jackson212-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson212" }
 jackson213-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref =  "jackson213" }
