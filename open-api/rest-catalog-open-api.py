@@ -360,6 +360,87 @@ class RemovePartitionStatisticsUpdate(BaseUpdate):
     snapshot_id: int = Field(..., alias='snapshot-id')
 
 
+class AssertCreate(BaseModel):
+    """
+    The table must not already exist; used for create transactions
+    """
+
+    type: Literal['assert-create']
+
+
+class AssertTableUUID(BaseModel):
+    """
+    The table UUID must match the requirement's `uuid`
+    """
+
+    type: Literal['assert-table-uuid']
+    uuid: str
+
+
+class AssertRefSnapshotId(BaseModel):
+    """
+    The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; if `snapshot-id` is `null` or missing, the ref must not already exist
+    """
+
+    type: Literal['assert-ref-snapshot-id']
+    ref: str
+    snapshot_id: int = Field(..., alias='snapshot-id')
+
+
+class AssertLastAssignedFieldId(BaseModel):
+    """
+    The table's last assigned column id must match the requirement's `last-assigned-field-id`
+    """
+
+    type: Literal['assert-last-assigned-field-id']
+    last_assigned_field_id: int = Field(..., alias='last-assigned-field-id')
+
+
+class AssertCurrentSchemaId(BaseModel):
+    """
+    The table's current schema id must match the requirement's `current-schema-id`
+    """
+
+    type: Literal['assert-current-schema-id']
+    current_schema_id: int = Field(..., alias='current-schema-id')
+
+
+class AssertLastAssignedPartitionId(BaseModel):
+    """
+    The table's last assigned partition id must match the requirement's `last-assigned-partition-id`
+    """
+
+    type: Literal['assert-last-assigned-partition-id']
+    last_assigned_partition_id: int = Field(..., alias='last-assigned-partition-id')
+
+
+class AssertDefaultSpecId(BaseModel):
+    """
+    The table's default spec id must match the requirement's `default-spec-id`
+    """
+
+    type: Literal['assert-default-spec-id']
+    default_spec_id: int = Field(..., alias='default-spec-id')
+
+
+class AssertDefaultSortOrderId(BaseModel):
+    """
+    The table's default sort order id must match the requirement's `default-sort-order-id`
+    """
+
+    type: Literal['assert-default-sort-order-id']
+    default_sort_order_id: int = Field(..., alias='default-sort-order-id')
+
+
+class AssertViewUUID(BaseModel):
+    """
+    The view UUID must match the requirement's `uuid`
+    """
+
+    type: Literal['assert-view-uuid']
+    uuid: str
+
+
 class RegisterTableRequest(BaseModel):
     name: str
     metadata_location: str = Field(..., alias='metadata-location')
@@ -754,6 +835,23 @@ class SetPartitionStatisticsUpdate(BaseUpdate):
     )
 
 
+class TableRequirement(BaseModel):
+    __root__: Union[
+        AssertCreate,
+        AssertTableUUID,
+        AssertRefSnapshotId,
+        AssertLastAssignedFieldId,
+        AssertCurrentSchemaId,
+        AssertLastAssignedPartitionId,
+        AssertDefaultSpecId,
+        AssertDefaultSortOrderId,
+    ] = Field(..., discriminator='type')
+
+
+class ViewRequirement(BaseModel):
+    __root__: AssertViewUUID = Field(..., discriminator='type')
+
+
 class ReportMetricsRequest2(CommitReport):
     report_type: str = Field(..., alias='report-type')
 
@@ -975,23 +1073,6 @@ class ViewUpdate(BaseModel):
     ]
 
 
-class TableRequirement(BaseModel):
-    __root__: Union[
-        AssertCreate,
-        AssertTableUUID,
-        AssertRefSnapshotId,
-        AssertLastAssignedFieldId,
-        AssertCurrentSchemaId,
-        AssertLastAssignedPartitionId,
-        AssertDefaultSpecId,
-        AssertDefaultSortOrderId,
-    ] = Field(..., discriminator='type')
-
-
-class ViewRequirement(BaseModel):
-    __root__: AssertViewUUID = Field(..., discriminator='type')
-
-
 class LoadTableResult(BaseModel):
     """
     Result used when a table is successfully loaded.
@@ -1123,87 +1204,6 @@ class Schema(StructType):
     )
 
 
-class AssertCreate(BaseModel):
-    """
-    The table must not already exist; used for create transactions
-    """
-
-    type: Literal['assert-create']
-
-
-class AssertTableUUID(BaseModel):
-    """
-    The table UUID must match the requirement's `uuid`
-    """
-
-    type: Literal['assert-table-uuid']
-    uuid: str
-
-
-class AssertRefSnapshotId(BaseModel):
-    """
-    The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; if `snapshot-id` is `null` or missing, the ref must not already exist
-    """
-
-    type: Literal['assert-ref-snapshot-id']
-    ref: str
-    snapshot_id: int = Field(..., alias='snapshot-id')
-
-
-class AssertLastAssignedFieldId(BaseModel):
-    """
-    The table's last assigned column id must match the requirement's `last-assigned-field-id`
-    """
-
-    type: Literal['assert-last-assigned-field-id']
-    last_assigned_field_id: int = Field(..., alias='last-assigned-field-id')
-
-
-class AssertCurrentSchemaId(BaseModel):
-    """
-    The table's current schema id must match the requirement's `current-schema-id`
-    """
-
-    type: Literal['assert-current-schema-id']
-    current_schema_id: int = Field(..., alias='current-schema-id')
-
-
-class AssertLastAssignedPartitionId(BaseModel):
-    """
-    The table's last assigned partition id must match the requirement's `last-assigned-partition-id`
-    """
-
-    type: Literal['assert-last-assigned-partition-id']
-    last_assigned_partition_id: int = Field(..., alias='last-assigned-partition-id')
-
-
-class AssertDefaultSpecId(BaseModel):
-    """
-    The table's default spec id must match the requirement's `default-spec-id`
-    """
-
-    type: Literal['assert-default-spec-id']
-    default_spec_id: int = Field(..., alias='default-spec-id')
-
-
-class AssertDefaultSortOrderId(BaseModel):
-    """
-    The table's default sort order id must match the requirement's `default-sort-order-id`
-    """
-
-    type: Literal['assert-default-sort-order-id']
-    default_sort_order_id: int = Field(..., alias='default-sort-order-id')
-
-
-class AssertViewUUID(BaseModel):
-    """
-    The view UUID must match the requirement's `uuid`
-    """
-
-    type: Literal['assert-view-uuid']
-    uuid: str
-
-
 class ReportMetricsRequest1(ScanReport):
     report_type: str = Field(..., alias='report-type')
 
@@ -1215,17 +1215,6 @@ Expression.update_forward_refs()
 TableMetadata.update_forward_refs()
 ViewMetadata.update_forward_refs()
 AddSchemaUpdate.update_forward_refs()
-TableRequirement.update_forward_refs()
-ViewRequirement.update_forward_refs()
 CreateTableRequest.update_forward_refs()
 CreateViewRequest.update_forward_refs()
 ReportMetricsRequest.update_forward_refs()
-AssertCreate.update_forward_refs()
-AssertTableUUID.update_forward_refs()
-AssertRefSnapshotId.update_forward_refs()
-AssertLastAssignedFieldId.update_forward_refs()
-AssertCurrentSchemaId.update_forward_refs()
-AssertLastAssignedPartitionId.update_forward_refs()
-AssertDefaultSpecId.update_forward_refs()
-AssertDefaultSortOrderId.update_forward_refs()
-AssertViewUUID.update_forward_refs()
