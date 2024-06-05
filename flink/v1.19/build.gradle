@@ -66,6 +66,8 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
       exclude group: 'org.slf4j'
     }
 
+    implementation libs.datasketches
+
     testImplementation libs.flink119.connector.test.utils
     testImplementation libs.flink119.core
     testImplementation libs.flink119.runtime

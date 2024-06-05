@@ -18,53 +18,50 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
-import java.util.Map;
+import java.util.Arrays;
+import org.apache.datasketches.sampling.ReservoirItemsSketch;
 import org.apache.iceberg.SortKey;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /** MapDataStatistics uses map to count key frequency */
-class MapDataStatistics implements DataStatistics {
-  private final Map<SortKey, Long> keyFrequency;
+class SketchDataStatistics implements DataStatistics {
 
-  MapDataStatistics() {
-    this.keyFrequency = Maps.newHashMap();
+  private final ReservoirItemsSketch<SortKey> sketch;
+
+  SketchDataStatistics(int reservoirSize) {
+    this.sketch = ReservoirItemsSketch.newInstance(reservoirSize);
   }
 
-  MapDataStatistics(Map<SortKey, Long> keyFrequency) {
-    this.keyFrequency = keyFrequency;
+  SketchDataStatistics(ReservoirItemsSketch<SortKey> sketchStats) {
+    this.sketch = sketchStats;
   }
 
   @Override
   public StatisticsType type() {
-    return StatisticsType.Map;
+    return StatisticsType.Sketch;
   }
 
   @Override
   public boolean isEmpty() {
-    return keyFrequency.size() == 0;
+    return sketch.getNumSamples() == 0;
   }
 
   @Override
   public void add(SortKey sortKey) {
-    if (keyFrequency.containsKey(sortKey)) {
-      keyFrequency.merge(sortKey, 1L, Long::sum);
-    } else {
-      // clone the sort key before adding to map because input sortKey object can be reused
-      SortKey copiedKey = sortKey.copy();
-      keyFrequency.put(copiedKey, 1L);
-    }
+    // clone the sort key first because input sortKey object can be reused
+    SortKey copiedKey = sortKey.copy();
+    sketch.update(copiedKey);
   }
 
   @Override
   public Object result() {
-    return keyFrequency;
+    return sketch;
   }
 
   @Override
   public String toString() {
-    return MoreObjects.toStringHelper(this).add("map", keyFrequency).toString();
+    return MoreObjects.toStringHelper(this).add("sketch", sketch).toString();
   }
 
   @Override
@@ -73,16 +70,18 @@ class MapDataStatistics implements DataStatistics {
       return true;
     }
 
-    if (!(o instanceof MapDataStatistics)) {
+    if (!(o instanceof SketchDataStatistics)) {
       return false;
     }
 
-    MapDataStatistics other = (MapDataStatistics) o;
-    return Objects.equal(keyFrequency, other.keyFrequency);
+    ReservoirItemsSketch<SortKey> otherSketch = ((SketchDataStatistics) o).sketch;
+    return Objects.equal(sketch.getK(), otherSketch.getK())
+        && Objects.equal(sketch.getN(), otherSketch.getN())
+        && Arrays.deepEquals(sketch.getSamples(), otherSketch.getSamples());
   }
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(keyFrequency);
+    return Objects.hashCode(sketch.getK(), sketch.getN(), sketch.getSamples());
   }
 }
