@@ -54,7 +54,7 @@ class AggregatedStatisticsTracker {
   private final Comparator<StructLike> comparator;
   private final NavigableMap<Long, Aggregation> aggregationsPerCheckpoint;
 
-  private volatile AggregatedStatistics completedStatistics;
+  private AggregatedStatistics completedStatistics;
 
   AggregatedStatisticsTracker(
       String operatorName,
@@ -142,9 +142,9 @@ class AggregatedStatisticsTracker {
     private final int switchToSketchThreshold;
     private final Comparator<StructLike> comparator;
     private final StatisticsType configuredType;
-    private volatile StatisticsType currentType;
-    private volatile Map<SortKey, Long> mapStatistics;
-    private volatile ReservoirItemsUnion<SortKey> sketchStatistics;
+    private StatisticsType currentType;
+    private Map<SortKey, Long> mapStatistics;
+    private ReservoirItemsUnion<SortKey> sketchStatistics;
 
     Aggregation(
         int parallelism,
