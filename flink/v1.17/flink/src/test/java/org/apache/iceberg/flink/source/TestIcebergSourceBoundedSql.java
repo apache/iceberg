@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.source;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
@@ -81,7 +82,9 @@ public class TestIcebergSourceBoundedSql extends TestIcebergSourceBounded {
       return Lists.newArrayList(iter);
     } catch (Exception e) {
       // To retrieve the underlying exception information that actually caused the task failure.
-      throw (RuntimeException) e.getCause().getCause().getCause().getCause().getCause().getCause();
+      //      throw (RuntimeException)
+      // e.getCause().getCause().getCause().getCause().getCause().getCause();
+      throw (RuntimeException) ExceptionUtils.getRootCause(e);
     }
   }
 }

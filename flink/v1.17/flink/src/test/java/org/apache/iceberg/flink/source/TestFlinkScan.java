@@ -56,6 +56,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -412,12 +413,53 @@ public abstract class TestFlinkScan {
         TestFixtures.SCHEMA);
   }
 
-  @Test
+  @TestTemplate
   public void testIncrementalReadWithTimestampRange() throws Exception {
     Table table =
-        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+        catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
 
-    GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
+    GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, temporaryDirectory);
+
+    // snapshot 1
+    List<Record> records1 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
+    helper.appendToTable(records1);
+    long timestampMillis1 = table.currentSnapshot().timestampMillis();
+    org.apache.iceberg.TestHelpers.waitUntilAfter(timestampMillis1 + 2);
+
+    // snapshot 2
+    List<Record> records2 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
+    helper.appendToTable(records2);
+    long timestampMillis2 = table.currentSnapshot().timestampMillis();
+    long timestampMillisAfter2 = org.apache.iceberg.TestHelpers.waitUntilAfter(timestampMillis2);
+
+    // snapshot 3
+    List<Record> records3 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 1L);
+    helper.appendToTable(records3);
+
+    // snapshot 4
+    List<Record> records4 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 2L);
+    helper.appendToTable(records4);
+    long timestampMillis4 = table.currentSnapshot().timestampMillis();
+
+    List<Record> expected = Lists.newArrayList();
+    expected.addAll(records3);
+    expected.addAll(records4);
+    TestHelpers.assertRecords(
+        runWithOptions(
+            ImmutableMap.<String, String>builder()
+                .put("start-snapshot-timestamp", Long.toString(timestampMillis2))
+                .put("end-snapshot-timestamp", Long.toString(timestampMillis4))
+                .buildOrThrow()),
+        expected,
+        TestFixtures.SCHEMA);
+  }
+
+  @TestTemplate
+  public void testIncrementalReadWithTimestampRangeAfter() throws Exception {
+    Table table =
+        catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+
+    GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, temporaryDirectory);
 
     // snapshot 1
     List<Record> records1 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
@@ -449,14 +491,6 @@ public abstract class TestFlinkScan {
     List<Record> expected = Lists.newArrayList();
     expected.addAll(records3);
     expected.addAll(records4);
-    TestHelpers.assertRecords(
-        runWithOptions(
-            ImmutableMap.<String, String>builder()
-                .put("start-snapshot-timestamp", Long.toString(timestampMillis2))
-                .put("end-snapshot-timestamp", Long.toString(timestampMillis4))
-                .buildOrThrow()),
-        expected,
-        TestFixtures.SCHEMA);
 
     TestHelpers.assertRecords(
         runWithOptions(
@@ -475,6 +509,35 @@ public abstract class TestFlinkScan {
                 .buildOrThrow()),
         expected,
         TestFixtures.SCHEMA);
+  }
+
+  @TestTemplate
+  public void testIncrementalReadWithTimestampRangeBefore() throws Exception {
+    Table table =
+        catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+
+    GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, temporaryDirectory);
+
+    // snapshot 1
+    List<Record> records1 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
+    helper.appendToTable(records1);
+    long timestampMillis1 = table.currentSnapshot().timestampMillis();
+    org.apache.iceberg.TestHelpers.waitUntilAfter(timestampMillis1 + 2);
+
+    // snapshot 2
+    List<Record> records2 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
+    helper.appendToTable(records2);
+    long timestampMillis2 = table.currentSnapshot().timestampMillis();
+    org.apache.iceberg.TestHelpers.waitUntilAfter(timestampMillis2);
+
+    // snapshot 3
+    List<Record> records3 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 1L);
+    helper.appendToTable(records3);
+
+    // snapshot 4
+    List<Record> records4 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 2L);
+    helper.appendToTable(records4);
+    long timestampMillis4 = table.currentSnapshot().timestampMillis();
 
     List<Record> expected2 = Lists.newArrayList();
     expected2.addAll(records2);
@@ -489,16 +552,6 @@ public abstract class TestFlinkScan {
         expected2,
         TestFixtures.SCHEMA);
 
-    expected2.addAll(records1);
-    TestHelpers.assertRecords(
-        runWithOptions(
-            ImmutableMap.<String, String>builder()
-                .put("start-snapshot-timestamp", Long.toString(timestampMillis1 - 1))
-                .put("end-snapshot-timestamp", Long.toString(timestampMillis4))
-                .buildOrThrow()),
-        expected2,
-        TestFixtures.SCHEMA);
-
     TestHelpers.assertRecords(
         runWithOptions(
             ImmutableMap.<String, String>builder()
@@ -507,44 +560,71 @@ public abstract class TestFlinkScan {
                 .buildOrThrow()),
         records3,
         TestFixtures.SCHEMA);
+  }
+
+  @TestTemplate
+  public void testIncrementalReadWithInvalidParameterShouldFail() throws Exception {
+    Table table =
+        catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+
+    GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, temporaryDirectory);
+
+    // snapshot 1
+    List<Record> records1 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
+    helper.appendToTable(records1);
+    long timestampMillis1 = table.currentSnapshot().timestampMillis();
+    org.apache.iceberg.TestHelpers.waitUntilAfter(timestampMillis1 + 2);
+
+    // snapshot 2
+    List<Record> records2 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
+    helper.appendToTable(records2);
+    long timestampMillis2 = table.currentSnapshot().timestampMillis();
+    long timestampMillisAfter2 = org.apache.iceberg.TestHelpers.waitUntilAfter(timestampMillis2);
+
+    Assertions.assertThatThrownBy(
+            () ->
+                runWithOptions(
+                    ImmutableMap.<String, String>builder()
+                        .put("start-snapshot-timestamp", Long.toString(timestampMillis1))
+                        .put("end-snapshot-timestamp", Long.toString(timestampMillis2))
+                        .put(
+                            "start-snapshot-id",
+                            Long.toString(table.currentSnapshot().snapshotId()))
+                        .buildOrThrow()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Cannot specify more than one of start-snapshot-id, start-tag, or start-snapshot-timestamp.");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                runWithOptions(
+                    ImmutableMap.<String, String>builder()
+                        .put("start-snapshot-timestamp", Long.toString(timestampMillis1))
+                        .put("end-snapshot-timestamp", Long.toString(timestampMillis2))
+                        .put("start-tag", "tag1")
+                        .buildOrThrow()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Cannot specify more than one of start-snapshot-id, start-tag, or start-snapshot-timestamp.");
 
     Assertions.assertThatThrownBy(
             () ->
                 runWithOptions(
                     ImmutableMap.<String, String>builder()
                         .put("start-snapshot-timestamp", Long.toString(timestampMillis2))
-                        .put("end-snapshot-timestamp", Long.toString(timestampMillis4))
-                        .put(
-                            "start-snapshot-id",
-                            Long.toString(table.currentSnapshot().snapshotId()))
+                        .put("end-snapshot-timestamp", Long.toString(timestampMillis1))
                         .buildOrThrow()))
-        .hasMessageContaining(
-            "Cannot specify more than one of start-snapshot-id, start-tag, or start-snapshot-timestamp.")
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("is not a parent ancestor of end snapshot");
 
     Assertions.assertThatThrownBy(
             () ->
                 runWithOptions(
                     ImmutableMap.<String, String>builder()
-                        .put("start-snapshot-timestamp", Long.toString(timestampMillis2))
-                        .put("end-snapshot-timestamp", Long.toString(timestampMillis4))
-                        .put(
-                            "start-snapshot-id",
-                            Long.toString(table.currentSnapshot().snapshotId()))
+                        .put("start-snapshot-timestamp", Long.toString(timestampMillisAfter2))
                         .buildOrThrow()))
-        .hasMessageContaining(
-            "Cannot specify more than one of start-snapshot-id, start-tag, or start-snapshot-timestamp.")
-        .isInstanceOf(IllegalArgumentException.class);
-
-    Assertions.assertThatThrownBy(
-            () ->
-                runWithOptions(
-                    ImmutableMap.<String, String>builder()
-                        .put("start-snapshot-timestamp", Long.toString(timestampMillisAfter5))
-                        .put("end-snapshot-timestamp", Long.toString(timestampMillis4))
-                        .buildOrThrow()))
-        .hasMessageContaining("Cannot find a snapshot older than")
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot find a snapshot older than");
   }
 
   @TestTemplate

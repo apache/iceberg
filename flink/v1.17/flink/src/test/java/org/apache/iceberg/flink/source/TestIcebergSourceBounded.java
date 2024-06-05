@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.Configuration;
@@ -61,7 +62,8 @@ public class TestIcebergSourceBounded extends TestFlinkScan {
                     .endTag("tag")
                     .endSnapshotId(1L)
                     .build())
-        .hasMessage("END_SNAPSHOT_ID and END_TAG cannot both be set.")
+        .hasMessage(
+            "Cannot specify more than one of end-snapshot-id, end-tag, or end-snapshot-timestamp.")
         .isInstanceOf(IllegalArgumentException.class);
   }
 
@@ -144,7 +146,7 @@ public class TestIcebergSourceBounded extends TestFlinkScan {
       return Lists.newArrayList(iter);
     } catch (Exception e) {
       // To retrieve the underlying exception information that actually caused the task failure.
-      throw (RuntimeException) e.getCause().getCause().getCause().getCause().getCause().getCause();
+      throw (RuntimeException) ExceptionUtils.getRootCause(e);
     }
   }
 }
