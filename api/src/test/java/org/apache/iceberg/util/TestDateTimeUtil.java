@@ -64,4 +64,10 @@ public class TestDateTimeUtil {
     assertThat(DateTimeUtil.convertNanos(1510871468000001001L, ChronoUnit.NANOS))
         .isEqualTo(1510871468000001001L);
   }
+
+  @Test
+  public void convertNanosNegative() {
+    assertThat(DateTimeUtil.convertNanos(-1510871468000001001L, ChronoUnit.MILLIS))
+        .isEqualTo(-1510871468001L);
+  }
 }
