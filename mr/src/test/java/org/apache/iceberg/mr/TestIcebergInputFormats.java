@@ -234,6 +234,8 @@ public class TestIcebergInputFormats {
 
     Schema projection = TypeUtil.select(SCHEMA, ImmutableSet.of(1));
     builder.project(projection);
+    // project() is the first to be applied on scan, so the select() won't take effect.
+    builder.select("id");
 
     List<Record> outputRecords = testInputFormat.create(builder.conf()).getRecords();
 
