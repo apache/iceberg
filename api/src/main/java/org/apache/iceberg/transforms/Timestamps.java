@@ -168,9 +168,7 @@ class Timestamps implements Transform<Long, Integer> {
                   "Unsupported result type unit: " + resultTypeUnit);
           }
         case NANOS:
-          // TODO(epg): Overflows for MILLIS, MICROS, and NANOS!  Fixing this is quite invasive, as
-          //  Timestamps is assumed to be Transform<Long, Integer> in many, many places.
-          return (int) DateTimeUtil.convertNanos(timestampUnits, resultTypeUnit.unit);
+          return Math.toIntExact(DateTimeUtil.convertNanos(timestampUnits, resultTypeUnit.unit));
         default:
           throw new UnsupportedOperationException(
               "Unsupported source type unit: " + sourceTypeUnit);
