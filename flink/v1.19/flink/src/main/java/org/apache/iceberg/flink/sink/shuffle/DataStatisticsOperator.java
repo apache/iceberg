@@ -94,6 +94,8 @@ public class DataStatisticsOperator extends AbstractStreamOperator<StatisticsOrR
   public void initializeState(StateInitializationContext context) throws Exception {
     this.parallelism = getRuntimeContext().getTaskInfo().getNumberOfParallelSubtasks();
     this.subtaskIndex = getRuntimeContext().getTaskInfo().getIndexOfThisSubtask();
+
+    // Use union state so that new subtasks can also restore global statistics during scale-up.
     this.globalStatisticsState =
         context
             .getOperatorStateStore()
@@ -103,14 +105,41 @@ public class DataStatisticsOperator extends AbstractStreamOperator<StatisticsOrR
     if (context.isRestored()) {
       if (globalStatisticsState.get() == null
           || !globalStatisticsState.get().iterator().hasNext()) {
-        LOG.warn(
+        LOG.info(
             "Operator {} subtask {} doesn't have global statistics state to restore",
             operatorName,
             subtaskIndex);
+        // If Flink deprecates union state in the future, RequestGlobalStatisticsEvent can be
+        // leveraged to request global statistics from coordinator if new subtasks (scale-up case)
+        // has nothing to restore from.
       } else {
-        LOG.info(
-            "Operator {} subtask {} restoring global statistics state", operatorName, subtaskIndex);
-        this.globalStatistics = globalStatisticsState.get().iterator().next();
+        AggregatedStatistics restoredStatistics = globalStatisticsState.get().iterator().next();
+        // Range bounds is calculated from reservoir samplings with the determined partition
+        // (downstream parallelism). If downstream parallelism changed due to rescale, the computed
+        // range bounds array is not applicable. Operators should request coordinator to recompute
+        // the range bounds array using the new parallelism.
+        if (restoredStatistics.type() == StatisticsType.Sketch
+            && restoredStatistics.keySamples().length + 1 != downstreamParallelism) {
+          LOG.info(
+              "Operator {} subtask {} ignored restored sketch statistics as range bound length "
+                  + "not matching downstream parallelism due to rescale. "
+                  + "Old parallelism is {}, new parallelism is {}",
+              operatorName,
+              subtaskIndex,
+              restoredStatistics.keySamples().length + 1,
+              downstreamParallelism);
+          // Asynchronously request the latest global statistics calculated with new downstream
+          // parallelism. It is possible events may have started flowing before coordinator responds
+          // with global statistics. In this case, range partitioner would just blindly shuffle
+          // records in round robin fashion.
+          operatorEventGateway.sendEventToCoordinator(new RequestGlobalStatisticsEvent());
+        } else {
+          LOG.info(
+              "Operator {} subtask {} restored global statistics state",
+              operatorName,
+              subtaskIndex);
+          this.globalStatistics = restoredStatistics;
+        }
       }
     }
 
@@ -139,14 +168,16 @@ public class DataStatisticsOperator extends AbstractStreamOperator<StatisticsOrR
         operatorName,
         subtaskIndex,
         statisticsEvent.checkpointId());
-    globalStatistics =
+    this.globalStatistics =
         StatisticsUtil.deserializeAggregatedStatistics(
             statisticsEvent.statisticsBytes(), aggregatedStatisticsSerializer);
     checkStatisticsTypeMigration();
-    output.collect(new StreamRecord<>(StatisticsOrRecord.fromStatistics(globalStatistics)));
+    // if applyImmediately not set, wait until the checkpoint time to switch
+    if (statisticsEvent.applyImmediately()) {
+      output.collect(new StreamRecord<>(StatisticsOrRecord.fromStatistics(globalStatistics)));
+    }
   }
 
-  @SuppressWarnings("unchecked")
   @Override
   public void processElement(StreamRecord<RowData> streamRecord) {
     // collect data statistics
@@ -204,6 +235,7 @@ public class DataStatisticsOperator extends AbstractStreamOperator<StatisticsOrR
         StatisticsUtil.createTaskStatistics(taskStatisticsType, parallelism, downstreamParallelism);
   }
 
+  @SuppressWarnings("unchecked")
   private void checkStatisticsTypeMigration() {
     // only check if the statisticsType config is Auto and localStatistics is currently Map type
     if (statisticsType == StatisticsType.Auto && localStatistics.type() == StatisticsType.Map) {

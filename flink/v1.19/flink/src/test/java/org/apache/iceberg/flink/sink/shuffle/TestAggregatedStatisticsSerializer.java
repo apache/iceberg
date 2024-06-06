@@ -47,7 +47,7 @@ public class TestAggregatedStatisticsSerializer extends SerializerTestBase<Aggre
     return new AggregatedStatistics[] {
       AggregatedStatistics.fromKeyFrequency(
           1L, ImmutableMap.of(CHAR_KEYS.get("a"), 1L, CHAR_KEYS.get("b"), 2L)),
-      AggregatedStatistics.fromRangeBounds(
+      AggregatedStatistics.fromKeySamples(
           2L, new SortKey[] {CHAR_KEYS.get("a"), CHAR_KEYS.get("b")})
     };
   }

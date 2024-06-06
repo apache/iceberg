@@ -47,7 +47,7 @@ public class TestDataStatisticsCoordinatorProvider {
   @ParameterizedTest
   @EnumSource(StatisticsType.class)
   public void testCheckpointAndReset(StatisticsType type) throws Exception {
-    DataStatisticsCoordinatorProvider provider = createProvider(type);
+    DataStatisticsCoordinatorProvider provider = createProvider(type, Fixtures.NUM_SUBTASKS);
     try (RecreateOnResetOperatorCoordinator coordinator =
         (RecreateOnResetOperatorCoordinator)
             provider.create(
@@ -62,42 +62,35 @@ public class TestDataStatisticsCoordinatorProvider {
 
       // Handle events from operators for checkpoint 1
       StatisticsEvent checkpoint1Subtask0StatisticsEvent =
-          createStatisticsEvent(
-              type,
-              TASK_STATISTICS_SERIALIZER,
-              1L,
-              CHAR_KEYS.get("a"),
-              CHAR_KEYS.get("b"),
-              CHAR_KEYS.get("c"));
+          createStatisticsEvent(type, TASK_STATISTICS_SERIALIZER, 1L, CHAR_KEYS.get("a"));
       coordinator.handleEventFromOperator(0, 0, checkpoint1Subtask0StatisticsEvent);
       TestDataStatisticsCoordinator.waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
 
       StatisticsEvent checkpoint1Subtask1StatisticsEvent =
-          createStatisticsEvent(
-              type, TASK_STATISTICS_SERIALIZER, 1L, CHAR_KEYS.get("d"), CHAR_KEYS.get("e"));
+          createStatisticsEvent(type, TASK_STATISTICS_SERIALIZER, 1L, CHAR_KEYS.get("b"));
       coordinator.handleEventFromOperator(1, 0, checkpoint1Subtask1StatisticsEvent);
       TestDataStatisticsCoordinator.waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
 
       // Verify checkpoint 1 global data statistics
-      assertThat(dataStatisticsCoordinator.completedStatistics()).isNotNull();
       AggregatedStatistics aggregatedStatistics = dataStatisticsCoordinator.completedStatistics();
+      assertThat(aggregatedStatistics).isNotNull();
       assertThat(aggregatedStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
       if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
         assertThat(aggregatedStatistics.keyFrequency())
-            .isEqualTo(
-                ImmutableMap.of(
-                    CHAR_KEYS.get("a"),
-                    1L,
-                    CHAR_KEYS.get("b"),
-                    1L,
-                    CHAR_KEYS.get("c"),
-                    1L,
-                    CHAR_KEYS.get("d"),
-                    1L,
-                    CHAR_KEYS.get("e"),
-                    1L));
+            .isEqualTo(ImmutableMap.of(CHAR_KEYS.get("a"), 1L, CHAR_KEYS.get("b"), 1L));
       } else {
-        assertThat(aggregatedStatistics.rangeBounds()).containsExactly(CHAR_KEYS.get("c"));
+        assertThat(aggregatedStatistics.keySamples())
+            .containsExactly(CHAR_KEYS.get("a"), CHAR_KEYS.get("b"));
+      }
+
+      AggregatedStatistics globalStatistics = dataStatisticsCoordinator.globalStatistics();
+      assertThat(globalStatistics).isNotNull();
+      assertThat(globalStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
+      if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
+        assertThat(globalStatistics.keyFrequency())
+            .isEqualTo(ImmutableMap.of(CHAR_KEYS.get("a"), 1L, CHAR_KEYS.get("b"), 1L));
+      } else {
+        assertThat(globalStatistics.keySamples()).containsExactly(CHAR_KEYS.get("a"));
       }
 
       byte[] checkpoint1Bytes = waitForCheckpoint(1L, dataStatisticsCoordinator);
@@ -122,34 +115,48 @@ public class TestDataStatisticsCoordinatorProvider {
                 ImmutableMap.of(
                     CHAR_KEYS.get("d"), 1L, CHAR_KEYS.get("e"), 1L, CHAR_KEYS.get("f"), 1L));
       } else {
-        assertThat(aggregatedStatistics.rangeBounds()).containsExactly(CHAR_KEYS.get("e"));
+        assertThat(aggregatedStatistics.keySamples())
+            .containsExactly(CHAR_KEYS.get("d"), CHAR_KEYS.get("e"), CHAR_KEYS.get("f"));
       }
+
+      globalStatistics = dataStatisticsCoordinator.globalStatistics();
+      assertThat(globalStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
+      if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
+        assertThat(globalStatistics.keyFrequency())
+            .isEqualTo(
+                ImmutableMap.of(
+                    CHAR_KEYS.get("d"), 1L, CHAR_KEYS.get("e"), 1L, CHAR_KEYS.get("f"), 1L));
+      } else {
+        assertThat(globalStatistics.keySamples()).containsExactly(CHAR_KEYS.get("e"));
+      }
+
       waitForCheckpoint(2L, dataStatisticsCoordinator);
 
       // Reset coordinator to checkpoint 1
       coordinator.resetToCheckpoint(1L, checkpoint1Bytes);
       DataStatisticsCoordinator restoredDataStatisticsCoordinator =
           (DataStatisticsCoordinator) coordinator.getInternalCoordinator();
-      assertThat(dataStatisticsCoordinator).isNotEqualTo(restoredDataStatisticsCoordinator);
+      assertThat(dataStatisticsCoordinator).isNotSameAs(restoredDataStatisticsCoordinator);
+
       aggregatedStatistics = restoredDataStatisticsCoordinator.completedStatistics();
       assertThat(aggregatedStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
       // Verify restored data statistics
       if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
         assertThat(aggregatedStatistics.keyFrequency())
-            .isEqualTo(
-                ImmutableMap.of(
-                    CHAR_KEYS.get("a"),
-                    1L,
-                    CHAR_KEYS.get("b"),
-                    1L,
-                    CHAR_KEYS.get("c"),
-                    1L,
-                    CHAR_KEYS.get("d"),
-                    1L,
-                    CHAR_KEYS.get("e"),
-                    1L));
+            .isEqualTo(ImmutableMap.of(CHAR_KEYS.get("a"), 1L, CHAR_KEYS.get("b"), 1L));
       } else {
-        assertThat(aggregatedStatistics.rangeBounds()).containsExactly(CHAR_KEYS.get("c"));
+        assertThat(aggregatedStatistics.keySamples())
+            .containsExactly(CHAR_KEYS.get("a"), CHAR_KEYS.get("b"));
+      }
+
+      globalStatistics = restoredDataStatisticsCoordinator.globalStatistics();
+      assertThat(globalStatistics).isNotNull();
+      assertThat(globalStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
+      if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
+        assertThat(globalStatistics.keyFrequency())
+            .isEqualTo(ImmutableMap.of(CHAR_KEYS.get("a"), 1L, CHAR_KEYS.get("b"), 1L));
+      } else {
+        assertThat(globalStatistics.keySamples()).containsExactly(CHAR_KEYS.get("a"));
       }
     }
   }
@@ -161,13 +168,14 @@ public class TestDataStatisticsCoordinatorProvider {
     return future.get();
   }
 
-  private static DataStatisticsCoordinatorProvider createProvider(StatisticsType type) {
+  private static DataStatisticsCoordinatorProvider createProvider(
+      StatisticsType type, int downstreamParallelism) {
     return new DataStatisticsCoordinatorProvider(
         "DataStatisticsCoordinatorProvider",
         OPERATOR_ID,
         Fixtures.SCHEMA,
         Fixtures.SORT_ORDER,
-        Fixtures.NUM_SUBTASKS,
+        downstreamParallelism,
         type);
   }
 }

@@ -35,28 +35,28 @@ class AggregatedStatistics implements Serializable {
   private final long checkpointId;
   private final StatisticsType type;
   private final Map<SortKey, Long> keyFrequency;
-  private final SortKey[] rangeBounds;
+  private final SortKey[] keySamples;
 
   AggregatedStatistics(
       long checkpointId,
       StatisticsType type,
       Map<SortKey, Long> keyFrequency,
-      SortKey[] rangeBounds) {
+      SortKey[] keySamples) {
     Preconditions.checkArgument(
-        (keyFrequency != null && rangeBounds == null)
-            || (keyFrequency == null && rangeBounds != null),
+        (keyFrequency != null && keySamples == null)
+            || (keyFrequency == null && keySamples != null),
         "Invalid key frequency or range bounds: both are non-null or null");
     this.checkpointId = checkpointId;
     this.type = type;
     this.keyFrequency = keyFrequency;
-    this.rangeBounds = rangeBounds;
+    this.keySamples = keySamples;
   }
 
   static AggregatedStatistics fromKeyFrequency(long checkpointId, Map<SortKey, Long> stats) {
     return new AggregatedStatistics(checkpointId, StatisticsType.Map, stats, null);
   }
 
-  static AggregatedStatistics fromRangeBounds(long checkpointId, SortKey[] stats) {
+  static AggregatedStatistics fromKeySamples(long checkpointId, SortKey[] stats) {
     return new AggregatedStatistics(checkpointId, StatisticsType.Sketch, null, stats);
   }
 
@@ -66,7 +66,7 @@ class AggregatedStatistics implements Serializable {
         .add("checkpointId", checkpointId)
         .add("type", type)
         .add("keyFrequency", keyFrequency)
-        .add("rangeBounds", rangeBounds)
+        .add("keySamples", keySamples)
         .toString();
   }
 
@@ -84,12 +84,12 @@ class AggregatedStatistics implements Serializable {
     return Objects.equal(checkpointId, other.checkpointId())
         && Objects.equal(type, other.type())
         && Objects.equal(keyFrequency, other.keyFrequency())
-        && Arrays.equals(rangeBounds, other.rangeBounds());
+        && Arrays.equals(keySamples, other.keySamples());
   }
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(checkpointId, type, keyFrequency, rangeBounds);
+    return Objects.hashCode(checkpointId, type, keyFrequency, keySamples);
   }
 
   StatisticsType type() {
@@ -100,8 +100,8 @@ class AggregatedStatistics implements Serializable {
     return keyFrequency;
   }
 
-  SortKey[] rangeBounds() {
-    return rangeBounds;
+  SortKey[] keySamples() {
+    return keySamples;
   }
 
   long checkpointId() {
