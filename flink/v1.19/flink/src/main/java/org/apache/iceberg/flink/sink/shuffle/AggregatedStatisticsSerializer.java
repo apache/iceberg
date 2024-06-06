@@ -39,13 +39,13 @@ public class AggregatedStatisticsSerializer extends TypeSerializer<AggregatedSta
   private final TypeSerializer<SortKey> sortKeySerializer;
   private final EnumSerializer<StatisticsType> statisticsTypeSerializer;
   private final MapSerializer<SortKey, Long> keyFrequencySerializer;
-  private final ListSerializer<SortKey> rangeBoundsSerializer;
+  private final ListSerializer<SortKey> keySamplesSerializer;
 
   AggregatedStatisticsSerializer(TypeSerializer<SortKey> sortKeySerializer) {
     this.sortKeySerializer = sortKeySerializer;
     this.statisticsTypeSerializer = new EnumSerializer<>(StatisticsType.class);
     this.keyFrequencySerializer = new MapSerializer<>(sortKeySerializer, LongSerializer.INSTANCE);
-    this.rangeBoundsSerializer = new ListSerializer<>(sortKeySerializer);
+    this.keySamplesSerializer = new ListSerializer<>(sortKeySerializer);
   }
 
   @Override
@@ -66,7 +66,7 @@ public class AggregatedStatisticsSerializer extends TypeSerializer<AggregatedSta
   @Override
   public AggregatedStatistics copy(AggregatedStatistics from) {
     return new AggregatedStatistics(
-        from.checkpointId(), from.type(), from.keyFrequency(), from.rangeBounds());
+        from.checkpointId(), from.type(), from.keyFrequency(), from.keySamples());
   }
 
   @Override
@@ -87,7 +87,7 @@ public class AggregatedStatisticsSerializer extends TypeSerializer<AggregatedSta
     if (record.type() == StatisticsType.Map) {
       keyFrequencySerializer.serialize(record.keyFrequency(), target);
     } else {
-      rangeBoundsSerializer.serialize(Arrays.asList(record.rangeBounds()), target);
+      keySamplesSerializer.serialize(Arrays.asList(record.keySamples()), target);
     }
   }
 
@@ -100,7 +100,7 @@ public class AggregatedStatisticsSerializer extends TypeSerializer<AggregatedSta
     if (type == StatisticsType.Map) {
       keyFrequency = keyFrequencySerializer.deserialize(source);
     } else {
-      List<SortKey> sortKeys = rangeBoundsSerializer.deserialize(source);
+      List<SortKey> sortKeys = keySamplesSerializer.deserialize(source);
       rangeBounds = new SortKey[sortKeys.size()];
       rangeBounds = sortKeys.toArray(rangeBounds);
     }

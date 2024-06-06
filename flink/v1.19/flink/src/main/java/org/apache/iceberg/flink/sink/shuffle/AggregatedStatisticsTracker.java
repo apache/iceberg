@@ -258,8 +258,7 @@ class AggregatedStatisticsTracker {
             sketch.getK(),
             sketch.getN(),
             sketch.getNumSamples());
-        return AggregatedStatistics.fromRangeBounds(
-            checkpointId, SketchUtil.rangeBounds(downstreamParallelism, comparator, sketch));
+        return AggregatedStatistics.fromKeySamples(checkpointId, sketch.getSamples());
       }
     }
   }
