@@ -25,12 +25,11 @@ import org.junit.jupiter.api.Test;
 
 public class TestHours {
   @Test
-  public void toEnum() {
-    assertThatThrownBy(() -> HOURS.toEnum(TYPE))
+  public void testToEnum() {
+    Hours<Object> hours = Hours.get();
+    Types.DateType type = Types.DateType.get();
+    assertThatThrownBy(() -> hours.toEnum(type))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageMatching("Unsupported type: date");
   }
-
-  private static final Hours<Object> HOURS = Hours.get();
-  private static final Types.DateType TYPE = Types.DateType.get();
 }

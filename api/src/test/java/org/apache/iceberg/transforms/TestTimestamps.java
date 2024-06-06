@@ -245,7 +245,7 @@ public class TestTimestamps {
   }
 
   @Test
-  public void apply_bad_source_type() {
+  public void testApplyRejectsBadSourceType() {
     Timestamps badSourceType =
         new Timestamps(ChronoUnit.CENTURIES, Timestamps.ResultTypeUnit.YEARS, "year");
     assertThatThrownBy(() -> badSourceType.apply(11L))
@@ -254,7 +254,7 @@ public class TestTimestamps {
   }
 
   @Test
-  public void apply_bad_result_type() {
+  public void testApplyRejectsBadResultType() {
     Timestamps badResultType =
         new Timestamps(ChronoUnit.MICROS, Timestamps.ResultTypeUnit.NANOS, "nano");
     assertThatThrownBy(() -> badResultType.apply(11L))
@@ -263,34 +263,34 @@ public class TestTimestamps {
   }
 
   @Test
-  public void get_TimestampType_ChronoUnit() {
+  public void testGetOfTimestampTypeRejectsBadChronoUnit() {
     Types.TimestampType timestampType = Types.TimestampType.withZone();
     assertThatThrownBy(() -> Timestamps.get(timestampType, ChronoUnit.CENTURIES))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageMatching("Unsupported source/result type units: timestamptz->Centuries");
+        .hasMessageMatching("Unsupported source/result type units: timestamptz -> Centuries");
   }
 
   @Test
-  public void get_TimestampType_String() {
+  public void testGetOfTimestampTypeRejectsBadString() {
     Types.TimestampType timestampType = Types.TimestampType.withZone();
     assertThatThrownBy(() -> Timestamps.get(timestampType, "trash"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageMatching("Unsupported source/result type units: timestamptz->trash");
+        .hasMessageMatching("Unsupported source/result type units: timestamptz -> trash");
   }
 
   @Test
-  public void get_TimestampNanoType_ChronoUnit() {
+  public void testGetOfTimestampNanoTypeRejectsBadChronoUnit() {
     Types.TimestampNanoType timestampNanoType = Types.TimestampNanoType.withZone();
     assertThatThrownBy(() -> Timestamps.get(timestampNanoType, ChronoUnit.CENTURIES))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageMatching("Unsupported source/result type units: timestamptz_ns->Centuries");
+        .hasMessageMatching("Unsupported source/result type units: timestamptz_ns -> Centuries");
   }
 
   @Test
-  public void get_TimestampNanoType_String() {
+  public void testGetOfTimestampNanoTypeRejectsBadString() {
     Types.TimestampNanoType timestampNanoType = Types.TimestampNanoType.withZone();
     assertThatThrownBy(() -> Timestamps.get(timestampNanoType, "trash"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageMatching("Unsupported source/result type units: timestamptz_ns->trash");
+        .hasMessageMatching("Unsupported source/result type units: timestamptz_ns -> trash");
   }
 }

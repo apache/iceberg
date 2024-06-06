@@ -64,7 +64,7 @@ class Timestamps implements Transform<Long, Integer> {
         return get(type, ChronoUnit.HOURS);
       default:
         throw new IllegalArgumentException(
-            "Unsupported source/result type units: " + type + "->" + resultTypeUnit);
+            "Unsupported source/result type units: " + type + " -> " + resultTypeUnit);
     }
   }
 
@@ -80,7 +80,7 @@ class Timestamps implements Transform<Long, Integer> {
         return get(type, ChronoUnit.HOURS);
       default:
         throw new IllegalArgumentException(
-            "Unsupported source/result type units: " + type + "->" + resultTypeUnit);
+            "Unsupported source/result type units: " + type + " -> " + resultTypeUnit);
     }
   }
 
@@ -96,7 +96,7 @@ class Timestamps implements Transform<Long, Integer> {
         return HOUR_FROM_MICROS;
       default:
         throw new IllegalArgumentException(
-            "Unsupported source/result type units: " + type + "->" + resultTypeUnit);
+            "Unsupported source/result type units: " + type + " -> " + resultTypeUnit);
     }
   }
 
@@ -112,7 +112,7 @@ class Timestamps implements Transform<Long, Integer> {
         return HOUR_FROM_NANOS;
       default:
         throw new IllegalArgumentException(
-            "Unsupported source/result type units: " + type + "->" + resultTypeUnit);
+            "Unsupported source/result type units: " + type + " -> " + resultTypeUnit);
     }
   }
 
@@ -131,7 +131,7 @@ class Timestamps implements Transform<Long, Integer> {
       this.unit = unit;
     }
 
-    Duration getDuration() {
+    Duration duration() {
       return unit.getDuration();
     }
   }
@@ -229,8 +229,8 @@ class Timestamps implements Transform<Long, Integer> {
       // test the granularity, in hours. hour(ts) => 1 hour, day(ts) => 24 hours, and hour satisfies
       // the order of day
       Timestamps otherTransform = (Timestamps) other;
-      return apply.resultTypeUnit.getDuration().toHours()
-          <= otherTransform.apply.resultTypeUnit.getDuration().toHours();
+      return apply.resultTypeUnit.duration().toHours()
+          <= otherTransform.apply.resultTypeUnit.duration().toHours();
     }
 
     return false;

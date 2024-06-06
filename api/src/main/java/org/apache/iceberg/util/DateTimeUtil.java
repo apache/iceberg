@@ -38,6 +38,13 @@ public class DateTimeUtil {
   private static final long NANOS_PER_SECOND = 1_000_000_000L;
   private static final long NANOS_PER_MICRO = 1_000L;
 
+  private static final DateTimeFormatter FORMATTER =
+      new DateTimeFormatterBuilder()
+          .parseCaseInsensitive()
+          .append(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+          .appendOffset("+HH:MM:ss", "+00:00")
+          .toFormatter();
+
   public static LocalDate dateFromDays(int daysFromEpoch) {
     return ChronoUnit.DAYS.addTo(EPOCH_DAY, daysFromEpoch);
   }
@@ -211,11 +218,4 @@ public class DateTimeUtil {
   private static OffsetDateTime toOffsetDateTime(long epochSecond, long nanoAdjustment) {
     return Instant.ofEpochSecond(epochSecond, nanoAdjustment).atOffset(ZoneOffset.UTC);
   }
-
-  private static final DateTimeFormatter FORMATTER =
-      new DateTimeFormatterBuilder()
-          .parseCaseInsensitive()
-          .append(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-          .appendOffset("+HH:MM:ss", "+00:00")
-          .toFormatter();
 }

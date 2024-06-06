@@ -24,11 +24,10 @@ import org.junit.jupiter.api.Test;
 
 public class TestDays {
   @Test
-  public void satisfiesOrderOf() {
-    assertThatThrownBy(() -> DAYS.satisfiesOrderOf(Timestamps.DAY_FROM_NANOS))
+  public void testSatisfiesOrderOf() {
+    Days<Object> days = Days.get();
+    assertThatThrownBy(() -> days.satisfiesOrderOf(Timestamps.DAY_FROM_NANOS))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessageMatching("Unsupported timestamp unit: DAYS");
   }
-
-  private static final Days<Object> DAYS = Days.get();
 }
