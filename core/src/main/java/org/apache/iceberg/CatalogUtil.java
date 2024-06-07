@@ -443,39 +443,42 @@ public class CatalogUtil {
   public static MetricsReporter loadMetricsReporter(Map<String, String> properties) {
     String impl = properties.get(CatalogProperties.METRICS_REPORTER_IMPL);
     if (impl == null) {
+      LOG.info(
+          "Custom metrics reporter is set, but the implementation is null. Defaulting to LoggingMetricsReporter");
       return LoggingMetricsReporter.instance();
     }
 
     LOG.info("Loading custom MetricsReporter implementation: {}", impl);
 
-    DynConstructors.Ctor<MetricsReporter> ctor =
-        tryLoadCtor(impl, CatalogUtil.class.getClassLoader());
-
-    if (ctor == null) {
-      LOG.warn(
-          "Could not find '{}' with the CatalogUtil class loader, falling back to the thread's context class loader",
-          impl);
-      ctor = tryLoadCtor(impl, Thread.currentThread().getContextClassLoader());
-    }
-
-    if (ctor == null) {
-      throw new IllegalArgumentException(
-          String.format("Cannot initialize MetricsReporter, missing no-arg constructor: %s", impl));
-    }
-
     MetricsReporter reporter;
+
     try {
-      reporter = ctor.newInstance();
-    } catch (ClassCastException e) {
-      throw new IllegalArgumentException(
-          String.format(
-              "Cannot initialize MetricsReporter, %s does not implement MetricsReporter.", impl),
-          e);
+      reporter = createMetricsReporter(impl, CatalogUtil.class.getClassLoader());
+    } catch (NoSuchMethodException e) {
+      try {
+        reporter = createMetricsReporter(impl, Thread.currentThread().getContextClassLoader());
+      } catch (NoSuchMethodException e2) {
+        throw new IllegalArgumentException(
+            String.format("Cannot initialize MetricsReporter: %s", impl), e2);
+      }
     }
 
     reporter.initialize(properties);
-
     return reporter;
+  }
+
+  private static MetricsReporter createMetricsReporter(String impl, ClassLoader loader)
+      throws NoSuchMethodException {
+    DynConstructors.Ctor<MetricsReporter> ctor =
+        DynConstructors.builder(MetricsReporter.class).loader(loader).impl(impl).buildChecked();
+    try {
+      return ctor.newInstance();
+    } catch (ClassCastException e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot initialize MetricsReporter, '%s' does not implement MetricsReporter.", impl),
+          e);
+    }
   }
 
   public static String fullTableName(String catalogName, TableIdentifier identifier) {
@@ -499,18 +502,5 @@ public class CatalogUtil {
     sb.append(identifier.name());
 
     return sb.toString();
-  }
-
-  private static DynConstructors.Ctor<MetricsReporter> tryLoadCtor(
-      String impl, ClassLoader loader) {
-    try {
-      return DynConstructors.builder(MetricsReporter.class)
-          .loader(loader)
-          .impl(impl)
-          .buildChecked();
-    } catch (NoSuchMethodException e) {
-      LOG.warn("Failed to load constructor for {} using class loader {}", impl, loader, e);
-      return null;
-    }
   }
 }
