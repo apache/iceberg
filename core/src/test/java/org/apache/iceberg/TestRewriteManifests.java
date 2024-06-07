@@ -810,7 +810,10 @@ public class TestRewriteManifests extends TestBase {
 
     assertThatThrownBy(rewriteManifests::commit)
         .isInstanceOf(ValidationException.class)
-        .hasMessageStartingWith("Manifest is missing");
+        .hasMessageStartingWith(
+            String.format(
+                "Deleted manifest %s could not be found in the latest snapshot %d",
+                firstSnapshotManifest.path(), table.currentSnapshot().snapshotId()));
   }
 
   @TestTemplate
@@ -1604,7 +1607,10 @@ public class TestRewriteManifests extends TestBase {
     // the rewrite must fail as the original delete manifest was replaced concurrently
     assertThatThrownBy(rewriteManifests::commit)
         .isInstanceOf(ValidationException.class)
-        .hasMessageStartingWith("Manifest is missing");
+        .hasMessageStartingWith(
+            String.format(
+                "Deleted manifest %s could not be found in the latest snapshot %d",
+                originalDeleteManifest.path(), table.currentSnapshot().snapshotId()));
   }
 
   @TestTemplate
