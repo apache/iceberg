@@ -37,6 +37,8 @@ class AggregatedStatistics implements Serializable {
   private final Map<SortKey, Long> keyFrequency;
   private final SortKey[] keySamples;
 
+  private transient Integer hashCode;
+
   AggregatedStatistics(
       long checkpointId,
       StatisticsType type,
@@ -89,7 +91,14 @@ class AggregatedStatistics implements Serializable {
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(checkpointId, type, keyFrequency, keySamples);
+    // implemented caching because coordinator can call the hashCode many times.
+    // when subtasks request statistics refresh upon initialization for reconciliation purpose,
+    // hashCode is used to check if there is any difference btw coordinator and operator state.
+    if (hashCode == null) {
+      this.hashCode = Objects.hashCode(checkpointId, type, keyFrequency, keySamples);
+    }
+
+    return hashCode;
   }
 
   StatisticsType type() {

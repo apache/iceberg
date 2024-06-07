@@ -218,21 +218,20 @@ public class TestDataStatisticsOperator {
       testHarness2.initializeState(snapshot);
 
       AggregatedStatistics globalStatistics = restoredOperator.globalStatistics();
-      if (type == StatisticsType.Sketch && parallelismAdjustment != 0) {
-        // downstream parallelism changed
-        // restored sketch global statistics should be discarded
-        assertThat(globalStatistics).isNull();
-        // request should be sent to coordinator
-        verify(spyGateway).sendEventToCoordinator(any(RequestGlobalStatisticsEvent.class));
+      // global statistics is always restored and used initially even if
+      // downstream parallelism changed.
+      assertThat(globalStatistics).isNotNull();
+      // request is always sent to coordinator during initialization.
+      // coordinator would respond with a new global statistics that
+      // has range bound recomputed with new parallelism.
+      verify(spyGateway).sendEventToCoordinator(any(RequestGlobalStatisticsEvent.class));
+      assertThat(globalStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
+      if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
+        assertThat(globalStatistics.keyFrequency()).isEqualTo(keyFrequency);
+        assertThat(globalStatistics.keySamples()).isNull();
       } else {
-        assertThat(globalStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
-        if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
-          assertThat(globalStatistics.keyFrequency()).isEqualTo(keyFrequency);
-          assertThat(globalStatistics.keySamples()).isNull();
-        } else {
-          assertThat(globalStatistics.keyFrequency()).isNull();
-          assertThat(globalStatistics.keySamples()).isEqualTo(rangeBounds);
-        }
+        assertThat(globalStatistics.keyFrequency()).isNull();
+        assertThat(globalStatistics.keySamples()).isEqualTo(rangeBounds);
       }
     }
   }
