@@ -253,25 +253,6 @@ public class TestCatalogUtil {
         .isEqualTo(pathStyleCatalogName + "/" + nameSpaceWithTwoLevels + "." + tableName);
   }
 
-  static class CustomJarClassLoader extends URLClassLoader {
-
-    public CustomJarClassLoader(URL jarUrl, ClassLoader parent) {
-      super(new URL[] {jarUrl}, parent);
-    }
-
-    @Override
-    protected Class<?> findClass(String name) throws ClassNotFoundException {
-      if (name.equals("com.example.CustomMetricsReporter")) {
-        try {
-          return super.findClass(name);
-        } catch (ClassNotFoundException e) {
-          throw new ClassNotFoundException("Class not found: " + name, e);
-        }
-      }
-      return super.findClass(name);
-    }
-  }
-
   @Test
   public void testLoadMetricsReporterFromThreadContextClassLoader() throws Exception {
     URL jarUrl =
@@ -280,7 +261,7 @@ public class TestCatalogUtil {
             .getResource("com/example/target/custom-metrics-reporter-1.0-SNAPSHOT.jar");
     Assertions.assertThat(jarUrl).isNotNull();
     ClassLoader customClassLoader =
-        new CustomJarClassLoader(jarUrl, ClassLoader.getSystemClassLoader());
+        new URLClassLoader(new URL[] {jarUrl}, ClassLoader.getSystemClassLoader());
     Map<String, String> properties = new HashMap<>();
     properties.put(CatalogProperties.METRICS_REPORTER_IMPL, "com.example.CustomMetricsReporter");
 
