@@ -47,10 +47,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.function.Function2;
-import org.apache.spark.api.java.function.PairFlatMapFunction;
+import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.functions;
+import org.apache.spark.sql.internal.SQLConf;
 import scala.Tuple2;
 
 public class NDVSketchGenerator {
@@ -80,21 +82,20 @@ public class NDVSketchGenerator {
   private static StatisticsFile writeToPuffin(
       Table table, List<String> columns, Map<String, ThetaSketchJavaSerializable> sketchMap)
       throws IOException {
-    int columnSizes = columns.size();
     TableOperations operations = ((HasTableOperations) table).operations();
-    FileIO fileIO = ((HasTableOperations) table).operations().io();
+    FileIO fileIO = operations.io();
     String path = operations.metadataFileLocation(String.format("%s.stats", UUID.randomUUID()));
     OutputFile outputFile = fileIO.newOutputFile(path);
     try (PuffinWriter writer =
-        Puffin.write(outputFile).createdBy("Spark DistinctCountProcedure").build()) {
-      for (int i = 0; i < columnSizes; i++) {
+        Puffin.write(outputFile).createdBy("Iceberg Analyze action").build()) {
+      for (String columnName : columns) {
         writer.add(
             new Blob(
                 StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1,
-                ImmutableList.of(table.schema().findField(columns.get(i)).fieldId()),
+                ImmutableList.of(table.schema().findField(columnName).fieldId()),
                 table.currentSnapshot().snapshotId(),
                 table.currentSnapshot().sequenceNumber(),
-                ByteBuffer.wrap(sketchMap.get(columns.get(i)).getSketch().toByteArray()),
+                ByteBuffer.wrap(sketchMap.get(columnName).getSketch().toByteArray()),
                 null,
                 ImmutableMap.of()));
       }
@@ -108,52 +109,43 @@ public class NDVSketchGenerator {
           writer.writtenBlobsMetadata().stream()
               .map(GenericBlobMetadata::from)
               .collect(ImmutableList.toImmutableList()));
-
-    } catch (IOException e) {
-      throw e;
     }
   }
 
   static Iterator<Tuple2<String, ThetaSketchJavaSerializable>> computeNDVSketches(
       SparkSession spark, String tableName, long snapshotId, List<String> columns) {
-    String sql =
-        String.format(
-            "select %s from %s VERSION AS OF %d", String.join(",", columns), tableName, snapshotId);
-    Dataset<Row> data = spark.sql(sql);
+    Dataset<Row> data =
+        spark
+            .read()
+            .option("snapshot-id", snapshotId)
+            .table(tableName)
+            .select(columns.stream().map(functions::col).toArray(Column[]::new));
+
     final JavaPairRDD<String, String> pairs =
         data.javaRDD()
-            .mapPartitionsToPair(
-                (PairFlatMapFunction<Iterator<Row>, String, String>)
-                    input -> {
-                      final List<Tuple2<String, String>> list = Lists.newArrayList();
-                      while (input.hasNext()) {
-                        final Row row = input.next();
-                        int size = row.size();
-                        for (int i = 0; i < size; i++) {
-                          list.add(new Tuple2<>(columns.get(i), row.get(i).toString()));
-                        }
-                      }
-                      return list.iterator();
-                    });
+            .flatMap(
+                row -> {
+                  List<Tuple2<String, String>> columnsList =
+                      Lists.newArrayListWithExpectedSize(columns.size());
+                  for (int i = 0; i < row.size(); i++) {
+                    columnsList.add(new Tuple2<>(columns.get(i), row.get(i).toString()));
+                  }
+                  return columnsList.iterator();
+                })
+            .mapToPair(t -> t);
 
-    final JavaPairRDD<String, ThetaSketchJavaSerializable> sketches =
+    JavaPairRDD<String, ThetaSketchJavaSerializable> sketches =
         pairs.aggregateByKey(
             new ThetaSketchJavaSerializable(),
-            1, // number of partitions
-            new Add(),
+            Integer.parseInt(
+                SQLConf.SHUFFLE_PARTITIONS().defaultValueString()), // number of partitions
+            (sketch, val) -> {
+              sketch.update(val);
+              return sketch;
+            },
             new Combine());
 
     return sketches.toLocalIterator();
-  }
-
-  static class Add
-      implements Function2<ThetaSketchJavaSerializable, String, ThetaSketchJavaSerializable> {
-    @Override
-    public ThetaSketchJavaSerializable call(
-        final ThetaSketchJavaSerializable sketch, final String value) throws Exception {
-      sketch.update(value);
-      return sketch;
-    }
   }
 
   static class Combine

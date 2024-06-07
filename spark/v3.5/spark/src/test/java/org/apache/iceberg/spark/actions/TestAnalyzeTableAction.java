@@ -65,8 +65,7 @@ public class TestAnalyzeTableAction extends CatalogTestBase {
         .append();
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     SparkActions actions = SparkActions.get();
-    AnalyzeTable.Result results =
-        actions.analyzeTable(table).columns(Sets.newHashSet("id", "data")).execute();
+    AnalyzeTable.Result results = actions.analyzeTable(table).columns("id", "data").execute();
     assertNotNull(results);
 
     Assertions.assertEquals(table.statisticsFiles().size(), 1);
@@ -109,8 +108,7 @@ public class TestAnalyzeTableAction extends CatalogTestBase {
     SparkActions actions = SparkActions.get();
     ValidationException validationException =
         assertThrows(
-            ValidationException.class,
-            () -> actions.analyzeTable(table).columns(Sets.newHashSet("id1")).execute());
+            ValidationException.class, () -> actions.analyzeTable(table).columns("id1").execute());
     String message = validationException.getMessage();
     assertTrue(message.contains("No column with id1 name in the table"));
   }
@@ -130,11 +128,11 @@ public class TestAnalyzeTableAction extends CatalogTestBase {
             () ->
                 actions
                     .analyzeTable(table)
-                    .stats(Sets.newHashSet(statsName))
-                    .columns(Sets.newHashSet("id", "data"))
+                    .types(Sets.newHashSet(statsName))
+                    .columns("id", "data")
                     .execute());
 
-    assertTrue(illegalArgumentException.getMessage().equalsIgnoreCase("Stats type not supported"));
+    assertTrue(illegalArgumentException.getMessage().equalsIgnoreCase("type not supported"));
   }
 
   @TestTemplate
@@ -155,8 +153,7 @@ public class TestAnalyzeTableAction extends CatalogTestBase {
     SparkActions actions = SparkActions.get();
     IllegalArgumentException illegalArgumentException =
         assertThrows(
-            IllegalArgumentException.class,
-            () -> actions.analyzeTable(table).columns(Sets.newHashSet("scores")));
+            IllegalArgumentException.class, () -> actions.analyzeTable(table).columns("scores"));
     assertTrue(
         illegalArgumentException.getMessage().contains("Cannot be applied to the given columns"));
   }

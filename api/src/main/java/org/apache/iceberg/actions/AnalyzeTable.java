@@ -26,28 +26,28 @@ public interface AnalyzeTable extends Action<AnalyzeTable, AnalyzeTable.Result> 
   /**
    * The set of columns to be analyzed
    *
-   * @param columns a set of column names to be analyzed
+   * @param columnNames a set of column names to be analyzed
    * @return this for method chaining
    */
-  AnalyzeTable columns(Set<String> columns);
+  AnalyzeTable columns(String... columnNames);
 
   /**
-   * A set of statistics to be collected on the given columns of the given table
+   * A set of statistics to be collected
    *
-   * @param statsToBeCollected set of statistics to be collected
+   * @param types set of statistics to be collected
    * @return this for method chaining
    */
-  AnalyzeTable stats(Set<String> statsToBeCollected);
+  AnalyzeTable types(Set<String> types);
 
   /**
-   * id of the snapshot for which stats needs to be collected
+   * id of the snapshot for which stats need to be collected
    *
-   * @param snapshotId long id of the snapshot for which stats needs to be collected
+   * @param snapshotId long id of the snapshot for which stats need to be collected
    * @return this for method chaining
    */
   AnalyzeTable snapshot(String snapshotId);
 
-  /** The action result that contains a summary of the Analysis. */
+  /** The action result that contains summaries of the Analysis. */
   interface Result {
     /** Returns summary of analysis */
     List<AnalysisResult> analysisResults();
@@ -55,10 +55,7 @@ public interface AnalyzeTable extends Action<AnalyzeTable, AnalyzeTable.Result> 
 
   interface AnalysisResult {
     /** Returns the name of statistic */
-    String statsName();
-
-    /** Returns if the stats was collected successfully */
-    boolean statsCollected();
+    String type();
 
     /** Returns the errors from collecting the statistics */
     List<String> errors();
