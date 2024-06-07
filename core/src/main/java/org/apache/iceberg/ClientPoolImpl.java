@@ -18,9 +18,13 @@
  */
 package org.apache.iceberg;
 
+import dev.failsafe.Failsafe;
+import dev.failsafe.RetryPolicy;
 import java.io.Closeable;
+import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.slf4j.Logger;
@@ -67,30 +71,27 @@ public abstract class ClientPoolImpl<C, E extends Exception>
 
   @Override
   public <R> R run(Action<R, C, E> action, boolean retry) throws E, InterruptedException {
-    C client = get();
-    try {
-      return action.run(client);
-    } catch (Exception exc) {
-      if (retry && isConnectionException(exc)) {
-        int retryAttempts = 0;
-        while (retryAttempts < maxRetries) {
-          try {
-            client = reconnect(client);
-            return action.run(client);
-          } catch (Exception e) {
-            if (isConnectionException(e)) {
-              retryAttempts++;
-              Thread.sleep(connectionRetryWaitPeriodMs);
-            } else {
-              throw reconnectExc.cast(exc);
-            }
-          }
-        }
-      }
+    AtomicReference<C> clientReference = new AtomicReference<>();
+    clientReference.set(get());
 
-      throw exc;
+    RetryPolicy<Object> retryPolicy =
+        RetryPolicy.builder()
+            .handle(reconnectExc)
+            .withMaxRetries(retry ? maxRetries : 0)
+            .withDelay(Duration.ofMillis(connectionRetryWaitPeriodMs))
+            .onRetry(
+                exc -> {
+                  C currentClient = clientReference.get();
+                  clientReference.set(reconnect(currentClient));
+                })
+            .build();
+
+    try {
+      AtomicReference<R> result = new AtomicReference<>();
+      Failsafe.with(retryPolicy).run(() -> result.set(action.run(clientReference.get())));
+      return result.get();
     } finally {
-      release(client);
+      release(clientReference.get());
     }
   }
 
