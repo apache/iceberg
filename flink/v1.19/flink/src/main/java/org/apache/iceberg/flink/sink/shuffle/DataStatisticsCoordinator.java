@@ -227,18 +227,22 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
 
   @SuppressWarnings("FutureReturnValueIgnored")
   private void sendGlobalStatisticsToSubtasks(AggregatedStatistics statistics) {
-    callInCoordinatorThread(
+    runInCoordinatorThread(
         () -> {
-          // applyImmediately is set to false so that operator subtasks can apply the change at
-          // checkpoint boundary
+          LOG.info(
+              "Broadcast latest global statistics from checkpoint {} to all subtasks",
+              statistics.checkpointId());
+          // applyImmediately is set to false so that operator subtasks can
+          // apply the change at checkpoint boundary
           StatisticsEvent statisticsEvent =
               StatisticsEvent.createAggregatedStatisticsEvent(
                   statistics, aggregatedStatisticsSerializer, false);
           for (int i = 0; i < context.currentParallelism(); ++i) {
-            // Ignore future return value for potential error, e.g. subtask down
+            // Ignore future return value for potential error (e.g. subtask down).
+            // Upon restart, subtasks send request to coordinator to refresh statistics
+            // if there is any difference
             subtaskGateways.getSubtaskGateway(i).sendEvent(statisticsEvent);
           }
-          return null;
         },
         String.format(
             "Failed to send operator %s coordinator global data statistics for checkpoint %d",
@@ -246,19 +250,24 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
   }
 
   @SuppressWarnings("FutureReturnValueIgnored")
-  private void handleRequestGlobalStatisticsEvent(int subtask) {
+  private void handleRequestGlobalStatisticsEvent(int subtask, RequestGlobalStatisticsEvent event) {
     if (globalStatistics != null) {
-      callInCoordinatorThread(
+      runInCoordinatorThread(
           () -> {
-            // Operator subtasks request new stats when downstream parallelism changed and old range
-            // bounds is not useable and discarded. applyImmediately is set to true so that
-            // operators can immediately apply the new range bounds and shuffle records
-            // intelligently
-            StatisticsEvent statisticsEvent =
-                StatisticsEvent.createAggregatedStatisticsEvent(
-                    globalStatistics, aggregatedStatisticsSerializer, true);
-            subtaskGateways.getSubtaskGateway(subtask).sendEvent(statisticsEvent);
-            return null;
+            if (event.signature() != null && event.signature() != globalStatistics.hashCode()) {
+              LOG.debug(
+                  "Skip responding to statistics request from subtask {}, as hashCode matches or not included in the request",
+                  subtask);
+            } else {
+              LOG.info(
+                  "Send latest global statistics from checkpoint {} to subtask {}",
+                  globalStatistics.checkpointId(),
+                  subtask);
+              StatisticsEvent statisticsEvent =
+                  StatisticsEvent.createAggregatedStatisticsEvent(
+                      globalStatistics, aggregatedStatisticsSerializer, true);
+              subtaskGateways.getSubtaskGateway(subtask).sendEvent(statisticsEvent);
+            }
           },
           String.format(
               "Failed to send operator %s coordinator global data statistics to requesting subtask %d for checkpoint %d",
@@ -282,7 +291,7 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
           if (event instanceof StatisticsEvent) {
             handleDataStatisticRequest(subtask, ((StatisticsEvent) event));
           } else if (event instanceof RequestGlobalStatisticsEvent) {
-            handleRequestGlobalStatisticsEvent(subtask);
+            handleRequestGlobalStatisticsEvent(subtask, (RequestGlobalStatisticsEvent) event);
           } else {
             throw new IllegalArgumentException(
                 "Invalid operator event type: " + event.getClass().getCanonicalName());

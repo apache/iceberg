@@ -22,6 +22,7 @@ import static org.apache.iceberg.flink.sink.shuffle.Fixtures.CHAR_KEYS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import org.apache.flink.runtime.jobgraph.OperatorID;
@@ -29,6 +30,7 @@ import org.apache.flink.runtime.operators.coordination.EventReceivingTasks;
 import org.apache.flink.runtime.operators.coordination.MockOperatorCoordinatorContext;
 import org.apache.flink.util.ExceptionUtils;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -173,19 +175,27 @@ public class TestDataStatisticsCoordinator {
           1, 0, checkpoint1Subtask1DataStatisticEvent);
 
       waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
-      assertThat(receivingTasks.getSentEventsForSubtask(0)).hasSize(1);
+      Awaitility.await("wait for statistics event")
+          .pollInterval(Duration.ofMillis(10))
+          .atMost(Duration.ofSeconds(10))
+          .until(() -> receivingTasks.getSentEventsForSubtask(0).size() == 1);
       assertThat(receivingTasks.getSentEventsForSubtask(0).get(0))
           .isInstanceOf(StatisticsEvent.class);
-      assertThat(receivingTasks.getSentEventsForSubtask(1)).hasSize(1);
+
+      Awaitility.await("wait for statistics event")
+          .pollInterval(Duration.ofMillis(10))
+          .atMost(Duration.ofSeconds(10))
+          .until(() -> receivingTasks.getSentEventsForSubtask(1).size() == 1);
       assertThat(receivingTasks.getSentEventsForSubtask(1).get(0))
           .isInstanceOf(StatisticsEvent.class);
 
       dataStatisticsCoordinator.handleEventFromOperator(1, 0, new RequestGlobalStatisticsEvent());
-      waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
 
       // coordinator should send a response to subtask 1
-      assertThat(receivingTasks.getSentEventsForSubtask(0)).hasSize(1);
-      assertThat(receivingTasks.getSentEventsForSubtask(1)).hasSize(2);
+      Awaitility.await("wait for statistics event")
+          .pollInterval(Duration.ofMillis(10))
+          .atMost(Duration.ofSeconds(10))
+          .until(() -> receivingTasks.getSentEventsForSubtask(1).size() == 2);
       assertThat(receivingTasks.getSentEventsForSubtask(1).get(0))
           .isInstanceOf(StatisticsEvent.class);
       assertThat(receivingTasks.getSentEventsForSubtask(1).get(1))

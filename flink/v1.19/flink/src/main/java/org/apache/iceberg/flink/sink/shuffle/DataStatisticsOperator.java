@@ -114,33 +114,30 @@ public class DataStatisticsOperator extends AbstractStreamOperator<StatisticsOrR
         // has nothing to restore from.
       } else {
         AggregatedStatistics restoredStatistics = globalStatisticsState.get().iterator().next();
-        // Range bounds is calculated from reservoir samplings with the determined partition
-        // (downstream parallelism). If downstream parallelism changed due to rescale, the computed
-        // range bounds array is not applicable. Operators should request coordinator to recompute
-        // the range bounds array using the new parallelism.
-        if (restoredStatistics.type() == StatisticsType.Sketch
-            && restoredStatistics.keySamples().length + 1 != downstreamParallelism) {
-          LOG.info(
-              "Operator {} subtask {} ignored restored sketch statistics as range bound length "
-                  + "not matching downstream parallelism due to rescale. "
-                  + "Old parallelism is {}, new parallelism is {}",
-              operatorName,
-              subtaskIndex,
-              restoredStatistics.keySamples().length + 1,
-              downstreamParallelism);
-          // Asynchronously request the latest global statistics calculated with new downstream
-          // parallelism. It is possible events may have started flowing before coordinator responds
-          // with global statistics. In this case, range partitioner would just blindly shuffle
-          // records in round robin fashion.
-          operatorEventGateway.sendEventToCoordinator(new RequestGlobalStatisticsEvent());
-        } else {
-          LOG.info(
-              "Operator {} subtask {} restored global statistics state",
-              operatorName,
-              subtaskIndex);
-          this.globalStatistics = restoredStatistics;
-        }
+        LOG.info(
+            "Operator {} subtask {} restored global statistics state", operatorName, subtaskIndex);
+        this.globalStatistics = restoredStatistics;
       }
+
+      // Always request for new statistics from coordinator upon task initialization.
+      // There are a few scenarios this is needed
+      // 1. downstream writer parallelism changed due to rescale.
+      // 2. coordinator failed to send the aggregated statistics to subtask
+      //    (e.g. due to subtask failure at the time).
+      // Records may flow before coordinator can respond. Range partitioner should be
+      // able to continue to operate with potentially suboptimal behavior (in sketch case).
+      LOG.info(
+          "Operator {} subtask {} requests new global statistics from coordinator ",
+          operatorName,
+          subtaskIndex);
+      // coordinator can use the hashCode (if available) in the request event to determine
+      // if operator already has the latest global statistics and respond can be skipped.
+      // This makes the handling cheap in most situations.
+      RequestGlobalStatisticsEvent event =
+          globalStatistics != null
+              ? new RequestGlobalStatisticsEvent(globalStatistics.hashCode())
+              : new RequestGlobalStatisticsEvent();
+      operatorEventGateway.sendEventToCoordinator(event);
     }
 
     this.taskStatisticsType = StatisticsUtil.collectType(statisticsType, globalStatistics);

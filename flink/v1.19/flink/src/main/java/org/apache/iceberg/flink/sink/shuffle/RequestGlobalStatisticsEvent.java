@@ -20,4 +20,19 @@ package org.apache.iceberg.flink.sink.shuffle;
 
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 
-class RequestGlobalStatisticsEvent implements OperatorEvent {}
+class RequestGlobalStatisticsEvent implements OperatorEvent {
+  private final Integer signature;
+
+  RequestGlobalStatisticsEvent() {
+    this.signature = null;
+  }
+
+  /** @param signature hashCode of the subtask's existing global statistics */
+  RequestGlobalStatisticsEvent(int signature) {
+    this.signature = signature;
+  }
+
+  Integer signature() {
+    return signature;
+  }
+}
