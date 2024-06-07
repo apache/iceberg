@@ -18,6 +18,10 @@
  */
 package org.apache.iceberg;
 
+import java.io.*;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configurable;
@@ -247,6 +251,69 @@ public class TestCatalogUtil {
     String pathStyleCatalogName = "/test/db";
     Assertions.assertThat(CatalogUtil.fullTableName(pathStyleCatalogName, tableIdentifier))
         .isEqualTo(pathStyleCatalogName + "/" + nameSpaceWithTwoLevels + "." + tableName);
+  }
+
+  static class CustomJarClassLoader extends URLClassLoader {
+
+    public CustomJarClassLoader(URL jarUrl, ClassLoader parent) {
+      super(new URL[] {jarUrl}, parent);
+    }
+
+    @Override
+    protected Class<?> findClass(String name) throws ClassNotFoundException {
+      if (name.equals("com.example.CustomMetricsReporter")) {
+        try {
+          return super.findClass(name);
+        } catch (ClassNotFoundException e) {
+          throw new ClassNotFoundException("Class not found: " + name, e);
+        }
+      }
+      return super.findClass(name);
+    }
+  }
+
+  @Test
+  public void testLoadMetricsReporterFromThreadContextClassLoader() throws Exception {
+    URL jarUrl =
+        getClass()
+            .getClassLoader()
+            .getResource("com/example/target/custom-metrics-reporter-1.0-SNAPSHOT.jar");
+    Assertions.assertThat(jarUrl).isNotNull();
+    ClassLoader customClassLoader =
+        new CustomJarClassLoader(jarUrl, ClassLoader.getSystemClassLoader());
+    Map<String, String> properties = new HashMap<>();
+    properties.put(CatalogProperties.METRICS_REPORTER_IMPL, "com.example.CustomMetricsReporter");
+
+    // Temporarily change the context class loader to the custom class loader
+    ClassLoader originalContextClassLoader = Thread.currentThread().getContextClassLoader();
+    try {
+      try {
+        CatalogUtil.loadMetricsReporter(properties);
+        Assertions.fail("Expected to throw IllegalArgumentException");
+      } catch (IllegalArgumentException e) {
+        Assertions.assertThat(e.getMessage()).contains("Cannot initialize MetricsReporter");
+      }
+      Thread.currentThread().setContextClassLoader(customClassLoader);
+      MetricsReporter reporter = CatalogUtil.loadMetricsReporter(properties);
+
+      Assertions.assertThat(reporter).isNotNull();
+      Assertions.assertThat(reporter instanceof MetricsReporter).isTrue();
+
+      PrintStream originalOut = System.out;
+      try {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        PrintStream newOut = new PrintStream(baos);
+        System.setOut(newOut);
+        reporter.report(null);
+        String sysOut = baos.toString();
+        Assertions.assertThat(sysOut)
+            .contains("com.example.CustomMetricsReporter: Report executed");
+      } finally {
+        System.setOut(originalOut);
+      }
+    } finally {
+      Thread.currentThread().setContextClassLoader(originalContextClassLoader);
+    }
   }
 
   public static class TestCatalog extends BaseMetastoreCatalog {

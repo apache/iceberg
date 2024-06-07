@@ -447,17 +447,20 @@ public class CatalogUtil {
     }
 
     LOG.info("Loading custom MetricsReporter implementation: {}", impl);
-    DynConstructors.Ctor<MetricsReporter> ctor;
-    try {
-      ctor =
-          DynConstructors.builder(MetricsReporter.class)
-              .loader(CatalogUtil.class.getClassLoader())
-              .impl(impl)
-              .buildChecked();
-    } catch (NoSuchMethodException e) {
+
+    DynConstructors.Ctor<MetricsReporter> ctor =
+        tryLoadCtor(impl, CatalogUtil.class.getClassLoader());
+
+    if (ctor == null) {
+      LOG.warn(
+          "Could not find '{}' with the CatalogUtil class loader, falling back to the thread's context class loader",
+          impl);
+      ctor = tryLoadCtor(impl, Thread.currentThread().getContextClassLoader());
+    }
+
+    if (ctor == null) {
       throw new IllegalArgumentException(
-          String.format("Cannot initialize MetricsReporter, missing no-arg constructor: %s", impl),
-          e);
+          String.format("Cannot initialize MetricsReporter, missing no-arg constructor: %s", impl));
     }
 
     MetricsReporter reporter;
@@ -496,5 +499,18 @@ public class CatalogUtil {
     sb.append(identifier.name());
 
     return sb.toString();
+  }
+
+  private static DynConstructors.Ctor<MetricsReporter> tryLoadCtor(
+      String impl, ClassLoader loader) {
+    try {
+      return DynConstructors.builder(MetricsReporter.class)
+          .loader(loader)
+          .impl(impl)
+          .buildChecked();
+    } catch (NoSuchMethodException e) {
+      LOG.warn("Failed to load constructor for {} using class loader {}", impl, loader, e);
+      return null;
+    }
   }
 }
