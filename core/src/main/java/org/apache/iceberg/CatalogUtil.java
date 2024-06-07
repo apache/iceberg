@@ -459,7 +459,7 @@ public class CatalogUtil {
         reporter = createMetricsReporter(impl, Thread.currentThread().getContextClassLoader());
       } catch (NoSuchMethodException e2) {
         throw new IllegalArgumentException(
-            String.format("Cannot initialize MetricsReporter: %s", impl), e2);
+            String.format("Cannot initialize MetricsReporter, missing no-arg constructor: %s", impl), e2);
       }
     }
 
