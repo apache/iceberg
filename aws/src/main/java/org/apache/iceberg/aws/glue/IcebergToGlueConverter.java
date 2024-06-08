@@ -19,6 +19,7 @@
 package org.apache.iceberg.aws.glue;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -262,23 +263,15 @@ class IcebergToGlueConverter {
         Optional.ofNullable(existingTable.description()).ifPresent(tableInputBuilder::description);
       }
 
-      List<Column> columns = toColumns(metadata);
+      Map<String, String> existingColumnMap = null;
       if (existingTable != null) {
         List<Column> existingColumns = existingTable.storageDescriptor().columns();
-        Map<String, String> existingColumnMap =
-            existingColumns.stream().collect(Collectors.toMap(Column::name, Column::comment));
-
-        columns =
-            columns.stream()
-                .map(
-                    newColumn -> {
-                      String existingComment = existingColumnMap.get(newColumn.name());
-                      return existingComment != null && newColumn.comment() == null
-                          ? newColumn.toBuilder().comment(existingComment).build()
-                          : newColumn;
-                    })
-                .collect(Collectors.toList());
+        existingColumnMap =
+            existingColumns.stream().filter(column -> column.comment() != null).collect(Collectors.toMap(Column::name, Column::comment));
+      } else {
+        existingColumnMap = Collections.emptyMap();
       }
+      List<Column> columns = toColumns(metadata, existingColumnMap);
 
       tableInputBuilder.storageDescriptor(
           storageDescriptor.location(metadata.location()).columns(columns).build());
@@ -343,18 +336,18 @@ class IcebergToGlueConverter {
     }
   }
 
-  private static List<Column> toColumns(TableMetadata metadata) {
+  private static List<Column> toColumns(TableMetadata metadata, Map<String, String> existingColumnMap) {
     List<Column> columns = Lists.newArrayList();
     Set<String> addedNames = Sets.newHashSet();
 
     for (NestedField field : metadata.schema().columns()) {
-      addColumnWithDedupe(columns, addedNames, field, true /* is current */);
+      addColumnWithDedupe(columns, addedNames, field, true /* is current */, existingColumnMap);
     }
 
     for (Schema schema : metadata.schemas()) {
       if (schema.schemaId() != metadata.currentSchemaId()) {
         for (NestedField field : schema.columns()) {
-          addColumnWithDedupe(columns, addedNames, field, false /* is not current */);
+          addColumnWithDedupe(columns, addedNames, field, false /* is not current */,existingColumnMap);
         }
       }
     }
@@ -363,19 +356,24 @@ class IcebergToGlueConverter {
   }
 
   private static void addColumnWithDedupe(
-      List<Column> columns, Set<String> dedupe, NestedField field, boolean isCurrent) {
+      List<Column> columns, Set<String> dedupe, NestedField field, boolean isCurrent, Map<String, String> existingColumnMap) {
     if (!dedupe.contains(field.name())) {
-      columns.add(
-          Column.builder()
-              .name(field.name())
-              .type(toTypeString(field.type()))
-              .comment(field.doc())
-              .parameters(
-                  ImmutableMap.of(
-                      ICEBERG_FIELD_ID, Integer.toString(field.fieldId()),
-                      ICEBERG_FIELD_OPTIONAL, Boolean.toString(field.isOptional()),
-                      ICEBERG_FIELD_CURRENT, Boolean.toString(isCurrent)))
-              .build());
+      Column.Builder builder = Column.builder()
+        .name(field.name())
+        .type(toTypeString(field.type()))
+        .parameters(
+          ImmutableMap.of(
+              ICEBERG_FIELD_ID, Integer.toString(field.fieldId()),
+              ICEBERG_FIELD_OPTIONAL, Boolean.toString(field.isOptional()),
+              ICEBERG_FIELD_CURRENT, Boolean.toString(isCurrent)));
+
+      if (field.doc() != null && !field.doc().isEmpty()) {
+        builder.comment(field.doc());
+      } else if (existingColumnMap != null && existingColumnMap.containsKey(field.name())) {
+        builder.comment(existingColumnMap.get(field.name()));
+      }
+
+      columns.add(builder.build());
       dedupe.add(field.name());
     }
   }
