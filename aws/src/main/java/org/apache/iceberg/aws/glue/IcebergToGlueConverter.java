@@ -267,7 +267,9 @@ class IcebergToGlueConverter {
       if (existingTable != null) {
         List<Column> existingColumns = existingTable.storageDescriptor().columns();
         existingColumnMap =
-            existingColumns.stream().filter(column -> column.comment() != null).collect(Collectors.toMap(Column::name, Column::comment));
+            existingColumns.stream()
+                .filter(column -> column.comment() != null)
+                .collect(Collectors.toMap(Column::name, Column::comment));
       } else {
         existingColumnMap = Collections.emptyMap();
       }
@@ -336,7 +338,8 @@ class IcebergToGlueConverter {
     }
   }
 
-  private static List<Column> toColumns(TableMetadata metadata, Map<String, String> existingColumnMap) {
+  private static List<Column> toColumns(
+      TableMetadata metadata, Map<String, String> existingColumnMap) {
     List<Column> columns = Lists.newArrayList();
     Set<String> addedNames = Sets.newHashSet();
 
@@ -347,7 +350,8 @@ class IcebergToGlueConverter {
     for (Schema schema : metadata.schemas()) {
       if (schema.schemaId() != metadata.currentSchemaId()) {
         for (NestedField field : schema.columns()) {
-          addColumnWithDedupe(columns, addedNames, field, false /* is not current */,existingColumnMap);
+          addColumnWithDedupe(
+              columns, addedNames, field, false /* is not current */, existingColumnMap);
         }
       }
     }
@@ -356,16 +360,21 @@ class IcebergToGlueConverter {
   }
 
   private static void addColumnWithDedupe(
-      List<Column> columns, Set<String> dedupe, NestedField field, boolean isCurrent, Map<String, String> existingColumnMap) {
+      List<Column> columns,
+      Set<String> dedupe,
+      NestedField field,
+      boolean isCurrent,
+      Map<String, String> existingColumnMap) {
     if (!dedupe.contains(field.name())) {
-      Column.Builder builder = Column.builder()
-        .name(field.name())
-        .type(toTypeString(field.type()))
-        .parameters(
-          ImmutableMap.of(
-              ICEBERG_FIELD_ID, Integer.toString(field.fieldId()),
-              ICEBERG_FIELD_OPTIONAL, Boolean.toString(field.isOptional()),
-              ICEBERG_FIELD_CURRENT, Boolean.toString(isCurrent)));
+      Column.Builder builder =
+          Column.builder()
+              .name(field.name())
+              .type(toTypeString(field.type()))
+              .parameters(
+                  ImmutableMap.of(
+                      ICEBERG_FIELD_ID, Integer.toString(field.fieldId()),
+                      ICEBERG_FIELD_OPTIONAL, Boolean.toString(field.isOptional()),
+                      ICEBERG_FIELD_CURRENT, Boolean.toString(isCurrent)));
 
       if (field.doc() != null && !field.doc().isEmpty()) {
         builder.comment(field.doc());
