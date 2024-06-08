@@ -19,12 +19,14 @@
 package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
@@ -54,6 +56,9 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+
+import static org.apache.iceberg.flink.TestFixtures.SECONDARY_TABLE_IDENTIFIER;
+import static org.apache.iceberg.flink.TestFixtures.TABLE_IDENTIFIER;
 
 @RunWith(Parameterized.class)
 public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
@@ -104,12 +109,22 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
         catalogResource
             .catalog()
             .createTable(
-                TestFixtures.TABLE_IDENTIFIER,
+                TABLE_IDENTIFIER,
                 SimpleDataUtil.SCHEMA,
                 partitioned
                     ? PartitionSpec.builderFor(SimpleDataUtil.SCHEMA).identity("data").build()
                     : PartitionSpec.unpartitioned(),
                 ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()));
+
+    table1 = catalogResource
+            .catalog()
+            .createTable(
+                    SECONDARY_TABLE_IDENTIFIER,
+                    SimpleDataUtil.SCHEMA,
+                    partitioned
+                            ? PartitionSpec.builderFor(SimpleDataUtil.SCHEMA).identity("data").build()
+                            : PartitionSpec.unpartitioned(),
+                    ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()));
 
     env =
         StreamExecutionEnvironment.getExecutionEnvironment(
@@ -139,6 +154,57 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
 
     // Assert the iceberg table's records.
     SimpleDataUtil.assertTableRows(table, convertToRowData(rows));
+  }
+
+  @Test
+  public void testMultiTableWriteRowDataOnSingleTable() throws Exception {
+    List<Row> rows = Lists.newArrayList(Row.of(1, "hello"), Row.of(2, "world"), Row.of(3, "foo"));
+    DataStream<RowData> dataStream =
+            env.addSource(createBoundedSource(rows), ROW_TYPE_INFO)
+                    .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
+
+    FlinkSink.forRowData(dataStream)
+            .table(table)
+            .readMultitableWriter(true)
+            .setPayloadTableSinkProvider(new SimpleProvider())
+            .setCatalogLoader(catalogResource.catalogLoader())
+            .tableLoader(tableLoader)
+            .writeParallelism(parallelism)
+            .distributionMode(DistributionMode.NONE)
+            .append();
+
+    // Execute the program.
+    env.execute("Test Iceberg DataStream");
+
+    // Assert the iceberg table's records.
+    SimpleDataUtil.assertTableRows(table, convertToRowData(rows));
+  }
+
+  @Test
+  public void testMultiTableWriteRowDataOnMultiTable() throws Exception {
+    List<Row> rows = Lists.newArrayList(Row.of(1, "hello"), Row.of(2, "world"), Row.of(3, "foo"));
+    List<Row> odd = Lists.newArrayList(Row.of(1, "hello"), Row.of(3, "foo"));
+    List<Row> even = Lists.newArrayList(Row.of(2, "world"));
+    DataStream<RowData> dataStream =
+            env.addSource(createBoundedSource(rows), ROW_TYPE_INFO)
+                    .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
+
+    FlinkSink.forRowData(dataStream)
+            .table(table)
+            .readMultitableWriter(true)
+            .setPayloadTableSinkProvider(new ComplexProvider())
+            .setCatalogLoader(catalogResource.catalogLoader())
+            .tableLoader(tableLoader)
+            .writeParallelism(parallelism)
+            .distributionMode(DistributionMode.NONE)
+            .append();
+
+    // Execute the program.
+    env.execute("Test Iceberg DataStream");
+
+    // Assert the iceberg table's records.
+    SimpleDataUtil.assertTableRows(table, convertToRowData(even));
+    SimpleDataUtil.assertTableRows(table1, convertToRowData(odd));
   }
 
   private void testWriteRow(TableSchema tableSchema, DistributionMode distributionMode)
@@ -393,5 +459,24 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
 
     // Assert the iceberg table's records.
     SimpleDataUtil.assertTableRows(table, convertToRowData(rows));
+  }
+
+  private static class SimpleProvider implements PayloadTableSinkProvider<RowData>, Serializable {
+    @Override
+    public TableIdentifier getOrCreateTable(StreamRecord<RowData> record) {
+      return TABLE_IDENTIFIER;
+    }
+  }
+
+
+  private static class ComplexProvider implements PayloadTableSinkProvider<RowData>, Serializable {
+    @Override
+    public TableIdentifier getOrCreateTable(StreamRecord<RowData> record) {
+      int val = record.getValue().getInt(0);
+      if (val %2 == 0) {
+        return TABLE_IDENTIFIER;
+      }
+      return SECONDARY_TABLE_IDENTIFIER;
+    }
   }
 }

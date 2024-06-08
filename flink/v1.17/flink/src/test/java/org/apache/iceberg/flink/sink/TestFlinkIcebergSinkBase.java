@@ -34,6 +34,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 public class TestFlinkIcebergSinkBase {
 
   protected Table table;
+  protected Table table1;
   protected StreamExecutionEnvironment env;
   protected static final TypeInformation<Row> ROW_TYPE_INFO =
       new RowTypeInfo(SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
