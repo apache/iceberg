@@ -467,7 +467,7 @@ public class CatalogUtil {
     return reporter;
   }
 
-  private static MetricsReporter createMetricsReporter(String impl, ClassLoader loader)
+  private static MetricsReporter initMetricsReporter(String impl, ClassLoader loader)
       throws NoSuchMethodException {
     DynConstructors.Ctor<MetricsReporter> ctor =
         DynConstructors.builder(MetricsReporter.class).loader(loader).impl(impl).buildChecked();
