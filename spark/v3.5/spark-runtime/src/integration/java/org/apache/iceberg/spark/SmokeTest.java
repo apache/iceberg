@@ -174,6 +174,13 @@ public class SmokeTest extends ExtensionsTestBase {
         .hasSize(3);
   }
 
+  @TestTemplate
+  public void showView() {
+    sql("DROP VIEW IF EXISTS %s", "test");
+    sql("CREATE VIEW %s AS SELECT 1 AS id", "test");
+    Assertions.assertThat(sql("SHOW VIEWS")).contains(row("default", "test", false));
+  }
+
   private Table getTable(String name) {
     return validationCatalog.loadTable(TableIdentifier.of("default", name));
   }

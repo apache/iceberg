@@ -170,6 +170,7 @@ paths:
         sending a token exchange request (3). The request's "subject" token should be the expiring
         token. This request should use the subject token in the "Authorization" header.
       requestBody:
+        required: true
         content:
           application/x-www-form-urlencoded:
             schema:
@@ -248,6 +249,7 @@ paths:
         The server might also add properties, such as `last_modified_time` etc.
       operationId: createNamespace
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -396,6 +398,7 @@ paths:
 
         Server implementations are not required to support namespace properties.
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -499,6 +502,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/data-access'
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -551,6 +555,7 @@ paths:
 
       operationId: registerTable
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -680,6 +685,7 @@ paths:
         initialization, like AddSchemaUpdate and SetCurrentSchemaUpdate. The `assert-create` requirement is
         used to ensure that the table was not created concurrently.
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -1111,6 +1117,7 @@ paths:
         Create a view in the given namespace.
       operationId: createView
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -1209,6 +1216,7 @@ paths:
       description:
         Commit updates to a view.
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -1378,8 +1386,8 @@ paths:
                 $ref: '#/components/examples/RenameViewSameNamespace'
         required: true
       responses:
-        200:
-          description: OK
+        204:
+          description: Success, no content
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
@@ -1986,8 +1994,8 @@ components:
             operation:
               type: string
               enum: ["append", "replace", "overwrite", "delete"]
-            additionalProperties:
-              type: string
+          additionalProperties:
+            type: string
         schema-id:
           type: integer
 
@@ -2578,6 +2586,7 @@ components:
         - $ref: '#/components/schemas/SetCurrentViewVersionUpdate'
 
     TableRequirement:
+      type: object
       discriminator:
         propertyName: type
         mapping:
@@ -2589,16 +2598,17 @@ components:
           assert-last-assigned-partition-id: '#/components/schemas/AssertLastAssignedPartitionId'
           assert-default-spec-id: '#/components/schemas/AssertDefaultSpecId'
           assert-default-sort-order-id: '#/components/schemas/AssertDefaultSortOrderId'
-      type: object
-      required:
-        - type
-      properties:
-        type:
-          type: "string"
+      oneOf:
+        - $ref: '#/components/schemas/AssertCreate'
+        - $ref: '#/components/schemas/AssertTableUUID'
+        - $ref: '#/components/schemas/AssertRefSnapshotId'
+        - $ref: '#/components/schemas/AssertLastAssignedFieldId'
+        - $ref: '#/components/schemas/AssertCurrentSchemaId'
+        - $ref: '#/components/schemas/AssertLastAssignedPartitionId'
+        - $ref: '#/components/schemas/AssertDefaultSpecId'
+        - $ref: '#/components/schemas/AssertDefaultSortOrderId'
 
     AssertCreate:
-      allOf:
-        - $ref: "#/components/schemas/TableRequirement"
       type: object
       description: The table must not already exist; used for create transactions
       required:
@@ -2609,8 +2619,6 @@ components:
           enum: ["assert-create"]
 
     AssertTableUUID:
-      allOf:
-        - $ref: "#/components/schemas/TableRequirement"
       description: The table UUID must match the requirement's `uuid`
       required:
         - type
@@ -2623,8 +2631,6 @@ components:
           type: string
 
     AssertRefSnapshotId:
-      allOf:
-        - $ref: "#/components/schemas/TableRequirement"
       description:
         The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; 
         if `snapshot-id` is `null` or missing, the ref must not already exist
@@ -2643,8 +2649,6 @@ components:
           format: int64
 
     AssertLastAssignedFieldId:
-      allOf:
-        - $ref: "#/components/schemas/TableRequirement"
       description:
         The table's last assigned column id must match the requirement's `last-assigned-field-id`
       required:
@@ -2658,8 +2662,6 @@ components:
           type: integer
 
     AssertCurrentSchemaId:
-      allOf:
-        - $ref: "#/components/schemas/TableRequirement"
       description:
         The table's current schema id must match the requirement's `current-schema-id`
       required:
@@ -2673,8 +2675,6 @@ components:
           type: integer
 
     AssertLastAssignedPartitionId:
-      allOf:
-        - $ref: "#/components/schemas/TableRequirement"
       description:
         The table's last assigned partition id must match the requirement's `last-assigned-partition-id`
       required:
@@ -2688,8 +2688,6 @@ components:
           type: integer
 
     AssertDefaultSpecId:
-      allOf:
-        - $ref: "#/components/schemas/TableRequirement"
       description:
         The table's default spec id must match the requirement's `default-spec-id`
       required:
@@ -2703,8 +2701,6 @@ components:
           type: integer
 
     AssertDefaultSortOrderId:
-      allOf:
-        - $ref: "#/components/schemas/TableRequirement"
       description:
         The table's default sort order id must match the requirement's `default-sort-order-id`
       required:
@@ -2718,20 +2714,15 @@ components:
           type: integer
 
     ViewRequirement:
+      type: object
       discriminator:
         propertyName: type
         mapping:
           assert-view-uuid: '#/components/schemas/AssertViewUUID'
-      type: object
-      required:
-        - type
-      properties:
-        type:
-          type: "string"
+      oneOf:
+        - $ref: '#/components/schemas/AssertViewUUID'
 
     AssertViewUUID:
-      allOf:
-        - $ref: "#/components/schemas/ViewRequirement"
       description: The view UUID must match the requirement's `uuid`
       required:
         - type

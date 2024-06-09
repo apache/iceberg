@@ -179,7 +179,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
         BaseMetastoreOperations.CommitStatus.FAILURE;
     boolean updateHiveTable = false;
 
-    HiveLock lock = lockObject(metadata);
+    HiveLock lock = lockObject(base);
     try {
       lock.lock();
 
@@ -235,13 +235,14 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
 
       if (!keepHiveStats) {
         tbl.getParameters().remove(StatsSetupConst.COLUMN_STATS_ACCURATE);
+        tbl.getParameters().put(StatsSetupConst.DO_NOT_UPDATE_STATS, StatsSetupConst.TRUE);
       }
 
       lock.ensureActive();
 
       try {
         persistTable(
-            tbl, updateHiveTable, hiveLockEnabled(metadata, conf) ? null : baseMetadataLocation);
+            tbl, updateHiveTable, hiveLockEnabled(base, conf) ? null : baseMetadataLocation);
         lock.ensureActive();
 
         commitStatus = BaseMetastoreOperations.CommitStatus.SUCCESS;
@@ -509,7 +510,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
    * @return if the hive engine related values should be enabled or not
    */
   private static boolean hiveLockEnabled(TableMetadata metadata, Configuration conf) {
-    if (metadata.properties().get(TableProperties.HIVE_LOCK_ENABLED) != null) {
+    if (metadata != null && metadata.properties().get(TableProperties.HIVE_LOCK_ENABLED) != null) {
       // We know that the property is set, so default value will not be used,
       return metadata.propertyAsBoolean(TableProperties.HIVE_LOCK_ENABLED, false);
     }

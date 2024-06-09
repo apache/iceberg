@@ -70,6 +70,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.rest.auth.AuthConfig;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.auth.OAuth2Util.AuthSession;
@@ -114,6 +115,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
   private static final String REST_METRICS_REPORTING_ENABLED = "rest-metrics-reporting-enabled";
   private static final String REST_SNAPSHOT_LOADING_MODE = "snapshot-loading-mode";
+  public static final String REST_PAGE_SIZE = "rest-page-size";
   private static final List<String> TOKEN_PREFERENCE_ORDER =
       ImmutableList.of(
           OAuth2Properties.ID_TOKEN_TYPE,
@@ -136,6 +138,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private FileIO io = null;
   private MetricsReporter reporter = null;
   private boolean reportingViaRestEnabled;
+  private Integer pageSize = null;
   private CloseableGroup closeables = null;
 
   // a lazy thread pool for token refresh
@@ -217,15 +220,27 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     String token = mergedProps.get(OAuth2Properties.TOKEN);
     this.catalogAuth =
         new AuthSession(
-            baseHeaders, null, null, credential, scope, oauth2ServerUri, optionalOAuthParams);
+            baseHeaders,
+            AuthConfig.builder()
+                .credential(credential)
+                .scope(scope)
+                .oauth2ServerUri(oauth2ServerUri)
+                .optionalOAuthParams(optionalOAuthParams)
+                .build());
     if (authResponse != null) {
       this.catalogAuth =
           AuthSession.fromTokenResponse(
-              client, tokenRefreshExecutor(), authResponse, startTimeMillis, catalogAuth);
+              client, tokenRefreshExecutor(name), authResponse, startTimeMillis, catalogAuth);
     } else if (token != null) {
       this.catalogAuth =
           AuthSession.fromAccessToken(
-              client, tokenRefreshExecutor(), token, expiresAtMillis(mergedProps), catalogAuth);
+              client, tokenRefreshExecutor(name), token, expiresAtMillis(mergedProps), catalogAuth);
+    }
+
+    this.pageSize = PropertyUtil.propertyAsNullableInt(mergedProps, REST_PAGE_SIZE);
+    if (pageSize != null) {
+      Preconditions.checkArgument(
+          pageSize > 0, "Invalid value for %s, must be a positive integer", REST_PAGE_SIZE);
     }
 
     this.io = newFileIO(SessionContext.createEmpty(), mergedProps);
@@ -278,14 +293,27 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   @Override
   public List<TableIdentifier> listTables(SessionContext context, Namespace ns) {
     checkNamespaceIsValid(ns);
+    Map<String, String> queryParams = Maps.newHashMap();
+    ImmutableList.Builder<TableIdentifier> tables = ImmutableList.builder();
+    String pageToken = "";
+    if (pageSize != null) {
+      queryParams.put("pageSize", String.valueOf(pageSize));
+    }
 
-    ListTablesResponse response =
-        client.get(
-            paths.tables(ns),
-            ListTablesResponse.class,
-            headers(context),
-            ErrorHandlers.namespaceErrorHandler());
-    return response.identifiers();
+    do {
+      queryParams.put("pageToken", pageToken);
+      ListTablesResponse response =
+          client.get(
+              paths.tables(ns),
+              queryParams,
+              ListTablesResponse.class,
+              headers(context),
+              ErrorHandlers.namespaceErrorHandler());
+      pageToken = response.nextPageToken();
+      tables.addAll(response.identifiers());
+    } while (pageToken != null);
+
+    return tables.build();
   }
 
   @Override
@@ -494,22 +522,31 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public List<Namespace> listNamespaces(SessionContext context, Namespace namespace) {
-    Map<String, String> queryParams;
-    if (namespace.isEmpty()) {
-      queryParams = ImmutableMap.of();
-    } else {
-      // query params should be unescaped
-      queryParams = ImmutableMap.of("parent", RESTUtil.NAMESPACE_JOINER.join(namespace.levels()));
+    Map<String, String> queryParams = Maps.newHashMap();
+    if (!namespace.isEmpty()) {
+      queryParams.put("parent", RESTUtil.NAMESPACE_JOINER.join(namespace.levels()));
     }
 
-    ListNamespacesResponse response =
-        client.get(
-            paths.namespaces(),
-            queryParams,
-            ListNamespacesResponse.class,
-            headers(context),
-            ErrorHandlers.namespaceErrorHandler());
-    return response.namespaces();
+    ImmutableList.Builder<Namespace> namespaces = ImmutableList.builder();
+    String pageToken = "";
+    if (pageSize != null) {
+      queryParams.put("pageSize", String.valueOf(pageSize));
+    }
+
+    do {
+      queryParams.put("pageToken", pageToken);
+      ListNamespacesResponse response =
+          client.get(
+              paths.namespaces(),
+              queryParams,
+              ListNamespacesResponse.class,
+              headers(context),
+              ErrorHandlers.namespaceErrorHandler());
+      pageToken = response.nextPageToken();
+      namespaces.addAll(response.namespaces());
+    } while (pageToken != null);
+
+    return namespaces.build();
   }
 
   @Override
@@ -558,7 +595,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     return !response.updated().isEmpty();
   }
 
-  private ScheduledExecutorService tokenRefreshExecutor() {
+  private ScheduledExecutorService tokenRefreshExecutor(String catalogName) {
     if (!keepTokenRefreshed) {
       return null;
     }
@@ -566,7 +603,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     if (refreshExecutor == null) {
       synchronized (this) {
         if (refreshExecutor == null) {
-          this.refreshExecutor = ThreadPools.newScheduledPool(name() + "-token-refresh", 1);
+          this.refreshExecutor = ThreadPools.newScheduledPool(catalogName + "-token-refresh", 1);
         }
       }
     }
@@ -602,7 +639,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           });
 
       try {
-        if (service.awaitTermination(1, TimeUnit.MINUTES)) {
+        if (!service.awaitTermination(1, TimeUnit.MINUTES)) {
           LOG.warn("Timed out waiting for refresh executor to terminate");
         }
       } catch (InterruptedException e) {
@@ -930,7 +967,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             () ->
                 AuthSession.fromAccessToken(
                     client,
-                    tokenRefreshExecutor(),
+                    tokenRefreshExecutor(name()),
                     credentials.get(OAuth2Properties.TOKEN),
                     expiresAtMillis(properties),
                     parent));
@@ -943,7 +980,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             () ->
                 AuthSession.fromCredential(
                     client,
-                    tokenRefreshExecutor(),
+                    tokenRefreshExecutor(name()),
                     credentials.get(OAuth2Properties.CREDENTIAL),
                     parent));
       }
@@ -956,7 +993,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               () ->
                   AuthSession.fromTokenExchange(
                       client,
-                      tokenRefreshExecutor(),
+                      tokenRefreshExecutor(name()),
                       credentials.get(tokenType),
                       tokenType,
                       parent));
@@ -1048,14 +1085,27 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   @Override
   public List<TableIdentifier> listViews(SessionContext context, Namespace namespace) {
     checkNamespaceIsValid(namespace);
+    Map<String, String> queryParams = Maps.newHashMap();
+    ImmutableList.Builder<TableIdentifier> views = ImmutableList.builder();
+    String pageToken = "";
+    if (pageSize != null) {
+      queryParams.put("pageSize", String.valueOf(pageSize));
+    }
 
-    ListTablesResponse response =
-        client.get(
-            paths.views(namespace),
-            ListTablesResponse.class,
-            headers(context),
-            ErrorHandlers.namespaceErrorHandler());
-    return response.identifiers();
+    do {
+      queryParams.put("pageToken", pageToken);
+      ListTablesResponse response =
+          client.get(
+              paths.views(namespace),
+              queryParams,
+              ListTablesResponse.class,
+              headers(context),
+              ErrorHandlers.namespaceErrorHandler());
+      pageToken = response.nextPageToken();
+      views.addAll(response.identifiers());
+    } while (pageToken != null);
+
+    return views.build();
   }
 
   @Override

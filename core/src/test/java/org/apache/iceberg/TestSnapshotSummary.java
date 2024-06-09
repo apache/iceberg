@@ -90,4 +90,11 @@ public class TestSnapshotSummary extends TestBase {
         .containsEntry(SnapshotSummary.ADD_EQ_DELETE_FILES_PROP, "1")
         .containsEntry(SnapshotSummary.ADD_POS_DELETE_FILES_PROP, "1");
   }
+
+  @TestTemplate
+  public void testIcebergVersionInSummary() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Map<String, String> summary = table.currentSnapshot().summary();
+    assertThat(summary).containsKey("iceberg-version");
+  }
 }

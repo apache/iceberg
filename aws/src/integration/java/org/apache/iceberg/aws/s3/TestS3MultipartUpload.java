@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
 import java.util.Random;
 import java.util.UUID;
@@ -27,11 +29,10 @@ import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsIntegTestUtil;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.io.SeekableInputStream;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.services.s3.S3Client;
 
 /** Long-running tests to ensure multipart upload logic is resilient */
@@ -45,7 +46,7 @@ public class TestS3MultipartUpload {
   private static S3FileIO io;
   private String objectUri;
 
-  @BeforeClass
+  @BeforeAll
   public static void beforeClass() {
     s3 = AwsClientFactories.defaultFactory().s3();
     bucketName = AwsIntegTestUtil.testBucketName();
@@ -56,28 +57,27 @@ public class TestS3MultipartUpload {
     io = new S3FileIO(() -> s3, properties);
   }
 
-  @AfterClass
+  @AfterAll
   public static void afterClass() {
     AwsIntegTestUtil.cleanS3Bucket(s3, bucketName, prefix);
   }
 
-  @Before
+  @BeforeEach
   public void before() {
     String objectKey = String.format("%s/%s", prefix, UUID.randomUUID().toString());
     objectUri = String.format("s3://%s/%s", bucketName, objectKey);
   }
 
   @Test
-  public void testManyPartsWriteWithInt() throws IOException {
+  public void testManyPartsWriteWithInt() {
     int parts = 200;
     writeInts(objectUri, parts, random::nextInt);
-    Assert.assertEquals(
-        parts * (long) S3FileIOProperties.MULTIPART_SIZE_MIN,
-        io.newInputFile(objectUri).getLength());
+    assertThat(io.newInputFile(objectUri).getLength())
+        .isEqualTo(parts * (long) S3FileIOProperties.MULTIPART_SIZE_MIN);
   }
 
   @Test
-  public void testManyPartsWriteWithBytes() throws IOException {
+  public void testManyPartsWriteWithBytes() {
     int parts = 200;
     byte[] bytes = new byte[S3FileIOProperties.MULTIPART_SIZE_MIN];
     writeBytes(
@@ -87,9 +87,8 @@ public class TestS3MultipartUpload {
           random.nextBytes(bytes);
           return bytes;
         });
-    Assert.assertEquals(
-        parts * (long) S3FileIOProperties.MULTIPART_SIZE_MIN,
-        io.newInputFile(objectUri).getLength());
+    assertThat(io.newInputFile(objectUri).getLength())
+        .isEqualTo(parts * (long) S3FileIOProperties.MULTIPART_SIZE_MIN);
   }
 
   @Test
@@ -112,7 +111,7 @@ public class TestS3MultipartUpload {
   public void testUploadRemainder() throws IOException {
     long length = 3 * S3FileIOProperties.MULTIPART_SIZE_MIN + 2 * 1024 * 1024;
     writeInts(objectUri, 1, length, random::nextInt);
-    Assert.assertEquals(length, io.newInputFile(objectUri).getLength());
+    assertThat(io.newInputFile(objectUri).getLength()).isEqualTo(length);
   }
 
   @Test
@@ -146,7 +145,7 @@ public class TestS3MultipartUpload {
     try (SeekableInputStream inputStream = io.newInputFile(fileUri).newStream()) {
       int cur;
       while ((cur = inputStream.read()) != -1) {
-        Assert.assertEquals(verifier.get().intValue(), cur);
+        assertThat(cur).isEqualTo(verifier.get());
       }
     } catch (IOException e) {
       throw new RuntimeException(e);

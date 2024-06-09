@@ -34,7 +34,7 @@ This page describes the procedures that the release manager and voting PMC membe
 
 To create a release candidate, you will need:
 
-* Apache LDAP credentals for Nexus and SVN
+* Apache LDAP credentials for Nexus and SVN
 * A [GPG key for signing](https://www.apache.org/dev/release-signing#generate), published in [KEYS](https://dist.apache.org/repos/dist/dev/iceberg/KEYS)
 
 If you have not published your GPG key yet, you must publish it before sending the vote email by doing:
@@ -256,14 +256,7 @@ are prepared when going through the below steps.
 First, copy the source release directory to releases:
 
 ```bash
-mkdir iceberg
-cd iceberg
-svn co https://dist.apache.org/repos/dist/dev/iceberg candidates
-svn co https://dist.apache.org/repos/dist/release/iceberg releases
-cp -r candidates/apache-iceberg-<VERSION>-rcN/ releases/apache-iceberg-<VERSION>
-cd releases
-svn add apache-iceberg-<VERSION>
-svn ci -m 'Iceberg: Add release <VERSION>'
+svn mv https://dist.apache.org/repos/dist/dev/iceberg/apache-iceberg-<VERSION>-rcN https://dist.apache.org/repos/dist/release/iceberg/apache-iceberg-<VERSION> -m "Iceberg: Add release <VERSION>"
 ```
 
 !!! Note
@@ -310,77 +303,23 @@ Create a PR in the `iceberg` repo to make revapi run on the new release. For an 
 - Create a PR in the `iceberg` repo to add the new version to the github issue template. For an example see [this PR](https://github.com/apache/iceberg/pull/6287).
 - Draft [a new release to update Github](https://github.com/apache/iceberg/releases/new) to show the latest release. A changelog can be generated automatically using Github.
 
+#### Update DOAP (ASF Project Description)
+
+- Create a PR to update the release version in [doap.rdf](https://github.com/apache/iceberg/blob/main/doap.rdf) file, in the `<release/>` section:
+
+```xml
+    <release>
+      <Version>
+        <name>x.y.z</name>
+        <created>yyyy-mm-dd</created>
+        <revision>x.y.z</revision>
+      </Version>
+    </release>
+```
+
 ### Documentation Release
 
-Documentation needs to be updated as a part of an Iceberg release after a release candidate is passed.
-The commands described below assume you are in a directory containing a local clone of the `iceberg-docs`
-repository and `iceberg` repository. Adjust the commands accordingly if it is not the case. Note that all
-changes in `iceberg` need to happen against the `master` branch and changes in `iceberg-docs` need to happen
-against the `main` branch. 
-
-#### Common documentation update
-
-1. To start the release process, run the following steps in the `iceberg-docs` repository to copy docs over:
-```shell
-cp -r ../iceberg/format/* ../iceberg-docs/landing-page/content/common/
-```
-2. Change into the `iceberg-docs` repository and create a branch.
-```shell
-cd ../iceberg-docs
-git checkout -b <BRANCH NAME>
-```
-3. Commit, push, and open a PR against the `iceberg-docs` repo (`<BRANCH NAME>` -> `main`)
-
-#### Versioned documentation update
-
-Once the common docs changes have been merged into `main`, the next step is to update the versioned docs.
-
-1. In the `iceberg-docs` repository, cut a new branch using the version number as the branch name
-```shell
-cd ../iceberg-docs
-git checkout -b <VERSION>
-git push --set-upstream apache <VERSION>
-```
-2. Copy the versioned docs from the `iceberg` repo into the `iceberg-docs` repo
-```shell
-rm -rf ../iceberg-docs/docs/content
-cp -r ../iceberg/docs ../iceberg-docs/docs/content
-```
-3. Commit the changes and open a PR against the `<VERSION>` branch in the `iceberg-docs` repo
-
-#### Javadoc update
-
-In the `iceberg` repository, generate the javadoc for your release and copy it to the `javadoc` folder in `iceberg-docs` repo:
-```shell
-cd ../iceberg
-./gradlew refreshJavadoc
-rm -rf ../iceberg-docs/javadoc
-cp -r site/docs/javadoc/<VERSION NUMBER> ../iceberg-docs/javadoc
-```
-
-This resulted changes in `iceberg-docs` should be approved in a separate PR.
-
-#### Update the latest branch
-
-Since `main` is currently the same as the version branch, one needs to rebase `latest` branch against `main`:
-
-```shell
-git checkout latest
-git rebase main
-git push apache latest
-```
-
-#### Set latest version in iceberg-docs repo
-
-The last step is to update the `main` branch in `iceberg-docs` to set the latest version.
-A PR needs to be published in the `iceberg-docs` repository with the following changes:
-1. Update variable `latestVersions.iceberg` to the new release version in `landing-page/config.toml`
-2. Update variable `latestVersions.iceberg` to the new release version and 
-`versions.nessie` to the version of `org.projectnessie.nessie:*` from [mkdocs.yml](https://github.com/apache/iceberg/blob/main/site/mkdocs.yml) in `docs/config.toml`
-3. Update list `versions` with the new release in `landing-page/config.toml`
-4. Update list `versions` with the new release in `docs/config.toml`
-5. Mark the current latest release notes to past releases under `landing-page/content/common/release-notes.md`
-6. Add release notes for the new release version in `landing-page/content/common/release-notes.md`
+Please follow the instructions on the GitHub repository in the [`README.md` in the `site/`](https://github.com/apache/iceberg/tree/main/site) directory.
 
 # How to Verify a Release
 

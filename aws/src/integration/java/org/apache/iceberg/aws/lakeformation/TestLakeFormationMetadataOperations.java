@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.aws.lakeformation;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Table;
@@ -27,9 +30,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.services.glue.model.AccessDeniedException;
 import software.amazon.awssdk.services.lakeformation.model.Permission;
 
@@ -48,8 +49,7 @@ public class TestLakeFormationMetadataOperations extends LakeFormationTestBase {
   @Test
   public void testCreateDatabaseNoPrivileges() {
     String testDbName = getRandomDbName();
-    Assertions.assertThatThrownBy(
-            () -> glueCatalogPrivilegedRole.createNamespace(Namespace.of(testDbName)))
+    assertThatThrownBy(() -> glueCatalogPrivilegedRole.createNamespace(Namespace.of(testDbName)))
         .as("attempt to create a database without CREATE_DATABASE permission should fail")
         .isInstanceOf(AccessDeniedException.class)
         .hasMessageContaining("Insufficient Lake Formation permission(s)");
@@ -60,8 +60,7 @@ public class TestLakeFormationMetadataOperations extends LakeFormationTestBase {
     String testDbName = getRandomDbName();
     lfRegisterPathRoleCreateDb(testDbName);
     try {
-      Assertions.assertThatThrownBy(
-              () -> glueCatalogPrivilegedRole.dropNamespace(Namespace.of(testDbName)))
+      assertThatThrownBy(() -> glueCatalogPrivilegedRole.dropNamespace(Namespace.of(testDbName)))
           .as("attempt to drop a database without DROP permission should fail")
           .isInstanceOf(AccessDeniedException.class)
           .hasMessageContaining("Insufficient Lake Formation permission(s)");
@@ -77,7 +76,7 @@ public class TestLakeFormationMetadataOperations extends LakeFormationTestBase {
     grantDatabasePrivileges(testDbName, Permission.ALTER);
     try {
       List<Namespace> namespaces = glueCatalogPrivilegedRole.listNamespaces();
-      Assert.assertTrue(namespaces.contains(Namespace.of(testDbName)));
+      assertThat(namespaces).contains(Namespace.of(testDbName));
     } finally {
       lfRegisterPathRoleDeleteDb(testDbName);
     }
@@ -92,7 +91,7 @@ public class TestLakeFormationMetadataOperations extends LakeFormationTestBase {
     String tableLocation = getTableLocation(testTableName);
     grantDataPathPrivileges(tableLocation);
     try {
-      Assertions.assertThatThrownBy(
+      assertThatThrownBy(
               () ->
                   glueCatalogPrivilegedRole.createTable(
                       TableIdentifier.of(testDbName, testTableName),
@@ -117,8 +116,7 @@ public class TestLakeFormationMetadataOperations extends LakeFormationTestBase {
     grantTablePrivileges(testDbName, testTableName, Permission.ALTER);
     try {
       List<TableIdentifier> tables = glueCatalogPrivilegedRole.listTables(Namespace.of(testDbName));
-      Assert.assertTrue(
-          tables.contains(TableIdentifier.of(Namespace.of(testDbName), testTableName)));
+      assertThat(tables).contains(TableIdentifier.of(Namespace.of(testDbName), testTableName));
     } finally {
       lfRegisterPathRoleDeleteTable(testDbName, testTableName);
       lfRegisterPathRoleDeleteDb(testDbName);
@@ -132,8 +130,7 @@ public class TestLakeFormationMetadataOperations extends LakeFormationTestBase {
     lfRegisterPathRoleCreateDb(testDbName);
     lfRegisterPathRoleCreateTable(testDbName, testTableName);
     try {
-      Assertions.assertThatThrownBy(
-              () -> glueCatalogPrivilegedRole.listTables(Namespace.of(testDbName)))
+      assertThatThrownBy(() -> glueCatalogPrivilegedRole.listTables(Namespace.of(testDbName)))
           .as("attempt to show tables without any permissions should fail")
           .isInstanceOf(AccessDeniedException.class)
           .hasMessageContaining("Insufficient Lake Formation permission(s)");
@@ -150,7 +147,7 @@ public class TestLakeFormationMetadataOperations extends LakeFormationTestBase {
     lfRegisterPathRoleCreateDb(testDbName);
     grantDatabasePrivileges(testDbName, Permission.CREATE_TABLE);
     try {
-      Assertions.assertThatThrownBy(
+      assertThatThrownBy(
               () ->
                   glueCatalogPrivilegedRole.createTable(
                       TableIdentifier.of(testDbName, testTableName),
@@ -210,7 +207,7 @@ public class TestLakeFormationMetadataOperations extends LakeFormationTestBase {
     lfRegisterPathRoleCreateTable(testDbName, testTableName);
     grantTablePrivileges(testDbName, testTableName, Permission.SELECT);
     try {
-      Assertions.assertThatThrownBy(
+      assertThatThrownBy(
               () ->
                   glueCatalogPrivilegedRole.dropTable(
                       TableIdentifier.of(testDbName, testTableName), false))
@@ -265,7 +262,7 @@ public class TestLakeFormationMetadataOperations extends LakeFormationTestBase {
           TableProperties.DEFAULT_FILE_FORMAT, TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
       UpdateProperties updateProperties = table.updateProperties();
       properties.forEach(updateProperties::set);
-      Assertions.assertThatThrownBy(updateProperties::commit)
+      assertThatThrownBy(updateProperties::commit)
           .as("attempt to alter a table without ALTER permission should fail")
           .isInstanceOf(ForbiddenException.class)
           .hasMessageContaining("Glue cannot access the requested resources");
@@ -283,7 +280,7 @@ public class TestLakeFormationMetadataOperations extends LakeFormationTestBase {
     lfRegisterPathRoleCreateTable(testDbName, testTableName);
     grantDataPathPrivileges(getTableLocation(testTableName));
     try {
-      Assertions.assertThatThrownBy(
+      assertThatThrownBy(
               () ->
                   glueCatalogPrivilegedRole.loadTable(
                       TableIdentifier.of(Namespace.of(testDbName), testTableName)))
@@ -313,7 +310,7 @@ public class TestLakeFormationMetadataOperations extends LakeFormationTestBase {
           TableProperties.DEFAULT_FILE_FORMAT, TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
       UpdateProperties updateProperties = table.updateProperties();
       properties.forEach(updateProperties::set);
-      Assertions.assertThatThrownBy(updateProperties::commit)
+      assertThatThrownBy(updateProperties::commit)
           .as("attempt to alter a table without ALTER privileges should fail")
           .isInstanceOf(ForbiddenException.class)
           .hasMessageContaining("Glue cannot access the requested resources");
