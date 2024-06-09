@@ -103,11 +103,7 @@ public class IcebergSinkConfig extends AbstractConfig {
   public static final ConfigDef CONFIG_DEF = newConfigDef();
 
   public static String version() {
-    String kcVersion = IcebergSinkConfig.class.getPackage().getImplementationVersion();
-    if (kcVersion == null) {
-      kcVersion = "unknown";
-    }
-    return IcebergBuild.version() + "-kc-" + kcVersion;
+    return IcebergBuild.version();
   }
 
   private static ConfigDef newConfigDef() {

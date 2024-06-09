@@ -21,6 +21,7 @@ package org.apache.iceberg.connect;
 import java.util.Collection;
 import java.util.Map;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
@@ -49,6 +50,9 @@ public class IcebergSinkTask extends SinkTask {
 
   @Override
   public void open(Collection<TopicPartition> partitions) {
+    Preconditions.checkArgument(catalog == null, "Catalog already open");
+    Preconditions.checkArgument(committer == null, "Committer already open");
+
     catalog = CatalogUtils.loadCatalog(config);
     committer = CommitterFactory.createCommitter(config);
     committer.start(catalog, config, context, partitions);
@@ -79,13 +83,13 @@ public class IcebergSinkTask extends SinkTask {
 
   @Override
   public void put(Collection<SinkRecord> sinkRecords) {
-    if (committer != null) {
-      committer.save(sinkRecords);
-    }
+    Preconditions.checkNotNull(committer, "Committer wasn't initialized");
+    committer.save(sinkRecords);
   }
 
   @Override
   public void flush(Map<TopicPartition, OffsetAndMetadata> currentOffsets) {
+    Preconditions.checkNotNull(committer, "Committer wasn't initialized");
     committer.save(null);
   }
 
