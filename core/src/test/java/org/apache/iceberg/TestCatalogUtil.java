@@ -277,7 +277,7 @@ public class TestCatalogUtil {
       Thread.currentThread().setContextClassLoader(customClassLoader);
       MetricsReporter reporter = CatalogUtil.loadMetricsReporter(properties);
 
-      Assertions.assertThat(reporter).isNotNull();
+      Assertions.assertThat(reporter).isNotNull().isInstanceOf(MetricsReporter.class);
       Assertions.assertThat(reporter instanceof MetricsReporter).isTrue();
 
       PrintStream originalOut = System.out;
