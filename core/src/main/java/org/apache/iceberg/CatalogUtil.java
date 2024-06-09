@@ -476,7 +476,7 @@ public class CatalogUtil {
     } catch (ClassCastException e) {
       throw new IllegalArgumentException(
           String.format(
-              "Cannot initialize MetricsReporter, '%s' does not implement MetricsReporter.", impl),
+              "Cannot initialize MetricsReporter, %s does not implement MetricsReporter.", impl),
           e);
     }
   }
