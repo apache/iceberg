@@ -20,6 +20,7 @@ package org.apache.iceberg.aws.s3;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.SocketException;
 import java.util.Arrays;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIOMetricsContext;
@@ -88,17 +89,30 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     next = newPos;
   }
 
+
   @Override
   public int read() throws IOException {
     Preconditions.checkState(!closed, "Cannot read: already closed");
     positionStream();
+
+    int result;
+    try {
+      result = stream.read();
+    } catch (SocketException exception) {
+      if (exception.getMessage().equals("Connection reset")) {
+        openStream();
+        result = stream.read();
+      } else {
+        throw exception;
+      }
+    }
 
     pos += 1;
     next += 1;
     readBytes.increment();
     readOperations.increment();
 
-    return stream.read();
+    return result;
   }
 
   @Override
@@ -106,7 +120,18 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     Preconditions.checkState(!closed, "Cannot read: already closed");
     positionStream();
 
-    int bytesRead = stream.read(b, off, len);
+    int bytesRead;
+    try {
+       bytesRead = stream.read(b, off, len);
+    } catch (SocketException exception) {
+      if (exception.getMessage().equals("Connection reset")) {
+        openStream();
+        bytesRead = stream.read(b, off, len);
+      } else {
+        throw exception;
+      }
+    }
+
     pos += bytesRead;
     next += bytesRead;
     readBytes.increment(bytesRead);
