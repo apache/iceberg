@@ -443,8 +443,6 @@ public class CatalogUtil {
   public static MetricsReporter loadMetricsReporter(Map<String, String> properties) {
     String impl = properties.get(CatalogProperties.METRICS_REPORTER_IMPL);
     if (impl == null) {
-      LOG.info(
-          "Custom metrics reporter is set, but the implementation is null. Defaulting to LoggingMetricsReporter");
       return LoggingMetricsReporter.instance();
     }
 
@@ -453,10 +451,10 @@ public class CatalogUtil {
     MetricsReporter reporter;
 
     try {
-      reporter = createMetricsReporter(impl, CatalogUtil.class.getClassLoader());
+      reporter = initMetricsReporter(impl, CatalogUtil.class.getClassLoader());
     } catch (NoSuchMethodException e) {
       try {
-        reporter = createMetricsReporter(impl, Thread.currentThread().getContextClassLoader());
+        reporter = initMetricsReporter(impl, Thread.currentThread().getContextClassLoader());
       } catch (NoSuchMethodException e2) {
         throw new IllegalArgumentException(
             String.format("Cannot initialize MetricsReporter, missing no-arg constructor: %s", impl), e2);
