@@ -143,12 +143,16 @@ public class PartitionSpec implements Serializable {
   }
 
   /**
-   * Returns a struct with TransformID's which match the ID's used in the Table Metadata. This is
-   * different than the {@link #partitionType()} method which returns a struct which is guaranteed
-   * not to overlap with column ID's of the table by reassigning ID's.
+   * While partition field Id's are based on the column they are transforming, some Schemas need to
+   * re-assign partition field Id's to avoid conflict with defined column field ID's.
+   *
+   * @return a struct representing the partition type, with original field ID's that match the
+   *     column field ID's that they refer to. See {@link #partitionType()} for a struct with field
+   *     ID's potentially re-assigned to avoid conflict.
    */
   public StructType rawPartitionType() {
     if (schema.idsToOriginal().isEmpty()) {
+      // not re-assigned.
       return partitionType();
     }
     if (lazyRawPartitionType == null) {

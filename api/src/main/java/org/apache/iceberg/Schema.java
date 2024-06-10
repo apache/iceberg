@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
@@ -540,12 +541,12 @@ public class Schema implements Serializable {
   }
 
   /**
-   * All ids of metadata fields are reassigned.
+   * Fields identified as 'Metadata Fields' will have their field ID's reassigned.
    *
-   * @return map of original to reassigned field ids of metadata fields
+   * @return map of original to reassigned field ids
    */
   public Map<Integer, Integer> idsToReassigned() {
-    return idsToReassigned != null ? idsToReassigned : Maps.newHashMap();
+    return idsToReassigned != null ? idsToReassigned : Collections.emptyMap();
   }
 
   /**
