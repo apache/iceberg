@@ -36,7 +36,7 @@ public class TestAggregatedStatisticsTracker {
 
     StatisticsEvent checkpoint1Subtask0StatisticsEvent =
         createStatisticsEvent(type, TASK_STATISTICS_SERIALIZER, 1L, CHAR_KEYS.get("a"));
-    AggregatedStatistics completedStatistics =
+    CompletedStatistics completedStatistics =
         tracker.updateAndCheckCompletion(0, checkpoint1Subtask0StatisticsEvent);
     assertThat(completedStatistics).isNull();
     assertThat(tracker.aggregationsPerCheckpoint().keySet()).containsExactlyInAnyOrder(1L);
@@ -116,7 +116,7 @@ public class TestAggregatedStatisticsTracker {
             CHAR_KEYS.get("a"),
             CHAR_KEYS.get("b"),
             CHAR_KEYS.get("b"));
-    AggregatedStatistics completedStatistics =
+    CompletedStatistics completedStatistics =
         tracker.updateAndCheckCompletion(0, checkpoint2Subtask0StatisticsEvent);
     assertThat(completedStatistics).isNull();
     assertThat(tracker.aggregationsPerCheckpoint().keySet()).containsExactlyInAnyOrder(2L);
@@ -215,7 +215,7 @@ public class TestAggregatedStatisticsTracker {
             CHAR_KEYS.get("b"),
             CHAR_KEYS.get("b"));
 
-    AggregatedStatistics completedStatistics =
+    CompletedStatistics completedStatistics =
         tracker.updateAndCheckCompletion(0, checkpoint1Subtask0DataStatisticEvent);
     assertThat(completedStatistics).isNull();
     assertThat(tracker.aggregationsPerCheckpoint().keySet()).containsExactlyInAnyOrder(1L);
@@ -323,7 +323,7 @@ public class TestAggregatedStatisticsTracker {
             1L,
             CHAR_KEYS.get("a"),
             CHAR_KEYS.get("b"));
-    AggregatedStatistics completedStatistics =
+    CompletedStatistics completedStatistics =
         tracker.updateAndCheckCompletion(0, checkpoint1Subtask0StatisticsEvent);
     assertThat(completedStatistics).isNull();
     assertThat(tracker.aggregationsPerCheckpoint().keySet()).containsExactlyInAnyOrder(1L);
@@ -398,7 +398,7 @@ public class TestAggregatedStatisticsTracker {
             1L,
             CHAR_KEYS.get("a"),
             CHAR_KEYS.get("b"));
-    AggregatedStatistics completedStatistics =
+    CompletedStatistics completedStatistics =
         tracker.updateAndCheckCompletion(0, checkpoint1Subtask0StatisticsEvent);
     assertThat(completedStatistics).isNull();
     assertThat(tracker.aggregationsPerCheckpoint().keySet()).containsExactlyInAnyOrder(1L);

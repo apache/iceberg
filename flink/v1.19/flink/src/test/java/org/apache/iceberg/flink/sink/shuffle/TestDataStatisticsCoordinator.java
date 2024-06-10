@@ -109,18 +109,18 @@ public class TestDataStatisticsCoordinator {
 
       waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
 
-      AggregatedStatistics aggregatedStatistics = dataStatisticsCoordinator.completedStatistics();
-      assertThat(aggregatedStatistics.checkpointId()).isEqualTo(1L);
-      assertThat(aggregatedStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
+      CompletedStatistics completedStatistics = dataStatisticsCoordinator.completedStatistics();
+      assertThat(completedStatistics.checkpointId()).isEqualTo(1L);
+      assertThat(completedStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
       if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
-        assertThat(aggregatedStatistics.keyFrequency())
+        assertThat(completedStatistics.keyFrequency())
             .isEqualTo(
                 ImmutableMap.of(
                     CHAR_KEYS.get("a"), 2L,
                     CHAR_KEYS.get("b"), 3L,
                     CHAR_KEYS.get("c"), 5L));
       } else {
-        assertThat(aggregatedStatistics.keySamples())
+        assertThat(completedStatistics.keySamples())
             .containsExactly(
                 CHAR_KEYS.get("a"),
                 CHAR_KEYS.get("a"),
@@ -134,7 +134,7 @@ public class TestDataStatisticsCoordinator {
                 CHAR_KEYS.get("c"));
       }
 
-      AggregatedStatistics globalStatistics = dataStatisticsCoordinator.globalStatistics();
+      GlobalStatistics globalStatistics = dataStatisticsCoordinator.globalStatistics();
       assertThat(globalStatistics.checkpointId()).isEqualTo(1L);
       assertThat(globalStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
       if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
@@ -145,7 +145,7 @@ public class TestDataStatisticsCoordinator {
                     CHAR_KEYS.get("b"), 3L,
                     CHAR_KEYS.get("c"), 5L));
       } else {
-        assertThat(globalStatistics.keySamples()).containsExactly(CHAR_KEYS.get("b"));
+        assertThat(globalStatistics.rangeBounds()).containsExactly(CHAR_KEYS.get("b"));
       }
     }
   }

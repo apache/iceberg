@@ -25,11 +25,11 @@ import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.iceberg.SortKey;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
-public class TestAggregatedStatisticsSerializer extends SerializerTestBase<AggregatedStatistics> {
+public class TestCompletedStatisticsSerializer extends SerializerTestBase<CompletedStatistics> {
 
   @Override
-  protected TypeSerializer<AggregatedStatistics> createSerializer() {
-    return Fixtures.AGGREGATED_STATISTICS_SERIALIZER;
+  protected TypeSerializer<CompletedStatistics> createSerializer() {
+    return Fixtures.COMPLETED_STATISTICS_SERIALIZER;
   }
 
   @Override
@@ -38,17 +38,17 @@ public class TestAggregatedStatisticsSerializer extends SerializerTestBase<Aggre
   }
 
   @Override
-  protected Class<AggregatedStatistics> getTypeClass() {
-    return AggregatedStatistics.class;
+  protected Class<CompletedStatistics> getTypeClass() {
+    return CompletedStatistics.class;
   }
 
   @Override
-  protected AggregatedStatistics[] getTestData() {
-    return new AggregatedStatistics[] {
-      AggregatedStatistics.fromKeyFrequency(
+  protected CompletedStatistics[] getTestData() {
+
+    return new CompletedStatistics[] {
+      CompletedStatistics.fromKeyFrequency(
           1L, ImmutableMap.of(CHAR_KEYS.get("a"), 1L, CHAR_KEYS.get("b"), 2L)),
-      AggregatedStatistics.fromKeySamples(
-          2L, new SortKey[] {CHAR_KEYS.get("a"), CHAR_KEYS.get("b")})
+      CompletedStatistics.fromKeySamples(2L, new SortKey[] {CHAR_KEYS.get("a"), CHAR_KEYS.get("b")})
     };
   }
 }

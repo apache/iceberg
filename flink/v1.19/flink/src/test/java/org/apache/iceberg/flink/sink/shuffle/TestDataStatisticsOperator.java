@@ -182,26 +182,26 @@ public class TestDataStatisticsOperator {
     OperatorSubtaskState snapshot;
     try (OneInputStreamOperatorTestHarness<RowData, StatisticsOrRecord> testHarness1 =
         createHarness(operator)) {
-      AggregatedStatistics statistics;
+      GlobalStatistics statistics;
       if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
-        statistics = AggregatedStatistics.fromKeyFrequency(1L, keyFrequency);
+        statistics = GlobalStatistics.fromKeyFrequency(1L, keyFrequency);
       } else {
-        statistics = AggregatedStatistics.fromKeySamples(1L, rangeBounds);
+        statistics = GlobalStatistics.fromRangeBounds(1L, rangeBounds);
       }
 
       StatisticsEvent event =
-          StatisticsEvent.createAggregatedStatisticsEvent(
-              statistics, Fixtures.AGGREGATED_STATISTICS_SERIALIZER, false);
+          StatisticsEvent.createGlobalStatisticsEvent(
+              statistics, Fixtures.GLOBAL_STATISTICS_SERIALIZER, false);
       operator.handleOperatorEvent(event);
 
-      AggregatedStatistics globalStatistics = operator.globalStatistics();
+      GlobalStatistics globalStatistics = operator.globalStatistics();
       assertThat(globalStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
       if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
         assertThat(globalStatistics.keyFrequency()).isEqualTo(keyFrequency);
-        assertThat(globalStatistics.keySamples()).isNull();
+        assertThat(globalStatistics.rangeBounds()).isNull();
       } else {
         assertThat(globalStatistics.keyFrequency()).isNull();
-        assertThat(globalStatistics.keySamples()).isEqualTo(rangeBounds);
+        assertThat(globalStatistics.rangeBounds()).isEqualTo(rangeBounds);
       }
 
       snapshot = testHarness1.snapshot(1L, 0);
@@ -217,7 +217,7 @@ public class TestDataStatisticsOperator {
       testHarness2.setup();
       testHarness2.initializeState(snapshot);
 
-      AggregatedStatistics globalStatistics = restoredOperator.globalStatistics();
+      GlobalStatistics globalStatistics = restoredOperator.globalStatistics();
       // global statistics is always restored and used initially even if
       // downstream parallelism changed.
       assertThat(globalStatistics).isNotNull();
@@ -228,10 +228,10 @@ public class TestDataStatisticsOperator {
       assertThat(globalStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
       if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
         assertThat(globalStatistics.keyFrequency()).isEqualTo(keyFrequency);
-        assertThat(globalStatistics.keySamples()).isNull();
+        assertThat(globalStatistics.rangeBounds()).isNull();
       } else {
         assertThat(globalStatistics.keyFrequency()).isNull();
-        assertThat(globalStatistics.keySamples()).isEqualTo(rangeBounds);
+        assertThat(globalStatistics.rangeBounds()).isEqualTo(rangeBounds);
       }
     }
   }
@@ -304,12 +304,12 @@ public class TestDataStatisticsOperator {
           .isEqualTo(ImmutableMap.of(CHAR_KEYS.get("a"), 1L));
 
       // received global statistics with sketch type
-      AggregatedStatistics globalStatistics =
-          AggregatedStatistics.fromKeySamples(
+      GlobalStatistics globalStatistics =
+          GlobalStatistics.fromRangeBounds(
               1L, new SortKey[] {CHAR_KEYS.get("c"), CHAR_KEYS.get("f")});
       operator.handleOperatorEvent(
-          StatisticsEvent.createAggregatedStatisticsEvent(
-              globalStatistics, Fixtures.AGGREGATED_STATISTICS_SERIALIZER, false));
+          StatisticsEvent.createGlobalStatisticsEvent(
+              globalStatistics, Fixtures.GLOBAL_STATISTICS_SERIALIZER, false));
 
       int reservoirSize =
           SketchUtil.determineOperatorReservoirSize(Fixtures.NUM_SUBTASKS, Fixtures.NUM_SUBTASKS);
@@ -342,7 +342,7 @@ public class TestDataStatisticsOperator {
             dataStatisticsOperator, Fixtures.NUM_SUBTASKS, Fixtures.NUM_SUBTASKS, 0);
     harness.setup(
         new StatisticsOrRecordSerializer(
-            Fixtures.AGGREGATED_STATISTICS_SERIALIZER, Fixtures.ROW_SERIALIZER));
+            Fixtures.GLOBAL_STATISTICS_SERIALIZER, Fixtures.ROW_SERIALIZER));
     harness.open();
     return harness;
   }

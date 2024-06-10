@@ -60,16 +60,16 @@ public class DataStatisticsOperator extends AbstractStreamOperator<StatisticsOrR
   private final int downstreamParallelism;
   private final StatisticsType statisticsType;
   private final TypeSerializer<DataStatistics> taskStatisticsSerializer;
-  private final TypeSerializer<AggregatedStatistics> aggregatedStatisticsSerializer;
+  private final TypeSerializer<GlobalStatistics> globalStatisticsSerializer;
 
   private transient int parallelism;
   private transient int subtaskIndex;
-  private transient ListState<AggregatedStatistics> globalStatisticsState;
+  private transient ListState<GlobalStatistics> globalStatisticsState;
   // current statistics type may be different from the config due to possible
   // migration from Map statistics to Sketch statistics when high cardinality detected
   private transient volatile StatisticsType taskStatisticsType;
   private transient volatile DataStatistics localStatistics;
-  private transient volatile AggregatedStatistics globalStatistics;
+  private transient volatile GlobalStatistics globalStatistics;
 
   DataStatisticsOperator(
       String operatorName,
@@ -87,7 +87,7 @@ public class DataStatisticsOperator extends AbstractStreamOperator<StatisticsOrR
 
     SortKeySerializer sortKeySerializer = new SortKeySerializer(schema, sortOrder);
     this.taskStatisticsSerializer = new DataStatisticsSerializer(sortKeySerializer);
-    this.aggregatedStatisticsSerializer = new AggregatedStatisticsSerializer(sortKeySerializer);
+    this.globalStatisticsSerializer = new GlobalStatisticsSerializer(sortKeySerializer);
   }
 
   @Override
@@ -100,7 +100,7 @@ public class DataStatisticsOperator extends AbstractStreamOperator<StatisticsOrR
         context
             .getOperatorStateStore()
             .getUnionListState(
-                new ListStateDescriptor<>("globalStatisticsState", aggregatedStatisticsSerializer));
+                new ListStateDescriptor<>("globalStatisticsState", globalStatisticsSerializer));
 
     if (context.isRestored()) {
       if (globalStatisticsState.get() == null
@@ -113,7 +113,7 @@ public class DataStatisticsOperator extends AbstractStreamOperator<StatisticsOrR
         // leveraged to request global statistics from coordinator if new subtasks (scale-up case)
         // has nothing to restore from.
       } else {
-        AggregatedStatistics restoredStatistics = globalStatisticsState.get().iterator().next();
+        GlobalStatistics restoredStatistics = globalStatisticsState.get().iterator().next();
         LOG.info(
             "Operator {} subtask {} restored global statistics state", operatorName, subtaskIndex);
         this.globalStatistics = restoredStatistics;
@@ -166,8 +166,8 @@ public class DataStatisticsOperator extends AbstractStreamOperator<StatisticsOrR
         subtaskIndex,
         statisticsEvent.checkpointId());
     this.globalStatistics =
-        StatisticsUtil.deserializeAggregatedStatistics(
-            statisticsEvent.statisticsBytes(), aggregatedStatisticsSerializer);
+        StatisticsUtil.deserializeGlobalStatistics(
+            statisticsEvent.statisticsBytes(), globalStatisticsSerializer);
     checkStatisticsTypeMigration();
     // if applyImmediately not set, wait until the checkpoint time to switch
     if (statisticsEvent.applyImmediately()) {
@@ -260,7 +260,7 @@ public class DataStatisticsOperator extends AbstractStreamOperator<StatisticsOrR
   }
 
   @VisibleForTesting
-  AggregatedStatistics globalStatistics() {
+  GlobalStatistics globalStatistics() {
     return globalStatistics;
   }
 }

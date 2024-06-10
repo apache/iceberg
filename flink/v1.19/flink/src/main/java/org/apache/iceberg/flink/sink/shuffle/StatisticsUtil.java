@@ -60,20 +60,41 @@ class StatisticsUtil {
     }
   }
 
-  static byte[] serializeAggregatedStatistics(
-      AggregatedStatistics aggregatedStatistics,
-      TypeSerializer<AggregatedStatistics> statisticsSerializer) {
+  static byte[] serializeCompletedStatistics(
+      CompletedStatistics completedStatistics,
+      TypeSerializer<CompletedStatistics> statisticsSerializer) {
     try {
       DataOutputSerializer out = new DataOutputSerializer(1024);
-      statisticsSerializer.serialize(aggregatedStatistics, out);
+      statisticsSerializer.serialize(completedStatistics, out);
       return out.getCopyOfBuffer();
     } catch (IOException e) {
       throw new UncheckedIOException("Fail to serialize aggregated statistics", e);
     }
   }
 
-  static AggregatedStatistics deserializeAggregatedStatistics(
-      byte[] bytes, TypeSerializer<AggregatedStatistics> statisticsSerializer) {
+  static CompletedStatistics deserializeCompletedStatistics(
+      byte[] bytes, TypeSerializer<CompletedStatistics> statisticsSerializer) {
+    try {
+      DataInputDeserializer input = new DataInputDeserializer(bytes);
+      return statisticsSerializer.deserialize(input);
+    } catch (IOException e) {
+      throw new UncheckedIOException("Fail to deserialize aggregated statistics", e);
+    }
+  }
+
+  static byte[] serializeGlobalStatistics(
+      GlobalStatistics globalStatistics, TypeSerializer<GlobalStatistics> statisticsSerializer) {
+    try {
+      DataOutputSerializer out = new DataOutputSerializer(1024);
+      statisticsSerializer.serialize(globalStatistics, out);
+      return out.getCopyOfBuffer();
+    } catch (IOException e) {
+      throw new UncheckedIOException("Fail to serialize aggregated statistics", e);
+    }
+  }
+
+  static GlobalStatistics deserializeGlobalStatistics(
+      byte[] bytes, TypeSerializer<GlobalStatistics> statisticsSerializer) {
     try {
       DataInputDeserializer input = new DataInputDeserializer(bytes);
       return statisticsSerializer.deserialize(input);
