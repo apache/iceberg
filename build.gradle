@@ -162,6 +162,9 @@ subprojects {
     }
 
     tasks.configureEach { rootTask ->
+      if (rootTask.name == 'revapiAnalyze') {
+        rootTask.dependsOn ':iceberg-common:jar'
+      }
       if (rootTask.name == 'revapi') {
         rootTask.finalizedBy showDeprecationRulesOnRevApiFailure
       }
