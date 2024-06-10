@@ -17,8 +17,8 @@
  * under the License.
  */
 
-if (jdkVersion != '8' && jdkVersion != '11' && jdkVersion != '17') {
-  throw new GradleException("The JMH benchmarks must be run with JDK 8 or JDK 11 or JDK 17")
+if (jdkVersion != '8' && jdkVersion != '11' && jdkVersion != '17' && jdkVersion != '21') {
+  throw new GradleException("The JMH benchmarks must be run with JDK 8 or JDK 11 or JDK 17 or JDK 21")
 }
 
 def flinkVersions = (System.getProperty("flinkVersions") != null ? System.getProperty("flinkVersions") : System.getProperty("defaultFlinkVersions")).split(",")

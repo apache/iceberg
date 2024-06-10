@@ -63,7 +63,7 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        jvm: [8, 11, 17]
+        jvm: [8, 11, 17, 21]
     env:
       SPARK_LOCAL_IP: localhost
     steps:
@@ -92,7 +92,7 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        jvm: [8, 11, 17]
+        jvm: [8, 11, 17, 21]
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-java@v4
@@ -105,7 +105,7 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        jvm: [8, 11, 17]
+        jvm: [8, 11, 17, 21]
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-java@v4
