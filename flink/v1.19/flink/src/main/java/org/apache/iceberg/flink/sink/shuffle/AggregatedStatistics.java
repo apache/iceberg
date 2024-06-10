@@ -35,31 +35,19 @@ class AggregatedStatistics implements Serializable {
   private final long checkpointId;
   private final StatisticsType type;
   private final Map<SortKey, Long> keyFrequency;
-  private final SortKey[] keySamples;
+  private final SortKey[] keys;
 
   private transient Integer hashCode;
 
   AggregatedStatistics(
-      long checkpointId,
-      StatisticsType type,
-      Map<SortKey, Long> keyFrequency,
-      SortKey[] keySamples) {
+      long checkpointId, StatisticsType type, Map<SortKey, Long> keyFrequency, SortKey[] keys) {
     Preconditions.checkArgument(
-        (keyFrequency != null && keySamples == null)
-            || (keyFrequency == null && keySamples != null),
+        (keyFrequency != null && keys == null) || (keyFrequency == null && keys != null),
         "Invalid key frequency or range bounds: both are non-null or null");
     this.checkpointId = checkpointId;
     this.type = type;
     this.keyFrequency = keyFrequency;
-    this.keySamples = keySamples;
-  }
-
-  static AggregatedStatistics fromKeyFrequency(long checkpointId, Map<SortKey, Long> stats) {
-    return new AggregatedStatistics(checkpointId, StatisticsType.Map, stats, null);
-  }
-
-  static AggregatedStatistics fromKeySamples(long checkpointId, SortKey[] stats) {
-    return new AggregatedStatistics(checkpointId, StatisticsType.Sketch, null, stats);
+    this.keys = keys;
   }
 
   @Override
@@ -68,7 +56,7 @@ class AggregatedStatistics implements Serializable {
         .add("checkpointId", checkpointId)
         .add("type", type)
         .add("keyFrequency", keyFrequency)
-        .add("keySamples", keySamples)
+        .add("keys", keys)
         .toString();
   }
 
@@ -86,7 +74,7 @@ class AggregatedStatistics implements Serializable {
     return Objects.equal(checkpointId, other.checkpointId())
         && Objects.equal(type, other.type())
         && Objects.equal(keyFrequency, other.keyFrequency())
-        && Arrays.equals(keySamples, other.keySamples());
+        && Arrays.equals(keys, other.keys());
   }
 
   @Override
@@ -95,7 +83,7 @@ class AggregatedStatistics implements Serializable {
     // when subtasks request statistics refresh upon initialization for reconciliation purpose,
     // hashCode is used to check if there is any difference btw coordinator and operator state.
     if (hashCode == null) {
-      this.hashCode = Objects.hashCode(checkpointId, type, keyFrequency, keySamples);
+      this.hashCode = Objects.hashCode(checkpointId, type, keyFrequency, keys);
     }
 
     return hashCode;
@@ -109,8 +97,8 @@ class AggregatedStatistics implements Serializable {
     return keyFrequency;
   }
 
-  SortKey[] keySamples() {
-    return keySamples;
+  protected SortKey[] keys() {
+    return keys;
   }
 
   long checkpointId() {

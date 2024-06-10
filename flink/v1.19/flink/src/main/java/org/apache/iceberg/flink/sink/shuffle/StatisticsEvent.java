@@ -52,13 +52,13 @@ class StatisticsEvent implements OperatorEvent {
         true);
   }
 
-  static StatisticsEvent createAggregatedStatisticsEvent(
-      AggregatedStatistics statistics,
-      TypeSerializer<AggregatedStatistics> statisticsSerializer,
+  static StatisticsEvent createGlobalStatisticsEvent(
+      GlobalStatistics statistics,
+      TypeSerializer<GlobalStatistics> statisticsSerializer,
       boolean applyImmediately) {
     return new StatisticsEvent(
         statistics.checkpointId(),
-        StatisticsUtil.serializeAggregatedStatistics(statistics, statisticsSerializer),
+        StatisticsUtil.serializeGlobalStatistics(statistics, statisticsSerializer),
         applyImmediately);
   }
 
