@@ -72,6 +72,7 @@ project(':open-api').name = 'iceberg-open-api'
 
 if (null != System.getProperty("allVersions")) {
   System.setProperty("flinkVersions", System.getProperty("knownFlinkVersions"))
+  System.setProperty("scalaVersions", System.getProperty("knownScalaVersions"))
   System.setProperty("sparkVersions", System.getProperty("knownSparkVersions"))
   System.setProperty("hiveVersions", System.getProperty("knownHiveVersions"))
 }
