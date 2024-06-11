@@ -34,6 +34,9 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
+import org.apache.iceberg.encryption.EncryptingFileIO;
+import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.StandardEncryptionManager;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
@@ -104,6 +107,7 @@ public class TableMetadataParser {
   static final String REFS = "refs";
   static final String SNAPSHOTS = "snapshots";
   static final String SNAPSHOT_ID = "snapshot-id";
+  static final String SNAPSHOT_KEK = "snapshot-kek";
   static final String TIMESTAMP_MS = "timestamp-ms";
   static final String SNAPSHOT_LOG = "snapshot-log";
   static final String METADATA_FILE = "metadata-file";
@@ -123,6 +127,7 @@ public class TableMetadataParser {
       TableMetadata metadata, OutputFile outputFile, boolean overwrite) {
     boolean isGzip = Codec.fromFileName(outputFile.location()) == Codec.GZIP;
     OutputStream stream = overwrite ? outputFile.createOrOverwrite() : outputFile.create();
+
     try (OutputStream ou = isGzip ? new GZIPOutputStream(stream) : stream;
         OutputStreamWriter writer = new OutputStreamWriter(ou, StandardCharsets.UTF_8)) {
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
@@ -220,11 +225,23 @@ public class TableMetadataParser {
 
     toJson(metadata.refs(), generator);
 
+    String snapshotKek = null;
     generator.writeArrayFieldStart(SNAPSHOTS);
     for (Snapshot snapshot : metadata.snapshots()) {
       SnapshotParser.toJson(snapshot, generator);
+      if (snapshotKek == null) {
+        snapshotKek = snapshot.manifestListFile().wrappedKeyEncryptionKey();
+      } else {
+        Preconditions.checkState(
+            snapshotKek.equals(snapshot.manifestListFile().wrappedKeyEncryptionKey()),
+            "KEK must be identical for all snapshots");
+      }
     }
     generator.writeEndArray();
+
+    if (snapshotKek != null) {
+      generator.writeStringField(SNAPSHOT_KEK, snapshotKek);
+    }
 
     generator.writeArrayFieldStart(STATISTICS);
     for (StatisticsFile statisticsFile : metadata.statisticsFiles()) {
@@ -274,10 +291,12 @@ public class TableMetadataParser {
   }
 
   public static TableMetadata read(FileIO io, InputFile file) {
+    EncryptionManager encryption =
+        (io instanceof EncryptingFileIO) ? ((EncryptingFileIO) io).encryptionManager() : null;
     Codec codec = Codec.fromFileName(file.location());
     try (InputStream is =
         codec == Codec.GZIP ? new GZIPInputStream(file.newStream()) : file.newStream()) {
-      return fromJson(file, JsonUtil.mapper().readValue(is, JsonNode.class));
+      return fromJson(file, JsonUtil.mapper().readValue(is, JsonNode.class), encryption);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read file: %s", file);
     }
@@ -310,12 +329,22 @@ public class TableMetadataParser {
     return fromJson(file.location(), node);
   }
 
+  public static TableMetadata fromJson(
+      InputFile file, JsonNode node, EncryptionManager encryption) {
+    return fromJson(file.location(), node, encryption);
+  }
+
   public static TableMetadata fromJson(JsonNode node) {
     return fromJson((String) null, node);
   }
 
-  @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:MethodLength"})
   public static TableMetadata fromJson(String metadataLocation, JsonNode node) {
+    return fromJson(metadataLocation, node, null);
+  }
+
+  @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:MethodLength"})
+  public static TableMetadata fromJson(
+      String metadataLocation, JsonNode node, EncryptionManager encryption) {
     Preconditions.checkArgument(
         node.isObject(), "Cannot parse metadata from a non-object: %s", node);
 
@@ -472,10 +501,22 @@ public class TableMetadataParser {
       Preconditions.checkArgument(
           snapshotArray.isArray(), "Cannot parse snapshots from non-array: %s", snapshotArray);
 
+      if (node.has(SNAPSHOT_KEK)) {
+        String wrappedKeyEncryptionKey = JsonUtil.getString(SNAPSHOT_KEK, node);
+        if (wrappedKeyEncryptionKey != null) {
+          Preconditions.checkState(
+              encryption instanceof StandardEncryptionManager,
+              "Can't set wrapped KEK - encryption manager %s is not instance of StandardEncryptionManager",
+              encryption.getClass());
+          ((StandardEncryptionManager) encryption)
+              .setWrappedKeyEncryptionKey(wrappedKeyEncryptionKey);
+        }
+      }
+
       snapshots = Lists.newArrayListWithExpectedSize(snapshotArray.size());
       Iterator<JsonNode> iterator = snapshotArray.elements();
       while (iterator.hasNext()) {
-        snapshots.add(SnapshotParser.fromJson(iterator.next()));
+        snapshots.add(SnapshotParser.fromJson(iterator.next(), encryption));
       }
     } else {
       snapshots = ImmutableList.of();
