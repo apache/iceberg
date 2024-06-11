@@ -561,7 +561,7 @@ public abstract class TestMetrics {
             MetricsConfig.fromProperties(ImmutableMap.of("write.metadata.metrics.default", "none")),
             buildNestedTestRecord());
     assertThat(metrics.recordCount()).isEqualTo(1L);
-    assertThat(metrics.columnSizes()).doesNotContainValue(null);
+    assertThat(metrics.columnSizes()).isEmpty();
     assertCounts(1, null, null, metrics);
     assertBounds(1, Types.IntegerType.get(), null, null, metrics);
     assertCounts(3, null, null, metrics);
@@ -584,6 +584,7 @@ public abstract class TestMetrics {
             buildNestedTestRecord());
     assertThat(metrics.recordCount()).isEqualTo(1L);
     assertThat(metrics.columnSizes()).doesNotContainValue(null);
+    assertThat(metrics.columnSizes()).isNotEmpty();
     assertCounts(1, 1L, 0L, metrics);
     assertBounds(1, Types.IntegerType.get(), null, null, metrics);
     assertCounts(3, 1L, 0L, metrics);
@@ -605,6 +606,7 @@ public abstract class TestMetrics {
             buildNestedTestRecord());
     assertThat(metrics.recordCount()).isEqualTo(1L);
     assertThat(metrics.columnSizes()).doesNotContainValue(null);
+    assertThat(metrics.columnSizes()).isNotEmpty();
     assertCounts(1, 1L, 0L, metrics);
     assertBounds(1, Types.IntegerType.get(), Integer.MAX_VALUE, Integer.MAX_VALUE, metrics);
     assertCounts(3, 1L, 0L, metrics);
@@ -642,6 +644,7 @@ public abstract class TestMetrics {
     CharBuffer expectedMaxBound = CharBuffer.wrap("Lorem ipsv");
     assertThat(metrics.recordCount()).isEqualTo(1L);
     assertThat(metrics.columnSizes()).doesNotContainValue(null);
+    assertThat(metrics.columnSizes()).isNotEmpty();
     assertCounts(1, 1L, 0L, metrics);
     assertBounds(1, Types.StringType.get(), expectedMinBound, expectedMaxBound, metrics);
   }
@@ -666,6 +669,7 @@ public abstract class TestMetrics {
     ByteBuffer expectedMaxBounds = ByteBuffer.wrap(new byte[] {0x1, 0x2, 0x3, 0x4, 0x6});
     assertThat(metrics.recordCount()).isEqualTo(1L);
     assertThat(metrics.columnSizes()).doesNotContainValue(null);
+    assertThat(metrics.columnSizes()).isNotEmpty();
     assertCounts(1, 1L, 0L, metrics);
     assertBounds(1, Types.BinaryType.get(), expectedMinBounds, expectedMaxBounds, metrics);
   }

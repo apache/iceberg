@@ -63,34 +63,33 @@ public class TestMapRangePartitioner {
   }
 
   // Total weight is 800
-  private final MapDataStatistics mapDataStatistics =
-      new MapDataStatistics(
-          ImmutableMap.of(
-              SORT_KEYS[0],
-              350L,
-              SORT_KEYS[1],
-              230L,
-              SORT_KEYS[2],
-              120L,
-              SORT_KEYS[3],
-              40L,
-              SORT_KEYS[4],
-              10L,
-              SORT_KEYS[5],
-              10L,
-              SORT_KEYS[6],
-              10L,
-              SORT_KEYS[7],
-              10L,
-              SORT_KEYS[8],
-              10L,
-              SORT_KEYS[9],
-              10L));
+  private final Map<SortKey, Long> mapStatistics =
+      ImmutableMap.of(
+          SORT_KEYS[0],
+          350L,
+          SORT_KEYS[1],
+          230L,
+          SORT_KEYS[2],
+          120L,
+          SORT_KEYS[3],
+          40L,
+          SORT_KEYS[4],
+          10L,
+          SORT_KEYS[5],
+          10L,
+          SORT_KEYS[6],
+          10L,
+          SORT_KEYS[7],
+          10L,
+          SORT_KEYS[8],
+          10L,
+          SORT_KEYS[9],
+          10L);
 
   @Test
   public void testEvenlyDividableNoClosingFileCost() {
     MapRangePartitioner partitioner =
-        new MapRangePartitioner(TestFixtures.SCHEMA, SORT_ORDER, mapDataStatistics, 0.0);
+        new MapRangePartitioner(TestFixtures.SCHEMA, SORT_ORDER, mapStatistics, 0.0);
     int numPartitions = 8;
 
     // each task should get targeted weight of 100 (=800/8)
@@ -154,7 +153,7 @@ public class TestMapRangePartitioner {
   @Test
   public void testEvenlyDividableWithClosingFileCost() {
     MapRangePartitioner partitioner =
-        new MapRangePartitioner(TestFixtures.SCHEMA, SORT_ORDER, mapDataStatistics, 5.0);
+        new MapRangePartitioner(TestFixtures.SCHEMA, SORT_ORDER, mapStatistics, 5.0);
     int numPartitions = 8;
 
     // target subtask weight is 100 before close file cost factored in.
@@ -226,7 +225,7 @@ public class TestMapRangePartitioner {
   @Test
   public void testNonDividableNoClosingFileCost() {
     MapRangePartitioner partitioner =
-        new MapRangePartitioner(TestFixtures.SCHEMA, SORT_ORDER, mapDataStatistics, 0.0);
+        new MapRangePartitioner(TestFixtures.SCHEMA, SORT_ORDER, mapStatistics, 0.0);
     int numPartitions = 9;
 
     // before:     350, 230, 120, 40, 10, 10, 10, 10, 10, 10
@@ -294,7 +293,7 @@ public class TestMapRangePartitioner {
   @Test
   public void testNonDividableWithClosingFileCost() {
     MapRangePartitioner partitioner =
-        new MapRangePartitioner(TestFixtures.SCHEMA, SORT_ORDER, mapDataStatistics, 5.0);
+        new MapRangePartitioner(TestFixtures.SCHEMA, SORT_ORDER, mapStatistics, 5.0);
     int numPartitions = 9;
 
     // target subtask weight is 89 before close file cost factored in.

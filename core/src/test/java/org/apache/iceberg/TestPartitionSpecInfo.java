@@ -31,7 +31,7 @@ import java.util.List;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -62,7 +62,7 @@ public class TestPartitionSpecInfo {
     TestTables.clearTables();
   }
 
-  @Test
+  @TestTemplate
   public void testSpecIsUnpartitionedForVoidTranforms() {
     PartitionSpec spec =
         PartitionSpec.builderFor(schema).alwaysNull("id").alwaysNull("data").build();
@@ -70,7 +70,7 @@ public class TestPartitionSpecInfo {
     assertThat(spec.isUnpartitioned()).isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testSpecInfoUnpartitionedTable() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     TestTables.TestTable table = TestTables.create(tableDir, "test", schema, spec, formatVersion);
@@ -83,7 +83,7 @@ public class TestPartitionSpecInfo {
         .doesNotContainKey(Integer.MAX_VALUE);
   }
 
-  @Test
+  @TestTemplate
   public void testSpecInfoPartitionedTable() {
     PartitionSpec spec = PartitionSpec.builderFor(schema).identity("data").build();
     TestTables.TestTable table = TestTables.create(tableDir, "test", schema, spec, formatVersion);
@@ -95,7 +95,7 @@ public class TestPartitionSpecInfo {
         .doesNotContainKey(Integer.MAX_VALUE);
   }
 
-  @Test
+  @TestTemplate
   public void testColumnDropWithPartitionSpecEvolution() {
     PartitionSpec spec = PartitionSpec.builderFor(schema).identity("id").build();
     TestTables.TestTable table = TestTables.create(tableDir, "test", schema, spec, formatVersion);
@@ -119,7 +119,7 @@ public class TestPartitionSpecInfo {
     assertThat(table.schema().asStruct()).isEqualTo(expectedSchema.asStruct());
   }
 
-  @Test
+  @TestTemplate
   public void testSpecInfoPartitionSpecEvolutionForV1Table() {
     PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("data", 4).build();
     TestTables.TestTable table = TestTables.create(tableDir, "test", schema, spec, formatVersion);

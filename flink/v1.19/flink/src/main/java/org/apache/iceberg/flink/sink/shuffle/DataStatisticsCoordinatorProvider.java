@@ -19,33 +19,43 @@
 package org.apache.iceberg.flink.sink.shuffle;
 
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.operators.coordination.OperatorCoordinator;
 import org.apache.flink.runtime.operators.coordination.RecreateOnResetOperatorCoordinator;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
 
 /**
  * DataStatisticsCoordinatorProvider provides the method to create new {@link
  * DataStatisticsCoordinator}
  */
 @Internal
-public class DataStatisticsCoordinatorProvider<D extends DataStatistics<D, S>, S>
-    extends RecreateOnResetOperatorCoordinator.Provider {
+public class DataStatisticsCoordinatorProvider extends RecreateOnResetOperatorCoordinator.Provider {
 
   private final String operatorName;
-  private final TypeSerializer<DataStatistics<D, S>> statisticsSerializer;
+  private final Schema schema;
+  private final SortOrder sortOrder;
+  private final int downstreamParallelism;
+  private final StatisticsType type;
 
   public DataStatisticsCoordinatorProvider(
       String operatorName,
       OperatorID operatorID,
-      TypeSerializer<DataStatistics<D, S>> statisticsSerializer) {
+      Schema schema,
+      SortOrder sortOrder,
+      int downstreamParallelism,
+      StatisticsType type) {
     super(operatorID);
     this.operatorName = operatorName;
-    this.statisticsSerializer = statisticsSerializer;
+    this.schema = schema;
+    this.sortOrder = sortOrder;
+    this.downstreamParallelism = downstreamParallelism;
+    this.type = type;
   }
 
   @Override
   public OperatorCoordinator getCoordinator(OperatorCoordinator.Context context) {
-    return new DataStatisticsCoordinator<>(operatorName, context, statisticsSerializer);
+    return new DataStatisticsCoordinator(
+        operatorName, context, schema, sortOrder, downstreamParallelism, type);
   }
 }

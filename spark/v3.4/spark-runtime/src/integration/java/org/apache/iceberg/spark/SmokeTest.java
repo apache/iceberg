@@ -24,6 +24,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.spark.extensions.SparkExtensionsTestBase;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -163,6 +164,13 @@ public class SmokeTest extends SparkExtensionsTestBase {
         tableName("third"));
     Table third = getTable("third");
     Assert.assertEquals("Should be partitioned on 3 columns", 3, third.spec().fields().size());
+  }
+
+  @Test
+  public void showView() {
+    sql("DROP VIEW IF EXISTS %s", "test");
+    sql("CREATE VIEW %s AS SELECT 1 AS id", "test");
+    Assertions.assertThat(sql("SHOW VIEWS")).contains(row("default", "test", false));
   }
 
   private Table getTable(String name) {
