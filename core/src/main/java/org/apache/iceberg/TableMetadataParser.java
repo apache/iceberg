@@ -326,7 +326,7 @@ public class TableMetadataParser {
   }
 
   public static TableMetadata fromJson(InputFile file, JsonNode node) {
-    return fromJson(file, node, null);
+    return fromJson(file.location(), node);
   }
 
   public static TableMetadata fromJson(
