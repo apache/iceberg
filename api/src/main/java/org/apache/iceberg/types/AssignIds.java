@@ -27,11 +27,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 class AssignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   private final TypeUtil.GetID getID;
 
-  /**
-   * Replaces the ids in a schema with ids from a base schema, or uses nextId to assign a fresh ids.
-   *
-   * @param getID new id assigner
-   */
   AssignIds(TypeUtil.GetID getID) {
     this.getID = getID;
   }

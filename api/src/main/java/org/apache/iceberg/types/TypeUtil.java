@@ -360,7 +360,7 @@ public class TypeUtil {
    *
    * @param type a type
    * @param getId an id assignment function
-   * @return an structurally identical type with new ids assigned by the nextId function
+   * @return an structurally identical type with new ids assigned by the getId function
    */
   public static Type assignIds(Type type, GetID getId) {
     return TypeUtil.visit(type, new AssignIds(getId));

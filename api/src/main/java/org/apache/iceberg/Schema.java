@@ -561,8 +561,8 @@ public class Schema implements Serializable {
   private List<NestedField> reassignMetadataFieldIds(
       List<NestedField> columns, Set<Integer> metadataFieldIds) {
     Set<Integer> usedIds =
-        Sets.newHashSet(
-            Sets.difference(TypeUtil.indexById(StructType.of(columns)).keySet(), metadataFieldIds));
+        Sets.difference(TypeUtil.indexById(StructType.of(columns)).keySet(), metadataFieldIds)
+            .immutableCopy();
     AtomicInteger nextId = new AtomicInteger();
 
     Type res =
@@ -570,11 +570,10 @@ public class Schema implements Serializable {
             StructType.of(columns),
             id -> {
               if (metadataFieldIds.contains(id)) {
-                int candidate = nextId.get();
+                int candidate = nextId.incrementAndGet();
                 while (usedIds.contains(candidate)) {
                   candidate = nextId.incrementAndGet();
                 }
-                usedIds.add(candidate);
                 idsToReassigned.put(id, candidate);
                 idsToOriginal.put(candidate, id);
                 return candidate;
