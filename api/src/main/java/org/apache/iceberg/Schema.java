@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -88,9 +87,8 @@ public class Schema implements Serializable {
     this(DEFAULT_SCHEMA_ID, columns, identifierFieldIds);
   }
 
-  public Schema(
-      List<NestedField> columns, Set<Integer> identifierFieldIds, Set<Integer> metadataFieldIds) {
-    this(DEFAULT_SCHEMA_ID, columns, identifierFieldIds, metadataFieldIds);
+  public Schema(List<NestedField> columns, Set<Integer> identifierFieldIds, TypeUtil.GetID getId) {
+    this(DEFAULT_SCHEMA_ID, columns, identifierFieldIds);
   }
 
   public Schema(int schemaId, List<NestedField> columns) {
@@ -98,15 +96,15 @@ public class Schema implements Serializable {
   }
 
   public Schema(int schemaId, List<NestedField> columns, Set<Integer> identifierFieldIds) {
-    this(schemaId, columns, null, identifierFieldIds, ImmutableSet.of());
+    this(schemaId, columns, null, identifierFieldIds, null);
   }
 
   public Schema(
       int schemaId,
       List<NestedField> columns,
       Set<Integer> identifierFieldIds,
-      Set<Integer> metadataFieldIds) {
-    this(schemaId, columns, null, identifierFieldIds, metadataFieldIds);
+      TypeUtil.GetID getId) {
+    this(schemaId, columns, null, identifierFieldIds, getId);
   }
 
   public Schema(
@@ -114,7 +112,7 @@ public class Schema implements Serializable {
       List<NestedField> columns,
       Map<String, Integer> aliases,
       Set<Integer> identifierFieldIds) {
-    this(schemaId, columns, aliases, identifierFieldIds, ImmutableSet.of());
+    this(schemaId, columns, aliases, identifierFieldIds, null);
   }
 
   public Schema(
@@ -122,12 +120,12 @@ public class Schema implements Serializable {
       List<NestedField> columns,
       Map<String, Integer> aliases,
       Set<Integer> identifierFieldIds,
-      Set<Integer> metadataFieldIds) {
+      TypeUtil.GetID getID) {
     this.schemaId = schemaId;
 
     this.idsToOriginal = Maps.newHashMap();
     this.idsToReassigned = Maps.newHashMap();
-    List<NestedField> finalColumns = reassignMetadataFieldIds(columns, metadataFieldIds);
+    List<NestedField> finalColumns = reassignIds(columns, getID);
 
     this.struct = StructType.of(finalColumns);
     this.aliasToId = aliases != null ? ImmutableBiMap.copyOf(aliases) : null;
@@ -541,7 +539,7 @@ public class Schema implements Serializable {
   }
 
   /**
-   * Fields identified as 'Metadata Fields' will have their field ID's reassigned.
+   * The ID's of some fields will be re-assigned if GetID is specified for the Schema.
    *
    * @return map of original to reassigned field ids
    */
@@ -550,36 +548,28 @@ public class Schema implements Serializable {
   }
 
   /**
-   * All ids of metadata fields are reassigned.
+   * The ID's of some fields will be re-assigned if GetID is specified for the Schema.
    *
-   * @return map of reassigned to original field ids of metadata fields
+   * @return map of reassigned to original field ids
    */
   public Map<Integer, Integer> idsToOriginal() {
-    return idsToOriginal != null ? idsToOriginal : Maps.newHashMap();
+    return idsToOriginal != null ? idsToOriginal : Collections.emptyMap();
   }
 
-  private List<NestedField> reassignMetadataFieldIds(
-      List<NestedField> columns, Set<Integer> metadataFieldIds) {
-    Set<Integer> usedIds =
-        Sets.difference(TypeUtil.indexById(StructType.of(columns)).keySet(), metadataFieldIds)
-            .immutableCopy();
-    AtomicInteger nextId = new AtomicInteger();
-
+  private List<NestedField> reassignIds(List<NestedField> columns, TypeUtil.GetID getID) {
+    if (getID == null) {
+      return columns;
+    }
     Type res =
         TypeUtil.assignIds(
             StructType.of(columns),
-            id -> {
-              if (metadataFieldIds.contains(id)) {
-                int candidate = nextId.incrementAndGet();
-                while (usedIds.contains(candidate)) {
-                  candidate = nextId.incrementAndGet();
-                }
-                idsToReassigned.put(id, candidate);
-                idsToOriginal.put(candidate, id);
-                return candidate;
-              } else {
-                return id;
+            oldId -> {
+              int newId = getID.get(oldId);
+              if (newId != oldId) {
+                idsToReassigned.put(oldId, newId);
+                idsToOriginal.put(newId, oldId);
               }
+              return newId;
             });
     return res.asStructType().fields();
   }

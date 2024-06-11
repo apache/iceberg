@@ -143,12 +143,8 @@ public class PartitionSpec implements Serializable {
   }
 
   /**
-   * While partition field Id's are based on the column they are transforming, some Schemas need to
-   * re-assign partition field Id's to avoid conflict with defined column field ID's.
-   *
-   * @return a struct representing the partition type, with original field ID's that match the
-   *     column field ID's that they refer to. See {@link #partitionType()} for a struct with field
-   *     ID's potentially re-assigned to avoid conflict.
+   * Returns a struct matching partition information as written into manifest files. See {@link
+   * #partitionType()} for a struct with field ID's potentially re-assigned to avoid conflict.
    */
   public StructType rawPartitionType() {
     if (schema.idsToOriginal().isEmpty()) {

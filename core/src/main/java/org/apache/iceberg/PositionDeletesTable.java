@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Expression;
@@ -112,33 +113,59 @@ public class PositionDeletesTable extends BaseMetadataTable {
     Types.StructType partitionType = Partitioning.partitionType(table());
     Set<Integer> metadataFieldIds =
         partitionType.fields().stream().map(Types.NestedField::fieldId).collect(Collectors.toSet());
+    List<Types.NestedField> columns =
+        ImmutableList.of(
+            MetadataColumns.DELETE_FILE_PATH,
+            MetadataColumns.DELETE_FILE_POS,
+            Types.NestedField.optional(
+                MetadataColumns.DELETE_FILE_ROW_FIELD_ID,
+                MetadataColumns.DELETE_FILE_ROW_FIELD_NAME,
+                table().schema().asStruct(),
+                MetadataColumns.DELETE_FILE_ROW_DOC),
+            Types.NestedField.required(
+                MetadataColumns.PARTITION_COLUMN_ID,
+                PARTITION,
+                partitionType,
+                "Partition that position delete row belongs to"),
+            Types.NestedField.required(
+                MetadataColumns.SPEC_ID_COLUMN_ID,
+                SPEC_ID,
+                Types.IntegerType.get(),
+                MetadataColumns.SPEC_ID_COLUMN_DOC),
+            Types.NestedField.required(
+                MetadataColumns.FILE_PATH_COLUMN_ID,
+                DELETE_FILE_PATH,
+                Types.StringType.get(),
+                MetadataColumns.FILE_PATH_COLUMN_DOC));
+
+    // Calculate used ids (for de-conflict)
+    Set<Integer> currentlyUsedIds =
+        Collections.unmodifiableSet(TypeUtil.indexById(Types.StructType.of(columns)).keySet());
+    Set<Integer> usedIds =
+        table().schemas().values().stream()
+            .map(currSchema -> TypeUtil.indexById(currSchema.asStruct()).keySet())
+            .reduce(currentlyUsedIds, Sets::union);
+
+    // Calculate ids to reassign
+    Set<Integer> idsToReassign =
+        partitionType.fields().stream().map(Types.NestedField::fieldId).collect(Collectors.toSet());
+
+    // Reassign selected ids to de-conflict with used ids.
+    AtomicInteger nextId = new AtomicInteger();
     Schema result =
         new Schema(
-            ImmutableList.of(
-                MetadataColumns.DELETE_FILE_PATH,
-                MetadataColumns.DELETE_FILE_POS,
-                Types.NestedField.optional(
-                    MetadataColumns.DELETE_FILE_ROW_FIELD_ID,
-                    MetadataColumns.DELETE_FILE_ROW_FIELD_NAME,
-                    table().schema().asStruct(),
-                    MetadataColumns.DELETE_FILE_ROW_DOC),
-                Types.NestedField.required(
-                    MetadataColumns.PARTITION_COLUMN_ID,
-                    PARTITION,
-                    partitionType,
-                    "Partition that position delete row belongs to"),
-                Types.NestedField.required(
-                    MetadataColumns.SPEC_ID_COLUMN_ID,
-                    SPEC_ID,
-                    Types.IntegerType.get(),
-                    MetadataColumns.SPEC_ID_COLUMN_DOC),
-                Types.NestedField.required(
-                    MetadataColumns.FILE_PATH_COLUMN_ID,
-                    DELETE_FILE_PATH,
-                    Types.StringType.get(),
-                    MetadataColumns.FILE_PATH_COLUMN_DOC)),
+            columns,
             ImmutableSet.of(),
-            metadataFieldIds);
+            oldId -> {
+              if (!idsToReassign.contains(oldId)) {
+                return oldId;
+              }
+              int candidate = nextId.incrementAndGet();
+              while (usedIds.contains(candidate)) {
+                candidate = nextId.incrementAndGet();
+              }
+              return candidate;
+            });
 
     if (!partitionType.fields().isEmpty()) {
       return result;
