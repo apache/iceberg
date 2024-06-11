@@ -41,7 +41,6 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -116,15 +115,15 @@ public class TableMetadataParser {
   static final String STATISTICS = "statistics";
   static final String PARTITION_STATISTICS = "partition-statistics";
 
-  public static long overwrite(TableMetadata metadata, OutputFile outputFile) {
-    return internalWrite(metadata, outputFile, true);
+  public static void overwrite(TableMetadata metadata, OutputFile outputFile) {
+    internalWrite(metadata, outputFile, true);
   }
 
-  public static long write(TableMetadata metadata, OutputFile outputFile) {
-    return internalWrite(metadata, outputFile, false);
+  public static void write(TableMetadata metadata, OutputFile outputFile) {
+    internalWrite(metadata, outputFile, false);
   }
 
-  public static long internalWrite(
+  public static void internalWrite(
       TableMetadata metadata, OutputFile outputFile, boolean overwrite) {
     boolean isGzip = Codec.fromFileName(outputFile.location()) == Codec.GZIP;
     OutputStream stream = overwrite ? outputFile.createOrOverwrite() : outputFile.create();
@@ -138,17 +137,6 @@ public class TableMetadataParser {
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to write json to file: %s", outputFile);
     }
-
-    // Get file length
-    if (stream instanceof PositionOutputStream) {
-      try {
-        return ((PositionOutputStream) stream).storedLength();
-      } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to get json file length: %s", outputFile);
-      }
-    }
-
-    return 0L;
   }
 
   public static String getFileExtension(String codecName) {

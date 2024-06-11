@@ -1029,30 +1029,6 @@ acceptedBreaks:
         \ java.nio.ByteBuffer)"
       justification: "Decrypting input must receive length"
     org.apache.iceberg:iceberg-core:
-    - code: "java.method.numberOfParametersChanged"
-      old: "method org.apache.iceberg.encryption.EncryptionManager org.apache.iceberg.encryption.EncryptionUtil::createEncryptionManager(java.util.Map<java.lang.String,\
-        \ java.lang.String>, org.apache.iceberg.encryption.KeyManagementClient)"
-      new: "method org.apache.iceberg.encryption.EncryptionManager org.apache.iceberg.encryption.EncryptionUtil::createEncryptionManager(java.lang.String,\
-        \ int, org.apache.iceberg.encryption.KeyManagementClient)"
-      justification: "Create from table key id and dek length"
-    - code: "java.method.returnTypeChanged"
-      old: "method void org.apache.iceberg.TableMetadataParser::internalWrite(org.apache.iceberg.TableMetadata,\
-        \ org.apache.iceberg.io.OutputFile, boolean)"
-      new: "method long org.apache.iceberg.TableMetadataParser::internalWrite(org.apache.iceberg.TableMetadata,\
-        \ org.apache.iceberg.io.OutputFile, boolean)"
-      justification: "Return length of the written metadata file"
-    - code: "java.method.returnTypeChanged"
-      old: "method void org.apache.iceberg.TableMetadataParser::overwrite(org.apache.iceberg.TableMetadata,\
-        \ org.apache.iceberg.io.OutputFile)"
-      new: "method long org.apache.iceberg.TableMetadataParser::overwrite(org.apache.iceberg.TableMetadata,\
-        \ org.apache.iceberg.io.OutputFile)"
-      justification: "Return length of the written metadata file"
-    - code: "java.method.returnTypeChanged"
-      old: "method void org.apache.iceberg.TableMetadataParser::write(org.apache.iceberg.TableMetadata,\
-        \ org.apache.iceberg.io.OutputFile)"
-      new: "method long org.apache.iceberg.TableMetadataParser::write(org.apache.iceberg.TableMetadata,\
-        \ org.apache.iceberg.io.OutputFile)"
-      justification: "Return length of the written metadata file"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"
