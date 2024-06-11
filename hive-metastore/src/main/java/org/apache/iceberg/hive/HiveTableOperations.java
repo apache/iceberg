@@ -39,7 +39,6 @@ import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.iceberg.BaseMetastoreOperations;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.ClientPool;
-import org.apache.iceberg.MetadataFile;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
@@ -118,6 +117,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
   private EncryptionManager encryptionManager;
   private EncryptingFileIO encryptingFileIO;
   private boolean encryptedTable;
+  private String encryptionKeyId;
+  private int encryptionDekLength;
 
   /** Tests only */
   protected HiveTableOperations(
@@ -184,13 +185,11 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       return encryptionManager;
     }
 
-    String tableKeyID = encryptionKeyIdFromProps();
-
-    if (tableKeyID == null) {
-      tableKeyID = encryptionKeyIdFromHms();
+    if (encryptionKeyId == null) {
+      encryptionPropsFromHms();
     }
 
-    if (tableKeyID != null) {
+    if (encryptionKeyId != null) {
       if (keyManagementClient == null) {
         throw new RuntimeException(
             "Cant create encryption manager, because key management client is not set");
@@ -198,7 +197,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
 
       encryptedTable = true;
       encryptionManager =
-          EncryptionUtil.createEncryptionManager(tableKeyID, dekLength(), keyManagementClient);
+          EncryptionUtil.createEncryptionManager(
+              encryptionKeyId, encryptionDekLength, keyManagementClient);
     } else {
       encryptionManager = PlaintextEncryptionManager.instance();
     }
@@ -206,44 +206,14 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     return encryptionManager;
   }
 
-  private String encryptionKeyIdFromHms() {
-    String keyID;
-    try {
-      Table table = loadHmsTable();
-      if (table == null) {
-        return null;
-      }
-
-      keyID = table.getParameters().get(TableProperties.ENCRYPTION_TABLE_KEY);
-    } catch (TException e) {
-      String errMsg =
-          String.format("Failed to get table info from metastore %s.%s", database, tableName);
-      throw new RuntimeException(errMsg, e);
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      throw new RuntimeException("Interrupted during encryption key id retrieval", e);
-    }
-
-    return keyID;
-  }
-
   @Override
   protected void doRefresh() {
     String metadataLocation = null;
-    String metadataKeyMetadata = null;
-    long metadataSize = 0L;
     try {
       Table table = metaClients.run(client -> client.getTable(database, tableName));
       HiveOperationsBase.validateTableIsIceberg(table, fullName);
 
       metadataLocation = table.getParameters().get(METADATA_LOCATION_PROP);
-      metadataKeyMetadata = table.getParameters().get(METADATA_WRAPPED_KEY_PROP);
-      String metadataSizeString = table.getParameters().get(METADATA_SIZE_PROP);
-      if (metadataSizeString != null) {
-        metadataSize = Long.valueOf(metadataSizeString);
-      }
-      // TODO get "encrypted metadata" flag here? Or rely on catalog prop?
-
     } catch (NoSuchObjectException e) {
       if (currentMetadataLocation() != null) {
         throw new NoSuchTableException("No such table: %s.%s", database, tableName);
@@ -259,18 +229,15 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       throw new RuntimeException("Interrupted during refresh", e);
     }
 
-    MetadataFile metadataFile =
-        new MetadataFile(metadataLocation, metadataKeyMetadata, metadataSize);
-
-    // TODO metadata decrypt flag (on/off)
-    refreshFromMetadataLocation(metadataFile, metadataRefreshMaxRetries);
+    refreshFromMetadataLocation(metadataLocation, metadataRefreshMaxRetries);
   }
 
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:MethodLength"})
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
     boolean newTable = base == null;
-    MetadataFile newMetadataFile = writeNewMetadataFileIfRequired(newTable, metadata);
+    encryptionPropsFromMetadata(metadata);
+    String newMetadataLocation = writeNewMetadataIfRequired(newTable, metadata);
     boolean hiveEngineEnabled = hiveEngineEnabled(metadata, conf);
     boolean keepHiveStats = conf.getBoolean(ConfigProperties.KEEP_HIVE_STATS, false);
 
@@ -334,7 +301,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
               .map(Snapshot::summary)
               .orElseGet(ImmutableMap::of);
       setHmsTableParameters(
-          newMetadataFile, tbl, metadata, removedProps, hiveEngineEnabled, summary);
+          newMetadataLocation, tbl, metadata, removedProps, hiveEngineEnabled, summary);
 
       if (!keepHiveStats) {
         tbl.getParameters().remove(StatsSetupConst.COLUMN_STATS_ACCURATE);
@@ -393,7 +360,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
             e);
         commitStatus =
             BaseMetastoreOperations.CommitStatus.valueOf(
-                checkCommitStatus(newMetadataFile.location(), metadata).name());
+                checkCommitStatus(newMetadataLocation, metadata).name());
         switch (commitStatus) {
           case SUCCESS:
             break;
@@ -415,19 +382,55 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       throw new CommitFailedException(e);
 
     } finally {
-      HiveOperationsBase.cleanupMetadataAndUnlock(
-          io(), commitStatus, newMetadataFile.location(), lock);
+      HiveOperationsBase.cleanupMetadataAndUnlock(io(), commitStatus, newMetadataLocation, lock);
     }
 
     LOG.info(
-        "Committed to table {} with the new metadata location {}",
-        fullName,
-        newMetadataFile.location());
+        "Committed to table {} with the new metadata location {}", fullName, newMetadataLocation);
+  }
+
+  private void encryptionPropsFromMetadata(TableMetadata metadata) {
+    if (encryptionKeyId == null) {
+      encryptionKeyId = metadata.property(TableProperties.ENCRYPTION_TABLE_KEY, null);
+    }
+
+    if (encryptionKeyId != null && encryptionDekLength <= 0) {
+      String dekLength = metadata.property(TableProperties.ENCRYPTION_DEK_LENGTH, null);
+      encryptionDekLength =
+          (dekLength == null)
+              ? TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT
+              : Integer.valueOf(dekLength);
+    }
+  }
+
+  private void encryptionPropsFromHms() {
+    try {
+      Table table = loadHmsTable();
+      if (table == null) {
+        return;
+      }
+
+      encryptionKeyId = table.getParameters().get(TableProperties.ENCRYPTION_TABLE_KEY);
+      if (encryptionKeyId != null) {
+        String dekLength = table.getParameters().get(TableProperties.ENCRYPTION_DEK_LENGTH);
+        encryptionDekLength =
+            (dekLength == null)
+                ? TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT
+                : Integer.valueOf(dekLength);
+      }
+    } catch (TException e) {
+      String errMsg =
+          String.format("Failed to get table info from metastore %s.%s", database, tableName);
+      throw new RuntimeException(errMsg, e);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException("Interrupted during encryption key id retrieval", e);
+    }
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private void setHmsTableParameters(
-      MetadataFile newMetadataFile,
+      String newMetadataLocation,
       Table tbl,
       TableMetadata metadata,
       Set<String> obsoleteProps,
@@ -454,24 +457,10 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     obsoleteProps.forEach(parameters::remove);
 
     parameters.put(TABLE_TYPE_PROP, ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ENGLISH));
-    parameters.put(METADATA_LOCATION_PROP, newMetadataFile.location());
-
-    if (newMetadataFile.wrappedKeyMetadata() != null) {
-      parameters.put(METADATA_WRAPPED_KEY_PROP, newMetadataFile.wrappedKeyMetadata());
-      parameters.put(METADATA_SIZE_PROP, Long.toString(newMetadataFile.size()));
-      // TODO set "encrypted metadata" flag here? Or rely on catalog prop in readers?
-    }
+    parameters.put(METADATA_LOCATION_PROP, newMetadataLocation);
 
     if (currentMetadataLocation() != null && !currentMetadataLocation().isEmpty()) {
       parameters.put(PREVIOUS_METADATA_LOCATION_PROP, currentMetadataLocation());
-    }
-
-    if (currentMetadataFile() != null
-        && currentMetadataFile().wrappedKeyMetadata() != null
-        && !currentMetadataFile().wrappedKeyMetadata().isEmpty()) {
-      parameters.put(
-          PREVIOUS_METADATA_WRAPPED_KEY_PROP, currentMetadataFile().wrappedKeyMetadata());
-      parameters.put(PREVIOUS_METADATA_SIZE_PROP, Long.toString(currentMetadataFile().size()));
     }
 
     // If needed set the 'storage_handler' property to enable query from Hive

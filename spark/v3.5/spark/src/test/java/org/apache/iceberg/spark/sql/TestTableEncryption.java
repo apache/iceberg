@@ -184,19 +184,10 @@ public class TestTableEncryption extends CatalogTestBase {
         foundManifestListFile = true;
         checkMetadataFileEncryption(localInput(metadataFile));
       }
-
-      if (metadataFile.getName().endsWith("metadata.json")) {
-        foundMetadataJson = true;
-        checkMetadataFileEncryption(localInput(metadataFile));
-      }
     }
 
     if (!foundManifestListFile) {
       throw new RuntimeException("No manifest list files found for table " + tableName);
-    }
-
-    if (!foundMetadataJson) {
-      throw new RuntimeException("Metadata json file is not found for table " + tableName);
     }
   }
 
