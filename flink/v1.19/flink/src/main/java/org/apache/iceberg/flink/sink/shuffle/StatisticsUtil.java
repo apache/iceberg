@@ -107,10 +107,18 @@ class StatisticsUtil {
     return config == StatisticsType.Sketch ? StatisticsType.Sketch : StatisticsType.Map;
   }
 
+  static StatisticsType collectType(StatisticsType config, @Nullable GlobalStatistics statistics) {
+    if (statistics != null) {
+      return statistics.type();
+    }
+
+    return collectType(config);
+  }
+
   static StatisticsType collectType(
-      StatisticsType config, @Nullable AggregatedStatistics restoredStatistics) {
-    if (restoredStatistics != null) {
-      return restoredStatistics.type();
+      StatisticsType config, @Nullable CompletedStatistics statistics) {
+    if (statistics != null) {
+      return statistics.type();
     }
 
     return collectType(config);

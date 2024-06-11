@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.sink.shuffle;
 
 import static org.apache.iceberg.flink.sink.shuffle.Fixtures.CHAR_KEYS;
+import static org.apache.iceberg.flink.sink.shuffle.Fixtures.SORT_ORDER_COMPARTOR;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
@@ -178,13 +179,15 @@ public class TestDataStatisticsOperator {
     Map<SortKey, Long> keyFrequency =
         ImmutableMap.of(CHAR_KEYS.get("a"), 2L, CHAR_KEYS.get("b"), 1L, CHAR_KEYS.get("c"), 1L);
     SortKey[] rangeBounds = new SortKey[] {CHAR_KEYS.get("a")};
+    MapAssignment mapAssignment =
+        MapAssignment.fromKeyFrequency(2, keyFrequency, 0.0d, SORT_ORDER_COMPARTOR);
     DataStatisticsOperator operator = createOperator(type, Fixtures.NUM_SUBTASKS);
     OperatorSubtaskState snapshot;
     try (OneInputStreamOperatorTestHarness<RowData, StatisticsOrRecord> testHarness1 =
         createHarness(operator)) {
       GlobalStatistics statistics;
       if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
-        statistics = GlobalStatistics.fromKeyFrequency(1L, keyFrequency);
+        statistics = GlobalStatistics.fromMapAssignment(1L, mapAssignment);
       } else {
         statistics = GlobalStatistics.fromRangeBounds(1L, rangeBounds);
       }
@@ -197,10 +200,10 @@ public class TestDataStatisticsOperator {
       GlobalStatistics globalStatistics = operator.globalStatistics();
       assertThat(globalStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
       if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
-        assertThat(globalStatistics.keyFrequency()).isEqualTo(keyFrequency);
+        assertThat(globalStatistics.mapAssignment()).isEqualTo(mapAssignment);
         assertThat(globalStatistics.rangeBounds()).isNull();
       } else {
-        assertThat(globalStatistics.keyFrequency()).isNull();
+        assertThat(globalStatistics.mapAssignment()).isNull();
         assertThat(globalStatistics.rangeBounds()).isEqualTo(rangeBounds);
       }
 
@@ -227,10 +230,10 @@ public class TestDataStatisticsOperator {
       verify(spyGateway).sendEventToCoordinator(any(RequestGlobalStatisticsEvent.class));
       assertThat(globalStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
       if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
-        assertThat(globalStatistics.keyFrequency()).isEqualTo(keyFrequency);
+        assertThat(globalStatistics.mapAssignment()).isEqualTo(mapAssignment);
         assertThat(globalStatistics.rangeBounds()).isNull();
       } else {
-        assertThat(globalStatistics.keyFrequency()).isNull();
+        assertThat(globalStatistics.mapAssignment()).isNull();
         assertThat(globalStatistics.rangeBounds()).isEqualTo(rangeBounds);
       }
     }

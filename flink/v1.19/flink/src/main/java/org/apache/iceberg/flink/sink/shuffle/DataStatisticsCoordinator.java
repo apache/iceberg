@@ -37,7 +37,6 @@ import org.apache.flink.util.Preconditions;
 import org.apache.flink.util.ThrowableCatchingRunnable;
 import org.apache.flink.util.function.ThrowingRunnable;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SortKey;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.SortOrderComparators;
 import org.apache.iceberg.StructLike;
@@ -67,6 +66,7 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
   private final Comparator<StructLike> comparator;
   private final int downstreamParallelism;
   private final StatisticsType statisticsType;
+  private final double closeFileCostWeightPercentage;
 
   private final ExecutorService coordinatorExecutor;
   private final SubtaskGateways subtaskGateways;
@@ -85,7 +85,8 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
       Schema schema,
       SortOrder sortOrder,
       int downstreamParallelism,
-      StatisticsType statisticsType) {
+      StatisticsType statisticsType,
+      double closeFileCostWeightPercentage) {
     this.operatorName = operatorName;
     this.context = context;
     this.schema = schema;
@@ -93,6 +94,7 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
     this.comparator = SortOrderComparators.forSchema(schema, sortOrder);
     this.downstreamParallelism = downstreamParallelism;
     this.statisticsType = statisticsType;
+    this.closeFileCostWeightPercentage = closeFileCostWeightPercentage;
 
     this.coordinatorThreadFactory =
         new CoordinatorExecutorThreadFactory(
@@ -203,10 +205,13 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
       // completedStatistics contains the complete samples, which is needed to compute
       // the range bounds in globalStatistics if downstreamParallelism changed.
       this.completedStatistics = maybeCompletedStatistics;
-      // globalStatistics only contains the range bounds, which has size equal to
-      // downstreamParallelism - 1.
+      // globalStatistics only contains assignment calculated based on Map or Sketch statistics
       this.globalStatistics =
-          globalStatistics(maybeCompletedStatistics, downstreamParallelism, comparator);
+          globalStatistics(
+              maybeCompletedStatistics,
+              downstreamParallelism,
+              comparator,
+              closeFileCostWeightPercentage);
       sendGlobalStatisticsToSubtasks(globalStatistics);
     }
   }
@@ -214,20 +219,24 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
   private static GlobalStatistics globalStatistics(
       CompletedStatistics completedStatistics,
       int downstreamParallelism,
-      Comparator<StructLike> comparator) {
-    SortKey[] rangeBounds = null;
+      Comparator<StructLike> comparator,
+      double closeFileCostWeightPercentage) {
     if (completedStatistics.type() == StatisticsType.Sketch) {
       // range bound is a much smaller array compared to the complete samples.
       // It helps reduce the amount of data transfer from coordinator to operator subtasks.
-      rangeBounds =
-          SketchUtil.rangeBounds(downstreamParallelism, comparator, completedStatistics.keys());
+      return GlobalStatistics.fromRangeBounds(
+          completedStatistics.checkpointId(),
+          SketchUtil.rangeBounds(
+              downstreamParallelism, comparator, completedStatistics.keySamples()));
+    } else {
+      return GlobalStatistics.fromMapAssignment(
+          completedStatistics.checkpointId(),
+          MapAssignment.fromKeyFrequency(
+              downstreamParallelism,
+              completedStatistics.keyFrequency(),
+              closeFileCostWeightPercentage,
+              comparator));
     }
-
-    return new GlobalStatistics(
-        completedStatistics.checkpointId(),
-        completedStatistics.type(),
-        completedStatistics.keyFrequency(),
-        rangeBounds);
   }
 
   @SuppressWarnings("FutureReturnValueIgnored")
@@ -344,7 +353,8 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
             checkpointData, completedStatisticsSerializer);
     // recompute global statistics in case downstream parallelism changed
     this.globalStatistics =
-        globalStatistics(completedStatistics, downstreamParallelism, comparator);
+        globalStatistics(
+            completedStatistics, downstreamParallelism, comparator, closeFileCostWeightPercentage);
   }
 
   @Override

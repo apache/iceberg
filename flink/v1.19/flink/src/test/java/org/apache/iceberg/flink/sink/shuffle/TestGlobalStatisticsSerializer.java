@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.sink.shuffle;
 
 import static org.apache.iceberg.flink.sink.shuffle.Fixtures.CHAR_KEYS;
+import static org.apache.iceberg.flink.sink.shuffle.Fixtures.SORT_ORDER_COMPARTOR;
 
 import org.apache.flink.api.common.typeutils.SerializerTestBase;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
@@ -45,8 +46,13 @@ public class TestGlobalStatisticsSerializer extends SerializerTestBase<GlobalSta
   @Override
   protected GlobalStatistics[] getTestData() {
     return new GlobalStatistics[] {
-      GlobalStatistics.fromKeyFrequency(
-          1L, ImmutableMap.of(CHAR_KEYS.get("a"), 1L, CHAR_KEYS.get("b"), 2L)),
+      GlobalStatistics.fromMapAssignment(
+          1L,
+          MapAssignment.fromKeyFrequency(
+              Fixtures.NUM_SUBTASKS,
+              ImmutableMap.of(CHAR_KEYS.get("a"), 1L, CHAR_KEYS.get("b"), 2L),
+              0.0d,
+              SORT_ORDER_COMPARTOR)),
       GlobalStatistics.fromRangeBounds(2L, new SortKey[] {CHAR_KEYS.get("a"), CHAR_KEYS.get("b")})
     };
   }

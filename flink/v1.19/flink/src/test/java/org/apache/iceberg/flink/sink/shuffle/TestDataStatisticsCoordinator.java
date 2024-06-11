@@ -19,16 +19,20 @@
 package org.apache.iceberg.flink.sink.shuffle;
 
 import static org.apache.iceberg.flink.sink.shuffle.Fixtures.CHAR_KEYS;
+import static org.apache.iceberg.flink.sink.shuffle.Fixtures.NUM_SUBTASKS;
+import static org.apache.iceberg.flink.sink.shuffle.Fixtures.SORT_ORDER_COMPARTOR;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.operators.coordination.EventReceivingTasks;
 import org.apache.flink.runtime.operators.coordination.MockOperatorCoordinatorContext;
 import org.apache.flink.util.ExceptionUtils;
+import org.apache.iceberg.SortKey;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,7 +52,7 @@ public class TestDataStatisticsCoordinator {
   }
 
   private void tasksReady(DataStatisticsCoordinator coordinator) {
-    setAllTasksReady(Fixtures.NUM_SUBTASKS, coordinator, receivingTasks);
+    setAllTasksReady(NUM_SUBTASKS, coordinator, receivingTasks);
   }
 
   @ParameterizedTest
@@ -109,16 +113,19 @@ public class TestDataStatisticsCoordinator {
 
       waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
 
+      Map<SortKey, Long> keyFrequency =
+          ImmutableMap.of(
+              CHAR_KEYS.get("a"), 2L,
+              CHAR_KEYS.get("b"), 3L,
+              CHAR_KEYS.get("c"), 5L);
+      MapAssignment mapAssignment =
+          MapAssignment.fromKeyFrequency(NUM_SUBTASKS, keyFrequency, 0.0d, SORT_ORDER_COMPARTOR);
+
       CompletedStatistics completedStatistics = dataStatisticsCoordinator.completedStatistics();
       assertThat(completedStatistics.checkpointId()).isEqualTo(1L);
       assertThat(completedStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
       if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
-        assertThat(completedStatistics.keyFrequency())
-            .isEqualTo(
-                ImmutableMap.of(
-                    CHAR_KEYS.get("a"), 2L,
-                    CHAR_KEYS.get("b"), 3L,
-                    CHAR_KEYS.get("c"), 5L));
+        assertThat(completedStatistics.keyFrequency()).isEqualTo(keyFrequency);
       } else {
         assertThat(completedStatistics.keySamples())
             .containsExactly(
@@ -138,12 +145,7 @@ public class TestDataStatisticsCoordinator {
       assertThat(globalStatistics.checkpointId()).isEqualTo(1L);
       assertThat(globalStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
       if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
-        assertThat(globalStatistics.keyFrequency())
-            .isEqualTo(
-                ImmutableMap.of(
-                    CHAR_KEYS.get("a"), 2L,
-                    CHAR_KEYS.get("b"), 3L,
-                    CHAR_KEYS.get("c"), 5L));
+        assertThat(globalStatistics.mapAssignment()).isEqualTo(mapAssignment);
       } else {
         assertThat(globalStatistics.rangeBounds()).containsExactly(CHAR_KEYS.get("b"));
       }
@@ -234,10 +236,11 @@ public class TestDataStatisticsCoordinator {
   private static DataStatisticsCoordinator createCoordinator(StatisticsType type) {
     return new DataStatisticsCoordinator(
         OPERATOR_NAME,
-        new MockOperatorCoordinatorContext(TEST_OPERATOR_ID, Fixtures.NUM_SUBTASKS),
+        new MockOperatorCoordinatorContext(TEST_OPERATOR_ID, NUM_SUBTASKS),
         Fixtures.SCHEMA,
         Fixtures.SORT_ORDER,
-        Fixtures.NUM_SUBTASKS,
-        type);
+        NUM_SUBTASKS,
+        type,
+        0.0d);
   }
 }
