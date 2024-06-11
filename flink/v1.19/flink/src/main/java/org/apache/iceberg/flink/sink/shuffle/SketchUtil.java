@@ -97,12 +97,12 @@ class SketchUtil {
    *   <li>age > 60
    * </ul>
    *
-   * <p>TODO: current implementation assumes uniform weight across keys
+   * <p>Assumption is that a single key is not dominant enough to span multiple subtasks.
    *
    * @param numPartitions number of partitions which maps to downstream operator parallelism
    * @param samples sampled keys
-   * @return list of range partition bounds. It should be a sorted list (ascending). Number of items
-   *     should be {@code numPartitions - 1}. if numPartitions is 1, return an empty list
+   * @return array of range partition bounds. It should be a sorted list (ascending). Number of
+   *     items should be {@code numPartitions - 1}. if numPartitions is 1, return an empty list
    */
   static SortKey[] rangeBounds(
       int numPartitions, Comparator<StructLike> comparator, SortKey[] samples) {

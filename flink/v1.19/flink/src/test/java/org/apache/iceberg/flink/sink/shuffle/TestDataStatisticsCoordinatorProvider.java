@@ -19,16 +19,19 @@
 package org.apache.iceberg.flink.sink.shuffle;
 
 import static org.apache.iceberg.flink.sink.shuffle.Fixtures.CHAR_KEYS;
+import static org.apache.iceberg.flink.sink.shuffle.Fixtures.SORT_ORDER_COMPARTOR;
 import static org.apache.iceberg.flink.sink.shuffle.Fixtures.TASK_STATISTICS_SERIALIZER;
 import static org.apache.iceberg.flink.sink.shuffle.Fixtures.createStatisticsEvent;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.operators.coordination.EventReceivingTasks;
 import org.apache.flink.runtime.operators.coordination.MockOperatorCoordinatorContext;
 import org.apache.flink.runtime.operators.coordination.RecreateOnResetOperatorCoordinator;
+import org.apache.iceberg.SortKey;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -72,14 +75,19 @@ public class TestDataStatisticsCoordinatorProvider {
       TestDataStatisticsCoordinator.waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
 
       // Verify checkpoint 1 global data statistics
+      Map<SortKey, Long> checkpoint1KeyFrequency =
+          ImmutableMap.of(CHAR_KEYS.get("a"), 1L, CHAR_KEYS.get("b"), 1L);
+      MapAssignment checkpoint1MapAssignment =
+          MapAssignment.fromKeyFrequency(
+              Fixtures.NUM_SUBTASKS, checkpoint1KeyFrequency, 0.0d, SORT_ORDER_COMPARTOR);
+
       CompletedStatistics completedStatistics = dataStatisticsCoordinator.completedStatistics();
       assertThat(completedStatistics).isNotNull();
       assertThat(completedStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
       if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
-        assertThat(completedStatistics.keyFrequency())
-            .isEqualTo(ImmutableMap.of(CHAR_KEYS.get("a"), 1L, CHAR_KEYS.get("b"), 1L));
+        assertThat(completedStatistics.keyFrequency()).isEqualTo(checkpoint1KeyFrequency);
       } else {
-        assertThat(completedStatistics.keys())
+        assertThat(completedStatistics.keySamples())
             .containsExactly(CHAR_KEYS.get("a"), CHAR_KEYS.get("b"));
       }
 
@@ -87,10 +95,9 @@ public class TestDataStatisticsCoordinatorProvider {
       assertThat(globalStatistics).isNotNull();
       assertThat(globalStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
       if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
-        assertThat(globalStatistics.keyFrequency())
-            .isEqualTo(ImmutableMap.of(CHAR_KEYS.get("a"), 1L, CHAR_KEYS.get("b"), 1L));
+        assertThat(globalStatistics.mapAssignment()).isEqualTo(checkpoint1MapAssignment);
       } else {
-        assertThat(globalStatistics.keys()).containsExactly(CHAR_KEYS.get("a"));
+        assertThat(globalStatistics.rangeBounds()).containsExactly(CHAR_KEYS.get("a"));
       }
 
       byte[] checkpoint1Bytes = waitForCheckpoint(1L, dataStatisticsCoordinator);
@@ -107,13 +114,15 @@ public class TestDataStatisticsCoordinatorProvider {
       TestDataStatisticsCoordinator.waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
 
       // Verify checkpoint 2 global data statistics
+      Map<SortKey, Long> checkpoint2KeyFrequency =
+          ImmutableMap.of(CHAR_KEYS.get("d"), 1L, CHAR_KEYS.get("e"), 1L, CHAR_KEYS.get("f"), 1L);
+      MapAssignment checkpoint2MapAssignment =
+          MapAssignment.fromKeyFrequency(
+              Fixtures.NUM_SUBTASKS, checkpoint2KeyFrequency, 0.0d, SORT_ORDER_COMPARTOR);
       completedStatistics = dataStatisticsCoordinator.completedStatistics();
       assertThat(completedStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
       if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
-        assertThat(completedStatistics.keyFrequency())
-            .isEqualTo(
-                ImmutableMap.of(
-                    CHAR_KEYS.get("d"), 1L, CHAR_KEYS.get("e"), 1L, CHAR_KEYS.get("f"), 1L));
+        assertThat(completedStatistics.keyFrequency()).isEqualTo(checkpoint2KeyFrequency);
       } else {
         assertThat(completedStatistics.keySamples())
             .containsExactly(CHAR_KEYS.get("d"), CHAR_KEYS.get("e"), CHAR_KEYS.get("f"));
@@ -122,10 +131,7 @@ public class TestDataStatisticsCoordinatorProvider {
       globalStatistics = dataStatisticsCoordinator.globalStatistics();
       assertThat(globalStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
       if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
-        assertThat(globalStatistics.keyFrequency())
-            .isEqualTo(
-                ImmutableMap.of(
-                    CHAR_KEYS.get("d"), 1L, CHAR_KEYS.get("e"), 1L, CHAR_KEYS.get("f"), 1L));
+        assertThat(globalStatistics.mapAssignment()).isEqualTo(checkpoint2MapAssignment);
       } else {
         assertThat(globalStatistics.rangeBounds()).containsExactly(CHAR_KEYS.get("e"));
       }
@@ -153,8 +159,7 @@ public class TestDataStatisticsCoordinatorProvider {
       assertThat(globalStatistics).isNotNull();
       assertThat(globalStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
       if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
-        assertThat(globalStatistics.keyFrequency())
-            .isEqualTo(ImmutableMap.of(CHAR_KEYS.get("a"), 1L, CHAR_KEYS.get("b"), 1L));
+        assertThat(globalStatistics.mapAssignment()).isEqualTo(checkpoint1MapAssignment);
       } else {
         assertThat(globalStatistics.rangeBounds()).containsExactly(CHAR_KEYS.get("a"));
       }
@@ -176,6 +181,7 @@ public class TestDataStatisticsCoordinatorProvider {
         Fixtures.SCHEMA,
         Fixtures.SORT_ORDER,
         downstreamParallelism,
-        type);
+        type,
+        0.0);
   }
 }
