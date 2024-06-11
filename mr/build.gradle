@@ -21,6 +21,8 @@ project(':iceberg-mr') {
   configurations {
     testImplementation {
       exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'
+      // before CALCITE-1224 (1.9.0), it contains un-relocated Jackson classes
+      exclude group: 'org.apache.calcite.avatica', module: 'avatica'
     }
   }
   test {
@@ -46,7 +48,6 @@ project(':iceberg-mr') {
       exclude group: 'com.google.guava'
       exclude group: 'com.google.protobuf', module: 'protobuf-java'
       exclude group: 'org.apache.avro', module: 'avro'
-      exclude group: 'org.apache.calcite.avatica'
       exclude group: 'org.apache.hive', module: 'hive-llap-tez'
       exclude group: 'org.apache.logging.log4j'
       exclude group: 'org.pentaho' // missing dependency
@@ -57,10 +58,7 @@ project(':iceberg-mr') {
 
     implementation libs.caffeine
 
-    testImplementation(libs.calcite.core) {
-      // before CALCITE-1224 (1.9.0), it contains un-relocated Jackson classes
-      exclude group: 'org.apache.calcite.avatica', module: 'avatica'
-    }
+    testImplementation libs.calcite.core
     testImplementation libs.calcite.druid
 
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
