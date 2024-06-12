@@ -26,6 +26,10 @@ import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * A {@link MetricsReporter} implementation that reports the {@link MetricsReport} to a REST
+ * endpoint. This is the default metrics reporter when using {@link RESTCatalog}.
+ */
 class RESTMetricsReporter implements MetricsReporter {
   private static final Logger LOG = LoggerFactory.getLogger(RESTMetricsReporter.class);
 

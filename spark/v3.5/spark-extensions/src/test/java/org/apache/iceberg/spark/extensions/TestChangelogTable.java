@@ -291,6 +291,69 @@ public class TestChangelogTable extends ExtensionsTestBase {
         rows);
   }
 
+  @TestTemplate
+  public void testQueryWithRollback() {
+    createTable();
+
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snap1 = table.currentSnapshot();
+    long rightAfterSnap1 = waitUntilAfter(snap1.timestampMillis());
+
+    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+    table.refresh();
+    Snapshot snap2 = table.currentSnapshot();
+    long rightAfterSnap2 = waitUntilAfter(snap2.timestampMillis());
+
+    sql(
+        "CALL %s.system.rollback_to_snapshot('%s', %d)",
+        catalogName, tableIdent, snap1.snapshotId());
+    table.refresh();
+    assertThat(table.currentSnapshot()).isEqualTo(snap1);
+
+    sql("INSERT OVERWRITE %s VALUES (-2, 'a')", tableName);
+    table.refresh();
+    Snapshot snap3 = table.currentSnapshot();
+    long rightAfterSnap3 = waitUntilAfter(snap3.timestampMillis());
+
+    assertEquals(
+        "Should have expected changed rows up to snapshot 3",
+        ImmutableList.of(
+            row(1, "a", "INSERT", 0, snap1.snapshotId()),
+            row(1, "a", "DELETE", 1, snap3.snapshotId()),
+            row(-2, "a", "INSERT", 1, snap3.snapshotId())),
+        changelogRecords(null, rightAfterSnap3));
+
+    assertEquals(
+        "Should have expected changed rows up to snapshot 2",
+        ImmutableList.of(row(1, "a", "INSERT", 0, snap1.snapshotId())),
+        changelogRecords(null, rightAfterSnap2));
+
+    assertEquals(
+        "Should have expected changed rows from snapshot 3 only since snapshot 2 is on a different branch.",
+        ImmutableList.of(
+            row(1, "a", "DELETE", 0, snap3.snapshotId()),
+            row(-2, "a", "INSERT", 0, snap3.snapshotId())),
+        changelogRecords(rightAfterSnap1, snap3.timestampMillis()));
+
+    assertEquals(
+        "Should have expected changed rows from snapshot 3",
+        ImmutableList.of(
+            row(1, "a", "DELETE", 0, snap3.snapshotId()),
+            row(-2, "a", "INSERT", 0, snap3.snapshotId())),
+        changelogRecords(rightAfterSnap2, null));
+
+    sql(
+        "CALL %s.system.set_current_snapshot('%s', %d)",
+        catalogName, tableIdent, snap2.snapshotId());
+    table.refresh();
+    assertThat(table.currentSnapshot()).isEqualTo(snap2);
+    assertEquals(
+        "Should have expected changed rows from snapshot 2 only since snapshot 3 is on a different branch.",
+        ImmutableList.of(row(2, "b", "INSERT", 0, snap2.snapshotId())),
+        changelogRecords(rightAfterSnap1, null));
+  }
+
   private void createTableWithDefaultRows() {
     createTable();
     insertDefaultRows();
