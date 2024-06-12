@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
@@ -195,6 +196,7 @@ public class TestORCSchemaUtil {
 
   @Test
   public void testTypePromotions() {
+    Configuration config = new Configuration();
     Schema originalSchema =
         new Schema(
             optional(1, "a", Types.IntegerType.get()),
@@ -211,7 +213,8 @@ public class TestORCSchemaUtil {
             optional(2, "b", Types.DoubleType.get()),
             optional(3, "c", Types.DecimalType.of(15, 2)));
 
-    TypeDescription newOrcSchema = ORCSchemaUtil.buildOrcProjection(evolveSchema, orcSchema);
+    TypeDescription newOrcSchema =
+        ORCSchemaUtil.buildOrcProjection(evolveSchema, orcSchema, config);
     Assertions.assertThat(newOrcSchema.getChildren()).hasSize(3);
     Assertions.assertThat(newOrcSchema.findSubtype("a").getId()).isEqualTo(1);
     Assertions.assertThat(newOrcSchema.findSubtype("a").getCategory())
@@ -228,12 +231,14 @@ public class TestORCSchemaUtil {
 
   @Test
   public void testInvalidTypePromotions() {
+    Configuration config = new Configuration();
     Schema originalSchema = new Schema(optional(1, "a", Types.LongType.get()));
 
     TypeDescription orcSchema = ORCSchemaUtil.convert(originalSchema);
     Schema evolveSchema = new Schema(optional(1, "a", Types.IntegerType.get()));
 
-    Assertions.assertThatThrownBy(() -> ORCSchemaUtil.buildOrcProjection(evolveSchema, orcSchema))
+    Assertions.assertThatThrownBy(
+            () -> ORCSchemaUtil.buildOrcProjection(evolveSchema, orcSchema, config))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Can not promote LONG type to INTEGER");
   }
@@ -411,6 +416,7 @@ public class TestORCSchemaUtil {
 
   @Test
   public void testAssignIdsByNameMappingAndProject() {
+    Configuration config = new Configuration();
     Types.StructType structType =
         Types.StructType.of(
             required(1, "id", Types.LongType.get()),
@@ -517,7 +523,8 @@ public class TestORCSchemaUtil {
         .isTrue();
 
     TypeDescription projectedOrcSchema =
-        ORCSchemaUtil.buildOrcProjection(mappingSchema, typeDescriptionWithIdsFromNameMapping);
+        ORCSchemaUtil.buildOrcProjection(
+            mappingSchema, typeDescriptionWithIdsFromNameMapping, config);
 
     Assertions.assertThat(equalsWithIds(expected, projectedOrcSchema))
         .as("Schema should be the prunned by projection")

@@ -1018,6 +1018,13 @@ acceptedBreaks:
       old: "method void org.apache.iceberg.PositionDeletesTable.PositionDeletesBatchScan::<init>(org.apache.iceberg.Table,\
         \ org.apache.iceberg.Schema, org.apache.iceberg.TableScanContext)"
       justification: "Removing deprecated code"
+    org.apache.iceberg:iceberg-orc:
+    - code: "java.method.numberOfParametersChanged"
+      old: "method org.apache.orc.TypeDescription org.apache.iceberg.orc.ORCSchemaUtil::buildOrcProjection(org.apache.iceberg.Schema,\
+        \ org.apache.orc.TypeDescription)"
+      new: "method org.apache.orc.TypeDescription org.apache.iceberg.orc.ORCSchemaUtil::buildOrcProjection(org.apache.iceberg.Schema,\
+        \ org.apache.orc.TypeDescription, org.apache.hadoop.conf.Configuration)"
+      justification: "add Configuration para in ORCSchemaUtil#buildOrcProjection"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"
