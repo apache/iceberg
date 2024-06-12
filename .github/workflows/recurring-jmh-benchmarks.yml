@@ -44,6 +44,7 @@ jobs:
         spark_version: ['iceberg-spark-3.5']
     env:
       SPARK_LOCAL_IP: localhost
+      GRADLE_ENTERPRISE_ACCESS_KEY: ${{ secrets.GE_ACCESS_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with:
