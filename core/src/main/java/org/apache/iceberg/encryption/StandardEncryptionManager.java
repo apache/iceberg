@@ -20,6 +20,7 @@ package org.apache.iceberg.encryption;
 
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;
+import java.util.Base64;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -32,7 +33,8 @@ public class StandardEncryptionManager implements EncryptionManager {
   private final transient KeyManagementClient kmsClient;
   private final String tableKeyId;
   private final int dataKeyLength;
-
+  private String wrappedKeyEncryptionKey;
+  private byte[] keyEncryptionKey;
   private transient volatile SecureRandom lazyRNG = null;
 
   /**
@@ -92,11 +94,43 @@ public class StandardEncryptionManager implements EncryptionManager {
 
   public ByteBuffer unwrapKey(ByteBuffer wrappedSecretKey) {
     if (kmsClient == null) {
-      throw new IllegalStateException(
-          "Cannot wrap key after called after serialization (missing KMS client)");
+      throw new IllegalStateException("Cannot unwrap key after serialization (missing KMS client)");
     }
 
     return kmsClient.unwrapKey(wrappedSecretKey, tableKeyId);
+  }
+
+  public String wrappedKeyEncryptionKey() {
+    return wrappedKeyEncryptionKey;
+  }
+
+  public void setWrappedKeyEncryptionKey(String wrappedKeyEncryptionKey) {
+    if (this.wrappedKeyEncryptionKey != null) {
+      Preconditions.checkArgument(
+          this.wrappedKeyEncryptionKey.equals(wrappedKeyEncryptionKey),
+          "Wrapped KEK must be the same for all snapshots");
+    } else if (keyEncryptionKey != null) {
+      throw new IllegalStateException(
+          "Key encryption key is set, while its wrapped version is not");
+    }
+
+    this.wrappedKeyEncryptionKey = wrappedKeyEncryptionKey;
+    if (keyEncryptionKey == null) {
+      ByteBuffer encryptedKEK =
+          ByteBuffer.wrap(Base64.getDecoder().decode(wrappedKeyEncryptionKey));
+      keyEncryptionKey = unwrapKey(encryptedKEK).array();
+    }
+  }
+
+  public byte[] keyEncryptionKey() {
+    if (keyEncryptionKey == null) {
+      keyEncryptionKey = new byte[dataKeyLength];
+      workerRNG().nextBytes(keyEncryptionKey);
+      wrappedKeyEncryptionKey =
+          Base64.getEncoder().encodeToString(wrapKey(ByteBuffer.wrap(keyEncryptionKey)).array());
+    }
+
+    return keyEncryptionKey;
   }
 
   private class StandardEncryptedOutputFile implements NativeEncryptionOutputFile {

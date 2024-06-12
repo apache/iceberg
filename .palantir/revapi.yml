@@ -1018,6 +1018,14 @@ acceptedBreaks:
       old: "method void org.apache.iceberg.PositionDeletesTable.PositionDeletesBatchScan::<init>(org.apache.iceberg.Table,\
         \ org.apache.iceberg.Schema, org.apache.iceberg.TableScanContext)"
       justification: "Removing deprecated code"
+  "1.5.0":
+    org.apache.iceberg:iceberg-core:
+    - code: "java.method.numberOfParametersChanged"
+      old: "method org.apache.iceberg.encryption.EncryptionManager org.apache.iceberg.encryption.EncryptionUtil::createEncryptionManager(java.util.Map<java.lang.String,\
+        \ java.lang.String>, org.apache.iceberg.encryption.KeyManagementClient)"
+      new: "method org.apache.iceberg.encryption.EncryptionManager org.apache.iceberg.encryption.EncryptionUtil::createEncryptionManager(java.lang.String,\
+        \ int, org.apache.iceberg.encryption.KeyManagementClient)"
+      justification: "Create from table key id and dek length"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"
