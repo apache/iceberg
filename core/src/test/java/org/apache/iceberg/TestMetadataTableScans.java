@@ -42,6 +42,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeWrapper;
 import org.junit.jupiter.api.TestTemplate;
@@ -1266,7 +1267,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     ScanTask task = tasks.get(0);
     assertThat(task).isInstanceOf(PositionDeletesScanTask.class);
 
-    Types.StructType partitionType = Partitioning.partitionType(table);
+    Types.StructType partitionType = positionDeletesTable.spec().partitionType();
     PositionDeletesScanTask posDeleteTask = (PositionDeletesScanTask) task;
 
     int filePartition = posDeleteTask.file().partition().get(0, Integer.class);
@@ -1333,7 +1334,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     ScanTask task = tasks.get(0);
     assertThat(task).isInstanceOf(PositionDeletesScanTask.class);
 
-    Types.StructType partitionType = Partitioning.partitionType(table);
+    Types.StructType partitionType = positionDeletesTable.spec().partitionType();
     PositionDeletesScanTask posDeleteTask = (PositionDeletesScanTask) task;
 
     // base table filter should only be used to evaluate partitions
@@ -1415,7 +1416,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     ScanTask task = tasks.get(0);
     assertThat(task).isInstanceOf(PositionDeletesScanTask.class);
 
-    Types.StructType partitionType = Partitioning.partitionType(table);
+    Types.StructType partitionType = positionDeletesTable.spec().partitionType();
     PositionDeletesScanTask posDeleteTask = (PositionDeletesScanTask) task;
 
     // base table filter should only be used to evaluate partitions
@@ -1426,7 +1427,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
         (StructLike)
             constantsMap(posDeleteTask, partitionType).get(MetadataColumns.PARTITION_COLUMN_ID);
     int taskPartition =
-        taskPartitionStruct.get(1, Integer.class); // new partition field in position 1
+        taskPartitionStruct.get(0, Integer.class); // new partition field in position 0
     assertThat(filePartition).as("Expected correct partition on task's file").isEqualTo(1);
     assertThat(taskPartition).as("Expected correct partition on task's column").isEqualTo(1);
 
@@ -1563,5 +1564,67 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     assertThat(scanTask1Partition).isEqualTo(expected);
     assertThat(scanTask2Partition).isEqualTo(expected);
+  }
+
+  @TestTemplate
+  public void testPositionDeletesManyColumns() {
+    assumeThat(formatVersion).as("Position deletes supported only for v2 tables").isEqualTo(2);
+
+    UpdateSchema updateSchema = table.updateSchema();
+    for (int i = 0; i <= 2000; i++) {
+      updateSchema.addColumn(String.valueOf(i), Types.IntegerType.get());
+    }
+    updateSchema.commit();
+
+    DataFile dataFile1 =
+        DataFiles.builder(table.spec())
+            .withPath("/path/to/data1.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+    DataFile dataFile2 =
+        DataFiles.builder(table.spec())
+            .withPath("/path/to/data2.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+    table.newAppend().appendFile(dataFile1).appendFile(dataFile2).commit();
+
+    DeleteFile delete1 =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .ofPositionDeletes()
+            .withPath("/path/to/delete1.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+    DeleteFile delete2 =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .ofPositionDeletes()
+            .withPath("/path/to/delete2.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+    table.newRowDelta().addDeletes(delete1).addDeletes(delete2).commit();
+
+    PositionDeletesTable positionDeletesTable = new PositionDeletesTable(table);
+    assertThat(TypeUtil.indexById(positionDeletesTable.schema().asStruct()).size()).isEqualTo(2010);
+
+    BatchScan scan = positionDeletesTable.newBatchScan();
+    assertThat(scan).isInstanceOf(PositionDeletesTable.PositionDeletesBatchScan.class);
+    PositionDeletesTable.PositionDeletesBatchScan deleteScan =
+        (PositionDeletesTable.PositionDeletesBatchScan) scan;
+
+    List<PositionDeletesScanTask> scanTasks =
+        Lists.newArrayList(
+            Iterators.transform(
+                deleteScan.planFiles().iterator(),
+                task -> {
+                  assertThat(task).isInstanceOf(PositionDeletesScanTask.class);
+                  return (PositionDeletesScanTask) task;
+                }));
+    assertThat(scanTasks).hasSize(2);
+    scanTasks.sort(Comparator.comparing(f -> f.file().path().toString()));
+    assertThat(scanTasks.get(0).file().path().toString()).isEqualTo("/path/to/delete1.parquet");
+    assertThat(scanTasks.get(1).file().path().toString()).isEqualTo("/path/to/delete2.parquet");
   }
 }
