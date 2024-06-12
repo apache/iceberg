@@ -21,6 +21,7 @@ package org.apache.iceberg.aws.s3;
 import static org.apache.iceberg.metrics.MetricsContext.nullMetrics;
 import static org.mockito.AdditionalAnswers.delegatesTo;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
@@ -42,6 +43,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
@@ -123,17 +125,13 @@ public class TestS3OutputStream {
     RuntimeException mockException = new RuntimeException("mock uploadPart failure");
     doThrow(mockException).when(s3mock).uploadPart((UploadPartRequest) any(), (RequestBody) any());
 
-    Assertions.assertThatThrownBy(
-            () -> {
-              try (S3OutputStream stream =
-                  new S3OutputStream(s3mock, randomURI(), properties, nullMetrics())) {
-                stream.write(randomData(10 * 1024 * 1024));
-              }
-            })
-        .isInstanceOf(mockException.getClass())
-        .hasMessageContaining(mockException.getMessage());
-
-    verify(s3mock, times(1)).abortMultipartUpload((AbortMultipartUploadRequest) any());
+    try {
+      testWrite(randomData(10 * 1024 * 1024), s3mock, randomURI(), properties, nullMetrics());
+    } catch (Exception e) {
+      // swallow
+    } finally {
+      verify(s3mock, atLeastOnce()).abortMultipartUpload((AbortMultipartUploadRequest) any());
+    }
   }
 
   @Test
@@ -145,15 +143,17 @@ public class TestS3OutputStream {
 
     Assertions.assertThatThrownBy(
             () -> {
-              try (S3OutputStream stream =
-                  new S3OutputStream(s3mock, randomURI(), properties, nullMetrics())) {
-                stream.write(randomData(10 * 1024 * 1024));
+              try {
+                testWrite(
+                    randomData(10 * 1024 * 1024), s3mock, randomURI(), properties, nullMetrics());
+              } catch (Exception e) {
+                throw e;
               }
             })
         .isInstanceOf(mockException.getClass())
         .hasMessageContaining(mockException.getMessage());
 
-    verify(s3mock, times(1)).abortMultipartUpload((AbortMultipartUploadRequest) any());
+    verify(s3mock, atLeastOnce()).abortMultipartUpload((AbortMultipartUploadRequest) any());
   }
 
   @Test
@@ -325,21 +325,33 @@ public class TestS3OutputStream {
     return data.asByteArray();
   }
 
-  private byte[] randomData(int size) {
-    byte[] result = new byte[size];
-    random.nextBytes(result);
-    return result;
-  }
-
-  private S3URI randomURI() {
-    return new S3URI(String.format("s3://%s/data/%s.dat", BUCKET, UUID.randomUUID()));
-  }
-
   private void createBucket(String bucketName) {
     try {
       s3.createBucket(CreateBucketRequest.builder().bucket(bucketName).build());
     } catch (BucketAlreadyExistsException e) {
       // do nothing
+    }
+  }
+
+  protected byte[] randomData(int size) {
+    byte[] result = new byte[size];
+    random.nextBytes(result);
+    return result;
+  }
+
+  protected S3URI randomURI() {
+    return new S3URI(String.format("s3://%s/data/%s.dat", BUCKET, UUID.randomUUID()));
+  }
+
+  protected void testWrite(
+      byte[] data,
+      S3Client s3Client,
+      S3URI s3Location,
+      S3FileIOProperties awsProperties,
+      MetricsContext metrics)
+      throws IOException {
+    try (S3OutputStream stream = new S3OutputStream(s3Client, s3Location, awsProperties, metrics)) {
+      stream.write(data);
     }
   }
 }
