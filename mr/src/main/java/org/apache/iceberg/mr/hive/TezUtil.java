@@ -37,6 +37,9 @@ public class TezUtil {
   // commit phase
   private static final String TEZ_VERTEX_ID_DAG = "mapreduce.task.vertex.id";
 
+  public static final String HIVE_TEZ_COMMIT_JOB_ID_PREFIX = "hive.tez.commit.job.id.";
+  public static final String HIVE_TEZ_COMMIT_TASK_COUNT_PREFIX = "hive.tez.commit.task.count.";
+
   /**
    * If the Tez vertex id is present in config, creates a new jobContext by appending the Tez vertex
    * id to the jobID. For the rationale behind this enrichment, please refer to point #1 in the docs
