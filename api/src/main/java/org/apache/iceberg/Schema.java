@@ -88,7 +88,7 @@ public class Schema implements Serializable {
   }
 
   public Schema(List<NestedField> columns, Set<Integer> identifierFieldIds, TypeUtil.GetID getId) {
-    this(DEFAULT_SCHEMA_ID, columns, identifierFieldIds);
+    this(DEFAULT_SCHEMA_ID, columns, identifierFieldIds, getId);
   }
 
   public Schema(int schemaId, List<NestedField> columns) {

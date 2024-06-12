@@ -111,8 +111,6 @@ public class PositionDeletesTable extends BaseMetadataTable {
 
   private Schema calculateSchema() {
     Types.StructType partitionType = Partitioning.partitionType(table());
-    Set<Integer> metadataFieldIds =
-        partitionType.fields().stream().map(Types.NestedField::fieldId).collect(Collectors.toSet());
     List<Types.NestedField> columns =
         ImmutableList.of(
             MetadataColumns.DELETE_FILE_PATH,
@@ -141,7 +139,7 @@ public class PositionDeletesTable extends BaseMetadataTable {
     // Calculate used ids (for de-conflict)
     Set<Integer> currentlyUsedIds =
         Collections.unmodifiableSet(TypeUtil.indexById(Types.StructType.of(columns)).keySet());
-    Set<Integer> usedIds =
+    Set<Integer> allUsedIds =
         table().schemas().values().stream()
             .map(currSchema -> TypeUtil.indexById(currSchema.asStruct()).keySet())
             .reduce(currentlyUsedIds, Sets::union);
@@ -161,7 +159,7 @@ public class PositionDeletesTable extends BaseMetadataTable {
                 return oldId;
               }
               int candidate = nextId.incrementAndGet();
-              while (usedIds.contains(candidate)) {
+              while (allUsedIds.contains(candidate)) {
                 candidate = nextId.incrementAndGet();
               }
               return candidate;
