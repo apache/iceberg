@@ -74,8 +74,11 @@ public abstract class BaseMetadataTable extends BaseReadOnlyTable implements Ser
             .withSpecId(spec.specId())
             .checkConflicts(false);
 
+    Map<Integer, Integer> reassignedFields = metadataTableSchema.idsToReassigned();
+
     for (PartitionField field : spec.fields()) {
-      builder.add(field.fieldId(), field.fieldId(), field.name(), Transforms.identity());
+      int newFieldId = reassignedFields.getOrDefault(field.fieldId(), field.fieldId());
+      builder.add(newFieldId, newFieldId, field.name(), Transforms.identity());
     }
     return builder.build();
   }

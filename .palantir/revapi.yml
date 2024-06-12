@@ -1018,6 +1018,12 @@ acceptedBreaks:
       old: "method void org.apache.iceberg.PositionDeletesTable.PositionDeletesBatchScan::<init>(org.apache.iceberg.Table,\
         \ org.apache.iceberg.Schema, org.apache.iceberg.TableScanContext)"
       justification: "Removing deprecated code"
+  "1.5.0":
+    org.apache.iceberg:iceberg-api:
+    - code: "java.class.defaultSerializationChanged"
+      old: "class org.apache.iceberg.types.Types.NestedField"
+      new: "class org.apache.iceberg.types.Types.NestedField"
+      justification: "new Constructor added"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"

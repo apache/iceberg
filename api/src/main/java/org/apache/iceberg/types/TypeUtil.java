@@ -355,6 +355,17 @@ public class TypeUtil {
     return new Schema(struct.fields(), refreshIdentifierFields(struct, schema));
   }
 
+  /**
+   * Assigns fresh ids from the {@link GetID getId function} for all fields in a type.
+   *
+   * @param type a type
+   * @param getId an id assignment function
+   * @return an structurally identical type with new ids assigned by the getId function
+   */
+  public static Type assignIds(Type type, GetID getId) {
+    return TypeUtil.visit(type, new AssignIds(getId));
+  }
+
   public static Type find(Schema schema, Predicate<Type> predicate) {
     return visit(schema, new FindTypeVisitor(predicate));
   }
@@ -519,6 +530,11 @@ public class TypeUtil {
   /** Interface for passing a function that assigns column IDs. */
   public interface NextID {
     int get();
+  }
+
+  /** Interface for passing a function that assigns column IDs from the previous Id. */
+  public interface GetID {
+    int get(int oldId);
   }
 
   public static class SchemaVisitor<T> {
