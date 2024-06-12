@@ -83,6 +83,9 @@ public class TestCommitReporting extends TestBase {
 
     assertThat(metrics.removedFilesSizeInBytes().value()).isEqualTo(20L);
     assertThat(metrics.totalFilesSizeInBytes().value()).isEqualTo(0L);
+
+    assertThat(metrics.totalDataManifestFiles().value()).isEqualTo(1L);
+    assertThat(metrics.totalDeleteManifestFiles()).isNull();
   }
 
   @TestTemplate
@@ -122,6 +125,9 @@ public class TestCommitReporting extends TestBase {
     assertThat(metrics.addedFilesSizeInBytes().value()).isEqualTo(30L);
     assertThat(metrics.totalFilesSizeInBytes().value()).isEqualTo(30L);
 
+    assertThat(metrics.totalDataManifestFiles()).isNull();
+    assertThat(metrics.totalDeleteManifestFiles().value()).isEqualTo(1L);
+
     // now remove those 2 positional + 1 equality delete files
     table
         .newRewrite()
@@ -153,6 +159,9 @@ public class TestCommitReporting extends TestBase {
 
     assertThat(metrics.removedFilesSizeInBytes().value()).isEqualTo(30L);
     assertThat(metrics.totalFilesSizeInBytes().value()).isEqualTo(0L);
+
+    assertThat(metrics.totalDataManifestFiles()).isNull();
+    assertThat(metrics.totalDeleteManifestFiles().value()).isEqualTo(1L);
   }
 
   @TestTemplate
@@ -191,5 +200,7 @@ public class TestCommitReporting extends TestBase {
     assertThat(metrics.addedDataFiles().value()).isEqualTo(1L);
     assertThat(metrics.addedRecords().value()).isEqualTo(1L);
     assertThat(metrics.addedFilesSizeInBytes().value()).isEqualTo(10L);
+    assertThat(metrics.totalDataManifestFiles().value()).isEqualTo(2L);
+    assertThat(metrics.totalDeleteManifestFiles()).isNull();
   }
 }

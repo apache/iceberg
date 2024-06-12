@@ -1018,6 +1018,14 @@ acceptedBreaks:
       old: "method void org.apache.iceberg.PositionDeletesTable.PositionDeletesBatchScan::<init>(org.apache.iceberg.Table,\
         \ org.apache.iceberg.Schema, org.apache.iceberg.TableScanContext)"
       justification: "Removing deprecated code"
+  "1.5.0":
+    org.apache.iceberg:iceberg-core:
+    - code: "java.method.addedToInterface"
+      new: "method org.apache.iceberg.metrics.CounterResult org.apache.iceberg.metrics.CommitMetricsResult::totalDataManifestFiles()"
+      justification: "Added new parameters for manifest stats"
+    - code: "java.method.addedToInterface"
+      new: "method org.apache.iceberg.metrics.CounterResult org.apache.iceberg.metrics.CommitMetricsResult::totalDeleteManifestFiles()"
+      justification: "Added new parameters for manifest stats"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"
