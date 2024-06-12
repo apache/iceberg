@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import static org.apache.iceberg.types.Types.NestedField.required;
+
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.FileScanTask;
@@ -34,6 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.TestBase;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StringType;
@@ -48,6 +51,41 @@ public class TestSparkFileRewriter extends TestBase {
       new Schema(
           NestedField.required(1, "id", IntegerType.get()),
           NestedField.required(2, "dep", StringType.get()));
+  private static final Schema SCHEMA_FOR_STRUCT =
+      new Schema(
+          required(
+              1,
+              "name",
+              Types.StructType.of(
+                  Types.NestedField.required(
+                      11,
+                      "s1",
+                      Types.StructType.of(
+                          Types.NestedField.required(111, "id", IntegerType.get()),
+                          Types.NestedField.required(112, "year", StringType.get()))),
+                  NestedField.required(12, "dep", StringType.get()))));
+
+  private static final Schema SCHEMA_FOR_STRUCT_WITH_SPECIAL_NAMING =
+      new Schema(
+          required(
+              1,
+              "name1",
+              Types.StructType.of(
+                  Types.NestedField.required(
+                      11,
+                      "s1.s1_name",
+                      Types.StructType.of(
+                          Types.NestedField.required(111, "s11.id", IntegerType.get()),
+                          Types.NestedField.required(112, "s12.year", StringType.get()))),
+                  NestedField.required(12, "dep", StringType.get()))));
+
+  private static final PartitionSpec SPEC_FOR_STRUCT =
+      PartitionSpec.builderFor(SCHEMA_FOR_STRUCT).identity("name.s1.year").build();
+
+  private static final PartitionSpec SPEC_FOR_STRUCT_WITH_SPECIAL_NAMING =
+      PartitionSpec.builderFor(SCHEMA_FOR_STRUCT_WITH_SPECIAL_NAMING)
+          .identity("name1.s1.s1_name.s12.year")
+          .build();
   private static final PartitionSpec SPEC =
       PartitionSpec.builderFor(SCHEMA).identity("dep").build();
   private static final SortOrder SORT_ORDER = SortOrder.builderFor(SCHEMA).asc("id").build();
@@ -92,6 +130,130 @@ public class TestSparkFileRewriter extends TestBase {
     checkDataFileGroupWithEnoughFiles(rewriter);
     checkDataFileGroupWithEnoughData(rewriter);
     checkDataFileGroupWithTooMuchData(rewriter);
+  }
+
+  @Test
+  public void testZOrderDataSelectFilesForNestedStructType() {
+    Table table = catalog.createTable(TABLE_IDENT, SCHEMA_FOR_STRUCT);
+    ImmutableList<String> zOrderCols = ImmutableList.of("name.s1.id", "name.dep");
+    SparkZOrderDataRewriter rewriter = new SparkZOrderDataRewriter(spark, table, zOrderCols);
+
+    checkDataFileSizeFiltering(rewriter);
+    checkDataFilesDeleteThreshold(rewriter);
+    checkDataFileGroupWithEnoughFiles(rewriter);
+    checkDataFileGroupWithEnoughData(rewriter);
+    checkDataFileGroupWithTooMuchData(rewriter);
+  }
+
+  @Test
+  public void testInvalidConstructorUsagesZOrderDataForNestedStructType() {
+    Table table = catalog.createTable(TABLE_IDENT, SCHEMA_FOR_STRUCT, SPEC_FOR_STRUCT);
+
+    Assertions.assertThatThrownBy(() -> new SparkZOrderDataRewriter(spark, table, null))
+        .hasMessageContaining("Cannot ZOrder when no columns are specified");
+
+    Assertions.assertThatThrownBy(
+            () -> new SparkZOrderDataRewriter(spark, table, ImmutableList.of()))
+        .hasMessageContaining("Cannot ZOrder when no columns are specified");
+
+    Assertions.assertThatThrownBy(
+            () -> new SparkZOrderDataRewriter(spark, table, ImmutableList.of("name.s1.year")))
+        .hasMessageContaining("Cannot ZOrder")
+        .hasMessageContaining("all columns provided were identity partition columns");
+
+    Assertions.assertThatThrownBy(
+            () -> new SparkZOrderDataRewriter(spark, table, ImmutableList.of("Name.S1.year")))
+        .hasMessageContaining("Cannot ZOrder")
+        .hasMessageContaining("all columns provided were identity partition columns");
+  }
+
+  @Test
+  public void testZOrderDataValidOptionsForNestedStructType() {
+    Table table = catalog.createTable(TABLE_IDENT, SCHEMA_FOR_STRUCT);
+    ImmutableList<String> zOrderCols = ImmutableList.of("name.s1.id");
+    SparkZOrderDataRewriter rewriter = new SparkZOrderDataRewriter(spark, table, zOrderCols);
+
+    Assertions.assertThat(rewriter.validOptions())
+        .as("Rewriter must report all supported options")
+        .isEqualTo(
+            ImmutableSet.of(
+                SparkZOrderDataRewriter.SHUFFLE_PARTITIONS_PER_FILE,
+                SparkZOrderDataRewriter.TARGET_FILE_SIZE_BYTES,
+                SparkZOrderDataRewriter.MIN_FILE_SIZE_BYTES,
+                SparkZOrderDataRewriter.MAX_FILE_SIZE_BYTES,
+                SparkZOrderDataRewriter.MIN_INPUT_FILES,
+                SparkZOrderDataRewriter.REWRITE_ALL,
+                SparkZOrderDataRewriter.MAX_FILE_GROUP_SIZE_BYTES,
+                SparkZOrderDataRewriter.DELETE_FILE_THRESHOLD,
+                SparkZOrderDataRewriter.COMPRESSION_FACTOR,
+                SparkZOrderDataRewriter.MAX_OUTPUT_SIZE,
+                SparkZOrderDataRewriter.VAR_LENGTH_CONTRIBUTION));
+  }
+
+  @Test
+  public void testZOrderDataSelectFilesForNestedStructTypeWithSpecialNaming() {
+    Table table = catalog.createTable(TABLE_IDENT, SCHEMA_FOR_STRUCT_WITH_SPECIAL_NAMING);
+    ImmutableList<String> zOrderCols = ImmutableList.of("name1.s1.s1_name.s11.id");
+    SparkZOrderDataRewriter rewriter = new SparkZOrderDataRewriter(spark, table, zOrderCols);
+
+    checkDataFileSizeFiltering(rewriter);
+    checkDataFilesDeleteThreshold(rewriter);
+    checkDataFileGroupWithEnoughFiles(rewriter);
+    checkDataFileGroupWithEnoughData(rewriter);
+    checkDataFileGroupWithTooMuchData(rewriter);
+  }
+
+  @Test
+  public void testInvalidConstructorUsagesZOrderDataForNestedStructTypeWithSpecialNaming() {
+    Table table =
+        catalog.createTable(
+            TABLE_IDENT,
+            SCHEMA_FOR_STRUCT_WITH_SPECIAL_NAMING,
+            SPEC_FOR_STRUCT_WITH_SPECIAL_NAMING);
+
+    Assertions.assertThatThrownBy(() -> new SparkZOrderDataRewriter(spark, table, null))
+        .hasMessageContaining("Cannot ZOrder when no columns are specified");
+
+    Assertions.assertThatThrownBy(
+            () -> new SparkZOrderDataRewriter(spark, table, ImmutableList.of()))
+        .hasMessageContaining("Cannot ZOrder when no columns are specified");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                new SparkZOrderDataRewriter(
+                    spark, table, ImmutableList.of("name1.s1.s1_name.s12.year")))
+        .hasMessageContaining("Cannot ZOrder")
+        .hasMessageContaining("all columns provided were identity partition columns");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                new SparkZOrderDataRewriter(
+                    spark, table, ImmutableList.of("name1.s1.s1_Name.S12.Year")))
+        .hasMessageContaining("Cannot ZOrder")
+        .hasMessageContaining("all columns provided were identity partition columns");
+  }
+
+  @Test
+  public void testZOrderDataValidOptionsForNestedStructTypeWithSpecialNaming() {
+    Table table = catalog.createTable(TABLE_IDENT, SCHEMA_FOR_STRUCT_WITH_SPECIAL_NAMING);
+    ImmutableList<String> zOrderCols = ImmutableList.of("name1.s1.s1_name.s11.id", "name1.dep");
+    SparkZOrderDataRewriter rewriter = new SparkZOrderDataRewriter(spark, table, zOrderCols);
+
+    Assertions.assertThat(rewriter.validOptions())
+        .as("Rewriter must report all supported options")
+        .isEqualTo(
+            ImmutableSet.of(
+                SparkZOrderDataRewriter.SHUFFLE_PARTITIONS_PER_FILE,
+                SparkZOrderDataRewriter.TARGET_FILE_SIZE_BYTES,
+                SparkZOrderDataRewriter.MIN_FILE_SIZE_BYTES,
+                SparkZOrderDataRewriter.MAX_FILE_SIZE_BYTES,
+                SparkZOrderDataRewriter.MIN_INPUT_FILES,
+                SparkZOrderDataRewriter.REWRITE_ALL,
+                SparkZOrderDataRewriter.MAX_FILE_GROUP_SIZE_BYTES,
+                SparkZOrderDataRewriter.DELETE_FILE_THRESHOLD,
+                SparkZOrderDataRewriter.COMPRESSION_FACTOR,
+                SparkZOrderDataRewriter.MAX_OUTPUT_SIZE,
+                SparkZOrderDataRewriter.VAR_LENGTH_CONTRIBUTION));
   }
 
   private void checkDataFileSizeFiltering(SizeBasedDataRewriter rewriter) {
