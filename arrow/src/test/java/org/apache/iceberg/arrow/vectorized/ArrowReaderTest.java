@@ -271,31 +271,37 @@ public class ArrowReaderTest {
     tables = new HadoopTables();
     tableLocation = tempDir.toURI().toString();
 
+    // Define the initial table schema
     final Schema customSchema =
         new Schema(
             Types.NestedField.required(1, "a", Types.IntegerType.get()),
             Types.NestedField.optional(2, "b", Types.StringType.get()),
             Types.NestedField.required(3, "c", Types.DecimalType.of(12, 3)));
 
+    // Create the table
     PartitionSpec spec = PartitionSpec.builderFor(customSchema).build();
-
     Table table1 = tables.create(customSchema, spec, tableLocation);
 
-    AppendFiles appendFiles = table1.newAppend();
+    // Add one record to the table
     GenericRecord rec = GenericRecord.create(customSchema);
     rec.setField("a", 1);
     rec.setField("b", "san diego");
     rec.setField("c", new BigDecimal("1024.025"));
-
     List<GenericRecord> genericRecords = Lists.newArrayList();
     genericRecords.add(rec);
+
+    AppendFiles appendFiles = table1.newAppend();
     appendFiles.appendFile(writeParquetFile(table1, genericRecords));
     appendFiles.commit();
 
-    // Add a new, optional column
+    // Alter the table schema by adding a new, optional column
     Table tableLatest = tables.load(tableLocation);
     tableLatest.updateSchema().addColumn("a1", Types.IntegerType.get()).commit();
 
+    // Do not add any data for this new column in the one existing row in the table
+    // and do not insert any new rows into the table
+
+    // Select all columns, all rows from the table
     Table table = tables.load(tableLocation);
     TableScan scan = table.newScan().select("*");
 
