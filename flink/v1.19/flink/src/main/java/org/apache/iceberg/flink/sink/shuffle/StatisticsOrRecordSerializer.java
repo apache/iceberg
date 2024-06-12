@@ -29,13 +29,12 @@ import org.apache.flink.core.memory.DataOutputView;
 import org.apache.flink.table.data.RowData;
 
 @Internal
-class DataStatisticsOrRecordSerializer<D extends DataStatistics<D, S>, S>
-    extends TypeSerializer<DataStatisticsOrRecord<D, S>> {
-  private final TypeSerializer<DataStatistics<D, S>> statisticsSerializer;
+class StatisticsOrRecordSerializer extends TypeSerializer<StatisticsOrRecord> {
+  private final TypeSerializer<AggregatedStatistics> statisticsSerializer;
   private final TypeSerializer<RowData> recordSerializer;
 
-  DataStatisticsOrRecordSerializer(
-      TypeSerializer<DataStatistics<D, S>> statisticsSerializer,
+  StatisticsOrRecordSerializer(
+      TypeSerializer<AggregatedStatistics> statisticsSerializer,
       TypeSerializer<RowData> recordSerializer) {
     this.statisticsSerializer = statisticsSerializer;
     this.recordSerializer = recordSerializer;
@@ -48,13 +47,13 @@ class DataStatisticsOrRecordSerializer<D extends DataStatistics<D, S>, S>
 
   @SuppressWarnings("ReferenceEquality")
   @Override
-  public TypeSerializer<DataStatisticsOrRecord<D, S>> duplicate() {
-    TypeSerializer<DataStatistics<D, S>> duplicateStatisticsSerializer =
+  public TypeSerializer<StatisticsOrRecord> duplicate() {
+    TypeSerializer<AggregatedStatistics> duplicateStatisticsSerializer =
         statisticsSerializer.duplicate();
     TypeSerializer<RowData> duplicateRowDataSerializer = recordSerializer.duplicate();
     if ((statisticsSerializer != duplicateStatisticsSerializer)
         || (recordSerializer != duplicateRowDataSerializer)) {
-      return new DataStatisticsOrRecordSerializer<>(
+      return new StatisticsOrRecordSerializer(
           duplicateStatisticsSerializer, duplicateRowDataSerializer);
     } else {
       return this;
@@ -62,34 +61,32 @@ class DataStatisticsOrRecordSerializer<D extends DataStatistics<D, S>, S>
   }
 
   @Override
-  public DataStatisticsOrRecord<D, S> createInstance() {
+  public StatisticsOrRecord createInstance() {
     // arbitrarily always create RowData value instance
-    return DataStatisticsOrRecord.fromRecord(recordSerializer.createInstance());
+    return StatisticsOrRecord.fromRecord(recordSerializer.createInstance());
   }
 
   @Override
-  public DataStatisticsOrRecord<D, S> copy(DataStatisticsOrRecord<D, S> from) {
+  public StatisticsOrRecord copy(StatisticsOrRecord from) {
     if (from.hasRecord()) {
-      return DataStatisticsOrRecord.fromRecord(recordSerializer.copy(from.record()));
+      return StatisticsOrRecord.fromRecord(recordSerializer.copy(from.record()));
     } else {
-      return DataStatisticsOrRecord.fromDataStatistics(
-          statisticsSerializer.copy(from.dataStatistics()));
+      return StatisticsOrRecord.fromStatistics(statisticsSerializer.copy(from.statistics()));
     }
   }
 
   @Override
-  public DataStatisticsOrRecord<D, S> copy(
-      DataStatisticsOrRecord<D, S> from, DataStatisticsOrRecord<D, S> reuse) {
-    DataStatisticsOrRecord<D, S> to;
+  public StatisticsOrRecord copy(StatisticsOrRecord from, StatisticsOrRecord reuse) {
+    StatisticsOrRecord to;
     if (from.hasRecord()) {
-      to = DataStatisticsOrRecord.reuseRecord(reuse, recordSerializer);
+      to = StatisticsOrRecord.reuseRecord(reuse, recordSerializer);
       RowData record = recordSerializer.copy(from.record(), to.record());
       to.record(record);
     } else {
-      to = DataStatisticsOrRecord.reuseStatistics(reuse, statisticsSerializer);
-      DataStatistics<D, S> statistics =
-          statisticsSerializer.copy(from.dataStatistics(), to.dataStatistics());
-      to.dataStatistics(statistics);
+      to = StatisticsOrRecord.reuseStatistics(reuse, statisticsSerializer);
+      AggregatedStatistics statistics =
+          statisticsSerializer.copy(from.statistics(), to.statistics());
+      to.statistics(statistics);
     }
 
     return to;
@@ -101,41 +98,40 @@ class DataStatisticsOrRecordSerializer<D extends DataStatistics<D, S>, S>
   }
 
   @Override
-  public void serialize(DataStatisticsOrRecord<D, S> statisticsOrRecord, DataOutputView target)
+  public void serialize(StatisticsOrRecord statisticsOrRecord, DataOutputView target)
       throws IOException {
     if (statisticsOrRecord.hasRecord()) {
       target.writeBoolean(true);
       recordSerializer.serialize(statisticsOrRecord.record(), target);
     } else {
       target.writeBoolean(false);
-      statisticsSerializer.serialize(statisticsOrRecord.dataStatistics(), target);
+      statisticsSerializer.serialize(statisticsOrRecord.statistics(), target);
     }
   }
 
   @Override
-  public DataStatisticsOrRecord<D, S> deserialize(DataInputView source) throws IOException {
+  public StatisticsOrRecord deserialize(DataInputView source) throws IOException {
     boolean isRecord = source.readBoolean();
     if (isRecord) {
-      return DataStatisticsOrRecord.fromRecord(recordSerializer.deserialize(source));
+      return StatisticsOrRecord.fromRecord(recordSerializer.deserialize(source));
     } else {
-      return DataStatisticsOrRecord.fromDataStatistics(statisticsSerializer.deserialize(source));
+      return StatisticsOrRecord.fromStatistics(statisticsSerializer.deserialize(source));
     }
   }
 
   @Override
-  public DataStatisticsOrRecord<D, S> deserialize(
-      DataStatisticsOrRecord<D, S> reuse, DataInputView source) throws IOException {
-    DataStatisticsOrRecord<D, S> to;
+  public StatisticsOrRecord deserialize(StatisticsOrRecord reuse, DataInputView source)
+      throws IOException {
+    StatisticsOrRecord to;
     boolean isRecord = source.readBoolean();
     if (isRecord) {
-      to = DataStatisticsOrRecord.reuseRecord(reuse, recordSerializer);
+      to = StatisticsOrRecord.reuseRecord(reuse, recordSerializer);
       RowData record = recordSerializer.deserialize(to.record(), source);
       to.record(record);
     } else {
-      to = DataStatisticsOrRecord.reuseStatistics(reuse, statisticsSerializer);
-      DataStatistics<D, S> statistics =
-          statisticsSerializer.deserialize(to.dataStatistics(), source);
-      to.dataStatistics(statistics);
+      to = StatisticsOrRecord.reuseStatistics(reuse, statisticsSerializer);
+      AggregatedStatistics statistics = statisticsSerializer.deserialize(to.statistics(), source);
+      to.statistics(statistics);
     }
 
     return to;
@@ -154,12 +150,11 @@ class DataStatisticsOrRecordSerializer<D extends DataStatistics<D, S>, S>
 
   @Override
   public boolean equals(Object obj) {
-    if (!(obj instanceof DataStatisticsOrRecordSerializer)) {
+    if (!(obj instanceof StatisticsOrRecordSerializer)) {
       return false;
     }
 
-    @SuppressWarnings("unchecked")
-    DataStatisticsOrRecordSerializer<D, S> other = (DataStatisticsOrRecordSerializer<D, S>) obj;
+    StatisticsOrRecordSerializer other = (StatisticsOrRecordSerializer) obj;
     return Objects.equals(statisticsSerializer, other.statisticsSerializer)
         && Objects.equals(recordSerializer, other.recordSerializer);
   }
@@ -170,25 +165,20 @@ class DataStatisticsOrRecordSerializer<D extends DataStatistics<D, S>, S>
   }
 
   @Override
-  public TypeSerializerSnapshot<DataStatisticsOrRecord<D, S>> snapshotConfiguration() {
-    return new DataStatisticsOrRecordSerializerSnapshot<>(this);
+  public TypeSerializerSnapshot<StatisticsOrRecord> snapshotConfiguration() {
+    return new StatisticsOrRecordSerializerSnapshot(this);
   }
 
-  public static class DataStatisticsOrRecordSerializerSnapshot<D extends DataStatistics<D, S>, S>
-      extends CompositeTypeSerializerSnapshot<
-          DataStatisticsOrRecord<D, S>, DataStatisticsOrRecordSerializer<D, S>> {
+  public static class StatisticsOrRecordSerializerSnapshot
+      extends CompositeTypeSerializerSnapshot<StatisticsOrRecord, StatisticsOrRecordSerializer> {
     private static final int CURRENT_VERSION = 1;
 
-    // constructors need to public. Otherwise, Flink state restore would complain
-    // "The class has no (implicit) public nullary constructor".
-    @SuppressWarnings("checkstyle:RedundantModifier")
-    public DataStatisticsOrRecordSerializerSnapshot() {
-      super(DataStatisticsOrRecordSerializer.class);
-    }
+    /** Constructor for read instantiation. */
+    @SuppressWarnings({"unused", "checkstyle:RedundantModifier"})
+    public StatisticsOrRecordSerializerSnapshot() {}
 
     @SuppressWarnings("checkstyle:RedundantModifier")
-    public DataStatisticsOrRecordSerializerSnapshot(
-        DataStatisticsOrRecordSerializer<D, S> serializer) {
+    public StatisticsOrRecordSerializerSnapshot(StatisticsOrRecordSerializer serializer) {
       super(serializer);
     }
 
@@ -200,7 +190,7 @@ class DataStatisticsOrRecordSerializer<D extends DataStatistics<D, S>, S>
 
     @Override
     protected TypeSerializer<?>[] getNestedSerializers(
-        DataStatisticsOrRecordSerializer<D, S> outerSerializer) {
+        StatisticsOrRecordSerializer outerSerializer) {
       return new TypeSerializer<?>[] {
         outerSerializer.statisticsSerializer, outerSerializer.recordSerializer
       };
@@ -208,12 +198,12 @@ class DataStatisticsOrRecordSerializer<D extends DataStatistics<D, S>, S>
 
     @SuppressWarnings("unchecked")
     @Override
-    protected DataStatisticsOrRecordSerializer<D, S> createOuterSerializerWithNestedSerializers(
+    protected StatisticsOrRecordSerializer createOuterSerializerWithNestedSerializers(
         TypeSerializer<?>[] nestedSerializers) {
-      TypeSerializer<DataStatistics<D, S>> statisticsSerializer =
-          (TypeSerializer<DataStatistics<D, S>>) nestedSerializers[0];
+      TypeSerializer<AggregatedStatistics> statisticsSerializer =
+          (TypeSerializer<AggregatedStatistics>) nestedSerializers[0];
       TypeSerializer<RowData> recordSerializer = (TypeSerializer<RowData>) nestedSerializers[1];
-      return new DataStatisticsOrRecordSerializer<>(statisticsSerializer, recordSerializer);
+      return new StatisticsOrRecordSerializer(statisticsSerializer, recordSerializer);
     }
   }
 }
