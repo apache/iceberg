@@ -82,8 +82,6 @@ public class TestIcebergSourceBoundedSql extends TestIcebergSourceBounded {
       return Lists.newArrayList(iter);
     } catch (Exception e) {
       // To retrieve the underlying exception information that actually caused the task failure.
-      //      throw (RuntimeException)
-      // e.getCause().getCause().getCause().getCause().getCause().getCause();
       throw (RuntimeException) ExceptionUtils.getRootCause(e);
     }
   }

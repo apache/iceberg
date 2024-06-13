@@ -362,7 +362,7 @@ public abstract class TestFlinkScan {
                         .put("start-snapshot-id", Long.toString(snapshotId1))
                         .buildOrThrow()))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining(
+        .hasMessage(
             "Cannot specify more than one of start-snapshot-id, start-tag, or start-snapshot-timestamp.");
 
     assertThatThrownBy(
@@ -374,7 +374,7 @@ public abstract class TestFlinkScan {
                         .put("end-snapshot-id", Long.toString(snapshotId3))
                         .buildOrThrow()))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining(
+        .hasMessage(
             "Cannot specify more than one of end-snapshot-id, end-tag, or end-snapshot-timestamp.");
   }
 
@@ -589,7 +589,7 @@ public abstract class TestFlinkScan {
                         .put("end-snapshot-timestamp", Long.toString(timestampMillis1))
                         .buildOrThrow()))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("is not a parent ancestor of end snapshot");
+        .hasMessage("is not a parent ancestor of end snapshot");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -598,7 +598,7 @@ public abstract class TestFlinkScan {
                         .put("start-snapshot-timestamp", Long.toString(timestampMillisAfter2))
                         .buildOrThrow()))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot find a snapshot older than");
+        .hasMessage("Cannot find a snapshot older than");
   }
 
   @TestTemplate
