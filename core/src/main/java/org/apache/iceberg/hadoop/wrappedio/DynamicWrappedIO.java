@@ -28,7 +28,6 @@ import java.util.Map;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.common.DynMethods;
-import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,7 +37,7 @@ import org.slf4j.LoggerFactory;
  */
 public final class DynamicWrappedIO {
 
-  private static final Logger LOG = LoggerFactory.getLogger(HadoopFileIO.class);
+  private static final Logger LOG = LoggerFactory.getLogger(DynamicWrappedIO.class);
 
   /**
    * Classname of the wrapped IO class: {@value}.
