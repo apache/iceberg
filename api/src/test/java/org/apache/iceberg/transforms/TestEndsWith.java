@@ -18,10 +18,12 @@
  */
 package org.apache.iceberg.transforms;
 
-import static org.apache.iceberg.expressions.Expressions.startsWith;
+import static org.apache.iceberg.expressions.Expressions.endsWith;
+import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.BoundPredicate;
@@ -30,41 +32,45 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.False;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-public class TestStartsWith extends TestTransformBase {
+public class TestEndsWith extends TestTransformBase {
+
+  private static final String COLUMN = "someStringCol";
+  private static final Schema SCHEMA = new Schema(optional(1, COLUMN, Types.StringType.get()));
 
   @Test
   public void testTruncateProjections() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).truncate(COLUMN, 4).build();
 
+    assertProjectionInclusive(spec, endsWith(COLUMN, "ab"), "ab", Expression.Operation.ENDS_WITH);
+    assertProjectionInclusive(spec, endsWith(COLUMN, "abab"), "abab", Expression.Operation.EQ);
+    // It will truncate the first 4 characters and then compare from the end.
     assertProjectionInclusive(
-        spec, startsWith(COLUMN, "ab"), "ab", Expression.Operation.STARTS_WITH);
-    assertProjectionInclusive(spec, startsWith(COLUMN, "abab"), "abab", Expression.Operation.EQ);
-    assertProjectionInclusive(
-        spec, startsWith(COLUMN, "ababab"), "abab", Expression.Operation.STARTS_WITH);
+        spec, endsWith(COLUMN, "abcdab"), "abcd", Expression.Operation.ENDS_WITH);
 
-    assertProjectionStrict(spec, startsWith(COLUMN, "ab"), "ab", Expression.Operation.STARTS_WITH);
-    assertProjectionStrict(spec, startsWith(COLUMN, "abab"), "abab", Expression.Operation.EQ);
+    assertProjectionStrict(spec, endsWith(COLUMN, "ab"), "ab", Expression.Operation.ENDS_WITH);
+    assertProjectionStrict(spec, endsWith(COLUMN, "abab"), "abab", Expression.Operation.EQ);
 
-    Expression projection = Projections.strict(spec).project(startsWith(COLUMN, "ababab"));
+    Expression projection = Projections.strict(spec).project(endsWith(COLUMN, "abcdab"));
     Assertions.assertThat(projection).isInstanceOf(False.class);
   }
 
   @Test
   @SuppressWarnings("unchecked")
-  public void testTruncateString() {
+  public void testEvaluatorTruncateString() {
     Truncate<String> trunc = Truncate.get(2);
-    Expression expr = startsWith(COLUMN, "abcde");
+    Expression expr = endsWith(COLUMN, "degf");
     BoundPredicate<String> boundExpr =
         (BoundPredicate<String>) Binder.bind(SCHEMA.asStruct(), expr, false);
 
     UnboundPredicate<String> projected = trunc.project(COLUMN, boundExpr);
     Evaluator evaluator = new Evaluator(SCHEMA.asStruct(), projected);
-
-    assertThat(evaluator.eval(TestHelpers.Row.of("abcdg")))
-        .as("startsWith(abcde, truncate(abcdg,2))  => true")
+    // It will truncate the first 2 characters and then compare from the end.
+    assertThat(evaluator.eval(TestHelpers.Row.of("abcde")))
+        .as("endsWith(abcde, truncate(degf,2))  => true")
         .isTrue();
   }
 }

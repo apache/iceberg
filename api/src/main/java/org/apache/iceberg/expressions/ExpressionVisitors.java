@@ -126,6 +126,26 @@ public class ExpressionVisitors {
           "notStartsWith expression is not supported by the visitor");
     }
 
+    public <T> R endsWith(BoundReference<T> ref, Literal<T> lit) {
+      throw new UnsupportedOperationException(
+          "endsWith expression is not supported by the visitor");
+    }
+
+    public <T> R notEndsWith(BoundReference<T> ref, Literal<T> lit) {
+      throw new UnsupportedOperationException(
+          "notEndsWith expression is not supported by the visitor");
+    }
+
+    public <T> R contains(BoundReference<T> ref, Literal<T> lit) {
+      throw new UnsupportedOperationException(
+          "contains expression is not supported by the visitor");
+    }
+
+    public <T> R notContains(BoundReference<T> ref, Literal<T> lit) {
+      throw new UnsupportedOperationException(
+          "notContains expression is not supported by the visitor");
+    }
+
     /**
      * Handle a non-reference value in this visitor.
      *
@@ -166,6 +186,14 @@ public class ExpressionVisitors {
             return startsWith((BoundReference<T>) pred.term(), literalPred.literal());
           case NOT_STARTS_WITH:
             return notStartsWith((BoundReference<T>) pred.term(), literalPred.literal());
+          case ENDS_WITH:
+            return endsWith((BoundReference<T>) pred.term(), literalPred.literal());
+          case NOT_ENDS_WITH:
+            return notEndsWith((BoundReference<T>) pred.term(), literalPred.literal());
+          case CONTAINS:
+            return contains((BoundReference<T>) pred.term(), literalPred.literal());
+          case NOT_CONTAINS:
+            return notContains((BoundReference<T>) pred.term(), literalPred.literal());
           default:
             throw new IllegalStateException(
                 "Invalid operation for BoundLiteralPredicate: " + pred.op());
@@ -259,11 +287,31 @@ public class ExpressionVisitors {
     }
 
     public <T> R startsWith(Bound<T> expr, Literal<T> lit) {
-      throw new UnsupportedOperationException("Unsupported operation.");
+      throw new UnsupportedOperationException(
+          "startsWith operation is not supported by the visitor");
     }
 
     public <T> R notStartsWith(Bound<T> expr, Literal<T> lit) {
-      throw new UnsupportedOperationException("Unsupported operation.");
+      throw new UnsupportedOperationException(
+          "notStartsWith operation is not supported by the visitor");
+    }
+
+    public <T> R endsWith(Bound<T> expr, Literal<T> lit) {
+      throw new UnsupportedOperationException("endsWith operation is not supported by the visitor");
+    }
+
+    public <T> R notEndsWith(Bound<T> expr, Literal<T> lit) {
+      throw new UnsupportedOperationException(
+          "notEndsWith operation is not supported by the visitor");
+    }
+
+    public <T> R contains(Bound<T> expr, Literal<T> lit) {
+      throw new UnsupportedOperationException("contains operation is not supported by the visitor");
+    }
+
+    public <T> R notContains(Bound<T> expr, Literal<T> lit) {
+      throw new UnsupportedOperationException(
+          "notContains operation is not supported by the visitor");
     }
 
     @Override
@@ -287,6 +335,14 @@ public class ExpressionVisitors {
             return startsWith(pred.term(), literalPred.literal());
           case NOT_STARTS_WITH:
             return notStartsWith(pred.term(), literalPred.literal());
+          case ENDS_WITH:
+            return endsWith(pred.term(), literalPred.literal());
+          case NOT_ENDS_WITH:
+            return notEndsWith(pred.term(), literalPred.literal());
+          case CONTAINS:
+            return contains(pred.term(), literalPred.literal());
+          case NOT_CONTAINS:
+            return notContains(pred.term(), literalPred.literal());
           default:
             throw new IllegalStateException(
                 "Invalid operation for BoundLiteralPredicate: " + pred.op());
@@ -465,6 +521,14 @@ public class ExpressionVisitors {
             return startsWith(pred.term(), literalPred.literal());
           case NOT_STARTS_WITH:
             return notStartsWith(pred.term(), literalPred.literal());
+          case ENDS_WITH:
+            return endsWith(pred.term(), literalPred.literal());
+          case NOT_ENDS_WITH:
+            return notEndsWith(pred.term(), literalPred.literal());
+          case CONTAINS:
+            return contains(pred.term(), literalPred.literal());
+          case NOT_CONTAINS:
+            return notContains(pred.term(), literalPred.literal());
           default:
             throw new IllegalStateException(
                 "Invalid operation for BoundLiteralPredicate: " + pred.op());
@@ -553,6 +617,22 @@ public class ExpressionVisitors {
     }
 
     public <T> R notStartsWith(BoundTerm<T> term, Literal<T> lit) {
+      return null;
+    }
+
+    public <T> R endsWith(BoundTerm<T> term, Literal<T> lit) {
+      return null;
+    }
+
+    public <T> R notEndsWith(BoundTerm<T> term, Literal<T> lit) {
+      return null;
+    }
+
+    public <T> R contains(BoundTerm<T> term, Literal<T> lit) {
+      return null;
+    }
+
+    public <T> R notContains(BoundTerm<T> term, Literal<T> lit) {
       return null;
     }
   }
