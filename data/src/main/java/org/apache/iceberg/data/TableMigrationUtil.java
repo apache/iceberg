@@ -177,7 +177,7 @@ public class TableMigrationUtil {
       long rowCount = Avro.rowCount(file);
       return new Metrics(rowCount, null, null, null, null);
     } catch (UncheckedIOException e) {
-      throw new RuntimeException("Unable to read Avro file: " + path, e);
+      throw new RuntimeException("Unable to read the metrics of the Avro file: " + path, e);
     }
   }
 
