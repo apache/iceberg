@@ -589,7 +589,7 @@ public abstract class TestFlinkScan {
                         .put("end-snapshot-timestamp", Long.toString(timestampMillis1))
                         .buildOrThrow()))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("is not a parent ancestor of end snapshot");
+        .hasMessageContaining("is not a parent ancestor of end snapshot");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -598,7 +598,7 @@ public abstract class TestFlinkScan {
                         .put("start-snapshot-timestamp", Long.toString(timestampMillisAfter2))
                         .buildOrThrow()))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot find a snapshot older than");
+        .hasMessageContaining("Cannot find a snapshot older than");
   }
 
   @TestTemplate
