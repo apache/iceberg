@@ -43,11 +43,13 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.ClusteredEqualityDeleteWriter;
 import org.apache.iceberg.io.ClusteredPositionDeleteWriter;
 import org.apache.iceberg.io.OutputFileFactory;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -235,12 +237,30 @@ public abstract class IcebergSourceDeleteBenchmark extends IcebergSourceBenchmar
     int partitionSize = (int) (numRows * percentage) / numDeleteFile;
     Iterable<List<Long>> sets = Iterables.partition(deletedPos, partitionSize);
     for (List<Long> item : sets) {
-      writePosDeletes(path, item, numNoise);
+      writePosDeletes(ImmutableList.of(Pair.of(path, item)), numNoise);
     }
   }
 
-  protected void writePosDeletes(CharSequence path, List<Long> deletedPos, int numNoise)
+  protected void writePosDeletes(
+      List<CharSequence> filePaths, long numRowsPerFile, double deletePercentagePerFile)
       throws IOException {
+
+    List<Pair<CharSequence, List<Long>>> pathAndDeletedPosList = Lists.newArrayList();
+
+    for (CharSequence path : filePaths) {
+      Set<Long> deletedPos = Sets.newHashSet();
+      while (deletedPos.size() < numRowsPerFile * deletePercentagePerFile) {
+        deletedPos.add(ThreadLocalRandom.current().nextLong(numRowsPerFile));
+      }
+
+      pathAndDeletedPosList.add(Pair.of(path, Lists.newArrayList(deletedPos)));
+    }
+
+    writePosDeletes(pathAndDeletedPosList, 0);
+  }
+
+  protected void writePosDeletes(
+      List<Pair<CharSequence, List<Long>>> pathAndDeletedPosList, int numNoise) throws IOException {
     OutputFileFactory fileFactory = newFileFactory();
     SparkFileWriterFactory writerFactory =
         SparkFileWriterFactory.builderFor(table()).dataFileFormat(fileFormat()).build();
@@ -253,12 +273,16 @@ public abstract class IcebergSourceDeleteBenchmark extends IcebergSourceBenchmar
 
     PositionDelete<InternalRow> positionDelete = PositionDelete.create();
     try (ClusteredPositionDeleteWriter<InternalRow> closeableWriter = writer) {
-      for (Long pos : deletedPos) {
-        positionDelete.set(path, pos, null);
-        closeableWriter.write(positionDelete, unpartitionedSpec, null);
-        for (int i = 0; i < numNoise; i++) {
-          positionDelete.set(noisePath(path), pos, null);
+      for (Pair<CharSequence, List<Long>> pathAndDeletedPos : pathAndDeletedPosList) {
+        CharSequence path = pathAndDeletedPos.first();
+        List<Long> deletedPos = pathAndDeletedPos.second();
+        for (Long pos : deletedPos) {
+          positionDelete.set(path, pos, null);
           closeableWriter.write(positionDelete, unpartitionedSpec, null);
+          for (int i = 0; i < numNoise; i++) {
+            positionDelete.set(noisePath(path), pos, null);
+            closeableWriter.write(positionDelete, unpartitionedSpec, null);
+          }
         }
       }
     }
