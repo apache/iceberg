@@ -18,12 +18,15 @@
 
 package org.apache.iceberg.hadoop.wrappedio;
 
+import static org.apache.iceberg.hadoop.wrappedio.BindingUtils.checkAvailable;
+import static org.apache.iceberg.hadoop.wrappedio.BindingUtils.loadClass;
+import static org.apache.iceberg.hadoop.wrappedio.BindingUtils.loadStaticMethod;
+
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.slf4j.Logger;
@@ -31,6 +34,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * The wrapped IO methods in {@code WrappedIO}, dynamically loaded.
+ * Derived from {@code org.apache.hadoop.io.wrappedio.impl.DynamicWrappedIO}.
  */
 public final class DynamicWrappedIO {
 
@@ -51,11 +55,6 @@ public final class DynamicWrappedIO {
    * Method name for bulk delete: {@value}
    */
   public static final String BULKDELETE_PAGESIZE = "bulkDelete_pageSize";
-
-  /**
-   * Wrapped IO class.
-   */
-  private final Class<?> wrappedIO;
 
   /**
    * Was wrapped IO loaded?
@@ -79,43 +78,32 @@ public final class DynamicWrappedIO {
 
   /**
    * Dynamically load the WrappedIO class and its methods.
+   *
    * @param loader classloader to use.
    */
   public DynamicWrappedIO(ClassLoader loader) {
     // load the class
-    final DynClasses.Builder builder = DynClasses.builder();
-    wrappedIO = builder
-        .loader(loader)
-        .impl(WRAPPED_IO_CLASSNAME)
-        .orNull()
-        .build();
+
+    // Wrapped IO class.
+    Class<?> wrappedIO = loadClass(loader, WRAPPED_IO_CLASSNAME);
 
     loaded = wrappedIO != null;
-    if (loaded) {
 
-      // bulk delete APIs
-      bulkDeleteDeleteMethod = loadInvocation(
-          wrappedIO,
-          List.class,
-          BULKDELETE_DELETE,
-          FileSystem.class,
-          Path.class,
-          Collection.class);
+    // bulk delete APIs
+    bulkDeleteDeleteMethod = loadStaticMethod(
+        wrappedIO,
+        List.class,
+        BULKDELETE_DELETE,
+        FileSystem.class,
+        Path.class,
+        Collection.class);
 
-      bulkDeletePageSizeMethod = loadInvocation(
-          wrappedIO,
-          Integer.class,
-          BULKDELETE_PAGESIZE,
-          FileSystem.class,
-          Path.class);
-
-    } else {
-      // set to no-ops.
-      // the loadInvocation call would do this anyway;
-      // this just makes the outcome explicit.
-      bulkDeleteDeleteMethod = noop(BULKDELETE_DELETE);
-      bulkDeletePageSizeMethod = noop(BULKDELETE_PAGESIZE);
-    }
+    bulkDeletePageSizeMethod = loadStaticMethod(
+        wrappedIO,
+        Integer.class,
+        BULKDELETE_PAGESIZE,
+        FileSystem.class,
+        Path.class);
 
   }
 
@@ -150,6 +138,7 @@ public final class DynamicWrappedIO {
    * @throws RuntimeException invocation failure.
    */
   public int bulkDelete_pageSize(final FileSystem fileSystem, final Path path) {
+    checkAvailable(bulkDeletePageSizeMethod);
     return bulkDeletePageSizeMethod.invoke(null, fileSystem, path);
   }
 
@@ -172,8 +161,7 @@ public final class DynamicWrappedIO {
    * @param base path to delete under.
    * @param paths list of paths which must be absolute and under the base path.
    *
-   * @return a list of all the paths which couldn't be deleted for a reason other than
-   *          "not found" and any associated error message.
+   * @return a list of all the paths which couldn't be deleted for a reason other than "not found" and any associated error message.
    *
    * @throws UnsupportedOperationException bulk delete under that path is not supported.
    * @throws IllegalArgumentException if a path argument is invalid.
@@ -182,53 +170,8 @@ public final class DynamicWrappedIO {
   public List<Map.Entry<Path, String>> bulkDelete_delete(FileSystem fs,
       Path base,
       Collection<Path> paths) {
-
+    checkAvailable(bulkDeleteDeleteMethod);
     return bulkDeleteDeleteMethod.invoke(null, fs, base, paths);
-  }
-
-  /**
-   * Get an invocation from the source class, which will be unavailable() if
-   * the class is null or the method isn't found.
-   *
-   * @param <T> return type
-   * @param source source. If null, the method is a no-op.
-   * @param returnType return type class (unused)
-   * @param name method name
-   * @param parameterTypes parameters
-   *
-   * @return the method or "unavailable"
-   */
-  private static <T> DynMethods.UnboundMethod loadInvocation(
-      Class<?> source, Class<? extends T> returnType, String name, Class<?>... parameterTypes) {
-
-    if (source != null) {
-      final DynMethods.UnboundMethod m = new DynMethods.Builder(name)
-          .impl(source, name, parameterTypes)
-          .orNoop()
-          .build();
-      if (m.isNoop()) {
-        // this is a sign of a mismatch between this class's expected
-        // signatures and actual ones.
-        // log at debug.
-        LOG.debug("Failed to load method {} from {}", name, source);
-      } else {
-        LOG.debug("Found method {} from {}", name, source);
-      }
-      return m;
-    } else {
-      return noop(name);
-    }
-  }
-
-  /**
-   * Create a no-op method.
-   *
-   * @param name method name
-   *
-   * @return a no-op method.
-   */
-  static DynMethods.UnboundMethod noop(final String name) {
-    return new DynMethods.Builder(name).orNoop().build();
   }
 
 }
