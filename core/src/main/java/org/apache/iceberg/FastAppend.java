@@ -30,6 +30,8 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * {@link AppendFiles Append} implementation that adds a new manifest file for the write.
@@ -38,6 +40,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
  * CommitFailedException}.
  */
 class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
+  private static final Logger LOG = LoggerFactory.getLogger(FastAppend.class);
+
   private final String tableName;
   private final TableOperations ops;
   private final PartitionSpec spec;
@@ -162,10 +166,20 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   @Override
   public Object updateEvent() {
     long snapshotId = snapshotId();
-    Snapshot snapshot = ops.current().snapshot(snapshotId);
-    long sequenceNumber = snapshot.sequenceNumber();
-    return new CreateSnapshotEvent(
-        tableName, operation(), snapshotId, sequenceNumber, snapshot.summary());
+    Snapshot justSaved = ops.current().snapshot(snapshotId);
+    long sequenceNumber = TableMetadata.INVALID_SEQUENCE_NUMBER;
+    Map<String, String> summary;
+    if (justSaved == null) {
+      // The snapshot just saved may not be present if the latest metadata couldn't be loaded due to
+      // eventual consistency problems in refresh.
+      LOG.warn("Failed to load committed snapshot: omitting sequence number from notifications");
+      summary = summary();
+    } else {
+      sequenceNumber = justSaved.sequenceNumber();
+      summary = justSaved.summary();
+    }
+
+    return new CreateSnapshotEvent(tableName, operation(), snapshotId, sequenceNumber, summary);
   }
 
   @Override
