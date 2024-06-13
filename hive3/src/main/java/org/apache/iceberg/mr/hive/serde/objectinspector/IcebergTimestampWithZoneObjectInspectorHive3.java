@@ -19,12 +19,12 @@
 package org.apache.iceberg.mr.hive.serde.objectinspector;
 
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import org.apache.hadoop.hive.common.type.TimestampTZ;
 import org.apache.hadoop.hive.serde2.io.TimestampLocalTZWritable;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.AbstractPrimitiveJavaObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampLocalTZObjectInspector;
+import org.apache.hadoop.hive.serde2.typeinfo.TimestampLocalTZTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 
 public class IcebergTimestampWithZoneObjectInspectorHive3
@@ -57,7 +57,7 @@ public class IcebergTimestampWithZoneObjectInspectorHive3
       return null;
     }
     OffsetDateTime odt = (OffsetDateTime) o;
-    ZonedDateTime zdt = odt.atZoneSameInstant(ZoneOffset.UTC);
+    ZonedDateTime zdt = odt.atZoneSameInstant(((TimestampLocalTZTypeInfo) typeInfo).getTimeZone());
     return new TimestampTZ(zdt);
   }
 
