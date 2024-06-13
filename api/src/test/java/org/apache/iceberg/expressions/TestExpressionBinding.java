@@ -29,6 +29,7 @@ import static org.apache.iceberg.expressions.Expressions.not;
 import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
+import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -197,6 +198,66 @@ public class TestExpressionBinding {
     Expression bound = Binder.bind(STRUCT, not(not(lessThan("y", 100))));
     BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(bound);
     assertThat(pred.term().ref().fieldId()).as("Should have the correct bound field").isOne();
+  }
+
+  @Test
+  public void testNullabilityPredicatesSimplification() {
+    StructType struct =
+        StructType.of(
+            required(0, "id", Types.IntegerType.get()),
+            optional(1, "desc", Types.StringType.get()),
+            optional(
+                3,
+                "optional",
+                Types.StructType.of(
+                    required(4, "required", Types.IntegerType.get()),
+                    optional(5, "optional", Types.StringType.get()))),
+            required(
+                6,
+                "required",
+                Types.StructType.of(
+                    required(7, "required", Types.IntegerType.get()),
+                    optional(8, "optional", Types.StringType.get()))));
+
+    // bind to primitive fields
+    Assertions.assertThat(Binder.bind(struct, Expressions.notNull("id")))
+        .isEqualTo(alwaysTrue())
+        .overridingErrorMessage("Should simplify the expression to alwaysTrue");
+
+    Assertions.assertThat(Binder.bind(struct, Expressions.isNull("id")))
+        .isEqualTo(alwaysFalse())
+        .overridingErrorMessage("Should simplify the expression to alwaysFalse");
+
+    // bind to nested fields
+    // bind notNull to `optional.required`, should not be simplified
+    Expression bound1 = Binder.bind(struct, Expressions.notNull("optional.required"));
+    BoundPredicate<?> pred1 = TestHelpers.assertAndUnwrap(bound1, BoundPredicate.class);
+    Assertions.assertThat(pred1.op())
+        .isEqualTo(Expression.Operation.NOT_NULL)
+        .overridingErrorMessage("Should be the right expression");
+
+    Assertions.assertThat(pred1.ref().fieldId())
+        .isEqualTo(4)
+        .overridingErrorMessage("Should be bound to field id 4");
+
+    // bind isNull to `optional.required`, should not be simplified
+    Expression bound2 = Binder.bind(struct, Expressions.isNull("optional.required"));
+    BoundPredicate<?> pred2 = TestHelpers.assertAndUnwrap(bound2, BoundPredicate.class);
+    Assertions.assertThat(pred2.op())
+        .isEqualTo(Expression.Operation.IS_NULL)
+        .overridingErrorMessage("Should be the right expression");
+
+    Assertions.assertThat(pred2.ref().fieldId())
+        .isEqualTo(4)
+        .overridingErrorMessage("Should be bound to field id 4");
+
+    // bind notNull to `required.required`, should be simplified to alwaysTrue
+    Expression bound3 = Binder.bind(struct, Expressions.notNull("required.required"));
+    Assertions.assertThat(bound3).isEqualTo(alwaysTrue());
+
+    // bind isNull to `required.required`, should be simplified to alwaysFalse
+    Expression bound4 = Binder.bind(struct, Expressions.isNull("required.required"));
+    Assertions.assertThat(bound4).isEqualTo(alwaysFalse());
   }
 
   @Test
