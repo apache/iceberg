@@ -28,7 +28,6 @@ import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.List;
-import java.util.function.Function;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -113,18 +112,6 @@ public class ContentCache {
 
   /** @deprecated will be removed in 1.7; use {@link #tryCache(InputFile)} instead */
   @Deprecated
-  public CacheEntry get(String key, Function<String, FileContent> mappingFunction) {
-    return cache.get(key, mappingFunction);
-  }
-
-  /** @deprecated will be removed in 1.7; use {@link #tryCache(InputFile)} instead */
-  @Deprecated
-  public CacheEntry getIfPresent(String location) {
-    return cache.getIfPresent(location);
-  }
-
-  /** @deprecated will be removed in 1.7; use {@link #tryCache(InputFile)} instead */
-  @Deprecated
   public InputFile tryCache(FileIO io, String location, long length) {
     return tryCache(io.newInputFile(location, length));
   }
@@ -173,11 +160,7 @@ public class ContentCache {
         .toString();
   }
 
-  /** @deprecated will be removed in 1.7; use {@link FileContent} instead. */
-  @Deprecated
-  private static class CacheEntry {}
-
-  private static class FileContent extends CacheEntry {
+  private static class FileContent {
     private final long length;
     private final List<ByteBuffer> buffers;
 

@@ -1024,6 +1024,14 @@ acceptedBreaks:
       old: "class org.apache.iceberg.types.Types.NestedField"
       new: "class org.apache.iceberg.types.Types.NestedField"
       justification: "new Constructor added"
+    org.apache.iceberg:iceberg-core:
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.ContentCache.CacheEntry org.apache.iceberg.io.ContentCache::get(java.lang.String,\
+        \ java.util.function.Function<java.lang.String, org.apache.iceberg.io.ContentCache.FileContent>)"
+      justification: "the returned type was private so the method was never an API"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.ContentCache.CacheEntry org.apache.iceberg.io.ContentCache::getIfPresent(java.lang.String)"
+      justification: "the returned type was private so the method was never an API"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"
