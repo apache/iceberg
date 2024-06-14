@@ -151,7 +151,7 @@ public final class Catalogs {
   public static Table createTable(Configuration conf, Properties props) {
     String schemaString = props.getProperty(InputFormatConfig.TABLE_SCHEMA);
     Preconditions.checkNotNull(schemaString, "Table schema not set");
-    Schema schema = SchemaParser.fromJson(props.getProperty(InputFormatConfig.TABLE_SCHEMA));
+    Schema schema = SchemaParser.fromJson(schemaString);
 
     String specString = props.getProperty(InputFormatConfig.PARTITION_SPEC);
     PartitionSpec spec = PartitionSpec.unpartitioned();
