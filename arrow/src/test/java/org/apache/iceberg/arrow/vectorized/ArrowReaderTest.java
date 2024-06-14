@@ -269,7 +269,6 @@ public class ArrowReaderTest {
   public void testIssue10275() throws Exception {
     rowsWritten = Lists.newArrayList();
     tables = new HadoopTables();
-    tableLocation = tempDir.toURI().toString();
 
     // Define the initial table schema
     final Schema customSchema =
