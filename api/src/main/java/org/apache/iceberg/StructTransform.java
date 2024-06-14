@@ -24,7 +24,11 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transform;
+import org.apache.iceberg.types.Comparators;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SerializableFunction;
 
 /**
@@ -41,8 +45,11 @@ class StructTransform implements StructLike, Serializable {
   @SuppressWarnings("rawtypes")
   private final SerializableFunction[] transforms;
 
+  private final Schema resultSchema;
+
   private final Object[] transformedTuple;
 
+  @SuppressWarnings("unchecked")
   StructTransform(Schema schema, List<FieldTransform> fieldTransforms) {
     Preconditions.checkArgument(fieldTransforms != null, "Invalid field transform list: null");
 
@@ -50,16 +57,30 @@ class StructTransform implements StructLike, Serializable {
     this.accessors = (Accessor<StructLike>[]) Array.newInstance(Accessor.class, size);
     this.transforms = new SerializableFunction[size];
 
+    List<Types.NestedField> transformedFields = Lists.newArrayListWithCapacity(size);
     for (int i = 0; i < size; ++i) {
       int sourceFieldId = fieldTransforms.get(i).sourceFieldId();
       Transform<?, ?> transform = fieldTransforms.get(i).transform();
+      Types.NestedField sourceField = schema.findField(sourceFieldId);
+      Preconditions.checkArgument(
+          sourceField != null, "Cannot find source field: %s", sourceFieldId);
       Accessor<StructLike> accessor = schema.accessorForField(sourceFieldId);
       Preconditions.checkArgument(
-          accessor != null, "Cannot build accessor for field: %s", schema.findField(sourceFieldId));
+          accessor != null, "Cannot build accessor for field: %s", sourceField);
       this.accessors[i] = accessor;
       this.transforms[i] = transform.bind(accessor.type());
+      Type transformedType = transform.getResultType(sourceField.type());
+      Types.NestedField transformedField =
+          Types.NestedField.of(
+              sourceFieldId,
+              sourceField.isOptional(),
+              sourceField.name(),
+              transformedType,
+              sourceField.doc());
+      transformedFields.add(transformedField);
     }
 
+    this.resultSchema = new Schema(transformedFields);
     this.transformedTuple = new Object[size];
   }
 
@@ -67,6 +88,7 @@ class StructTransform implements StructLike, Serializable {
     this.size = toCopy.size;
     this.accessors = toCopy.accessors;
     this.transforms = toCopy.transforms;
+    this.resultSchema = toCopy.resultSchema;
 
     this.transformedTuple = new Object[size];
     System.arraycopy(toCopy.transformedTuple, 0, this.transformedTuple, 0, size);
@@ -74,6 +96,7 @@ class StructTransform implements StructLike, Serializable {
 
   public void wrap(StructLike row) {
     for (int i = 0; i < transformedTuple.length; i += 1) {
+      @SuppressWarnings("unchecked")
       Function<Object, Object> transform = transforms[i];
       transformedTuple[i] = transform.apply(accessors[i].get(row));
     }
@@ -123,6 +146,18 @@ class StructTransform implements StructLike, Serializable {
   @Override
   public int hashCode() {
     return Arrays.hashCode(transformedTuple);
+  }
+
+  /**
+   * The transform result type is useful for building a comparator for the transformed struct (like
+   * {@link SortKey} using {@link Comparators#forType(Types.StructType)}.
+   *
+   * <p>
+   *
+   * @return the schema of transformed fields (a flattened structure)
+   */
+  public Schema resultSchema() {
+    return resultSchema;
   }
 
   /**
