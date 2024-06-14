@@ -147,6 +147,12 @@ public class ContentCache {
     return input;
   }
 
+  /**
+   * Invalidate the cache entry for the given key.
+   *
+   * <p>Note: if there is ongoing load, this is a blocking operation, i.e. it will wait for the load
+   * to complete before invalidating the entry.
+   */
   public void invalidate(String key) {
     cache.invalidate(key);
   }
