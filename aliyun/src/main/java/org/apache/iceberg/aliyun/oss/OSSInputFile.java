@@ -54,6 +54,6 @@ class OSSInputFile extends BaseOSSFile implements InputFile {
 
   @Override
   public SeekableInputStream newStream() {
-    return new OSSInputStream(client(), uri(), metrics());
+    return new OSSInputStream(client(), uri(), metrics(), aliyunProperties());
   }
 }
