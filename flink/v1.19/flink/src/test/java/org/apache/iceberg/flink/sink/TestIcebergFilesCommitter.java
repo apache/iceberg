@@ -69,6 +69,7 @@ import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.flink.TestTableLoader;
+import org.apache.iceberg.flink.sink.committer.IcebergCommitter;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -834,6 +835,7 @@ public class TestIcebergFilesCommitter extends TestBase {
   }
 
   @TestTemplate
+  // missing
   public void testCommitTwoCheckpointsInSingleTxn() throws Exception {
     assumeThat(formatVersion)
         .as("Only support equality-delete in format v2 or later.")
@@ -1079,8 +1081,8 @@ public class TestIcebergFilesCommitter extends TestBase {
   private void assertMaxCommittedCheckpointId(JobID jobID, OperatorID operatorID, long expectedId) {
     table.refresh();
     long actualId =
-        IcebergFilesCommitter.getMaxCommittedCheckpointId(
-            table, jobID.toString(), operatorID.toHexString(), branch);
+        IcebergCommitter.getMaxCommittedCheckpointId(
+            table, jobID.toString(), operatorID.toString(), branch);
     assertThat(actualId).isEqualTo(expectedId);
   }
 
