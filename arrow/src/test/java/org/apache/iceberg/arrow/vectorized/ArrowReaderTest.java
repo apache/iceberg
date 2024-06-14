@@ -266,23 +266,21 @@ public class ArrowReaderTest {
   }
 
   @Test
-  public void testIssue10275() throws Exception {
+  public void testThrowsUOEWhenNewColumnHasNoValue() throws Exception {
     rowsWritten = Lists.newArrayList();
     tables = new HadoopTables();
 
-    // Define the initial table schema
-   Schema schema =
+    Schema schema =
         new Schema(
             Types.NestedField.required(1, "a", Types.IntegerType.get()),
             Types.NestedField.optional(2, "b", Types.StringType.get()),
             Types.NestedField.required(3, "c", Types.DecimalType.of(12, 3)));
 
-    // Create the table
-    PartitionSpec spec = PartitionSpec.builderFor(customSchema).build();
-    Table table1 = tables.create(customSchema, spec, tableLocation);
+    PartitionSpec spec = PartitionSpec.builderFor(schema).build();
+    Table table1 = tables.create(schema, spec, tableLocation);
 
     // Add one record to the table
-    GenericRecord rec = GenericRecord.create(customSchema);
+    GenericRecord rec = GenericRecord.create(schema);
     rec.setField("a", 1);
     rec.setField("b", "san diego");
     rec.setField("c", new BigDecimal("1024.025"));
@@ -293,15 +291,13 @@ public class ArrowReaderTest {
     appendFiles.appendFile(writeParquetFile(table1, genericRecords));
     appendFiles.commit();
 
-    // Alter the table schema by adding a new, optional column
-    Table tableLatest = tables.load(tableLocation);
-    tableLatest.updateSchema().addColumn("a1", Types.IntegerType.get()).commit();
-
+    // Alter the table schema by adding a new, optional column.
     // Do not add any data for this new column in the one existing row in the table
-    // and do not insert any new rows into the table
+    // and do not insert any new rows into the table.
+    Table table = tables.load(tableLocation);
+    table.updateSchema().addColumn("a1", Types.IntegerType.get()).commit();
 
     // Select all columns, all rows from the table
-    Table table = tables.load(tableLocation);
     TableScan scan = table.newScan().select("*");
 
     assertThatThrownBy(
