@@ -271,7 +271,7 @@ public class ArrowReaderTest {
     tables = new HadoopTables();
 
     // Define the initial table schema
-    final Schema customSchema =
+   Schema schema =
         new Schema(
             Types.NestedField.required(1, "a", Types.IntegerType.get()),
             Types.NestedField.optional(2, "b", Types.StringType.get()),
