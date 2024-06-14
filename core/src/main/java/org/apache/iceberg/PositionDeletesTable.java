@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Expression;
@@ -33,6 +35,8 @@ import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -107,8 +111,8 @@ public class PositionDeletesTable extends BaseMetadataTable {
 
   private Schema calculateSchema() {
     Types.StructType partitionType = Partitioning.partitionType(table());
-    Schema result =
-        new Schema(
+    List<Types.NestedField> columns =
+        ImmutableList.of(
             MetadataColumns.DELETE_FILE_PATH,
             MetadataColumns.DELETE_FILE_POS,
             Types.NestedField.optional(
@@ -131,6 +135,35 @@ public class PositionDeletesTable extends BaseMetadataTable {
                 DELETE_FILE_PATH,
                 Types.StringType.get(),
                 MetadataColumns.FILE_PATH_COLUMN_DOC));
+
+    // Calculate used ids (for de-conflict)
+    Set<Integer> currentlyUsedIds =
+        Collections.unmodifiableSet(TypeUtil.indexById(Types.StructType.of(columns)).keySet());
+    Set<Integer> allUsedIds =
+        table().schemas().values().stream()
+            .map(currSchema -> TypeUtil.indexById(currSchema.asStruct()).keySet())
+            .reduce(currentlyUsedIds, Sets::union);
+
+    // Calculate ids to reassign
+    Set<Integer> idsToReassign =
+        partitionType.fields().stream().map(Types.NestedField::fieldId).collect(Collectors.toSet());
+
+    // Reassign selected ids to de-conflict with used ids.
+    AtomicInteger nextId = new AtomicInteger();
+    Schema result =
+        new Schema(
+            columns,
+            ImmutableSet.of(),
+            oldId -> {
+              if (!idsToReassign.contains(oldId)) {
+                return oldId;
+              }
+              int candidate = nextId.incrementAndGet();
+              while (allUsedIds.contains(candidate)) {
+                candidate = nextId.incrementAndGet();
+              }
+              return candidate;
+            });
 
     if (!partitionType.fields().isEmpty()) {
       return result;
