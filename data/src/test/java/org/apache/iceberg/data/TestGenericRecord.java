@@ -23,8 +23,7 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestGenericRecord {
 
@@ -35,7 +34,7 @@ public class TestGenericRecord {
     GenericRecord record = GenericRecord.create(schema);
     record.set(0, null);
 
-    Assert.assertNull(record.get(0, type.typeId().javaClass()));
+    Assertions.assertThat(record.get(0, type.typeId().javaClass())).isNull();
   }
 
   @Test
@@ -45,7 +44,7 @@ public class TestGenericRecord {
     GenericRecord record = GenericRecord.create(schema);
     record.set(0, 10L);
 
-    Assert.assertEquals(10L, record.get(0, type.typeId().javaClass()));
+    Assertions.assertThat(record.get(0, type.typeId().javaClass())).isEqualTo(10L);
   }
 
   @Test

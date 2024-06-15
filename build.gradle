@@ -410,12 +410,17 @@ project(':iceberg-data') {
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+    // https://mvnrepository.com/artifact/org.junit.jupiter/junit-jupiter-params
+    testImplementation group: 'org.junit.jupiter', name: 'junit-jupiter-params', version: '5.10.1'
+
+
   }
 
   test {
     useJUnitPlatform()
     // Only for TestSplitScan as of Gradle 5.0+
     maxHeapSize '1500m'
+    useJUnitPlatform()
   }
 }
 
