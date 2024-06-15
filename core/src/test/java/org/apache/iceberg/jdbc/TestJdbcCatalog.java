@@ -753,8 +753,11 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     TableIdentifier tbl4 = TableIdentifier.of("db", "metadata");
     TableIdentifier tbl5 = TableIdentifier.of("db2", "metadata");
     TableIdentifier tbl6 = TableIdentifier.of("tbl6");
+    TableIdentifier tbl7 = TableIdentifier.of("db2", "ns4", "tbl5");
+    TableIdentifier tbl8 = TableIdentifier.of("d_", "ns5", "tbl6");
+    TableIdentifier tbl9 = TableIdentifier.of("d%", "ns6", "tbl7");
 
-    Lists.newArrayList(tbl1, tbl2, tbl3, tbl4, tbl5, tbl6)
+    Lists.newArrayList(tbl1, tbl2, tbl3, tbl4, tbl5, tbl6, tbl7, tbl8, tbl9)
         .forEach(t -> catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned()));
 
     List<Namespace> nsp1 = catalog.listNamespaces(Namespace.of("db"));
@@ -768,11 +771,19 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
     List<Namespace> nsp3 = catalog.listNamespaces();
     Set<String> tblSet2 = Sets.newHashSet(nsp3.stream().map(Namespace::toString).iterator());
-    assertThat(tblSet2).hasSize(3).contains("db", "db2", "");
+    assertThat(tblSet2).hasSize(5).contains("db", "db2", "d_", "d%", "");
 
     List<Namespace> nsp4 = catalog.listNamespaces();
     Set<String> tblSet3 = Sets.newHashSet(nsp4.stream().map(Namespace::toString).iterator());
-    assertThat(tblSet3).hasSize(3).contains("db", "db2", "");
+    assertThat(tblSet3).hasSize(5).contains("db", "db2", "d_", "d%", "");
+
+    List<Namespace> nsp5 = catalog.listNamespaces(Namespace.of("d_"));
+    assertThat(nsp5).hasSize(1);
+    assertThat(nsp5.get(0)).hasToString("d_.ns5");
+
+    List<Namespace> nsp6 = catalog.listNamespaces(Namespace.of("d%"));
+    assertThat(nsp6).hasSize(1);
+    assertThat(nsp6.get(0)).hasToString("d%.ns6");
 
     Assertions.assertThatThrownBy(() -> catalog.listNamespaces(Namespace.of("db", "db2", "ns2")))
         .isInstanceOf(NoSuchNamespaceException.class)
