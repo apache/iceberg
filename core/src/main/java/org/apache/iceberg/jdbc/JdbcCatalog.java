@@ -466,6 +466,16 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
                         Arrays.stream(n.levels())
                             .limit(subNamespaceLevelLength)
                             .toArray(String[]::new)))
+            // exclude fuzzy matches
+            .filter(
+                n -> {
+                  for (int i = 0; i < namespace.levels().length; i++) {
+                    if (!n.levels()[i].equals(namespace.levels()[i])) {
+                      return false;
+                    }
+                  }
+                  return true;
+                })
             // remove duplicates
             .distinct()
             .collect(Collectors.toList());

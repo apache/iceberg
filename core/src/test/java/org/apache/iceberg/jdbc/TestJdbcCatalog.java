@@ -753,8 +753,9 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     TableIdentifier tbl4 = TableIdentifier.of("db", "metadata");
     TableIdentifier tbl5 = TableIdentifier.of("db2", "metadata");
     TableIdentifier tbl6 = TableIdentifier.of("tbl6");
+    TableIdentifier tbl7 = TableIdentifier.of("db2", "ns4", "tbl5");
 
-    Lists.newArrayList(tbl1, tbl2, tbl3, tbl4, tbl5, tbl6)
+    Lists.newArrayList(tbl1, tbl2, tbl3, tbl4, tbl5, tbl6, tbl7)
         .forEach(t -> catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned()));
 
     List<Namespace> nsp1 = catalog.listNamespaces(Namespace.of("db"));
