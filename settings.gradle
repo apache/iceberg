@@ -70,7 +70,7 @@ project(':delta-lake').name = 'iceberg-delta-lake'
 project(':kafka-connect').name = 'iceberg-kafka-connect'
 project(':open-api').name = 'iceberg-open-api'
 
-if (null != System.getProperty("allVersions")) {
+if (null != System.getProperty("allModules")) {
   System.setProperty("flinkVersions", System.getProperty("knownFlinkVersions"))
   System.setProperty("sparkVersions", System.getProperty("knownSparkVersions"))
   System.setProperty("hiveVersions", System.getProperty("knownHiveVersions"))
