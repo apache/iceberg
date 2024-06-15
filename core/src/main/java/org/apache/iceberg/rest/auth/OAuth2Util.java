@@ -465,24 +465,6 @@ public class OAuth2Util {
       this.config = config;
     }
 
-    /** @deprecated since 1.5.0, will be removed in 1.6.0 */
-    @Deprecated
-    public AuthSession(
-        Map<String, String> baseHeaders,
-        String token,
-        String tokenType,
-        String credential,
-        String scope) {
-      this(
-          baseHeaders,
-          AuthConfig.builder()
-              .token(token)
-              .tokenType(tokenType)
-              .credential(credential)
-              .scope(scope)
-              .build());
-    }
-
     /** @deprecated since 1.6.0, will be removed in 1.7.0 */
     @Deprecated
     public AuthSession(

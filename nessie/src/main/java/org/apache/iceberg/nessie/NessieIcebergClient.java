@@ -581,19 +581,6 @@ public class NessieIcebergClient implements AutoCloseable {
     return false;
   }
 
-  /** @deprecated will be removed after 1.5.0 */
-  @Deprecated
-  public void commitTable(
-      TableMetadata base,
-      TableMetadata metadata,
-      String newMetadataLocation,
-      IcebergTable expectedContent,
-      ContentKey key)
-      throws NessieConflictException, NessieNotFoundException {
-    String contentId = expectedContent == null ? null : expectedContent.getId();
-    commitTable(base, metadata, newMetadataLocation, contentId, key);
-  }
-
   public void commitTable(
       TableMetadata base,
       TableMetadata metadata,

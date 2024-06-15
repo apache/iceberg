@@ -56,7 +56,7 @@ public class TestRowDataReaderFunction extends ReaderFunctionTestBase<RowData> {
         null,
         true,
         new HadoopFileIO(new org.apache.hadoop.conf.Configuration()),
-        new PlaintextEncryptionManager(),
+        PlaintextEncryptionManager.instance(),
         Collections.emptyList());
   }
 
