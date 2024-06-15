@@ -455,6 +455,9 @@ acceptedBreaks:
     - code: "java.field.removedWithConstant"
       old: "field org.apache.iceberg.TableProperties.HMS_TABLE_OWNER"
       justification: "Removing deprecations for 1.3.0"
+    - code: "java.method.addedToInterface"
+      new: "method org.apache.iceberg.metrics.MultiDimensionCounterResult org.apache.iceberg.metrics.ScanMetricsResult::resultDataFilesByFormat()"
+      justification: "Introduced MultiDimensionCounter API"
     - code: "java.method.parameterTypeChanged"
       old: "parameter void org.apache.iceberg.actions.RewriteDataFilesCommitManager.CommitService::offer(===org.apache.iceberg.actions.RewriteFileGroup===)"
       new: "parameter void org.apache.iceberg.actions.BaseCommitService<T>::offer(===T===)\

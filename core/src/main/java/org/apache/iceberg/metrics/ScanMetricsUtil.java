@@ -47,5 +47,7 @@ public class ScanMetricsUtil {
     }
 
     metrics.totalDeleteFileSizeInBytes().increment(deletesSizeInBytes);
+
+    metrics.resultDataFilesByFormat().increment(new DefaultMetricTag(dataFile.format().toString()));
   }
 }

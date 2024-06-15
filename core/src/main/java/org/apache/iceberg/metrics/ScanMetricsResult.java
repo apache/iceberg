@@ -73,11 +73,16 @@ public interface ScanMetricsResult {
   @Nullable
   CounterResult positionalDeleteFiles();
 
+  @Nullable
+  MultiDimensionCounterResult resultDataFilesByFormat();
+
   static ScanMetricsResult fromScanMetrics(ScanMetrics scanMetrics) {
     Preconditions.checkArgument(null != scanMetrics, "Invalid scan metrics: null");
     return ImmutableScanMetricsResult.builder()
         .totalPlanningDuration(TimerResult.fromTimer(scanMetrics.totalPlanningDuration()))
         .resultDataFiles(CounterResult.fromCounter(scanMetrics.resultDataFiles()))
+        .resultDataFilesByFormat(
+            MultiDimensionCounterResult.fromCounter(scanMetrics.resultDataFilesByFormat()))
         .resultDeleteFiles(CounterResult.fromCounter(scanMetrics.resultDeleteFiles()))
         .totalDataManifests(CounterResult.fromCounter(scanMetrics.totalDataManifests()))
         .totalDeleteManifests(CounterResult.fromCounter(scanMetrics.totalDeleteManifests()))

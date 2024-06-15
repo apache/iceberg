@@ -163,6 +163,20 @@ public class TestBase {
                   ))
           .withFileSizeInBytes(350)
           .build();
+  static final DataFile FILE_AVRO =
+      DataFiles.builder(SPEC)
+          .withPath("/path/to/data-a.avro")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("data_bucket=0") // easy way to set partition data for now
+          .withRecordCount(1)
+          .build();
+  static final DataFile FILE_ORC =
+      DataFiles.builder(SPEC)
+          .withPath("/path/to/data-a.orc")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("data_bucket=0") // easy way to set partition data for now
+          .withRecordCount(1)
+          .build();
 
   static final FileIO FILE_IO = new TestTables.LocalFileIO();
 
