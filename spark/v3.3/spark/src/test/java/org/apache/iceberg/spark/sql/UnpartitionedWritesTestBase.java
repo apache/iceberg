@@ -20,7 +20,6 @@ package org.apache.iceberg.spark.sql;
 
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.spark.source.SimpleRecord;
@@ -28,6 +27,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.functions;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -97,11 +97,12 @@ public abstract class UnpartitionedWritesTestBase extends SparkCatalogTestBase {
     Assume.assumeTrue(tableName.equals(commitTarget()));
     long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
     String prefix = "snapshot_id_";
-    AssertHelpers.assertThrows(
-        "Should not be able to insert into a table at a specific snapshot",
-        IllegalArgumentException.class,
-        "Cannot write to table at a specific snapshot",
-        () -> sql("INSERT INTO %s.%s VALUES (4, 'd'), (5, 'e')", tableName, prefix + snapshotId));
+    Assertions.assertThatThrownBy(
+            () ->
+                sql("INSERT INTO %s.%s VALUES (4, 'd'), (5, 'e')", tableName, prefix + snapshotId))
+        .as("Should not be able to insert into a table at a specific snapshot")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot write to table at a specific snapshot");
   }
 
   @Test
@@ -109,14 +110,14 @@ public abstract class UnpartitionedWritesTestBase extends SparkCatalogTestBase {
     Assume.assumeTrue(tableName.equals(commitTarget()));
     long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
     String prefix = "snapshot_id_";
-    AssertHelpers.assertThrows(
-        "Should not be able to insert into a table at a specific snapshot",
-        IllegalArgumentException.class,
-        "Cannot write to table at a specific snapshot",
-        () ->
-            sql(
-                "INSERT OVERWRITE %s.%s VALUES (4, 'd'), (5, 'e')",
-                tableName, prefix + snapshotId));
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "INSERT OVERWRITE %s.%s VALUES (4, 'd'), (5, 'e')",
+                    tableName, prefix + snapshotId))
+        .as("Should not be able to insert into a table at a specific snapshot")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot write to table at a specific snapshot");
   }
 
   @Test

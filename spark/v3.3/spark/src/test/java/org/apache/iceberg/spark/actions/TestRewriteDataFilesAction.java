@@ -47,7 +47,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -643,10 +642,9 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
         .when(spyRewrite)
         .rewriteFiles(any(), argThat(failGroup));
 
-    AssertHelpers.assertThrows(
-        "Should fail entire rewrite if part fails",
-        RuntimeException.class,
-        () -> spyRewrite.execute());
+    Assertions.assertThatThrownBy(() -> spyRewrite.execute())
+        .as("Should fail entire rewrite if part fails")
+        .isInstanceOf(RuntimeException.class);
 
     table.refresh();
 
@@ -678,10 +676,9 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
     doReturn(util).when(spyRewrite).commitManager(table.currentSnapshot().snapshotId());
 
-    AssertHelpers.assertThrows(
-        "Should fail entire rewrite if commit fails",
-        RuntimeException.class,
-        () -> spyRewrite.execute());
+    Assertions.assertThatThrownBy(() -> spyRewrite.execute())
+        .as("Should fail entire rewrite if commit fails")
+        .isInstanceOf(RuntimeException.class);
 
     table.refresh();
 
@@ -714,10 +711,9 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
         .when(spyRewrite)
         .rewriteFiles(any(), argThat(failGroup));
 
-    AssertHelpers.assertThrows(
-        "Should fail entire rewrite if part fails",
-        RuntimeException.class,
-        () -> spyRewrite.execute());
+    Assertions.assertThatThrownBy(() -> spyRewrite.execute())
+        .as("Should fail entire rewrite if part fails")
+        .isInstanceOf(RuntimeException.class);
 
     table.refresh();
 
@@ -859,32 +855,31 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   public void testInvalidOptions() {
     Table table = createTable(20);
 
-    AssertHelpers.assertThrows(
-        "No negative values for partial progress max commits",
-        IllegalArgumentException.class,
-        () ->
-            basicRewrite(table)
-                .option(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED, "true")
-                .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS, "-5")
-                .execute());
+    Assertions.assertThatThrownBy(
+            () ->
+                basicRewrite(table)
+                    .option(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED, "true")
+                    .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS, "-5")
+                    .execute())
+        .as("No negative values for partial progress max commits")
+        .isInstanceOf(IllegalArgumentException.class);
 
-    AssertHelpers.assertThrows(
-        "No negative values for max concurrent groups",
-        IllegalArgumentException.class,
-        () ->
-            basicRewrite(table)
-                .option(RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_REWRITES, "-5")
-                .execute());
+    Assertions.assertThatThrownBy(
+            () ->
+                basicRewrite(table)
+                    .option(RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_REWRITES, "-5")
+                    .execute())
+        .as("No negative values for max concurrent groups")
+        .isInstanceOf(IllegalArgumentException.class);
 
-    AssertHelpers.assertThrows(
-        "No unknown options allowed",
-        IllegalArgumentException.class,
-        () -> basicRewrite(table).option("foobarity", "-5").execute());
+    Assertions.assertThatThrownBy(() -> basicRewrite(table).option("foobarity", "-5").execute())
+        .as("No unknown options allowed")
+        .isInstanceOf(IllegalArgumentException.class);
 
-    AssertHelpers.assertThrows(
-        "Cannot set rewrite-job-order to foo",
-        IllegalArgumentException.class,
-        () -> basicRewrite(table).option(RewriteDataFiles.REWRITE_JOB_ORDER, "foo").execute());
+    Assertions.assertThatThrownBy(
+            () -> basicRewrite(table).option(RewriteDataFiles.REWRITE_JOB_ORDER, "foo").execute())
+        .as("Cannot set rewrite-job-order to foo")
+        .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test
@@ -1120,10 +1115,9 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
     doReturn(util).when(spyAction).commitManager(table.currentSnapshot().snapshotId());
 
-    AssertHelpers.assertThrows(
-        "Should propagate CommitStateUnknown Exception",
-        CommitStateUnknownException.class,
-        () -> spyAction.execute());
+    Assertions.assertThatThrownBy(() -> spyAction.execute())
+        .as("Should propagate CommitStateUnknown Exception")
+        .isInstanceOf(CommitStateUnknownException.class);
 
     List<Object[]> postRewriteData = currentData();
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
@@ -1239,23 +1233,20 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
     SortOrder sortOrder = SortOrder.builderFor(table.schema()).asc("c2").build();
 
-    AssertHelpers.assertThrows(
-        "Should be unable to set Strategy more than once",
-        IllegalArgumentException.class,
-        "Must use only one rewriter type",
-        () -> actions().rewriteDataFiles(table).binPack().sort());
+    Assertions.assertThatThrownBy(() -> actions().rewriteDataFiles(table).binPack().sort())
+        .as("Should be unable to set Strategy more than once")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Must use only one rewriter type");
 
-    AssertHelpers.assertThrows(
-        "Should be unable to set Strategy more than once",
-        IllegalArgumentException.class,
-        "Must use only one rewriter type",
-        () -> actions().rewriteDataFiles(table).sort(sortOrder).binPack());
+    Assertions.assertThatThrownBy(() -> actions().rewriteDataFiles(table).sort(sortOrder).binPack())
+        .as("Should be unable to set Strategy more than once")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Must use only one rewriter type");
 
-    AssertHelpers.assertThrows(
-        "Should be unable to set Strategy more than once",
-        IllegalArgumentException.class,
-        "Must use only one rewriter type",
-        () -> actions().rewriteDataFiles(table).sort(sortOrder).binPack());
+    Assertions.assertThatThrownBy(() -> actions().rewriteDataFiles(table).sort(sortOrder).binPack())
+        .as("Should be unable to set Strategy more than once")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Must use only one rewriter type");
   }
 
   @Test

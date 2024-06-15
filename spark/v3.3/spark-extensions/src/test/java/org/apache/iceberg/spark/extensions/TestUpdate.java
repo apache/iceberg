@@ -42,7 +42,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.AppendFiles;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
@@ -1149,17 +1148,15 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         "id INT, a ARRAY<STRUCT<c1:INT,c2:INT>>, m MAP<STRING,STRING>",
         "{ \"id\": 0, \"a\": null, \"m\": null }");
 
-    AssertHelpers.assertThrows(
-        "Should complain about updating an array column",
-        AnalysisException.class,
-        "Updating nested fields is only supported for structs",
-        () -> sql("UPDATE %s SET a.c1 = 1", commitTarget()));
+    Assertions.assertThatThrownBy(() -> sql("UPDATE %s SET a.c1 = 1", commitTarget()))
+        .as("Should complain about updating an array column")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Updating nested fields is only supported for structs");
 
-    AssertHelpers.assertThrows(
-        "Should complain about updating a map column",
-        AnalysisException.class,
-        "Updating nested fields is only supported for structs",
-        () -> sql("UPDATE %s SET m.key = 'new_key'", commitTarget()));
+    Assertions.assertThatThrownBy(() -> sql("UPDATE %s SET m.key = 'new_key'", commitTarget()))
+        .as("Should complain about updating a map column")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Updating nested fields is only supported for structs");
   }
 
   @Test
@@ -1167,27 +1164,27 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     createAndInitTable(
         "id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>", "{ \"id\": 0, \"s\": null }");
 
-    AssertHelpers.assertThrows(
-        "Should complain about conflicting updates to a top-level column",
-        AnalysisException.class,
-        "Updates are in conflict",
-        () -> sql("UPDATE %s t SET t.id = 1, t.c.n1 = 2, t.id = 2", commitTarget()));
+    Assertions.assertThatThrownBy(
+            () -> sql("UPDATE %s t SET t.id = 1, t.c.n1 = 2, t.id = 2", commitTarget()))
+        .as("Should complain about conflicting updates to a top-level column")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Updates are in conflict");
 
-    AssertHelpers.assertThrows(
-        "Should complain about conflicting updates to a nested column",
-        AnalysisException.class,
-        "Updates are in conflict for these columns",
-        () -> sql("UPDATE %s t SET t.c.n1 = 1, t.id = 2, t.c.n1 = 2", commitTarget()));
+    Assertions.assertThatThrownBy(
+            () -> sql("UPDATE %s t SET t.c.n1 = 1, t.id = 2, t.c.n1 = 2", commitTarget()))
+        .as("Should complain about conflicting updates to a nested column")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Updates are in conflict for these columns");
 
-    AssertHelpers.assertThrows(
-        "Should complain about conflicting updates to a nested column",
-        AnalysisException.class,
-        "Updates are in conflict",
-        () -> {
-          sql(
-              "UPDATE %s SET c.n1 = 1, c = named_struct('n1', 1, 'n2', named_struct('dn1', 1, 'dn2', 2))",
-              commitTarget());
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "UPDATE %s SET c.n1 = 1, c = named_struct('n1', 1, 'n2', named_struct('dn1', 1, 'dn2', 2))",
+                  commitTarget());
+            })
+        .as("Should complain about conflicting updates to a nested column")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Updates are in conflict");
   }
 
   @Test
@@ -1200,38 +1197,37 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
       withSQLConf(
           ImmutableMap.of("spark.sql.storeAssignmentPolicy", policy),
           () -> {
-            AssertHelpers.assertThrows(
-                "Should complain about writing nulls to a top-level column",
-                AnalysisException.class,
-                "Cannot write nullable values to non-null column",
-                () -> sql("UPDATE %s t SET t.id = NULL", commitTarget()));
+            Assertions.assertThatThrownBy(() -> sql("UPDATE %s t SET t.id = NULL", commitTarget()))
+                .as("Should complain about writing nulls to a top-level column")
+                .isInstanceOf(AnalysisException.class)
+                .hasMessageContaining("Cannot write nullable values to non-null column");
 
-            AssertHelpers.assertThrows(
-                "Should complain about writing nulls to a nested column",
-                AnalysisException.class,
-                "Cannot write nullable values to non-null column",
-                () -> sql("UPDATE %s t SET t.s.n1 = NULL", commitTarget()));
+            Assertions.assertThatThrownBy(
+                    () -> sql("UPDATE %s t SET t.s.n1 = NULL", commitTarget()))
+                .as("Should complain about writing nulls to a nested column")
+                .isInstanceOf(AnalysisException.class)
+                .hasMessageContaining("Cannot write nullable values to non-null column");
 
-            AssertHelpers.assertThrows(
-                "Should complain about writing missing fields in structs",
-                AnalysisException.class,
-                "missing fields",
-                () -> sql("UPDATE %s t SET t.s = named_struct('n1', 1)", commitTarget()));
+            Assertions.assertThatThrownBy(
+                    () -> sql("UPDATE %s t SET t.s = named_struct('n1', 1)", commitTarget()))
+                .as("Should complain about writing missing fields in structs")
+                .isInstanceOf(AnalysisException.class)
+                .hasMessageContaining("missing fields");
 
-            AssertHelpers.assertThrows(
-                "Should complain about writing invalid data types",
-                AnalysisException.class,
-                "Cannot safely cast",
-                () -> sql("UPDATE %s t SET t.s.n1 = 'str'", commitTarget()));
+            Assertions.assertThatThrownBy(
+                    () -> sql("UPDATE %s t SET t.s.n1 = 'str'", commitTarget()))
+                .as("Should complain about writing invalid data types")
+                .isInstanceOf(AnalysisException.class)
+                .hasMessageContaining("Cannot safely cast");
 
-            AssertHelpers.assertThrows(
-                "Should complain about writing incompatible structs",
-                AnalysisException.class,
-                "field name does not match",
-                () ->
-                    sql(
-                        "UPDATE %s t SET t.s.n2 = named_struct('dn2', 1, 'dn1', 2)",
-                        commitTarget()));
+            Assertions.assertThatThrownBy(
+                    () ->
+                        sql(
+                            "UPDATE %s t SET t.s.n2 = named_struct('dn2', 1, 'dn1', 2)",
+                            commitTarget()))
+                .as("Should complain about writing incompatible structs")
+                .isInstanceOf(AnalysisException.class)
+                .hasMessageContaining("field name does not match");
           });
     }
   }
@@ -1240,22 +1236,21 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
   public void testUpdateWithNonDeterministicCondition() {
     createAndInitTable("id INT, dep STRING", "{ \"id\": 1, \"dep\": \"hr\" }");
 
-    AssertHelpers.assertThrows(
-        "Should complain about non-deterministic expressions",
-        AnalysisException.class,
-        "nondeterministic expressions are only allowed",
-        () -> sql("UPDATE %s SET id = -1 WHERE id = 1 AND rand() > 0.5", commitTarget()));
+    Assertions.assertThatThrownBy(
+            () -> sql("UPDATE %s SET id = -1 WHERE id = 1 AND rand() > 0.5", commitTarget()))
+        .as("Should complain about non-deterministic expressions")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("nondeterministic expressions are only allowed");
   }
 
   @Test
   public void testUpdateOnNonIcebergTableNotSupported() {
     createOrReplaceView("testtable", "{ \"c1\": -100, \"c2\": -200 }");
 
-    AssertHelpers.assertThrows(
-        "UPDATE is not supported for non iceberg table",
-        UnsupportedOperationException.class,
-        "not supported temporarily",
-        () -> sql("UPDATE %s SET c1 = -1 WHERE c2 = 1", "testtable"));
+    Assertions.assertThatThrownBy(() -> sql("UPDATE %s SET c1 = -1 WHERE c2 = 1", "testtable"))
+        .as("UPDATE is not supported for non iceberg table")
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining("not supported temporarily");
   }
 
   @Test

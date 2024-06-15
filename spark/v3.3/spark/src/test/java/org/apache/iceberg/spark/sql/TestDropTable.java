@@ -24,12 +24,12 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -116,11 +116,11 @@ public class TestDropTable extends SparkCatalogTestBase {
         "There totally should have 2 files for manifests and files", 2, manifestAndFiles.size());
     Assert.assertTrue("All files should be existed", checkFilesExist(manifestAndFiles, true));
 
-    AssertHelpers.assertThrows(
-        "Purge table is not allowed when GC is disabled",
-        ValidationException.class,
-        "Cannot purge table: GC is disabled (deleting files may corrupt other tables",
-        () -> sql("DROP TABLE %s PURGE", tableName));
+    Assertions.assertThatThrownBy(() -> sql("DROP TABLE %s PURGE", tableName))
+        .as("Purge table is not allowed when GC is disabled")
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining(
+            "Cannot purge table: GC is disabled (deleting files may corrupt other tables");
 
     Assert.assertTrue("Table should not been dropped", validationCatalog.tableExists(tableIdent));
     Assert.assertTrue("All files should not be deleted", checkFilesExist(manifestAndFiles, true));

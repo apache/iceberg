@@ -28,7 +28,6 @@ import java.util.UUID;
 import java.util.concurrent.TimeoutException;
 import org.apache.avro.generic.GenericData;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
@@ -55,6 +54,7 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.execution.streaming.MemoryStream;
 import org.apache.spark.sql.streaming.StreamingQuery;
 import org.apache.spark.sql.streaming.StreamingQueryException;
+import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -120,16 +120,16 @@ public class TestForwardCompatibility {
 
     Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
 
-    AssertHelpers.assertThrows(
-        "Should reject write with unsupported transform",
-        UnsupportedOperationException.class,
-        "Cannot write using unsupported transforms: zero",
-        () ->
-            df.select("id", "data")
-                .write()
-                .format("iceberg")
-                .mode("append")
-                .save(location.toString()));
+    Assertions.assertThatThrownBy(
+            () ->
+                df.select("id", "data")
+                    .write()
+                    .format("iceberg")
+                    .mode("append")
+                    .save(location.toString()))
+        .as("Should reject write with unsupported transform")
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining("Cannot write using unsupported transforms: zero");
   }
 
   @Test
@@ -159,11 +159,10 @@ public class TestForwardCompatibility {
     List<Integer> batch1 = Lists.newArrayList(1, 2);
     send(batch1, inputStream);
 
-    AssertHelpers.assertThrows(
-        "Should reject streaming write with unsupported transform",
-        StreamingQueryException.class,
-        "Cannot write using unsupported transforms: zero",
-        query::processAllAvailable);
+    Assertions.assertThatThrownBy(query::processAllAvailable)
+        .as("Should reject streaming write with unsupported transform")
+        .isInstanceOf(StreamingQueryException.class)
+        .hasMessageContaining("Cannot write using unsupported transforms: zero");
   }
 
   @Test

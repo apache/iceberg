@@ -35,7 +35,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
@@ -59,6 +58,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.TableIdentifier;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -231,11 +231,12 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     Table spyTable = spy(table);
     when(spyTable.rewriteManifests()).thenReturn(spyNewRewriteManifests);
 
-    AssertHelpers.assertThrowsCause(
-        "Should throw a Commit State Unknown Exception",
-        RuntimeException.class,
-        "Datacenter on Fire",
-        () -> actions.rewriteManifests(spyTable).rewriteIf(manifest -> true).execute());
+    Assertions.assertThatThrownBy(
+            () -> actions.rewriteManifests(spyTable).rewriteIf(manifest -> true).execute())
+        .as("Should throw a Commit State Unknown Exception")
+        .cause()
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("Datacenter on Fire");
 
     table.refresh();
 
