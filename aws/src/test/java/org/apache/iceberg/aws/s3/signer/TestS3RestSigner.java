@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.stream.Collectors;
@@ -327,7 +328,10 @@ public class TestS3RestSigner {
       // back after signing
       Map<String, List<String>> unsignedHeaders =
           request.headers().entrySet().stream()
-              .filter(e -> S3SignerServlet.UNSIGNED_HEADERS.contains(e.getKey().toLowerCase()))
+              .filter(
+                  e ->
+                      S3SignerServlet.UNSIGNED_HEADERS.contains(
+                          e.getKey().toLowerCase(Locale.ROOT)))
               .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
       SdkHttpFullRequest.Builder builder = request.toBuilder();
