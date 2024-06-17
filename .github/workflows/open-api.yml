@@ -23,6 +23,7 @@ on:
     branches:
       - 'main'
       - '0.**'
+      - '1.**'
     tags:
       - 'apache-iceberg-**'
   pull_request:
