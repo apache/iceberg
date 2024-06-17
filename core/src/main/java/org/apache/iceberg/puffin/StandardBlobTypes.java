@@ -30,7 +30,7 @@ public final class StandardBlobTypes {
    */
   public static final String APACHE_DATASKETCHES_THETA_V1 = "apache-datasketches-theta-v1";
 
-  public static Set<String> blobTypes() {
+  public static Set<String> allStandardBlobTypes() {
     return Sets.newHashSet(APACHE_DATASKETCHES_THETA_V1);
   }
 }

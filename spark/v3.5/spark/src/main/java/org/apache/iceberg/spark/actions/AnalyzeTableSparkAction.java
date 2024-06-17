@@ -18,23 +18,31 @@
  */
 package org.apache.iceberg.spark.actions;
 
-import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
-import org.apache.iceberg.StatisticsFile;
+import java.util.stream.Stream;
+import org.apache.iceberg.GenericBlobMetadata;
+import org.apache.iceberg.GenericStatisticsFile;
+import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.actions.AnalyzeTable;
 import org.apache.iceberg.actions.ImmutableAnalyzeTable;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.puffin.Blob;
+import org.apache.iceberg.puffin.Puffin;
+import org.apache.iceberg.puffin.PuffinWriter;
 import org.apache.iceberg.puffin.StandardBlobTypes;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.JobGroupInfo;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.SparkSession;
 import org.slf4j.Logger;
@@ -47,13 +55,20 @@ public class AnalyzeTableSparkAction extends BaseSparkAction<AnalyzeTableSparkAc
   private static final Logger LOG = LoggerFactory.getLogger(AnalyzeTableSparkAction.class);
 
   private final Table table;
-  private Set<String> columns = ImmutableSet.of();
-  private Set<String> types = StandardBlobTypes.blobTypes();
+  private final Set<String> supportedBlobTypes =
+      ImmutableSet.of(StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1);
+  private Set<String> columns;
+  private Set<String> blobTypesToAnalyze = supportedBlobTypes;
   private Long snapshotId;
 
   AnalyzeTableSparkAction(SparkSession spark, Table table) {
     super(spark);
     this.table = table;
+    Snapshot snapshot = table.currentSnapshot();
+    ValidationException.check(snapshot != null, "Cannot analyze a table that has no snapshots");
+    snapshotId = snapshot.snapshotId();
+    columns =
+        table.schema().columns().stream().map(Types.NestedField::name).collect(Collectors.toSet());
   }
 
   @Override
@@ -63,97 +78,98 @@ public class AnalyzeTableSparkAction extends BaseSparkAction<AnalyzeTableSparkAc
 
   @Override
   public Result execute() {
-    if (snapshotId == null) {
-      snapshotId = table.currentSnapshot().snapshotId();
-    }
     String desc = String.format("Analyzing table %s for snapshot id %s", table.name(), snapshotId);
     JobGroupInfo info = newJobGroupInfo("ANALYZE-TABLE", desc);
     return withJobGroupInfo(info, this::doExecute);
   }
 
   private Result doExecute() {
-    LOG.info("Starting the analysis of {} for snapshot {}", table.name(), snapshotId);
-    List<AnalysisResult> analysisResults =
-        types.stream()
-            .map(
-                statsName -> {
-                  switch (statsName) {
+    LOG.info("Starting analysis of {} for snapshot {}", table.name(), snapshotId);
+    List<AnalysisResult> results = Lists.newArrayList();
+    List<Blob> blobs =
+        blobTypesToAnalyze.stream()
+            .flatMap(
+                type -> {
+                  switch (type) {
                     case StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1:
-                      return generateNDVAndCommit();
+                      try {
+                        return generateNDVBlobs().stream();
+                      } catch (Exception e) {
+                        LOG.error(
+                            "Error occurred when collecting statistics for blob type {}", type, e);
+                        ImmutableAnalyzeTable.AnalysisResult result =
+                            ImmutableAnalyzeTable.AnalysisResult.builder()
+                                .type(type)
+                                .addErrors(e.getMessage())
+                                .build();
+                        results.add(result);
+                      }
+                      break;
                     default:
-                      return ImmutableAnalyzeTable.AnalysisResult.builder()
-                          .type(statsName)
-                          .addAllErrors(Lists.newArrayList("Stats type not supported"))
-                          .build();
+                      throw new UnsupportedOperationException();
                   }
+                  return Stream.empty();
                 })
             .collect(Collectors.toList());
-    return ImmutableAnalyzeTable.Result.builder().analysisResults(analysisResults).build();
-  }
-
-  private boolean analyzableTypes(Set<String> columnNames) {
-    return columnNames.stream()
-        .anyMatch(
-            columnName -> {
-              Types.NestedField field = table.schema().findField(columnName);
-              if (field == null) {
-                throw new ValidationException("No column with %s name in the table", columnName);
-              }
-              Type.TypeID type = field.type().typeId();
-              return type == Type.TypeID.INTEGER
-                  || type == Type.TypeID.LONG
-                  || type == Type.TypeID.STRING
-                  || type == Type.TypeID.DOUBLE;
-            });
-  }
-
-  private AnalysisResult generateNDVAndCommit() {
     try {
-      if (snapshotId == null) {
-        snapshotId = table.currentSnapshot().snapshotId();
-      }
-
-      StatisticsFile statisticsFile =
-          NDVSketchGenerator.generateNDV(
-              spark(), table, snapshotId, columns.toArray(new String[0]));
-      table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
-      return ImmutableAnalyzeTable.AnalysisResult.builder()
-          .type(StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1)
-          .build();
-    } catch (IOException ioe) {
-      List<String> errors = Lists.newArrayList();
-      errors.add(ioe.getMessage());
-      return ImmutableAnalyzeTable.AnalysisResult.builder()
-          .type(StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1)
-          .addAllErrors(errors)
-          .build();
+      writeAndCommitPuffin(blobs);
+    } catch (Exception e) {
+      throw new RuntimeException(e);
     }
+    return ImmutableAnalyzeTable.Result.builder().analysisResults(results).build();
+  }
+
+  private void writeAndCommitPuffin(List<Blob> blobs) throws Exception {
+    TableOperations operations = ((HasTableOperations) table).operations();
+    FileIO fileIO = operations.io();
+    String path = operations.metadataFileLocation(String.format("%s.stats", UUID.randomUUID()));
+    OutputFile outputFile = fileIO.newOutputFile(path);
+    GenericStatisticsFile statisticsFile;
+    try (PuffinWriter writer =
+        Puffin.write(outputFile).createdBy("Iceberg Analyze action").build()) {
+      blobs.forEach(writer::add);
+      writer.finish();
+      statisticsFile =
+          new GenericStatisticsFile(
+              snapshotId,
+              path,
+              writer.fileSize(),
+              writer.footerSize(),
+              writer.writtenBlobsMetadata().stream()
+                  .map(GenericBlobMetadata::from)
+                  .collect(ImmutableList.toImmutableList()));
+    }
+    table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
+  }
+
+  private List<Blob> generateNDVBlobs() {
+    return NDVSketchGenerator.generateNDVSketchesAndBlobs(spark(), table, snapshotId, columns);
   }
 
   @Override
   public AnalyzeTable columns(String... columnNames) {
     Preconditions.checkArgument(
         columnNames != null && columnNames.length > 0, "Columns cannot be null/empty");
-    Set<String> columnsSet = Sets.newHashSet(Arrays.asList(columnNames));
-    Preconditions.checkArgument(
-        analyzableTypes(columnsSet),
-        "Cannot be applied to the given columns, since the column's type is not supported");
-    this.columns = columnsSet;
+    for (String columnName : columnNames) {
+      Types.NestedField field = table.schema().findField(columnName);
+      if (field == null) {
+        throw new ValidationException("No column with %s name in the table", columnName);
+      }
+    }
+    this.columns = ImmutableSet.copyOf(columnNames);
     return this;
   }
 
   @Override
-  public AnalyzeTable types(Set<String> statisticTypes) {
-    Preconditions.checkArgument(
-        Sets.newHashSet(StandardBlobTypes.blobTypes()).containsAll(statisticTypes),
-        "type not supported");
-    this.types = statisticTypes;
+  public AnalyzeTable blobTypes(Set<String> types) {
+    Preconditions.checkArgument(supportedBlobTypes.containsAll(types), "type not supported");
+    this.blobTypesToAnalyze = types;
     return this;
   }
 
   @Override
-  public AnalyzeTable snapshot(String snapshotIdStr) {
-    this.snapshotId = Long.parseLong(snapshotIdStr);
+  public AnalyzeTable snapshot(long snapId) {
+    this.snapshotId = snapId;
     return this;
   }
 }
